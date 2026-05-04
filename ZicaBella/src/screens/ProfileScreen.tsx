@@ -22,6 +22,7 @@ import { Image } from 'expo-image';
 import { useThemeStore } from '../store/themeStore';
 import { useBookmarkStore } from '../store/bookmarkStore';
 import { formatPrice } from '../utils/formatPrice';
+import { useNotificationStore } from '../store/notificationStore';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -32,6 +33,7 @@ export default function ProfileScreen() {
   const isDark = theme === 'dark';
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
   const { bookmarks } = useBookmarkStore();
+  const unreadCount = useNotificationStore(s => s.unreadCount());
 
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -310,6 +312,42 @@ export default function ProfileScreen() {
     }
   };
 
+  const MenuItem = ({ icon, title, subtitle, onPress, destructive, badge, type, value, onToggle }: any) => {
+    const colors = useColors();
+    return (
+      <TouchableOpacity 
+        style={[styles.menuItem, { borderBottomColor: colors.borderExtraLight }]} 
+        onPress={type === 'toggle' ? () => onToggle?.(!value) : onPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.menuItemLeft}>
+          <View style={[styles.iconBox, { backgroundColor: colors.surface }]}>
+            <Ionicons name={icon} size={16} color={destructive ? colors.error : colors.text} />
+          </View>
+          <Typography weight="500" size={12} color={destructive ? colors.error : colors.text} style={styles.menuLabel}>
+            {title}
+          </Typography>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {badge !== undefined && (
+            <View style={{ backgroundColor: colors.error, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
+              <Typography size={10} color="#FFF" weight="bold">{badge}</Typography>
+            </View>
+          )}
+          {type === 'toggle' ? (
+            <Pressable onPress={() => onToggle?.(!value)}>
+              <View style={[styles.toggleTrack, { backgroundColor: value ? colors.foreground : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') }]}>
+                <View style={[styles.toggleThumb, { transform: [{ translateX: value ? 20 : 2 }], backgroundColor: '#FFF' }]} />
+              </View>
+            </Pressable>
+          ) : (
+            <Ionicons name="chevron-forward" size={14} color={colors.textExtraLight} />
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   // ─── NOT AUTHENTICATED ───────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
@@ -430,43 +468,6 @@ export default function ProfileScreen() {
     { icon: 'newspaper-outline' as const, label: 'Blogs', onPress: () => navigation.navigate('Blogs') },
   ];
 
-  type MenuItem = {
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-    type?: 'toggle';
-    value?: boolean;
-    onToggle?: (val: boolean) => void;
-    onPress?: () => void;
-  };
-
-  const menuSections: { title: string; items: MenuItem[] }[] = [
-    {
-      title: 'Preferences',
-      items: [
-        { 
-          icon: 'moon-outline', 
-          label: 'Dark Mode', 
-          type: 'toggle', 
-          value: theme === 'dark', 
-          onToggle: (val: boolean) => {
-            useThemeStore.getState().setTheme(val ? 'dark' : 'light');
-            haptics.buttonTap();
-          }
-        },
-        { icon: 'finger-print-outline', label: 'Face ID / Touch ID', type: 'toggle', value: biometricEnabled, onToggle: handleBiometricToggle },
-      ],
-    },
-    {
-      title: 'Legal',
-      items: [
-        { icon: 'shield-outline', label: 'Privacy Policy', onPress: () => navigatePolicy('privacy') },
-        { icon: 'document-text-outline', label: 'Terms of Service', onPress: () => navigatePolicy('terms') },
-        { icon: 'refresh-outline', label: 'Refund Policy', onPress: () => navigatePolicy('refund') },
-        { icon: 'car-outline', label: 'Shipping Policy', onPress: () => navigatePolicy('shipping') },
-      ],
-    },
-  ];
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -479,7 +480,6 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
         }
       >
-        {/* ── Profile Header ── */}
         <View style={styles.profileHeader}>
           <TouchableOpacity activeOpacity={0.8} onPress={handlePickAvatar}>
             <BlurView intensity={isDark ? 20 : 60} tint={theme} style={[styles.avatarGlass, { borderColor: colors.borderLight }]}>
@@ -506,7 +506,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── Stats Row ── */}
         <View style={[styles.statsRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderExtraLight }]}>
           <TouchableOpacity style={styles.statItem} onPress={() => goRoot('OrderHistory')}>
             <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
@@ -537,7 +536,6 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Quick Actions Grid ── */}
         <View style={styles.quickActionsGrid}>
           {quickActions.map((action) => (
             <TouchableOpacity
@@ -554,7 +552,18 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* ── Store Credits Section ── */}
+        <View style={styles.sectionContainer}>
+          <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>NOTIFICATIONS</Typography>
+          <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
+            <MenuItem 
+              icon="notifications-outline" 
+              title="Notifications" 
+              onPress={() => navigation.navigate('Notifications')} 
+              badge={unreadCount > 0 ? unreadCount : undefined}
+            />
+          </BlurView>
+        </View>
+
         <View style={styles.sectionContainer}>
           <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>STORE CREDITS</Typography>
           <BlurView 
@@ -598,34 +607,6 @@ export default function ProfileScreen() {
           </BlurView>
         </View>
 
-        {/* ── Menu Sections ── */}
-        {menuSections.map((section) => (
-          <View key={section.title} style={styles.sectionContainer}>
-            <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>{section.title.toUpperCase()}</Typography>
-            <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
-              {section.items.map((item, idx) => (
-                <TouchableOpacity
-                  key={item.label}
-                  activeOpacity={0.7}
-                  onPress={item.type === 'toggle' ? () => item.onToggle?.(!item.value) : item.onPress}
-                  style={[
-                    styles.menuItem,
-                    idx < section.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.borderLight }
-                  ]}
-                >
-                  <View style={[styles.iconBox, { backgroundColor: colors.surface }]}>
-                    <Ionicons name={item.icon} size={16} color={colors.text} />
-                  </View>
-                  <Typography weight="500" size={12} color={colors.text} style={styles.menuLabel}>{item.label}</Typography>
-                  {item.type === 'toggle' ? (
-                    <Pressable onPress={() => item.onToggle?.(!item.value)}>
-                      <View style={[styles.toggleTrack, { backgroundColor: item.value ? colors.foreground : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') }]}>
-                        <View style={[styles.toggleThumb, { transform: [{ translateX: item.value ? 20 : 2 }], backgroundColor: '#FFF' }]} />
-                      </View>
-                    </Pressable>
-                  ) : (
-                    <Ionicons name="chevron-forward" size={14} color={colors.textExtraLight} />
-                  )}
                 </TouchableOpacity>
               ))}
             </BlurView>

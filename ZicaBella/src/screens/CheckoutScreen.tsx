@@ -257,7 +257,28 @@ export default function CheckoutScreen() {
         return;
       }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Payment Failed', err.message || 'Please try again');
+      
+      // Try to get a friendly error message from Claude
+      let friendlyMessage = err.message || 'Please try again';
+      try {
+        const claudeRes = await fetch(`${config.appUrl}/api/app/payment-error`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            error_code: err?.code || 'UNKNOWN',
+            error_description: err?.description || err?.message || 'Payment failed',
+            payment_method: paymentMethod,
+          }),
+        });
+        if (claudeRes.ok) {
+          const claudeData = await claudeRes.json();
+          if (claudeData.message) friendlyMessage = claudeData.message;
+        }
+      } catch {
+        // Silently fall back to original error message
+      }
+      
+      Alert.alert('Payment Failed', friendlyMessage);
     } finally {
       setLoading(false);
     }

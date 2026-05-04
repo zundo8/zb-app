@@ -31,6 +31,7 @@ import StoryScreen from '../screens/StoryScreen';
 import FAQScreen from '../screens/FAQScreen';
 import BlogsScreen from '../screens/BlogsScreen';
 import CollaborationsScreen from '../screens/CollaborationsScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 import { BlurView } from 'expo-blur';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -87,6 +88,7 @@ function ProfileStack() {
       <Stack.Screen name="FAQ" component={FAQScreen as any} />
       <Stack.Screen name="Blogs" component={BlogsScreen as any} />
       <Stack.Screen name="Collaborations" component={CollaborationsScreen as any} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen as any} />
     </Stack.Navigator>
   );
 }

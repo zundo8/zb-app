@@ -30,11 +30,16 @@ import {
   Truck,
   X,
   TrendingUp,
+  Sparkles,
+  Megaphone,
+  Mail,
+  MessageCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useRealtimeSync } from "@/lib/hooks/useRealtime";
 import ThemeToggle from "@/components/ThemeToggle";
+import ZicaAI from "@/components/ZicaAI";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -83,6 +88,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "App Integration", href: "/dashboard/app-integration", icon: Smartphone },
   ];
 
+  const intelligenceNav = [
+    { name: "Zica AI", href: "/dashboard/ai", icon: Sparkles },
+  ];
+
   const manufacturingNav = [
     { name: "Pending Tasks", href: "/dashboard/manufacturing/tasks", icon: ClipboardList },
     { name: "Production Tracker", href: "/dashboard/manufacturing/production", icon: TrendingUp },
@@ -90,6 +99,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Fabric Movement", href: "/dashboard/manufacturing/movement", icon: ArrowDownUp },
     { name: "Manufacturing Vendors", href: "/dashboard/manufacturing/vendors", icon: Building2 },
     { name: "Cost Ledger", href: "/dashboard/manufacturing/costs", icon: Coins },
+  ];
+
+  const marketingNav = [
+    { name: "Omnichannel Analytics", href: "/dashboard/marketing/analytics", icon: BarChart3 },
+    { name: "Push Notifications", href: "/dashboard/notifications", icon: Bell },
+    { name: "WhatsApp Hub", href: "/dashboard/marketing/whatsapp", icon: MessageCircle },
+    { name: "Email Campaigns", href: "/dashboard/marketing/email", icon: Mail },
+    { name: "SMS Campaigns", href: "/dashboard/marketing/sms", icon: MessageSquare },
   ];
 
   const isActive = useCallback(
@@ -257,6 +274,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             <div>
               <div className="mb-2 px-5 flex items-center gap-2">
+                <Sparkles className="w-3 h-3 text-violet-400" strokeWidth={2} />
+                <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
+                  Intelligence
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                {intelligenceNav.map((item) => (
+                  <NavLink key={item.name} item={item} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-2 px-5 flex items-center gap-2">
+                <Megaphone className="w-3 h-3 text-foreground/40" strokeWidth={2} />
+                <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
+                  Marketing
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                {marketingNav.map((item) => (
+                  <NavLink key={item.name} item={item} />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 px-5 flex items-center gap-2">
                 <Building2 className="w-3 h-3 text-foreground/40" strokeWidth={2} />
                 <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
                   Manufacturing
@@ -332,6 +376,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="max-w-[1400px] w-full mx-auto relative overflow-x-clip">{children}</div>
         </div>
       </main>
+
+      {/* Zica AI — Floating Command Center */}
+      <ZicaAI />
     </div>
   );
 }

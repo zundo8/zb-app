@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
 
   // Paths to protect — dashboard pages and admin API
   const isAdminPath = pathname.startsWith('/dashboard');
-  const isAdminApi  = pathname.startsWith('/api/admin');
+  const isAdminApi  = pathname.startsWith('/api/admin') || pathname === '/api/payments/refund';
 
   if (isAdminPath || isAdminApi) {
     const sessionToken = request.cookies.get('admin_session')?.value;
@@ -45,5 +45,6 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/api/admin/:path*',
+    '/api/payments/refund',
   ],
 };

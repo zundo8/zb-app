@@ -56,6 +56,15 @@ export default function OrderDetailScreen() {
     return () => clearInterval(interval);
   }, [fadeAnim, fetchOrderDetails]);
 
+  const openTracking = () => {
+    if (order.trackingUrl) {
+      Linking.openURL(order.trackingUrl);
+      haptics.buttonTap();
+    } else if (order.trackingNumber) {
+      copyTracking();
+    }
+  };
+
   const copyTracking = async () => {
     if (!order.trackingNumber) return;
     await Share.share({ message: order.trackingNumber });
@@ -242,7 +251,8 @@ export default function OrderDetailScreen() {
         {order.trackingNumber && (
           <TouchableOpacity 
             activeOpacity={0.7}
-            onPress={copyTracking}
+            onPress={openTracking}
+            onLongPress={copyTracking}
             style={[
               styles.trackingCard,
               {
@@ -252,17 +262,15 @@ export default function OrderDetailScreen() {
             ]}
           >
             <View style={[styles.trackingIcon, { backgroundColor: isDark ? 'rgba(175,82,222,0.1)' : 'rgba(175,82,222,0.06)' }]}>
-              <Ionicons name="cube-outline" size={18} color="#AF52DE" />
+              <Ionicons name="navigate-circle-outline" size={20} color="#AF52DE" />
             </View>
             <View style={{ flex: 1, marginLeft: 14 }}>
               <Typography size={10} weight="600" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>TRACKING NUMBER</Typography>
               <Typography size={14} weight="700" color={colors.text} style={{ marginTop: 4 }}>{order.trackingNumber}</Typography>
-              {order.courier && (
-                <Typography size={11} color={colors.textMuted} style={{ marginTop: 2 }}>via {order.courier}</Typography>
-              )}
+              <Typography size={11} color={colors.iosBlue} weight="600" style={{ marginTop: 2 }}>Tap to track · Long press to copy</Typography>
             </View>
             <View style={[styles.copyBtn, { backgroundColor: colors.foreground }]}>
-              <Ionicons name="copy-outline" size={14} color={colors.background} />
+              <Ionicons name="chevron-forward" size={16} color={colors.background} />
             </View>
           </TouchableOpacity>
         )}

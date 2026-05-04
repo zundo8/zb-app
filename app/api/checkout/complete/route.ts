@@ -15,14 +15,34 @@ export async function POST(req: Request) {
 
     // 1. Verify Payment if not COD
     if (paymentMethod !== "COD") {
-      if (!razorpay) return NextResponse.json({ error: "Payment details missing" }, { status: 400 });
+      if (!razorpay || !razorpay.razorpay_order_id || !razorpay.razorpay_payment_id || !razorpay.razorpay_signature) {
+        return NextResponse.json({ error: "Payment details missing" }, { status: 400 });
+      }
       
+      // Use env var first, then DB fallback for secret
+      let secret = process.env.RAZORPAY_KEY_SECRET;
+      if (!secret) {
+        secret = shop.razorpayKeySecret || "";
+      }
+      if (!secret) {
+        return NextResponse.json({ error: "Payment verification not configured" }, { status: 500 });
+      }
+
       const generated_signature = crypto
-        .createHmac("sha256", shop.razorpayKeySecret!)
+        .createHmac("sha256", secret)
         .update(razorpay.razorpay_order_id + "|" + razorpay.razorpay_payment_id)
         .digest("hex");
 
-      if (generated_signature !== razorpay.razorpay_signature) {
+      // Timing-safe comparison to prevent timing attacks
+      try {
+        const sigBuffer = Buffer.from(razorpay.razorpay_signature, "utf-8");
+        const genBuffer = Buffer.from(generated_signature, "utf-8");
+        if (sigBuffer.length !== genBuffer.length || !crypto.timingSafeEqual(sigBuffer, genBuffer)) {
+          console.error("[Razorpay] Signature mismatch for order:", razorpay.razorpay_order_id);
+          return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
+        }
+      } catch {
+        console.error("[Razorpay] Signature verification error");
         return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
       }
     }
@@ -130,6 +150,10 @@ export async function POST(req: Request) {
         deliveryStatus: "pending",
         shippingAddress: JSON.stringify(address),
         billingAddress: JSON.stringify(address),
+        razorpayOrderId: razorpay?.razorpay_order_id || null,
+        razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+        paymentMethod: paymentMethod === "COD" ? "COD" : "razorpay",
+        paymentCapturedAt: paymentMethod !== "COD" ? new Date() : null,
         items: {
           create: items.map((item: any) => ({
             shopifyLineItemId: `local_${Date.now()}_${item.id}`,

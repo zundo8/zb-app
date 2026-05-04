@@ -14,10 +14,18 @@ interface SettingsData {
   delhiveryApiKey: string;
   razorpayKeyId: string;
   razorpayKeySecret: string;
-  shiprocketEmail: string;
   shiprocketPassword: string;
   shiprocketToken: string;
   webhookSecret: string;
+  whatsappPhoneId: string;
+  whatsappToken: string;
+  firebaseProjectId: string;
+  firebaseClientEmail: string;
+  firebasePrivateKey: string;
+  sendgridApiKey: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
   [key: string]: any;
 }
 
@@ -133,6 +141,8 @@ export default function AdminSettingsPage() {
         'shopDomain', 'accessToken', 'delhiveryApiKey',
         'razorpayKeyId', 'razorpayKeySecret',
         'shiprocketEmail', 'shiprocketPassword', 'shiprocketToken', 'webhookSecret',
+        'whatsappPhoneId', 'whatsappToken', 'firebaseProjectId', 'firebaseClientEmail',
+        'firebasePrivateKey', 'sendgridApiKey', 'twilioAccountSid', 'twilioAuthToken', 'twilioPhoneNumber',
         'ringCarouselItems'
     ];
 
@@ -236,9 +246,40 @@ export default function AdminSettingsPage() {
         </SettingsGroup>
 
         {/* Security Hooks */}
-        <SettingsGroup title="Webhooks" icon={Webhook}>
+        <SettingsGroup title="Webhooks & Events" icon={Webhook}>
            <SettingsRow label="Webhook Secret" icon={Webhook} description="HMAC SHA256 validation">
               <InputField value={settings.webhookSecret!} onChange={set('webhookSecret')} secret />
+           </SettingsRow>
+        </SettingsGroup>
+
+        {/* Marketing & Communications */}
+        <SettingsGroup title="Marketing & Notifications" icon={Zap}>
+           <SettingsRow label="Meta WhatsApp ID" icon={Key} description="WhatsApp Business Phone Number ID">
+              <InputField value={settings.whatsappPhoneId!} onChange={set('whatsappPhoneId')} />
+           </SettingsRow>
+           <SettingsRow label="Meta WhatsApp Token" icon={Lock} description="Permanent Access Token">
+              <InputField value={settings.whatsappToken!} onChange={set('whatsappToken')} secret />
+           </SettingsRow>
+           <SettingsRow label="Firebase Project ID" icon={Key} description="Firebase Push Notifications">
+              <InputField value={settings.firebaseProjectId!} onChange={set('firebaseProjectId')} />
+           </SettingsRow>
+           <SettingsRow label="Firebase Service Email" icon={Lock} description="Firebase Admin Service Account">
+              <InputField value={settings.firebaseClientEmail!} onChange={set('firebaseClientEmail')} />
+           </SettingsRow>
+           <SettingsRow label="Firebase Private Key" icon={Lock} description="Service Account Private Key">
+              <InputField value={settings.firebasePrivateKey!} onChange={set('firebasePrivateKey')} secret />
+           </SettingsRow>
+           <SettingsRow label="SendGrid API Key" icon={Lock} description="Email Delivery System">
+              <InputField value={settings.sendgridApiKey!} onChange={set('sendgridApiKey')} secret />
+           </SettingsRow>
+           <SettingsRow label="Twilio Account SID" icon={Key} description="SMS Delivery System">
+              <InputField value={settings.twilioAccountSid!} onChange={set('twilioAccountSid')} />
+           </SettingsRow>
+           <SettingsRow label="Twilio Auth Token" icon={Lock} description="SMS Delivery Secret">
+              <InputField value={settings.twilioAuthToken!} onChange={set('twilioAuthToken')} secret />
+           </SettingsRow>
+           <SettingsRow label="Twilio Phone Number" icon={Lock} description="Sender Phone Number">
+              <InputField value={settings.twilioPhoneNumber!} onChange={set('twilioPhoneNumber')} />
            </SettingsRow>
         </SettingsGroup>
 

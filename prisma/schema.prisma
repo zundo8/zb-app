@@ -19,6 +19,15 @@ model Shop {
   shiprocketPassword       String?
   shiprocketToken          String?
   webhookSecret            String?
+  whatsappPhoneId          String?
+  whatsappToken            String?
+  firebaseProjectId        String?
+  firebaseClientEmail      String?
+  firebasePrivateKey       String?
+  sendgridApiKey           String?
+  twilioAccountSid         String?
+  twilioAuthToken          String?
+  twilioPhoneNumber        String?
   heroImage                String?
   heroVideo                String?
   heroTitle                String?
@@ -108,6 +117,9 @@ model Customer {
   payments              Payment[]
   returns               Return[]
   storeCreditTxns       StoreCredit[]
+  whatsappOptedOut      Boolean            @default(false)
+  emailOptedOut         Boolean            @default(false)
+  smsOptedOut           Boolean            @default(false)
 }
 
 model Follow {
@@ -122,32 +134,42 @@ model Follow {
 }
 
 model Order {
-  id                String      @id @default(cuid())
-  shopId            String
-  shopifyOrderId    String      @unique
-  customerId        String
-  status            String
-  orderType         String      @default("REGULAR") // REGULAR, RETURN, EXCHANGE
-  totalPrice        Float
-  subtotalPrice     Float?
-  totalTax          Float?
-  currency          String      @default("INR")
-  paymentStatus     String
-  fulfillmentStatus String
-  deliveryStatus    String      @default("pending")
-  shippingAddress   String?
-  billingAddress    String?
-  note              String?
-  tags              String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  exchanges         Exchange[]
-  customer          Customer    @relation(fields: [customerId], references: [id])
-  shop              Shop        @relation(fields: [shopId], references: [id])
-  items             OrderItem[]
-  payments          Payment[]
-  returns           Return[]
-  shipments         Shipment[]
+  id                  String      @id @default(cuid())
+  shopId              String
+  shopifyOrderId      String      @unique
+  customerId          String
+  status              String
+  orderType           String      @default("REGULAR") // REGULAR, RETURN, EXCHANGE
+  totalPrice          Float
+  subtotalPrice       Float?
+  totalTax            Float?
+  currency            String      @default("INR")
+  paymentStatus       String
+  fulfillmentStatus   String
+  deliveryStatus      String      @default("pending")
+  shippingAddress     String?
+  billingAddress      String?
+  note                String?
+  tags                String?
+  razorpayOrderId     String?     @unique
+  razorpayPaymentId   String?     @unique
+  paymentMethod       String?
+  paymentCapturedAt   DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  exchanges           Exchange[]
+  customer            Customer    @relation(fields: [customerId], references: [id])
+  shop                Shop        @relation(fields: [shopId], references: [id])
+  items               OrderItem[]
+  payments            Payment[]
+  returns             Return[]
+  shipments           Shipment[]
+  codConfirmationStatus String?     // pending, confirmed, cancelled, timed_out
+  codConfirmedAt      DateTime?
+  codConfirmationMethod String?   // whatsapp_button, sms_reply, manual_admin, auto
+  rtoRiskScore        Int?
+  rtoRiskFactors      String?     // JSON array of risk factors
+  aiRiskRecommendation String?
 }
 
 model OrderItem {
@@ -245,18 +267,34 @@ model Payment {
 }
 
 model Shipment {
-  id                String   @id @default(cuid())
-  orderId           String
-  trackingNumber    String?
-  trackingUrl       String?
-  courier           String?
-  status            String
-  currentLocation   String?
-  estimatedDelivery DateTime?
-  events            String?  @default("[]") // JSON array of { status, location, timestamp, description }
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(cuid())
+  orderId              String
+  trackingNumber       String?
+  awb                  String?  @unique
+  trackingUrl          String?
+  courier              String?
+  status               String
+  currentLocation      String?
+  estimatedDelivery    DateTime?
+  labelUrl             String?
+  rawDelhiveryResponse String?  // JSON string of full API response
+  events               String?  @default("[]") // JSON array of { status, location, timestamp, description }
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  order                Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  source      String    // 'razorpay' or 'delhivery'
+  eventType   String
+  payload     String    // JSON string of the full webhook payload
+  processed   Boolean   @default(false)
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([source, eventType])
+  @@index([createdAt])
 }
 
 model FeaturedUser {
@@ -527,4 +565,168 @@ model StoreCredit {
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════
+// NOTIFICATIONS & MARKETING MODULE
+// ═══════════════════════════════════════════════════════
+
+// --- Device Token Registry (M1: Push Notifications) ---
+
+model DeviceToken {
+  id          String   @id @default(cuid())
+  userId      String   // Maps to Customer.id or external user id
+  deviceId    String   // Unique device identifier
+  fcmToken    String
+  apnsToken   String?
+  platform    String   @default("ios") // ios, android
+  appVersion  String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId, isActive])
+  @@index([fcmToken])
+}
+
+// --- Notification Send Log (M1) ---
+
+model NotificationSend {
+  id           String   @id @default(cuid())
+  title        String
+  body         String
+  imageUrl     String?
+  data         String?  // JSON payload: { type, orderId, productHandle, etc. }
+  targetType   String   // all, segment, user
+  targetValue  String?  // segment name or userId
+  deepLinkType String?  // none, order, product, promo
+  deepLinkId   String?
+  scheduledAt  DateTime?
+  sentAt       DateTime?
+  status       String   @default("draft") // draft, scheduled, sending, sent, failed
+  sentCount    Int      @default(0)
+  deliveredCount Int    @default(0)
+  openedCount  Int      @default(0)
+  failedCount  Int      @default(0)
+  createdBy    String   @default("admin")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+  @@index([createdAt])
+}
+
+// --- WhatsApp Messages (M3: WhatsApp Marketing) ---
+
+model WhatsAppMessage {
+  id            String   @id @default(cuid())
+  direction     String   // inbound, outbound
+  waMessageId   String?  @unique // WhatsApp message ID
+  phoneNumber   String
+  userId        String?  // Customer id if matched
+  templateName  String?
+  body          String?
+  mediaUrl      String?
+  mediaType     String?  // image, video, document
+  status        String   @default("sent") // sent, delivered, read, failed
+  campaignId    String?
+  orderId       String?
+  errorCode     String?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([phoneNumber, createdAt])
+  @@index([userId])
+  @@index([campaignId])
+  @@index([status])
+}
+
+// --- WhatsApp Campaigns (M3) ---
+
+model WhatsAppCampaign {
+  id                  String   @id @default(cuid())
+  name                String
+  templateName        String
+  templateParams      String?  // JSON: parameter schema
+  targetSegment       String   @default("all") // all, new, repeat, vip, cart_abandon
+  scheduledAt         DateTime?
+  sentAt              DateTime?
+  status              String   @default("draft") // draft, scheduled, sending, sent, failed
+  createdBy           String   @default("admin")
+  statsSent           Int      @default(0)
+  statsDelivered      Int      @default(0)
+  statsRead           Int      @default(0)
+  statsReplied        Int      @default(0)
+  statsFailed         Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+}
+
+// --- Email Campaigns (M4) ---
+
+model EmailCampaign {
+  id              String   @id @default(cuid())
+  name            String
+  subject         String
+  previewText     String?
+  htmlContent     String   @db.Text
+  plainText       String?  @db.Text
+  fromName        String?  @default("Zica Bella")
+  targetSegment   String   @default("all")
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  status          String   @default("draft") // draft, scheduled, sending, sent, failed
+  createdBy       String   @default("admin")
+  statsSent       Int      @default(0)
+  statsOpened     Int      @default(0)
+  statsClicked    Int      @default(0)
+  statsBounced    Int      @default(0)
+  statsUnsubscribed Int    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+}
+
+// --- SMS Campaigns (M5) ---
+
+model SmsCampaign {
+  id              String   @id @default(cuid())
+  name            String
+  messageBody     String   // max 160 chars
+  targetSegment   String   @default("all")
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  status          String   @default("draft") // draft, scheduled, sending, sent, failed
+  createdBy       String   @default("admin")
+  statsSent       Int      @default(0)
+  statsDelivered  Int      @default(0)
+  statsFailed     Int      @default(0)
+  dltTemplateId   String?  // DLT registered template ID for India
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+}
+
+// --- Campaign Analytics Events (M4/M7: Open/Click Tracking) ---
+
+model CampaignAnalyticsEvent {
+  id          String   @id @default(cuid())
+  channel     String   // email, whatsapp, sms, push
+  campaignId  String
+  userId      String?
+  eventType   String   // open, click, reply, unsubscribe, bounce, delivered
+  metadata    String?  // JSON: { url, linkText, etc. }
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([channel, campaignId, eventType])
+  @@index([userId, channel])
+  @@index([createdAt])
 }

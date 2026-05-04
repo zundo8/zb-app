@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 import "./globals.css";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import StorefrontFooter from "@/components/StorefrontFooter";
+import { Toaster } from "sonner";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -60,6 +61,7 @@ export default function RootLayout({
         <Providers>
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}
+            <Toaster position="top-right" richColors />
           </LayoutWrapper>
         </Providers>
       </body>

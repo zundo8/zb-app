@@ -10,6 +10,8 @@ import { ConsentModal } from './src/components/ConsentModal';
 import { useThemeStore } from './src/store/themeStore';
 import { useFonts } from 'expo-font';
 import { getColors } from './src/constants/colors';
+import { NotificationService } from './src/services/NotificationService';
+import { InAppNotificationBanner } from './src/components/InAppNotificationBanner';
 
 // Sentry initialization is disabled during local development to prevent Expo Go native module crashes.
 // It will be enabled in the final EAS build.
@@ -30,6 +32,7 @@ function App() {
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync().catch(() => {});
+      NotificationService.initialize();
     }
   }, [fontsLoaded]);
 
@@ -43,6 +46,7 @@ function App() {
           backgroundColor={colors.background}
           translucent 
         />
+        <InAppNotificationBanner />
         <RootNavigator />
         <ConsentModal />
       </SafeAreaProvider>
