@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { Anthropic } from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY,
-});
+import { anthropic, CLAUDE_MODELS } from '@/lib/ai';
 
 export async function POST(req: Request) {
   try {
@@ -70,7 +66,7 @@ export async function POST(req: Request) {
     `;
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: CLAUDE_MODELS.FAST,
       max_tokens: 500,
       temperature: 0.1, // Low temperature for consistent JSON
       messages: [
