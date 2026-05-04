@@ -43,6 +43,7 @@ prisma/dev.db
 .env.local
 
 # ZicaBella Native Builds
+/ZicaBella/node_modules/
 /ZicaBella/build_manual/
 /ZicaBella/ios/
 /ZicaBella/android/

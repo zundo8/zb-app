@@ -1,0 +1,13 @@
+node_modules
+.next
+.vercel
+ZicaBella/node_modules
+ZicaBella/ios
+ZicaBella/android
+ZicaBella/build_manual
+ZicaBella/.expo
+*.db
+*.csv
+.env
+.env.local
+.DS_Store
