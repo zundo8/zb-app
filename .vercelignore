@@ -1,13 +1,15 @@
-node_modules
-.next
-.vercel
-ZicaBella/node_modules
-ZicaBella/ios
-ZicaBella/android
-ZicaBella/build_manual
-ZicaBella/.expo
+# Ignore the entire mobile app directory for Vercel deployment
+ZicaBella/
+node_modules/
+.next/
+.vercel/
 *.db
 *.csv
 .env
 .env.local
 .DS_Store
+theme-extension/
+tmp/
+scripts/
+customers_export.csv
+orders_export_1.csv
