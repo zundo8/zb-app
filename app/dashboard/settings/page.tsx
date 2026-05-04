@@ -40,8 +40,8 @@ function SettingsGroup({ title, children, icon: Icon }: { title?: string; childr
     >
       {title && (
         <div className="flex items-center gap-3 px-6">
-           {Icon && <Icon className="w-4.5 h-4.5 text-white/20" />}
-           <h3 className="text-[11px] font-bold uppercase tracking-[0.4em] text-white/20">{title}</h3>
+           {Icon && <Icon className="w-4 h-4 text-foreground/40" />}
+           <h3 className="text-[11px] font-bold uppercase tracking-[0.4em] text-foreground/40">{title}</h3>
         </div>
       )}
       <div className="glass-card rounded-[2.5rem] overflow-hidden">
@@ -65,16 +65,16 @@ function SettingsRow({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between px-10 py-8 border-b border-white/5 last:border-0 gap-6 group/row hover:bg-white/[0.01] transition-all duration-700">
+    <div className="flex flex-col md:flex-row md:items-center justify-between px-10 py-8 border-b border-foreground/5 last:border-0 gap-6 group/row hover:bg-foreground/[0.02] transition-all duration-700">
       <div className="flex items-center gap-8">
         {Icon && (
-          <div className="w-14 h-14 rounded-[1.25rem] bg-white/5 flex items-center justify-center text-white/20 border border-white/5 group-hover/row:bg-white group-hover/row:text-black transition-all duration-700 shadow-2xl">
+          <div className="w-14 h-14 rounded-[1.25rem] bg-foreground/5 flex items-center justify-center text-foreground/40 border border-foreground/5 group-hover/row:bg-foreground group-hover/row:text-background transition-all duration-700 shadow-2xl">
             <Icon className="w-6 h-6" strokeWidth={1.5} />
           </div>
         )}
         <div className="flex flex-col">
-          <span className="text-[15px] font-bold text-white tracking-tight leading-none mb-2 uppercase">{label}</span>
-          {description && <span className="text-[10px] text-white/20 font-bold uppercase tracking-[0.3em] leading-none">{description}</span>}
+          <span className="text-[15px] font-bold text-foreground tracking-tight leading-none mb-2 uppercase">{label}</span>
+          {description && <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-[0.3em] leading-none">{description}</span>}
         </div>
       </div>
       <div className="flex-1 w-full md:max-w-md flex justify-end">
@@ -103,12 +103,12 @@ function InputField({
         value={value || ''}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-white/5 px-6 py-4 rounded-2xl border border-white/5 focus:border-white/20 text-right text-[13px] font-bold text-white placeholder:text-white/10 outline-none transition-all pr-14 shadow-inner font-mono tracking-tight"
+        className="w-full bg-foreground/5 px-6 py-4 rounded-2xl border border-foreground/5 focus:border-foreground/20 text-right text-[13px] font-bold text-foreground placeholder:text-foreground/20 outline-none transition-all pr-14 shadow-inner font-mono tracking-tight"
       />
       {secret && (
         <button 
           onClick={() => setShow(!show)}
-          className="absolute right-4 p-1.5 rounded-lg text-white/20 hover:text-white transition-colors"
+          className="absolute right-4 p-1.5 rounded-lg text-foreground/40 hover:text-foreground transition-colors"
         >
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
@@ -187,10 +187,10 @@ export default function AdminSettingsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 px-4 pt-10 mb-16 relative z-10">
         <div className="space-y-4">
-          <h1 className="text-5xl font-bold text-white uppercase tracking-tighter leading-none">
+          <h1 className="text-5xl font-bold text-foreground uppercase tracking-tighter leading-none">
             Infrastructure
           </h1>
-          <p className="text-[11px] text-white/30 font-bold uppercase tracking-[0.4em] max-w-xl">
+          <p className="text-[11px] text-foreground/50 font-bold uppercase tracking-[0.4em] max-w-xl">
             Secure configuration and API key management.
           </p>
         </div>
@@ -293,9 +293,9 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="text-center pt-10">
-         <div className="inline-flex items-center gap-3 px-6 py-2.5 border border-foreground/[0.08] rounded-full bg-white/40 dark:bg-white/[0.02] shadow-xl backdrop-blur-md">
+         <div className="inline-flex items-center gap-3 px-6 py-2.5 border border-foreground/[0.08] rounded-full bg-foreground/[0.02] shadow-xl backdrop-blur-md">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-slow" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/30">System Configuration Locked</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50">System Configuration Locked</span>
          </div>
       </div>
     </motion.div>
