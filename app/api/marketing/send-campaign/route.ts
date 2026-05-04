@@ -8,7 +8,7 @@ import { fetchAllCustomers } from '@/lib/shopify-admin';
 
 export async function POST(req: Request) {
   try {
-    const { channel, targetAudience, subject, messageBody, templateId } = await req.json();
+    const { channel, targetAudience, subject, messageBody, templateId, mediaUrl } = await req.json();
 
     if (!channel || !targetAudience || !messageBody) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -24,7 +24,11 @@ export async function POST(req: Request) {
     });
 
     if (targetAudience === 'vip') {
-      targetCustomers = targetCustomers.filter(c => c.totalOrders > 2 || c.totalSpent > 10000);
+      targetCustomers = targetCustomers.filter(c => (c.totalOrders || 0) > 2 || (c.totalSpent || 0) > 10000);
+    } else if (targetAudience === 'recent') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      targetCustomers = targetCustomers.filter(c => c.lastOrderDate && new Date(c.lastOrderDate) > thirtyDaysAgo);
     }
 
     if (targetCustomers.length === 0) {
@@ -49,7 +53,8 @@ export async function POST(req: Request) {
       for (const customer of targetCustomers) {
         if (!customer.phone) continue;
         try {
-          await SmsService.sendSms(customer.phone, messageBody, templateId);
+          const formattedPhone = WhatsAppService.formatPhone(customer.phone);
+          await SmsService.sendSms(formattedPhone, messageBody, templateId);
           successCount++;
         } catch (e) {
           failedCount++;
@@ -61,11 +66,17 @@ export async function POST(req: Request) {
       for (const customer of targetCustomers) {
         if (!customer.phone) continue;
         try {
-          // If we have a templateId, we send a template. Otherwise a plain text message.
-          if (templateId) {
-             await WhatsAppService.sendTemplateMessage(customer.phone, templateId);
+          const formattedPhone = WhatsAppService.formatPhone(customer.phone);
+          
+          if (mediaUrl) {
+            // If media is provided, we send a media message with caption
+            await WhatsAppService.sendMediaMessage(formattedPhone, 'image', mediaUrl, messageBody);
+          } else if (templateId) {
+            // If we have a templateId, we send a template.
+            await WhatsAppService.sendTemplateMessage(formattedPhone, templateId);
           } else {
-             await WhatsAppService.sendTextMessage(customer.phone, messageBody);
+            // Otherwise a plain text message.
+            await WhatsAppService.sendTextMessage(formattedPhone, messageBody);
           }
           successCount++;
         } catch (e) {
@@ -78,10 +89,10 @@ export async function POST(req: Request) {
     if (successCount > 0) {
       await db.campaignAnalyticsEvent.create({
         data: {
-          campaignId: `camp_${Date.now()}`, // Simple mock ID
+          campaignId: `camp_${Date.now()}`,
           channel,
           eventType: 'sent',
-          metadata: JSON.stringify({ successCount, failedCount, targetAudience })
+          metadata: JSON.stringify({ successCount, failedCount, targetAudience, templateId, hasMedia: !!mediaUrl })
         }
       });
     }
