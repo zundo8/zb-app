@@ -33,8 +33,8 @@ export const metadata: Metadata = {
   title: "Zica Bella",
   description: "Premium luxury streetwear. Redefining the standard.",
   icons: {
-    icon: "/zica-bella-logo_8.png",
-    apple: "/zica-bella-logo_8.png",
+    icon: "/ZB-logo-silver.svg",
+    apple: "/ZB-logo-silver.svg",
   },
   appleWebApp: {
     capable: true,
