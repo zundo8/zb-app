@@ -14,6 +14,7 @@ interface SettingsData {
   delhiveryApiKey: string;
   razorpayKeyId: string;
   razorpayKeySecret: string;
+  shiprocketEmail: string;
   shiprocketPassword: string;
   shiprocketToken: string;
   webhookSecret: string;
@@ -209,7 +210,7 @@ export default function AdminSettingsPage() {
           ) : (
              <Save className="w-4 h-4" strokeWidth={2.5} />
           )}
-          {saving ? 'Synchronizing...' : saveStatus === 'success' ? 'Persisted' : 'Commit Config'}
+          {saving ? 'Synchronizing...' : saveStatus === 'success' ? 'Settings Saved' : saveStatus === 'error' ? 'Save Failed' : 'Commit Config'}
         </button>
       </div>
 
@@ -239,6 +240,12 @@ export default function AdminSettingsPage() {
         <SettingsGroup title="Logistics Services" icon={Truck}>
            <SettingsRow label="Delhivery API Key" icon={Zap} description="Primary logistics API">
               <InputField value={settings.delhiveryApiKey!} onChange={set('delhiveryApiKey')} secret />
+           </SettingsRow>
+           <SettingsRow label="Shiprocket Email" icon={Zap} description="Login Email">
+              <InputField value={settings.shiprocketEmail!} onChange={set('shiprocketEmail')} />
+           </SettingsRow>
+           <SettingsRow label="Shiprocket Password" icon={Zap} description="Login Password">
+              <InputField value={settings.shiprocketPassword!} onChange={set('shiprocketPassword')} secret />
            </SettingsRow>
            <SettingsRow label="Shiprocket Auth" icon={Zap} description="Cloud synchronization token">
               <InputField value={settings.shiprocketToken!} onChange={set('shiprocketToken')} secret />

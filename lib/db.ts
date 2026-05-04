@@ -82,14 +82,13 @@ const prismaClientSingleton = () => {
 };
 
 declare const globalThis: {
-  __prisma_fresh: ReturnType<typeof prismaClientSingleton>;
+  __prisma_fresh_v2: ReturnType<typeof prismaClientSingleton>;
 } & typeof global;
 
-const prisma = globalThis.__prisma_fresh ?? prismaClientSingleton();
+const prisma = globalThis.__prisma_fresh_v2 ?? prismaClientSingleton();
 
 export default prisma;
 
-// Only cache the client globally in development (production uses fresh per-request)
 if (process.env.NODE_ENV !== 'production') {
-  globalThis.__prisma_fresh = prisma;
+  globalThis.__prisma_fresh_v2 = prisma;
 }
