@@ -11,6 +11,7 @@ import GlassHeader from '../components/GlassHeader';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../store/authStore';
 import { config } from '../constants/config';
 import { formatPrice } from '../utils/formatPrice';
 import { haptics } from '../utils/haptics';
@@ -71,7 +72,11 @@ export default function OrderHistoryScreen() {
       const nextOffset = mode === 'more' ? offsetRef.current : 0;
       params.set('offset', String(nextOffset));
 
-      const res = await fetch(`${config.appUrl}/api/app/orders?${params.toString()}`);
+      const res = await fetch(`${config.appUrl}/api/app/orders?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${useAuthStore.getState().token || ''}`
+        }
+      });
       const json = await res.json();
       
       if (!res.ok) throw new Error(json.error || 'Failed to fetch orders');

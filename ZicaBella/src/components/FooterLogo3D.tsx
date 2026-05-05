@@ -2,12 +2,12 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { Center, useGLTF } from '@react-three/drei/native';
-import { Asset } from 'expo-asset';
 import { Image } from 'expo-image';
 import type { Group } from 'three';
 
+import { config } from '../constants/config';
+
 const LOGO_SVG = require('../assets/ZB-logo-silver.svg');
-const MODEL = require('../assets/Zicabella-silver-logo.glb');
 
 /** Premium sizing for mobile view (80px matches visual prominence of 56px on web) */
 const WRAP_W = 80;
@@ -81,12 +81,17 @@ export default function FooterLogo3D() {
     let cancelled = false;
     (async () => {
       try {
-        const asset = Asset.fromModule(MODEL);
-        await asset.downloadAsync();
-        const u = asset.localUri ?? asset.uri;
-        if (!cancelled && u) setUri(u);
-        else if (!cancelled) setUseSvg(true);
-      } catch {
+        const res = await fetch(`${config.appUrl}/api/app/config`);
+        const json = await res.json();
+        
+        if (!cancelled) {
+          if (json.config?.media?.footerLogo3dUrl) {
+            setUri(json.config.media.footerLogo3dUrl);
+          } else {
+            setUseSvg(true);
+          }
+        }
+      } catch (err) {
         if (!cancelled) setUseSvg(true);
       }
     })();

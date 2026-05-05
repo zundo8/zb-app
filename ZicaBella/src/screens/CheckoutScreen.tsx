@@ -19,6 +19,8 @@ import { config } from '../constants/config';
 import { formatPrice } from '../utils/formatPrice';
 import { useCartStore } from '../store/cartStore';
 import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../store/authStore';
+import { openRazorpayCheckout } from '../services/razorpayService';
 import { useThemeStore } from '../store/themeStore';
 import { useUIStore } from '../store/uiStore';
 import { BlurView } from 'expo-blur';
@@ -149,7 +151,10 @@ export default function CheckoutScreen() {
   const completeShopifyCheckout = async (payment?: any) => {
     const res = await fetch(`${config.appUrl}/api/checkout/complete`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${useAuthStore.getState().token || ''}`
+      },
       body: JSON.stringify({
         address: {
           name: address.name,
@@ -195,7 +200,6 @@ export default function CheckoutScreen() {
       if (paymentMethod === 'COD') {
         const orderId = await completeShopifyCheckout();
         
-        // Update local user record
         updateUser({
           name: address.name,
           phone: address.phone,
@@ -208,41 +212,29 @@ export default function CheckoutScreen() {
         return;
       }
 
-      const razorpayOrderRes = await fetch(`${config.appUrl}/api/checkout/razorpay`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: subtotal }),
-      });
-      const razorpayOrder = await razorpayOrderRes.json();
-      if (!razorpayOrderRes.ok) {
-        throw new Error(razorpayOrder?.error || 'Unable to initiate payment');
-      }
-
-      let RazorpayCheckout: any;
-      try {
-        RazorpayCheckout = require('react-native-razorpay').default;
-      } catch (e) {
-        Alert.alert('Payment unavailable', 'Razorpay is not available in this environment. Use a native build.');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        return;
-      }
-
-      const paymentData = await RazorpayCheckout.open({
-        description: 'Zica Bella Order',
-        currency: 'INR',
-        key: razorpayOrder.keyId || process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || '',
-        order_id: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        name: 'ZICA BELLA',
-        prefill: { contact: address.phone, name: address.name, email: address.email },
-        theme: { color: '#000000' },
-      });
+      // Razorpay Flow
+      const result = await openRazorpayCheckout(
+        {
+          amount: subtotal,
+          receipt: `order_${Date.now()}`,
+        },
+        {
+          name: address.name || user?.name || '',
+          email: address.email || user?.email || '',
+          phone: address.phone || user?.phone || '',
+        },
+        useAuthStore.getState().token || ''
+      );
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      const orderId = await completeShopifyCheckout(paymentData);
+      // Payment verified — save order to DB via the existing completeShopifyCheckout
+      const orderId = await completeShopifyCheckout({
+        razorpay_payment_id: result.razorpay_payment_id,
+        razorpay_order_id: result.razorpay_order_id,
+        razorpay_signature: result.razorpay_signature,
+      });
       
-      // Update local user record
       updateUser({
         name: address.name,
         phone: address.phone,
@@ -250,13 +242,15 @@ export default function CheckoutScreen() {
       });
 
       clearCart();
-      navigation.replace('OrderConfirmation', { orderId });
+      navigation.replace('OrderConfirmation', { orderId, paymentId: result.razorpay_payment_id });
     } catch (err: any) {
-      if (err?.code === 2) {
+      if (err?.code === 2 || err?.code === 0) {
         // User cancelled
         return;
       }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Payment Failed', err?.description || err?.message || 'Something went wrong. Please try again.', [{ text: 'OK' }]);
+
       
       // Try to get a friendly error message from Claude
       let friendlyMessage = err.message || 'Please try again';

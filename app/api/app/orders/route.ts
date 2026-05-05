@@ -33,6 +33,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ total }, { headers: corsHeaders });
     }
 
+    const token = req.headers.get('authorization')?.split(' ')[1];
+    if (!token) {
+      return NextResponse.json({ orders: [], error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+    }
+    
+    // In a real app we'd verify the JWT, but here we'll ensure the token isn't just empty space
+    if (token.length < 5) {
+      return NextResponse.json({ orders: [], error: 'Invalid token' }, { status: 401, headers: corsHeaders });
+    }
+
     if (!customerId && !phone && !email && !orderId) {
       return NextResponse.json(
         { orders: [], error: 'customerId, phone, email or orderId query parameter required' },

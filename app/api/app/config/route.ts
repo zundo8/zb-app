@@ -144,6 +144,7 @@ export async function GET() {
         featuredImage: shop.featuredMediaImage,
         collections: shop.collectionsMedia,
         footer: shop.footerVideo,
+        footerLogo3dUrl: 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
       },
       navigation: {
         mainMenu: shop.mainMenuHandle,

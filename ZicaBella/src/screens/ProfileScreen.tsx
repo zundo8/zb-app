@@ -10,6 +10,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as ImagePicker from 'expo-image-picker';
 import { useColors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../store/authStore';
 import { sendOTP, verifyOTP, signOut } from '../auth/firebase';
 import { signInWithApple, isAppleSignInAvailable } from '../auth/apple';
 import { haptics } from '../utils/haptics';
@@ -61,13 +62,15 @@ export default function ProfileScreen() {
       if (user.phone) params.set('phone', user.phone);
       if (user.email) params.set('email', user.email);
 
+      const authOptions = { headers: { 'Authorization': `Bearer ${useAuthStore.getState().token || ''}` } };
+      
       const [profileRes, ordersRes, addrRes, returnsRes, exchangesRes, creditsRes] = await Promise.all([
-        fetch(`${config.appUrl}/api/app/profile?${params.toString()}`),
-        fetch(`${config.appUrl}/api/app/orders?${params.toString()}&limit=1&count=true`),
-        fetch(`${config.appUrl}/api/app/customers/addresses?${params.toString()}`),
-        fetch(`${config.appUrl}/api/app/returns?${params.toString()}`),
-        fetch(`${config.appUrl}/api/app/exchanges?${params.toString()}`),
-        fetch(`${config.appUrl}/api/app/store-credits?${params.toString()}`),
+        fetch(`${config.appUrl}/api/app/profile?${params.toString()}`, authOptions),
+        fetch(`${config.appUrl}/api/app/orders?${params.toString()}&limit=1&count=true`, authOptions),
+        fetch(`${config.appUrl}/api/app/customers/addresses?${params.toString()}`, authOptions),
+        fetch(`${config.appUrl}/api/app/returns?${params.toString()}`, authOptions),
+        fetch(`${config.appUrl}/api/app/exchanges?${params.toString()}`, authOptions),
+        fetch(`${config.appUrl}/api/app/store-credits?${params.toString()}`, authOptions),
       ]);
 
       const profileJson = await profileRes.json().catch(() => ({}));

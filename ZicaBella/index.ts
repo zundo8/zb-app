@@ -1,29 +1,35 @@
 /**
  * App Entry Point
  *
- * @react-native-firebase auto-initialises the native Firebase app from
- * GoogleService-Info.plist (iOS) / google-services.json (Android) before any
- * JS code runs, so we never need to call firebase.initializeApp() here.
+ * Uses Expo Notifications for push notification handling.
+ * Firebase native modules have been removed to eliminate iOS init crashes.
  */
-import '@react-native-firebase/app'; // ensure native module is linked
-import messaging from '@react-native-firebase/messaging';
+import * as Notifications from 'expo-notifications';
 import { useNotificationStore } from './src/store/notificationStore';
 import { registerRootComponent } from 'expo';
 import App from './App';
 
-// Register background message handler — must be called before registerRootComponent
-messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-  console.log('[FCM] Background message:', remoteMessage.messageId);
-  if (remoteMessage.messageId) {
-    useNotificationStore.getState().addNotification({
-      id: remoteMessage.messageId,
-      title: remoteMessage.notification?.title || 'Zica Bella',
-      body: remoteMessage.notification?.body || '',
-      date: new Date().toISOString(),
-      isRead: false,
-      data: (remoteMessage.data as Record<string, string>) || {},
-    });
-  }
+// Configure notification handler for foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  } as any),
+});
+
+// Listen for notifications received while app is backgrounded/killed
+// and store them so they appear in the Notifications screen
+Notifications.addNotificationReceivedListener((notification) => {
+  const { title, body, data } = notification.request.content;
+  useNotificationStore.getState().addNotification({
+    id: notification.request.identifier || Date.now().toString(),
+    title: title || 'Zica Bella',
+    body: body || '',
+    date: new Date().toISOString(),
+    isRead: false,
+    data: (data as Record<string, string>) || {},
+  });
 });
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App).

@@ -126,7 +126,7 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
               <FlatList
                 data={items}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={[styles.listContent, { paddingBottom: 180 + insets.bottom }]}
+                contentContainerStyle={[styles.listContent, { paddingBottom: 200 + insets.bottom }]}
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item }) => (
                   <View style={styles.itemWrapper}>
@@ -143,25 +143,31 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
                 )}
               />
 
-              {/* Floating Footer Area */}
-              <View style={[styles.footerContainer, { paddingBottom: insets.bottom + 8 }]}>
-                <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                <View style={[styles.footer, { borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+              {/* Unique Solid Glass Footer */}
+              <View style={[styles.footerContainer, { paddingBottom: insets.bottom > 0 ? insets.bottom + 10 : 30 }]}>
+                <BlurView intensity={95} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                <View style={[styles.footerBorder, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]} />
+                
+                <View style={styles.footerContent}>
                   <View style={styles.totalRow}>
                     <View>
-                      <Typography size={7} weight="800" color={colors.textExtraLight} style={styles.totalLabel}>TOTAL ESTIMATE</Typography>
-                      <Typography weight="300" size={10} color={colors.textMuted}>Incl. all duties & taxes</Typography>
+                      <Typography size={9} weight="800" color={colors.textExtraLight} style={styles.totalLabel}>ESTIMATED TOTAL</Typography>
+                      <Typography weight="400" size={10} color={colors.textMuted} style={{ marginTop: 2 }}>Duties & Taxes included</Typography>
                     </View>
-                    <Typography size={18} weight="300" color={colors.text}>{formatPrice(total())}</Typography>
+                    <Typography size={22} weight="300" color={colors.text} style={styles.priceText}>{formatPrice(total())}</Typography>
                   </View>
                   
                   <TouchableOpacity 
-                    style={[styles.checkoutBtn, { backgroundColor: colors.foreground }]} 
+                    style={[styles.checkoutBtn, { backgroundColor: colors.text }]} 
                     onPress={onCheckout}
-                    activeOpacity={0.9}
+                    activeOpacity={0.8}
                   >
-                    <Typography size={9} weight="800" color={colors.background} style={styles.checkoutBtnText}>PROCEED TO CHECKOUT</Typography>
-                    <Ionicons name="arrow-forward" size={14} color={colors.background} style={{ marginLeft: 8 }} />
+                    <View style={styles.checkoutBtnContent}>
+                      <Typography size={10} weight="800" color={colors.background} style={styles.checkoutBtnText}>CHECKOUT SECURELY</Typography>
+                      <View style={[styles.btnBadge, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)' }]}>
+                         <Ionicons name="lock-closed" size={12} color={colors.background} />
+                      </View>
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -266,36 +272,54 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.05)',
+    overflow: 'hidden',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
-  footer: {
+  footerBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+  },
+  footerContent: {
     paddingHorizontal: 28,
-    paddingTop: 16,
-    paddingBottom: 12, // Significant reduction
+    paddingTop: 24,
+    paddingBottom: 8,
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14, // Reduced from 24
+    marginBottom: 20,
   },
   totalLabel: {
-    letterSpacing: 2.2,
+    letterSpacing: 2,
+  },
+  priceText: {
+    letterSpacing: -0.5,
   },
   checkoutBtn: {
-    height: 54, // Reduced from 64
-    borderRadius: 18,
+    height: 60,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  checkoutBtnContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+    gap: 12,
   },
   checkoutBtnText: {
-    letterSpacing: 2,
+    letterSpacing: 2.5,
+  },
+  btnBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

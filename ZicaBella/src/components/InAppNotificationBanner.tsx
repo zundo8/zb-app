@@ -1,3 +1,9 @@
+/**
+ * InAppNotificationBanner
+ *
+ * Displays a slide-down banner when a notification arrives while the app is in the foreground.
+ * Uses Expo Notifications instead of Firebase messaging.
+ */
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import Animated, { 
@@ -5,12 +11,11 @@ import Animated, {
   useAnimatedStyle, 
   withTiming, 
   withSpring,
-  withDelay,
   runOnJS
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
+import * as Notifications from 'expo-notifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColors } from '../constants/colors';
@@ -20,8 +25,14 @@ import { NotificationService } from '../services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
+interface BannerNotification {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}
+
 export const InAppNotificationBanner = () => {
-  const [notification, setNotification] = useState<FirebaseMessagingTypes.RemoteMessage | null>(null);
+  const [notification, setNotification] = useState<BannerNotification | null>(null);
   const translateY = useSharedValue(-150);
   const opacity = useSharedValue(0);
   const insets = useSafeAreaInsets();
@@ -30,8 +41,13 @@ export const InAppNotificationBanner = () => {
   const isDark = theme === 'dark';
 
   useEffect(() => {
-    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
-      setNotification(remoteMessage);
+    const subscription = Notifications.addNotificationReceivedListener((event) => {
+      const { title, body, data } = event.request.content;
+      setNotification({
+        title: title || 'Zica Bella',
+        body: body || '',
+        data: (data as Record<string, string>) || {},
+      });
       
       // Animate in
       translateY.value = withSpring(insets.top + 10, {
@@ -46,7 +62,7 @@ export const InAppNotificationBanner = () => {
       }, 4000);
     });
 
-    return unsubscribe;
+    return () => subscription.remove();
   }, []);
 
   const dismiss = () => {
@@ -58,7 +74,7 @@ export const InAppNotificationBanner = () => {
 
   const handlePress = () => {
     if (notification?.data) {
-      NotificationService.handleDeepLink(notification.data as Record<string, string>);
+      NotificationService.handleDeepLink(notification.data);
     }
     dismiss();
   };
@@ -86,10 +102,10 @@ export const InAppNotificationBanner = () => {
           
           <View style={styles.textContainer}>
             <Typography size={12} weight="bold" color={colors.text} style={styles.title}>
-              {notification.notification?.title || 'Zica Bella'}
+              {notification.title}
             </Typography>
             <Typography size={11} color={colors.textSecondary} style={styles.body} numberOfLines={2}>
-              {notification.notification?.body || ''}
+              {notification.body}
             </Typography>
           </View>
         </View>

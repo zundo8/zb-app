@@ -17,18 +17,32 @@ export async function POST(
       );
     }
 
-    const updatedOrder = await prisma.order.updateMany({
+    const order = await prisma.order.findUnique({
       where: { shopifyOrderId },
-      data: { deliveryStatus: 'delivered' },
     });
 
-    if (updatedOrder.count === 0) {
-      // Order might not exist locally yet if sync hasn't run.
-      // We can't update deliveryStatus if it doesn't exist.
+    if (!order) {
       return NextResponse.json(
         { error: 'Order not found in local database. Please run Full Sync first.' },
         { status: 404 }
       );
+    }
+
+    await prisma.order.update({
+      where: { shopifyOrderId },
+      data: { deliveryStatus: 'delivered' },
+    });
+
+    try {
+      const { NotificationService } = await import('@/lib/services/notification.service');
+      await NotificationService.sendToUser(
+        order.customerId,
+        'Zica Bella Order Update',
+        'Your order is now delivered',
+        { orderId: order.id, status: 'delivered' }
+      );
+    } catch (e) {
+      console.error('Failed to send push notification:', e);
     }
 
     return NextResponse.json({ success: true, deliveryStatus: 'delivered' });

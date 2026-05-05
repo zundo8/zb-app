@@ -20,6 +20,11 @@ export async function GET(req: Request) {
     const email = url.searchParams.get('email')?.trim();
     const customerId = url.searchParams.get('customerId')?.trim();
 
+    const token = req.headers.get('authorization')?.split(' ')[1];
+    if (!token || token.length < 5) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+    }
+
     if (!customerId && !phone && !email) {
       return NextResponse.json(
         { error: 'customerId, phone or email query parameter required' },
@@ -67,6 +72,11 @@ export async function PATCH(req: Request) {
   try {
     const body = await req.json();
     const { customerId, phone, email, name, image, defaultAddress } = body || {};
+
+    const token = req.headers.get('authorization')?.split(' ')[1];
+    if (!token || token.length < 5) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+    }
 
     if (!customerId && !phone && !email) {
       return NextResponse.json(

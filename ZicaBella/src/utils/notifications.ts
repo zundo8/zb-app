@@ -18,46 +18,18 @@ export const initPushNotifications = async () => {
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') return;
 
-    // `@react-native-firebase/messaging` and native notifications are not fully supported on some simulators without code signing.
-    const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
-    const isSimulator = !Constants.isDevice;
-    
-    // Explicit safety check: never try to load native firebase modules in Expo Go
-    if (isExpoGo || isSimulator) {
-      console.log('[Notifications] Running in simulator or Expo Go, skipping full Firebase notification setup.');
-      return;
-    }
-
-    let messaging: any;
-    let firebaseApp: any;
+    // Get the Expo push token
     try {
-      firebaseApp = require('@react-native-firebase/app').default;
-      messaging = require('@react-native-firebase/messaging').default;
-    } catch (e) {
-      console.warn('[Notifications] Failed to load @react-native-firebase/messaging:', e);
-      return;
-    }
-
-    if (!firebaseApp?.apps?.length) {
-      console.warn('[Notifications] Firebase is not configured on this build. Skipping messaging setup.');
-      return;
-    }
-
-    await messaging().requestPermission();
-
-    const token = await messaging().getToken();
-    console.log('FCM Token:', token); // save to backend
-
-    messaging().onMessage(async (msg: any) => {
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: msg.notification?.title ?? 'Zica Bella',
-          body: msg.notification?.body ?? '',
-        },
-        trigger: null,
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: Constants.expoConfig?.extra?.eas?.projectId,
       });
-    });
+      console.log('[Notifications] Expo push token:', tokenData.data);
+    } catch (tokenErr) {
+      console.warn('[Notifications] Could not get push token:', tokenErr);
+    }
+
+    // Foreground handler is already set above via setNotificationHandler
   } catch (err) {
-    console.warn('[Notifications] Global catch caught an error (likely keychain/entitlement in simulator):', err);
+    console.warn('[Notifications] Error during init:', err);
   }
 };
