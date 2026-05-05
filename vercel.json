@@ -6,15 +6,15 @@
     },
     {
       "path": "/api/automations/low-stock-alert",
-      "schedule": "0 */2 * * *"
+      "schedule": "0 4 * * *"
     },
     {
       "path": "/api/automations/production-bottleneck",
-      "schedule": "0 */4 * * *"
+      "schedule": "0 5 * * *"
     },
     {
       "path": "/api/automations/order-sla-monitor",
-      "schedule": "0 * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/automations/evening-summary",
