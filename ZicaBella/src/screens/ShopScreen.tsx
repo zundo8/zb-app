@@ -66,7 +66,6 @@ export default function ShopScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <GlassHeader 
-        hideRightIsland 
         title="SHOP" 
         onPressMenu={() => {
           haptics.buttonTap();

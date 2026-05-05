@@ -11,6 +11,7 @@ import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
 import { Typography } from '../components/Typography';
 import { useRef } from 'react';
+import { useThemeStore } from '../store/themeStore';
 
 
 export default function CartScreen() {
@@ -18,6 +19,7 @@ export default function CartScreen() {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const { items, total, count, update, remove, clear } = useCart();
+  const isDark = useThemeStore(s => s.theme) === 'dark';
 
   const isTabBarVisible = useUIStore(s => s.isTabBarVisible);
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);

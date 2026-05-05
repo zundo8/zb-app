@@ -7,9 +7,11 @@ const { width, height } = Dimensions.get('window');
 
 interface Props {
   source: string;
+  height?: number;
+  borderRadius?: number;
 }
 
-export default function HeroVideo({ source }: Props) {
+export default function HeroVideo({ source, height: customHeight, borderRadius }: Props) {
   const colors = useColors();
   const player = useVideoPlayer(source, (player) => {
     player.loop = true;
@@ -21,7 +23,7 @@ export default function HeroVideo({ source }: Props) {
     <View style={styles.container}>
       <VideoView
         player={player}
-        style={[styles.video, { backgroundColor: colors.background }]}
+        style={[styles.video, { backgroundColor: colors.background, height: customHeight || '100%', borderRadius: borderRadius || 0 }]}
         nativeControls={false}
         contentFit="cover"
       />

@@ -41,7 +41,7 @@ export default function StorefrontFooter() {
       </Typography>
       
       {/* EST: text-[6px] font-extralight uppercase tracking-[0.4em] */}
-      <Typography size={6.5} color={colors.textExtraLight} weight="200" style={styles.estLabel}>
+      <Typography size={6.5} color={colors.textExtraLight} weight="300" style={styles.estLabel}>
         EST. 2024
       </Typography>
 
@@ -89,7 +89,7 @@ export default function StorefrontFooter() {
       </View>
 
       {/* COPYRIGHT: text-[6px] uppercase tracking-[0.3em] */}
-      <Typography size={6.2} weight="200" color={colors.textExtraLight} style={styles.copyright}>
+      <Typography size={6.2} weight="300" color={colors.textExtraLight} style={styles.copyright}>
         © 2026 ZICA BELLA · LUXURY STREETWEAR
       </Typography>
     </View>

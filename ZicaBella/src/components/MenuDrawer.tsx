@@ -33,28 +33,54 @@ export default function MenuDrawer({ visible, onClose }: Props) {
   const opacityAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.96)).current;
 
+  const [isRendered, setIsRendered] = useState(visible);
+
   useEffect(() => {
-    Animated.parallel([
-      Animated.spring(slideAnim, {
-        toValue: visible ? 12 : -DRAWER_WIDTH,
-        damping: 30,
-        stiffness: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: visible ? 1 : 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: visible ? 1 : 0.96,
-        friction: 8,
-        useNativeDriver: true,
-      })
-    ]).start();
+    if (visible) {
+      setIsRendered(true);
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 12,
+          damping: 30,
+          stiffness: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 8,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: -DRAWER_WIDTH,
+          damping: 30,
+          stiffness: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 0.96,
+          friction: 8,
+          useNativeDriver: true,
+        })
+      ]).start(() => {
+        setIsRendered(false);
+      });
+    }
   }, [visible]);
 
-  if (!visible && opacityAnim._value === 0) return null;
+  if (!isRendered) return null;
 
   const handleNavigate = (screen: string, params?: any) => {
     haptics.buttonTap();
@@ -90,7 +116,7 @@ export default function MenuDrawer({ visible, onClose }: Props) {
         
         {/* TOP BAR */}
         <View style={styles.header}>
-          <Typography size={6.5} weight="200" color={colors.text} style={{ letterSpacing: 5, opacity: 0.15 }}>
+          <Typography size={6.5} weight="300" color={colors.text} style={{ letterSpacing: 5, opacity: 0.15 }}>
             ZICA BELLA
           </Typography>
           <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
@@ -101,7 +127,7 @@ export default function MenuDrawer({ visible, onClose }: Props) {
         {/* ZONE A: COLLECTIONS & SHOP SPLIT */}
         <View style={styles.mainZone}>
            <View style={styles.collectionsCol}>
-             <Typography size={5.5} weight="200" color={colors.textExtraLight} style={styles.zoneTag}>COLLECTIONS</Typography>
+             <Typography size={5.5} weight="300" color={colors.textExtraLight} style={styles.zoneTag}>COLLECTIONS</Typography>
              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.colItems}>
                {loading ? [1,2,3,4].map(i => (
                  <View key={i} style={[styles.skeleton, { backgroundColor: isDark ? 'white' : 'black' }]} />
@@ -111,7 +137,7 @@ export default function MenuDrawer({ visible, onClose }: Props) {
                    style={styles.colLink}
                    onPress={() => handleNavigate('Main', { screen: 'ShopTab', params: { screen: 'Collection', params: { handle: c.handle } } })}
                  >
-                   <Typography size={10} weight="200" color={colors.textSecondary} style={{ letterSpacing: 1.5 }}>{c.title.toUpperCase()}</Typography>
+                   <Typography size={10} weight="300" color={colors.textSecondary} style={{ letterSpacing: 1.5 }}>{c.title.toUpperCase()}</Typography>
                    <Ionicons name="chevron-forward" size={10} color={colors.textExtraLight} style={{ opacity: 0 }} />
                  </TouchableOpacity>
                ))}
@@ -121,7 +147,7 @@ export default function MenuDrawer({ visible, onClose }: Props) {
            <View style={[styles.divider, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]} />
 
            <View style={styles.shopCol}>
-             <Typography size={5.5} weight="200" color={colors.textExtraLight} style={styles.zoneTag}>SHOP</Typography>
+             <Typography size={5.5} weight="300" color={colors.textExtraLight} style={styles.zoneTag}>SHOP</Typography>
              <View style={styles.colItems}>
                {shopTerms.map(term => (
                  <TouchableOpacity 
@@ -129,7 +155,7 @@ export default function MenuDrawer({ visible, onClose }: Props) {
                    style={styles.shopLink}
                    onPress={() => handleNavigate('Main', { screen: 'SearchTab', params: { screen: 'SearchScreen', params: { query: term } } })}
                  >
-                   <Typography size={9} weight="200" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>{term}</Typography>
+                   <Typography size={9} weight="300" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>{term}</Typography>
                  </TouchableOpacity>
                ))}
              </View>
@@ -144,7 +170,7 @@ export default function MenuDrawer({ visible, onClose }: Props) {
                style={styles.navLink}
                onPress={() => handleNavigate('Main', { screen: 'HomeTab', params: { screen: item.charAt(0) + item.slice(1).toLowerCase() } })}
              >
-               <Typography size={16} weight="200" color={colors.textSecondary} style={{ letterSpacing: -0.5 }}>{item}</Typography>
+               <Typography size={16} weight="300" color={colors.textSecondary} style={{ letterSpacing: -0.5 }}>{item}</Typography>
                <View style={styles.navDot} />
              </TouchableOpacity>
            ))}
@@ -154,17 +180,17 @@ export default function MenuDrawer({ visible, onClose }: Props) {
         <View style={[styles.dock, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}>
            <TouchableOpacity style={styles.dockItem} onPress={() => handleNavigate('Main', { screen: 'ProfileTab' })}>
               <Ionicons name="person-outline" size={16} color={colors.textExtraLight} />
-              <Typography size={5.5} weight="200" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>PROFILE</Typography>
+              <Typography size={5.5} weight="300" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>PROFILE</Typography>
            </TouchableOpacity>
            <View style={[styles.dockDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]} />
            <TouchableOpacity style={styles.dockItem} onPress={() => handleNavigate('Main', { screen: 'ProfileTab', params: { screen: 'OrderHistory' } })}>
               <Ionicons name="receipt-outline" size={16} color={colors.textExtraLight} />
-              <Typography size={5.5} weight="200" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>ORDERS</Typography>
+              <Typography size={5.5} weight="300" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>ORDERS</Typography>
            </TouchableOpacity>
            <View style={[styles.dockDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]} />
            <TouchableOpacity style={styles.dockItem} onPress={() => handleNavigate('Main', { screen: 'HomeTab', params: { screen: 'Story' } })}>
               <Ionicons name="information-circle-outline" size={16} color={colors.textExtraLight} />
-              <Typography size={5.5} weight="200" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>STORY</Typography>
+              <Typography size={5.5} weight="300" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>STORY</Typography>
            </TouchableOpacity>
         </View>
       </Animated.View>

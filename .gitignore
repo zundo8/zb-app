@@ -48,3 +48,4 @@ prisma/dev.db
 /ZicaBella/ios/
 /ZicaBella/android/
 /ZicaBella/.expo/
+tsc_output*.txt

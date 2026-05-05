@@ -137,7 +137,6 @@ const styles = StyleSheet.create({
   item: {
     width: ITEM_WIDTH,
     marginRight: ITEM_MARGIN,
-    transition: 'all 0.5s',
   },
   card: {
     aspectRatio: 21 / 9,

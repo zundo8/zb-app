@@ -73,10 +73,7 @@ export default function ProductCard({ product, onQuickAdd, style }: Props) {
       >
         <Image
           source={{ uri: product.featuredImage || undefined }}
-          style={[
-            styles.image,
-            isSoldOut && { filter: [{ grayscale: 0.4 }] },
-          ]}
+          style={styles.image}
           contentFit="cover"
           transition={400}
           accessibilityIgnoresInvertColors

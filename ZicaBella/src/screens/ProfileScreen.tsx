@@ -898,6 +898,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 18,
+  },
+  menuItemLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
   },
   iconBox: {

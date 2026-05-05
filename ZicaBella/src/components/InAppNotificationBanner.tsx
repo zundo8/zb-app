@@ -58,7 +58,7 @@ export const InAppNotificationBanner = () => {
 
   const handlePress = () => {
     if (notification?.data) {
-      NotificationService.handleDeepLink(notification.data);
+      NotificationService.handleDeepLink(notification.data as Record<string, string>);
     }
     dismiss();
   };

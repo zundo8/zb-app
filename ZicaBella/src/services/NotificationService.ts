@@ -1,3 +1,10 @@
+/**
+ * NotificationService
+ *
+ * Handles FCM push notifications using @react-native-firebase/messaging.
+ * The Firebase app is auto-initialized natively from GoogleService-Info.plist,
+ * so no manual initializeApp() call is required here.
+ */
 import messaging from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 import { useNotificationStore } from '../store/notificationStore';
@@ -7,75 +14,80 @@ import { haptics } from '../utils/haptics';
 
 export class NotificationService {
   /**
-   * Request permissions and initialize FCM
+   * Request permissions and initialize FCM listeners.
+   * Call this inside a React component after the app mounts (e.g. App.tsx useEffect).
    */
-  static async initialize() {
-    if (Platform.OS === 'ios') {
-      const authStatus = await messaging().requestPermission({
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        provisional: false,
-        sound: true,
-      });
+  static async initialize(): Promise<boolean> {
+    try {
+      // Request permission on iOS
+      if (Platform.OS === 'ios') {
+        const authStatus = await messaging().requestPermission({
+          alert: true,
+          announcement: false,
+          badge: true,
+          carPlay: false,
+          provisional: false,
+          sound: true,
+        });
 
-      const enabled =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+        const enabled =
+          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
-      if (!enabled) return false;
-    }
-
-    // Get FCM token
-    const fcmToken = await messaging().getToken();
-    if (fcmToken) {
-      await this.registerDevice(fcmToken);
-    }
-
-    // Listen to token refresh
-    messaging().onTokenRefresh(async (token) => {
-      await this.registerDevice(token);
-    });
-
-    // Handle foreground messages
-    messaging().onMessage(async (remoteMessage) => {
-      haptics.notificationSuccess();
-      
-      // Update badge
-      const unreadCount = useNotificationStore.getState().unreadCount() + 1;
-      messaging().setBadgeCount(unreadCount);
-
-      // Add to store
-      useNotificationStore.getState().addNotification({
-        id: remoteMessage.messageId || Date.now().toString(),
-        title: remoteMessage.notification?.title || 'Zica Bella',
-        body: remoteMessage.notification?.body || '',
-        date: new Date().toISOString(),
-        isRead: false,
-        data: remoteMessage.data || {}
-      });
-
-      // You can also show a custom in-app banner here via a UI store or event emitter
-    });
-
-    // Handle background app open
-    messaging().onNotificationOpenedApp((remoteMessage) => {
-      this.handleDeepLink(remoteMessage.data);
-    });
-
-    // Handle cold start app open
-    messaging()
-      .getInitialNotification()
-      .then((remoteMessage) => {
-        if (remoteMessage) {
-          this.handleDeepLink(remoteMessage.data);
+        if (!enabled) {
+          console.log('[FCM] Permission denied by user');
+          return false;
         }
+      }
+
+      // Get and register FCM token
+      try {
+        const fcmToken = await messaging().getToken();
+        if (fcmToken) {
+          await this.registerDevice(fcmToken);
+        }
+      } catch (tokenErr) {
+        console.warn('[FCM] Could not get token (GoogleService-Info.plist may be a placeholder):', tokenErr);
+      }
+
+      // Refresh token listener
+      messaging().onTokenRefresh(async (token) => {
+        await this.registerDevice(token);
       });
 
-    // Clear badge on open
-    messaging().setBadgeCount(0);
-    return true;
+      // Foreground message listener
+      messaging().onMessage(async (remoteMessage) => {
+        haptics.success();
+        useNotificationStore.getState().addNotification({
+          id: remoteMessage.messageId || Date.now().toString(),
+          title: remoteMessage.notification?.title || 'Zica Bella',
+          body: remoteMessage.notification?.body || '',
+          date: new Date().toISOString(),
+          isRead: false,
+          data: (remoteMessage.data as Record<string, string>) || {},
+        });
+      });
+
+      // Notification tapped while app was in background
+      messaging().onNotificationOpenedApp((remoteMessage) => {
+        this.handleDeepLink(remoteMessage.data as Record<string, string>);
+      });
+
+      // Notification tapped while app was quit (cold start)
+      messaging()
+        .getInitialNotification()
+        .then((remoteMessage) => {
+          if (remoteMessage) {
+            this.handleDeepLink(remoteMessage.data as Record<string, string>);
+          }
+        })
+        .catch((err) => console.warn('[FCM] getInitialNotification error:', err));
+
+      return true;
+    } catch (err) {
+      console.error('[NotificationService] initialize error:', err);
+      return false;
+    }
   }
 
   static async registerDevice(fcmToken: string) {
@@ -83,9 +95,7 @@ export class NotificationService {
     if (!user?.id) return;
 
     try {
-      // In a real app, you'd want a consistent device ID, e.g. using react-native-device-info
-      const deviceId = `dev_${Platform.OS}_${Date.now()}`; // Simplified for this example
-
+      const deviceId = `dev_${Platform.OS}_${user.id}`;
       await fetch(`${config.appUrl}/api/notifications/register-device`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -94,21 +104,18 @@ export class NotificationService {
           deviceId,
           fcmToken,
           platform: Platform.OS,
-          appVersion: '1.0.0'
+          appVersion: '1.0.0',
         }),
       });
     } catch (e) {
-      console.error('Failed to register device token', e);
+      console.error('[FCM] Failed to register device token:', e);
     }
   }
 
-  static handleDeepLink(data?: { [key: string]: string }) {
+  static handleDeepLink(data?: Record<string, string>) {
     if (!data) return;
-    
+
     const { type, id } = data;
-    // Assuming you have a navigation ref exported somewhere to use outside of React components
-    // import { navigationRef } from '../navigation/navigationUtils';
-    
     const { navigationRef } = require('../navigation/navigationUtils');
 
     setTimeout(() => {
@@ -125,10 +132,7 @@ export class NotificationService {
           break;
         case 'start_live_activity':
         case 'live_activity_update':
-          navigationRef.navigate('Main', { screen: 'OrdersTab' });
-          break;
         case 'cod_confirmation':
-          // could open a specific modal or go to orders
           navigationRef.navigate('Main', { screen: 'OrdersTab' });
           break;
       }

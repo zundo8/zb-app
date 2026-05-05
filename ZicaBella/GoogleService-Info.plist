@@ -14,6 +14,8 @@
 	<string>zica-bella-dummy</string>
 	<key>STORAGE_BUCKET</key>
 	<string>zica-bella-dummy.appspot.com</string>
+	<key>DATABASE_URL</key>
+	<string>https://zica-bella-dummy.firebaseio.com</string>
 	<key>IS_ADS_ENABLED</key>
 	<false/>
 	<key>IS_ANALYTICS_ENABLED</key>

@@ -79,7 +79,7 @@ export const LiveActivityService = {
   /**
    * Registers the Activity push token with the backend
    */
-  private async registerActivityToken(orderId: string, token: string) {
+  async registerActivityToken(orderId: string, token: string) {
     const user = useAuthStore.getState().user;
     if (!user?.id) return;
 

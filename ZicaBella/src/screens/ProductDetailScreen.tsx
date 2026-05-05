@@ -283,10 +283,6 @@ export default function ProductDetailScreen() {
               autoPlay={false}
               onScrollStart={() => setIsScrollEnabled(false)}
               onScrollEnd={() => setIsScrollEnabled(true)}
-              panGestureHandlerProps={{
-                activeOffsetX: [-10, 10],
-                failOffsetY: [-5, 5],
-              }}
            />
         </View>
 
@@ -326,7 +322,7 @@ export default function ProductDetailScreen() {
               <View style={{ flex: 1 }}>
                 <Typography 
                   size={15} 
-                  weight="200" 
+                  weight="300" 
                   color={colors.text} 
                   style={[styles.title, { letterSpacing: 4, lineHeight: 22 }]}
                 >

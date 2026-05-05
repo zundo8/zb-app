@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Animated, { useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, interpolate, Extrapolation, SharedValue } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useColors } from '../constants/colors';
@@ -15,7 +15,7 @@ interface FlipbookProps {
   tag?: string;
   title?: string;
   desc?: string;
-  scrollY?: Animated.SharedValue<number>;
+  scrollY?: SharedValue<number>;
 }
 
 const DEFAULTS = {

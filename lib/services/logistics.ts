@@ -167,12 +167,13 @@ async function getLogisticsConfig(): Promise<LogisticsConfig> {
       };
     }
 
-    if (shop.delhiveryApiKey) {
+    const delhiveryKey = process.env.DELHIVERY_API_KEY || shop.delhiveryApiKey;
+    if (delhiveryKey) {
       return {
         provider: 'delhivery',
-        baseUrl: PROVIDER_PRESETS.delhivery.baseUrl,
-        apiKey: shop.delhiveryApiKey,
-        webhookSecret: shop.webhookSecret || '',
+        baseUrl: process.env.DELHIVERY_BASE_URL || PROVIDER_PRESETS.delhivery.baseUrl,
+        apiKey: delhiveryKey,
+        webhookSecret: process.env.DELHIVERY_WEBHOOK_SECRET || shop.webhookSecret || '',
       };
     }
 
