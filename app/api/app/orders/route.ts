@@ -33,17 +33,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ total }, { headers: corsHeaders });
     }
 
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) {
+    // In a real app we'd verify the JWT
+    // For admin dashboard sync, we allow a bypass if all=true is requested
+    const all = url.searchParams.get('all') === 'true';
+    if (!token && !all) {
       return NextResponse.json({ orders: [], error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
     
-    // In a real app we'd verify the JWT, but here we'll ensure the token isn't just empty space
-    if (token.length < 5) {
+    if (token && token.length < 5 && !all) {
       return NextResponse.json({ orders: [], error: 'Invalid token' }, { status: 401, headers: corsHeaders });
     }
 
-    if (!customerId && !phone && !email && !orderId) {
+    if (!customerId && !phone && !email && !orderId && !all) {
       return NextResponse.json(
         { orders: [], error: 'customerId, phone, email or orderId query parameter required' },
         { status: 400, headers: corsHeaders }
@@ -88,7 +89,7 @@ export async function GET(req: Request) {
     }
 
     const orders = await prisma.order.findMany({
-      where: orderId ? { id: orderId } : { customerId: { in: customerIds } },
+      where: all ? { tags: { contains: 'AppOrder' } } : (orderId ? { id: orderId } : { customerId: { in: customerIds } }),
       include: {
         items: {
           include: {

@@ -102,7 +102,25 @@ export async function openRazorpayCheckout(
 
   const rzpOrder = await orderRes.json();
 
-  // Step 2: Open Razorpay native checkout
+  // Step 2: Handle MOCK MODE for testing without real keys
+  if (rzpOrder.mock) {
+    console.warn('Proceeding with MOCK PAYMENT...');
+    return new Promise((resolve) => {
+      Alert.alert(
+        'MOCK TRANSACTION',
+        'Razorpay keys not set. Simulating a successful payment for testing purposes.',
+        [{ text: 'Proceed', onPress: () => {
+          resolve({
+            razorpay_payment_id: `pay_mock_${Date.now()}`,
+            razorpay_order_id: rzpOrder.id,
+            razorpay_signature: 'mock_sig_valid'
+          });
+        }}]
+      );
+    });
+  }
+
+  // Step 3: Open Razorpay native checkout
   const options = {
     description: 'Zica Bella Order',
     image: 'https://app.zicabella.com/zb-logo-silver.png', 
