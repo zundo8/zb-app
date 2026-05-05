@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,24 +8,91 @@ import { Typography } from '../../components/Typography';
 import CheckoutSummaryBar from '../../components/CheckoutSummaryBar';
 import { useCartStore } from '../../store/cartStore';
 import { useAuth } from '../../hooks/useAuth';
+import { haptics } from '../../utils/haptics';
 
 export default function DeliveryAddressScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const colors = useColors();
   const { user } = useAuth();
-  const { total, items } = useCartStore();
+  const { total, items, shippingAddress, setShippingAddress } = useCartStore();
 
+  const [loadingPincode, setLoadingPincode] = useState(false);
   const [address, setAddress] = useState({
-    name: user?.name || '',
-    phone: user?.phone || '',
-    street: '',
-    city: '',
-    zip: '',
+    name: shippingAddress?.name || user?.name || '',
+    phone: shippingAddress?.phone || user?.phone || '',
+    street: shippingAddress?.street || '',
+    city: shippingAddress?.city || '',
+    district: shippingAddress?.district || '',
+    state: shippingAddress?.state || '',
+    zip: shippingAddress?.zip || '',
     country: 'India',
   });
 
-  const isValid = address.name && address.phone && address.street && address.city && address.zip;
+  const MOCK_SAVED_ADDRESSES = [
+    {
+      id: '1',
+      name: user?.name || 'Home',
+      phone: user?.phone || '',
+      street: '12B Archive Street, South Ex II',
+      city: 'New Delhi',
+      district: 'Central Delhi',
+      state: 'Delhi',
+      zip: '110049',
+      country: 'India'
+    }
+  ];
+
+  const fetchPincodeDetails = async (pin: string) => {
+    if (pin.length !== 6) return;
+    setLoadingPincode(true);
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+      const json = await res.json();
+      if (json[0]?.Status === 'Success') {
+        const postOffice = json[0].PostOffice[0];
+        setAddress(prev => ({
+          ...prev,
+          city: postOffice.Block || postOffice.Name,
+          district: postOffice.District,
+          state: postOffice.State,
+        }));
+        haptics.success();
+      } else {
+        haptics.error();
+      }
+    } catch (e) {
+      console.error('Pincode fetch error:', e);
+    } finally {
+      setLoadingPincode(false);
+    }
+  };
+
+  const handlePincodeChange = (v: string) => {
+    const cleaned = v.replace(/[^0-9]/g, '').slice(0, 6);
+    setAddress({ ...address, zip: cleaned });
+    if (cleaned.length === 6) {
+      fetchPincodeDetails(cleaned);
+    }
+  };
+
+  const selectSavedAddress = (addr: any) => {
+    haptics.buttonTap();
+    setAddress({
+      ...addr,
+      name: addr.name || user?.name || '',
+      phone: addr.phone || user?.phone || '',
+    });
+  };
+
+  const isValid = address.name && address.phone && address.street && address.city && address.zip && address.state;
+
+  const states = [
+    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 
+    'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 
+    'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 
+    'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Puducherry'
+  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -73,19 +140,37 @@ export default function DeliveryAddressScreen() {
           </View>
 
           <View style={styles.field}>
-            <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>STREET ADDRESS (GOOGLE PLACES AUTOCOMPLETE)</Typography>
+            <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>STREET ADDRESS</Typography>
             <TextInput
               value={address.street}
               onChangeText={(v) => setAddress({...address, street: v})}
-              placeholder="Search for your address..."
+              placeholder="House No, Building, Street..."
               placeholderTextColor={colors.textExtraLight}
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
           </View>
 
           <View style={styles.row}>
+            <View style={[styles.field, { width: 140 }]}>
+              <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>PINCODE</Typography>
+              <View style={{ position: 'relative' }}>
+                <TextInput
+                  value={address.zip}
+                  onChangeText={handlePincodeChange}
+                  placeholder="110001"
+                  placeholderTextColor={colors.textExtraLight}
+                  keyboardType="number-pad"
+                  style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+                />
+                {loadingPincode && (
+                  <View style={{ position: 'absolute', right: 15, top: 20 }}>
+                    <ActivityIndicator size="small" color={colors.text} />
+                  </View>
+                )}
+              </View>
+            </View>
             <View style={[styles.field, { flex: 1 }]}>
-              <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>CITY</Typography>
+              <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>CITY / AREA</Typography>
               <TextInput
                 value={address.city}
                 onChangeText={(v) => setAddress({...address, city: v})}
@@ -94,16 +179,39 @@ export default function DeliveryAddressScreen() {
                 style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
               />
             </View>
-            <View style={[styles.field, { width: 120 }]}>
-              <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>PINCODE</Typography>
+          </View>
+
+          <View style={styles.row}>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>DISTRICT</Typography>
               <TextInput
-                value={address.zip}
-                onChangeText={(v) => setAddress({...address, zip: v})}
-                placeholder="110001"
+                value={address.district}
+                onChangeText={(v) => setAddress({...address, district: v})}
+                placeholder="Central Delhi"
                 placeholderTextColor={colors.textExtraLight}
-                keyboardType="number-pad"
                 style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
               />
+            </View>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>STATE</Typography>
+              <TouchableOpacity 
+                onPress={() => {
+                  Alert.alert(
+                    "Select State",
+                    "Choose your state",
+                    states.map(s => ({ text: s, onPress: () => setAddress({...address, state: s}) })),
+                    { cancelable: true }
+                  );
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.borderLight, justifyContent: 'center' }]}>
+                  <Typography size={10} color={address.state ? colors.text : colors.textExtraLight}>
+                    {address.state || 'Select State'}
+                  </Typography>
+                  <Ionicons name="chevron-down" size={16} color={colors.textExtraLight} style={{ position: 'absolute', right: 20 }} />
+                </View>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -111,13 +219,26 @@ export default function DeliveryAddressScreen() {
         {/* Saved Addresses Shortcut */}
         <View style={styles.savedSection}>
           <Typography size={7} weight="600" color={colors.textExtraLight} style={{ marginBottom: 12 }}>SAVED ADDRESSES</Typography>
-          <TouchableOpacity style={[styles.savedCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-            <Ionicons name="location-outline" size={20} color={colors.text} />
-            <View style={{ marginLeft: 12 }}>
-              <Typography size={10} weight="600" color={colors.text}>HOME (PRIMARY)</Typography>
-              <Typography size={9} color={colors.textMuted}>12B ARCHIVE STREET, NEW DELHI...</Typography>
-            </View>
-          </TouchableOpacity>
+          {MOCK_SAVED_ADDRESSES.map((item) => (
+            <TouchableOpacity 
+              key={item.id}
+              onPress={() => selectSavedAddress(item)}
+              style={[
+                styles.savedCard, 
+                { 
+                  backgroundColor: colors.surface, 
+                  borderColor: address.zip === item.zip ? colors.text : colors.borderLight 
+                }
+              ]}
+            >
+              <Ionicons name="location-outline" size={20} color={colors.text} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Typography size={10} weight="600" color={colors.text}>HOME (PRIMARY)</Typography>
+                <Typography size={9} color={colors.textMuted}>{item.street}, {item.city}...</Typography>
+              </View>
+              {address.zip === item.zip && <Ionicons name="checkmark-circle" size={20} color={colors.success} />}
+            </TouchableOpacity>
+          ))}
         </View>
       </ScrollView>
 
@@ -131,6 +252,8 @@ export default function DeliveryAddressScreen() {
             Alert.alert('Missing Info', 'Please fill all address fields.');
             return;
           }
+          haptics.buttonTap();
+          setShippingAddress(address);
           navigation.navigate('DeliveryMethod');
         }}
         disabled={!isValid}
@@ -153,5 +276,5 @@ const styles = StyleSheet.create({
   input: { height: 60, borderRadius: 20, borderWidth: 1, paddingHorizontal: 20, fontSize: 13, fontWeight: '500' },
   row: { flexDirection: 'row', gap: 16 },
   savedSection: { marginTop: 40 },
-  savedCard: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, borderWidth: 1 },
+  savedCard: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, borderWidth: 1, marginBottom: 12 },
 });

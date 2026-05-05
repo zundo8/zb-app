@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +19,7 @@ export default function PaymentScreen() {
   const { total, items } = useCartStore();
   const { user } = useAuth();
 
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple' | 'google' | 'cod'>('apple');
+  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'card' | 'apple' | 'google' | 'cod' | 'others'>('razorpay');
   const [storeCredits, setStoreCredits] = useState(0);
   const [useStoreCredit, setUseStoreCredit] = useState(false);
   const [loadingCredits, setLoadingCredits] = useState(false);
@@ -45,9 +45,33 @@ export default function PaymentScreen() {
   };
 
   const methods = [
-    { id: 'apple', title: 'APPLE PAY', icon: 'logo-apple', subtitle: 'SECURE ONE-TAP PAYMENT' },
-    { id: 'card', title: 'CREDIT / DEBIT CARD', icon: 'card-outline', subtitle: 'POWERED BY STRIPE' },
-    { id: 'cod', title: 'CASH ON DELIVERY', icon: 'cash-outline', subtitle: '₹99 EXTRA SERVICE FEE' },
+    { 
+      id: 'razorpay', 
+      title: 'RAZORPAY SECURE', 
+      icon: 'flash', 
+      subtitle: 'UPI, CARDS, NETBANKING', 
+      badge: 'POPULAR',
+      logo: 'https://cdn.razorpay.com/static/assets/logo/payment_method_razorpay.png'
+    },
+    { 
+      id: 'apple', 
+      title: 'APPLE PAY', 
+      icon: 'logo-apple', 
+      subtitle: 'SECURE ONE-TAP PAYMENT',
+      badge: 'FAST'
+    },
+    { 
+      id: 'card', 
+      title: 'CREDIT / DEBIT CARD', 
+      icon: 'card', 
+      subtitle: 'POWERED BY STRIPE' 
+    },
+    { 
+      id: 'cod', 
+      title: 'CASH ON DELIVERY', 
+      icon: 'cash', 
+      subtitle: '₹99 EXTRA SERVICE FEE' 
+    },
   ];
 
   const subtotal = total();
@@ -114,20 +138,27 @@ export default function PaymentScreen() {
               onPress={() => { haptics.buttonTap(); setPaymentMethod(m.id as any); }}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconBox, { backgroundColor: colors.background }]}>
+              <View style={[styles.iconBox, { backgroundColor: paymentMethod === m.id ? colors.foreground : colors.background }]}>
                 <Ionicons 
                   name={m.icon as any} 
                   size={20} 
-                  color={paymentMethod === m.id ? colors.foreground : colors.textMuted} 
+                  color={paymentMethod === m.id ? colors.background : colors.textMuted} 
                 />
               </View>
               
               <View style={{ flex: 1, marginLeft: 16 }}>
-                <Typography size={10} weight="700" color={colors.text}>{m.title}</Typography>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Typography size={10} weight="700" color={colors.text}>{m.title}</Typography>
+                  {m.badge && (
+                    <View style={[styles.badge, { backgroundColor: m.id === 'razorpay' ? '#3399FF' : colors.foreground }]}>
+                      <Typography size={6} weight="800" color="#FFF">{m.badge}</Typography>
+                    </View>
+                  )}
+                </View>
                 <Typography size={7} weight="600" color={colors.textExtraLight} style={{ marginTop: 4, letterSpacing: 1 }}>{m.subtitle}</Typography>
               </View>
 
-              <View style={[styles.radio, { borderColor: colors.borderLight }]}>
+              <View style={[styles.radio, { borderColor: paymentMethod === m.id ? colors.foreground : colors.borderLight }]}>
                 {paymentMethod === m.id && <View style={[styles.radioDot, { backgroundColor: colors.foreground }]} />}
               </View>
             </TouchableOpacity>
@@ -162,7 +193,10 @@ export default function PaymentScreen() {
         itemCount={items.length}
         total={currentTotal}
         primaryLabel="REVIEW ORDER"
-        onPrimaryPress={() => navigation.navigate('OrderReview', { appliedCredit, paymentMethod })}
+        onPrimaryPress={() => {
+          haptics.buttonTap();
+          navigation.navigate('OrderReview', { appliedCredit, paymentMethod });
+        }}
       />
     </View>
   );
@@ -196,6 +230,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },

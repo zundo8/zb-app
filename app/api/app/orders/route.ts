@@ -316,8 +316,13 @@ export async function POST(req: Request) {
       lineItems, 
       shipping_address, 
       appliedStoreCredits = 0, 
-      payment_method = 'apple',
-      financial_status = 'pending'
+      payment_method = 'razorpay',
+      financial_status = 'pending',
+      payment_id = null,
+      razorpay_order_id = null,
+      total_price = 0,
+      subtotal_price = 0,
+      currency = 'INR'
     } = body;
 
     if (!lineItems?.length || !customerId) {
@@ -327,14 +332,22 @@ export async function POST(req: Request) {
       );
     }
 
+    // 0. Resolve Customer
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId }
+    });
+
+    if (!customer) {
+      return NextResponse.json(
+        { success: false, error: 'Customer not found' },
+        { status: 404, headers: corsHeaders }
+      );
+    }
+
     // 1. Handle Store Credits if applied
     let creditReduction = 0;
     if (appliedStoreCredits > 0) {
-      const customer = await prisma.customer.findUnique({
-        where: { id: customerId }
-      });
-
-      if (!customer || (customer.storeCredits || 0) < appliedStoreCredits) {
+      if ((customer.storeCredits || 0) < appliedStoreCredits) {
         return NextResponse.json(
           { success: false, error: 'Insufficient store credits' },
           { status: 400, headers: corsHeaders }
@@ -349,7 +362,7 @@ export async function POST(req: Request) {
           customerId,
           amount: -creditReduction,
           type: 'DEBIT',
-          description: 'Order Purchase',
+          description: `Order Purchase - ${payment_method.toUpperCase()}`,
         }
       });
 
@@ -361,41 +374,51 @@ export async function POST(req: Request) {
     }
 
     // 2. Create order in Shopify
-    const shopifyOrderPayload = {
+    // Use shopifyId if available, otherwise fallback to email/phone
+    const shopifyOrderPayload: any = {
       line_items: lineItems.map((li: any) => ({
         variant_id: li.variant_id,
         quantity: li.quantity,
       })),
-      customer: { id: customerId },
-      shipping_address,
       financial_status: financial_status === 'paid' ? 'paid' : 'pending',
-      tags: creditReduction > 0 ? `Used Store Credit: ${creditReduction}` : '',
-      note: creditReduction > 0 ? `Customer used ${creditReduction} store credits for this purchase.` : '',
+      tags: `AppOrder, ${payment_method.toUpperCase()}${creditReduction > 0 ? `, Credit: ${creditReduction}` : ''}`,
+      note: `Ordered via Zica Bella App. Method: ${payment_method.toUpperCase()}. ${creditReduction > 0 ? `Used ${creditReduction} credits.` : ''}`,
+      shipping_address,
       use_customer_default_address: !shipping_address,
     };
 
-    // We need the shopify-admin helpers
+    if (customer.shopifyId && !customer.shopifyId.startsWith('GUEST')) {
+      shopifyOrderPayload.customer = { id: parseInt(customer.shopifyId, 10) };
+    } else {
+      shopifyOrderPayload.customer = {
+        email: customer.email,
+        first_name: customer.name?.split(' ')[0] || 'App',
+        last_name: customer.name?.split(' ').slice(1).join(' ') || 'User',
+      };
+    }
+
     const { createOrder: createShopifyOrder } = require('@/lib/shopify-admin');
     const shopifyOrder = await createShopifyOrder(shopifyOrderPayload);
 
     // 3. Save to local database
     const shop = await prisma.shop.findFirst();
-    if (!shop) {
-      throw new Error('No shop found in database');
-    }
+    if (!shop) throw new Error('No shop configuration found');
 
     const localOrder = await prisma.order.create({
       data: {
         shopId: shop.id,
         customerId,
         shopifyOrderId: String(shopifyOrder.id),
-        totalPrice: parseFloat(shopifyOrder.total_price),
-        subtotalPrice: parseFloat(shopifyOrder.subtotal_price),
-        currency: shopifyOrder.currency,
+        totalPrice: total_price || parseFloat(shopifyOrder.total_price),
+        subtotalPrice: subtotal_price || parseFloat(shopifyOrder.subtotal_price),
+        currency: currency || shopifyOrder.currency,
         status: 'OPEN',
-        paymentStatus: shopifyOrder.financial_status,
+        paymentStatus: financial_status,
         fulfillmentStatus: 'unfulfilled',
         shippingAddress: JSON.stringify(shopifyOrder.shipping_address || shipping_address),
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: payment_id,
+        paymentMethod: payment_method,
         tags: shopifyOrder.tags,
         items: {
           create: shopifyOrder.line_items.map((li: any) => ({
@@ -410,6 +433,20 @@ export async function POST(req: Request) {
       },
       include: { items: true }
     });
+
+    // 4. Record initial payment if captured
+    if (financial_status === 'paid' && payment_id) {
+       await prisma.payment.create({
+         data: {
+           orderId: localOrder.id,
+           customerId,
+           amount: localOrder.totalPrice,
+           type: 'INITIAL',
+           status: 'success',
+           gateway: payment_method,
+         }
+       });
+    }
 
     return NextResponse.json({ success: true, order: localOrder }, { headers: corsHeaders });
   } catch (error: any) {

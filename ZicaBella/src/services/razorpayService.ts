@@ -1,4 +1,5 @@
 import RazorpayCheckout from 'react-native-razorpay';
+import { Alert } from 'react-native';
 import { config } from '../constants/config';
 
 interface OrderPayload {
@@ -20,6 +21,46 @@ export interface PaymentResult {
 }
 
 /**
+ * Fetches the Razorpay Key ID from the server if not configured locally.
+ */
+async function getRazorpayKey(): Promise<string> {
+  // Use local key if available and valid
+  if (config.razorpay.keyId && config.razorpay.keyId.startsWith('rzp_') && !config.razorpay.keyId.includes('xxxx')) {
+    return config.razorpay.keyId;
+  }
+
+  try {
+    const res = await fetch(`${config.appUrl}/api/razorpay/config`, {
+      headers: { 'Accept': 'application/json' }
+    });
+    
+    // Check if response is HTML (starts with <) which causes JSON parse error
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.warn('Razorpay config API returned non-JSON response. Falling back to local config.');
+      throw new Error('Invalid server response');
+    }
+
+    const data = await res.json();
+    
+    if (data.isConfigured && data.keyId) {
+      return data.keyId;
+    }
+    
+    throw new Error(data.error || 'Razorpay Key ID not configured on server');
+  } catch (e) {
+    console.warn('Failed to fetch Razorpay config from server:', e);
+    
+    // Final fallback attempt with local key if it looks valid
+    if (config.razorpay.keyId && config.razorpay.keyId.startsWith('rzp_') && !config.razorpay.keyId.includes('xxxx')) {
+      return config.razorpay.keyId;
+    }
+    
+    throw new Error('Razorpay setup required. Please ensure RAZORPAY_KEY_ID is set in .env.local on the server.');
+  }
+}
+
+/**
  * Full Razorpay checkout flow:
  * 1. Creates server-side order
  * 2. Opens Razorpay native checkout (all payment methods)
@@ -31,6 +72,15 @@ export async function openRazorpayCheckout(
   userInfo: UserInfo,
   authToken: string
 ): Promise<PaymentResult> {
+  // Step 0: Resolve Public Key
+  let razorpayKey = '';
+  try {
+    razorpayKey = await getRazorpayKey();
+  } catch (e: any) {
+    Alert.alert('Payment Setup Required', e.message);
+    throw e;
+  }
+
   // Step 1: Create Razorpay order on server
   const orderRes = await fetch(`${config.appUrl}/api/razorpay/create-order`, {
     method: 'POST',
@@ -46,19 +96,19 @@ export async function openRazorpayCheckout(
   });
 
   if (!orderRes.ok) {
-    const err = await orderRes.json();
+    const err = await orderRes.json().catch(() => ({ error: 'Order creation failed' }));
     throw new Error(err.error || 'Failed to create payment order');
   }
 
   const rzpOrder = await orderRes.json();
 
-  // Step 2: Open Razorpay native checkout — all payment methods enabled by default
+  // Step 2: Open Razorpay native checkout
   const options = {
     description: 'Zica Bella Order',
-    image: 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
+    image: 'https://app.zicabella.com/zb-logo-silver.png', 
     currency: rzpOrder.currency || 'INR',
-    key: config.razorpay.keyId,  // rzp_test_xxx or rzp_live_xxx
-    amount: rzpOrder.amount.toString(),  // in paise, as string
+    key: razorpayKey,
+    amount: rzpOrder.amount.toString(),
     name: 'Zica Bella',
     order_id: rzpOrder.id,
     prefill: {
@@ -71,26 +121,53 @@ export async function openRazorpayCheckout(
       confirm_close: true,
       backdropclose: false,
     },
+    // Explicitly enable all methods and preferred UPI apps
+    retry: {
+      enabled: true,
+      max_count: 4
+    },
+    config: {
+      display: {
+        blocks: {
+          banks: {
+            name: 'Most Used Methods',
+            instruments: [
+              { method: 'upi' },
+              { method: 'card' },
+              { method: 'wallet' }
+            ],
+          },
+        },
+        sequence: ['block.banks'],
+        preferences: { show_default_blocks: true },
+      },
+    },
   };
 
-  // RazorpayCheckout.open returns a Promise
-  const paymentData = await RazorpayCheckout.open(options) as PaymentResult;
+  try {
+    const paymentData = await RazorpayCheckout.open(options) as PaymentResult;
 
-  // Step 3: Verify signature server-side
-  const verifyRes = await fetch(`${config.appUrl}/api/razorpay/verify-payment`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken}`,
-    },
-    body: JSON.stringify(paymentData),
-  });
+    // Step 3: Verify signature server-side
+    const verifyRes = await fetch(`${config.appUrl}/api/razorpay/verify-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify(paymentData),
+    });
 
-  const verifyResult = await verifyRes.json();
+    const verifyResult = await verifyRes.json().catch(() => ({ success: false }));
 
-  if (!verifyResult.success) {
-    throw new Error('Payment verification failed. Please contact support.');
+    if (!verifyResult.success) {
+      throw new Error(verifyResult.error || 'Payment verification failed. Please contact support.');
+    }
+
+    return paymentData;
+  } catch (error: any) {
+    if (error?.code === 2) {
+      throw new Error('Payment cancelled by user');
+    }
+    throw error;
   }
-
-  return paymentData;
 }

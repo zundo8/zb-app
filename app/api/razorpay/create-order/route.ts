@@ -11,6 +11,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { amount, currency = 'INR', receipt } = body;
 
+    if (!process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET.includes('xxxx')) {
+      return NextResponse.json({ 
+        error: 'Razorpay Authentication Failed: key_secret is missing or a placeholder. Please update .env.local.' 
+      }, { status: 401 });
+    }
+
     if (!amount || isNaN(Number(amount))) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }

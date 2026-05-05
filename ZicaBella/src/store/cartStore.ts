@@ -17,11 +17,13 @@ export interface CartItem {
 interface CartStore {
   items: CartItem[];
   cartId: string | null;
+  shippingAddress: any | null;
 
   addItem: (item: Omit<CartItem, 'id' | 'quantity'>) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  setShippingAddress: (address: any) => void;
 
   // Computed (via get())
   total: () => number;
@@ -33,6 +35,7 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       cartId: null,
+      shippingAddress: null,
 
       addItem: (item) => {
         const id = `${item.productId}_${item.variantId}_${item.size || 'one-size'}`;
@@ -62,7 +65,9 @@ export const useCartStore = create<CartStore>()(
               : state.items.map((i) => (i.id === id ? { ...i, quantity } : i)),
         })),
 
-      clearCart: () => set({ items: [], cartId: null }),
+      clearCart: () => set({ items: [], cartId: null, shippingAddress: null }),
+
+      setShippingAddress: (address) => set({ shippingAddress: address }),
 
       total: () =>
         get().items.reduce((sum, i) => sum + parseFloat(i.price) * i.quantity, 0),

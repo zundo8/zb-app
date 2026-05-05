@@ -35,13 +35,12 @@ export default function StorefrontFooter() {
         <FooterLogo3D />
       </View>
 
-      {/* BRANDING: text-sm tracking-[0.05em] uppercase */}
-      <Typography rocaston size={13} color={colors.textSecondary} style={styles.brandName}>
+      {/* BRANDING: Matches web exactly */}
+      <Typography rocaston size={14} color={colors.text} style={styles.brandName}>
         ZICA BELLA
       </Typography>
       
-      {/* EST: text-[6px] font-extralight uppercase tracking-[0.4em] */}
-      <Typography size={6.5} color={colors.textExtraLight} weight="300" style={styles.estLabel}>
+      <Typography size={6} color={colors.textExtraLight} weight="300" style={styles.estLabel}>
         EST. 2024
       </Typography>
 
