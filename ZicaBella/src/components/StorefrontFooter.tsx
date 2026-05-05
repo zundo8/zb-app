@@ -30,17 +30,17 @@ export default function StorefrontFooter() {
 
   return (
     <View style={[styles.container, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
-      {/* 3D LOGO HUB - Matches w-14 h-14 */}
+      {/* 3D LOGO HUB - Standardized sizing */}
       <View style={styles.logoWrapper}>
         <FooterLogo3D />
       </View>
 
-      {/* BRANDING: Matches web exactly */}
-      <Typography rocaston size={14} color={colors.text} style={styles.brandName}>
+      {/* BRANDING: Exact web parity */}
+      <Typography rocaston size={18} color={colors.text} style={styles.brandName}>
         ZICA BELLA
       </Typography>
       
-      <Typography size={6} color={colors.textExtraLight} weight="300" style={styles.estLabel}>
+      <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.estLabel}>
         EST. 2024
       </Typography>
 

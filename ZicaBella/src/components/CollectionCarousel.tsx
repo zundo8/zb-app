@@ -13,9 +13,9 @@ import { FlatCollection } from '../api/types';
 import { Typography } from './Typography';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.70;
+const CARD_WIDTH = width * 0.72;
 const CARD_HEIGHT = CARD_WIDTH * 1.35;
-const OVERLAP_FACTOR = 0.6; // Increased from 0.3 for side cards to be visible on edges
+const OVERLAP_FACTOR = 0.55; 
 const ITEM_WIDTH = CARD_WIDTH * OVERLAP_FACTOR;
 
 interface Props {
@@ -49,9 +49,8 @@ export default function CollectionCarousel({ collections }: Props) {
         onPress={() => navigation.navigate('Collection', { handle: item.handle })}
       />
     );
-  }, []);
+  }, [navigation, scrollX]);
 
-  // Use CellRendererComponent to force Z-indexing at the list level
   const CellRendererComponent = useCallback(({ children, index, style, ...props }: any) => {
     const animatedStyle = useAnimatedStyle(() => {
       const input = [
@@ -95,7 +94,7 @@ export default function CollectionCarousel({ collections }: Props) {
         decelerationRate="fast"
         contentContainerStyle={{
           paddingHorizontal: (width - ITEM_WIDTH) / 2,
-          paddingVertical: 45,
+          paddingVertical: 60, // Extra space for deep shadows
         }}
         getItemLayout={(_: any, index: number) => ({
           length: ITEM_WIDTH,
@@ -120,22 +119,30 @@ function AnimatedCard({ item, index, scrollX, onPress }: any) {
     const scale = interpolate(
       scrollX.value,
       input,
-      [0.85, 1, 0.85], // Milder scaling for side cards
+      [0.72, 1, 0.72],
       Extrapolation.CLAMP
     );
 
-    const opacity = interpolate(
+    const rotateY = interpolate(
       scrollX.value,
       input,
-      [1, 1, 1], // Keep card fully opaque, dim using overlay
+      [45, 0, -45],
+      Extrapolation.CLAMP
+    );
+
+    const translateX = interpolate(
+      scrollX.value,
+      input,
+      [ITEM_WIDTH * 0.2, 0, -ITEM_WIDTH * 0.2],
       Extrapolation.CLAMP
     );
 
     return {
-      opacity,
       transform: [
-        { perspective: 1200 },
-        { scale }
+        { perspective: 1500 },
+        { scale },
+        { rotateY: `${rotateY}deg` },
+        { translateX }
       ],
     } as any;
   });
@@ -149,7 +156,7 @@ function AnimatedCard({ item, index, scrollX, onPress }: any) {
     const opacity = interpolate(
       scrollX.value,
       input,
-      [0.6, 0, 0.6],
+      [0.55, 0, 0.55],
       Extrapolation.CLAMP
     );
     return { opacity } as any;
@@ -158,7 +165,7 @@ function AnimatedCard({ item, index, scrollX, onPress }: any) {
   return (
     <Animated.View style={[styles.cardContainer, animatedStyle]}>
       <TouchableOpacity 
-        activeOpacity={0.95} 
+        activeOpacity={0.9} 
         onPress={onPress} 
         style={styles.card}
       >
@@ -166,22 +173,19 @@ function AnimatedCard({ item, index, scrollX, onPress }: any) {
           source={{ uri: item.image || undefined }}
           style={styles.image}
           contentFit="cover"
-          transition={400}
+          transition={500}
         />
         <Animated.View style={[styles.depthOverlay, overlayStyle]} />
         
-        {/* Unique Glass Border Overlay */}
         <View style={styles.glassBorder} />
 
         <View style={styles.titleContainer}>
           <Typography 
-            heading 
-            size={8.5} 
+            rocaston
+            size={11} 
             color="#FFFFFF" 
-            weight="700" 
             style={styles.title}
             numberOfLines={1}
-            adjustsFontSizeToFit
           >
             {item.title?.toUpperCase()}
           </Typography>
@@ -193,8 +197,8 @@ function AnimatedCard({ item, index, scrollX, onPress }: any) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 10,
     backgroundColor: 'transparent',
+    marginTop: -20,
   },
   cardContainer: {
     width: ITEM_WIDTH,
@@ -205,25 +209,24 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: '#111',
-    borderRadius: 36,
+    backgroundColor: '#000',
+    borderRadius: 55, // Super rounded "Apple" look
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    elevation: 20,
+    shadowOffset: { width: 0, height: 40 },
+    shadowOpacity: 0.6,
+    shadowRadius: 50,
+    elevation: 30,
   },
   glassBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 36,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.15)',
-    // Inner glow effect via a second border or shadow is hard in RN, 
-    // but semi-transparent white border on dark background creates a glass effect.
+    borderRadius: 55,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   image: {
     ...StyleSheet.absoluteFillObject,
+    opacity: 0.9,
   },
   depthOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -231,18 +234,17 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     position: 'absolute',
-    bottom: 32,
+    bottom: 40,
     left: 20,
     right: 20,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   title: {
-    letterSpacing: 2,
+    letterSpacing: 4,
     textTransform: 'uppercase',
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
   },
 });

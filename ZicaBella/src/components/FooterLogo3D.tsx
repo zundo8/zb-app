@@ -12,9 +12,9 @@ import { useColors } from '../constants/colors';
 const LOGO_SVG = require('../assets/ZB-logo-silver.svg');
 const SHOPIFY_3D_MODEL_URL = 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb';
 
-/** Premium sizing for mobile view */
-const WRAP_W = 160;
-const WRAP_H = 160;
+/** Premium sizing for mobile view - matching web scale */
+const WRAP_W = 140;
+const WRAP_H = 140;
 
 function LogoMesh({ uri }: { uri: string }) {
   const gltf = useGLTF(uri);
@@ -22,15 +22,15 @@ function LogoMesh({ uri }: { uri: string }) {
 
   useFrame((state, dt) => {
     if (group.current) {
-      group.current.rotation.y += dt * 0.35;
-      group.current.position.y = Math.sin(state.clock.elapsedTime * 1.5) * 0.04;
+      group.current.rotation.y += dt * 0.45;
+      group.current.position.y = Math.sin(state.clock.elapsedTime * 1.5) * 0.03;
     }
   });
 
   return (
     <Center top>
       <group ref={group}>
-        <primitive object={gltf.scene} scale={2.2} />
+        <primitive object={gltf.scene} scale={2.5} />
       </group>
     </Center>
   );
@@ -39,11 +39,10 @@ function LogoMesh({ uri }: { uri: string }) {
 function Scene({ uri }: { uri: string }) {
   return (
     <>
-      <ambientLight intensity={1.8} />
-      <directionalLight position={[5, 10, 7]} intensity={3.0} />
-      <directionalLight position={[-5, 5, -5]} intensity={2.0} color="#e6f0ff" />
-      <pointLight position={[0, 0, 5]} intensity={1.5} />
-      <pointLight position={[0, -3, 0]} intensity={1.0} color="#ffffff" />
+      <ambientLight intensity={2.0} />
+      <directionalLight position={[10, 10, 10]} intensity={3.5} />
+      <directionalLight position={[-10, 5, -10]} intensity={2.5} color="#ffffff" />
+      <pointLight position={[0, 0, 8]} intensity={2.0} />
       <Suspense fallback={null}>
         <LogoMesh uri={uri} />
       </Suspense>
@@ -67,15 +66,10 @@ class LogoErrorBoundary extends React.Component<
   }
 }
 
-function SvgMark() {
-  const colors = useColors();
+function SvgFallback() {
   return (
-    <View style={styles.container}>
-      <View style={styles.wrap}>
-        <Image source={LOGO_SVG} style={styles.img} contentFit="contain" accessibilityLabel="ZICA BELLA" />
-      </View>
-      <Typography size={12} weight="800" color={colors.text} style={styles.brandName}>ZICA BELLA</Typography>
-      <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.estText}>EST. 2024</Typography>
+    <View style={styles.center}>
+      <Image source={LOGO_SVG} style={styles.img} contentFit="contain" />
     </View>
   );
 }
@@ -83,7 +77,6 @@ function SvgMark() {
 export default function FooterLogo3D() {
   const colors = useColors();
   const [uri, setUri] = useState<string | null>(null);
-  const [useSvg, setUseSvg] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,8 +103,6 @@ export default function FooterLogo3D() {
     };
   }, []);
 
-  if (useSvg) return <SvgMark />;
-
   if (!uri) {
     return (
       <View style={[styles.wrap, styles.center]}>
@@ -121,10 +112,10 @@ export default function FooterLogo3D() {
   }
 
   return (
-    <LogoErrorBoundary fallback={<SvgMark />}>
+    <LogoErrorBoundary fallback={<SvgFallback />}>
       <View style={styles.wrap}>
         <Canvas
-          camera={{ position: [0, 0, 4.5], fov: 32 }}
+          camera={{ position: [0, 0, 5], fov: 28 }}
           gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true }}
           style={styles.canvas}
           frameloop="always"
@@ -134,7 +125,6 @@ export default function FooterLogo3D() {
         >
           <Scene uri={uri} />
         </Canvas>
-        <View style={styles.shadow} />
       </View>
     </LogoErrorBoundary>
   );
@@ -145,29 +135,20 @@ const styles = StyleSheet.create({
     width: WRAP_W,
     height: WRAP_H,
     alignSelf: 'center',
-    marginBottom: 4,
+    marginBottom: 0,
   },
   canvas: {
     flex: 1,
-    zIndex: 2,
   },
   img: {
-    width: '100%',
-    height: '100%',
+    width: 80,
+    height: 80,
+    opacity: 0.8,
   },
   center: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  shadow: {
-    position: 'absolute',
-    bottom: '20%',
-    left: '30%',
-    right: '30%',
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    zIndex: 1,
   },
 });
 
