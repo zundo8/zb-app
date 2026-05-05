@@ -607,12 +607,6 @@ export default function ProfileScreen() {
           </BlurView>
         </View>
 
-                </TouchableOpacity>
-              ))}
-            </BlurView>
-          </View>
-        ))}
-
         {/* ── Saved Addresses ── */}
         <View style={styles.sectionContainer}>
           <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>SAVED ADDRESSES</Typography>
