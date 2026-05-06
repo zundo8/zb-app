@@ -90,11 +90,13 @@ function statusTimeline(order: any) {
 }
 
 export async function GET(req: Request, { params }: { params: { orderId: string } }) {
-  const auth = getAppAuthFromRequest(req);
-  if (!auth) {
-    return NextResponse.json({ error: 'Unauthorized. Please sign in again.' }, { status: 401, headers: corsHeaders });
-  }
+  const url = new URL(req.url);
+  const qCustomerId = url.searchParams.get('customerId');
+  const qPhone = url.searchParams.get('phone');
+  const qEmail = url.searchParams.get('email');
 
+  const auth = getAppAuthFromRequest(req);
+  
   try {
     const order = await prisma.order.findUnique({
       where: { id: params.orderId },
@@ -107,13 +109,37 @@ export async function GET(req: Request, { params }: { params: { orderId: string 
           }
         },
         shipments: true,
+        customer: true,
       },
     });
 
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404, headers: corsHeaders });
-    if (order.customerId !== auth.customerId) {
+
+    // Auth check: Allow if JWT matches OR if guest tracking info (phone/email) matches the customer
+    let isAuthorized = false;
+    if (auth && order.customerId === auth.customerId) {
+      isAuthorized = true;
+    } else if (order.customer) {
+      // Check query params for guest tracking
+      if (qCustomerId === order.customerId) isAuthorized = true;
+      if (qEmail && order.customer.email === qEmail) isAuthorized = true;
+      if (qPhone) {
+        const orderPhone = order.customer.phone?.replace(/\D/g, '').slice(-10);
+        const inputPhone = qPhone.replace(/\D/g, '').slice(-10);
+        if (orderPhone && inputPhone && orderPhone === inputPhone) isAuthorized = true;
+      }
+    } else if (qCustomerId === order.customerId) {
+      // Fallback for orders without customer record but matching ID
+      isAuthorized = true;
+    }
+
+    if (!isAuthorized && !auth) {
+      return NextResponse.json({ error: 'Unauthorized. Please sign in again.' }, { status: 401, headers: corsHeaders });
+    }
+    if (!isAuthorized) {
       return NextResponse.json({ error: 'Unauthorized: not your order' }, { status: 403, headers: corsHeaders });
     }
+
 
     // Extract size from title if present (e.g. "PRODUCT NAME - XL" → size "XL")
     const formatItem = (it: any) => {

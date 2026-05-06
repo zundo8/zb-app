@@ -18,17 +18,29 @@ import { useAuthStore } from '../store/authStore';
 import { Image } from 'expo-image';
 import { trackOrder } from '../services/shipmentService';
 
-export default function OrderDetailScreen() {
+export default function OrderDetailsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { orderId } = route.params;
+  const { orderId } = route.params || {};
   const colors = useColors();
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
 
+  if (!orderId) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Typography color={colors.text}>Order ID is missing.</Typography>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
+          <Typography color={colors.iosBlue}>Go Back</Typography>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [trackingLive, setTrackingLive] = useState<any | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -38,7 +50,14 @@ export default function OrderDetailScreen() {
     try {
       if (!isPolling) setLoading(true);
       const token = useAuthStore.getState().token || '';
-      const res = await fetch(`${config.appUrl}/api/orders/${orderId}`, {
+      const user = useAuthStore.getState().user;
+      
+      const params = new URLSearchParams();
+      if (user?.id) params.set('customerId', user.id);
+      if (user?.phone) params.set('phone', user.phone);
+      if (user?.email) params.set('email', user.email);
+
+      const res = await fetch(`${config.appUrl}/api/app/orders/${orderId}?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Accept': 'application/json',
@@ -55,9 +74,11 @@ export default function OrderDetailScreen() {
       if (!res.ok) throw new Error(json.error || 'Failed to fetch order');
       if (json.order) {
         setOrder(json.order);
+        setError(null);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Fetch Order Detail Error:', e);
+      if (!isPolling) setError(e.message || 'Failed to load order details');
     } finally {
       if (!isPolling) setLoading(false);
     }
@@ -90,10 +111,45 @@ export default function OrderDetailScreen() {
     Linking.openURL(config.contactPage);
   };
 
+  if (loading && !order) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.foreground} />
+        <Typography size={14} color={colors.textMuted} style={{ marginTop: 16 }}>AUTHENTICATING...</Typography>
+      </View>
+    );
+  }
+
+  if (error && !order) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 40 }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
+        <Typography size={16} weight="700" color={colors.text} style={{ marginTop: 24, textAlign: 'center' }}>
+          Unable to Load Order
+        </Typography>
+        <Typography size={13} color={colors.textMuted} style={{ marginTop: 8, textAlign: 'center' }}>
+          {error}
+        </Typography>
+        <TouchableOpacity 
+          style={[styles.retryBtn, { backgroundColor: colors.foreground }]}
+          onPress={() => fetchOrderDetails()}
+        >
+          <Typography size={12} weight="800" color={colors.background}>TRY AGAIN</Typography>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={{ marginTop: 20 }}
+        >
+          <Typography size={12} weight="600" color={colors.iosBlue}>Go Back</Typography>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (!order) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator color={colors.foreground} />
+        <ActivityIndicator size="small" color={colors.foreground} />
       </View>
     );
   }
@@ -644,6 +700,14 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 14,
     borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  retryBtn: {
+    marginTop: 32,
+    paddingHorizontal: 32,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },

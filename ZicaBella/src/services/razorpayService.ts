@@ -124,7 +124,7 @@ export async function openRazorpayCheckout(
 
   // Step 3: Open Razorpay native checkout
   const orderId = rzpOrder.id || rzpOrder.razorpay_order_id;
-  const orderAmount = rzpOrder.amount || Math.round((orderData.total_price || 0) * 100);
+  const orderAmount = rzpOrder.amount || Math.round((orderData.amount || orderData.total_price || 0) * 100);
   
   const options = {
     description: 'Zica Bella Order',

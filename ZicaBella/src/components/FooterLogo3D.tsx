@@ -2,6 +2,7 @@ import React, { Suspense, useRef } from 'react';
 import { View, StyleSheet, PanResponder } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Bounds, Float } from '@react-three/drei';
+import { Image } from 'expo-image';
 
 const GLB_URL = 'https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb';
 
@@ -58,7 +59,7 @@ export default function FooterLogo() {
         <ambientLight intensity={1.5} />
         <directionalLight position={[10, 10, 5]} intensity={2.5} />
         <directionalLight position={[-10, 5, -5]} intensity={1} />
-        <Suspense fallback={null}>
+        <Suspense fallback={<StaticFallback />}>
           <Bounds fit clip observe margin={1.2}>
             <Model touchRotation={touchRotation} />
           </Bounds>
@@ -67,6 +68,20 @@ export default function FooterLogo() {
     </View>
   );
 }
+
+function StaticFallback() {
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <Image 
+        source={require('../../assets/zica-bella-logo_8.png')}
+        style={{ width: '100%', height: '100%', opacity: 0.5 }}
+        contentFit="contain"
+      />
+    </View>
+  );
+}
+
+
 
 const styles = StyleSheet.create({
   container: {

@@ -84,8 +84,44 @@ export default function OrderReviewScreen() {
       // Handle Razorpay Flow
       if (selectedPaymentMethod === 'razorpay') {
         try {
-           finalOrder = await openRazorpayCheckout(orderData, token);
+           // 1. Get payment details from Razorpay native UI
+           const rzpResult = await openRazorpayCheckout({
+             amount: grandTotal,
+             currency: 'INR',
+             email: user?.email || 'guest@zicabella.com',
+             phone: user?.phone || shippingAddress?.phone || '',
+             shipping_address: orderData.shipping_address
+           }, token);
+
+           if (!rzpResult || !rzpResult.razorpay_payment_id) {
+             throw new Error('Payment verification failed or was incomplete.');
+           }
+
+           // 2. Create the actual order in our DB with the verified payment info
+           const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
+             method: 'POST',
+             headers: { 
+               'Content-Type': 'application/json', 
+               'Accept': 'application/json',
+               'Authorization': `Bearer ${token}`
+             },
+             body: JSON.stringify({
+               ...orderData,
+               paymentMethod: 'PREPAID',
+               paymentId: rzpResult.razorpay_payment_id,
+               paymentStatus: 'paid'
+             })
+           });
+
+           if (!res.ok) {
+             const errJson = await res.json().catch(() => ({}));
+             throw new Error(errJson.error || 'Payment was successful but we failed to record your order. Please contact support with Payment ID: ' + rzpResult.razorpay_payment_id);
+           }
+
+           const json = await res.json();
+           finalOrder = { id: json.orderId || json.id };
         } catch (e: any) {
+
            console.log('Payment Flow Error:', e);
            if (e.message?.toLowerCase().includes('cancel') || e.code === 2) {
               setLoading(false);
@@ -98,14 +134,19 @@ export default function OrderReviewScreen() {
         }
       } else {
         // Handle COD Flow
-        const res = await fetch(`${config.appUrl}/api/orders/create-cod-order`, {
+        // Unified App Order Creation for COD (or Prepaid with payment details)
+        const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json', 
             'Accept': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(orderData)
+          body: JSON.stringify({
+            ...orderData,
+            paymentMethod: 'COD',
+            paymentStatus: 'pending'
+          })
         });
 
         const contentType = res.headers.get('content-type') || '';
@@ -121,9 +162,10 @@ export default function OrderReviewScreen() {
           if (res.status === 401 || res.status === 403) {
              throw new Error('Session expired or unauthorized. Please sign in again.');
           }
-          throw new Error(json.error || 'Failed to place COD order');
+          throw new Error(json.error || 'Failed to place order');
         }
-        finalOrder = json.order || json;
+        finalOrder = { id: json.orderId || json.id };
+
       }
 
       haptics.success();

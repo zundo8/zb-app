@@ -17,8 +17,19 @@ export default function ExchangeSelectProductScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { order } = route.params;
+  const { order } = route.params || {};
   const colors = useColors();
+
+  if (!order) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Typography color={colors.text}>Order details are missing.</Typography>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
+          <Typography color={colors.iosBlue}>Go Back</Typography>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
 
