@@ -66,6 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Mobile Orders", href: "/dashboard/mobile-orders", icon: Smartphone },
     { name: "Customers", href: "/dashboard/customers", icon: Users },
     { name: "Products", href: "/dashboard/products", icon: Layers2 },
+    { name: "Guide", href: "/dashboard/guide", icon: FileText },
   ];
 
   const operationalNav = [
