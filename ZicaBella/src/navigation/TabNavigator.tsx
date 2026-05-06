@@ -23,7 +23,9 @@ import ProductDetailScreen from '../screens/ProductDetailScreen';
 import CollectionScreen from '../screens/CollectionScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import OrderHistoryScreen from '../screens/OrderHistoryScreen';
-import OrderDetailScreen from '../screens/OrderDetailScreen';
+import OrderDetailsScreen from '../screens/OrderDetailsScreen';
+import ReturnRequestScreen from '../screens/ReturnRequestScreen';
+import ExchangeSelectProductScreen from '../screens/ExchangeSelectProductScreen';
 import PolicyScreen from '../screens/PolicyScreen';
 import ShopScreen from '../screens/ShopScreen';
 import WishlistScreen from '../screens/WishlistScreen';
@@ -82,13 +84,26 @@ function ProfileStack() {
     <Stack.Navigator id="ProfileStack" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
       <Stack.Screen name="OrderHistory" component={OrderHistoryScreen as any} />
-      <Stack.Screen name="OrderDetail" component={OrderDetailScreen as any} />
+      <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
+      <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen as any} />
+      <Stack.Screen name="ExchangeSelectProduct" component={ExchangeSelectProductScreen as any} />
       <Stack.Screen name="Wishlist" component={WishlistScreen as any} />
       <Stack.Screen name="Policy" component={PolicyScreen as any} />
       <Stack.Screen name="FAQ" component={FAQScreen as any} />
       <Stack.Screen name="Blogs" component={BlogsScreen as any} />
       <Stack.Screen name="Collaborations" component={CollaborationsScreen as any} />
       <Stack.Screen name="Notifications" component={NotificationsScreen as any} />
+    </Stack.Navigator>
+  );
+}
+
+function OrdersStack() {
+  return (
+    <Stack.Navigator id="OrdersStack" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+      <Stack.Screen name="OrderHistory" component={OrderHistoryScreen as any} />
+      <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
+      <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen as any} />
+      <Stack.Screen name="ExchangeSelectProduct" component={ExchangeSelectProductScreen as any} />
     </Stack.Navigator>
   );
 }
@@ -224,7 +239,7 @@ export const TabNavigator = () => {
       />
       <Tab.Screen
         name="OrdersTab"
-        component={OrderHistoryScreen}
+        component={OrdersStack}
         options={{
           tabBarLabel: 'Orders',
           tabBarIcon: ({ color }) => <Ionicons name="receipt-outline" size={18} color={color} />,

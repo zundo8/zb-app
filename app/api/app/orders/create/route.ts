@@ -4,8 +4,18 @@ import { getAppAuthFromRequest } from '@/lib/appAuth';
 
 export const dynamic = 'force-dynamic';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 function jsonError(message: string, status = 400) {
-  return NextResponse.json({ success: false, error: message }, { status });
+  return NextResponse.json({ success: false, error: message }, { status, headers: corsHeaders });
 }
 
 function toOrderNumberFromSeq(seq: number) {
@@ -28,13 +38,13 @@ async function allocateOrderNumber(): Promise<string> {
 }
 
 export async function POST(req: Request) {
+  // Validate auth token
   const auth = getAppAuthFromRequest(req);
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized. Please sign in again.' }, { status: 401, headers: corsHeaders });
+  }
 
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'api-create-pre',hypothesisId:'H5',location:'app/api/app/orders/create/route.ts:POST',message:'orders/create called',data:{hasAuth:!!auth,hasAuthHeader:!!req.headers.get('authorization'),authHeaderLen:(req.headers.get('authorization')||'').length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const body = await req.json();
 
     const {
@@ -52,7 +62,11 @@ export async function POST(req: Request) {
     } = body || {};
 
     if (!customerId || typeof customerId !== 'string') return jsonError('customerId is required', 400);
-    if (customerId !== auth.customerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+
+    // Validate that the authenticated user matches the customer placing the order
+    if (customerId !== auth.customerId) {
+      return NextResponse.json({ error: 'Unauthorized: customer mismatch' }, { status: 403, headers: corsHeaders });
+    }
 
     if (!customerEmail || typeof customerEmail !== 'string') return jsonError('customerEmail is required', 400);
     if (!customerPhone || typeof customerPhone !== 'string') return jsonError('customerPhone is required', 400);
@@ -159,13 +173,9 @@ export async function POST(req: Request) {
       orderNumber,
       status: 'awaiting_approval',
       estimatedDelivery: null,
-    });
+    }, { headers: corsHeaders });
   } catch (e: any) {
     console.error('[App API] orders/create error:', e);
-    // #region agent log
-    fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'api-create-pre',hypothesisId:'H5',location:'app/api/app/orders/create/route.ts:catch',message:'orders/create error',data:{err:String(e?.message||e)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    return NextResponse.json({ success: false, error: e?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ success: false, error: e?.message || 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }
-

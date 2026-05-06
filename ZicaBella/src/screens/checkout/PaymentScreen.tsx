@@ -48,12 +48,6 @@ export default function PaymentScreen() {
     setLoading(true);
     try {
       const token = useAuthStore.getState().token || '';
-      // #region agent log
-      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Place order start',data:{paymentMethod,tokenLen:token.length,hasShipping:!!shippingAddress?.name,itemsCount:items.length,appUrl:config.appUrl},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Place order start (v2)',data:{paymentMethod,tokenLen:token.length,hasUserId:!!user?.id,hasShippingLine1:!!shippingAddress?.line1,itemsCount:items.length,appUrl:config.appUrl},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (!token) throw new Error('Session expired. Please sign in again.');
 
       const lineItems = items.map((i: any) => ({
@@ -69,7 +63,11 @@ export default function PaymentScreen() {
       if (paymentMethod === 'COD') {
         const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             customerId: user.id,
             customerEmail: user.email || '',
@@ -91,6 +89,13 @@ export default function PaymentScreen() {
             total: grandTotal,
           }),
         });
+
+        // Guard against non-JSON responses (HTML error pages)
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error(`Server error (${res.status}). Please try again later.`);
+        }
+
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Failed to place order');
 
@@ -109,19 +114,16 @@ export default function PaymentScreen() {
       // PREPAID: Razorpay first, then create order
       const payment = await openRazorpayCheckout(
         { amount: grandTotal, receipt: `zb_${Date.now()}` },
-        { name: user.name || shippingAddress.name, email: user.email || '', phone: user.phone || shippingAddress.phone || '' },
         token
       );
-      // #region agent log
-      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Razorpay success (redacted)',data:{hasPaymentId:!!payment?.razorpay_payment_id,hasOrderId:!!payment?.razorpay_order_id},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Razorpay success (redacted v2)',data:{hasPaymentId:!!payment?.razorpay_payment_id,hasOrderId:!!payment?.razorpay_order_id},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           customerId: user.id,
           customerEmail: user.email || '',
@@ -144,19 +146,14 @@ export default function PaymentScreen() {
           total: grandTotal,
         }),
       });
-      const raw = await res.text();
-      // #region agent log
-      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Create order response',data:{status:res.status,ok:res.ok,bodyPrefix:raw.slice(0,20)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Create order response (v2)',data:{status:res.status,ok:res.ok,bodyPrefix:raw.slice(0,40)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      let json: any = null;
-      try {
-        json = raw ? JSON.parse(raw) : {};
-      } catch (e: any) {
-        throw new Error(`JSON Parse error: ${String(e?.message || e)} (prefix: ${raw.slice(0, 20)})`);
+
+      // Guard against non-JSON responses
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server error (${res.status}). Payment was successful but order recording failed. Please contact support.`);
       }
+
+      const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to place order');
 
       useCartStore.getState().clearCart();
@@ -170,6 +167,11 @@ export default function PaymentScreen() {
       }
     } catch (e: any) {
       const msg = e?.message || 'Something went wrong. Please try again.';
+      // Don't show error for user cancellation
+      if (msg.includes('cancelled') || msg.includes('canceled') || e?.code === 2 || e?.code === 0) {
+        setLoading(false);
+        return;
+      }
       setInlineError(msg);
     } finally {
       setLoading(false);

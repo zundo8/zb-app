@@ -11,6 +11,9 @@ import { formatPrice } from '../../utils/formatPrice';
 import { haptics } from '../../utils/haptics';
 import { config } from '../../constants/config';
 import { useAuth } from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/authStore';
+import { openRazorpayCheckout } from '../../services/razorpayService';
+import { Image } from 'expo-image';
 
 const { width } = Dimensions.get('window');
 
@@ -25,10 +28,10 @@ export default function OrderReviewScreen() {
   const [loading, setLoading] = useState(false);
   
   const appliedCredit = route.params?.appliedCredit || 0;
-  const paymentMethod = route.params?.paymentMethod || 'razorpay';
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'razorpay' | 'cod'>(route.params?.paymentMethod || 'razorpay');
   const subtotal = total();
   const shipping = 0;
-  const codFee = paymentMethod === 'cod' ? 99 : 0;
+  const codFee = selectedPaymentMethod === 'cod' ? 99 : 0;
   const grandTotal = subtotal + shipping + codFee - appliedCredit;
 
   const handlePlaceOrder = async () => {
@@ -37,41 +40,13 @@ export default function OrderReviewScreen() {
     haptics.buttonTap();
 
     try {
-      let paymentDetails: any = null;
-
-      // Handle Razorpay Flow
-      if (paymentMethod === 'razorpay') {
-        // Dynamic Key Resolution
-        let razorpayKey = config.razorpay.keyId;
-        
-        try {
-           const { openRazorpayCheckout } = require('../../services/razorpayService');
-           paymentDetails = await openRazorpayCheckout(
-             { amount: grandTotal },
-             { 
-               name: user?.name || shippingAddress?.name, 
-               email: user?.email || 'customer@zicabella.com', 
-               phone: user?.phone || shippingAddress?.phone 
-             },
-             'INTERNAL_APP_TOKEN'
-           );
-        } catch (e: any) {
-          console.log('Payment Flow Error:', e);
-          
-          if (e.message?.toLowerCase().includes('cancel') || e.code === 2) {
-             setLoading(false);
-             return;
-          }
-
-          if (e.message?.includes('setup required') || e.message?.includes('Production env')) {
-             throw new Error('Payment gateway is currently being configured for production. Please use COD or try again in a few minutes.');
-          }
-
-          throw new Error(e.message || 'Payment failed. Please verify your credentials or try again.');
-        }
+      // Get the real auth token from the store
+      const token = useAuthStore.getState().token || '';
+      if (!token) {
+        throw new Error('Session expired. Please sign in again.');
       }
 
-      // API call to order creation endpoint
+      // Build order payload first
       const orderData = {
         customerId: user?.id || 'GUEST',
         email: user?.email || 'guest@zicabella.com',
@@ -88,38 +63,67 @@ export default function OrderReviewScreen() {
         shipping_address: {
           first_name: (shippingAddress?.name || user?.name || 'Zica').split(' ')[0],
           last_name: (shippingAddress?.name || user?.name || 'User').split(' ').slice(1).join(' ') || 'User',
-          address1: shippingAddress?.street || 'Address not provided',
+          address1: shippingAddress?.street || shippingAddress?.line1 || 'Address not provided',
           city: shippingAddress?.city || 'New Delhi',
-          zip: shippingAddress?.zip || '110001',
+          zip: shippingAddress?.zip || shippingAddress?.pincode || '110001',
           country_code: 'IN',
           state: shippingAddress?.state || 'Delhi',
           district: shippingAddress?.district || '',
           phone: shippingAddress?.phone || user?.phone
         },
-        financial_status: (appliedCredit >= grandTotal || paymentDetails) ? 'paid' : 'pending',
-        payment_method: paymentMethod,
-        payment_id: paymentDetails?.razorpay_payment_id || null,
-        razorpay_order_id: paymentDetails?.razorpay_order_id || null,
+        financial_status: 'pending', // Will be updated on server after verification
+        payment_method: selectedPaymentMethod,
         total_price: grandTotal,
         subtotal_price: subtotal,
         total_tax: 0,
         currency: 'INR'
       };
 
-      const res = await fetch(`${config.appUrl}/api/app/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(orderData)
-      });
+      let finalOrder: any = null;
 
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error(`Server error (${res.status}). Please try again.`);
-      }
+      // Handle Razorpay Flow
+      if (selectedPaymentMethod === 'razorpay') {
+        try {
+           finalOrder = await openRazorpayCheckout(orderData, token);
+        } catch (e: any) {
+           console.log('Payment Flow Error:', e);
+           if (e.message?.toLowerCase().includes('cancel') || e.code === 2) {
+              setLoading(false);
+              return;
+           }
+           if (e.message?.includes('setup required') || e.message?.includes('Production env')) {
+              throw new Error('Payment gateway is currently being configured for production. Please use COD or try again in a few minutes.');
+           }
+           throw new Error(e.message || 'Payment failed. Please verify your credentials or try again.');
+        }
+      } else {
+        // Handle COD Flow
+        const res = await fetch(`${config.appUrl}/api/orders/create-cod-order`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json', 
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(orderData)
+        });
 
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || 'Failed to place order on server');
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          if (res.status === 401 || res.status === 403) {
+             throw new Error('Session expired or unauthorized. Please sign in again.');
+          }
+          throw new Error(`Server error (${res.status}). Please try again.`);
+        }
+
+        const json = await res.json();
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+             throw new Error('Session expired or unauthorized. Please sign in again.');
+          }
+          throw new Error(json.error || 'Failed to place COD order');
+        }
+        finalOrder = json.order || json;
       }
 
       haptics.success();
@@ -128,7 +132,7 @@ export default function OrderReviewScreen() {
       // Navigate to success
       navigation.reset({
         index: 0,
-        routes: [{ name: 'OrderConfirmation', params: { orderId: json.order?.id || json.id || 'ZB-SUCCESS' } }],
+        routes: [{ name: 'OrderConfirmation', params: { orderId: finalOrder?.id || finalOrder?.order_id || 'ZB-SUCCESS' } }],
       });
       
     } catch (e: any) {
@@ -161,6 +165,24 @@ export default function OrderReviewScreen() {
         <Typography size={22} weight="700" color={colors.text} style={styles.title}>Final glance before dispatch.</Typography>
 
         <View style={styles.section}>
+          <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>ITEMS IN ORDER</Typography>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, padding: 16 }]}>
+            {items.map((item, idx) => (
+              <View key={item.id || idx} style={[styles.itemRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: 12, marginTop: 12 }]}>
+                <View style={{ width: 48, height: 48, borderRadius: 8, backgroundColor: colors.background, overflow: 'hidden' }}>
+                  {item.image && <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />}
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Typography size={12} weight="600" color={colors.text} numberOfLines={1}>{item.title}</Typography>
+                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 4 }}>Qty: {item.quantity}</Typography>
+                </View>
+                <Typography size={13} weight="700" color={colors.text}>{formatPrice(Number(item.price || 0) * Number(item.quantity || 1))}</Typography>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>DELIVERY</Typography>
             <TouchableOpacity onPress={() => navigation.navigate('DeliveryAddress')}><Typography size={7} weight="600" color={colors.foreground}>EDIT</Typography></TouchableOpacity>
@@ -168,27 +190,51 @@ export default function OrderReviewScreen() {
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
              <Typography size={12} weight="600" color={colors.text}>{shippingAddress?.name || user?.name}</Typography>
              <Typography size={10} color={colors.textSecondary} style={{ marginTop: 6, lineHeight: 16 }}>
-                {shippingAddress?.street}{'\n'}
-                {shippingAddress?.city}, {shippingAddress?.state} {shippingAddress?.zip}
+                {shippingAddress?.street || shippingAddress?.line1}{'\n'}
+                {shippingAddress?.city}, {shippingAddress?.state} {shippingAddress?.zip || shippingAddress?.pincode}
              </Typography>
              <Typography size={10} color={colors.textSecondary} style={{ marginTop: 8 }}>{shippingAddress?.phone || user?.phone}</Typography>
           </View>
         </View>
 
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>PAYMENT METHOD</Typography>
-            <TouchableOpacity onPress={() => navigation.navigate('Payment')}><Typography size={7} weight="600" color={colors.foreground}>EDIT</Typography></TouchableOpacity>
-          </View>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, flexDirection: 'row', alignItems: 'center' }]}>
-             <View style={[styles.methodIcon, { backgroundColor: colors.background }]}>
-               <Ionicons 
-                  name={paymentMethod === 'apple' ? 'logo-apple' : paymentMethod === 'cod' ? 'cash' : paymentMethod === 'razorpay' ? 'flash' : 'card'} 
-                  size={18} 
-                  color={colors.text} 
-               />
-             </View>
-             <Typography size={11} weight="700" color={colors.text} style={{ marginLeft: 16 }}>{paymentMethod.toUpperCase()} {paymentMethod === 'razorpay' && 'SECURE'}</Typography>
+          <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>PAYMENT METHOD</Typography>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, padding: 16 }]}>
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              onPress={() => setSelectedPaymentMethod('razorpay')}
+              style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+            >
+              <View style={[styles.radio, { borderColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.borderLight }]}>
+                {selectedPaymentMethod === 'razorpay' && <View style={[styles.radioInner, { backgroundColor: colors.foreground }]} />}
+              </View>
+              <View style={[styles.methodIcon, { backgroundColor: colors.background, marginLeft: 12 }]}>
+                <Ionicons name="flash" size={18} color={colors.text} />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <Typography size={12} weight="700" color={colors.text}>Razorpay Secure</Typography>
+                <Typography size={10} color={colors.textMuted} style={{ marginTop: 2 }}>UPI, Cards, Wallets</Typography>
+              </View>
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: colors.borderLight, marginVertical: 0, marginBottom: 16 }]} />
+
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              onPress={() => setSelectedPaymentMethod('cod')}
+              style={{ flexDirection: 'row', alignItems: 'center' }}
+            >
+              <View style={[styles.radio, { borderColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.borderLight }]}>
+                {selectedPaymentMethod === 'cod' && <View style={[styles.radioInner, { backgroundColor: colors.foreground }]} />}
+              </View>
+              <View style={[styles.methodIcon, { backgroundColor: colors.background, marginLeft: 12 }]}>
+                <Ionicons name="cash" size={18} color={colors.text} />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <Typography size={12} weight="700" color={colors.text}>Cash on Delivery</Typography>
+                <Typography size={10} color={colors.textMuted} style={{ marginTop: 2 }}>Extra ₹99 service fee applies</Typography>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -256,6 +302,9 @@ const styles = StyleSheet.create({
   card: { padding: 24, borderRadius: 28, borderWidth: 1.5 },
   methodIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8 },
+  itemRow: { flexDirection: 'row', alignItems: 'center' },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
   divider: { height: 1, marginVertical: 16, opacity: 0.5 },
   legalBox: { marginTop: 12, paddingHorizontal: 30, opacity: 0.6 },
 });

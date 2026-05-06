@@ -227,11 +227,6 @@ export default function CheckoutScreen() {
           amount: subtotal,
           receipt: `order_${Date.now()}`,
         },
-        {
-          name: address.name || user?.name || '',
-          email: address.email || user?.email || '',
-          phone: address.phone || user?.phone || '',
-        },
         useAuthStore.getState().token || ''
       );
 

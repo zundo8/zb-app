@@ -32,7 +32,9 @@ export async function GET(
           }
         }, 
         shipments: true,
-        customer: true
+        customer: true,
+        returnRequests: true,
+        exchangeRequests: true
       },
     });
 

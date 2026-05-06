@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Animated, ScrollView, ActivityIndicator, Linking, Share,
   Platform,
@@ -21,26 +21,36 @@ import { trackOrder } from '../services/shipmentService';
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const route = useRoute<RouteProp<RootStackParamList, 'OrderDetail'>>();
-  const { orderForDetail } = route.params;
+  const route = useRoute<any>();
+  const { orderId } = route.params;
   const colors = useColors();
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
 
-  const [order, setOrder] = useState<any>(orderForDetail);
+  const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [trackingLive, setTrackingLive] = useState<any | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const fetchOrderDetails = useCallback(async (isPolling = false) => {
-    if (!order?.id) return;
+    if (!orderId) return;
     try {
       if (!isPolling) setLoading(true);
       const token = useAuthStore.getState().token || '';
-      const res = await fetch(`${config.appUrl}/api/app/orders/${order.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await fetch(`${config.appUrl}/api/orders/${orderId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Accept': 'application/json',
+        }
       });
+
+      // Guard against non-JSON responses
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server error (${res.status})`);
+      }
+
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch order');
       if (json.order) {
@@ -51,7 +61,7 @@ export default function OrderDetailScreen() {
     } finally {
       if (!isPolling) setLoading(false);
     }
-  }, [order?.id]);
+  }, [orderId]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
@@ -80,7 +90,13 @@ export default function OrderDetailScreen() {
     Linking.openURL(config.contactPage);
   };
 
-  if (!order) return null;
+  if (!order) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={colors.foreground} />
+      </View>
+    );
+  }
 
   const isCancelled = (order.status || '').toLowerCase().includes('cancel');
   const isDelivered = (Array.isArray(order.statusTimeline) ? order.statusTimeline : []).some((t: any) => t.step === 'delivered' && t.completedAt);
@@ -106,6 +122,20 @@ export default function OrderDetailScreen() {
     tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
     return m;
   }, [order.statusTimeline]);
+
+  const getItemImage = (item: any): string | null => {
+    if (item.image) return item.image;
+    if (item.imageUrl) return item.imageUrl;
+    if (item.product?.image) return item.product.image;
+    if (item.product?.images?.[0]) return item.product.images[0];
+    if (order.lineItems) {
+      const match = order.lineItems.find((li: any) =>
+        li.name === item.title || li.productId === item.productId
+      );
+      if (match?.imageUrl) return match.imageUrl;
+    }
+    return null;
+  };
 
   const SectionCard = ({ children, style }: { children: React.ReactNode; style?: any }) => (
     <View style={[
@@ -269,53 +299,94 @@ export default function OrderDetailScreen() {
           </SectionCard>
         )}
 
+        {/* ─── Return/Exchange Request Status ─── */}
+        {(order.returnRequests?.length > 0 || order.exchangeRequests?.length > 0) && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="sync-circle-outline" size={16} color={colors.text} />
+              <Typography size={13} weight="700" color={colors.text} style={{ marginLeft: 8 }}>Service Requests</Typography>
+            </View>
+            {order.returnRequests?.map((req: any) => (
+              <SectionCard key={req.id}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <Typography size={13} weight="700" color={colors.text}>Return Request</Typography>
+                  <View style={[styles.itemMeta, { backgroundColor: req.status === 'approved' ? '#34C75915' : req.status === 'rejected' ? '#FF3B3015' : '#FF9F0A15' }]}>
+                    <Typography size={10} weight="700" color={req.status === 'approved' ? '#34C759' : req.status === 'rejected' ? '#FF3B30' : '#FF9F0A'}>
+                      {req.status.replace('_', ' ').toUpperCase()}
+                    </Typography>
+                  </View>
+                </View>
+                <Typography size={11} color={colors.textMuted} style={{ marginBottom: 4 }}>Created on {new Date(req.createdAt).toLocaleDateString()}</Typography>
+                <Typography size={11} color={colors.textMuted}>Estimated Refund: {formatPrice(req.estimatedRefund)}</Typography>
+                {req.reason && <Typography size={11} color={colors.textMuted} style={{ marginTop: 4 }}>Note: {req.reason}</Typography>}
+              </SectionCard>
+            ))}
+            {order.exchangeRequests?.map((req: any) => (
+              <SectionCard key={req.id}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <Typography size={13} weight="700" color={colors.text}>Exchange Request</Typography>
+                  <View style={[styles.itemMeta, { backgroundColor: req.status === 'approved' ? '#34C75915' : req.status === 'rejected' ? '#FF3B3015' : '#FF9F0A15' }]}>
+                    <Typography size={10} weight="700" color={req.status === 'approved' ? '#34C759' : req.status === 'rejected' ? '#FF3B30' : '#FF9F0A'}>
+                      {req.status.replace('_', ' ').toUpperCase()}
+                    </Typography>
+                  </View>
+                </View>
+                <Typography size={11} color={colors.textMuted} style={{ marginBottom: 4 }}>Created on {new Date(req.createdAt).toLocaleDateString()}</Typography>
+                <Typography size={11} color={colors.textMuted}>Price Difference: {formatPrice(Math.abs(req.priceDifference))} {req.priceDifference > 0 ? '(To Pay)' : '(Refund)'}</Typography>
+                {req.reason && <Typography size={11} color={colors.textMuted} style={{ marginTop: 4 }}>Note: {req.reason}</Typography>}
+              </SectionCard>
+            ))}
+          </>
+        )}
+
         {/* ─── Order Items ─── */}
         <View style={styles.sectionHeader}>
           <Ionicons name="bag-outline" size={16} color={colors.text} />
           <Typography size={13} weight="700" color={colors.text} style={{ marginLeft: 8 }}>Order Items</Typography>
         </View>
         <SectionCard style={{ padding: 0 }}>
-          {order.items?.map((item: any, index: number) => (
-            <View
-              key={item.id}
-              style={[
-                styles.orderItemRow,
-                index > 0 && { borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }
-              ]}
-            >
-              <View style={[
-                styles.orderItemThumb,
-                { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)' }
-              ]}>
-                {item.image ? (
-                  <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                ) : (
-                  <Ionicons name="shirt-outline" size={20} color={colors.textExtraLight} />
-                )}
-              </View>
-              <View style={{ flex: 1, marginLeft: 14 }}>
-                <Typography size={14} weight="600" color={colors.text} numberOfLines={2}>
-                  {item.title || item.fullTitle}
-                </Typography>
-                <View style={{ flexDirection: 'row', marginTop: 6, gap: 12 }}>
-                  {item.size && (
-                    <View style={[styles.itemMeta, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                      <Typography size={10} weight="600" color={colors.textMuted}>Size: {item.size}</Typography>
-                    </View>
-                  )}
-                  <View style={[styles.itemMeta, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                    <Typography size={10} weight="600" color={colors.textMuted}>Qty: {item.quantity}</Typography>
-                  </View>
-                  {item.sku && (
-                    <View style={[styles.itemMeta, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                      <Typography size={10} weight="600" color={colors.textExtraLight}>SKU: {item.sku}</Typography>
-                    </View>
+          {order.items?.map((item: any, index: number) => {
+            const imgUrl = getItemImage(item);
+            return (
+              <View
+                key={item.id || index}
+                style={[
+                  styles.orderItemRow,
+                  index > 0 && { borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }
+                ]}
+              >
+                <View style={[
+                  styles.orderItemThumb,
+                  { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)' }
+                ]}>
+                  {imgUrl ? (
+                    <Image source={{ uri: imgUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  ) : (
+                    <Ionicons name="shirt-outline" size={20} color={colors.textExtraLight} />
                   )}
                 </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Typography size={14} weight="600" color={colors.text} numberOfLines={2}>
+                    {item.title || item.fullTitle || item.name}
+                  </Typography>
+                  <View style={{ flexDirection: 'row', marginTop: 6, gap: 12 }}>
+                    {item.size && (
+                      <View style={[styles.itemMeta, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                        <Typography size={10} weight="600" color={colors.textMuted}>Size: {item.size}</Typography>
+                      </View>
+                    )}
+                    <View style={[styles.itemMeta, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                      <Typography size={10} weight="600" color={colors.textMuted}>Qty: {item.quantity}</Typography>
+                    </View>
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Typography size={15} weight="700" color={colors.text}>{formatPrice(item.price * item.quantity)}</Typography>
+                  <Typography size={10} weight="500" color={colors.textMuted} style={{ marginTop: 2 }}>{formatPrice(item.price)} each</Typography>
+                </View>
               </View>
-              <Typography size={15} weight="700" color={colors.text}>{formatPrice(item.price * item.quantity)}</Typography>
-            </View>
-          ))}
+            );
+          })}
         </SectionCard>
 
         {/* ─── Delivery Address ─── */}
@@ -330,13 +401,13 @@ export default function OrderDetailScreen() {
                 {order.shippingAddress?.name || 'Customer'}
               </Typography>
               <Typography size={13} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 20 }}>
-                {order.shippingAddress?.address1 || order.shippingAddress?.raw || ''}
-                {order.shippingAddress?.address2 ? `, ${order.shippingAddress.address2}` : ''}
+                {order.shippingAddress?.address1 || order.shippingAddress?.line1 || order.shippingAddress?.raw || ''}
+                {order.shippingAddress?.address2 || order.shippingAddress?.line2 ? `, ${order.shippingAddress.address2 || order.shippingAddress.line2}` : ''}
                 {'\n'}
-                {[order.shippingAddress?.city, order.shippingAddress?.province].filter(Boolean).join(', ')}
-                {order.shippingAddress?.zip ? ` - ${order.shippingAddress.zip}` : ''}
+                {[order.shippingAddress?.city, order.shippingAddress?.province || order.shippingAddress?.state].filter(Boolean).join(', ')}
+                {order.shippingAddress?.zip || order.shippingAddress?.pincode ? ` - ${order.shippingAddress.zip || order.shippingAddress.pincode}` : ''}
               </Typography>
-              {order.shippingAddress?.phone && (
+              {(order.shippingAddress?.phone) && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 6 }}>
                   <Ionicons name="call-outline" size={13} color={colors.textMuted} />
                   <Typography size={12} color={colors.textMuted} weight="500">{order.shippingAddress.phone}</Typography>
@@ -354,7 +425,7 @@ export default function OrderDetailScreen() {
         <SectionCard>
           <View style={styles.priceRow}>
             <Typography size={13} color={colors.textMuted} weight="500">Subtotal</Typography>
-            <Typography size={13} color={colors.text} weight="600">{formatPrice(order.subtotalPrice || order.totalPrice)}</Typography>
+            <Typography size={13} color={colors.text} weight="600">{formatPrice(order.subtotalPrice || order.subtotal || order.totalPrice)}</Typography>
           </View>
           {order.totalTax != null && order.totalTax > 0 && (
             <View style={styles.priceRow}>
@@ -375,7 +446,7 @@ export default function OrderDetailScreen() {
           <View style={[styles.totalRow, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
             <Typography size={15} weight="800" color={colors.text}>Total</Typography>
             <Typography size={22} weight="800" color={colors.text} style={{ letterSpacing: -0.5 }}>
-              {formatPrice(order.totalPrice)}
+              {formatPrice(order.totalPrice || order.total)}
             </Typography>
           </View>
         </SectionCard>
@@ -411,7 +482,51 @@ export default function OrderDetailScreen() {
             <Ionicons name="chatbubble-outline" size={16} color={colors.text} />
             <Typography size={12} weight="600" color={colors.text} style={{ marginLeft: 6 }}>Support</Typography>
           </TouchableOpacity>
+          {(!isCancelled && !isDelivered && (order.status === 'pending' || order.status === 'awaiting_approval' || !order.statusTimeline?.find((t: any) => t.step === 'shipped')?.completedAt)) && (
+            <TouchableOpacity
+              style={[styles.supportBtn, { backgroundColor: '#FF3B3015', borderColor: '#FF3B3030' }]}
+              onPress={() => {
+                haptics.error();
+                // Add your cancel logic here
+              }}
+            >
+              <Ionicons name="close-circle-outline" size={16} color="#FF3B30" />
+              <Typography size={12} weight="600" color="#FF3B30" style={{ marginLeft: 6 }}>Cancel Order</Typography>
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* ─── Returns & Exchanges Actions ─── */}
+        {isDelivered && (!order.returnRequests?.length && !order.exchangeRequests?.length) && (
+          <>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                style={[styles.supportBtn, { backgroundColor: colors.foreground, flex: 1, borderColor: colors.foreground }]}
+                onPress={() => {
+                  haptics.buttonTap();
+                  navigation.navigate('ReturnRequest', { order });
+                }}
+              >
+                <Ionicons name="return-down-back-outline" size={16} color={colors.background} />
+                <Typography size={12} weight="700" color={colors.background} style={{ marginLeft: 6 }}>Request Return</Typography>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.supportBtn, { backgroundColor: colors.foreground, flex: 1, borderColor: colors.foreground }]}
+                onPress={() => {
+                  haptics.buttonTap();
+                  navigation.navigate('ExchangeSelectProduct', { order });
+                }}
+              >
+                <Ionicons name="swap-horizontal-outline" size={16} color={colors.background} />
+                <Typography size={12} weight="700" color={colors.background} style={{ marginLeft: 6 }}>Request Exchange</Typography>
+              </TouchableOpacity>
+            </View>
+            <View style={{ alignItems: 'center', marginTop: 10 }}>
+              <Typography size={10} color={colors.textMuted}>Returns and exchanges available within 30 days of delivery</Typography>
+            </View>
+          </>
+        )}
       </View>
 
       {loading && (
@@ -477,21 +592,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginLeft: 4,
   },
-  trackingCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  trackingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   copyBtn: {
     width: 36,
     height: 36,
@@ -505,9 +605,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   orderItemThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
+    width: 64,
+    height: 64,
+    borderRadius: 16,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
@@ -530,23 +630,6 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     borderTopWidth: 1,
   },
-  serviceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  serviceBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  serviceLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    gap: 4,
-  },
   footer: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
@@ -561,22 +644,6 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 14,
     borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  returnActionBtn: {
-    flexDirection: 'row',
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  exchangeActionBtn: {
-    flexDirection: 'row',
-    flex: 1.5,
-    height: 48,
-    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },

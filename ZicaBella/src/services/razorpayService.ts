@@ -2,18 +2,6 @@ import RazorpayCheckout from 'react-native-razorpay';
 import { Alert } from 'react-native';
 import { config } from '../constants/config';
 
-interface OrderPayload {
-  amount: number;      // in rupees e.g. 999.00
-  currency?: string;
-  receipt?: string;
-}
-
-interface UserInfo {
-  name?: string;
-  email?: string;
-  phone?: string;
-}
-
 export interface PaymentResult {
   razorpay_payment_id: string;
   razorpay_order_id: string;
@@ -75,10 +63,9 @@ async function getRazorpayKey(): Promise<string> {
  * Returns PaymentResult on success, throws on failure or user cancel
  */
 export async function openRazorpayCheckout(
-  orderPayload: OrderPayload,
-  userInfo: UserInfo,
+  orderData: any,
   authToken: string
-): Promise<PaymentResult> {
+): Promise<any> {
   // Step 0: Resolve Public Key
   let razorpayKey = '';
   try {
@@ -100,11 +87,7 @@ export async function openRazorpayCheckout(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${authToken}`,
       },
-      body: JSON.stringify({
-        amount: orderPayload.amount,
-        currency: orderPayload.currency || 'INR',
-        receipt: orderPayload.receipt || `rcpt_${Date.now()}`,
-      }),
+      body: JSON.stringify(orderData),
     });
 
     if (!orderRes.ok) {
@@ -115,31 +98,6 @@ export async function openRazorpayCheckout(
     }
   } catch (e: any) {
     createOrderError = e.message || 'Network error creating order';
-  }
-
-  // If primary failed, try fallback endpoint
-  if (!rzpOrder && createOrderError) {
-    try {
-      const fallbackRes = await fetch(`${config.appUrl}/api/checkout/razorpay`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          amount: orderPayload.amount,
-          currency: orderPayload.currency || 'INR',
-          receipt: orderPayload.receipt || `rcpt_${Date.now()}`,
-        }),
-      });
-
-      if (fallbackRes.ok) {
-        rzpOrder = await fallbackRes.json();
-        createOrderError = null;
-      }
-    } catch {
-      // Both endpoints failed
-    }
   }
 
   if (!rzpOrder) {
@@ -166,7 +124,7 @@ export async function openRazorpayCheckout(
 
   // Step 3: Open Razorpay native checkout
   const orderId = rzpOrder.id || rzpOrder.razorpay_order_id;
-  const orderAmount = rzpOrder.amount || Math.round(orderPayload.amount * 100);
+  const orderAmount = rzpOrder.amount || Math.round((orderData.total_price || 0) * 100);
   
   const options = {
     description: 'Zica Bella Order',
@@ -177,9 +135,9 @@ export async function openRazorpayCheckout(
     name: 'Zica Bella',
     order_id: orderId,
     prefill: {
-      name: userInfo.name || '',
-      email: userInfo.email || '',
-      contact: userInfo.phone ? `+91${userInfo.phone.replace(/^\+91/, '')}` : '',
+      name: orderData.shipping_address?.first_name || '',
+      email: orderData.email || '',
+      contact: orderData.phone ? `+91${orderData.phone.replace(/^\+91/, '')}` : '',
     },
     theme: { color: '#000000' },
     modal: {
@@ -219,23 +177,24 @@ export async function openRazorpayCheckout(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify(paymentData),
+        body: JSON.stringify({
+          ...paymentData,
+          order_id: orderId // Add original order reference if needed
+        }),
       });
 
       const verifyResult = await verifyRes.json().catch(() => ({ success: false }));
 
       if (!verifyResult.success) {
-        // Verification failed but payment may have gone through
-        console.error('[Razorpay] Verification failed but payment collected:', paymentData.razorpay_payment_id);
-        // Still return the payment data so the order can be created
-        // The checkout/complete API will handle final verification
+        throw new Error(verifyResult.error || 'Payment verification failed');
       }
-    } catch (verifyError) {
-      // Verification API unreachable — don't block the user
-      console.error('[Razorpay] Verification API error:', verifyError);
-    }
 
-    return paymentData;
+      // Return the final verified order if returned, otherwise return payment data
+      return verifyResult.order || verifyResult;
+    } catch (verifyError: any) {
+      console.error('[Razorpay] Verification API error:', verifyError);
+      throw new Error(verifyError.message || 'Payment verification failed');
+    }
   } catch (error: any) {
     if (error?.code === 2 || error?.code === 0) {
       throw new Error('Payment cancelled by user');

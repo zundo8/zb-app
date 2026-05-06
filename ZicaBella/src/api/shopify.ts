@@ -2,6 +2,7 @@
 // All requests go through the admin dashboard — no direct Shopify API calls
 
 import { config } from '../constants/config';
+import { useAuthStore } from '../store/authStore';
 
 const API_BASE = `${config.appUrl}/api/app`;
 
@@ -21,6 +22,7 @@ export async function apiFetch<T>(
     method: options?.method || 'GET',
     headers: {
       'Content-Type': 'application/json',
+      ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {}),
     },
   };
 

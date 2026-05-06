@@ -40,7 +40,7 @@ export type RootStackParamList = {
   ServiceFlow: undefined;
   OrderConfirmation: { orderId: string; orderNumber?: string; paymentMethod?: 'COD' | 'PREPAID'; estimatedDelivery?: string | null };
   OrderHistory: { openReturnFor?: string } | undefined;
-  OrderDetail: { orderForDetail: any };
+  OrderDetails: { orderId: string };
   Policy: { url: string; title?: string };
   Community: undefined;
   Story: undefined;

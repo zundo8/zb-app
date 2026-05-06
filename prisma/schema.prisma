@@ -163,6 +163,8 @@ model Order {
   items               OrderItem[]
   payments            Payment[]
   returns             Return[]
+  returnRequests      ReturnRequest[]
+  exchangeRequests    ExchangeRequest[]
   shipments           Shipment[]
   codConfirmationStatus String?     // pending, confirmed, cancelled, timed_out
   codConfirmedAt      DateTime?
@@ -231,9 +233,26 @@ model Return {
   refundStatus      String?  // PENDING, COMPLETED, FAILED
   requestedAt       DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  returnRequestId   String?
   customer          Customer @relation(fields: [customerId], references: [id])
   order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product           Product  @relation(fields: [productId], references: [id])
+  returnRequest     ReturnRequest? @relation(fields: [returnRequestId], references: [id])
+}
+
+model ReturnRequest {
+  id              String   @id @default(cuid())
+  orderId         String
+  customerId      String
+  status          String   @default("pending_approval") // pending_approval, approved, rejected, completed
+  estimatedRefund Float    @default(0)
+  actualRefund    Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  approvedAt      DateTime?
+  reason          String?
+  returns         Return[]
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Exchange {
@@ -245,11 +264,28 @@ model Exchange {
   priceDifference   Float    @default(0)
   paymentStatus     String?  // PENDING, COMPLETED
   newOrderId        String?  // Link to the new order created for the exchange
+  exchangeRequestId String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   newProduct        Product  @relation("NewProduct", fields: [newProductId], references: [id])
   order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   originalProduct   Product  @relation("OriginalProduct", fields: [originalProductId], references: [id])
+  exchangeRequest   ExchangeRequest? @relation(fields: [exchangeRequestId], references: [id])
+}
+
+model ExchangeRequest {
+  id              String   @id @default(cuid())
+  orderId         String
+  customerId      String
+  status          String   @default("pending_approval") // pending_approval, approved, rejected, completed
+  priceDifference Float    @default(0)
+  paymentStatus   String   @default("not_required") // paid, pending, not_required
+  paymentId       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  reason          String?
+  exchanges       Exchange[]
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Payment {

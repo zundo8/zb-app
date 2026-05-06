@@ -97,10 +97,6 @@ export default function DeliveryAddressScreen() {
     fetchSavedAddresses();
   }, [fetchSavedAddresses]);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'checkout-pre',hypothesisId:'H4',location:'DeliveryAddressScreen.tsx:render',message:'DeliveryAddress render state',data:{hasSaved:!!shippingAddress,isEditing,hasUser:!!user?.id,addrKeys:Object.keys(address).slice(0,10)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
   const fieldError = (field: keyof typeof address) => {
     if (!submitted) return null;
     if (!String(address[field] || '').trim()) return 'Required';

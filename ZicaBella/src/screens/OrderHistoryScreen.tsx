@@ -188,7 +188,7 @@ export default function OrderHistoryScreen() {
           activeOpacity={0.7}
           onPress={() => {
             haptics.buttonTap();
-            navigation.navigate('OrderDetail', { orderForDetail: order });
+            navigation.navigate('OrderDetails', { orderId: order.id || order.order_id });
           }}
           style={[
             styles.orderCard,
@@ -295,7 +295,7 @@ export default function OrderHistoryScreen() {
                 style={[styles.viewDetailsPill, { backgroundColor: colors.foreground }]}
                 onPress={() => {
                   haptics.buttonTap();
-                  navigation.navigate('OrderDetail', { orderForDetail: order });
+                  navigation.navigate('OrderDetails', { orderId: order.id || order.order_id });
                 }}
               >
                 <Typography size={10} weight="700" color={colors.background}>Details</Typography>

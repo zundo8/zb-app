@@ -1,57 +1,55 @@
-import { NextResponse, NextRequest } from 'next/server';
-import prisma from '@/lib/db';
+import { NextResponse } from "next/server";
+import prisma from "@/lib/db";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-/**
- * GET /api/admin/exchanges
- * Supports query params: status, search
- */
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const status = url.searchParams.get('status');
-    const search = url.searchParams.get('search');
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get('status');
+    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const where: any = {};
+    const where = status && status !== 'all' ? { status } : {};
 
-    if (status && status !== 'all') {
-      where.status = status.toUpperCase();
-    }
-
-    if (search) {
-      where.OR = [
-        { order: { shopifyOrderId: { contains: search, mode: 'insensitive' } } },
-        { originalProduct: { title: { contains: search, mode: 'insensitive' } } },
-        { newProduct: { title: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
-
-    const exchanges = await prisma.exchange.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        order: { include: { customer: true } },
-        originalProduct: true,
-        newProduct: true,
-      },
-    });
-
-    // Summary counts
-    const [requested, approved, shipped, delivered, rejected] = await Promise.all([
-      prisma.exchange.count({ where: { status: 'REQUESTED' } }),
-      prisma.exchange.count({ where: { status: 'APPROVED' } }),
-      prisma.exchange.count({ where: { status: 'SHIPPED' } }),
-      prisma.exchange.count({ where: { status: 'DELIVERED' } }),
-      prisma.exchange.count({ where: { status: 'REJECTED' } }),
+    const [exchanges, total] = await Promise.all([
+      prisma.exchangeRequest.findMany({
+        where,
+        take: limit,
+        skip: offset,
+        include: {
+          exchanges: {
+            include: { originalProduct: true, newProduct: true }
+          },
+          order: {
+            include: { customer: true }
+          }
+        },
+        orderBy: { createdAt: "desc" }
+      }),
+      prisma.exchangeRequest.count({ where })
     ]);
 
+    const formattedExchanges = exchanges.map((e: any) => ({
+      exchangeRequestId: e.id,
+      orderId: e.orderId,
+      shopifyOrderId: e.order?.shopifyOrderId,
+      userId: e.customerId,
+      userName: e.order?.customer?.name || "Unknown",
+      userEmail: e.order?.customer?.email || "",
+      status: e.status,
+      priceDifference: e.priceDifference,
+      paymentStatus: e.paymentStatus,
+      createdAt: e.createdAt,
+      items: e.exchanges
+    }));
+
     return NextResponse.json({
-      exchanges,
-      summary: { requested, approved, shipped, delivered, rejected, total: exchanges.length },
-    }, { status: 200 });
+      exchanges: formattedExchanges,
+      total
+    });
   } catch (error: any) {
-    console.error('Exchanges API Error:', error.message);
-    return NextResponse.json({ exchanges: [], summary: { requested: 0, approved: 0, shipped: 0, delivered: 0, rejected: 0, total: 0 } }, { status: 200 });
+    console.error("Fetch Admin Exchanges Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

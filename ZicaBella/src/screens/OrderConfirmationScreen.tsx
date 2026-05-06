@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   message: { textAlign: 'center', lineHeight: 22, opacity: 0.8, marginBottom: 24, letterSpacing: 0.5 },
   pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, marginTop: 8 },
   note: { textAlign: 'center', lineHeight: 18, opacity: 0.8, letterSpacing: 0.5 },
-  actions: { width: '100%', gap: 16 },
+  actions: { width: '100%', gap: 16, marginTop: 32 },
   primaryButton: { width: '100%', paddingVertical: 24, borderRadius: 24, alignItems: 'center' },
   secondaryButton: { width: '100%', paddingVertical: 20, borderRadius: 24, alignItems: 'center', borderWidth: 1 },
   footer: { alignItems: 'center', position: 'absolute', bottom: 0, left: 0, right: 0 },

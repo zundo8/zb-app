@@ -4,6 +4,16 @@ import { getAppAuthFromRequest } from '@/lib/appAuth';
 
 export const dynamic = 'force-dynamic';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 function parseShippingAddress(raw: string | null) {
   if (!raw) return null;
   try {
@@ -15,6 +25,8 @@ function parseShippingAddress(raw: string | null) {
       city: o.city || '',
       state: o.state || o.province || '',
       pincode: o.pincode || o.zip || '',
+      phone: o.phone || '',
+      email: o.email || '',
       country: 'India' as const,
     };
   } catch {
@@ -79,45 +91,87 @@ function statusTimeline(order: any) {
 
 export async function GET(req: Request, { params }: { params: { orderId: string } }) {
   const auth = getAppAuthFromRequest(req);
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized. Please sign in again.' }, { status: 401, headers: corsHeaders });
+  }
 
   try {
     const order = await prisma.order.findUnique({
       where: { id: params.orderId },
-      include: { items: true, shipments: true },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { id: true, shopifyProductId: true, title: true }
+            }
+          }
+        },
+        shipments: true,
+      },
     });
 
-    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    if (order.customerId !== auth.customerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404, headers: corsHeaders });
+    if (order.customerId !== auth.customerId) {
+      return NextResponse.json({ error: 'Unauthorized: not your order' }, { status: 403, headers: corsHeaders });
+    }
+
+    // Extract size from title if present (e.g. "PRODUCT NAME - XL" → size "XL")
+    const formatItem = (it: any) => {
+      let size: string | null = null;
+      let productName = it.title;
+      const sizeMatch = it.title.match(/\s*-\s*(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i);
+      if (sizeMatch) {
+        size = sizeMatch[1].toUpperCase();
+        productName = it.title.replace(sizeMatch[0], '').trim();
+      }
+
+      return {
+        id: it.id,
+        productId: it.productId,
+        title: productName,
+        fullTitle: it.title,
+        name: productName,
+        size,
+        quantity: it.quantity,
+        price: it.price,
+        sku: it.sku,
+        image: null, // Will be resolved client-side from product data
+        imageUrl: null,
+        shopifyProductId: it.product?.shopifyProductId || null,
+      };
+    };
 
     return NextResponse.json({
       order: {
+        id: order.id,
         orderId: order.id,
         orderNumber: orderNumberFromOrder(order),
         createdAt: order.createdAt,
+        status: order.status,
         paymentMethod: paymentMethodFromOrder(order),
         paymentStatus: paymentStatusFromOrder(order),
         fulfillmentStatus: order.fulfillmentStatus || 'unfulfilled',
-        lineItems: (order.items || []).map((it: any) => ({
-          productId: it.productId,
-          variantId: null,
-          name: it.title,
-          size: null,
-          quantity: it.quantity,
-          price: it.price,
-          imageUrl: null,
-        })),
+        deliveryStatus: order.deliveryStatus || 'pending',
+        items: (order.items || []).map(formatItem),
+        lineItems: (order.items || []).map(formatItem),
         total: order.totalPrice,
+        totalPrice: order.totalPrice,
         subtotal: order.subtotalPrice ?? order.totalPrice,
+        subtotalPrice: order.subtotalPrice ?? order.totalPrice,
+        totalTax: order.totalTax || 0,
+        currency: order.currency || 'INR',
         deliveryFee: null,
         shippingAddress: parseShippingAddress(order.shippingAddress),
         tracking: trackingFromOrder(order),
         statusTimeline: statusTimeline(order),
+        note: order.note,
+        tags: order.tags,
+        razorpayOrderId: order.razorpayOrderId,
+        razorpayPaymentId: order.razorpayPaymentId,
       },
-    });
+    }, { headers: corsHeaders });
   } catch (e: any) {
     console.error('[App API] orders/[orderId] error:', e);
-    return NextResponse.json({ error: e?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: e?.message || 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }
-

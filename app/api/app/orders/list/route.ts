@@ -3,6 +3,16 @@ import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 function parseShippingAddress(raw: string | null) {
   if (!raw) return null;
   try {
@@ -14,6 +24,7 @@ function parseShippingAddress(raw: string | null) {
       city: o.city || '',
       state: o.state || o.province || '',
       pincode: o.pincode || o.zip || '',
+      phone: o.phone || '',
       country: 'India' as const,
     };
   } catch {
@@ -77,10 +88,37 @@ function statusTimeline(order: any) {
   ];
 }
 
+function formatItem(it: any) {
+  let size: string | null = null;
+  let productName = it.title;
+  const sizeMatch = it.title.match(/\s*-\s*(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i);
+  if (sizeMatch) {
+    size = sizeMatch[1].toUpperCase();
+    productName = it.title.replace(sizeMatch[0], '').trim();
+  }
+
+  return {
+    id: it.id,
+    productId: it.productId,
+    variantId: null,
+    title: productName,
+    fullTitle: it.title,
+    name: productName,
+    size,
+    quantity: it.quantity,
+    price: it.price,
+    sku: it.sku,
+    image: null,
+    imageUrl: null,
+  };
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const customerId = url.searchParams.get('customerId')?.trim();
-  if (!customerId) return NextResponse.json({ error: 'customerId is required', orders: [] }, { status: 400 });
+  if (!customerId) {
+    return NextResponse.json({ error: 'customerId is required', orders: [] }, { status: 400, headers: corsHeaders });
+  }
 
   try {
     const orders = await prisma.order.findMany({
@@ -91,31 +129,31 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       orders: orders.map((o: any) => ({
+        id: o.id,
         orderId: o.id,
         orderNumber: orderNumberFromOrder(o),
         createdAt: o.createdAt,
+        status: o.status,
         paymentMethod: paymentMethodFromOrder(o),
         paymentStatus: paymentStatusFromOrder(o),
         fulfillmentStatus: o.fulfillmentStatus || 'unfulfilled',
-        lineItems: (o.items || []).map((it: any) => ({
-          productId: it.productId,
-          variantId: null,
-          name: it.title,
-          size: null,
-          quantity: it.quantity,
-          price: it.price,
-          imageUrl: null,
-        })),
+        deliveryStatus: o.deliveryStatus || 'pending',
+        items: (o.items || []).map(formatItem),
+        lineItems: (o.items || []).map(formatItem),
         total: o.totalPrice,
+        totalPrice: o.totalPrice,
         subtotal: o.subtotalPrice ?? o.totalPrice,
+        subtotalPrice: o.subtotalPrice ?? o.totalPrice,
         deliveryFee: null,
         shippingAddress: parseShippingAddress(o.shippingAddress),
         tracking: trackingFromOrder(o),
         statusTimeline: statusTimeline(o),
+        note: o.note,
+        tags: o.tags,
       })),
-    });
+    }, { headers: corsHeaders });
   } catch (e: any) {
     console.error('[App API] orders/list error:', e);
-    return NextResponse.json({ error: e?.message || 'Internal server error', orders: [] }, { status: 500 });
+    return NextResponse.json({ error: e?.message || 'Internal server error', orders: [] }, { status: 500, headers: corsHeaders });
   }
 }
