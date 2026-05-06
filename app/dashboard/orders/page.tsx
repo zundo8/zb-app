@@ -74,6 +74,7 @@ const SHOPIFY_DOMAIN =
   process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN || "8tiahf-bk.myshopify.com";
 
 type StatusFilter = "any" | "unfulfilled" | "fulfilled" | "refunded";
+type OrdersSource = "shopify" | "mobile-app";
 
 function StatusBadge({ status, type }: { status: string | null; type: "payment" | "fulfillment" | "delivery" }) {
   const label = status || (type === "fulfillment" ? "unfulfilled" : type === "delivery" ? "pending" : "pending");
@@ -97,12 +98,14 @@ function StatusBadge({ status, type }: { status: string | null; type: "payment" 
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<ShopifyOrder[]>([]);
+  const [mobileOrders, setMobileOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [fulfilling, setFulfilling] = useState<number | null>(null);
   const [delivering, setDelivering] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("any");
+  const [source, setSource] = useState<OrdersSource>("shopify");
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<string | null>(null);
@@ -171,12 +174,19 @@ export default function OrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/shopify/orders?limit=50&status=${statusFilter === "any" ? "any" : "open"}`
-      );
-      const data = await res.json();
-      setOrders(data.orders || []);
-      if (data.error) setError(`Shopify API: ${data.error}`);
+      if (source === "mobile-app") {
+        const res = await fetch(`/api/admin/mobile-orders?limit=50`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to fetch mobile orders");
+        setMobileOrders(data.orders || []);
+      } else {
+        const res = await fetch(
+          `/api/shopify/orders?limit=50&status=${statusFilter === "any" ? "any" : "open"}`
+        );
+        const data = await res.json();
+        setOrders(data.orders || []);
+        if (data.error) setError(`Shopify API: ${data.error}`);
+      }
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to fetch orders";
@@ -188,7 +198,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [statusFilter]);
+  }, [statusFilter, source]);
 
   const handleFulfill = async (order: ShopifyOrder) => {
     setFulfilling(order.id);
@@ -309,6 +319,18 @@ export default function OrdersPage() {
     return true;
   });
 
+  const displayedMobileOrders = mobileOrders.filter((o: any) => {
+    if (!search) return true;
+    const term = search.toLowerCase();
+    return (
+      String(o.orderNumber || "").toLowerCase().includes(term) ||
+      String(o.id || "").toLowerCase().includes(term) ||
+      String(o.shippingAddress?.name || "").toLowerCase().includes(term) ||
+      String(o.customer?.email || "").toLowerCase().includes(term) ||
+      String(o.customer?.phone || "").toLowerCase().includes(term)
+    );
+  });
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -383,19 +405,34 @@ export default function OrdersPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-         <div className="flex items-center bg-background border border-foreground/[0.05] rounded-md p-1">
-          {(["any", "unfulfilled", "fulfilled", "refunded"] as StatusFilter[]).map((s) => (
+        <div className="flex items-center bg-background border border-foreground/[0.05] rounded-md p-1">
+          {(["shopify", "mobile-app"] as OrdersSource[]).map((s) => (
             <button
               key={s}
-              onClick={() => setStatusFilter(s)}
+              onClick={() => setSource(s)}
               className={`px-3 py-1.5 rounded-[4px] text-[9px] font-medium uppercase tracking-[0.15em] transition-colors ${
-                statusFilter === s ? "bg-foreground text-background" : "text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 hover:bg-foreground/[0.03]"
+                source === s ? "bg-foreground text-background" : "text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 hover:bg-foreground/[0.03]"
               }`}
             >
-              {s === "any" ? "All" : s}
+              {s === "shopify" ? "Shopify" : "Mobile App"}
             </button>
           ))}
         </div>
+        {source === "shopify" && (
+          <div className="flex items-center bg-background border border-foreground/[0.05] rounded-md p-1">
+            {(["any", "unfulfilled", "fulfilled", "refunded"] as StatusFilter[]).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1.5 rounded-[4px] text-[9px] font-medium uppercase tracking-[0.15em] transition-colors ${
+                  statusFilter === s ? "bg-foreground text-background" : "text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 hover:bg-foreground/[0.03]"
+                }`}
+              >
+                {s === "any" ? "All" : s}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -437,21 +474,22 @@ export default function OrdersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-foreground/[0.05]">
-              {loading && orders.length === 0 ? (
+              {loading && ((source === "shopify" && orders.length === 0) || (source === "mobile-app" && mobileOrders.length === 0)) ? (
                  <tr>
                   <td colSpan={9} className="px-5 py-12 text-center text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40">
                     <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
                     <p className="text-[10px] font-medium uppercase tracking-widest">Loading...</p>
                   </td>
                 </tr>
-              ) : displayedOrders.length === 0 ? (
+              ) : (source === "shopify" ? displayedOrders.length === 0 : displayedMobileOrders.length === 0) ? (
                 <tr>
                   <td colSpan={9} className="px-5 py-12 text-center text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40">
                     <p className="text-[10px] font-medium uppercase tracking-widest">No orders found</p>
                   </td>
                 </tr>
               ) : (
-                displayedOrders.map((order) => {
+                source === "shopify"
+                  ? displayedOrders.map((order) => {
                   const rawName = order.customer
                     ? `${order.customer.first_name || ""} ${order.customer.last_name || ""}`.trim()
                     : "";
@@ -603,6 +641,74 @@ export default function OrdersPage() {
                     </React.Fragment>
                   );
                 })
+                  : displayedMobileOrders.map((order: any) => {
+                      const isAwaiting = String(order.status || "").toLowerCase() === "awaiting_approval";
+                      const isCOD = String(order.paymentMethod || "").toUpperCase() === "COD";
+                      const paymentLabel = order.paymentStatus === "paid" ? "paid" : "pending";
+                      return (
+                        <tr key={order.id} className="hover:bg-foreground/[0.02] transition-colors">
+                          <td className="px-5 py-3" />
+                          <td className="px-5 py-3">
+                            <Link href={`/dashboard/orders/${order.id}`} className="text-[12px] font-semibold text-foreground hover:text-foreground/70 transition-colors">
+                              #{order.orderNumber}
+                            </Link>
+                            {isAwaiting && (
+                              <div className="mt-1 flex items-center gap-2 text-[9px] uppercase tracking-widest text-foreground/50">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-60"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                </span>
+                                awaiting approval
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-5 py-3">
+                            <div className="text-[11px] font-medium text-foreground">{order.shippingAddress?.name || order.customer?.name || "N/A"}</div>
+                            <div className="text-[9px] text-foreground/50 mt-0.5">{order.customer?.email || ""}</div>
+                          </td>
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-2">
+                              {isCOD ? (
+                                <span className="inline-flex px-2 py-0.5 rounded-sm text-[9px] font-medium uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                                  COD
+                                </span>
+                              ) : (
+                                <span className="inline-flex px-2 py-0.5 rounded-sm text-[9px] font-medium uppercase tracking-widest bg-foreground/[0.05] text-foreground/70">
+                                  PREPAID
+                                </span>
+                              )}
+                              <span className={`inline-flex px-2 py-0.5 rounded-sm text-[9px] font-medium uppercase tracking-widest ${paymentLabel === "paid" ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-orange-500/10 text-orange-600 dark:text-orange-400"}`}>
+                                {paymentLabel}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="inline-flex px-2 py-0.5 rounded-sm text-[9px] font-medium uppercase tracking-widest bg-foreground/[0.05] text-foreground/70">
+                              {String(order.fulfillmentStatus || "unfulfilled")}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="inline-flex px-2 py-0.5 rounded-sm text-[9px] font-medium uppercase tracking-widest bg-foreground/[0.05] text-foreground/70">
+                              {String(order.deliveryStatus || "pending")}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-[12px] font-medium text-foreground text-right">
+                            ₹{Number(order.totalPrice || 0).toLocaleString("en-IN")}
+                          </td>
+                          <td className="px-5 py-3 text-[10px] text-foreground/50 uppercase tracking-widest text-center">
+                            {new Date(order.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <Link
+                              href={`/dashboard/orders/${order.id}`}
+                              className="px-2 py-1 bg-foreground text-background rounded-sm text-[9px] font-medium uppercase tracking-widest hover:opacity-90 transition-opacity inline-block"
+                            >
+                              Open
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })
               )}
             </tbody>
           </table>

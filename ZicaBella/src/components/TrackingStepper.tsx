@@ -31,12 +31,12 @@ export const TrackingStepper = ({ currentStatus, timestamps = {} }: Props) => {
   }, [pulse]);
 
   const getStatusIndex = (status: string) => {
-    const s = status.toLowerCase();
-    if (s === 'delivered') return 4;
-    if (s === 'out_for_delivery' || s === 'out for delivery') return 3;
-    if (s === 'shipped') return 2;
-    if (s === 'packed') return 1;
-    if (s === 'confirmed' || s === 'paid') return 0;
+    const s = (status || '').toLowerCase();
+    if (s.includes('delivered')) return 4;
+    if (s.includes('out for delivery') || s.includes('out_for_delivery')) return 3;
+    if (s.includes('shipped') || s.includes('transit') || s.includes('dispatched') || s.includes('picked')) return 2;
+    if (s.includes('packed') || s.includes('ready')) return 1;
+    if (s.includes('confirmed') || s.includes('paid') || s.includes('open') || s.includes('pending')) return 0;
     return -1;
   };
 

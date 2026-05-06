@@ -14,8 +14,9 @@ import { RootStackParamList } from '../navigation/types';
 import { haptics } from '../utils/haptics';
 import { config } from '../constants/config';
 import { Typography } from '../components/Typography';
-import { TrackingStepper } from '../components/TrackingStepper';
+import { useAuthStore } from '../store/authStore';
 import { Image } from 'expo-image';
+import { trackOrder } from '../services/shipmentService';
 
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -28,15 +29,21 @@ export default function OrderDetailScreen() {
 
   const [order, setOrder] = useState<any>(orderForDetail);
   const [loading, setLoading] = useState(false);
+  const [trackingLive, setTrackingLive] = useState<any | null>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const fetchOrderDetails = useCallback(async (isPolling = false) => {
     if (!order?.id) return;
     try {
       if (!isPolling) setLoading(true);
-      const res = await fetch(`${config.appUrl}/api/app/orders?orderId=${order.id}`);
+      const token = useAuthStore.getState().token || '';
+      const res = await fetch(`${config.appUrl}/api/app/orders/${order.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const json = await res.json();
-      if (res.ok && json.order) {
+      if (!res.ok) throw new Error(json.error || 'Failed to fetch order');
+      if (json.order) {
         setOrder(json.order);
       }
     } catch (e) {
@@ -56,20 +63,17 @@ export default function OrderDetailScreen() {
     return () => clearInterval(interval);
   }, [fadeAnim, fetchOrderDetails]);
 
-  const openTracking = () => {
-    if (order.trackingUrl) {
-      Linking.openURL(order.trackingUrl);
-      haptics.buttonTap();
-    } else if (order.trackingNumber) {
-      copyTracking();
+  const refreshTracking = useCallback(async () => {
+    const awb = order?.tracking?.awb;
+    if (!awb) return;
+    try {
+      setTrackingError(null);
+      const data = await trackOrder({ awb });
+      setTrackingLive(data);
+    } catch (e: any) {
+      setTrackingError(e?.message || 'Failed to fetch tracking');
     }
-  };
-
-  const copyTracking = async () => {
-    if (!order.trackingNumber) return;
-    await Share.share({ message: order.trackingNumber });
-    haptics.success();
-  };
+  }, [order?.tracking?.awb]);
 
   const contactSupport = () => {
     haptics.buttonTap();
@@ -78,24 +82,30 @@ export default function OrderDetailScreen() {
 
   if (!order) return null;
 
-  const hasReturns = order.returns && order.returns.length > 0;
-  const hasExchanges = order.exchanges && order.exchanges.length > 0;
-  const isDelivered = (order.deliveryStatus || '').toUpperCase() === 'DELIVERED';
-  const isCancelled = (order.status || '').toUpperCase() === 'CANCELLED';
-  const canReturn = isDelivered && !isCancelled;
-  const orderNumber = order.orderNumber || (order.shopifyOrderId || '').replace(/^#/, '') || order.id?.slice(0, 8);
+  const isCancelled = (order.status || '').toLowerCase().includes('cancel');
+  const isDelivered = (Array.isArray(order.statusTimeline) ? order.statusTimeline : []).some((t: any) => t.step === 'delivered' && t.completedAt);
+  const orderNumber = order.orderNumber || order.id?.slice(0, 8);
 
-  // Status color
-  const getStatusColor = () => {
-    if (isCancelled) return '#FF3B30';
-    if (isDelivered) return '#34C759';
-    const d = (order.deliveryStatus || '').toUpperCase();
-    if (d === 'SHIPPED') return '#AF52DE';
-    if (d === 'OUT_FOR_DELIVERY') return '#FF9500';
-    return '#007AFF';
-  };
+  const statusColor = isCancelled ? '#FF3B30' : isDelivered ? '#34C759' : '#007AFF';
 
-  const statusColor = getStatusColor();
+  const steps = useMemo(() => {
+    const isPrepaid = order.paymentMethod === 'PREPAID';
+    return [
+      { step: 'order_placed', label: 'Order Placed' },
+      { step: 'awaiting_approval', label: isPrepaid ? 'Payment Confirmed' : 'Awaiting Approval' },
+      { step: 'approved', label: 'Approved & Processing' },
+      { step: 'shipped', label: 'Shipped' },
+      { step: 'out_for_delivery', label: 'Out for Delivery' },
+      { step: 'delivered', label: isCancelled ? 'Cancelled' : 'Delivered' },
+    ];
+  }, [order.paymentMethod, isCancelled]);
+
+  const timelineByStep = useMemo(() => {
+    const tl = Array.isArray(order.statusTimeline) ? order.statusTimeline : [];
+    const m = new Map<string, string | null>();
+    tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
+    return m;
+  }, [order.statusTimeline]);
 
   const SectionCard = ({ children, style }: { children: React.ReactNode; style?: any }) => (
     <View style={[
@@ -171,108 +181,92 @@ export default function OrderDetailScreen() {
               <Ionicons name="navigate-outline" size={16} color={colors.text} />
               <Typography size={13} weight="700" color={colors.text}>Order Tracking</Typography>
             </View>
-            <TrackingStepper currentStatus={order.deliveryStatus || order.status} timestamps={order.timeline} />
-
-            {/* Detailed Event History */}
-            {order.shipmentEvents && order.shipmentEvents.length > 0 && (
-              <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', paddingTop: 20 }}>
-                <Typography size={10} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1.5, marginBottom: 16 }}>DETAILED HISTORY</Typography>
-                {order.shipmentEvents.map((ev: any, idx: number) => (
-                  <View key={idx} style={{ flexDirection: 'row', marginBottom: 16, gap: 12 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: idx === 0 ? colors.iosBlue : colors.borderLight, marginTop: 4 }} />
+            <View style={{ marginTop: 6 }}>
+              {steps.map((s, idx) => {
+                const completedAt = timelineByStep.get(s.step) || null;
+                const isCompleted = !!completedAt;
+                const isCurrent = !isCompleted && (steps.slice(0, idx).every(prev => !!timelineByStep.get(prev.step)));
+                return (
+                  <View key={s.step} style={{ flexDirection: 'row', gap: 12, paddingBottom: 18 }}>
+                    <View style={{ width: 22, alignItems: 'center' }}>
+                      <View style={{
+                        width: 16, height: 16, borderRadius: 8,
+                        backgroundColor: isCompleted ? colors.foreground : 'transparent',
+                        borderWidth: 2,
+                        borderColor: isCompleted ? colors.foreground : isCurrent ? colors.iosBlue : colors.borderLight,
+                        justifyContent: 'center', alignItems: 'center'
+                      }}>
+                        {isCompleted && <Ionicons name="checkmark" size={10} color={colors.background} />}
+                        {!isCompleted && isCurrent && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.iosBlue }} />}
+                      </View>
+                      {idx < steps.length - 1 && (
+                        <View style={{ width: 2, flex: 1, backgroundColor: isCompleted ? colors.foreground : colors.borderExtraLight, marginTop: 4 }} />
+                      )}
+                    </View>
                     <View style={{ flex: 1 }}>
-                      <Typography size={12} weight="600" color={colors.text}>{ev.activity || ev.status_name}</Typography>
-                      <Typography size={10} color={colors.textMuted} style={{ marginTop: 2 }}>{ev.location || ev.city}</Typography>
-                      <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 2 }}>
-                        {new Date(ev.date || ev.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </Typography>
+                      <Typography size={11} weight="700" color={colors.text} style={{ letterSpacing: 1 }}>{s.label.toUpperCase()}</Typography>
+                      {completedAt ? (
+                        <Typography size={9} color={colors.textMuted} style={{ marginTop: 2 }}>
+                          {new Date(completedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </Typography>
+                      ) : isCurrent ? (
+                        <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 2 }}>IN PROGRESS</Typography>
+                      ) : null}
                     </View>
                   </View>
-                ))}
-              </View>
-            )}
+                );
+              })}
+            </View>
           </SectionCard>
         )}
 
-        {/* ─── Return / Exchange Status ─── */}
-        {(hasReturns || hasExchanges) && (
-          <SectionCard style={{ borderColor: 'rgba(52, 199, 89, 0.2)' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(52,199,89,0.1)', justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="refresh-circle" size={16} color="#34C759" />
+        {/* ─── Tracking Block (only when AWB is set) ─── */}
+        {order.tracking?.awb && (
+          <SectionCard>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Typography size={10} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>TRACKING</Typography>
+                <Typography size={14} weight="800" color={colors.text} style={{ marginTop: 6 }}>
+                  {order.tracking.carrier ? `${order.tracking.carrier} • ` : ''}{order.tracking.awb}
+                </Typography>
+                {(trackingLive?.current_location || order.tracking.lastLocation) && (
+                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 6 }}>
+                    {trackingLive?.current_location || order.tracking.lastLocation}
+                  </Typography>
+                )}
+                {(trackingLive?.estimated_delivery || order.tracking.estimatedDelivery) && (
+                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 2 }}>
+                    ETA: {String(trackingLive?.estimated_delivery || order.tracking.estimatedDelivery)}
+                  </Typography>
+                )}
+                {!!trackingError && (
+                  <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 8 }}>
+                    {trackingError}
+                  </Typography>
+                )}
               </View>
-              <Typography size={13} weight="700" color="#34C759">Service Active</Typography>
+              <TouchableOpacity
+                onPress={() => { haptics.buttonTap(); refreshTracking(); }}
+                activeOpacity={0.7}
+                style={[styles.copyBtn, { backgroundColor: colors.foreground }]}
+              >
+                {loading ? <ActivityIndicator color={colors.background} /> : <Ionicons name="refresh" size={16} color={colors.background} />}
+              </TouchableOpacity>
             </View>
-            
-            {order.returns?.map((r: any) => (
-              <View key={r.id} style={styles.serviceRow}>
-                <View style={{ flex: 1 }}>
-                  <Typography size={13} weight="600" color={colors.text}>Return Requested</Typography>
-                  {r.refundMethod === 'STORE_CREDIT' && (
-                    <Typography size={11} color="#007AFF" weight="500" style={{ marginTop: 2 }}>Refund as Store Credit</Typography>
-                  )}
-                  {r.refundAmount && (
-                    <Typography size={11} color={colors.textMuted} weight="500" style={{ marginTop: 2 }}>Refund: {formatPrice(r.refundAmount)}</Typography>
-                  )}
-                </View>
-                <View style={[styles.serviceBadge, { backgroundColor: 'rgba(52,199,89,0.1)' }]}>
-                  <Typography size={10} weight="700" color="#34C759">{(r.status || 'REQUESTED').toUpperCase()}</Typography>
-                </View>
-              </View>
-            ))}
-            
-            {order.exchanges?.map((e: any) => (
-              <View key={e.id} style={styles.serviceRow}>
-                <View style={{ flex: 1 }}>
-                  <Typography size={13} weight="600" color={colors.text}>Exchange Requested</Typography>
-                  {e.priceDifference !== 0 && (
-                    <Typography size={11} color={colors.textMuted} weight="500" style={{ marginTop: 2 }}>
-                      Price diff: {formatPrice(Math.abs(e.priceDifference))}
-                    </Typography>
-                  )}
-                </View>
-                <View style={[styles.serviceBadge, { backgroundColor: 'rgba(0,122,255,0.1)' }]}>
-                  <Typography size={10} weight="700" color="#007AFF">{(e.status || 'REQUESTED').toUpperCase()}</Typography>
-                </View>
-              </View>
-            ))}
-            
-            <TouchableOpacity 
-              style={styles.serviceLink}
-              onPress={() => navigation.navigate('ServiceFlow', { screen: 'ServiceHistory' })}
+
+            <TouchableOpacity
+              onPress={async () => {
+                try {
+                  haptics.buttonTap();
+                  await refreshTracking();
+                } catch {}
+              }}
+              activeOpacity={0.7}
+              style={{ marginTop: 16, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', alignItems: 'center' }}
             >
-              <Typography size={12} weight="600" color="#007AFF">View Service Details</Typography>
-              <Ionicons name="chevron-forward" size={14} color="#007AFF" />
+              <Typography size={10} weight="700" color={colors.text}>View Full Tracking</Typography>
             </TouchableOpacity>
           </SectionCard>
-        )}
-
-        {/* ─── Tracking Number ─── */}
-        {order.trackingNumber && (
-          <TouchableOpacity 
-            activeOpacity={0.7}
-            onPress={openTracking}
-            onLongPress={copyTracking}
-            style={[
-              styles.trackingCard,
-              {
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#FFFFFF',
-                borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-              }
-            ]}
-          >
-            <View style={[styles.trackingIcon, { backgroundColor: isDark ? 'rgba(175,82,222,0.1)' : 'rgba(175,82,222,0.06)' }]}>
-              <Ionicons name="navigate-circle-outline" size={20} color="#AF52DE" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Typography size={10} weight="600" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>TRACKING NUMBER</Typography>
-              <Typography size={14} weight="700" color={colors.text} style={{ marginTop: 4 }}>{order.trackingNumber}</Typography>
-              <Typography size={11} color={colors.iosBlue} weight="600" style={{ marginTop: 2 }}>Tap to track · Long press to copy</Typography>
-            </View>
-            <View style={[styles.copyBtn, { backgroundColor: colors.foreground }]}>
-              <Ionicons name="chevron-forward" size={16} color={colors.background} />
-            </View>
-          </TouchableOpacity>
         )}
 
         {/* ─── Order Items ─── */}
@@ -417,31 +411,6 @@ export default function OrderDetailScreen() {
             <Ionicons name="chatbubble-outline" size={16} color={colors.text} />
             <Typography size={12} weight="600" color={colors.text} style={{ marginLeft: 6 }}>Support</Typography>
           </TouchableOpacity>
-          
-          {canReturn && (
-            <>
-              <TouchableOpacity 
-                style={[styles.returnActionBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]} 
-                onPress={() => {
-                  haptics.buttonTap();
-                  navigation.navigate('ServiceFlow', { screen: 'ReturnWizard', params: { orderId: order.id } });
-                }}
-              >
-                <Ionicons name="return-down-back-outline" size={16} color={colors.text} />
-                <Typography size={12} weight="600" color={colors.text} style={{ marginLeft: 6 }}>Return</Typography>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.exchangeActionBtn, { backgroundColor: colors.foreground }]} 
-                onPress={() => {
-                  haptics.buttonTap();
-                  navigation.navigate('ServiceFlow', { screen: 'ExchangeWizard', params: { orderId: order.id } });
-                }}
-              >
-                <Ionicons name="swap-horizontal-outline" size={16} color={colors.background} />
-                <Typography size={12} weight="700" color={colors.background} style={{ marginLeft: 6 }}>Exchange</Typography>
-              </TouchableOpacity>
-            </>
-          )}
         </View>
       </View>
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Image } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,72 +11,170 @@ import { haptics } from '../../utils/haptics';
 import { useAuth } from '../../hooks/useAuth';
 import { config } from '../../constants/config';
 import { formatPrice } from '../../utils/formatPrice';
+import { useAuthStore } from '../../store/authStore';
+import { openRazorpayCheckout } from '../../services/razorpayService';
+import { navigationRef } from '../../navigation/navigationUtils';
 
 export default function PaymentScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const colors = useColors();
-  const { total, items } = useCartStore();
+  const { total, items, shippingAddress } = useCartStore();
   const { user } = useAuth();
 
-  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'card' | 'apple' | 'google' | 'cod' | 'others'>('razorpay');
-  const [storeCredits, setStoreCredits] = useState(0);
-  const [useStoreCredit, setUseStoreCredit] = useState(false);
-  const [loadingCredits, setLoadingCredits] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PREPAID' | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchStoreCredits();
-  }, []);
+  const subtotal = useMemo(() => total(), [total]);
+  const deliveryFee = 0;
+  const grandTotal = subtotal + deliveryFee;
 
-  const fetchStoreCredits = async () => {
-    if (!user) return;
-    setLoadingCredits(true);
+  const placeOrder = async () => {
+    if (!user?.id) {
+      setInlineError('Please sign in to place an order.');
+      return;
+    }
+    if (!shippingAddress?.name || !shippingAddress?.line1) {
+      setInlineError('Please add a delivery address first.');
+      return;
+    }
+    if (!paymentMethod) {
+      setInlineError('Please select a payment option.');
+      return;
+    }
+
+    setInlineError(null);
+    setLoading(true);
     try {
-      const res = await fetch(`${config.appUrl}/api/app/store-credits?customerId=${user.id}`);
-      const json = await res.json();
-      if (res.ok && json.balance !== undefined) {
-        setStoreCredits(json.balance);
+      const token = useAuthStore.getState().token || '';
+      // #region agent log
+      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Place order start',data:{paymentMethod,tokenLen:token.length,hasShipping:!!shippingAddress?.name,itemsCount:items.length,appUrl:config.appUrl},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Place order start (v2)',data:{paymentMethod,tokenLen:token.length,hasUserId:!!user?.id,hasShippingLine1:!!shippingAddress?.line1,itemsCount:items.length,appUrl:config.appUrl},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      if (!token) throw new Error('Session expired. Please sign in again.');
+
+      const lineItems = items.map((i: any) => ({
+        productId: String(i.productId),
+        variantId: String(i.variantId),
+        name: i.title,
+        size: i.size || '',
+        quantity: i.quantity,
+        price: Number(parseFloat(i.price)),
+        imageUrl: i.image,
+      }));
+
+      if (paymentMethod === 'COD') {
+        const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            customerId: user.id,
+            customerEmail: user.email || '',
+            customerPhone: user.phone || '',
+            shippingAddress: {
+              name: shippingAddress.name,
+              line1: shippingAddress.line1,
+              line2: shippingAddress.line2 || '',
+              city: shippingAddress.city,
+              state: shippingAddress.state,
+              pincode: shippingAddress.pincode,
+              country: 'India',
+            },
+            lineItems,
+            paymentMethod: 'COD',
+            paymentStatus: 'pending',
+            subtotal,
+            deliveryFee,
+            total: grandTotal,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to place order');
+
+        useCartStore.getState().clearCart();
+        if (navigationRef.isReady()) {
+          (navigationRef as any).resetRoot({
+            index: 0,
+            routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId, orderNumber: json.orderNumber, paymentMethod: 'COD', estimatedDelivery: json.estimatedDelivery || null } }],
+          });
+        } else {
+          navigation.navigate('OrderConfirmation', { orderId: json.orderId, orderNumber: json.orderNumber, paymentMethod: 'COD', estimatedDelivery: json.estimatedDelivery || null });
+        }
+        return;
       }
-    } catch (e) {
-      console.error('Fetch store credits error:', e);
+
+      // PREPAID: Razorpay first, then create order
+      const payment = await openRazorpayCheckout(
+        { amount: grandTotal, receipt: `zb_${Date.now()}` },
+        { name: user.name || shippingAddress.name, email: user.email || '', phone: user.phone || shippingAddress.phone || '' },
+        token
+      );
+      // #region agent log
+      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Razorpay success (redacted)',data:{hasPaymentId:!!payment?.razorpay_payment_id,hasOrderId:!!payment?.razorpay_order_id},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Razorpay success (redacted v2)',data:{hasPaymentId:!!payment?.razorpay_payment_id,hasOrderId:!!payment?.razorpay_order_id},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          customerId: user.id,
+          customerEmail: user.email || '',
+          customerPhone: user.phone || '',
+          shippingAddress: {
+            name: shippingAddress.name,
+            line1: shippingAddress.line1,
+            line2: shippingAddress.line2 || '',
+            city: shippingAddress.city,
+            state: shippingAddress.state,
+            pincode: shippingAddress.pincode,
+            country: 'India',
+          },
+          lineItems,
+          paymentMethod: 'PREPAID',
+          paymentId: payment?.razorpay_payment_id,
+          paymentStatus: 'paid',
+          subtotal,
+          deliveryFee,
+          total: grandTotal,
+        }),
+      });
+      const raw = await res.text();
+      // #region agent log
+      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Create order response',data:{status:res.status,ok:res.ok,bodyPrefix:raw.slice(0,20)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'payment-pre',hypothesisId:'H5',location:'PaymentScreen.tsx:placeOrder',message:'Create order response (v2)',data:{status:res.status,ok:res.ok,bodyPrefix:raw.slice(0,40)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      let json: any = null;
+      try {
+        json = raw ? JSON.parse(raw) : {};
+      } catch (e: any) {
+        throw new Error(`JSON Parse error: ${String(e?.message || e)} (prefix: ${raw.slice(0, 20)})`);
+      }
+      if (!res.ok) throw new Error(json.error || 'Failed to place order');
+
+      useCartStore.getState().clearCart();
+      if (navigationRef.isReady()) {
+        (navigationRef as any).resetRoot({
+          index: 0,
+          routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId, orderNumber: json.orderNumber, paymentMethod: 'PREPAID', estimatedDelivery: json.estimatedDelivery || null } }],
+        });
+      } else {
+        navigation.navigate('OrderConfirmation', { orderId: json.orderId, orderNumber: json.orderNumber, paymentMethod: 'PREPAID', estimatedDelivery: json.estimatedDelivery || null });
+      }
+    } catch (e: any) {
+      const msg = e?.message || 'Something went wrong. Please try again.';
+      setInlineError(msg);
     } finally {
-      setLoadingCredits(false);
+      setLoading(false);
     }
   };
-
-  const methods = [
-    { 
-      id: 'razorpay', 
-      title: 'RAZORPAY SECURE', 
-      icon: 'flash', 
-      subtitle: 'UPI, CARDS, NETBANKING', 
-      badge: 'POPULAR',
-      logo: 'https://cdn.razorpay.com/static/assets/logo/payment_method_razorpay.png'
-    },
-    { 
-      id: 'apple', 
-      title: 'APPLE PAY', 
-      icon: 'logo-apple', 
-      subtitle: 'SECURE ONE-TAP PAYMENT',
-      badge: 'FAST'
-    },
-    { 
-      id: 'card', 
-      title: 'CREDIT / DEBIT CARD', 
-      icon: 'card', 
-      subtitle: 'POWERED BY STRIPE' 
-    },
-    { 
-      id: 'cod', 
-      title: 'CASH ON DELIVERY', 
-      icon: 'cash', 
-      subtitle: '₹99 EXTRA SERVICE FEE' 
-    },
-  ];
-
-  const subtotal = total();
-  const appliedCredit = useStoreCredit ? Math.min(storeCredits, subtotal) : 0;
-  const currentTotal = subtotal - appliedCredit + (paymentMethod === 'cod' ? 99 : 0);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -86,8 +184,8 @@ export default function PaymentScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.stepTag}>STEP 4 OF 5</Typography>
-          <Typography size={14} color={colors.text} weight="700">PAYMENT METHOD</Typography>
+          <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.stepTag}>PAYMENT</Typography>
+          <Typography size={14} color={colors.text} weight="700">ORDER SUMMARY</Typography>
         </View>
         <View style={{ width: 44 }} />
       </View>
@@ -96,107 +194,106 @@ export default function PaymentScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: 120 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
-        <Typography size={22} weight="700" color={colors.text} style={styles.title}>Secure your archival pieces.</Typography>
+        <Typography size={22} weight="700" color={colors.text} style={styles.title}>Review & pay.</Typography>
 
-        {/* Store Credits Section */}
-        {storeCredits > 0 && (
-          <View style={[styles.storeCreditBlock, { backgroundColor: colors.surface, borderColor: useStoreCredit ? colors.success : colors.borderLight }]}>
-            <View style={styles.storeCreditHeader}>
-              <View style={[styles.creditIcon, { backgroundColor: 'rgba(52, 199, 89, 0.1)' }]}>
-                <Ionicons name="wallet-outline" size={20} color={colors.success} />
+        {/* Compact order summary */}
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+          <Typography size={7} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 2, marginBottom: 12 }}>
+            ORDER SUMMARY
+          </Typography>
+          {(items || []).slice(0, 3).map((it: any) => (
+            <View key={it.id} style={styles.summaryItemRow}>
+              <View style={[styles.thumb, { backgroundColor: colors.background }]}>
+                <Ionicons name="shirt-outline" size={16} color={colors.textExtraLight} />
               </View>
-              <View style={{ flex: 1, marginLeft: 16 }}>
-                <Typography size={10} weight="700" color={colors.text}>STORE CREDITS</Typography>
-                <Typography size={7} weight="600" color={colors.textExtraLight}>BALANCE: {formatPrice(storeCredits)}</Typography>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Typography size={11} weight="600" color={colors.text} numberOfLines={1}>{it.title}</Typography>
+                <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 2 }}>
+                  Qty: {it.quantity}{it.size ? ` • ${it.size}` : ''}
+                </Typography>
               </View>
-              <TouchableOpacity
-                onPress={() => { haptics.buttonTap(); setUseStoreCredit(!useStoreCredit); }}
-                style={[styles.toggle, { backgroundColor: useStoreCredit ? colors.success : colors.borderLight }]}
-              >
-                <View style={[styles.toggleThumb, { transform: [{ translateX: useStoreCredit ? 20 : 2 }] }]} />
-              </TouchableOpacity>
+              <Typography size={11} weight="700" color={colors.text}>
+                {formatPrice(parseFloat(it.price) * it.quantity)}
+              </Typography>
             </View>
-            {useStoreCredit && (
-              <View style={styles.creditAppliedRow}>
-                <Typography size={8} weight="600" color={colors.success}>- {formatPrice(appliedCredit)} APPLIED</Typography>
-              </View>
-            )}
-          </View>
-        )}
-
-        <View style={styles.options}>
-          {methods.map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              style={[
-                styles.optionCard,
-                { 
-                  backgroundColor: colors.surface, 
-                  borderColor: paymentMethod === m.id ? colors.foreground : colors.borderLight 
-                }
-              ]}
-              onPress={() => { haptics.buttonTap(); setPaymentMethod(m.id as any); }}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconBox, { backgroundColor: paymentMethod === m.id ? colors.foreground : colors.background }]}>
-                <Ionicons 
-                  name={m.icon as any} 
-                  size={20} 
-                  color={paymentMethod === m.id ? colors.background : colors.textMuted} 
-                />
-              </View>
-              
-              <View style={{ flex: 1, marginLeft: 16 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Typography size={10} weight="700" color={colors.text}>{m.title}</Typography>
-                  {m.badge && (
-                    <View style={[styles.badge, { backgroundColor: m.id === 'razorpay' ? '#3399FF' : colors.foreground }]}>
-                      <Typography size={6} weight="800" color="#FFF">{m.badge}</Typography>
-                    </View>
-                  )}
-                </View>
-                <Typography size={7} weight="600" color={colors.textExtraLight} style={{ marginTop: 4, letterSpacing: 1 }}>{m.subtitle}</Typography>
-              </View>
-
-              <View style={[styles.radio, { borderColor: paymentMethod === m.id ? colors.foreground : colors.borderLight }]}>
-                {paymentMethod === m.id && <View style={[styles.radioDot, { backgroundColor: colors.foreground }]} />}
-              </View>
-            </TouchableOpacity>
           ))}
+          {items.length > 3 && (
+            <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 8 }}>
+              +{items.length - 3} more item(s)
+            </Typography>
+          )}
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+          <View style={styles.row}>
+            <Typography size={10} color={colors.textMuted} weight="500">Subtotal</Typography>
+            <Typography size={10} color={colors.text} weight="700">{formatPrice(subtotal)}</Typography>
+          </View>
+          <View style={styles.row}>
+            <Typography size={10} color={colors.textMuted} weight="500">Delivery</Typography>
+            <Typography size={10} color={colors.text} weight="700">{deliveryFee === 0 ? 'FREE' : formatPrice(deliveryFee)}</Typography>
+          </View>
+          <View style={[styles.row, { marginTop: 6 }]}>
+            <Typography size={12} color={colors.text} weight="800">Total</Typography>
+            <Typography size={14} color={colors.text} weight="800">{formatPrice(grandTotal)}</Typography>
+          </View>
         </View>
 
-        {paymentMethod === 'card' && (
-          <View style={[styles.cardForm, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-            <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginBottom: 16, letterSpacing: 2 }}>STRIPE SECURE INPUT</Typography>
-            <View style={[styles.placeholderInput, { borderColor: colors.borderLight }]}>
-              <Typography size={12} color={colors.textExtraLight}>0000 0000 0000 0000</Typography>
+        {/* Payment selection */}
+        <View style={{ marginTop: 18, gap: 12 }}>
+          <TouchableOpacity
+            style={[
+              styles.optionCard,
+              { backgroundColor: colors.surface, borderColor: paymentMethod === 'COD' ? colors.foreground : colors.borderLight },
+            ]}
+            onPress={() => { haptics.buttonTap(); setPaymentMethod('COD'); }}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.iconBox, { backgroundColor: paymentMethod === 'COD' ? colors.foreground : colors.background }]}>
+              <Ionicons name="cash-outline" size={18} color={paymentMethod === 'COD' ? colors.background : colors.textMuted} />
             </View>
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-              <View style={[styles.placeholderInput, { flex: 1, borderColor: colors.borderLight }]}>
-                <Typography size={12} color={colors.textExtraLight}>MM / YY</Typography>
-              </View>
-              <View style={[styles.placeholderInput, { width: 100, borderColor: colors.borderLight }]}>
-                <Typography size={12} color={colors.textExtraLight}>CVC</Typography>
-              </View>
+            <View style={{ flex: 1, marginLeft: 16 }}>
+              <Typography size={12} weight="800" color={colors.text}>Cash on Delivery</Typography>
+              <Typography size={9} weight="600" color={colors.textExtraLight} style={{ marginTop: 4 }}>Pay when it arrives</Typography>
             </View>
+            <View style={[styles.radio, { borderColor: paymentMethod === 'COD' ? colors.foreground : colors.borderLight }]}>
+              {paymentMethod === 'COD' && <View style={[styles.radioDot, { backgroundColor: colors.foreground }]} />}
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.optionCard,
+              { backgroundColor: colors.surface, borderColor: paymentMethod === 'PREPAID' ? colors.foreground : colors.borderLight },
+            ]}
+            onPress={() => { haptics.buttonTap(); setPaymentMethod('PREPAID'); }}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.iconBox, { backgroundColor: paymentMethod === 'PREPAID' ? colors.foreground : colors.background }]}>
+              <Ionicons name="flash-outline" size={18} color={paymentMethod === 'PREPAID' ? colors.background : colors.textMuted} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 16 }}>
+              <Typography size={12} weight="800" color={colors.text}>Pay Now</Typography>
+              <Typography size={9} weight="600" color={colors.textExtraLight} style={{ marginTop: 4 }}>UPI / Card / Netbanking via Razorpay</Typography>
+            </View>
+            <View style={[styles.radio, { borderColor: paymentMethod === 'PREPAID' ? colors.foreground : colors.borderLight }]}>
+              {paymentMethod === 'PREPAID' && <View style={[styles.radioDot, { backgroundColor: colors.foreground }]} />}
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {inlineError && (
+          <View style={{ marginTop: 14, padding: 12, borderRadius: 16, backgroundColor: 'rgba(255,59,48,0.08)', borderWidth: 1, borderColor: 'rgba(255,59,48,0.15)' }}>
+            <Typography size={10} weight="700" color={colors.error}>{inlineError}</Typography>
           </View>
         )}
-
-        <View style={styles.secureBadge}>
-          <Ionicons name="shield-checkmark-outline" size={14} color={colors.success} />
-          <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginLeft: 6, letterSpacing: 2 }}>ENCRYPTED SECURE PAYMENT</Typography>
-        </View>
       </ScrollView>
 
       {/* Summary Bar */}
       <CheckoutSummaryBar 
         itemCount={items.length}
-        total={currentTotal}
-        primaryLabel="REVIEW ORDER"
-        onPrimaryPress={() => {
-          haptics.buttonTap();
-          navigation.navigate('OrderReview', { appliedCredit, paymentMethod });
-        }}
+        total={grandTotal}
+        primaryLabel={loading ? "PLACING..." : "PLACE ORDER"}
+        onPrimaryPress={placeOrder}
+        disabled={!paymentMethod || loading}
       />
     </View>
   );
@@ -210,17 +307,15 @@ const styles = StyleSheet.create({
   stepTag: { letterSpacing: 2, marginBottom: 2 },
   scroll: { paddingHorizontal: 24, paddingTop: 20 },
   title: { letterSpacing: -0.5, marginBottom: 32 },
-  storeCreditBlock: { padding: 20, borderRadius: 24, borderWidth: 1.5, marginBottom: 20 },
-  storeCreditHeader: { flexDirection: 'row', alignItems: 'center' },
-  creditIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  toggle: { width: 44, height: 24, borderRadius: 12, justifyContent: 'center' },
-  toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFF' },
-  creditAppliedRow: { marginTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(52,199,89,0.1)', paddingTop: 12, alignItems: 'flex-end' },
-  options: { gap: 12 },
+  summaryCard: { padding: 20, borderRadius: 24, borderWidth: 1.5 },
+  summaryItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  thumb: { width: 40, height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  divider: { height: 1, marginVertical: 14, opacity: 0.6 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 24,
+    padding: 20,
     borderRadius: 24,
     borderWidth: 1.5,
   },
@@ -231,14 +326,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
-  cardForm: { padding: 24, borderRadius: 28, borderWidth: 1, marginTop: 20 },
-  placeholderInput: { height: 56, borderRadius: 16, borderWidth: 1, paddingHorizontal: 20, justifyContent: 'center' },
-  secureBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 40, opacity: 0.7 }
 });

@@ -15,7 +15,7 @@ export default function OrderConfirmationScreen() {
   const colors = useColors();
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'OrderConfirmation'>>();
-  const { orderId } = route.params;
+  const { orderId, orderNumber, paymentMethod, estimatedDelivery } = route.params;
   const isDark = useThemeStore(s => s.theme) === 'dark';
 
   React.useEffect(() => {
@@ -33,14 +33,43 @@ export default function OrderConfirmationScreen() {
           <Ionicons name="checkmark-done-circle" size={64} color={colors.success} />
         </View>
 
-        <Typography heading weight="700" size={24} color={colors.text} style={styles.title}>ORDER CONFIRMED</Typography>
-        <Typography weight="400" size={10} color={colors.textMuted} style={styles.orderId}>ORDER ID: {orderId.toUpperCase()}</Typography>
+        <Typography heading weight="700" size={24} color={colors.text} style={styles.title}>
+          {paymentMethod === 'COD' ? 'ORDER PLACED!' : paymentMethod === 'PREPAID' ? 'PAYMENT CONFIRMED!' : 'ORDER PLACED!'}
+        </Typography>
+        <Typography weight="400" size={10} color={colors.textMuted} style={styles.orderId}>
+          {orderNumber ? `ORDER: ${orderNumber}` : `ORDER ID: ${orderId.toUpperCase()}`}
+        </Typography>
         
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
-        <Typography size={12} color={colors.textSecondary} style={styles.message}>
-          THANK YOU FOR YOUR PATRONAGE. WE'RE PREPARING YOUR ARCHIVAL PIECES FOR DISPATCH. YOU'LL RECEIVE A NOTIFICATION AS SOON AS THEY SHIP.
-        </Typography>
+        {paymentMethod === 'COD' ? (
+          <>
+            <Typography size={12} color={colors.textSecondary} style={styles.message}>
+              Your order {orderNumber || ''} is awaiting approval. We'll notify you as soon as it's confirmed.
+            </Typography>
+            <View style={[styles.pill, { backgroundColor: 'rgba(255,159,10,0.12)', borderColor: 'rgba(255,159,10,0.25)' }]}>
+              <Typography heading weight="700" size={9} color="#FF9F0A">AWAITING APPROVAL</Typography>
+            </View>
+          </>
+        ) : (
+          <>
+            <Typography size={12} color={colors.textSecondary} style={styles.message}>
+              Payment confirmed! Your order {orderNumber || ''} will be processed shortly.
+            </Typography>
+            <View style={[styles.pill, { backgroundColor: 'rgba(52,199,89,0.12)', borderColor: 'rgba(52,199,89,0.25)' }]}>
+              <Typography heading weight="700" size={9} color={colors.success}>PAYMENT CONFIRMED</Typography>
+            </View>
+            <Typography size={10} color={colors.textMuted} style={[styles.note, { marginTop: 14 }]}>
+              Shipping will begin once your order is approved (within 24 hours).
+            </Typography>
+          </>
+        )}
+
+        {!!estimatedDelivery && (
+          <Typography size={10} color={colors.textMuted} style={[styles.note, { marginTop: 14 }]}>
+            Estimated delivery: {estimatedDelivery}
+          </Typography>
+        )}
 
         <View style={styles.actions}>
           <TouchableOpacity 
@@ -76,7 +105,9 @@ const styles = StyleSheet.create({
   title: { letterSpacing: 4, marginBottom: 8, textAlign: 'center' },
   orderId: { letterSpacing: 2, marginBottom: 32 },
   divider: { height: 1, width: 40, marginBottom: 32 },
-  message: { textAlign: 'center', lineHeight: 22, opacity: 0.8, marginBottom: 60, letterSpacing: 0.5 },
+  message: { textAlign: 'center', lineHeight: 22, opacity: 0.8, marginBottom: 24, letterSpacing: 0.5 },
+  pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, marginTop: 8 },
+  note: { textAlign: 'center', lineHeight: 18, opacity: 0.8, letterSpacing: 0.5 },
   actions: { width: '100%', gap: 16 },
   primaryButton: { width: '100%', paddingVertical: 24, borderRadius: 24, alignItems: 'center' },
   secondaryButton: { width: '100%', paddingVertical: 20, borderRadius: 24, alignItems: 'center', borderWidth: 1 },

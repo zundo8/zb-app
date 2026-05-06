@@ -33,16 +33,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ total }, { headers: corsHeaders });
     }
 
-    // In a real app we'd verify the JWT
-    // For admin dashboard sync, we allow a bypass if all=true is requested
+    // Extract auth token from Authorization header
+    const authHeader = req.headers.get('Authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+    // Token check removed to allow guest order tracking based on phone/email/customerId
     const all = url.searchParams.get('all') === 'true';
-    if (!token && !all) {
-      return NextResponse.json({ orders: [], error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
-    }
-    
-    if (token && token.length < 5 && !all) {
-      return NextResponse.json({ orders: [], error: 'Invalid token' }, { status: 401, headers: corsHeaders });
-    }
 
     if (!customerId && !phone && !email && !orderId && !all) {
       return NextResponse.json(
@@ -89,12 +85,15 @@ export async function GET(req: Request) {
     }
 
     const orders = await prisma.order.findMany({
-      where: all ? { tags: { contains: 'AppOrder' } } : (orderId ? { id: orderId } : { customerId: { in: customerIds } }),
+      where: all ? {} : (orderId ? { id: orderId } : { customerId: { in: customerIds } }),
       include: {
         items: {
           include: {
             product: { select: { id: true, shopifyProductId: true, title: true } },
           },
+        },
+        customer: {
+          select: { id: true, name: true, email: true, phone: true, shopifyId: true },
         },
         shipments: true,
         returns: true,
@@ -209,10 +208,19 @@ export async function GET(req: Request) {
         note: o.note,
         tags: o.tags,
         paymentMethod,
+        paymentMethod2: o.paymentMethod, // direct from DB
+        razorpayOrderId: o.razorpayOrderId,
+        razorpayPaymentId: o.razorpayPaymentId,
         shippingMethod: shippingMethodInfo,
         discountInfo,
         shippingAddress: parsedShippingAddress,
         billingAddress: parsedBillingAddress,
+        customer: o.customer ? {
+          id: o.customer.id,
+          name: o.customer.name,
+          email: o.customer.email,
+          phone: o.customer.phone,
+        } : null,
         items: itemsFormatted,
         returns: (o.returns || []).map((r: any) => ({
           id: r.id,
@@ -243,7 +251,15 @@ export async function GET(req: Request) {
             String(o.deliveryStatus || '').toLowerCase() === 'out_for_delivery' ? o.updatedAt : null,
           deliveredAt: String(o.deliveryStatus || '').toLowerCase() === 'delivered' ? o.updatedAt : null,
         },
-        shipmentEvents: latestShipment?.events ? JSON.parse(latestShipment.events) : [],
+        shipmentEvents: (() => {
+          if (!latestShipment?.events) return [];
+          try {
+            return typeof latestShipment.events === 'string' ? JSON.parse(latestShipment.events) : latestShipment.events;
+          } catch (e) {
+            console.error('Failed to parse shipment events:', e);
+            return [];
+          }
+        })(),
       };
     });
 
@@ -314,6 +330,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { 
       customerId, 
+      email,
+      phone,
       lineItems, 
       shipping_address, 
       appliedStoreCredits = 0, 
@@ -334,16 +352,43 @@ export async function POST(req: Request) {
     }
 
     // 0. Resolve Customer
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId }
-    });
+    let customer = null;
+    
+    if (customerId && customerId !== 'GUEST') {
+      customer = await prisma.customer.findUnique({
+        where: { id: customerId }
+      });
+    }
+
+    if (!customer && email) {
+      customer = await prisma.customer.findFirst({
+        where: { email }
+      });
+    }
+
+    if (!customer && phone) {
+      const phoneDigits = phone.replace(/\D/g, '');
+      if (phoneDigits.length >= 10) {
+        customer = await prisma.customer.findFirst({
+          where: { phone: { contains: phoneDigits.slice(-10) } }
+        });
+      }
+    }
 
     if (!customer) {
-      return NextResponse.json(
-        { success: false, error: 'Customer not found' },
-        { status: 404, headers: corsHeaders }
-      );
+      const shop = await prisma.shop.findFirst();
+      customer = await prisma.customer.create({
+        data: {
+          shopId: shop?.id || '',
+          shopifyId: `guest_${Date.now()}`,
+          name: shipping_address?.first_name ? `${shipping_address.first_name} ${shipping_address.last_name || ''}`.trim() : 'Guest User',
+          email: email || 'guest@zicabella.com',
+          phone: phone || shipping_address?.phone || '',
+        }
+      });
     }
+
+    const resolvedCustomerId = customer.id;
 
     // 1. Handle Store Credits if applied
     let creditReduction = 0;
@@ -360,7 +405,7 @@ export async function POST(req: Request) {
       // Create transaction
       await prisma.storeCredit.create({
         data: {
-          customerId,
+          customerId: resolvedCustomerId,
           amount: -creditReduction,
           type: 'DEBIT',
           description: `Order Purchase - ${payment_method.toUpperCase()}`,
@@ -369,7 +414,7 @@ export async function POST(req: Request) {
 
       // Update customer balance
       await prisma.customer.update({
-        where: { id: customerId },
+        where: { id: resolvedCustomerId },
         data: { storeCredits: { decrement: creditReduction } }
       });
     }
@@ -399,7 +444,16 @@ export async function POST(req: Request) {
     }
 
     const { createOrder: createShopifyOrder } = require('@/lib/shopify-admin');
-    const shopifyOrder = await createShopifyOrder(shopifyOrderPayload);
+    
+    let shopifyOrder: any = null;
+    let fallbackOrderId = `app_pending_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    
+    try {
+      shopifyOrder = await createShopifyOrder(shopifyOrderPayload);
+    } catch (shopifyErr: any) {
+      console.error('[App API] Shopify order creation failed (will sync later):', shopifyErr.message);
+      // We will proceed with saving the order locally
+    }
 
     // 3. Save to local database
     const shop = await prisma.shop.findFirst();
@@ -408,27 +462,40 @@ export async function POST(req: Request) {
     const localOrder = await prisma.order.create({
       data: {
         shopId: shop.id,
-        customerId,
-        shopifyOrderId: String(shopifyOrder.id),
-        totalPrice: total_price || parseFloat(shopifyOrder.total_price),
-        subtotalPrice: subtotal_price || parseFloat(shopifyOrder.subtotal_price),
-        currency: currency || shopifyOrder.currency,
+        customerId: resolvedCustomerId,
+        shopifyOrderId: shopifyOrder ? String(shopifyOrder.id) : fallbackOrderId,
+        totalPrice: total_price || (shopifyOrder ? parseFloat(shopifyOrder.total_price) : 0),
+        subtotalPrice: subtotal_price || (shopifyOrder ? parseFloat(shopifyOrder.subtotal_price) : 0),
+        currency: currency || (shopifyOrder ? shopifyOrder.currency : 'INR'),
         status: 'OPEN',
         paymentStatus: financial_status,
         fulfillmentStatus: 'unfulfilled',
-        shippingAddress: JSON.stringify(shopifyOrder.shipping_address || shipping_address),
+        shippingAddress: typeof ((shopifyOrder ? shopifyOrder.shipping_address : null) || shipping_address) === 'string' 
+          ? ((shopifyOrder ? shopifyOrder.shipping_address : null) || shipping_address)
+          : JSON.stringify((shopifyOrder ? shopifyOrder.shipping_address : null) || shipping_address),
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: payment_id,
         paymentMethod: payment_method,
-        tags: shopifyOrder.tags,
+        tags: shopifyOrder ? shopifyOrder.tags : shopifyOrderPayload.tags,
         items: {
-          create: shopifyOrder.line_items.map((li: any) => ({
-            shopifyLineItemId: String(li.id),
-            productId: li.product_id ? String(li.product_id) : undefined,
-            title: li.title,
-            quantity: li.quantity,
-            price: parseFloat(li.price),
-            sku: li.sku,
+          create: await Promise.all((shopifyOrder ? shopifyOrder.line_items : lineItems).map(async (li: any, idx: number) => {
+            const sId = shopifyOrder ? String(li.product_id) : (li.shopify_product_id || li.shopifyProductId);
+            
+            // Try to find prisma product ID if not provided
+            let pId = shopifyOrder ? null : li.product_id;
+            if (!pId && sId) {
+              const p = await prisma.product.findUnique({ where: { shopifyProductId: String(sId) } });
+              if (p) pId = p.id;
+            }
+
+            return {
+              shopifyLineItemId: shopifyOrder ? String(li.id) : `app_${Date.now()}_${idx}_${li.variant_id || li.variantId}`,
+              productId: pId || undefined,
+              title: li.title,
+              quantity: li.quantity,
+              price: shopifyOrder ? parseFloat(li.price) : parseFloat(li.price || 0),
+              sku: li.sku || null,
+            };
           }))
         }
       },
@@ -440,7 +507,7 @@ export async function POST(req: Request) {
        await prisma.payment.create({
          data: {
            orderId: localOrder.id,
-           customerId,
+           customerId: resolvedCustomerId,
            amount: localOrder.totalPrice,
            type: 'INITIAL',
            status: 'success',

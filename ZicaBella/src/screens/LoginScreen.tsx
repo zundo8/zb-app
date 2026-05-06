@@ -63,7 +63,12 @@ export default function LoginScreen() {
       
       if (!res.ok) throw new Error(json.error || 'Verification failed');
 
-      login(json.user, 'real-session-token');
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'auth-pre',hypothesisId:'H2',location:'LoginScreen.tsx:handleLogin',message:'mobile-verify response',data:{ok:res.ok,status:res.status,hasToken:!!json?.token,tokenLen:String(json?.token||'').length,hasUser:!!json?.user,hasUserId:!!json?.user?.id},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      if (!json.token) throw new Error('Missing session token from server');
+      login(json.user, json.token);
       haptics.success();
     } catch (e: any) {
       Alert.alert('Login Failed', e.message);

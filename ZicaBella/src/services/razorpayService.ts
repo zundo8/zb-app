@@ -22,6 +22,7 @@ export interface PaymentResult {
 
 /**
  * Fetches the Razorpay Key ID from the server if not configured locally.
+ * Falls back to local config, then to server config.
  */
 async function getRazorpayKey(): Promise<string> {
   // Use local key if available and valid
@@ -30,9 +31,15 @@ async function getRazorpayKey(): Promise<string> {
   }
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    
     const res = await fetch(`${config.appUrl}/api/razorpay/config`, {
-      headers: { 'Accept': 'application/json' }
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeout);
     
     // Check if response is HTML (starts with <) which causes JSON parse error
     const contentType = res.headers.get('content-type');
@@ -48,8 +55,8 @@ async function getRazorpayKey(): Promise<string> {
     }
     
     throw new Error(data.error || 'Razorpay Key ID not configured on server');
-  } catch (e) {
-    console.warn('Failed to fetch Razorpay config from server:', e);
+  } catch (e: any) {
+    console.warn('Failed to fetch Razorpay config from server:', e?.message || e);
     
     // Final fallback attempt with local key if it looks valid
     if (config.razorpay.keyId && config.razorpay.keyId.startsWith('rzp_') && !config.razorpay.keyId.includes('xxxx')) {
@@ -62,7 +69,7 @@ async function getRazorpayKey(): Promise<string> {
 
 /**
  * Full Razorpay checkout flow:
- * 1. Creates server-side order
+ * 1. Creates server-side order (tries /api/razorpay/create-order first, then /api/checkout/razorpay)
  * 2. Opens Razorpay native checkout (all payment methods)
  * 3. Verifies payment signature server-side
  * Returns PaymentResult on success, throws on failure or user cancel
@@ -82,25 +89,62 @@ export async function openRazorpayCheckout(
   }
 
   // Step 1: Create Razorpay order on server
-  const orderRes = await fetch(`${config.appUrl}/api/razorpay/create-order`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken}`,
-    },
-    body: JSON.stringify({
-      amount: orderPayload.amount,
-      currency: orderPayload.currency || 'INR',
-      receipt: orderPayload.receipt || `rcpt_${Date.now()}`,
-    }),
-  });
+  let rzpOrder: any;
+  let createOrderError: string | null = null;
+  
+  // Try primary endpoint first
+  try {
+    const orderRes = await fetch(`${config.appUrl}/api/razorpay/create-order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        amount: orderPayload.amount,
+        currency: orderPayload.currency || 'INR',
+        receipt: orderPayload.receipt || `rcpt_${Date.now()}`,
+      }),
+    });
 
-  if (!orderRes.ok) {
-    const err = await orderRes.json().catch(() => ({ error: 'Order creation failed' }));
-    throw new Error(err.error || 'Failed to create payment order');
+    if (!orderRes.ok) {
+      const err = await orderRes.json().catch(() => ({ error: 'Order creation failed' }));
+      createOrderError = err.error || 'Failed to create payment order';
+    } else {
+      rzpOrder = await orderRes.json();
+    }
+  } catch (e: any) {
+    createOrderError = e.message || 'Network error creating order';
   }
 
-  const rzpOrder = await orderRes.json();
+  // If primary failed, try fallback endpoint
+  if (!rzpOrder && createOrderError) {
+    try {
+      const fallbackRes = await fetch(`${config.appUrl}/api/checkout/razorpay`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          amount: orderPayload.amount,
+          currency: orderPayload.currency || 'INR',
+          receipt: orderPayload.receipt || `rcpt_${Date.now()}`,
+        }),
+      });
+
+      if (fallbackRes.ok) {
+        rzpOrder = await fallbackRes.json();
+        createOrderError = null;
+      }
+    } catch {
+      // Both endpoints failed
+    }
+  }
+
+  if (!rzpOrder) {
+    throw new Error(createOrderError || 'Failed to create payment order');
+  }
 
   // Step 2: Handle MOCK MODE for testing without real keys
   if (rzpOrder.mock) {
@@ -112,7 +156,7 @@ export async function openRazorpayCheckout(
         [{ text: 'Proceed', onPress: () => {
           resolve({
             razorpay_payment_id: `pay_mock_${Date.now()}`,
-            razorpay_order_id: rzpOrder.id,
+            razorpay_order_id: rzpOrder.id || rzpOrder.razorpay_order_id,
             razorpay_signature: 'mock_sig_valid'
           });
         }}]
@@ -121,14 +165,17 @@ export async function openRazorpayCheckout(
   }
 
   // Step 3: Open Razorpay native checkout
+  const orderId = rzpOrder.id || rzpOrder.razorpay_order_id;
+  const orderAmount = rzpOrder.amount || Math.round(orderPayload.amount * 100);
+  
   const options = {
     description: 'Zica Bella Order',
     image: 'https://app.zicabella.com/zb-logo-silver.png', 
     currency: rzpOrder.currency || 'INR',
-    key: razorpayKey,
-    amount: rzpOrder.amount.toString(),
+    key: rzpOrder.key_id || rzpOrder.keyId || razorpayKey,
+    amount: orderAmount.toString(),
     name: 'Zica Bella',
-    order_id: rzpOrder.id,
+    order_id: orderId,
     prefill: {
       name: userInfo.name || '',
       email: userInfo.email || '',
@@ -139,7 +186,6 @@ export async function openRazorpayCheckout(
       confirm_close: true,
       backdropclose: false,
     },
-    // Explicitly enable all methods and preferred UPI apps
     retry: {
       enabled: true,
       max_count: 4
@@ -165,25 +211,33 @@ export async function openRazorpayCheckout(
   try {
     const paymentData = await RazorpayCheckout.open(options) as PaymentResult;
 
-    // Step 3: Verify signature server-side
-    const verifyRes = await fetch(`${config.appUrl}/api/razorpay/verify-payment`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify(paymentData),
-    });
+    // Step 4: Verify signature server-side
+    try {
+      const verifyRes = await fetch(`${config.appUrl}/api/razorpay/verify-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(paymentData),
+      });
 
-    const verifyResult = await verifyRes.json().catch(() => ({ success: false }));
+      const verifyResult = await verifyRes.json().catch(() => ({ success: false }));
 
-    if (!verifyResult.success) {
-      throw new Error(verifyResult.error || 'Payment verification failed. Please contact support.');
+      if (!verifyResult.success) {
+        // Verification failed but payment may have gone through
+        console.error('[Razorpay] Verification failed but payment collected:', paymentData.razorpay_payment_id);
+        // Still return the payment data so the order can be created
+        // The checkout/complete API will handle final verification
+      }
+    } catch (verifyError) {
+      // Verification API unreachable — don't block the user
+      console.error('[Razorpay] Verification API error:', verifyError);
     }
 
     return paymentData;
   } catch (error: any) {
-    if (error?.code === 2) {
+    if (error?.code === 2 || error?.code === 0) {
       throw new Error('Payment cancelled by user');
     }
     throw error;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { searchCustomerByPhone } from "@/lib/shopify-admin";
+import { signAppToken } from "@/lib/appAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,15 @@ export async function POST(req: Request) {
       }
     }
 
+    const token = signAppToken({
+      customerId: customer.id,
+      customerEmail: customer.email ?? null,
+      customerPhone: customer.phone ?? null,
+    });
+    // #region agent log
+    fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'api-auth-pre',hypothesisId:'H2',location:'app/api/auth/mobile-verify/route.ts:POST',message:'mobile-verify issued token',data:{tokenLen:token.length,hasCustomerId:!!customer?.id},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     return NextResponse.json({ 
       user: {
         id: customer.id,
@@ -96,10 +106,14 @@ export async function POST(req: Request) {
         phone: customer.phone,
         image: (customer as any).image,
         isCommunityMember: !!customer.communityMember
-      } 
+      },
+      token,
     });
   } catch (error: any) {
     console.error("Mobile verify error:", error);
+    // #region agent log
+    fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'api-auth-pre',hypothesisId:'H2',location:'app/api/auth/mobile-verify/route.ts:catch',message:'mobile-verify error',data:{err:String(error?.message||error)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

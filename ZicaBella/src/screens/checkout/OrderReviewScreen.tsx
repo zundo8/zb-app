@@ -74,8 +74,11 @@ export default function OrderReviewScreen() {
       // API call to order creation endpoint
       const orderData = {
         customerId: user?.id || 'GUEST',
+        email: user?.email || 'guest@zicabella.com',
+        phone: user?.phone || shippingAddress?.phone || '',
         lineItems: items.map(i => ({ 
           variant_id: i.variantId, 
+          product_id: i.productId,
           quantity: i.quantity, 
           price: i.price,
           title: i.title,

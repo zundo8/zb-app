@@ -198,17 +198,26 @@ export default function CheckoutScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
       if (paymentMethod === 'COD') {
-        const orderId = await completeShopifyCheckout();
-        
-        updateUser({
-          name: address.name,
-          phone: address.phone,
-          email: address.email,
-        });
+        try {
+          const orderId = await completeShopifyCheckout();
+          
+          updateUser({
+            name: address.name,
+            phone: address.phone,
+            email: address.email,
+          });
 
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        clearCart();
-        navigation.replace('OrderConfirmation', { orderId });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          clearCart();
+          navigation.replace('OrderConfirmation', { orderId });
+        } catch (codErr: any) {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(
+            'Order Failed', 
+            codErr?.message || 'Could not place your COD order. Please try again.',
+            [{ text: 'OK' }]
+          );
+        }
         return;
       }
 
@@ -244,16 +253,15 @@ export default function CheckoutScreen() {
       clearCart();
       navigation.replace('OrderConfirmation', { orderId, paymentId: result.razorpay_payment_id });
     } catch (err: any) {
-      if (err?.code === 2 || err?.code === 0) {
-        // User cancelled
+      // Silently handle user cancellation
+      if (err?.code === 2 || err?.code === 0 || 
+          err?.message?.includes('cancelled') || err?.message?.includes('canceled')) {
         return;
       }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Payment Failed', err?.description || err?.message || 'Something went wrong. Please try again.', [{ text: 'OK' }]);
-
       
       // Try to get a friendly error message from Claude
-      let friendlyMessage = err.message || 'Please try again';
+      let friendlyMessage = err?.description || err?.message || 'Something went wrong. Please try again.';
       try {
         const claudeRes = await fetch(`${config.appUrl}/api/app/payment-error`, {
           method: 'POST',
@@ -272,7 +280,7 @@ export default function CheckoutScreen() {
         // Silently fall back to original error message
       }
       
-      Alert.alert('Payment Failed', friendlyMessage);
+      Alert.alert('Payment Failed', friendlyMessage, [{ text: 'OK' }]);
     } finally {
       setLoading(false);
     }

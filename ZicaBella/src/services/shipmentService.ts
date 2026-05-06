@@ -23,17 +23,26 @@ export interface TrackingData {
 
 export async function trackOrder(params: { awb?: string; order_id?: string }): Promise<TrackingData> {
   const queryParams = new URLSearchParams();
-  if (params.awb) queryParams.set('awb', params.awb);
+  if (params.awb) queryParams.set('id', params.awb);
   if (params.order_id) queryParams.set('order_id', params.order_id);
 
-  const res = await fetch(`${config.appUrl}/api/logistics/track?${queryParams.toString()}`);
+  const res = await fetch(`${config.appUrl}/api/orders/tracking?${queryParams.toString()}`);
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Network error' }));
     throw new Error(err.error || `Failed to fetch tracking: ${res.status}`);
   }
 
-  return res.json();
+  const json = await res.json();
+  return {
+    status: json.status || 'unknown',
+    scan_history: json.activities || [],
+    estimated_delivery: json.estimatedDelivery || null,
+    current_location: json.location || null,
+    tracking_url: json.trackingUrl || null,
+    awb: json.awb || params.awb || '',
+    courier: json.courier || undefined,
+  };
 }
 
 export async function checkServiceability(pincode: string): Promise<{

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import CheckoutSummaryBar from '../../components/CheckoutSummaryBar';
 import { useCartStore } from '../../store/cartStore';
 import { useAuth } from '../../hooks/useAuth';
 import { haptics } from '../../utils/haptics';
+import { config } from '../../constants/config';
 
 export default function DeliveryAddressScreen() {
   const insets = useSafeAreaInsets();
@@ -18,30 +19,20 @@ export default function DeliveryAddressScreen() {
   const { total, items, shippingAddress, setShippingAddress } = useCartStore();
 
   const [loadingPincode, setLoadingPincode] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [isEditing, setIsEditing] = useState(!shippingAddress);
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
   const [address, setAddress] = useState({
     name: shippingAddress?.name || user?.name || '',
     phone: shippingAddress?.phone || user?.phone || '',
-    street: shippingAddress?.street || '',
+    line1: shippingAddress?.line1 || shippingAddress?.street || '',
+    line2: shippingAddress?.line2 || '',
     city: shippingAddress?.city || '',
-    district: shippingAddress?.district || '',
     state: shippingAddress?.state || '',
-    zip: shippingAddress?.zip || '',
+    pincode: shippingAddress?.pincode || shippingAddress?.zip || '',
     country: 'India',
   });
-
-  const MOCK_SAVED_ADDRESSES = [
-    {
-      id: '1',
-      name: user?.name || 'Home',
-      phone: user?.phone || '',
-      street: '12B Archive Street, South Ex II',
-      city: 'New Delhi',
-      district: 'Central Delhi',
-      state: 'Delhi',
-      zip: '110049',
-      country: 'India'
-    }
-  ];
 
   const fetchPincodeDetails = async (pin: string) => {
     if (pin.length !== 6) return;
@@ -54,7 +45,6 @@ export default function DeliveryAddressScreen() {
         setAddress(prev => ({
           ...prev,
           city: postOffice.Block || postOffice.Name,
-          district: postOffice.District,
           state: postOffice.State,
         }));
         haptics.success();
@@ -70,29 +60,54 @@ export default function DeliveryAddressScreen() {
 
   const handlePincodeChange = (v: string) => {
     const cleaned = v.replace(/[^0-9]/g, '').slice(0, 6);
-    setAddress({ ...address, zip: cleaned });
+    setAddress({ ...address, pincode: cleaned });
     if (cleaned.length === 6) {
       fetchPincodeDetails(cleaned);
     }
   };
 
-  const selectSavedAddress = (addr: any) => {
-    haptics.buttonTap();
-    setAddress({
-      ...addr,
-      name: addr.name || user?.name || '',
-      phone: addr.phone || user?.phone || '',
-    });
+  const isValid = useMemo(
+    () =>
+      !!(address.name && address.phone && address.line1 && address.city && address.pincode && address.state),
+    [address]
+  );
+
+  const fetchSavedAddresses = useCallback(async () => {
+    if (!user?.phone && !user?.email) return;
+    setLoadingSaved(true);
+    try {
+      const params = new URLSearchParams();
+      if (user?.phone) params.set('phone', user.phone);
+      if (user?.email) params.set('email', user.email);
+      const res = await fetch(`${config.appUrl}/api/app/customers/addresses?${params.toString()}`);
+      const json = await res.json().catch(() => ({ addresses: [] }));
+      if (res.ok && Array.isArray(json.addresses)) {
+        setSavedAddresses(json.addresses);
+      } else {
+        setSavedAddresses([]);
+      }
+    } catch {
+      setSavedAddresses([]);
+    } finally {
+      setLoadingSaved(false);
+    }
+  }, [user?.phone, user?.email]);
+
+  useEffect(() => {
+    fetchSavedAddresses();
+  }, [fetchSavedAddresses]);
+
+  // #region agent log
+  fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'checkout-pre',hypothesisId:'H4',location:'DeliveryAddressScreen.tsx:render',message:'DeliveryAddress render state',data:{hasSaved:!!shippingAddress,isEditing,hasUser:!!user?.id,addrKeys:Object.keys(address).slice(0,10)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
+  const fieldError = (field: keyof typeof address) => {
+    if (!submitted) return null;
+    if (!String(address[field] || '').trim()) return 'Required';
+    if (field === 'pincode' && String(address.pincode).trim().length !== 6) return 'Invalid pincode';
+    if (field === 'phone' && String(address.phone).replace(/\D/g, '').length < 10) return 'Invalid phone';
+    return null;
   };
-
-  const isValid = address.name && address.phone && address.street && address.city && address.zip && address.state;
-
-  const states = [
-    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 
-    'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 
-    'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 
-    'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Puducherry'
-  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -102,7 +117,7 @@ export default function DeliveryAddressScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.stepTag}>STEP 2 OF 5</Typography>
+          <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.stepTag}>DELIVERY</Typography>
           <Typography size={14} color={colors.text} weight="700">DELIVERY ADDRESS</Typography>
         </View>
         <View style={{ width: 44 }} />
@@ -114,8 +129,112 @@ export default function DeliveryAddressScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Typography size={22} weight="700" color={colors.text} style={styles.title}>Where should we send your pieces?</Typography>
+
+        {!isEditing && shippingAddress && (
+          <View>
+            <View style={[styles.savedCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+              <Ionicons name="location-outline" size={20} color={colors.text} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Typography size={10} weight="700" color={colors.text}>{shippingAddress.name}</Typography>
+                <Typography size={9} color={colors.textMuted} style={{ marginTop: 2 }}>
+                  {shippingAddress.line1}
+                  {shippingAddress.line2 ? `, ${shippingAddress.line2}` : ''}
+                  {`\n${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.pincode}`}
+                </Typography>
+                <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 6 }}>{shippingAddress.phone}</Typography>
+              </View>
+              <TouchableOpacity onPress={() => { haptics.buttonTap(); setIsEditing(true); }} activeOpacity={0.7}>
+                <Typography size={8} weight="700" color={colors.foreground} style={{ letterSpacing: 2 }}>CHANGE</Typography>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => {
+                haptics.buttonTap();
+                setAddress({
+                  name: user?.name || '',
+                  phone: user?.phone || '',
+                  line1: '',
+                  line2: '',
+                  city: '',
+                  state: '',
+                  pincode: '',
+                  country: 'India',
+                });
+                setIsEditing(true);
+              }}
+              activeOpacity={0.8}
+              style={{ marginTop: 14, paddingVertical: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center' }}
+            >
+              <Typography size={9} weight="800" color={colors.text} style={{ letterSpacing: 2 }}>ADD NEW ADDRESS</Typography>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Saved addresses list (from backend) */}
+        {!isEditing && !shippingAddress && (
+          <View style={{ marginTop: 12 }}>
+            <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginBottom: 12, letterSpacing: 2 }}>
+              SAVED ADDRESSES
+            </Typography>
+            {loadingSaved ? (
+              <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+                <ActivityIndicator color={colors.foreground} />
+              </View>
+            ) : savedAddresses.length > 0 ? (
+              savedAddresses.map((a, idx) => (
+                <TouchableOpacity
+                  key={`${a.address1 || idx}`}
+                  onPress={() => {
+                    haptics.buttonTap();
+                    const normalized = {
+                      name: a.name || user?.name || '',
+                      phone: a.phone || user?.phone || '',
+                      line1: a.address1 || '',
+                      line2: a.address2 || '',
+                      city: a.city || '',
+                      state: a.state || '',
+                      pincode: a.zip || '',
+                      country: 'India',
+                      street: a.address1 || '',
+                      zip: a.zip || '',
+                    };
+                    setShippingAddress(normalized);
+                    navigation.navigate('Payment');
+                  }}
+                  activeOpacity={0.7}
+                  style={[styles.savedCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+                >
+                  <Ionicons name="location-outline" size={20} color={colors.text} />
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Typography size={10} weight="700" color={colors.text} numberOfLines={1}>
+                      {a.name || user?.name || 'Saved Address'}
+                    </Typography>
+                    <Typography size={9} color={colors.textMuted} numberOfLines={2} style={{ marginTop: 2 }}>
+                      {a.address1}{a.address2 ? `, ${a.address2}` : ''}{` · ${a.city || ''}, ${a.state || ''} ${a.zip || ''}`}
+                    </Typography>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textExtraLight} />
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Typography size={10} color={colors.textMuted} style={{ textAlign: 'center', marginTop: 8 }}>
+                No saved addresses found.
+              </Typography>
+            )}
+
+            <TouchableOpacity
+              onPress={() => { haptics.buttonTap(); setIsEditing(true); }}
+              activeOpacity={0.8}
+              style={{ marginTop: 14, paddingVertical: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center' }}
+            >
+              <Typography size={9} weight="800" color={colors.text} style={{ letterSpacing: 2 }}>ADD NEW ADDRESS</Typography>
+            </TouchableOpacity>
+          </View>
+        )}
         
-        <View style={styles.form}>
+        {isEditing && (
+          <View style={styles.form}>
           <View style={styles.field}>
             <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>FULL NAME</Typography>
             <TextInput
@@ -125,6 +244,7 @@ export default function DeliveryAddressScreen() {
               placeholderTextColor={colors.textExtraLight}
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
+            {fieldError('name') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('name')}</Typography>}
           </View>
 
           <View style={styles.field}>
@@ -137,14 +257,27 @@ export default function DeliveryAddressScreen() {
               keyboardType="phone-pad"
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
+            {fieldError('phone') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('phone')}</Typography>}
           </View>
 
           <View style={styles.field}>
-            <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>STREET ADDRESS</Typography>
+            <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>ADDRESS LINE 1</Typography>
             <TextInput
-              value={address.street}
-              onChangeText={(v) => setAddress({...address, street: v})}
+              value={address.line1}
+              onChangeText={(v) => setAddress({...address, line1: v})}
               placeholder="House No, Building, Street..."
+              placeholderTextColor={colors.textExtraLight}
+              style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+            />
+            {fieldError('line1') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('line1')}</Typography>}
+          </View>
+
+          <View style={styles.field}>
+            <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>ADDRESS LINE 2 (OPTIONAL)</Typography>
+            <TextInput
+              value={address.line2}
+              onChangeText={(v) => setAddress({...address, line2: v})}
+              placeholder="Apartment, landmark..."
               placeholderTextColor={colors.textExtraLight}
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
@@ -155,7 +288,7 @@ export default function DeliveryAddressScreen() {
               <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>PINCODE</Typography>
               <View style={{ position: 'relative' }}>
                 <TextInput
-                  value={address.zip}
+                  value={address.pincode}
                   onChangeText={handlePincodeChange}
                   placeholder="110001"
                   placeholderTextColor={colors.textExtraLight}
@@ -168,6 +301,7 @@ export default function DeliveryAddressScreen() {
                   </View>
                 )}
               </View>
+              {fieldError('pincode') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('pincode')}</Typography>}
             </View>
             <View style={[styles.field, { flex: 1 }]}>
               <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>CITY / AREA</Typography>
@@ -178,85 +312,60 @@ export default function DeliveryAddressScreen() {
                 placeholderTextColor={colors.textExtraLight}
                 style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
               />
+              {fieldError('city') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('city')}</Typography>}
             </View>
           </View>
 
-          <View style={styles.row}>
-            <View style={[styles.field, { flex: 1 }]}>
-              <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>DISTRICT</Typography>
-              <TextInput
-                value={address.district}
-                onChangeText={(v) => setAddress({...address, district: v})}
-                placeholder="Central Delhi"
-                placeholderTextColor={colors.textExtraLight}
-                style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
-              />
-            </View>
-            <View style={[styles.field, { flex: 1 }]}>
-              <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>STATE</Typography>
-              <TouchableOpacity 
-                onPress={() => {
-                  Alert.alert(
-                    "Select State",
-                    "Choose your state",
-                    states.map(s => ({ text: s, onPress: () => setAddress({...address, state: s}) })),
-                    { cancelable: true }
-                  );
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.borderLight, justifyContent: 'center' }]}>
-                  <Typography size={10} color={address.state ? colors.text : colors.textExtraLight}>
-                    {address.state || 'Select State'}
-                  </Typography>
-                  <Ionicons name="chevron-down" size={16} color={colors.textExtraLight} style={{ position: 'absolute', right: 20 }} />
-                </View>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.field}>
+            <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>STATE</Typography>
+            <TextInput
+              value={address.state}
+              onChangeText={(v) => setAddress({...address, state: v})}
+              placeholder="Delhi"
+              placeholderTextColor={colors.textExtraLight}
+              style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+            />
+            {fieldError('state') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('state')}</Typography>}
           </View>
         </View>
-
-        {/* Saved Addresses Shortcut */}
-        <View style={styles.savedSection}>
-          <Typography size={7} weight="600" color={colors.textExtraLight} style={{ marginBottom: 12 }}>SAVED ADDRESSES</Typography>
-          {MOCK_SAVED_ADDRESSES.map((item) => (
-            <TouchableOpacity 
-              key={item.id}
-              onPress={() => selectSavedAddress(item)}
-              style={[
-                styles.savedCard, 
-                { 
-                  backgroundColor: colors.surface, 
-                  borderColor: address.zip === item.zip ? colors.text : colors.borderLight 
-                }
-              ]}
-            >
-              <Ionicons name="location-outline" size={20} color={colors.text} />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Typography size={10} weight="600" color={colors.text}>HOME (PRIMARY)</Typography>
-                <Typography size={9} color={colors.textMuted}>{item.street}, {item.city}...</Typography>
-              </View>
-              {address.zip === item.zip && <Ionicons name="checkmark-circle" size={20} color={colors.success} />}
-            </TouchableOpacity>
-          ))}
-        </View>
+        )}
       </ScrollView>
 
       {/* Summary Bar */}
       <CheckoutSummaryBar 
         itemCount={items.length}
         total={total()}
-        primaryLabel="CONTINUE TO SHIPPING"
+        primaryLabel="CONTINUE TO PAYMENT"
         onPrimaryPress={() => {
+          setSubmitted(true);
+          if (!isEditing && shippingAddress) {
+            haptics.buttonTap();
+            navigation.navigate('Payment');
+            return;
+          }
           if (!isValid) {
-            Alert.alert('Missing Info', 'Please fill all address fields.');
+            haptics.error();
             return;
           }
           haptics.buttonTap();
-          setShippingAddress(address);
-          navigation.navigate('DeliveryMethod');
+          const normalized = {
+            name: address.name,
+            phone: address.phone,
+            line1: address.line1,
+            line2: address.line2,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+            country: 'India',
+            // Back-compat for older screens/services still reading these keys
+            street: address.line1,
+            zip: address.pincode,
+          };
+          setShippingAddress(normalized);
+          setIsEditing(false);
+          navigation.navigate('Payment');
         }}
-        disabled={!isValid}
+        disabled={isEditing ? !isValid : false}
       />
     </View>
   );

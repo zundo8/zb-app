@@ -20,11 +20,8 @@ export type TabParamList = {
 };
 
 export type CheckoutStackParamList = {
-  BagReview: undefined;
   DeliveryAddress: undefined;
-  DeliveryMethod: undefined;
   Payment: undefined;
-  OrderReview: undefined;
 };
 
 export type ServiceStackParamList = {
@@ -41,7 +38,7 @@ export type RootStackParamList = {
   Collection: { handle: string; title?: string };
   CheckoutFlow: undefined;
   ServiceFlow: undefined;
-  OrderConfirmation: { orderId: string };
+  OrderConfirmation: { orderId: string; orderNumber?: string; paymentMethod?: 'COD' | 'PREPAID'; estimatedDelivery?: string | null };
   OrderHistory: { openReturnFor?: string } | undefined;
   OrderDetail: { orderForDetail: any };
   Policy: { url: string; title?: string };

@@ -76,6 +76,7 @@ async function callClaudeAPI(
 
 const MessageBubble = memo(({ item }: { item: Message }) => {
   const isUser = item.isUser;
+  const colors = useColors();
   return (
     <Animated.View
       entering={FadeInDown.duration(400).springify().damping(20)}
@@ -83,20 +84,21 @@ const MessageBubble = memo(({ item }: { item: Message }) => {
     >
       <View style={[
         msgStyles.bubble,
-        isUser ? msgStyles.userBubble : msgStyles.aiBubble,
+        isUser ? { backgroundColor: colors.surface } : { backgroundColor: colors.surfaceElevated },
         !isUser && msgStyles.aiBubbleDecoration,
         item.isError && msgStyles.errorBubble,
+        isUser ? msgStyles.userBubble : msgStyles.aiBubble,
       ]}>
-        <Text style={[msgStyles.text, { color: '#FFF' }]}>
+        <Text style={[msgStyles.text, { color: colors.text }]}>
           {item.content}
         </Text>
         <View style={msgStyles.metaRow}>
           {item.toolsUsed ? (
-            <Typography size={7} weight="700" color="rgba(138, 110, 255, 0.5)" style={{ letterSpacing: 1 }}>
+            <Typography size={7} weight="700" color={colors.info} style={{ letterSpacing: 1 }}>
               ⚡ {item.toolsUsed} TOOL{item.toolsUsed > 1 ? 'S' : ''}
             </Typography>
           ) : null}
-          <Typography size={8} weight="300" color="rgba(255,255,255,0.3)" style={msgStyles.time}>
+          <Typography size={8} weight="300" color={colors.textExtraLight} style={msgStyles.time}>
             {item.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </Typography>
         </View>
@@ -193,15 +195,15 @@ export default function ChatScreen() {
   const renderOnboarding = () => (
     <View style={styles.onboarding}>
       <Animated.View entering={FadeInUp.delay(200).duration(800)}>
-        <Typography heading weight="700" size={32} color="#FFF" style={styles.onboardingTitle}>
+        <Typography heading weight="700" size={32} color={colors.text} style={[styles.onboardingTitle, { textShadowColor: colors.borderLight }]}>
           ZICA AI
         </Typography>
-        <Typography weight="300" size={12} color="rgba(255,255,255,0.4)" style={styles.onboardingSubtitle}>
+        <Typography weight="300" size={12} color={colors.textMuted} style={styles.onboardingSubtitle}>
           {isAdmin ? 'OPERATIONS INTELLIGENCE ENGINE' : 'YOUR ARCHIVAL STYLE CONCIERGE'}
         </Typography>
         <View style={styles.statusDot}>
           <View style={styles.dotGreen} />
-          <Typography weight="700" size={8} color="rgba(255,255,255,0.25)" style={{ letterSpacing: 3 }}>
+          <Typography weight="700" size={8} color={colors.textExtraLight} style={{ letterSpacing: 3 }}>
             ONLINE · POWERED BY CLAUDE
           </Typography>
         </View>
@@ -211,12 +213,12 @@ export default function ChatScreen() {
         {quickPrompts.map((item, idx) => (
           <Animated.View key={idx} entering={FadeInDown.delay(400 + idx * 100).duration(600)}>
             <TouchableOpacity
-              style={styles.promptCard}
+              style={[styles.promptCard, { backgroundColor: colors.surface, borderColor: colors.borderExtraLight }]}
               activeOpacity={0.7}
               onPress={() => handleSend(item.label)}
             >
-              <Ionicons name={item.icon as any} size={18} color="rgba(255,255,255,0.6)" />
-              <Typography size={10} weight="400" color="#FFF">{item.label}</Typography>
+              <Ionicons name={item.icon as any} size={18} color={colors.textMuted} />
+              <Typography size={10} weight="400" color={colors.text}>{item.label}</Typography>
             </TouchableOpacity>
           </Animated.View>
         ))}
@@ -226,7 +228,7 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: '#000' }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
@@ -250,11 +252,11 @@ export default function ChatScreen() {
       {isTyping && (
         <View style={styles.typingRow}>
           <View style={styles.typingDots}>
-            <View style={[styles.dot, styles.dot1]} />
-            <View style={[styles.dot, styles.dot2]} />
-            <View style={[styles.dot, styles.dot3]} />
+            <View style={[styles.dot, styles.dot1, { backgroundColor: colors.info }]} />
+            <View style={[styles.dot, styles.dot2, { backgroundColor: colors.info }]} />
+            <View style={[styles.dot, styles.dot3, { backgroundColor: colors.info }]} />
           </View>
-          <Typography size={9} weight="700" color="rgba(255,255,255,0.3)" style={{ letterSpacing: 1 }}>
+          <Typography size={9} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>
             ZICA AI IS THINKING...
           </Typography>
         </View>
@@ -265,13 +267,13 @@ export default function ChatScreen() {
         { paddingBottom: insets.bottom + 90 },
         inputAnimatedStyle,
       ]}>
-        <View style={styles.inputPill}>
+        <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
           <TextInput
             value={input}
             onChangeText={setInput}
             placeholder={isAdmin ? 'Command Zica AI...' : 'Ask anything...'}
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            style={styles.input}
+            placeholderTextColor={colors.textExtraLight}
+            style={[styles.input, { color: colors.text }]}
             returnKeyType="send"
             onSubmitEditing={() => handleSend()}
             multiline
@@ -282,14 +284,14 @@ export default function ChatScreen() {
             onPress={() => handleSend()}
             disabled={!input.trim() || isTyping}
             style={[styles.sendButton, {
-              backgroundColor: input.trim() && !isTyping ? '#FFF' : 'rgba(255,255,255,0.05)',
+              backgroundColor: input.trim() && !isTyping ? colors.text : colors.surfaceElevated,
             }]}
             activeOpacity={0.8}
           >
             {isTyping ? (
-              <ActivityIndicator size="small" color="#FFF" />
+              <ActivityIndicator size="small" color={colors.background} />
             ) : (
-              <Ionicons name="arrow-up" size={18} color={input.trim() ? '#000' : 'rgba(255,255,255,0.2)'} />
+              <Ionicons name="arrow-up" size={18} color={input.trim() ? colors.background : colors.textExtraLight} />
             )}
           </TouchableOpacity>
         </View>
@@ -304,8 +306,8 @@ const msgStyles = StyleSheet.create({
   row: { marginBottom: 12, flexDirection: 'row' },
   rowRight: { justifyContent: 'flex-end' },
   bubble: { maxWidth: width * 0.8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
-  userBubble: { backgroundColor: 'rgba(255,255,255,0.08)', borderBottomRightRadius: 4 },
-  aiBubble: { backgroundColor: 'rgba(255,255,255,0.03)', borderBottomLeftRadius: 4 },
+  userBubble: { borderBottomRightRadius: 4 },
+  aiBubble: { borderBottomLeftRadius: 4 },
   aiBubbleDecoration: { borderLeftWidth: 2, borderLeftColor: 'rgba(138, 110, 255, 0.4)' },
   errorBubble: { borderLeftColor: 'rgba(255, 59, 48, 0.4)' },
   text: { fontSize: 15, lineHeight: 22, fontWeight: '300', letterSpacing: -0.2 },
@@ -316,19 +318,17 @@ const msgStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   onboarding: { flex: 1, paddingHorizontal: 32, justifyContent: 'center', alignItems: 'center' },
-  onboardingTitle: { textAlign: 'center', letterSpacing: 12, marginBottom: 8, textShadowColor: 'rgba(255,255,255,0.1)', textShadowRadius: 10 },
+  onboardingTitle: { textAlign: 'center', letterSpacing: 12, marginBottom: 8, textShadowRadius: 10 },
   onboardingSubtitle: { textAlign: 'center', letterSpacing: 4, marginBottom: 16 },
   statusDot: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 48 },
   dotGreen: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#34C759' },
   promptGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' },
   promptCard: {
     width: (width - 64 - 12) / 2,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 16,
     padding: 16,
     gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
   typingRow: { paddingHorizontal: 24, paddingBottom: 150, flexDirection: 'row', alignItems: 'center', gap: 8 },
   typingDots: { flexDirection: 'row', gap: 4 },
@@ -339,9 +339,10 @@ const styles = StyleSheet.create({
   inputBarWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16 },
   inputPill: {
     flexDirection: 'row', alignItems: 'flex-end',
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 32,
-    padding: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 32,
+    padding: 6, borderWidth: 1,
   },
-  input: { flex: 1, color: '#FFF', fontSize: 16, paddingHorizontal: 16, paddingVertical: 12, maxHeight: 120, fontWeight: '300' },
+  input: { flex: 1, fontSize: 16, paddingHorizontal: 16, paddingVertical: 12, maxHeight: 120, fontWeight: '300' },
   sendButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 2, marginRight: 2 },
 });
+

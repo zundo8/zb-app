@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { Typography } from './Typography';
-import FooterLogo3D from './FooterLogo3D';
+import FooterLogo from './FooterLogo3D';
 import { config } from '../constants/config';
 import { useAdminSettings } from '../hooks/useAdminFeatures';
 import HeroVideo from './HeroVideo';
@@ -30,9 +30,9 @@ export default function StorefrontFooter() {
 
   return (
     <View style={[styles.container, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
-      {/* 3D LOGO HUB - Standardized sizing */}
+      {/* SVG LOGO - Matches web footer w-14 h-14 */}
       <View style={styles.logoWrapper}>
-        <FooterLogo3D />
+        <FooterLogo />
       </View>
 
       {/* BRANDING: Exact web parity */}
@@ -104,17 +104,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoWrapper: {
-    marginBottom: 2,
-    marginTop: -10,
+    marginBottom: 8,
+    marginTop: 0,
+    alignItems: 'center',
   },
   brandName: {
     letterSpacing: 1.5,
-    marginBottom: 4, // Exact mb-0.5 parity (scaled)
+    marginBottom: 4,
   },
   estLabel: {
     letterSpacing: 5,
     opacity: 0.25,
-    marginBottom: 24, // Exact mb-4 parity
+    marginBottom: 24,
   },
   videoSection: {
     width: '100%',
@@ -163,4 +164,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

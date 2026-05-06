@@ -110,6 +110,7 @@ export default function ProductDetailScreen() {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
 
   useEffect(() => {
     const id = scrollY.addListener(({ value }) => {
@@ -137,6 +138,12 @@ export default function ProductDetailScreen() {
     player.muted = true;
     player.play();
   });
+
+  useEffect(() => {
+    if (player) {
+      player.muted = isMuted;
+    }
+  }, [isMuted, player]);
 
   const options = useMemo(() => {
     if (!product) return { sizes: [], colors: [] };
@@ -283,13 +290,14 @@ export default function ProductDetailScreen() {
               autoPlay={false}
               onScrollStart={() => setIsScrollEnabled(false)}
               onScrollEnd={() => setIsScrollEnabled(true)}
+              windowSize={3}
            />
         </View>
 
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.thumbnailScroll}
+          contentContainerStyle={[styles.thumbnailScroll, { gap: 6 }]}
           style={{ marginTop: 16 }}
         >
           {images.map((img, idx) => (
@@ -302,16 +310,13 @@ export default function ProductDetailScreen() {
               }}
               style={[
                 styles.thumbnail, 
-                { 
-                  opacity: activeImageIndex === idx ? 1 : 0.4,
-                  transform: [{ scale: activeImageIndex === idx ? 1.05 : 1 }],
+                activeImageIndex === idx && {
+                  borderWidth: 1.5,
+                  borderColor: colors.text,
                 }
               ]}
             >
               <Image source={img} style={StyleSheet.absoluteFill} contentFit="cover" />
-              {activeImageIndex === idx && (
-                <View style={[styles.activeDot, { backgroundColor: colors.text }]} />
-              )}
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -445,7 +450,10 @@ export default function ProductDetailScreen() {
            {product.productVideo && (
              <View style={styles.videoSection}>
                 <Typography size={7} color={colors.textExtraLight} weight="700" style={styles.sectionTag}>EXPERIMENTAL REFERENCE</Typography>
-                <View style={[styles.videoWrapper, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]}>
+                <Pressable 
+                  style={[styles.videoWrapper, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]}
+                  onPress={() => { haptics.buttonTap(); setIsMuted(!isMuted); }}
+                >
                   <VideoView
                     player={player}
                     style={StyleSheet.absoluteFill}
@@ -453,7 +461,13 @@ export default function ProductDetailScreen() {
                     contentFit="cover"
                   />
                   <View style={styles.videoOverlay} />
-                </View>
+                  <Ionicons 
+                    name={isMuted ? "volume-mute-outline" : "volume-medium-outline"} 
+                    size={20} 
+                    color="#FFF" 
+                    style={{ position: 'absolute', bottom: 12, right: 12, opacity: 0.8 }} 
+                  />
+                </Pressable>
              </View>
            )}
 

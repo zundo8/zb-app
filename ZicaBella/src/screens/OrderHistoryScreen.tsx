@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, RefreshControl, FlatList, Dimensions,
   Animated, Platform,
@@ -19,15 +19,11 @@ import { Typography } from '../components/Typography';
 import { OrderSkeleton } from '../components/OrderSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const PAGE_SIZE = 20;
-
-type OrderTab = 'ACTIVE' | 'DELIVERED' | 'CANCELLED' | 'RETURNS';
+type OrderTab = 'ACTIVE' | 'HISTORY';
 
 const TAB_CONFIG: { key: OrderTab; label: string; icon: string }[] = [
   { key: 'ACTIVE', label: 'Active', icon: 'time-outline' },
-  { key: 'DELIVERED', label: 'Delivered', icon: 'checkmark-circle-outline' },
-  { key: 'CANCELLED', label: 'Cancelled', icon: 'close-circle-outline' },
-  { key: 'RETURNS', label: 'Returns', icon: 'return-down-back-outline' },
+  { key: 'HISTORY', label: 'History', icon: 'receipt-outline' },
 ];
 
 export default function OrderHistoryScreen() {
@@ -41,21 +37,11 @@ export default function OrderHistoryScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [activeTab, setActiveTab] = useState<OrderTab>('ACTIVE');
-  const offsetRef = useRef(0);
+  const [error, setError] = useState<string | null>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (activeTab === 'RETURNS') {
-      navigation.navigate('ServiceFlow', { screen: 'ServiceHistory' });
-      setActiveTab('ACTIVE');
-    }
-  }, [activeTab, navigation]);
-
-  const fetchOrders = useCallback(async (mode: 'reset' | 'more' = 'reset') => {
-    if (activeTab === 'RETURNS') return;
+  const fetchOrders = useCallback(async () => {
     try {
       if (!user?.id && !user?.phone && !user?.email) {
         setOrders([]);
@@ -63,99 +49,113 @@ export default function OrderHistoryScreen() {
         return;
       }
 
-      const params = new URLSearchParams();
-      if (user?.id) params.set('customerId', user.id);
-      else if (user?.phone) params.set('phone', user.phone);
-      else if (user?.email) params.set('email', user.email);
-      
-      params.set('limit', String(PAGE_SIZE));
-      const nextOffset = mode === 'more' ? offsetRef.current : 0;
-      params.set('offset', String(nextOffset));
+      if (!user?.id) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
 
-      const res = await fetch(`${config.appUrl}/api/app/orders?${params.toString()}`, {
+      const token = useAuthStore.getState().token || '';
+      const url = `${config.appUrl}/api/app/orders?customerId=${encodeURIComponent(user.id)}`;
+      // #region agent log
+      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'orders-pre',hypothesisId:'H1',location:'OrderHistoryScreen.tsx:fetchOrders',message:'Fetching orders',data:{hasUserId:!!user?.id,tokenLen:token.length,appUrl:config.appUrl,urlPath:'/api/app/orders/list',activeTab},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'orders-pre',hypothesisId:'H1',location:'OrderHistoryScreen.tsx:fetchOrders',message:'Fetching orders (v2)',data:{appUrl:config.appUrl,url,hasUserId:!!user?.id,tokenLen:token.length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      const res = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${useAuthStore.getState().token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
-      const json = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      const raw = await res.text();
+      // #region agent log
+      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'orders-pre',hypothesisId:'H1',location:'OrderHistoryScreen.tsx:fetchOrders',message:'Orders response',data:{status:res.status,ok:res.ok,contentType,bodyPrefix:raw.slice(0,20)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'orders-pre',hypothesisId:'H1',location:'OrderHistoryScreen.tsx:fetchOrders',message:'Orders response (v2)',data:{status:res.status,ok:res.ok,contentType,bodyPrefix:raw.slice(0,40)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      let json: any = null;
+      try {
+        json = raw ? JSON.parse(raw) : {};
+      } catch (e: any) {
+        throw new Error(`JSON Parse error: ${String(e?.message || e)} (prefix: ${raw.slice(0, 20)})`);
+      }
       
       if (!res.ok) throw new Error(json.error || 'Failed to fetch orders');
 
-      const incoming = json.orders || [];
-      if (mode === 'more') {
-        setOrders(prev => [...prev, ...incoming]);
-      } else {
-        setOrders(incoming);
-      }
-      offsetRef.current = nextOffset + incoming.length;
-      setHasMore(incoming.length === PAGE_SIZE);
+      setOrders(json.orders || []);
     } catch (err: any) {
       console.error('Fetch Orders:', err.message);
+      setError(err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
-      setLoadingMore(false);
     }
-  }, [user?.id, user?.phone, user?.email, activeTab]);
+  }, [user?.id, user?.phone, user?.email]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchOrders('reset');
+      fetchOrders();
     }, [fetchOrders])
   );
 
   const onRefresh = useCallback(() => {
     haptics.buttonTap();
     setRefreshing(true);
-    fetchOrders('reset');
+    fetchOrders();
   }, [fetchOrders]);
-
-  const loadMore = useCallback(() => {
-    if (loadingMore || !hasMore || refreshing) return;
-    setLoadingMore(true);
-    fetchOrders('more');
-  }, [loadingMore, hasMore, refreshing, fetchOrders]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
-      const status = (o.status || '').toUpperCase();
-      const delStatus = (o.deliveryStatus || '').toUpperCase();
+      const status = (o.status || '').toLowerCase();
+      const timeline = Array.isArray(o.statusTimeline) ? o.statusTimeline : [];
+      const deliveredAt = timeline.find((t: any) => t.step === 'delivered')?.completedAt;
       
-      if (activeTab === 'CANCELLED') return status === 'CANCELLED' || status === 'VOIDED' || status === 'REFUNDED';
-      if (activeTab === 'DELIVERED') return delStatus === 'DELIVERED';
-      return status !== 'CANCELLED' && status !== 'VOIDED' && status !== 'REFUNDED' && delStatus !== 'DELIVERED';
+      const isCancelled = status.includes('cancel');
+      const isDelivered = !!deliveredAt;
+      if (activeTab === 'HISTORY') return true;
+      return !isCancelled && !isDelivered;
     });
   }, [orders, activeTab]);
 
   const getStatusConfig = (order: any) => {
-    const s = (order.status || '').toUpperCase();
-    const d = (order.deliveryStatus || '').toUpperCase();
-    
-    if (s === 'CANCELLED' || s === 'VOIDED') return { color: '#FF3B30', bg: 'rgba(255,59,48,0.08)', label: 'Cancelled', icon: 'close-circle' as const };
-    if (s === 'REFUNDED') return { color: '#8E8E93', bg: 'rgba(142,142,147,0.08)', label: 'Refunded', icon: 'return-down-back' as const };
-    if (d === 'DELIVERED') return { color: '#34C759', bg: 'rgba(52,199,89,0.08)', label: 'Delivered', icon: 'checkmark-circle' as const };
-    if (d === 'OUT_FOR_SERVICE' || d === 'OUT_FOR_DELIVERY') return { color: '#FF9500', bg: 'rgba(255,149,0,0.08)', label: 'Out for Delivery', icon: 'bicycle' as const };
-    if (d === 'SHIPPED') return { color: '#AF52DE', bg: 'rgba(175,82,222,0.08)', label: 'Shipped', icon: 'airplane' as const };
-    if (s === 'PACKED') return { color: '#FF9F0A', bg: 'rgba(255,159,10,0.08)', label: 'Packed', icon: 'cube' as const };
-    if (s === 'PAID' || s === 'CONFIRMED') return { color: '#007AFF', bg: 'rgba(0,122,255,0.08)', label: 'Confirmed', icon: 'checkmark-done' as const };
+    const s = (order.status || '').toLowerCase();
+    if (s.includes('cancel')) return { color: '#FF3B30', bg: 'rgba(255,59,48,0.08)', label: 'Cancelled', icon: 'close-circle' as const };
+    if (s === 'awaiting_approval') return { color: '#FF9F0A', bg: 'rgba(255,159,10,0.08)', label: 'Awaiting Approval', icon: 'time' as const };
+    const timeline = Array.isArray(order.statusTimeline) ? order.statusTimeline : [];
+    const deliveredAt = timeline.find((t: any) => t.step === 'delivered')?.completedAt;
+    const outForDeliveryAt = timeline.find((t: any) => t.step === 'out_for_delivery')?.completedAt;
+    const shippedAt = timeline.find((t: any) => t.step === 'shipped')?.completedAt;
+    const approvedAt = timeline.find((t: any) => t.step === 'approved')?.completedAt;
+
+    if (deliveredAt) return { color: '#34C759', bg: 'rgba(52,199,89,0.08)', label: 'Delivered', icon: 'checkmark-circle' as const };
+    if (outForDeliveryAt) return { color: '#FF9500', bg: 'rgba(255,149,0,0.08)', label: 'Out for Delivery', icon: 'bicycle' as const };
+    if (shippedAt) return { color: '#AF52DE', bg: 'rgba(175,82,222,0.08)', label: 'Shipped', icon: 'airplane' as const };
+    if (approvedAt) return { color: '#007AFF', bg: 'rgba(0,122,255,0.08)', label: 'Approved', icon: 'checkmark-done' as const };
     return { color: '#007AFF', bg: 'rgba(0,122,255,0.08)', label: 'Processing', icon: 'hourglass-outline' as const };
   };
 
   const getProgressSteps = (order: any) => {
-    const d = (order.deliveryStatus || '').toUpperCase();
-    const s = (order.status || '').toUpperCase();
-    if (s === 'CANCELLED') return 0;
-    if (d === 'DELIVERED') return 4;
-    if (d === 'OUT_FOR_DELIVERY' || d === 'OUT_FOR_SERVICE') return 3;
-    if (d === 'SHIPPED') return 2;
-    if (s === 'PACKED') return 1;
+    const timeline = Array.isArray(order.statusTimeline) ? order.statusTimeline : [];
+    const deliveredAt = timeline.find((t: any) => t.step === 'delivered')?.completedAt;
+    const outForDeliveryAt = timeline.find((t: any) => t.step === 'out_for_delivery')?.completedAt;
+    const shippedAt = timeline.find((t: any) => t.step === 'shipped')?.completedAt;
+    const approvedAt = timeline.find((t: any) => t.step === 'approved')?.completedAt;
+    if (deliveredAt) return 4;
+    if (outForDeliveryAt) return 3;
+    if (shippedAt) return 2;
+    if (approvedAt) return 1;
     return 0;
   };
 
   const renderStepDots = (order: any) => {
     const current = getProgressSteps(order);
     const { color } = getStatusConfig(order);
-    const isCancelled = (order.status || '').toUpperCase() === 'CANCELLED';
+    const isCancelled = (order.status || '').toLowerCase().includes('cancel') || (order.status || '').toLowerCase().includes('void');
     
     if (isCancelled) return null;
 
@@ -192,10 +192,9 @@ export default function OrderHistoryScreen() {
 
   const renderOrder = ({ item: order, index }: { item: any; index: number }) => {
     const { color, bg, label, icon } = getStatusConfig(order);
-    const orderNumber = order.orderNumber || order.shopifyOrderId || order.id?.slice(0, 8);
+    const orderNumber = order.orderNumber || order.id?.slice(0, 8);
     const itemCount = order.items?.length || 0;
-    const isDelivered = (order.deliveryStatus || '').toUpperCase() === 'DELIVERED';
-    const isCancelled = (order.status || '').toUpperCase() === 'CANCELLED';
+    const isCancelled = (order.status || '').toLowerCase().includes('cancel') || (order.status || '').toLowerCase().includes('void');
     const firstItem = order.items?.[0];
     const paymentMethod = order.paymentMethod;
     
@@ -293,7 +292,7 @@ export default function OrderHistoryScreen() {
             <View>
               <Typography size={10} color={colors.textExtraLight} weight="500">Total</Typography>
               <Typography size={18} weight="800" color={colors.text} style={{ marginTop: 2, letterSpacing: -0.3 }}>
-                {formatPrice(order.totalPrice || order.total || 0)}
+                {formatPrice(order.total || order.totalPrice || 0)}
               </Typography>
               {paymentMethod && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
@@ -308,30 +307,6 @@ export default function OrderHistoryScreen() {
             </View>
 
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {isDelivered && (
-                <>
-                  <TouchableOpacity
-                    style={[styles.actionPill, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}
-                    onPress={(e) => {
-                      e.stopPropagation?.();
-                      haptics.buttonTap();
-                      navigation.navigate('ServiceFlow', { screen: 'ReturnWizard', params: { orderId: order.id } });
-                    }}
-                  >
-                    <Ionicons name="return-down-back-outline" size={13} color={colors.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionPill, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}
-                    onPress={(e) => {
-                      e.stopPropagation?.();
-                      haptics.buttonTap();
-                      navigation.navigate('ServiceFlow', { screen: 'ExchangeWizard', params: { orderId: order.id } });
-                    }}
-                  >
-                    <Ionicons name="swap-horizontal-outline" size={13} color={colors.text} />
-                  </TouchableOpacity>
-                </>
-              )}
               <TouchableOpacity
                 style={[styles.viewDetailsPill, { backgroundColor: colors.foreground }]}
                 onPress={() => {
@@ -351,10 +326,11 @@ export default function OrderHistoryScreen() {
 
   // ─── Order count summary ───
   const orderCounts = useMemo(() => {
-    const active = orders.filter(o => (o.status || '').toUpperCase() !== 'CANCELLED' && (o.deliveryStatus || '').toUpperCase() !== 'DELIVERED').length;
-    const delivered = orders.filter(o => (o.deliveryStatus || '').toUpperCase() === 'DELIVERED').length;
-    const cancelled = orders.filter(o => (o.status || '').toUpperCase() === 'CANCELLED').length;
-    return { ACTIVE: active, DELIVERED: delivered, CANCELLED: cancelled, RETURNS: 0 };
+    const isDelivered = (o: any) => (Array.isArray(o.statusTimeline) ? o.statusTimeline : []).some((t: any) => t.step === 'delivered' && t.completedAt);
+    const isCancelled = (o: any) => String(o.status || '').toLowerCase().includes('cancel');
+    const active = orders.filter(o => !isCancelled(o) && !isDelivered(o)).length;
+    const history = orders.length;
+    return { ACTIVE: active, HISTORY: history };
   }, [orders]);
 
   return (
@@ -424,44 +400,54 @@ export default function OrderHistoryScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
           }
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={[styles.emptyIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
-                <Ionicons
-                  name={activeTab === 'CANCELLED' ? 'close-circle-outline' : activeTab === 'DELIVERED' ? 'checkmark-circle-outline' : 'cube-outline'}
-                  size={44}
-                  color={colors.textExtraLight}
-                />
+            error ? (
+              <View style={styles.empty}>
+                <Ionicons name="alert-circle-outline" size={44} color="#FF3B30" />
+                <Typography size={17} weight="700" color={colors.text} style={{ marginTop: 24 }}>
+                  Order Fetch Error
+                </Typography>
+                <Typography size={13} color={colors.textMuted} style={{ marginTop: 8, textAlign: 'center' }}>
+                  {error}
+                </Typography>
+                <TouchableOpacity
+                  style={[styles.shopNowBtn, { backgroundColor: colors.foreground }]}
+                  onPress={() => { setError(null); setLoading(true); fetchOrders(); }}
+                >
+                  <Typography size={12} weight="700" color={colors.background}>Try Again</Typography>
+                </TouchableOpacity>
               </View>
-              <Typography size={17} weight="700" color={colors.text} style={{ marginTop: 24 }}>
-                No {activeTab === 'ACTIVE' ? 'active' : activeTab === 'DELIVERED' ? 'delivered' : 'cancelled'} orders
-              </Typography>
-              <Typography size={13} color={colors.textMuted} style={{ marginTop: 8, textAlign: 'center', lineHeight: 20, maxWidth: 280 }}>
-                {activeTab === 'ACTIVE'
-                  ? 'Your active orders will appear here once you place an order.'
-                  : activeTab === 'DELIVERED'
-                  ? 'Your delivered orders will show up here.'
-                  : 'No cancelled orders to display.'}
-              </Typography>
-              <TouchableOpacity
-                style={[styles.shopNowBtn, { backgroundColor: colors.foreground }]}
-                onPress={() => {
-                  haptics.buttonTap();
-                  navigation.navigate('BottomTabs', { screen: 'Shop' });
-                }}
-              >
-                <Typography size={12} weight="700" color={colors.background}>Browse Products</Typography>
-              </TouchableOpacity>
-            </View>
+            ) : (
+              <View style={styles.empty}>
+                <View style={[styles.emptyIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
+                  <Ionicons
+                    name={activeTab === 'HISTORY' ? 'receipt-outline' : 'cube-outline'}
+                    size={44}
+                    color={colors.textExtraLight}
+                  />
+                </View>
+                <Typography size={17} weight="700" color={colors.text} style={{ marginTop: 24 }}>
+                  No {activeTab === 'ACTIVE' ? 'active' : 'orders'} yet
+                </Typography>
+                <Typography size={13} color={colors.textMuted} style={{ marginTop: 8, textAlign: 'center', lineHeight: 20, maxWidth: 280 }}>
+                  {activeTab === 'ACTIVE'
+                    ? 'Your active orders will appear here once you place an order.'
+                    : 'Your order history will show up here.'}
+                </Typography>
+                <TouchableOpacity
+                  style={[styles.shopNowBtn, { backgroundColor: colors.foreground }]}
+                  onPress={() => {
+                    haptics.buttonTap();
+                    navigation.navigate('BottomTabs', { screen: 'Shop' });
+                  }}
+                >
+                  <Typography size={12} weight="700" color={colors.background}>Start Shopping</Typography>
+                </TouchableOpacity>
+              </View>
+            )
           }
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={{ padding: 20 }}><OrderSkeleton /></View>
-            ) : null
-          }
+          ListFooterComponent={null}
         />
       )}
     </View>

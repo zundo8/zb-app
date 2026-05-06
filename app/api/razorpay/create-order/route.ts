@@ -1,20 +1,51 @@
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
+import prisma from '@/lib/db';
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+function getRazorpayInstance(): Razorpay | null {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (keyId && keySecret && !keyId.includes('xxxx') && !keySecret.includes('xxxx')) {
+    return new Razorpay({ key_id: keyId, key_secret: keySecret });
+  }
+  return null;
+}
+
+async function getRazorpayFromDB(): Promise<Razorpay | null> {
+  try {
+    const shop = await prisma.shop.findFirst({
+      select: { razorpayKeyId: true, razorpayKeySecret: true },
+    });
+    if (shop?.razorpayKeyId && shop?.razorpayKeySecret) {
+      return new Razorpay({
+        key_id: shop.razorpayKeyId,
+        key_secret: shop.razorpayKeySecret,
+      });
+    }
+  } catch (e) {
+    console.error('[Razorpay] DB key fetch error:', e);
+  }
+  return null;
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { amount, currency = 'INR', receipt } = body;
 
-    // SECURE MOCK MODE: Allow testing if keys are not configured
-    const isMissingKeys = !process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET.includes('xxxx');
+    if (!amount || isNaN(Number(amount))) {
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+    }
+
+    // Try env vars first, then DB fallback
+    let razorpay = getRazorpayInstance();
     
-    if (isMissingKeys) {
+    if (!razorpay) {
+      razorpay = await getRazorpayFromDB();
+    }
+
+    // If still no Razorpay instance, enter MOCK MODE for testing
+    if (!razorpay) {
       console.warn('⚠️ Razorpay Keys missing - Entering MOCK MODE');
       return NextResponse.json({ 
         id: `order_mock_${Date.now()}`,
@@ -22,12 +53,8 @@ export async function POST(req: Request) {
         currency,
         receipt,
         mock: true,
-        message: 'Razorpay Authentication Failed: key_secret is missing. Using MOCK ORDER for testing.'
+        message: 'Razorpay keys not configured. Using MOCK ORDER for testing.'
       }, { status: 200 });
-    }
-
-    if (!amount || isNaN(Number(amount))) {
-      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
     const order = await razorpay.orders.create({

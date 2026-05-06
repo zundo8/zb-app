@@ -103,9 +103,15 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<ShopifyOrderDetail | null>(null);
   const [tracking, setTracking] = useState<TrackingInfo | null>(null);
+  const [mobile, setMobile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [awb, setAwb] = useState("");
+  const [carrier, setCarrier] = useState("Delhivery");
+
+  const isMobileOrderId = id && !/^\d+$/.test(id);
 
   const fetchOrder = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -113,13 +119,25 @@ export default function OrderDetailPage() {
     
     setError(null);
     try {
-      const res = await fetch(`/api/shopify/orders/${id}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to load order");
+      if (isMobileOrderId) {
+        const res = await fetch(`/api/admin/mobile-orders/${id}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load mobile order");
+        setMobile(data.order);
+        setOrder(null);
+        setTracking(null);
+        setAwb(data.order?.shipment?.awb || "");
+        setCarrier(data.order?.shipment?.courier || "Delhivery");
+      } else {
+        const res = await fetch(`/api/shopify/orders/${id}`);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to load order");
+        }
+        setOrder(data.order);
+        setTracking(data.tracking);
+        setMobile(null);
       }
-      setOrder(data.order);
-      setTracking(data.tracking);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to load order";
@@ -142,7 +160,7 @@ export default function OrderDetailPage() {
     );
   }
 
-  if (error || !order) {
+  if (error || (!order && !mobile)) {
     return (
       <div className="space-y-4">
         <button
@@ -154,6 +172,222 @@ export default function OrderDetailPage() {
         </button>
         <div className="glass-card rounded-2xl p-6 text-rose-500 text-[10px] font-bold uppercase tracking-widest">
           {error || "Order not found"}
+        </div>
+      </div>
+    );
+  }
+
+  if (mobile) {
+    const isAwaiting = String(mobile.status || "").toLowerCase() === "awaiting_approval";
+    const isCOD = String(mobile.paymentMethod || "").toUpperCase().includes("COD");
+    const canApprove = isAwaiting && isCOD;
+    const hasAwb = !!mobile.shipment?.awb;
+
+    const approve = async () => {
+      setActionLoading("approve");
+      try {
+        const res = await fetch(`/api/admin/mobile-orders/${mobile.id}/approve`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Approve failed");
+        await fetchOrder(true);
+      } catch (e: any) {
+        setError(e.message || "Approve failed");
+      } finally {
+        setActionLoading(null);
+      }
+    };
+
+    const saveTracking = async () => {
+      setActionLoading("tracking");
+      try {
+        const res = await fetch(`/api/admin/mobile-orders/${mobile.id}/set-tracking`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ awb, carrier }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Save tracking failed");
+        await fetchOrder(true);
+      } catch (e: any) {
+        setError(e.message || "Save tracking failed");
+      } finally {
+        setActionLoading(null);
+      }
+    };
+
+    const markDelivered = async () => {
+      setActionLoading("delivered");
+      try {
+        const res = await fetch(`/api/admin/mobile-orders/${mobile.id}/mark-delivered`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Mark delivered failed");
+        await fetchOrder(true);
+      } catch (e: any) {
+        setError(e.message || "Mark delivered failed");
+      } finally {
+        setActionLoading(null);
+      }
+    };
+
+    return (
+      <div className="space-y-6 pb-20 max-w-5xl mx-auto relative z-10">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.back()}
+            className="inline-flex items-center text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/40 hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-2" />
+            Back to Orders
+          </button>
+          <button
+            onClick={() => fetchOrder(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-3 py-1.5 bg-foreground/5 border border-foreground/10 rounded-lg text-[9px] font-bold uppercase tracking-widest text-foreground/60 hover:bg-foreground/10 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} />
+            Sync Status
+          </button>
+        </div>
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-foreground/5 flex items-center justify-center border border-foreground/5 shadow-inner">
+              <ShoppingCart className="w-5 h-5 text-foreground/60" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Mobile Order #{mobile.orderNumber}</h1>
+              <p className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest mt-1">
+                Placed {new Date(mobile.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="px-3 py-1 rounded-full bg-foreground/[0.03] border border-foreground/5 text-[9px] font-bold uppercase tracking-widest text-foreground/60">
+              {mobile.paymentStatus || "pending"}
+            </span>
+            <span className="px-3 py-1 rounded-full bg-foreground/[0.03] border border-foreground/5 text-[9px] font-bold uppercase tracking-widest text-foreground/60">
+              {mobile.status}
+            </span>
+            <span className="px-3 py-1 rounded-full bg-foreground text-background text-[9px] font-bold uppercase tracking-widest">
+              ₹{Number(mobile.totalPrice || 0).toLocaleString("en-IN")}
+            </span>
+          </div>
+        </div>
+
+        <div className="glass-card rounded-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/50">Admin Actions</h3>
+            {mobile.shopifyOrderId && (
+              <a
+                href={`https://8tiahf-bk.myshopify.com/admin/orders/${mobile.shopifyOrderId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-foreground/50 hover:text-foreground"
+              >
+                Shopify <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+          </div>
+
+          {canApprove && (
+            <button
+              onClick={approve}
+              disabled={actionLoading === "approve"}
+              className="w-full py-2.5 bg-foreground text-background rounded-md text-[10px] font-semibold uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {actionLoading === "approve" ? "Approving..." : "Approve Order (Sync to Shopify)"}
+            </button>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-2">
+              <label className="block text-[9px] font-semibold uppercase tracking-widest text-foreground/50 mb-1.5">AWB Number</label>
+              <input
+                value={awb}
+                onChange={(e) => setAwb(e.target.value)}
+                placeholder="Enter AWB"
+                className="w-full bg-foreground/[0.02] border border-foreground/[0.05] focus:border-foreground/20 rounded-md px-3 py-2 text-[11px] font-medium text-foreground outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-semibold uppercase tracking-widest text-foreground/50 mb-1.5">Carrier</label>
+              <select
+                value={carrier}
+                onChange={(e) => setCarrier(e.target.value)}
+                className="w-full bg-foreground/[0.02] border border-foreground/[0.05] focus:border-foreground/20 rounded-md px-3 py-2 text-[11px] font-medium text-foreground outline-none appearance-none"
+              >
+                {["Delhivery", "Shiprocket", "BlueDart", "Other"].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-3">
+            <button
+              onClick={saveTracking}
+              disabled={actionLoading === "tracking"}
+              className="flex-1 py-2.5 bg-background border border-foreground/[0.05] text-foreground rounded-md text-[10px] font-semibold uppercase tracking-[0.15em] hover:bg-foreground/[0.02] disabled:opacity-50 transition-all"
+            >
+              {actionLoading === "tracking" ? "Saving..." : "Save AWB (Mark Shipped)"}
+            </button>
+            <button
+              onClick={markDelivered}
+              disabled={actionLoading === "delivered"}
+              className="flex-1 py-2.5 bg-foreground text-background rounded-md text-[10px] font-semibold uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {actionLoading === "delivered" ? "Updating..." : "Mark as Delivered"}
+            </button>
+          </div>
+
+          {hasAwb && (
+            <div className="text-[10px] text-foreground/40 font-medium uppercase tracking-widest">
+              Tracking saved: {mobile.shipment?.courier} • {mobile.shipment?.awb}
+            </div>
+          )}
+        </div>
+
+        <div className="glass-card rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-foreground/5 flex items-center justify-between bg-foreground/[0.01]">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/50">Line Items</h2>
+            <span className="text-[9px] font-bold text-foreground/30 uppercase tracking-widest">{mobile.items?.length || 0} positions</span>
+          </div>
+          <div className="divide-y divide-foreground/[0.03]">
+            {(mobile.items || []).map((item: any) => (
+              <div key={item.id} className="px-6 py-4 flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-[12px] font-bold text-foreground tracking-wide">{item.title}</p>
+                  {item.sku && <p className="text-[9px] text-foreground/40 font-mono">SKU: {item.sku}</p>}
+                  <p className="text-[9px] text-foreground/40 font-bold uppercase tracking-widest">Qty: {item.quantity}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[12px] font-bold text-foreground tracking-tight">₹{Number(item.price).toLocaleString("en-IN")}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-card rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <label className="block text-[9px] font-bold uppercase tracking-[0.3em] text-foreground/30">Shipping Destination</label>
+            <MapPin className="w-3.5 h-3.5 text-foreground/20" />
+          </div>
+          {mobile.shippingAddress ? (
+            <address className="not-italic space-y-1">
+              <p className="text-[13px] font-bold text-foreground">{mobile.shippingAddress.name}</p>
+              <div className="text-[11px] text-foreground/60 font-medium leading-relaxed">
+                <p>{mobile.shippingAddress.line1}</p>
+                {mobile.shippingAddress.line2 && <p>{mobile.shippingAddress.line2}</p>}
+                <p>
+                  {mobile.shippingAddress.city}, {mobile.shippingAddress.state} {mobile.shippingAddress.pincode}
+                </p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/30 mt-2">{mobile.shippingAddress.country}</p>
+              </div>
+            </address>
+          ) : (
+            <p className="text-[10px] text-foreground/20 italic font-medium">No shipping information available.</p>
+          )}
         </div>
       </div>
     );

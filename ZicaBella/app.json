@@ -5,14 +5,17 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "zicabella",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/zb-logo-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "jsEngine": "hermes",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/zica-bella-logo_8.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
+    },
+    "web": {
+      "favicon": "./assets/zb-logo-220px.png"
     },
     "ios": {
       "supportsTablet": false,
@@ -20,7 +23,6 @@
       "appleTeamId": "NZDV3AFAEG",
       "buildNumber": "1",
       "deploymentTarget": "16.0",
-
       "infoPlist": {
         "NSFaceIDUsageDescription": "Verify your identity to access your profile",
         "NSCameraUsageDescription": "Allow camera access to update your profile photo",
@@ -38,7 +40,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/zb-logo-icon.png",
           "color": "#000000"
         }
       ],

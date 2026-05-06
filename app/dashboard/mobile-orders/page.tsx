@@ -120,11 +120,15 @@ export default function MobileOrdersPage() {
 
   const filteredOrders = orders.filter(o => {
     const term = search.toLowerCase();
+    const customerName = o.shippingAddress?.name || '';
+    const customerEmail = o.shippingAddress?.email || '';
+    const customerPhone = o.shippingAddress?.phone || '';
     return (
       o.orderNumber?.toLowerCase().includes(term) ||
-      o.customer?.name?.toLowerCase().includes(term) ||
-      o.customer?.email?.toLowerCase().includes(term) ||
-      o.customer?.phone?.toLowerCase().includes(term)
+      o.id?.toLowerCase().includes(term) ||
+      customerName.toLowerCase().includes(term) ||
+      customerEmail.toLowerCase().includes(term) ||
+      customerPhone.toLowerCase().includes(term)
     );
   });
 
@@ -239,8 +243,8 @@ export default function MobileOrdersPage() {
                           </div>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="text-[11px] font-medium text-foreground">{order.customer?.name}</div>
-                          <div className="text-[9px] text-foreground/40 mt-0.5">{order.customer?.email}</div>
+                          <div className="text-[11px] font-medium text-foreground">{order.shippingAddress?.name || order.customer?.name || 'N/A'}</div>
+                          <div className="text-[9px] text-foreground/40 mt-0.5">{order.shippingAddress?.email || order.customer?.email || ''}</div>
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-1.5">
@@ -314,12 +318,14 @@ export default function MobileOrdersPage() {
                                   <div>
                                     <h4 className="text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/30 mb-4 border-b border-foreground/[0.05] pb-2">Customer & Shipping</h4>
                                     <div className="text-[11px] text-foreground/80 space-y-1">
-                                      <p className="font-bold text-foreground">{order.customer?.name}</p>
-                                      <p className="font-mono text-[10px]">{order.customer?.phone}</p>
+                                      <p className="font-bold text-foreground">{order.shippingAddress?.name || order.customer?.name || 'N/A'}</p>
+                                      <p className="font-mono text-[10px]">{order.shippingAddress?.phone || order.customer?.phone || ''}</p>
                                       <p className="mt-3 opacity-60">
                                         {typeof order.shippingAddress === 'string' 
                                           ? order.shippingAddress 
-                                          : `${order.shippingAddress?.address1}, ${order.shippingAddress?.city}, ${order.shippingAddress?.province} ${order.shippingAddress?.zip}`}
+                                          : order.shippingAddress 
+                                            ? `${order.shippingAddress?.street || order.shippingAddress?.address1 || ''}, ${order.shippingAddress?.city || ''}, ${order.shippingAddress?.state || order.shippingAddress?.province || ''} ${order.shippingAddress?.zip || ''}`
+                                            : 'No address on file'}
                                       </p>
                                     </div>
                                   </div>
