@@ -610,44 +610,7 @@ export default function ProfileScreen() {
           </BlurView>
         </View>
 
-        {/* ── Saved Addresses ── */}
-        <View style={styles.sectionContainer}>
-          <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>SAVED ADDRESSES</Typography>
-          <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
-            {savedAddresses.length === 0 ? (
-              <View style={[styles.menuItem, { justifyContent: 'space-between' }]}>
-                <Typography weight="500" size={12} color={colors.textMuted} style={styles.menuLabel}>
-                  No saved addresses yet (add one at checkout).
-                </Typography>
-              </View>
-            ) : (
-              savedAddresses.slice(0, 2).map((a, idx) => (
-                <View
-                  key={`${a.address1 || idx}`}
-                  style={[
-                    styles.menuItem,
-                    idx < Math.min(savedAddresses.length, 2) - 1 && {
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.borderLight,
-                    },
-                  ]}
-                >
-                  <View style={[styles.iconBox, { backgroundColor: colors.surface }]}>
-                    <Ionicons name="location-outline" size={16} color={colors.text} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Typography weight="600" size={12} color={colors.text} numberOfLines={1}>
-                      {a.name || user?.name || 'Address'}
-                    </Typography>
-                    <Typography weight="500" size={10} color={colors.textMuted} numberOfLines={2}>
-                      {`${a.address1 || ''}${a.city ? `, ${a.city}` : ''}${a.state ? `, ${a.state}` : ''}`}
-                    </Typography>
-                  </View>
-                </View>
-              ))
-            )}
-          </BlurView>
-        </View>
+        {/* Personal Details Section */}
 
         {/* ── Edit Profile Section ── */}
         <View style={styles.sectionContainer}>

@@ -164,13 +164,18 @@ export default function MenuDrawer({ visible, onClose }: Props) {
 
         {/* ZONE B: PRIMARY NAV (LARGE) */}
         <View style={[styles.primaryNav, { borderTopColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}>
-           {['COMMUNITY', 'BLOGS', 'FAQ', 'STORY'].map(item => (
+           {[
+             { label: 'COMMUNITY', tab: 'HomeTab', screen: 'Community' },
+             { label: 'BLOGS', tab: 'ProfileTab', screen: 'Blogs' },
+             { label: 'FAQ', tab: 'ProfileTab', screen: 'FAQ' },
+             { label: 'STORY', tab: 'HomeTab', screen: 'Story' }
+           ].map(item => (
              <TouchableOpacity 
-               key={item} 
+               key={item.label} 
                style={styles.navLink}
-               onPress={() => handleNavigate('Main', { screen: 'HomeTab', params: { screen: item.charAt(0) + item.slice(1).toLowerCase() } })}
+               onPress={() => handleNavigate('Main', { screen: item.tab, params: { screen: item.screen } })}
              >
-               <Typography size={16} weight="300" color={colors.textSecondary} style={{ letterSpacing: -0.5 }}>{item}</Typography>
+               <Typography size={16} weight="300" color={colors.textSecondary} style={{ letterSpacing: -0.5 }}>{item.label}</Typography>
                <View style={styles.navDot} />
              </TouchableOpacity>
            ))}
