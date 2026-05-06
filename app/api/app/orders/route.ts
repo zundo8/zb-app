@@ -423,9 +423,10 @@ export async function POST(req: Request) {
     // Use shopifyId if available, otherwise fallback to email/phone
     const shopifyOrderPayload: any = {
       line_items: lineItems.map((li: any) => ({
-        variant_id: li.variant_id,
-        quantity: li.quantity,
-      })),
+        variant_id: parseInt(li.variant_id, 10) || li.variant_id,
+        quantity: li.quantity || 1,
+        title: li.title,
+      })).filter((li: any) => li.variant_id),
       financial_status: financial_status === 'paid' ? 'paid' : 'pending',
       tags: `AppOrder, ${payment_method.toUpperCase()}${creditReduction > 0 ? `, Credit: ${creditReduction}` : ''}`,
       note: `Ordered via Zica Bella App. Method: ${payment_method.toUpperCase()}. ${creditReduction > 0 ? `Used ${creditReduction} credits.` : ''}`,
@@ -473,26 +474,42 @@ export async function POST(req: Request) {
         shippingAddress: typeof ((shopifyOrder ? shopifyOrder.shipping_address : null) || shipping_address) === 'string' 
           ? ((shopifyOrder ? shopifyOrder.shipping_address : null) || shipping_address)
           : JSON.stringify((shopifyOrder ? shopifyOrder.shipping_address : null) || shipping_address),
-        razorpayOrderId: razorpay_order_id,
-        razorpayPaymentId: payment_id,
+        razorpayOrderId: razorpay_order_id || undefined,
+        razorpayPaymentId: payment_id || undefined,
         paymentMethod: payment_method,
         tags: shopifyOrder ? shopifyOrder.tags : shopifyOrderPayload.tags,
         items: {
           create: await Promise.all((shopifyOrder ? shopifyOrder.line_items : lineItems).map(async (li: any, idx: number) => {
-            const sId = shopifyOrder ? String(li.product_id) : (li.shopify_product_id || li.shopifyProductId);
-            
-            // Try to find prisma product ID if not provided
-            let pId = shopifyOrder ? null : li.product_id;
-            if (!pId && sId) {
-              const p = await prisma.product.findUnique({ where: { shopifyProductId: String(sId) } });
-              if (p) pId = p.id;
+            // Resolve product ID: validate it actually exists in our DB
+            let validProductId: string | undefined = undefined;
+
+            if (shopifyOrder) {
+              // From Shopify line item — look up by shopifyProductId
+              if (li.product_id) {
+                const p = await prisma.product.findUnique({ where: { shopifyProductId: String(li.product_id) } });
+                if (p) validProductId = p.id;
+              }
+            } else {
+              // From app line item — product_id could be a Prisma CUID or a Shopify ID
+              const appProductId = li.product_id || li.productId;
+              if (appProductId) {
+                // First try as direct Prisma ID
+                const byId = await prisma.product.findUnique({ where: { id: appProductId } }).catch(() => null);
+                if (byId) {
+                  validProductId = byId.id;
+                } else {
+                  // Try as Shopify product ID
+                  const bySid = await prisma.product.findUnique({ where: { shopifyProductId: String(appProductId) } }).catch(() => null);
+                  if (bySid) validProductId = bySid.id;
+                }
+              }
             }
 
             return {
-              shopifyLineItemId: shopifyOrder ? String(li.id) : `app_${Date.now()}_${idx}_${li.variant_id || li.variantId}`,
-              productId: pId || undefined,
-              title: li.title,
-              quantity: li.quantity,
+              shopifyLineItemId: shopifyOrder ? String(li.id) : `app_${Date.now()}_${idx}_${li.variant_id || li.variantId || Math.random().toString(36).slice(2, 8)}`,
+              productId: validProductId,
+              title: li.title || li.name || 'Product',
+              quantity: li.quantity || 1,
               price: shopifyOrder ? parseFloat(li.price) : parseFloat(li.price || 0),
               sku: li.sku || null,
             };

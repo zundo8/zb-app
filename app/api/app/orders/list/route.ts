@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { getAppAuthFromRequest } from '@/lib/appAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +7,6 @@ function parseShippingAddress(raw: string | null) {
   if (!raw) return null;
   try {
     const o = JSON.parse(raw);
-    // normalize to requested app shape
     return {
       name: o.name || '',
       line1: o.line1 || o.address1 || o.street || '',
@@ -24,7 +22,6 @@ function parseShippingAddress(raw: string | null) {
 }
 
 function orderNumberFromOrder(order: any) {
-  // Prefer tag `zb-order-ZB-1234`, fallback to `shopifyOrderId` if it looks like our `#ZB-...`
   const tags = String(order.tags || '');
   const m = tags.match(/zb-order-(ZB-\d+)/i);
   if (m?.[1]) return m[1].toUpperCase();
@@ -81,19 +78,11 @@ function statusTimeline(order: any) {
 }
 
 export async function GET(req: Request) {
-  const auth = getAppAuthFromRequest(req);
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   const url = new URL(req.url);
   const customerId = url.searchParams.get('customerId')?.trim();
-  if (!customerId) return NextResponse.json({ error: 'customerId is required' }, { status: 400 });
-  if (customerId !== auth.customerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  if (!customerId) return NextResponse.json({ error: 'customerId is required', orders: [] }, { status: 400 });
 
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'api-orders-pre',hypothesisId:'H1',location:'app/api/app/orders/list/route.ts:GET',message:'orders/list called',data:{hasAuth:!!auth,customerIdMatch:customerId===auth.customerId,customerIdLen:customerId.length,authCustomerIdLen:auth.customerId.length,hasAuthHeader:!!req.headers.get('authorization'),authHeaderLen:(req.headers.get('authorization')||'').length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     const orders = await prisma.order.findMany({
       where: { customerId },
       include: { items: true, shipments: true },
@@ -127,10 +116,6 @@ export async function GET(req: Request) {
     });
   } catch (e: any) {
     console.error('[App API] orders/list error:', e);
-    // #region agent log
-    fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'api-orders-pre',hypothesisId:'H1',location:'app/api/app/orders/list/route.ts:catch',message:'orders/list error',data:{err:String(e?.message||e)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return NextResponse.json({ error: e?.message || 'Internal server error', orders: [] }, { status: 500 });
   }
 }
-

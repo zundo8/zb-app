@@ -11,7 +11,6 @@ import GlassHeader from '../components/GlassHeader';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { useAuth } from '../hooks/useAuth';
-import { useAuthStore } from '../store/authStore';
 import { config } from '../constants/config';
 import { formatPrice } from '../utils/formatPrice';
 import { haptics } from '../utils/haptics';
@@ -49,42 +48,27 @@ export default function OrderHistoryScreen() {
         return;
       }
 
-      if (!user?.id) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
+      // Build query params for customer lookup
+      const params = new URLSearchParams();
+      if (user?.id) params.set('customerId', user.id);
+      if (user?.phone) params.set('phone', user.phone);
+      if (user?.email) params.set('email', user.email);
 
-      const token = useAuthStore.getState().token || '';
-      const url = `${config.appUrl}/api/app/orders?customerId=${encodeURIComponent(user.id)}`;
-      // #region agent log
-      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'orders-pre',hypothesisId:'H1',location:'OrderHistoryScreen.tsx:fetchOrders',message:'Fetching orders',data:{hasUserId:!!user?.id,tokenLen:token.length,appUrl:config.appUrl,urlPath:'/api/app/orders/list',activeTab},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'orders-pre',hypothesisId:'H1',location:'OrderHistoryScreen.tsx:fetchOrders',message:'Fetching orders (v2)',data:{appUrl:config.appUrl,url,hasUserId:!!user?.id,tokenLen:token.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
+      const url = `${config.appUrl}/api/app/orders?${params.toString()}`;
 
       const res = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Accept': 'application/json' },
       });
-      const contentType = res.headers.get('content-type') || '';
-      const raw = await res.text();
-      // #region agent log
-      fetch('http://127.0.0.1:7424/ingest/50560bdb-f431-4214-80ff-aed57193ade4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'orders-pre',hypothesisId:'H1',location:'OrderHistoryScreen.tsx:fetchOrders',message:'Orders response',data:{status:res.status,ok:res.ok,contentType,bodyPrefix:raw.slice(0,20)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/81a9aa65-a1fe-4363-864a-d27b95a27b63',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff929'},body:JSON.stringify({sessionId:'7ff929',runId:'orders-pre',hypothesisId:'H1',location:'OrderHistoryScreen.tsx:fetchOrders',message:'Orders response (v2)',data:{status:res.status,ok:res.ok,contentType,bodyPrefix:raw.slice(0,40)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
-      let json: any = null;
-      try {
-        json = raw ? JSON.parse(raw) : {};
-      } catch (e: any) {
-        throw new Error(`JSON Parse error: ${String(e?.message || e)} (prefix: ${raw.slice(0, 20)})`);
+      const contentType = res.headers.get('content-type') || '';
+
+      // Guard against HTML error pages from the server
+      if (!contentType.includes('application/json')) {
+        const preview = await res.text();
+        throw new Error(`Server returned non-JSON response (${res.status})`);
       }
-      
+
+      const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch orders');
 
       setOrders(json.orders || []);

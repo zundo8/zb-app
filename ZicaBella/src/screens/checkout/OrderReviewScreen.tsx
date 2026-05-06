@@ -108,15 +108,17 @@ export default function OrderReviewScreen() {
 
       const res = await fetch(`${config.appUrl}/api/app/orders`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify(orderData)
       });
 
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server error (${res.status}). Please try again.`);
+      }
+
       const json = await res.json();
       if (!res.ok) {
-        if (json.error?.toLowerCase().includes('authentication')) {
-          throw new Error('Server authentication failed. This usually means Razorpay keys are invalid on the server.');
-        }
         throw new Error(json.error || 'Failed to place order on server');
       }
 
