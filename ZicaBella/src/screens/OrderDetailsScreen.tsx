@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Animated, ScrollView, ActivityIndicator, Linking, Share,
-  Platform,
+  Platform, Alert,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -660,15 +660,36 @@ export default function OrderDetailsScreen() {
             <Ionicons name="chatbubble-outline" size={16} color={colors.text} />
             <Typography size={12} weight="600" color={colors.text} style={{ marginLeft: 6 }}>Support</Typography>
           </TouchableOpacity>
-          {(!isCancelled && (order.status === 'pending' || order.status === 'awaiting_approval')) && (
-            <TouchableOpacity
-              style={[styles.supportBtn, { backgroundColor: '#FF3B3015', borderColor: '#FF3B3030' }]}
-              onPress={handleCancelOrder}
-            >
-              <Ionicons name="close-circle-outline" size={16} color="#FF3B30" />
-              <Typography size={12} weight="600" color="#FF3B30" style={{ marginLeft: 6 }}>Cancel Order</Typography>
-            </TouchableOpacity>
-          )}
+          {(() => {
+            if (isCancelled) return null;
+            
+            const isCOD = order.paymentMethod?.includes('COD') || order.paymentMethod?.includes('Cash');
+            const status = (order.status || '').toLowerCase();
+            
+            // COD: until approved
+            // Paid: until shipped
+            let canCancel = false;
+            const initialStatuses = ['pending', 'awaiting_approval', 'order_placed', 'placed', 'processing'];
+            
+            if (isCOD) {
+              canCancel = initialStatuses.includes(status);
+            } else {
+              canCancel = initialStatuses.includes(status) || status === 'approved';
+            }
+
+            if (canCancel) {
+              return (
+                <TouchableOpacity
+                  style={[styles.supportBtn, { backgroundColor: '#FF3B3015', borderColor: '#FF3B3030' }]}
+                  onPress={handleCancelOrder}
+                >
+                  <Ionicons name="close-circle-outline" size={16} color="#FF3B30" />
+                  <Typography size={12} weight="600" color="#FF3B30" style={{ marginLeft: 6 }}>Cancel Order</Typography>
+                </TouchableOpacity>
+              );
+            }
+            return null;
+          })()}
         </View>
 
         {/* ─── Returns & Exchanges Actions ─── */}

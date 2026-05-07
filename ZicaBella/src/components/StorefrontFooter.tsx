@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Linking, Dimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -10,15 +10,6 @@ import { useAdminSettings } from '../hooks/useAdminFeatures';
 import HeroVideo from './HeroVideo';
 import { useNavigation } from '@react-navigation/native';
 
-const { width } = Dimensions.get('window');
-
-const SOCIALS = [
-  { icon: 'logo-instagram', url: 'https://www.instagram.com/zica.bella' },
-  { icon: 'disc-outline', url: 'https://apple.co/zicabella' },
-  { icon: 'musical-notes-outline', url: 'https://spotify.com/zicabella' },
-  { icon: 'logo-youtube', url: 'https://www.youtube.com/@Zicabella' },
-];
-
 export default function StorefrontFooter() {
   const colors = useColors();
   const theme = useThemeStore(s => s.theme);
@@ -26,13 +17,36 @@ export default function StorefrontFooter() {
   const { settings } = useAdminSettings();
   const navigation = useNavigation<any>();
 
-  const footerVideo = settings?.footerVideo;
+  const footerVideo = settings?.media?.footer ?? (settings as any)?.footerVideo;
+  const footerLogoGlb =
+    settings?.media?.footerLogo3dUrl?.trim() || config.footerLogo3dGlb;
+
+  const instagram = settings?.social?.instagram?.trim();
+  const apple = settings?.social?.apple?.trim();
+  const spotify = settings?.social?.spotify?.trim();
+  const youtube = settings?.social?.youtube?.trim();
+
+  const socials = [
+    instagram ? { icon: 'logo-instagram' as const, url: instagram } : null,
+    apple ? { icon: 'disc-outline' as const, url: apple } : null,
+    spotify ? { icon: 'musical-notes-outline' as const, url: spotify } : null,
+    youtube ? { icon: 'logo-youtube' as const, url: youtube } : null,
+  ].filter(Boolean) as { icon: 'logo-instagram' | 'disc-outline' | 'musical-notes-outline' | 'logo-youtube'; url: string }[];
+
+  const openSocial = (url: string) => {
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+      void Linking.openURL(url);
+    } catch {
+      /* invalid URL */
+    }
+  };
 
   return (
     <View style={[styles.container, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
-      {/* SVG LOGO - Matches web footer w-14 h-14 */}
       <View style={styles.logoWrapper}>
-        <FooterLogo />
+        <FooterLogo glbUrl={footerLogoGlb} />
       </View>
 
       {/* BRANDING: Exact web parity */}
@@ -54,10 +68,15 @@ export default function StorefrontFooter() {
 
       {/* SOCIAL LINKS: w-[16px] h-[16px] sizing */}
       <View style={styles.socialRow}>
-        {SOCIALS.map((soc, i) => (
-          <TouchableOpacity 
-            key={i} 
-            onPress={() => Linking.openURL(soc.url)}
+        {(socials.length > 0 ? socials : [
+          { icon: 'logo-instagram' as const, url: 'https://www.instagram.com/zica.bella' },
+          { icon: 'disc-outline' as const, url: 'https://apple.co/zicabella' },
+          { icon: 'musical-notes-outline' as const, url: 'https://spotify.com/zicabella' },
+          { icon: 'logo-youtube' as const, url: 'https://www.youtube.com/@Zicabella' },
+        ]).map((soc, i) => (
+          <TouchableOpacity
+            key={`${soc.url}-${i}`}
+            onPress={() => openSocial(soc.url)}
             style={styles.socialIcon}
             activeOpacity={0.6}
           >

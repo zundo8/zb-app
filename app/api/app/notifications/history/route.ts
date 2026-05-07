@@ -22,7 +22,19 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const limit = parseInt(url.searchParams.get('limit') || '20');
 
-    // Fetch notifications that were either 'all' target or specific to this user
+    // Fetch customer to check segment membership
+    let isVip = false;
+    if (auth?.customerId) {
+      const customer = await db.customer.findUnique({
+        where: { id: auth.customerId },
+        select: { ordersCount: true }
+      });
+      if (customer && customer.ordersCount > 3) {
+        isVip = true;
+      }
+    }
+
+    // Fetch notifications that were either 'all' target, specific to this user, or matching their segment
     const notifications = await db.notificationSend.findMany({
       where: {
         status: 'sent',
@@ -33,7 +45,8 @@ export async function GET(req: Request) {
               { targetType: 'user' },
               { targetValue: auth.customerId }
             ]
-          } : { targetType: 'NEVER_MATCH' }
+          } : { targetType: 'NEVER_MATCH' },
+          isVip ? { targetType: 'segment' } : { targetType: 'NEVER_MATCH' }
         ]
       },
       take: limit,

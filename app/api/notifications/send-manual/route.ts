@@ -41,8 +41,18 @@ export async function POST(req: Request) {
       const tokens = devices.map(d => d.fcmToken);
       result = await NotificationService.sendToTokens(tokens, title, msgBody, notificationPayload);
     } else if (targetType === 'segment') {
-        // Implement segment fetching logic later
-        result = { success: true, successCount: 0, failureCount: 0 };
+      // VIP Segment: Customers with more than 3 orders
+      const vipCustomers = await db.customer.findMany({
+        where: { ordersCount: { gt: 3 } },
+        select: { id: true }
+      });
+      const customerIds = vipCustomers.map(c => c.id);
+      const devices = await db.deviceToken.findMany({ 
+        where: { userId: { in: customerIds }, isActive: true }, 
+        select: { fcmToken: true } 
+      });
+      const tokens = devices.map(d => d.fcmToken);
+      result = await NotificationService.sendToTokens(tokens, title, msgBody, notificationPayload);
     }
 
     // Update log

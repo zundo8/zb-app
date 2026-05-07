@@ -13,6 +13,7 @@ import { useAuth } from '../hooks/useAuth';
 import { config } from '../constants/config';
 import { Typography } from '../components/Typography';
 import CommunitySection from '../components/CommunitySection';
+import { useAdminSettings } from '../hooks/useAdminFeatures';
 import { haptics } from '../utils/haptics';
 import { useThemeStore } from '../store/themeStore';
 
@@ -23,6 +24,8 @@ export default function CommunityScreen() {
   const { user, isAuthenticated } = useAuth();
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
+
+  const { settings } = useAdminSettings();
 
   const [updates, setUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +192,7 @@ export default function CommunityScreen() {
 
         {/* Featured Users Section */}
         <View style={{ marginBottom: 24 }}>
-          <CommunitySection />
+          <CommunitySection community={settings?.community} />
         </View>
 
         {/* Updates Section */}

@@ -1,27 +1,16 @@
 import { useState, useEffect } from 'react';
 import { config } from '../constants/config';
 
+import { useAdminStore } from '../store/adminStore';
+
 export function useAdminSettings() {
-  const [settings, setSettings] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { settings, loading, fetchSettings } = useAdminStore();
 
   useEffect(() => {
-    fetch(`${config.appUrl}/api/app/config?t=${Date.now()}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.config) {
-          setSettings(data.config);
-        } else if (!data.error) {
-          setSettings(data);
-        } else {
-          console.error('API returned error:', data.error);
-        }
-      })
-      .catch((err) => console.error('Error fetching admin settings:', err))
-      .finally(() => setLoading(false));
-  }, []);
+    fetchSettings();
+  }, [fetchSettings]);
 
-  return { settings, loading };
+  return { settings, loading, refetch: () => fetchSettings(true) };
 }
 
 export function useFeaturedUsers(isTopFeatured = false) {

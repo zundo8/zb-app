@@ -107,6 +107,9 @@ export const NotificationService = {
         body,
         data: data as any,
         badge: 1,
+        priority: 'high',
+        channelId: 'default',
+        mutableContent: true,
       }));
 
       const chunks = expo.chunkPushNotifications(messages);

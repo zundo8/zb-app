@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, Dimensions,
   RefreshControl, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
-import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedScrollHandler, runOnJS } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -70,38 +70,25 @@ export default function HomeScreen() {
   const lastScrollY = useRef(0);
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-      
-      // Handle tab bar visibility logic in UI thread for smoothness
-      const currentY = event.contentOffset.y;
-      const diff = currentY - lastScrollY.current;
-      
-      if (Math.abs(diff) > 8) {
-        // Note: we can't directly call setTabBarVisible here because it's a JS function
-        // but we can use 'runOnJS' if needed. However, the existing logic was JS-based.
-        // For now, let's keep the JS scroll handler for the tab bar logic to avoid complexity.
-      }
-    },
-  });
-
-  const onScroll = useCallback((event: any) => {
-    const currentY = event.nativeEvent.contentOffset.y;
-    scrollY.value = currentY; // Sync shared value
-    
+  const updateTabBar = (currentY: number) => {
     const diff = currentY - lastScrollY.current;
-    
-    if (Math.abs(diff) > 8) {
+    if (Math.abs(diff) > 10) {
       const isVisible = useUIStore.getState().isTabBarVisible;
       if (diff > 0 && currentY > 120) {
         if (isVisible) setTabBarVisible(false);
-      } else {
+      } else if (diff < -10 || currentY < 50) {
         if (!isVisible) setTabBarVisible(true);
       }
       lastScrollY.current = currentY;
     }
-  }, [setTabBarVisible]);
+  };
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+      runOnJS(updateTabBar)(event.contentOffset.y);
+    },
+  });
 
   const handleQuickAdd = useCallback((product: FlatProduct) => {
     setSelectedProduct(product);
@@ -137,8 +124,8 @@ export default function HomeScreen() {
             colors={[colors.text]}
           />
         }
-        onScroll={onScroll}
-        scrollEventThrottle={16} // Increased for parallax smoothness
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
       >
         {/* ═══ HERO VIDEO ═══ */}
         <View style={{ position: 'relative' }}>
@@ -237,7 +224,7 @@ export default function HomeScreen() {
           {products.length > 12 && renderProductGrid(products.slice(12, 16))}
 
           {/* ═══ COMMUNITY SECTION ═══ */}
-          <CommunitySection />
+          <CommunitySection community={settings?.community} />
 
           {/* ═══ GLOBAL STOREFRONT FOOTER ═══ */}
           <StorefrontFooter />

@@ -14,6 +14,9 @@ export function getPaymentApiBaseUrl(): string {
 
 export const config = {
   appUrl: process.env.EXPO_PUBLIC_APP_URL || BACKEND_BASE_URL,
+  /** Canonical 3D footer logo — keep in sync with `components/StorefrontFooter.tsx` (model-viewer) */
+  footerLogo3dGlb:
+    'https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb',
   /** Store / marketing contact page (matches web footer). */
   contactPage: 'https://www.zicabella.com/policies/contact-information',
   heroVideoUrl: 'https://app.zicabella.com/zb-video-heroo.mp4',

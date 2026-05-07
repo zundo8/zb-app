@@ -1,25 +1,26 @@
 import React, { Suspense, useRef } from 'react';
-import { View, StyleSheet, PanResponder, Image } from 'react-native';
+import { View, StyleSheet, PanResponder } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Bounds, Float } from '@react-three/drei';
+import { config } from '../constants/config';
 
-const GLB_URL = 'https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb';
-
-function Model({ touchRotation }: { touchRotation: React.MutableRefObject<{ x: number, y: number }> }) {
-  const { scene } = useGLTF(GLB_URL);
+function Model({
+  glbUrl,
+  touchRotation,
+}: {
+  glbUrl: string;
+  touchRotation: React.MutableRefObject<{ x: number; y: number }>;
+}) {
+  const { scene } = useGLTF(glbUrl);
   const group = useRef<any>(null);
 
   useFrame((_state, delta) => {
     if (group.current) {
-      // Auto-rotate slowly
       group.current.rotation.y += delta * 0.5;
 
-      // Apply touch rotation
       if (touchRotation.current.x !== 0 || touchRotation.current.y !== 0) {
         group.current.rotation.x += touchRotation.current.y * 0.5;
         group.current.rotation.y += touchRotation.current.x * 0.5;
-
-        // Dampen the touch rotation so it stops spinning after letting go
         touchRotation.current.x *= 0.9;
         touchRotation.current.y *= 0.9;
       }
@@ -35,14 +36,19 @@ function Model({ touchRotation }: { touchRotation: React.MutableRefObject<{ x: n
   );
 }
 
-export default function FooterLogo() {
+type Props = {
+  /** Same asset as Next.js `components/StorefrontFooter` model-viewer `src` */
+  glbUrl?: string;
+};
+
+export default function FooterLogo({ glbUrl }: Props) {
+  const url = (glbUrl || config.footerLogo3dGlb).trim();
   const touchRotation = useRef({ x: 0, y: 0 });
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderMove: (_evt, gestureState) => {
-        // Map pixel drag to rotation delta
         touchRotation.current.x = gestureState.vx * 0.1;
         touchRotation.current.y = gestureState.vy * 0.1;
       },
@@ -51,17 +57,8 @@ export default function FooterLogo() {
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
-      {/**
-       * Static background image rendered OUTSIDE <Canvas> as an absolute-positioned
-       * sibling. expo-image / native RN components must NEVER go inside <Canvas>
-       * because R3F only accepts Three.js scene objects there.
-       */}
-      <Image
-        source={require('../../assets/zica-bella-logo_8.png')}
-        style={styles.fallbackImage}
-        resizeMode="contain"
-      />
       <Canvas
+        key={url}
         camera={{ position: [0, 0, 5], fov: 45 }}
         gl={{ alpha: true, antialias: true }}
       >
@@ -70,7 +67,7 @@ export default function FooterLogo() {
         <directionalLight position={[-10, 5, -5]} intensity={1} />
         <Suspense fallback={null}>
           <Bounds fit clip observe margin={1.2}>
-            <Model touchRotation={touchRotation} />
+            <Model glbUrl={url} touchRotation={touchRotation} />
           </Bounds>
         </Suspense>
       </Canvas>
@@ -80,16 +77,10 @@ export default function FooterLogo() {
 
 const styles = StyleSheet.create({
   container: {
-    width: 60,
-    height: 60,
+    width: 56,
+    height: 56,
     alignSelf: 'center',
     backgroundColor: 'transparent',
     marginBottom: 4,
-  },
-  fallbackImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-    opacity: 0.5,
   },
 });

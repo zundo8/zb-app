@@ -23,10 +23,31 @@ export default function PushNotificationsPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({ activeDevices: 0, vipCount: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     fetchHistory();
+    fetchStats();
   }, []);
+
+  const fetchStats = async () => {
+    try {
+      setStatsLoading(true);
+      const res = await fetch("/api/notifications/stats");
+      const data = await res.json();
+      if (data.success) {
+        setStats({
+          activeDevices: data.activeDevices || 0,
+          vipCount: data.vipCount || 0
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch stats:", err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   const fetchHistory = async () => {
     try {
@@ -110,7 +131,7 @@ export default function PushNotificationsPage() {
                     ))}
                 </div>
                 <div className="flex flex-col">
-                    <span className="text-[14px] font-bold">12.4k</span>
+                    <span className="text-[14px] font-bold">{statsLoading ? '...' : (stats.activeDevices / 1000).toFixed(1) + 'k'}</span>
                     <span className="text-[9px] uppercase tracking-widest text-foreground/40 font-bold">Active Targets</span>
                 </div>
             </div>
@@ -231,19 +252,39 @@ export default function PushNotificationsPage() {
                 </div>
               </div>
 
-              {targetType === 'user' && (
+              {targetType !== 'all' && (
                   <motion.div 
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     className="space-y-3"
                   >
-                     <label className="text-[10px] font-bold tracking-[0.3em] text-foreground/40 uppercase px-1">User Identifier</label>
+                     <label className="text-[10px] font-bold tracking-[0.3em] text-foreground/40 uppercase px-1">
+                        {targetType === 'user' ? 'User Identifier' : 'Segment Parameter'}
+                     </label>
                      <input
                         type="text"
                         value={targetValue}
                         onChange={(e) => setTargetValue(e.target.value)}
-                        placeholder="Enter User ID or Phone..."
+                        placeholder={targetType === 'user' ? "Enter User ID or Phone..." : "e.g., min_orders:5"}
                         className="w-full bg-foreground/[0.03] border border-foreground/[0.05] rounded-2xl px-6 py-4 text-[13px] font-bold outline-none focus:border-foreground/20 transition-all placeholder:text-foreground/20"
+                     />
+                  </motion.div>
+              )}
+
+              {deepLinkType !== 'none' && deepLinkType !== 'orders' && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="space-y-3"
+                  >
+                     <label className="text-[10px] font-bold tracking-[0.3em] text-foreground/40 uppercase px-1">Deep Link Identifier</label>
+                     <input
+                        type="text"
+                        value={deepLinkId}
+                        onChange={(e) => setDeepLinkId(e.target.value)}
+                        placeholder={`Enter ${deepLinkType} ID or handle...`}
+                        className="w-full bg-foreground/[0.03] border border-foreground/[0.05] rounded-2xl px-6 py-4 text-[13px] font-bold outline-none focus:border-foreground/20 transition-all placeholder:text-foreground/20"
+                        required
                      />
                   </motion.div>
               )}
@@ -271,7 +312,11 @@ export default function PushNotificationsPage() {
           <div className="flex items-center gap-4 p-6 bg-amber-500/5 rounded-3xl border border-amber-500/10">
              <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/80 leading-relaxed">
-                Caution: Global broadcast will affect all 12,400+ active devices instantly. This action is irreversible once committed.
+                Caution: {targetType === 'all' 
+                  ? `Global broadcast will affect all ${stats.activeDevices.toLocaleString()} active devices instantly.` 
+                  : targetType === 'segment' 
+                  ? `Segment dispatch will affect approximately ${stats.vipCount.toLocaleString()} targets.` 
+                  : 'Individual dispatch targets a single user device.'} This action is irreversible once committed.
              </p>
           </div>
         </motion.div>
