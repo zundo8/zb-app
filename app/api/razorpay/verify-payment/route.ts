@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import prisma from '@/lib/db';
+import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 
 export async function POST(req: Request) {
   try {
@@ -20,23 +20,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, payment_id: razorpay_payment_id, mock: true }, { status: 200 });
     }
 
-    // Get secret from env first, then DB fallback
-    let secret = process.env.RAZORPAY_KEY_SECRET;
-    
-    if (!secret || secret.includes('xxxx')) {
-      try {
-        const shop = await prisma.shop.findFirst({
-          select: { razorpayKeySecret: true }
-        });
-        secret = shop?.razorpayKeySecret || '';
-      } catch {
-        // DB fallback failed
-      }
-    }
-    
-    if (!secret || secret.includes('xxxx')) {
+    // Match credential resolution with /api/payment/* (dashboard DB preferred)
+    let secret: string;
+    try {
+      secret = (await resolveRazorpayCredentials()).key_secret;
+    } catch {
       return NextResponse.json(
-        { success: false, error: 'Payment verification not configured. Please set RAZORPAY_KEY_SECRET.' },
+        { success: false, error: 'Payment verification not configured. Please set Razorpay keys in Settings or environment.' },
         { status: 500 }
       );
     }

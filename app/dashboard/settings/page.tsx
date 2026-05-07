@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Store, Truck, CreditCard, Save, CheckCircle, AlertCircle, RefreshCw,
   Eye, EyeOff, Shield, Webhook, Key, Lock, Loader2, Fingerprint, Zap
@@ -234,6 +235,11 @@ export default function AdminSettingsPage() {
            <SettingsRow label="Razorpay Secret" icon={Fingerprint} description="Private merchant secret">
               <InputField value={settings.razorpayKeySecret!} onChange={set('razorpayKeySecret')} secret />
            </SettingsRow>
+           <div className="px-10 py-6 border-t border-foreground/5">
+              <Link href="/dashboard/payments/razorpay" className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground/50 hover:text-foreground transition-colors">
+                 → Razorpay status, webhooks, and mobile app notes
+              </Link>
+           </div>
         </SettingsGroup>
 
         {/* Logistics Group */}

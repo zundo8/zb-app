@@ -1,45 +1,30 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/razorpay/config
- * Returns the public Razorpay Key ID for the app to use.
- * Tries env vars first, then DB fallback.
+ * Returns the public Razorpay Key ID when full credentials (ID + secret) are configured.
  */
 export async function GET() {
-  // Try env vars first
-  let keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-  
-  // Check if key is valid (not placeholder)
-  if (keyId && !keyId.includes('xxxx') && keyId.startsWith('rzp_')) {
-    return NextResponse.json({ 
-      keyId,
-      isConfigured: true 
-    });
-  }
-
-  // DB fallback
   try {
-    const shop = await prisma.shop.findFirst({
-      select: { razorpayKeyId: true }
+    const creds = await resolveRazorpayCredentials();
+    return NextResponse.json({
+      keyId: creds.key_id,
+      isConfigured: true,
+      source: creds.source,
     });
-    
-    if (shop?.razorpayKeyId && shop.razorpayKeyId.startsWith('rzp_')) {
-      return NextResponse.json({ 
-        keyId: shop.razorpayKeyId,
-        isConfigured: true 
-      });
-    }
-  } catch (e) {
-    console.error('[Razorpay Config] DB lookup error:', e);
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          'Razorpay setup incomplete. Add Key ID and Secret in Dashboard → Settings → Payment Gateways (both are required), or set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on the server.',
+        isConfigured: false,
+        mockAllowed: true,
+        setupUrl: 'https://app.zicabella.com/dashboard/payments/razorpay',
+      },
+      { status: 200 }
+    );
   }
-
-  return NextResponse.json({ 
-    error: 'Razorpay setup incomplete. Real payments require RAZORPAY_KEY_ID to be set in .env.local or Infrastructure settings.',
-    isConfigured: false,
-    mockAllowed: true, // Allow mobile app to enter mock mode if keys are missing
-    setupUrl: 'https://app.zicabella.com/dashboard/settings'
-  }, { status: 200 });
 }

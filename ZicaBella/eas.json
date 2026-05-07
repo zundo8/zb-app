@@ -15,7 +15,6 @@
     },
     "production": {
       "ios": {
-        "bundleIdentifier": "com.zicabella.app",
         "buildConfiguration": "Release"
       }
     }

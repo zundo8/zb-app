@@ -1,6 +1,5 @@
 import RazorpayCheckout from 'react-native-razorpay';
-import Constants from 'expo-constants';
-import { config, getPaymentApiBaseUrl } from '../constants/config';
+import { getPaymentApiBaseUrl } from '../constants/config';
 
 async function readJsonResponse(res: Response): Promise<{ ok: boolean; status: number; data: Record<string, any>; raw: string }> {
   const raw = await res.text();
@@ -63,13 +62,12 @@ export async function openRazorpayCheckout(
     throw new Error(detail);
   }
 
-  // Step 2: Resolve key from app config (must match server account)
-  const razorpayKeyId =
-    orderJson.key_id ||
-    Constants.expoConfig?.extra?.razorpayKeyId ||
-    config.razorpay.keyId;
-  if (!razorpayKeyId) {
-    throw new Error('Payment configuration error. Missing Razorpay key.');
+  // Must match the key used on the server to create the order (avoids "Authentication failed")
+  const razorpayKeyId = orderJson.key_id as string | undefined;
+  if (!razorpayKeyId || !String(razorpayKeyId).startsWith('rzp_')) {
+    throw new Error(
+      'Invalid Razorpay response: missing key_id. Save Razorpay keys in Admin → Settings → Payment Gateways and redeploy.'
+    );
   }
 
   // Step 3: Open Razorpay native checkout (UPI, cards, wallets shown here)

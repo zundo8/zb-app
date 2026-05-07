@@ -117,7 +117,6 @@ export default function CheckoutScreen() {
               zip: primary.zip || '',
               country: primary.country || 'India',
             }));
-          }
         }
       }
     } catch (e) {

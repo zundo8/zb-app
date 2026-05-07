@@ -1,16 +1,18 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 
-import prisma from '@/lib/db';
+import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
+
+const corsJsonHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+} as const;
 
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
+    headers: corsJsonHeaders,
   });
 }
 
@@ -20,24 +22,12 @@ export async function POST(req: Request) {
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json(
         { success: false, error: 'Missing payment fields' },
-        { status: 400 }
+        { status: 400, headers: corsJsonHeaders }
       );
     }
     const body = razorpay_order_id + '|' + razorpay_payment_id;
-    
-    let key_secret = process.env.RAZORPAY_KEY_SECRET;
-    if (!key_secret || key_secret.includes('xxxx')) {
-      try {
-        const shop = await prisma.shop.findFirst({ select: { razorpayKeySecret: true } });
-        key_secret = shop?.razorpayKeySecret || '';
-      } catch (e) {
-        console.error('DB fetch error for Razorpay keys:', e);
-      }
-    }
-    
-    if (!key_secret || key_secret.includes('xxxx')) {
-      return NextResponse.json({ success: false, error: 'Razorpay keys not configured' }, { status: 500 });
-    }
+
+    const { key_secret } = await resolveRazorpayCredentials();
 
     const expected = crypto
       .createHmac('sha256', key_secret)
@@ -50,31 +40,19 @@ export async function POST(req: Request) {
     );
 
     if (valid) {
-      return NextResponse.json(
-        { success: true },
-        {
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          },
-        }
-      );
+      return NextResponse.json({ success: true }, { headers: corsJsonHeaders });
     }
-    
+
     return NextResponse.json(
       { success: false, error: 'Signature mismatch' },
-      {
-        status: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-      }
+      { status: 400, headers: corsJsonHeaders }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Razorpay verification error:', err);
-    return NextResponse.json({ success: false, error: 'Verification failed' }, { status: 400 });
+    const message = err instanceof Error ? err.message : 'Verification failed';
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 400, headers: corsJsonHeaders }
+    );
   }
 }

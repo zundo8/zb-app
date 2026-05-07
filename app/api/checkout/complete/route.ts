@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import prisma from "@/lib/db";
 import { createOrder, createCustomer, updateCustomer } from "@/lib/shopify-admin";
+import { resolveRazorpayCredentials } from "@/lib/razorpay-credentials";
 
 export async function POST(req: Request) {
   try {
@@ -23,12 +24,10 @@ export async function POST(req: Request) {
       const isMock = razorpay.razorpay_order_id.startsWith('order_mock_') || razorpay.razorpay_signature === 'mock_sig_valid';
       
       if (!isMock) {
-        // Use env var first, then DB fallback for secret
-        let secret = process.env.RAZORPAY_KEY_SECRET;
-        if (!secret || secret.includes('xxxx')) {
-          secret = shop.razorpayKeySecret || "";
-        }
-        if (!secret || secret.includes('xxxx')) {
+        let secret: string;
+        try {
+          secret = (await resolveRazorpayCredentials()).key_secret;
+        } catch {
           return NextResponse.json({ error: "Payment verification not configured" }, { status: 500 });
         }
 

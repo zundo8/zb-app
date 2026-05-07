@@ -109,6 +109,7 @@ export default function OrdersPage() {
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [razorpayReady, setRazorpayReady] = useState<boolean | null>(null);
 
   // Modals State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -199,6 +200,13 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchOrders();
   }, [statusFilter, source]);
+
+  useEffect(() => {
+    fetch("/api/admin/payment-status")
+      .then((r) => r.json())
+      .then((d: { razorpayReady?: boolean }) => setRazorpayReady(!!d.razorpayReady))
+      .catch(() => setRazorpayReady(false));
+  }, []);
 
   const handleFulfill = async (order: ShopifyOrder) => {
     setFulfilling(order.id);
@@ -441,16 +449,26 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Configuration Health Warning */}
-      {(process.env.RAZORPAY_KEY_ID?.includes('xxxx') || !process.env.RAZORPAY_KEY_ID) && (
+      {/* Razorpay readiness (server-checked: dashboard DB or env, both ID + secret) */}
+      {razorpayReady === false && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-6 flex items-start gap-4">
           <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-             <RefreshCw className="w-4 h-4 text-amber-600" />
+            <RefreshCw className="w-4 h-4 text-amber-600" />
           </div>
-          <div>
-            <h4 className="text-[11px] font-bold text-amber-700 uppercase tracking-widest">Payment Integration Required</h4>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-[11px] font-bold text-amber-700 uppercase tracking-widest">Razorpay not configured</h4>
             <p className="text-[10px] text-amber-600/80 mt-1 leading-relaxed">
-              Razorpay keys are currently set to placeholders. Real payments will not work until you update <code className="bg-amber-500/10 px-1 rounded">RAZORPAY_KEY_ID</code> and <code className="bg-amber-500/10 px-1 rounded">RAZORPAY_KEY_SECRET</code> in your <code className="bg-amber-500/10 px-1 rounded">.env.local</code> file.
+              Add your Razorpay Key ID and Key Secret under{" "}
+              <Link href="/dashboard/settings" className="underline font-semibold">
+                Settings → Payment Gateways
+              </Link>{" "}
+              and save, or set{" "}
+              <code className="bg-amber-500/10 px-1 rounded">RAZORPAY_KEY_ID</code> and{" "}
+              <code className="bg-amber-500/10 px-1 rounded">RAZORPAY_KEY_SECRET</code> on the server. Then open the{" "}
+              <Link href="/dashboard/payments/razorpay" className="underline font-semibold">
+                Razorpay setup page
+              </Link>{" "}
+              for webhooks and mobile app notes.
             </p>
           </div>
         </div>

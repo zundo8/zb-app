@@ -34,6 +34,7 @@ import {
   Megaphone,
   Mail,
   MessageCircle,
+  CreditCard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -88,6 +89,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const integrationNav = [
     { name: "App Integration", href: "/dashboard/app-integration", icon: Smartphone },
+    { name: "Razorpay", href: "/dashboard/payments/razorpay", icon: CreditCard },
   ];
 
   const intelligenceNav = [

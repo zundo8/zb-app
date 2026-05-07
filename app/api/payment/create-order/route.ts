@@ -1,16 +1,18 @@
 import Razorpay from 'razorpay';
 import { NextResponse } from 'next/server';
 
-import prisma from '@/lib/db';
+import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
+
+const corsJsonHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+} as const;
 
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
+    headers: corsJsonHeaders,
   });
 }
 
@@ -25,35 +27,7 @@ function razorpayErrMessage(err: unknown): string {
 
 export async function POST(req: Request) {
   try {
-    let key_id = process.env.RAZORPAY_KEY_ID;
-    let key_secret = process.env.RAZORPAY_KEY_SECRET;
-
-    const needsDbKeys =
-      !key_id ||
-      key_id.includes('xxxx') ||
-      !key_secret ||
-      key_secret.includes('xxxx');
-
-    if (needsDbKeys) {
-      try {
-        const shop = await prisma.shop.findFirst({
-          select: { razorpayKeyId: true, razorpayKeySecret: true }
-        });
-        if (shop?.razorpayKeyId && shop?.razorpayKeySecret) {
-          key_id = shop.razorpayKeyId;
-          key_secret = shop.razorpayKeySecret;
-        }
-      } catch (dbErr) {
-        console.error('DB fetch error for Razorpay keys:', dbErr);
-      }
-    }
-
-    if (!key_id || key_id.includes('xxxx')) {
-      throw new Error('Razorpay keys not configured (missing KEY_ID)');
-    }
-    if (!key_secret || key_secret.includes('xxxx')) {
-      throw new Error('Razorpay keys not configured (missing KEY_SECRET)');
-    }
+    const { key_id, key_secret } = await resolveRazorpayCredentials();
 
     const instance = new Razorpay({
       key_id,
@@ -64,7 +38,7 @@ export async function POST(req: Request) {
     const { amount, currency = 'INR', receipt: receiptIn } = body;
     const amountRupees = Number(amount);
     if (!Number.isFinite(amountRupees) || amountRupees <= 0) {
-      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400, headers: corsJsonHeaders });
     }
 
     // Razorpay receipt: required, max 40 chars
@@ -86,17 +60,11 @@ export async function POST(req: Request) {
         currency: order.currency,
         key_id, // Return the exact key used to create the order
       },
-      {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-      }
+      { headers: corsJsonHeaders }
     );
   } catch (err: unknown) {
     console.error('Razorpay create-order error:', err);
     const message = err instanceof Error ? err.message : razorpayErrMessage(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsJsonHeaders });
   }
 }
