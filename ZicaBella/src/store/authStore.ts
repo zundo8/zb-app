@@ -66,7 +66,15 @@ export const useAuthStore = create<AuthStore>()(
       setRememberMe: (enabled) => set({ rememberMe: enabled }),
       updateUser: (updates) =>
         set((state) => ({
-          user: state.user ? { ...state.user, ...updates } : null,
+          user: state.user 
+            ? { ...state.user, ...updates } 
+            : { 
+                id: `guest_${Date.now()}`, 
+                name: updates.name || '', 
+                email: updates.email || '', 
+                phone: updates.phone || '',
+                isCommunityMember: false
+              },
         })),
     }),
     {

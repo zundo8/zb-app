@@ -1,5 +1,6 @@
+export const BACKEND_BASE_URL = 'https://app.zicabella.com';
 export const config = {
-  appUrl: process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com',
+  appUrl: process.env.EXPO_PUBLIC_APP_URL || BACKEND_BASE_URL,
   /** Store / marketing contact page (matches web footer). */
   contactPage: 'https://www.zicabella.com/policies/contact-information',
   heroVideoUrl: 'https://app.zicabella.com/zb-video-heroo.mp4',

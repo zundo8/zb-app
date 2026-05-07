@@ -20,12 +20,14 @@ import { formatPrice } from '../utils/formatPrice';
 import { useCartStore } from '../store/cartStore';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthStore } from '../store/authStore';
-import { openRazorpayCheckout } from '../services/razorpayService';
 import { useThemeStore } from '../store/themeStore';
 import { useUIStore } from '../store/uiStore';
 import { BlurView } from 'expo-blur';
 import { Typography } from '../components/Typography';
 import { haptics } from '../utils/haptics';
+import RazorpayCheckout from 'react-native-razorpay';
+import Constants from 'expo-constants';
+import { BACKEND_BASE_URL } from '../constants/config';
 
 type Address = {
   name: string;
@@ -65,7 +67,7 @@ export default function CheckoutScreen() {
   const { user, updateUser } = useAuth();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [loading, setLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'ONLINE' | 'COD'>('ONLINE');
 
   const [address, setAddress] = useState<Address>({
@@ -84,13 +86,16 @@ export default function CheckoutScreen() {
 
   // ─── Fetch Saved Addresses ────────────────────────────────────────
 
-  const fetchSavedAddresses = useCallback(async () => {
-    if (!user?.phone && !user?.email) return;
+  const fetchSavedAddresses = useCallback(async (customPhone?: string, customEmail?: string) => {
+    const p = customPhone || user?.phone;
+    const e = customEmail || user?.email;
+    if (!p && !e) return;
+    
     setFetchingSaved(true);
     try {
       const params = new URLSearchParams();
-      if (user?.phone) params.set('phone', user.phone);
-      if (user?.email) params.set('email', user.email);
+      if (p) params.set('phone', p);
+      if (e) params.set('email', e);
       
       const res = await fetch(`${config.appUrl}/api/app/customers/addresses?${params.toString()}`);
       const json = await res.json();
@@ -100,17 +105,19 @@ export default function CheckoutScreen() {
         // Auto-fill with the first/primary address if current form is empty
         if (!address.address1) {
           const primary = json.addresses[0];
-          setAddress({
-            name: primary.name || user?.name || '',
-            phone: primary.phone || user?.phone || '',
-            email: primary.email || user?.email || '',
-            address1: primary.address1 || '',
-            address2: primary.address2 || '',
-            city: primary.city || '',
-            state: primary.state || '',
-            zip: primary.zip || '',
-            country: primary.country || 'India',
-          });
+            setAddress(prev => ({
+              ...prev,
+              name: primary.name || prev.name || user?.name || '',
+              phone: primary.phone || prev.phone || user?.phone || '',
+              email: primary.email || prev.email || user?.email || '',
+              address1: primary.address1 || '',
+              address2: primary.address2 || '',
+              city: primary.city || '',
+              state: primary.state || '',
+              zip: primary.zip || '',
+              country: primary.country || 'India',
+            }));
+          }
         }
       }
     } catch (e) {
@@ -123,6 +130,18 @@ export default function CheckoutScreen() {
   React.useEffect(() => {
     fetchSavedAddresses();
   }, [user?.phone, user?.email]);
+
+  // Auto-fetch if guest types phone or email
+  React.useEffect(() => {
+    if ((address.phone && address.phone.length >= 10) || (address.email && address.email.includes('@'))) {
+      const timer = setTimeout(() => {
+        if (!savedAddresses.length) {
+          fetchSavedAddresses(address.phone, address.email);
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [address.phone, address.email]);
 
   const handleSelectAddress = (addr: Address) => {
     haptics.buttonTap();
@@ -195,16 +214,11 @@ export default function CheckoutScreen() {
     return json.orderId as string;
   };
 
-  const handlePay = async () => {
+  const handlePayment = async () => {
+    if (paymentLoading) return;
+    setPaymentLoading(true);
+
     try {
-      if (!shippingOk) {
-        Alert.alert('Missing details', 'Please complete the delivery form first.');
-        return;
-      }
-
-      setLoading(true);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-
       if (paymentMethod === 'COD') {
         try {
           const orderId = await completeShopifyCheckout();
@@ -229,73 +243,102 @@ export default function CheckoutScreen() {
         return;
       }
 
-      // Razorpay Flow
-      console.log('[Checkout] Initiating Razorpay checkout for amount:', subtotal);
-      const result = await openRazorpayCheckout(
-        {
-          amount: subtotal,
-          receipt: `order_${Date.now()}`,
-          email: address.email,
-          phone: address.phone,
-          name: address.name,
-          shipping_address: {
-            first_name: address.name.split(' ')[0],
-            last_name: address.name.split(' ').slice(1).join(' ') || '',
-          },
+      // Step 1: Create order on your backend
+      console.log('[Payment] Creating order, amount:', cartTotal);
+
+      const orderResponse = await fetch(`${BACKEND_BASE_URL}/api/payment/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: cartTotal,
+          currency: 'INR',
+          receipt: 'zb_' + Date.now(),
+        }),
+      });
+
+      const orderData = await orderResponse.json();
+      console.log('[Payment] Order response:', orderData);
+
+      if (!orderResponse.ok || !orderData.order_id) {
+        throw new Error(orderData.error || 'Failed to create payment order. Please try again.');
+      }
+
+      // Step 2: Read KEY_ID from app config
+      const razorpayKeyId = Constants.expoConfig?.extra?.razorpayKeyId;
+      console.log('[Payment] Key ID present:', !!razorpayKeyId);
+
+      if (!razorpayKeyId) {
+        throw new Error('Payment configuration error. Please contact support.');
+      }
+
+      // Step 3: Open Razorpay checkout sheet
+      const paymentData = await RazorpayCheckout.open({
+        description: 'Zica Bella Order',
+        image: 'https://zicabella.com/logo.png',
+        currency: 'INR',
+        key: razorpayKeyId,
+        amount: orderData.amount,
+        order_id: orderData.order_id,
+        name: 'Zica Bella',
+        prefill: {
+          email: user?.email || '',
+          contact: user?.phone || '',
+          name: user?.name || '',
         },
-        useAuthStore.getState().token || ''
-      );
-
-      console.log('[Checkout] Razorpay success, completing Shopify order...');
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      // Payment verified — save order to DB via the existing completeShopifyCheckout
-      const orderId = await completeShopifyCheckout({
-        razorpay_payment_id: result.razorpay_payment_id,
-        razorpay_order_id: result.razorpay_order_id,
-        razorpay_signature: result.razorpay_signature,
-      });
-      
-      updateUser({
-        name: address.name,
-        phone: address.phone,
-        email: address.email,
+        theme: { color: '#FFFFFF' },
       });
 
-      clearCart();
-      navigation.replace('OrderConfirmation', { orderId, paymentId: result.razorpay_payment_id });
-    } catch (err: any) {
-      // Silently handle user cancellation
-      if (err?.code === 2 || err?.code === 0 || 
-          err?.message?.includes('cancelled') || err?.message?.includes('canceled')) {
-        return;
-      }
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      
-      // Try to get a friendly error message from Claude
-      let friendlyMessage = err?.description || err?.message || 'Something went wrong. Please try again.';
-      try {
-        const claudeRes = await fetch(`${config.appUrl}/api/app/payment-error`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            error_code: err?.code || 'UNKNOWN',
-            error_description: err?.description || err?.message || 'Payment failed',
-            payment_method: paymentMethod,
-          }),
+      console.log('[Payment] Payment success:', paymentData);
+
+      // Step 4: Verify signature on backend
+      const verifyResponse = await fetch(`${BACKEND_BASE_URL}/api/payment/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_order_id: paymentData.razorpay_order_id,
+          razorpay_payment_id: paymentData.razorpay_payment_id,
+          razorpay_signature: paymentData.razorpay_signature,
+        }),
+      });
+
+      const verifyData = await verifyResponse.json();
+      console.log('[Payment] Verify response:', verifyData);
+
+      if (verifyData.success) {
+        const orderId = await completeShopifyCheckout({
+          razorpay_payment_id: paymentData.razorpay_payment_id,
+          razorpay_order_id: paymentData.razorpay_order_id,
+          razorpay_signature: paymentData.razorpay_signature,
         });
-        if (claudeRes.ok) {
-          const claudeData = await claudeRes.json();
-          if (claudeData.message) friendlyMessage = claudeData.message;
-        }
-      } catch {
-        // Silently fall back to original error message
+
+        // Ensure user state is updated
+        updateUser({
+          name: address.name,
+          phone: address.phone,
+          email: address.email,
+        });
+
+        clearCart();
+        navigation.navigate('OrderConfirmation', {
+          paymentId: paymentData.razorpay_payment_id,
+          orderId: paymentData.razorpay_order_id,
+        });
+      } else {
+        Alert.alert(
+          'Verification Issue',
+          'Payment was received but could not be verified. Please contact support with Payment ID: ' +
+            paymentData.razorpay_payment_id
+        );
       }
-      
-      Alert.alert('Payment Failed', friendlyMessage, [{ text: 'OK' }]);
+    } catch (error: any) {
+      console.error('[Payment] Error:', error);
+      if (error?.code === 'PAYMENT_CANCELLED' || error?.description === 'User cancelled') {
+        Alert.alert('Cancelled', 'You cancelled the payment.');
+      } else {
+        Alert.alert('Payment Failed', error?.message || 'Something went wrong. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      setPaymentLoading(false);
     }
   };
 
@@ -559,17 +602,17 @@ export default function CheckoutScreen() {
 
           <TouchableOpacity
             style={[styles.ctaButton, { backgroundColor: colors.foreground }]}
-            onPress={handlePay}
-            disabled={loading}
+            onPress={handlePayment}
+            disabled={paymentLoading}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={paymentMethod === 'COD' ? 'Place Order via Cash on Delivery' : 'Pay Online'}
           >
-            {loading ? (
+            {paymentLoading ? (
               <ActivityIndicator color={colors.background} />
             ) : (
               <Typography size={10} weight="700" color={colors.background} style={styles.ctaText}>
-                {paymentMethod === 'COD' ? 'Place Order' : `Pay ${formatPrice(subtotal)}`}
+                Pay Now
               </Typography>
             )}
           </TouchableOpacity>
