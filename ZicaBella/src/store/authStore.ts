@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NotificationService } from '../services/NotificationService';
 
 interface User {
   id: string;
@@ -47,7 +48,11 @@ export const useAuthStore = create<AuthStore>()(
       biometricEnabled: false,
       rememberMe: false,
 
-      login: (user, token) => set({ user, token, isAuthenticated: true }),
+      login: (user, token) => {
+        set({ user, token, isAuthenticated: true });
+        // Register push token for the new user session
+        NotificationService.registerDevice(undefined, user.id);
+      },
       logout: () => set({ user: null, token: null, isAuthenticated: false }),
       setBiometric: (enabled) => set({ biometricEnabled: enabled }),
       setRememberMe: (enabled) => set({ rememberMe: enabled }),

@@ -41,6 +41,7 @@ export class NotificationService {
           projectId: Device.default.expoConfig?.extra?.eas?.projectId,
         });
         if (tokenData?.data) {
+          useNotificationStore.getState().setPushToken(tokenData.data);
           await this.registerDevice(tokenData.data);
         }
       } catch (tokenErr) {
@@ -74,23 +75,36 @@ export class NotificationService {
     }
   }
 
-  static async registerDevice(pushToken: string) {
+  static async registerDevice(pushToken?: string, forceUserId?: string) {
     const user = useAuthStore.getState().user;
-    if (!user?.id) return;
+    const userId = forceUserId || user?.id;
+    const token = pushToken || useNotificationStore.getState().pushToken;
+
+    if (!userId || !token) {
+       console.log('[Notifications] Registration skipped: missing userId or token', { userId, token });
+       return;
+    }
 
     try {
-      const deviceId = `dev_${Platform.OS}_${user.id}`;
-      await fetch(`${config.appUrl}/api/notifications/register-device`, {
+      const deviceId = `dev_${Platform.OS}_${userId}`;
+      const response = await fetch(`${config.appUrl}/api/notifications/register-device`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user.id,
+          userId,
           deviceId,
-          fcmToken: pushToken, // Field name kept for backend compat
+          fcmToken: token,
           platform: Platform.OS,
           appVersion: '1.0.0',
         }),
       });
+      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        console.warn('[Notifications] Backend registration failed:', err);
+      } else {
+        console.log('[Notifications] Device registered successfully');
+      }
     } catch (e) {
       console.error('[Notifications] Failed to register device token:', e);
     }

@@ -153,26 +153,13 @@ export async function openRazorpayCheckout(
       enabled: true,
       max_count: 4
     },
-    config: {
-      display: {
-        blocks: {
-          banks: {
-            name: 'Most Used Methods',
-            instruments: [
-              { method: 'upi' },
-              { method: 'card' },
-              { method: 'wallet' }
-            ],
-          },
-        },
-        sequence: ['block.banks'],
-        preferences: { show_default_blocks: true },
-      },
-    },
   };
+
+  console.log('[Razorpay] Opening native checkout with options:', JSON.stringify(options, null, 2));
 
   try {
     const paymentData = await RazorpayCheckout.open(options) as PaymentResult;
+    console.log('[Razorpay] Payment captured by native SDK:', JSON.stringify(paymentData, null, 2));
 
     // Step 4: Verify signature server-side
     try {

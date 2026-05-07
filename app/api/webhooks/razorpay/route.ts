@@ -81,6 +81,43 @@ export async function POST(req: Request) {
         where: { razorpayOrderId },
         data: { paymentStatus: 'failed' },
       });
+    } else if (eventType === 'refund.processed' || eventType === 'refund.created' || eventType === 'refund.failed') {
+      const refund = data.refund.entity;
+      const paymentId = refund.payment_id;
+      const refundStatus = eventType === 'refund.processed' ? 'processed' : 
+                          eventType === 'refund.failed' ? 'failed' : 'pending';
+
+      // Find the order by payment ID
+      const order = await prisma.order.findUnique({
+        where: { razorpayPaymentId: paymentId },
+        include: { returns: true }
+      });
+
+      if (order) {
+        // Update order payment status
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { 
+            paymentStatus: eventType === 'refund.processed' ? 'refunded' : 
+                           eventType === 'refund.failed' ? 'paid' : 'partial_refund' 
+          },
+        });
+
+        // Update associated returns
+        if (order.returns.length > 0) {
+          await prisma.return.updateMany({
+            where: { 
+              orderId: order.id,
+              status: { in: ['APPROVED', 'COMPLETED'] } // Only update relevant returns
+            },
+            data: { 
+              refundStatus: refundStatus.toUpperCase()
+            },
+          });
+        }
+
+        console.log(`[Razorpay Webhook] Refund ${refund.id} for Order ${order.shopifyOrderId} is ${refundStatus}`);
+      }
     }
 
     return NextResponse.json({ success: true });

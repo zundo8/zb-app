@@ -166,7 +166,7 @@ export default function CheckoutScreen() {
           zip: address.zip,
           country: address.country,
         },
-        paymentMethod: paymentMethod === 'COD' ? 'COD' : 'UPI',
+        paymentMethod: paymentMethod === 'COD' ? 'COD' : 'razorpay',
         items: cartItems.map((i: any) => ({
           id: i.id,
           productId: i.productId,
@@ -222,13 +222,19 @@ export default function CheckoutScreen() {
       }
 
       // Razorpay Flow
+      console.log('[Checkout] Initiating Razorpay checkout for amount:', subtotal);
       const result = await openRazorpayCheckout(
         {
           amount: subtotal,
           receipt: `order_${Date.now()}`,
+          email: address.email,
+          phone: address.phone,
+          name: address.name,
         },
         useAuthStore.getState().token || ''
       );
+
+      console.log('[Checkout] Razorpay success, completing Shopify order...');
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 

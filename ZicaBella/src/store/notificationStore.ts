@@ -13,7 +13,9 @@ export interface NotificationItem {
 
 interface NotificationStore {
   notifications: NotificationItem[];
+  pushToken: string | null;
   addNotification: (notification: NotificationItem) => void;
+  setPushToken: (token: string) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   clearAll: () => void;
@@ -36,12 +38,14 @@ export const useNotificationStore = create<NotificationStore>()(
   persist(
     (set, get) => ({
       notifications: [],
+      pushToken: null,
       addNotification: (notification) => set((state) => {
         // Keep last 50 notifications
         const current = [notification, ...state.notifications];
         if (current.length > 50) current.pop();
         return { notifications: current };
       }),
+      setPushToken: (token) => set({ pushToken: token }),
       markAsRead: (id) => set((state) => ({
         notifications: state.notifications.map(n => n.id === id ? { ...n, isRead: true } : n)
       })),

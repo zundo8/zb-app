@@ -18,9 +18,11 @@ import { Typography } from '../components/Typography';
 import { BlurView } from 'expo-blur';
 import StorefrontFooter from '../components/StorefrontFooter';
 
+import { withErrorBoundary } from '../components/ErrorBoundary';
+
 const { width } = Dimensions.get('window');
 
-export default function SearchScreen() {
+function SearchScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const colors = useColors();
@@ -113,9 +115,9 @@ export default function SearchScreen() {
         {/* ── Results header ── */}
         {query.length > 0 && (
           <View style={styles.resultsHeader}>
-            <Typography rocaston size={10} color={colors.textSecondary} style={styles.queryLabel}>"{query.toUpperCase()}"</Typography>
+            <Typography rocaston size={10} color={colors.textSecondary} style={styles.queryLabel}>"{String(query || '').toUpperCase()}"</Typography>
             <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.countLabel}>
-              {results.length} {results.length === 1 ? 'RESULT' : 'RESULTS'}
+              {(results || []).length} {(results || []).length === 1 ? 'RESULT' : 'RESULTS'}
             </Typography>
           </View>
         )}
@@ -335,4 +337,4 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
-
+export default withErrorBoundary(SearchScreen, 'SearchScreen');

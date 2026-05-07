@@ -403,7 +403,16 @@ export default function OrderDetailsScreen() {
                   </View>
                 </View>
                 <Typography size={11} color={colors.textMuted} style={{ marginBottom: 4 }}>Created on {new Date(req.createdAt).toLocaleDateString()}</Typography>
-                <Typography size={11} color={colors.textMuted}>Estimated Refund: {formatPrice(req.estimatedRefund)}</Typography>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography size={11} color={colors.textMuted}>Estimated Refund: {formatPrice(req.estimatedRefund)}</Typography>
+                  {req.returns?.[0]?.refundStatus && (
+                    <View style={[styles.itemMeta, { backgroundColor: req.returns[0].refundStatus === 'PROCESSED' ? '#34C75915' : '#FF9F0A15' }]}>
+                      <Typography size={9} weight="700" color={req.returns[0].refundStatus === 'PROCESSED' ? '#34C759' : '#FF9F0A'}>
+                        REFUND: {req.returns[0].refundStatus}
+                      </Typography>
+                    </View>
+                  )}
+                </View>
                 {req.reason && <Typography size={11} color={colors.textMuted} style={{ marginTop: 4 }}>Note: {req.reason}</Typography>}
               </SectionCard>
             ))}
@@ -543,7 +552,12 @@ export default function OrderDetailsScreen() {
              </View>
              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                 <Typography size={10} weight="600" color={colors.textExtraLight}>Payment Status</Typography>
-                <Typography size={10} weight="700" color={order.paymentStatus === 'paid' ? colors.success : '#FF9F0A'}>
+                <Typography size={10} weight="700" color={
+                  order.paymentStatus === 'paid' ? colors.success : 
+                  order.paymentStatus === 'refunded' ? '#5856D6' : 
+                  order.paymentStatus === 'failed' ? colors.error : 
+                  '#FF9F0A'
+                }>
                   {(order.paymentStatus || 'Pending').toUpperCase()}
                 </Typography>
              </View>
