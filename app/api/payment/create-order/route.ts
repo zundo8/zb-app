@@ -14,12 +14,27 @@ export async function OPTIONS() {
   });
 }
 
+function razorpayErrMessage(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const e = err as { error?: { description?: string; code?: string }; message?: string };
+    if (e.error?.description) return e.error.description;
+    if (e.message) return e.message;
+  }
+  return 'Order creation failed';
+}
+
 export async function POST(req: Request) {
   try {
     let key_id = process.env.RAZORPAY_KEY_ID;
     let key_secret = process.env.RAZORPAY_KEY_SECRET;
 
-    if (!key_id || key_id.includes('xxxx') || !key_secret || key_secret.includes('xxxx')) {
+    const needsDbKeys =
+      !key_id ||
+      key_id.includes('xxxx') ||
+      !key_secret ||
+      key_secret.includes('xxxx');
+
+    if (needsDbKeys) {
       try {
         const shop = await prisma.shop.findFirst({
           select: { razorpayKeyId: true, razorpayKeySecret: true }
@@ -34,18 +49,35 @@ export async function POST(req: Request) {
     }
 
     if (!key_id || key_id.includes('xxxx')) {
-      throw new Error('Razorpay keys not configured');
+      throw new Error('Razorpay keys not configured (missing KEY_ID)');
+    }
+    if (!key_secret || key_secret.includes('xxxx')) {
+      throw new Error('Razorpay keys not configured (missing KEY_SECRET)');
     }
 
     const instance = new Razorpay({
       key_id,
-      key_secret: key_secret!,
+      key_secret,
     });
-    const { amount, currency = 'INR', receipt } = await req.json();
+
+    const body = await req.json();
+    const { amount, currency = 'INR', receipt: receiptIn } = body;
+    const amountRupees = Number(amount);
+    if (!Number.isFinite(amountRupees) || amountRupees <= 0) {
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+    }
+
+    // Razorpay receipt: required, max 40 chars
+    let receipt = typeof receiptIn === 'string' && receiptIn.trim() ? receiptIn.trim() : `zb_${Date.now()}`;
+    if (receipt.length > 40) {
+      receipt = receipt.slice(0, 40);
+    }
+
     const order = await instance.orders.create({
-      amount: Math.round(amount * 100),
+      amount: Math.round(amountRupees * 100),
       currency,
       receipt,
+      payment_capture: true,
     });
     return NextResponse.json(
       {
@@ -62,8 +94,9 @@ export async function POST(req: Request) {
         },
       }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Razorpay create-order error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : razorpayErrMessage(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

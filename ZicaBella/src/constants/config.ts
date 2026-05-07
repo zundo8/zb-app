@@ -1,4 +1,17 @@
 export const BACKEND_BASE_URL = 'https://app.zicabella.com';
+
+/** Razorpay create-order/verify must hit a host the phone can reach. localhost/127.0.0.1 fails on device. */
+export function getPaymentApiBaseUrl(): string {
+  const explicit = process.env.EXPO_PUBLIC_PAYMENT_API_URL?.replace(/\/$/, '');
+  if (explicit) return explicit;
+
+  const appUrl = process.env.EXPO_PUBLIC_APP_URL || BACKEND_BASE_URL;
+  if (appUrl.includes('localhost') || appUrl.includes('127.0.0.1')) {
+    return BACKEND_BASE_URL;
+  }
+  return appUrl;
+}
+
 export const config = {
   appUrl: process.env.EXPO_PUBLIC_APP_URL || BACKEND_BASE_URL,
   /** Store / marketing contact page (matches web footer). */
