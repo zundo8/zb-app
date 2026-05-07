@@ -159,7 +159,15 @@ export default function OrderReviewScreen() {
       // Navigate to success
       navigation.reset({
         index: 0,
-        routes: [{ name: 'OrderConfirmation', params: { orderId: finalOrder?.id || finalOrder?.order_id || 'ZB-SUCCESS' } }],
+        routes: [{ 
+          name: 'OrderConfirmation', 
+          params: { 
+            orderId: finalOrder?.id || 'ZB-SUCCESS',
+            orderNumber: finalOrder?.orderNumber || finalOrder?.order_number || null,
+            paymentMethod: selectedPaymentMethod === 'cod' ? 'COD' : 'PREPAID',
+            estimatedDelivery: '3-5 Business Days'
+          } 
+        }],
       });
       
     } catch (e: any) {

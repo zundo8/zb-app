@@ -30,152 +30,16 @@ export default function PaymentScreen() {
   const deliveryFee = 0;
   const grandTotal = subtotal + deliveryFee;
 
-  const placeOrder = async () => {
-    if (!user?.id) {
-      setInlineError('Please sign in to place an order.');
-      return;
-    }
-    if (!shippingAddress?.name || !shippingAddress?.line1) {
-      setInlineError('Please add a delivery address first.');
-      return;
-    }
+  const continueToReview = async () => {
     if (!paymentMethod) {
       setInlineError('Please select a payment option.');
       return;
     }
-
-    setInlineError(null);
-    setLoading(true);
-    try {
-      const token = useAuthStore.getState().token || '';
-      if (!token) throw new Error('Session expired. Please sign in again.');
-
-      const lineItems = items.map((i: any) => ({
-        productId: String(i.productId),
-        variantId: String(i.variantId),
-        name: i.title,
-        size: i.size || '',
-        quantity: i.quantity,
-        price: Number(parseFloat(i.price)),
-        imageUrl: i.image,
-      }));
-
-      if (paymentMethod === 'COD') {
-        const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            customerId: user.id,
-            customerEmail: user.email || '',
-            customerPhone: user.phone || '',
-            shippingAddress: {
-              name: shippingAddress.name,
-              line1: shippingAddress.line1,
-              line2: shippingAddress.line2 || '',
-              city: shippingAddress.city,
-              state: shippingAddress.state,
-              pincode: shippingAddress.pincode,
-              country: 'India',
-            },
-            lineItems,
-            paymentMethod: 'COD',
-            paymentStatus: 'pending',
-            subtotal,
-            deliveryFee,
-            total: grandTotal,
-          }),
-        });
-
-        // Guard against non-JSON responses (HTML error pages)
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-          throw new Error(`Server error (${res.status}). Please try again later.`);
-        }
-
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Failed to place order');
-
-        useCartStore.getState().clearCart();
-        if (navigationRef.isReady()) {
-          (navigationRef as any).resetRoot({
-            index: 0,
-            routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId, orderNumber: json.orderNumber, paymentMethod: 'COD', estimatedDelivery: json.estimatedDelivery || null } }],
-          });
-        } else {
-          navigation.navigate('OrderConfirmation', { orderId: json.orderId, orderNumber: json.orderNumber, paymentMethod: 'COD', estimatedDelivery: json.estimatedDelivery || null });
-        }
-        return;
-      }
-
-      // PREPAID: Razorpay first, then create order
-      const payment = await openRazorpayCheckout(
-        { amount: grandTotal, receipt: `zb_${Date.now()}` },
-        token
-      );
-
-      const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          customerId: user.id,
-          customerEmail: user.email || '',
-          customerPhone: user.phone || '',
-          shippingAddress: {
-            name: shippingAddress.name,
-            line1: shippingAddress.line1,
-            line2: shippingAddress.line2 || '',
-            city: shippingAddress.city,
-            state: shippingAddress.state,
-            pincode: shippingAddress.pincode,
-            country: 'India',
-          },
-          lineItems,
-          paymentMethod: 'PREPAID',
-          paymentId: payment?.razorpay_payment_id,
-          paymentStatus: 'paid',
-          subtotal,
-          deliveryFee,
-          total: grandTotal,
-        }),
-      });
-
-      // Guard against non-JSON responses
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error(`Server error (${res.status}). Payment was successful but order recording failed. Please contact support.`);
-      }
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to place order');
-
-      useCartStore.getState().clearCart();
-      if (navigationRef.isReady()) {
-        (navigationRef as any).resetRoot({
-          index: 0,
-          routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId, orderNumber: json.orderNumber, paymentMethod: 'PREPAID', estimatedDelivery: json.estimatedDelivery || null } }],
-        });
-      } else {
-        navigation.navigate('OrderConfirmation', { orderId: json.orderId, orderNumber: json.orderNumber, paymentMethod: 'PREPAID', estimatedDelivery: json.estimatedDelivery || null });
-      }
-    } catch (e: any) {
-      const msg = e?.message || 'Something went wrong. Please try again.';
-      // Don't show error for user cancellation
-      if (msg.includes('cancelled') || msg.includes('canceled') || e?.code === 2 || e?.code === 0) {
-        setLoading(false);
-        return;
-      }
-      setInlineError(msg);
-    } finally {
-      setLoading(false);
-    }
+    
+    haptics.buttonTap();
+    navigation.navigate('OrderReview', { 
+      paymentMethod: paymentMethod === 'COD' ? 'cod' : 'razorpay' 
+    });
   };
 
   return (
@@ -293,8 +157,8 @@ export default function PaymentScreen() {
       <CheckoutSummaryBar 
         itemCount={items.length}
         total={grandTotal}
-        primaryLabel={loading ? "PLACING..." : "PLACE ORDER"}
-        onPrimaryPress={placeOrder}
+        primaryLabel={loading ? "REDIRECTING..." : "REVIEW ORDER"}
+        onPrimaryPress={continueToReview}
         disabled={!paymentMethod || loading}
       />
     </View>
