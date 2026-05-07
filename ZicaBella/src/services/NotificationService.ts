@@ -12,7 +12,6 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { useNotificationStore } from '../store/notificationStore';
 import Constants from 'expo-constants';
-import * as Device from 'expo-device';
 import { config } from '../constants/config';
 import { haptics } from '../utils/haptics';
 
@@ -21,12 +20,10 @@ let _foregroundSub: Notifications.Subscription | null = null;
 let _responseSub: Notifications.Subscription | null = null;
 let _initialized = false;
 
-/**
- * Heuristic: check if running on a real device (not simulator).
- * expo-device is avoided to prevent native rebuild crashes.
- */
 function isPhysicalDevice(): boolean {
-  return Device.isDevice;
+  // Use Constants as a fallback to avoid native module dependency crashes
+  // @ts-ignore
+  return Constants.isDevice !== false;
 }
 
 /**
