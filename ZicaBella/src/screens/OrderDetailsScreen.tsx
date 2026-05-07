@@ -15,6 +15,7 @@ import { haptics } from '../utils/haptics';
 import { config } from '../constants/config';
 import { Typography } from '../components/Typography';
 import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore';
 import { Image } from 'expo-image';
 import { trackOrder } from '../services/shipmentService';
 
@@ -27,6 +28,13 @@ export default function OrderDetailsScreen() {
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
 
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [trackingLive, setTrackingLive] = useState<any | null>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   if (!orderId) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
@@ -37,13 +45,6 @@ export default function OrderDetailsScreen() {
       </View>
     );
   }
-
-  const [order, setOrder] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [trackingLive, setTrackingLive] = useState<any | null>(null);
-  const [trackingError, setTrackingError] = useState<string | null>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const fetchOrderDetails = useCallback(async (isPolling = false) => {
     if (!orderId) return;

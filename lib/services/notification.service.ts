@@ -83,8 +83,9 @@ export const NotificationService = {
       notification: {
         title,
         body,
+        imageUrl: (data as any)?.imageUrl || undefined
       },
-      data,
+      data: data as any,
       tokens,
       apns: {
         payload: {
@@ -160,11 +161,28 @@ export const NotificationService = {
       for (let i = 0; i < tokens.length; i += 500) {
           const chunk = tokens.slice(i, i + 500);
           const message: admin.messaging.MulticastMessage = {
-            notification: { title, body },
-            data,
+            notification: { 
+              title, 
+              body,
+              imageUrl: (data as any)?.imageUrl || undefined 
+            },
+            data: data as any,
             tokens: chunk,
+            android: {
+              priority: 'high',
+            },
             apns: {
-              payload: { aps: { sound: 'default', badge: 1 } },
+              payload: { 
+                aps: { 
+                  sound: 'default', 
+                  badge: 1,
+                  'content-available': 1,
+                  mutableContent: true
+                } 
+              },
+              headers: {
+                'apns-priority': '10', // High priority
+              }
             },
           };
 

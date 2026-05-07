@@ -423,7 +423,7 @@ export default function OrderHistoryScreen() {
                   style={[styles.shopNowBtn, { backgroundColor: colors.foreground }]}
                   onPress={() => {
                     haptics.buttonTap();
-                    navigation.navigate('BottomTabs', { screen: 'Shop' });
+                    navigation.navigate('ShopTab');
                   }}
                 >
                   <Typography size={12} weight="700" color={colors.background}>Start Shopping</Typography>
