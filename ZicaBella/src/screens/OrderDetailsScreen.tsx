@@ -197,11 +197,6 @@ export default function OrderDetailsScreen() {
     );
   }
 
-  const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
-  useEffect(() => {
-    setTabBarVisible(false);
-    return () => setTabBarVisible(true);
-  }, []);
 
   if (!order) {
     return (
