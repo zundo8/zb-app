@@ -16,9 +16,7 @@ export async function OPTIONS() {
 
 export async function GET(req: Request) {
   const auth = getAppAuthFromRequest(req);
-  
-  // Optional: In a real app, we might allow non-auth users to see global notifications
-  // For now, let's filter for the user if authenticated
+  console.log(`[API] Fetching notification history. Auth: ${auth ? auth.customerId : 'GUEST'}`);
   
   try {
     const url = new URL(req.url);
@@ -41,6 +39,8 @@ export async function GET(req: Request) {
       take: limit,
       orderBy: { createdAt: 'desc' },
     });
+
+    console.log(`[API] Found ${notifications.length} notifications for ${auth ? auth.customerId : 'GUEST'}`);
 
     return NextResponse.json({
       success: true,
