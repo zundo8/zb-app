@@ -114,6 +114,12 @@ export default function NotificationsScreen() {
         <Typography size={10} color={colors.textExtraLight} style={[styles.timeText, { flex: 1, textAlign: 'right' }]}>
           {safeFormatDate(item.date)}
         </Typography>
+        <TouchableOpacity 
+          onPress={() => { haptics.buttonTap(); useNotificationStore.getState().dismissNotification(item.id); }}
+          style={{ marginLeft: 12, opacity: 0.3 }}
+        >
+          <Ionicons name="close-circle-outline" size={16} color={colors.textExtraLight} />
+        </TouchableOpacity>
       </View>
 
       <Typography size={13} weight="700" color={colors.text} style={styles.titleText}>

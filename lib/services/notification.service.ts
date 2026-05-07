@@ -110,6 +110,7 @@ export const NotificationService = {
         priority: 'high',
         channelId: 'default',
         mutableContent: true,
+        categoryIdentifier: 'default',
       }));
 
       const chunks = expo.chunkPushNotifications(messages);
@@ -150,7 +151,13 @@ export const NotificationService = {
           android: { priority: 'high' },
           apns: {
             payload: {
-              aps: { sound: 'default', badge: 1, 'content-available': 1, mutableContent: true }
+              aps: { 
+                sound: 'default', 
+                badge: 1, 
+                'content-available': 1, 
+                mutableContent: true,
+                category: 'default'
+              }
             },
             headers: { 'apns-priority': '10' }
           },

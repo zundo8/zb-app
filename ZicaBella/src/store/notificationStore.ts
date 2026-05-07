@@ -14,9 +14,11 @@ export interface NotificationItem {
 
 interface NotificationStore {
   notifications: NotificationItem[];
+  dismissedIds: string[];
   pushToken: string | null;
   addNotification: (notification: NotificationItem) => void;
   setNotifications: (notifications: NotificationItem[]) => void;
+  dismissNotification: (id: string) => void;
   setPushToken: (token: string) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -40,29 +42,28 @@ export const useNotificationStore = create<NotificationStore>()(
   persist(
     (set, get) => ({
       notifications: [],
+      dismissedIds: [],
       pushToken: null,
       addNotification: (notification) => set((state) => {
-        // Prevent duplicates and sanitize ID
         const id = String(notification.id).trim();
-        if (state.notifications.some(n => String(n.id) === id)) {
+        // Check if already dismissed or already exists
+        if (state.dismissedIds.includes(id) || state.notifications.some(n => String(n.id) === id)) {
           return state;
         }
-        // Keep last 50 notifications, ensure unique keys
         const newNotification = { ...notification, id };
         const current = [newNotification, ...state.notifications];
         if (current.length > 50) current.pop();
         return { notifications: current };
       }),
       setNotifications: (incoming) => set((state) => {
-        // Build a map from existing local notifications so we can preserve isRead state
         const existingMap = new Map(state.notifications.map(n => [String(n.id), n]));
-
-        // Deduplicate incoming by ID, preserving local read state if known
         const seen = new Set<string>();
         const merged: NotificationItem[] = [];
 
         for (const n of incoming) {
           const id = String(n.id).trim();
+          // Skip if dismissed
+          if (state.dismissedIds.includes(id)) continue;
           if (seen.has(id)) continue;
           seen.add(id);
           const existing = existingMap.get(id);
@@ -73,7 +74,6 @@ export const useNotificationStore = create<NotificationStore>()(
           });
         }
 
-        // Also add local-only notifications not in server response (from push)
         for (const local of state.notifications) {
           const id = String(local.id).trim();
           if (!seen.has(id)) {
@@ -83,6 +83,15 @@ export const useNotificationStore = create<NotificationStore>()(
         }
 
         return { notifications: merged.slice(0, 50) };
+      }),
+      dismissNotification: (id) => set((state) => {
+        const idToDismiss = String(id).trim();
+        const updated = state.notifications.filter(n => String(n.id) !== idToDismiss);
+        const newDismissed = [...state.dismissedIds, idToDismiss].slice(-200); // Keep last 200
+        return { 
+          notifications: updated,
+          dismissedIds: newDismissed
+        };
       }),
       setPushToken: (token) => set({ pushToken: token }),
       markAsRead: (id) => set((state) => {
@@ -97,8 +106,11 @@ export const useNotificationStore = create<NotificationStore>()(
         return { notifications: updated };
       }),
       clearAll: () => {
+        const state = get();
+        const currentIds = state.notifications.map(n => String(n.id));
+        const newDismissed = Array.from(new Set([...state.dismissedIds, ...currentIds])).slice(-200);
         Notifications.setBadgeCountAsync(0).catch(() => {});
-        set({ notifications: [] });
+        set({ notifications: [], dismissedIds: newDismissed });
       },
       unreadCount: () => get().notifications.filter(n => !n.isRead).length
     }),
