@@ -42,6 +42,7 @@ export async function GET(req: Request) {
     
     // allow 'all' if requested (used by admin dashboard)
     const all = url.searchParams.get('all') === 'true';
+    console.log(`[Orders GET] Fetching orders. All=${all}, Phone=${phone}, Email=${email}, CustomerId=${customerId}`);
 
     if (!customerId && !phone && !email && !orderId && !all) {
       return NextResponse.json(
@@ -88,7 +89,13 @@ export async function GET(req: Request) {
     }
 
     const orders = await prisma.order.findMany({
-      where: all ? {} : (orderId ? { id: orderId } : { customerId: { in: customerIds } }),
+      where: all ? {
+        OR: [
+          { orderType: 'MOBILE_APP' },
+          { tags: { contains: 'mobile-app' } },
+          { tags: { contains: 'AppOrder' } }
+        ]
+      } : (orderId ? { id: orderId } : { customerId: { in: customerIds } }),
       include: {
         items: {
           include: {

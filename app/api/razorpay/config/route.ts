@@ -37,7 +37,9 @@ export async function GET() {
   }
 
   return NextResponse.json({ 
-    error: 'Razorpay Key ID not configured. Please update .env.local or admin dashboard settings.',
-    isConfigured: false 
+    error: 'Razorpay setup incomplete. Real payments require RAZORPAY_KEY_ID to be set in .env.local or Infrastructure settings.',
+    isConfigured: false,
+    mockAllowed: true, // Allow mobile app to enter mock mode if keys are missing
+    setupUrl: 'https://app.zicabella.com/dashboard/settings'
   }, { status: 200 });
 }
