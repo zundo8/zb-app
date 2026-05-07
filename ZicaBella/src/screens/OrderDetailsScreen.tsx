@@ -51,11 +51,18 @@ export default function OrderDetailsScreen() {
       if (!isPolling) setLoading(true);
       const token = useAuthStore.getState().token || '';
       const user = useAuthStore.getState().user;
+      const guestAddress = useCartStore.getState().shippingAddress;
       
       const params = new URLSearchParams();
       if (user?.id) params.set('customerId', user.id);
       if (user?.phone) params.set('phone', user.phone);
       if (user?.email) params.set('email', user.email);
+      
+      // Guest fallback tracking info
+      if (!user?.id) {
+        if (guestAddress?.phone) params.set('phone', guestAddress.phone);
+        if (guestAddress?.email) params.set('email', guestAddress.email);
+      }
 
       const res = await fetch(`${config.appUrl}/api/app/orders/${orderId}?${params.toString()}`, {
         headers: {
@@ -95,7 +102,7 @@ export default function OrderDetailsScreen() {
   }, [fadeAnim, fetchOrderDetails]);
 
   const refreshTracking = useCallback(async () => {
-    const awb = order?.tracking?.awb;
+    const awb = order?.trackingNumber || order?.tracking?.awb;
     if (!awb) return;
     try {
       setTrackingError(null);
@@ -104,7 +111,7 @@ export default function OrderDetailsScreen() {
     } catch (e: any) {
       setTrackingError(e?.message || 'Failed to fetch tracking');
     }
-  }, [order?.tracking?.awb]);
+  }, [order?.trackingNumber, order?.tracking?.awb]);
 
   const contactSupport = () => {
     haptics.buttonTap();
@@ -115,7 +122,7 @@ export default function OrderDetailsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.foreground} />
-        <Typography size={14} color={colors.textMuted} style={{ marginTop: 16 }}>AUTHENTICATING...</Typography>
+        <Typography size={14} color={colors.textMuted} style={{ marginTop: 16 }}>LOADING ORDER DETAILS...</Typography>
       </View>
     );
   }
@@ -155,13 +162,14 @@ export default function OrderDetailsScreen() {
   }
 
   const isCancelled = (order.status || '').toLowerCase().includes('cancel');
-  const isDelivered = (Array.isArray(order.statusTimeline) ? order.statusTimeline : []).some((t: any) => t.step === 'delivered' && t.completedAt);
+  const isDelivered = (Array.isArray(order.statusTimeline) ? order.statusTimeline : []).some((t: any) => t.step === 'delivered' && t.completedAt) || order.deliveryStatus === 'delivered';
   const orderNumber = order.orderNumber || order.id?.slice(0, 8);
+  const trackingNumber = order.trackingNumber || order.tracking?.awb;
 
   const statusColor = isCancelled ? '#FF3B30' : isDelivered ? '#34C759' : '#007AFF';
 
   const steps = useMemo(() => {
-    const isPrepaid = order.paymentMethod === 'PREPAID';
+    const isPrepaid = order.paymentMethod === 'PREPAID' || order.paymentMethod2 === 'PREPAID';
     return [
       { step: 'order_placed', label: 'Order Placed' },
       { step: 'awaiting_approval', label: isPrepaid ? 'Payment Confirmed' : 'Awaiting Approval' },
@@ -170,14 +178,20 @@ export default function OrderDetailsScreen() {
       { step: 'out_for_delivery', label: 'Out for Delivery' },
       { step: 'delivered', label: isCancelled ? 'Cancelled' : 'Delivered' },
     ];
-  }, [order.paymentMethod, isCancelled]);
+  }, [order.paymentMethod, order.paymentMethod2, isCancelled]);
 
   const timelineByStep = useMemo(() => {
     const tl = Array.isArray(order.statusTimeline) ? order.statusTimeline : [];
     const m = new Map<string, string | null>();
     tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
+    
+    // Fallback to basic timeline if available
+    if (order.timeline?.placedAt && !m.has('order_placed')) m.set('order_placed', order.timeline.placedAt);
+    if (order.timeline?.shippedAt && !m.has('shipped')) m.set('shipped', order.timeline.shippedAt);
+    if (order.timeline?.deliveredAt && !m.has('delivered')) m.set('delivered', order.timeline.deliveredAt);
+    
     return m;
-  }, [order.statusTimeline]);
+  }, [order.statusTimeline, order.timeline]);
 
   const getItemImage = (item: any): string | null => {
     if (item.image) return item.image;
@@ -306,23 +320,23 @@ export default function OrderDetailsScreen() {
           </SectionCard>
         )}
 
-        {/* ─── Tracking Block (only when AWB is set) ─── */}
-        {order.tracking?.awb && (
+        {/* ─── Tracking Block (only when Tracking Number is set) ─── */}
+        {!!trackingNumber && (
           <SectionCard>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <View style={{ flex: 1 }}>
                 <Typography size={10} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>TRACKING</Typography>
                 <Typography size={14} weight="800" color={colors.text} style={{ marginTop: 6 }}>
-                  {order.tracking.carrier ? `${order.tracking.carrier} • ` : ''}{order.tracking.awb}
+                  {order.courier ? `${order.courier} • ` : ''}{trackingNumber}
                 </Typography>
-                {(trackingLive?.current_location || order.tracking.lastLocation) && (
+                {(trackingLive?.current_location || order.location) && (
                   <Typography size={10} color={colors.textMuted} style={{ marginTop: 6 }}>
-                    {trackingLive?.current_location || order.tracking.lastLocation}
+                    {trackingLive?.current_location || order.location}
                   </Typography>
                 )}
-                {(trackingLive?.estimated_delivery || order.tracking.estimatedDelivery) && (
+                {(trackingLive?.estimated_delivery || order.estimatedDelivery) && (
                   <Typography size={10} color={colors.textMuted} style={{ marginTop: 2 }}>
-                    ETA: {String(trackingLive?.estimated_delivery || order.tracking.estimatedDelivery)}
+                    ETA: {String(trackingLive?.estimated_delivery || order.estimatedDelivery)}
                   </Typography>
                 )}
                 {!!trackingError && (
@@ -344,7 +358,11 @@ export default function OrderDetailsScreen() {
               onPress={async () => {
                 try {
                   haptics.buttonTap();
-                  await refreshTracking();
+                  if (order.trackingUrl) {
+                    Linking.openURL(order.trackingUrl);
+                  } else {
+                    await refreshTracking();
+                  }
                 } catch {}
               }}
               activeOpacity={0.7}

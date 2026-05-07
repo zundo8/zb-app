@@ -38,54 +38,61 @@ async function allocateOrderNumber(): Promise<string> {
 }
 
 export async function POST(req: Request) {
-  // Validate auth token
+  // Try to get auth from request, but don't fail if missing (allows guest orders)
   const auth = getAppAuthFromRequest(req);
-  if (!auth) {
-    return NextResponse.json({ error: 'Unauthorized. Please sign in again.' }, { status: 401, headers: corsHeaders });
-  }
 
   try {
     const body = await req.json();
 
-    const {
-      customerId,
-      customerEmail,
-      customerPhone,
-      shippingAddress,
-      lineItems,
-      paymentMethod,
-      paymentId,
-      paymentStatus,
-      subtotal,
-      deliveryFee,
-      total,
-    } = body || {};
+    // Map fields from different naming conventions
+    const customerId = body.customerId || body.customer_id;
+    const customerEmail = body.customerEmail || body.email;
+    const customerPhone = body.customerPhone || body.phone;
+    const shippingAddress = body.shippingAddress || body.shipping_address;
+    const lineItems = body.lineItems || body.line_items;
+    const paymentMethod = body.paymentMethod || body.payment_method;
+    const paymentId = body.paymentId || body.payment_id;
+    const paymentStatus = body.paymentStatus || body.financial_status || 'pending';
+    const subtotal = Number(body.subtotal || body.subtotal_price || 0);
+    const total = Number(body.total || body.total_price || 0);
 
-    if (!customerId || typeof customerId !== 'string') return jsonError('customerId is required', 400);
-
-    // Validate that the authenticated user matches the customer placing the order
-    if (customerId !== auth.customerId) {
-      return NextResponse.json({ error: 'Unauthorized: customer mismatch' }, { status: 403, headers: corsHeaders });
-    }
-
-    if (!customerEmail || typeof customerEmail !== 'string') return jsonError('customerEmail is required', 400);
-    if (!customerPhone || typeof customerPhone !== 'string') return jsonError('customerPhone is required', 400);
-
-    if (!shippingAddress || typeof shippingAddress !== 'object') return jsonError('shippingAddress is required', 400);
-    if (!Array.isArray(lineItems) || lineItems.length === 0) return jsonError('lineItems is required', 400);
-
-    if (paymentMethod !== 'COD' && paymentMethod !== 'PREPAID') return jsonError('paymentMethod must be COD or PREPAID', 400);
-    if (paymentStatus !== 'pending' && paymentStatus !== 'paid') return jsonError('paymentStatus must be pending or paid', 400);
-    if (paymentMethod === 'PREPAID' && (!paymentId || typeof paymentId !== 'string')) {
-      return jsonError('paymentId is required for PREPAID orders', 400);
-    }
+    if (!customerEmail) return jsonError('customerEmail is required', 400);
+    if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) return jsonError('lineItems is required', 400);
 
     const shop = await prisma.shop.findFirst();
     if (!shop) return jsonError('Shop not configured', 500);
 
-    const customer = await prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
-    if (!customer) return jsonError('Customer not found', 404);
+    // Resolve or Create Customer
+    let customer = null;
+    if (customerId && customerId !== 'GUEST') {
+      customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    }
 
+    if (!customer && customerEmail) {
+      customer = await prisma.customer.findFirst({ where: { email: customerEmail } });
+    }
+
+    if (!customer && customerPhone) {
+      const phoneDigits = customerPhone.replace(/\D/g, '').slice(-10);
+      if (phoneDigits.length === 10) {
+        customer = await prisma.customer.findFirst({ where: { phone: { contains: phoneDigits } } });
+      }
+    }
+
+    if (!customer) {
+      // Create guest customer
+      customer = await prisma.customer.create({
+        data: {
+          shopId: shop.id,
+          shopifyId: `GUEST_${Date.now()}`,
+          name: shippingAddress?.name || 'Guest User',
+          email: customerEmail || 'guest@zicabella.com',
+          phone: customerPhone || '',
+        }
+      });
+    }
+
+    const resolvedCustomerId = customer.id;
     const orderNumber = await allocateOrderNumber();
     const now = new Date();
 
@@ -107,29 +114,28 @@ export async function POST(req: Request) {
     const created = await prisma.order.create({
       data: {
         shopId: shop.id,
-        customerId,
+        customerId: resolvedCustomerId,
         // Encode the human-readable order number here so we can keep schema unchanged.
-        // This is NOT the Shopify order id; Shopify sync happens later from admin.
         shopifyOrderId: `#${orderNumber}`,
         status: 'awaiting_approval',
         orderType: 'REGULAR',
-        totalPrice: Number(total || 0),
-        subtotalPrice: Number(subtotal || 0),
+        totalPrice: total,
+        subtotalPrice: subtotal,
         totalTax: 0,
         currency: 'INR',
         paymentStatus,
         fulfillmentStatus: 'unfulfilled',
         deliveryStatus: 'pending',
-        shippingAddress: JSON.stringify({
-          name: shippingAddress.name,
-          line1: shippingAddress.line1,
-          line2: shippingAddress.line2 || '',
-          city: shippingAddress.city,
-          state: shippingAddress.state,
-          pincode: shippingAddress.pincode,
-          country: 'India',
-          phone: customerPhone,
-          email: customerEmail,
+        shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
+          name: shippingAddress?.name || customer.name,
+          line1: shippingAddress?.line1 || '',
+          line2: shippingAddress?.line2 || '',
+          city: shippingAddress?.city || '',
+          state: shippingAddress?.state || '',
+          pincode: shippingAddress?.pincode || '',
+          country: shippingAddress?.country || 'India',
+          phone: customerPhone || customer.phone,
+          email: customerEmail || customer.email,
         }),
         billingAddress: null,
         note,
@@ -140,24 +146,22 @@ export async function POST(req: Request) {
         items: {
           create: lineItems.map((li: any, idx: number) => ({
             shopifyLineItemId: `app_${orderNumber}_${idx}`,
-            // Important: cart `productId`/`variantId` in the mobile app are Shopify IDs.
-            // We keep prisma.productId nullable and encode variant id into sku for admin Shopify sync.
             productId: null,
-            title: `${li.name}${li.size ? ` - ${li.size}` : ''}`.trim(),
+            title: li.name || li.title || 'Product',
             quantity: Number(li.quantity || 0),
             price: Number(li.price || 0),
-            sku: li?.variantId ? `variant:${String(li.variantId)}` : null,
+            sku: (li.variantId || li.variant_id) ? `variant:${String(li.variantId || li.variant_id)}` : null,
           })),
         },
         payments:
           paymentStatus === 'paid'
             ? {
                 create: {
-                  customerId,
-                  amount: Number(total || 0),
+                  customerId: resolvedCustomerId,
+                  amount: total,
                   type: 'INITIAL',
                   status: 'success',
-                  gateway: 'razorpay',
+                  gateway: paymentMethod === 'COD' ? 'cod' : 'razorpay',
                 },
               }
             : undefined,

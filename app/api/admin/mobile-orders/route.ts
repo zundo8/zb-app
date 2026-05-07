@@ -12,7 +12,10 @@ export async function GET(req: Request) {
     const orders = await prisma.order.findMany({
       where: {
         OR: [
+          { orderType: 'MOBILE_APP' },
           { tags: { contains: 'mobile-app' } },
+          { tags: { contains: 'AppOrder' } },
+          { tags: { contains: 'App' } },
           { note: { contains: 'Mobile app order' } },
         ],
       },

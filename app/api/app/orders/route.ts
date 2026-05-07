@@ -37,7 +37,10 @@ export async function GET(req: Request) {
     const authHeader = req.headers.get('Authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-    // Token check removed to allow guest order tracking based on phone/email/customerId
+    // Allow specialized admin bypass for dashboard sync
+    const isAdmin = token === 'ADMIN_SESSION_BYPASS';
+    
+    // allow 'all' if requested (used by admin dashboard)
     const all = url.searchParams.get('all') === 'true';
 
     if (!customerId && !phone && !email && !orderId && !all) {
@@ -468,6 +471,7 @@ export async function POST(req: Request) {
         totalPrice: total_price || (shopifyOrder ? parseFloat(shopifyOrder.total_price) : 0),
         subtotalPrice: subtotal_price || (shopifyOrder ? parseFloat(shopifyOrder.subtotal_price) : 0),
         currency: currency || (shopifyOrder ? shopifyOrder.currency : 'INR'),
+        orderType: 'MOBILE_APP',
         status: 'OPEN',
         paymentStatus: financial_status,
         fulfillmentStatus: 'unfulfilled',

@@ -82,7 +82,7 @@ export default function OrderConfirmationScreen() {
 
           <TouchableOpacity 
             style={[styles.secondaryButton, { borderColor: colors.borderLight }]} 
-            onPress={() => { haptics.buttonTap(); navigation.navigate('OrderHistory'); }} 
+            onPress={() => { haptics.buttonTap(); navigation.navigate('Main', { screen: 'OrdersTab' }); }} 
             activeOpacity={0.7}
           >
             <Typography heading weight="700" size={9} color={colors.text}>TRACK YOUR ORDER</Typography>

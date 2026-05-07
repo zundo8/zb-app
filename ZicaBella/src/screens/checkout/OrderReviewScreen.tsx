@@ -40,43 +40,45 @@ export default function OrderReviewScreen() {
     haptics.buttonTap();
 
     try {
-      // Get the real auth token from the store
+      // Get the real auth token from the store (optional for guest)
       const token = useAuthStore.getState().token || '';
-      if (!token) {
-        throw new Error('Session expired. Please sign in again.');
-      }
 
       // Build order payload first
       const orderData = {
         customerId: user?.id || 'GUEST',
-        email: user?.email || 'guest@zicabella.com',
-        phone: user?.phone || shippingAddress?.phone || '',
+        customerEmail: user?.email || shippingAddress?.email || 'guest@zicabella.com',
+        customerPhone: user?.phone || shippingAddress?.phone || '',
         lineItems: items.map(i => ({ 
-          variant_id: i.variantId, 
-          product_id: i.productId,
+          variantId: i.variantId, 
+          productId: i.productId,
           quantity: i.quantity, 
           price: i.price,
-          title: i.title,
-          image: i.image
+          name: i.title,
+          image: i.image,
+          sku: i.sku || `variant:${i.variantId}` // Ensure variant ID is encoded in SKU for Shopify sync
         })),
         appliedStoreCredits: appliedCredit,
-        shipping_address: {
+        shippingAddress: {
+          name: shippingAddress?.name || user?.name || 'Zica User',
           first_name: (shippingAddress?.name || user?.name || 'Zica').split(' ')[0],
           last_name: (shippingAddress?.name || user?.name || 'User').split(' ').slice(1).join(' ') || 'User',
-          address1: shippingAddress?.street || shippingAddress?.line1 || 'Address not provided',
+          line1: shippingAddress?.street || shippingAddress?.line1 || 'Address not provided',
+          line2: shippingAddress?.line2 || '',
           city: shippingAddress?.city || 'New Delhi',
-          zip: shippingAddress?.zip || shippingAddress?.pincode || '110001',
-          country_code: 'IN',
           state: shippingAddress?.state || 'Delhi',
-          district: shippingAddress?.district || '',
-          phone: shippingAddress?.phone || user?.phone
+          pincode: shippingAddress?.zip || shippingAddress?.pincode || '110001',
+          country: 'India',
+          phone: shippingAddress?.phone || user?.phone || '',
+          email: user?.email || shippingAddress?.email || ''
         },
-        financial_status: 'pending', // Will be updated on server after verification
-        payment_method: selectedPaymentMethod,
-        total_price: grandTotal,
-        subtotal_price: subtotal,
-        total_tax: 0,
-        currency: 'INR'
+        paymentMethod: selectedPaymentMethod === 'cod' ? 'COD' : 'PREPAID',
+        paymentStatus: selectedPaymentMethod === 'cod' ? 'pending' : 'paid',
+        total: grandTotal,
+        total_price: grandTotal, // Backward compatibility
+        subtotal: subtotal,
+        deliveryFee: codFee,
+        tags: `mobile-app, AppOrder, ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}`,
+        note: `Mobile app order | Payment: ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}`
       };
 
       let finalOrder: any = null;
@@ -88,9 +90,9 @@ export default function OrderReviewScreen() {
            const rzpResult = await openRazorpayCheckout({
              amount: grandTotal,
              currency: 'INR',
-             email: user?.email || 'guest@zicabella.com',
-             phone: user?.phone || shippingAddress?.phone || '',
-             shipping_address: orderData.shipping_address
+             email: orderData.customerEmail,
+             phone: orderData.customerPhone,
+             shipping_address: orderData.shippingAddress
            }, token);
 
            if (!rzpResult || !rzpResult.razorpay_payment_id) {
@@ -103,13 +105,12 @@ export default function OrderReviewScreen() {
              headers: { 
                'Content-Type': 'application/json', 
                'Accept': 'application/json',
-               'Authorization': `Bearer ${token}`
+               'Authorization': token ? `Bearer ${token}` : ''
              },
              body: JSON.stringify({
                ...orderData,
-               paymentMethod: 'PREPAID',
                paymentId: rzpResult.razorpay_payment_id,
-               paymentStatus: 'paid'
+               razorpayOrderId: rzpResult.razorpay_order_id,
              })
            });
 
@@ -121,51 +122,35 @@ export default function OrderReviewScreen() {
            const json = await res.json();
            finalOrder = { id: json.orderId || json.id };
         } catch (e: any) {
-
            console.log('Payment Flow Error:', e);
            if (e.message?.toLowerCase().includes('cancel') || e.code === 2) {
               setLoading(false);
               return;
            }
-           if (e.message?.includes('setup required') || e.message?.includes('Production env')) {
-              throw new Error('Payment gateway is currently being configured for production. Please use COD or try again in a few minutes.');
-           }
-           throw new Error(e.message || 'Payment failed. Please verify your credentials or try again.');
+           throw new Error(e.message || 'Payment failed. Please try again.');
         }
       } else {
         // Handle COD Flow
-        // Unified App Order Creation for COD (or Prepaid with payment details)
         const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json', 
             'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': token ? `Bearer ${token}` : ''
           },
-          body: JSON.stringify({
-            ...orderData,
-            paymentMethod: 'COD',
-            paymentStatus: 'pending'
-          })
+          body: JSON.stringify(orderData)
         });
 
         const contentType = res.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
-          if (res.status === 401 || res.status === 403) {
-             throw new Error('Session expired or unauthorized. Please sign in again.');
-          }
           throw new Error(`Server error (${res.status}). Please try again.`);
         }
 
         const json = await res.json();
         if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-             throw new Error('Session expired or unauthorized. Please sign in again.');
-          }
           throw new Error(json.error || 'Failed to place order');
         }
         finalOrder = { id: json.orderId || json.id };
-
       }
 
       haptics.success();
