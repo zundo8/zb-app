@@ -1,7 +1,7 @@
 export const config = {
   appUrl: process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com',
   /** Store / marketing contact page (matches web footer). */
-  contactPage: 'https://app.zicabella.com/pages/contact',
+  contactPage: 'https://www.zicabella.com/policies/contact-information',
   heroVideoUrl: 'https://app.zicabella.com/zb-video-heroo.mp4',
   razorpay: {
     keyId: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || '',

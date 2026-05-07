@@ -46,18 +46,29 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
   const translateY = useSharedValue(SHEET_HEIGHT);
   const backdropOpacity = useSharedValue(0);
 
+  // Track mount state with regular React state to avoid reading .value during render.
+  const [isMounted, setIsMounted] = React.useState(visible);
+
   useEffect(() => {
     if (visible) {
+      setIsMounted(true);
       backdropOpacity.value = withTiming(1, { duration: 300 });
-      translateY.value = withSpring(0, { 
-        damping: 25, 
+      translateY.value = withSpring(0, {
+        damping: 25,
         stiffness: 180,
-        mass: 0.8
+        mass: 0.8,
       });
       haptics.buttonTap();
     } else {
       backdropOpacity.value = withTiming(0, { duration: 250 });
-      translateY.value = withTiming(SHEET_HEIGHT, { duration: 300 });
+      translateY.value = withTiming(SHEET_HEIGHT, { duration: 300, }, () => {
+        // Run on JS thread after animation completes so we can unmount safely.
+        // runOnJS is imported below — use a simple timeout fallback instead to
+        // avoid adding another import for this one case.
+      });
+      // Unmount after the closing animation finishes.
+      const timer = setTimeout(() => setIsMounted(false), 320);
+      return () => clearTimeout(timer);
     }
   }, [visible, SHEET_HEIGHT]);
 
@@ -69,7 +80,8 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
     opacity: backdropOpacity.value,
   }));
 
-  if (!visible && backdropOpacity.value === 0) return null;
+  // Use isMounted (plain React state) instead of reading .value directly during render.
+  if (!visible && !isMounted) return null;
 
   const handleCheckout = () => {
     haptics.buttonTap();

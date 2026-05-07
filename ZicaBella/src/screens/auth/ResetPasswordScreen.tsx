@@ -52,7 +52,7 @@ export default function ResetPasswordScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: colors.surface }]}>
+          <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={[styles.backBtn, { backgroundColor: colors.surface }]}>
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>

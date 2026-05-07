@@ -5,12 +5,48 @@
  * Firebase has been removed — this uses Expo's push token system instead.
  */
 import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-constants';
 import { Platform } from 'react-native';
 import { useNotificationStore } from '../store/notificationStore';
-import { useAuthStore } from '../store/authStore';
+import Constants from 'expo-constants';
 import { config } from '../constants/config';
 import { haptics } from '../utils/haptics';
+
+/**
+ * Check if running on a physical device without requiring the expo-device native module.
+ * expo-device requires a native rebuild which crashes Expo Go / dev-client builds
+ * that haven't been prebuilt with it.
+ *
+ * Uses Constants.executionEnvironment from expo-constants (always available).
+ * - 'storeClient' = Expo Go → typically simulator/device but can't get APNs
+ * - 'standalone' / 'bare' = production or dev-client → check further
+ *
+ * Falls back to `true` so real devices still attempt push registration.
+ */
+function isPhysicalDevice(): boolean {
+  try {
+    // Try expo-device if available (it may be in a custom dev-client build)
+    const ExpoDevice = require('expo-device');
+    return !!ExpoDevice.isDevice;
+  } catch {
+    // expo-device native module not available — use heuristic:
+    // On iOS simulator, Constants.isDevice is false
+    // @ts-ignore — isDevice exists at runtime even if not in types
+    if (Constants.isDevice === false) return false;
+    // If we can't determine, assume physical device (safe default)
+    return true;
+  }
+}
+
+/**
+ * Lazy auth-state accessor — avoids circular import:
+ *   authStore -> NotificationService -> authStore
+ * By deferring the require() to call time we break the module-load cycle.
+ */
+function getAuthUser(): { id?: string } | null {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { useAuthStore } = require('../store/authStore');
+  return useAuthStore.getState().user ?? null;
+}
 
 export class NotificationService {
   /**
@@ -19,6 +55,12 @@ export class NotificationService {
    */
   static async initialize(): Promise<boolean> {
     try {
+      // Push notifications only work on real physical devices, never simulators.
+      if (!isPhysicalDevice()) {
+        console.log('[Notifications] Push notifications require a physical device — skipping on simulator.');
+        return false;
+      }
+
       // Request permission on iOS
       if (Platform.OS === 'ios') {
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -38,7 +80,7 @@ export class NotificationService {
       // Get and register push token
       try {
         const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: Device.default.expoConfig?.extra?.eas?.projectId,
+          projectId: Constants.expoConfig?.extra?.eas?.projectId,
         });
         if (tokenData?.data) {
           useNotificationStore.getState().setPushToken(tokenData.data);
@@ -76,7 +118,8 @@ export class NotificationService {
   }
 
   static async registerDevice(pushToken?: string, forceUserId?: string) {
-    const user = useAuthStore.getState().user;
+    // Use lazy require to avoid circular dependency with authStore.
+    const user = getAuthUser();
     const userId = forceUserId || user?.id;
     const token = pushToken || useNotificationStore.getState().pushToken;
 

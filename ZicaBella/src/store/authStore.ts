@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NotificationService } from '../services/NotificationService';
+// NOTE: NotificationService is intentionally NOT imported at top-level to break
+// the circular dependency:  authStore -> NotificationService -> authStore
+// Instead it is lazily required inside the login() action.
 
 interface User {
   id: string;
@@ -50,8 +52,14 @@ export const useAuthStore = create<AuthStore>()(
 
       login: (user, token) => {
         set({ user, token, isAuthenticated: true });
-        // Register push token for the new user session
-        NotificationService.registerDevice(undefined, user.id);
+        // Lazy require to avoid circular module dependency.
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { NotificationService } = require('../services/NotificationService');
+          NotificationService.registerDevice(undefined, user.id);
+        } catch (e) {
+          console.warn('[authStore] Could not register notification device:', e);
+        }
       },
       logout: () => set({ user: null, token: null, isAuthenticated: false }),
       setBiometric: (enabled) => set({ biometricEnabled: enabled }),

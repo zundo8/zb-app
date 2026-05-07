@@ -33,7 +33,7 @@ export default function ReturnRequestScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <Typography color={colors.text}>Order details are missing.</Typography>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
+        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={{ marginTop: 20 }}>
           <Typography color={colors.iosBlue}>Go Back</Typography>
         </TouchableOpacity>
       </View>
@@ -119,7 +119,7 @@ export default function ReturnRequestScreen() {
 
       haptics.success();
       Alert.alert('Success', 'Your return request has been submitted successfully.', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+        { text: 'OK', onPress: () => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main') }
       ]);
     } catch (err: any) {
       console.error(err);

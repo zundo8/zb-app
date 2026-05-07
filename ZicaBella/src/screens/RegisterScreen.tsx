@@ -75,7 +75,7 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <TouchableOpacity 
-            onPress={() => navigation.goBack()} 
+            onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} 
             style={[styles.backBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
           >
             <Ionicons name="chevron-back" size={20} color={colors.text} />

@@ -8,7 +8,7 @@ const API_BASE = `${config.appUrl}/api/app`;
 
 export async function apiFetch<T>(
   endpoint: string,
-  options?: { method?: string; body?: any; params?: Record<string, string> }
+  options?: { method?: string; body?: any; params?: Record<string, string>; timeoutMs?: number }
 ): Promise<T> {
   let url = `${API_BASE}${endpoint}`;
 
@@ -18,28 +18,58 @@ export async function apiFetch<T>(
     url += `?${searchParams.toString()}`;
   }
 
+  const token = useAuthStore.getState().token;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 15000);
+
   const fetchOptions: RequestInit = {
     method: options?.method || 'GET',
     headers: {
       'Content-Type': 'application/json',
-      ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {}),
+      'Accept': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
+    signal: controller.signal,
   };
 
   if (options?.body) {
     fetchOptions.body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(url, fetchOptions);
+  try {
+    const response = await fetch(url, fetchOptions);
+    clearTimeout(timeout);
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`API ${response.status}: ${text}`);
+    console.log('[API]', options?.method || 'GET', endpoint, '→', response.status);
+
+    // Handle 401 — token expired or invalid
+    if (response.status === 401) {
+      console.warn('[API] 401 Unauthorized — logging out user');
+      useAuthStore.getState().logout();
+      throw new Error('Session expired. Please log in again.');
+    }
+
+    // Guard against non-JSON responses (e.g. HTML error pages)
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text();
+      throw new Error(`Server error (${response.status}): expected JSON, got ${contentType.split(';')[0] || 'unknown'}`);
+    }
+
+    if (!response.ok) {
+      const errorJson = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(errorJson.error || `API ${response.status}`);
+    }
+
+    return (await response.json()) as T;
+  } catch (err: any) {
+    clearTimeout(timeout);
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection.');
+    }
+    throw err;
   }
-
-  const json = await response.json();
-  console.log('[API]', options?.method || 'GET', endpoint, '→', response.status);
-  return json as T;
 }
 
 // Convenience helpers

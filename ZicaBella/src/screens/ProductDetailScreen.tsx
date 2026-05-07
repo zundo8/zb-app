@@ -242,7 +242,7 @@ export default function ProductDetailScreen() {
       {/* ── TOP NAV ACTIONS ── */}
       <View style={[styles.topActions, { top: insets.top + 10 }]}>
         <TouchableOpacity 
-          onPress={() => navigation.goBack()} 
+          onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')}
           style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }]}
         >
           <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />

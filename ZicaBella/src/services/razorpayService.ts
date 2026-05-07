@@ -2,6 +2,13 @@ import RazorpayCheckout from 'react-native-razorpay';
 import { Alert } from 'react-native';
 import { config } from '../constants/config';
 
+/** Get a fresh auth token from zustand store at call time */
+function getFreshAuthToken(): string {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { useAuthStore } = require('../store/authStore');
+  return useAuthStore.getState().token || '';
+}
+
 export interface PaymentResult {
   razorpay_payment_id: string;
   razorpay_order_id: string;
@@ -83,19 +90,31 @@ export async function openRazorpayCheckout(
   // Step 1: Create Razorpay order on server
   let rzpOrder: any;
   let createOrderError: string | null = null;
-  
+
+  // Always use a fresh token from the store (not the stale one passed in)
+  const freshToken = authToken || getFreshAuthToken();
+  if (!freshToken) {
+    throw new Error('Please log in to proceed with payment.');
+  }
+
   // Try primary endpoint first
   try {
     const orderRes = await fetch(`${config.appUrl}/api/razorpay/create-order`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
+        'Accept': 'application/json',
+        Authorization: `Bearer ${freshToken}`,
       },
       body: JSON.stringify(orderData),
     });
 
-    if (!orderRes.ok) {
+    // Guard against HTML error pages
+    const contentType = orderRes.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      createOrderError = `Server returned non-JSON response (${orderRes.status})`;
+      console.warn('[Razorpay] Non-JSON response from create-order:', contentType);
+    } else if (!orderRes.ok) {
       const err = await orderRes.json().catch(() => ({ error: 'Order creation failed' }));
       createOrderError = err.error || 'Failed to create payment order';
     } else {
@@ -163,11 +182,13 @@ export async function openRazorpayCheckout(
 
     // Step 4: Verify signature server-side
     try {
+      const verifyToken = getFreshAuthToken(); // Re-fetch in case it refreshed
       const verifyRes = await fetch(`${config.appUrl}/api/razorpay/verify-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          'Accept': 'application/json',
+          Authorization: `Bearer ${verifyToken}`,
         },
         body: JSON.stringify({
           ...paymentData,

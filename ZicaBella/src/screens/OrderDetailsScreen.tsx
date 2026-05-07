@@ -35,11 +35,46 @@ export default function OrderDetailsScreen() {
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // ─── All hooks MUST be declared before any early return ────────────
+  // Guard inside the callback if `order` might be null.
+  const isCancelledMemo = useMemo(() => {
+    if (!order) return false;
+    return (order.status || '').toLowerCase().includes('cancel');
+  }, [order]);
+
+  const steps = useMemo(() => {
+    if (!order) return [];
+    const isPrepaid = order.paymentMethod === 'PREPAID' || order.paymentMethod2 === 'PREPAID';
+    const cancelled = (order.status || '').toLowerCase().includes('cancel');
+    return [
+      { step: 'order_placed', label: 'Order Placed' },
+      { step: 'awaiting_approval', label: isPrepaid ? 'Payment Confirmed' : 'Awaiting Approval' },
+      { step: 'approved', label: 'Approved & Processing' },
+      { step: 'shipped', label: 'Shipped' },
+      { step: 'out_for_delivery', label: 'Out for Delivery' },
+      { step: 'delivered', label: cancelled ? 'Cancelled' : 'Delivered' },
+    ];
+  }, [order]);
+
+  const timelineByStep = useMemo(() => {
+    const tl = Array.isArray(order?.statusTimeline) ? order.statusTimeline : [];
+    const m = new Map<string, string | null>();
+    tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
+
+    // Fallback to basic timeline if available
+    if (order?.timeline?.placedAt && !m.has('order_placed')) m.set('order_placed', order.timeline.placedAt);
+    if (order?.timeline?.shippedAt && !m.has('shipped')) m.set('shipped', order.timeline.shippedAt);
+    if (order?.timeline?.deliveredAt && !m.has('delivered')) m.set('delivered', order.timeline.deliveredAt);
+
+    return m;
+  }, [order]);
+
+  // ─── Early returns (after ALL hooks) ───────────────────────────────
   if (!orderId) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <Typography color={colors.text}>Order ID is missing.</Typography>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
+        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={{ marginTop: 20 }}>
           <Typography color={colors.iosBlue}>Go Back</Typography>
         </TouchableOpacity>
       </View>
@@ -145,7 +180,7 @@ export default function OrderDetailsScreen() {
           <Typography size={12} weight="800" color={colors.background}>TRY AGAIN</Typography>
         </TouchableOpacity>
         <TouchableOpacity 
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')}
           style={{ marginTop: 20 }}
         >
           <Typography size={12} weight="600" color={colors.iosBlue}>Go Back</Typography>
@@ -162,37 +197,12 @@ export default function OrderDetailsScreen() {
     );
   }
 
-  const isCancelled = (order.status || '').toLowerCase().includes('cancel');
+  const isCancelled = isCancelledMemo;
   const isDelivered = (Array.isArray(order.statusTimeline) ? order.statusTimeline : []).some((t: any) => t.step === 'delivered' && t.completedAt) || order.deliveryStatus === 'delivered';
   const orderNumber = order.orderNumber || order.id?.slice(0, 8);
   const trackingNumber = order.trackingNumber || order.tracking?.awb;
 
   const statusColor = isCancelled ? '#FF3B30' : isDelivered ? '#34C759' : '#007AFF';
-
-  const steps = useMemo(() => {
-    const isPrepaid = order.paymentMethod === 'PREPAID' || order.paymentMethod2 === 'PREPAID';
-    return [
-      { step: 'order_placed', label: 'Order Placed' },
-      { step: 'awaiting_approval', label: isPrepaid ? 'Payment Confirmed' : 'Awaiting Approval' },
-      { step: 'approved', label: 'Approved & Processing' },
-      { step: 'shipped', label: 'Shipped' },
-      { step: 'out_for_delivery', label: 'Out for Delivery' },
-      { step: 'delivered', label: isCancelled ? 'Cancelled' : 'Delivered' },
-    ];
-  }, [order.paymentMethod, order.paymentMethod2, isCancelled]);
-
-  const timelineByStep = useMemo(() => {
-    const tl = Array.isArray(order.statusTimeline) ? order.statusTimeline : [];
-    const m = new Map<string, string | null>();
-    tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
-    
-    // Fallback to basic timeline if available
-    if (order.timeline?.placedAt && !m.has('order_placed')) m.set('order_placed', order.timeline.placedAt);
-    if (order.timeline?.shippedAt && !m.has('shipped')) m.set('shipped', order.timeline.shippedAt);
-    if (order.timeline?.deliveredAt && !m.has('delivered')) m.set('delivered', order.timeline.deliveredAt);
-    
-    return m;
-  }, [order.statusTimeline, order.timeline]);
 
   const getItemImage = (item: any): string | null => {
     if (item.image) return item.image;
@@ -564,7 +574,7 @@ export default function OrderDetailsScreen() {
              {order.razorpayPaymentId && (
                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Typography size={10} weight="600" color={colors.textExtraLight}>Transaction ID</Typography>
-                  <Typography size={10} weight="700" color={colors.textMuted} font="mono">{order.razorpayPaymentId}</Typography>
+                  <Typography size={10} weight="700" color={colors.textMuted} style={{ fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{order.razorpayPaymentId}</Typography>
                </View>
              )}
           </View>

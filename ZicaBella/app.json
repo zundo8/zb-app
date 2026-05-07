@@ -41,7 +41,9 @@
         "expo-notifications",
         {
           "icon": "./assets/zb-logo-icon.png",
-          "color": "#000000"
+          "color": "#000000",
+          "sounds": [],
+          "mode": "production"
         }
       ],
 

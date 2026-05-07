@@ -149,11 +149,13 @@ export default function CheckoutScreen() {
   };
 
   const completeShopifyCheckout = async (payment?: any) => {
+    const token = useAuthStore.getState().token || '';
     const res = await fetch(`${config.appUrl}/api/checkout/complete`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${useAuthStore.getState().token || ''}`
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
         address: {
@@ -181,6 +183,12 @@ export default function CheckoutScreen() {
         razorpay: payment,
       }),
     });
+
+    // Guard against non-JSON responses (HTML error pages)
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Server error (${res.status})`);
+    }
 
     const json = await res.json();
     if (!res.ok) throw new Error(json?.error || 'Checkout failed');
@@ -230,6 +238,10 @@ export default function CheckoutScreen() {
           email: address.email,
           phone: address.phone,
           name: address.name,
+          shipping_address: {
+            first_name: address.name.split(' ')[0],
+            last_name: address.name.split(' ').slice(1).join(' ') || '',
+          },
         },
         useAuthStore.getState().token || ''
       );
@@ -297,7 +309,7 @@ export default function CheckoutScreen() {
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.back, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={[styles.back, { backgroundColor: colors.surface }]}>
           <Ionicons name="chevron-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>

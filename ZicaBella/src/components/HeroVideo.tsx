@@ -13,11 +13,23 @@ interface Props {
 
 export default function HeroVideo({ source, height: customHeight, borderRadius }: Props) {
   const colors = useColors();
-  const player = useVideoPlayer(source, (player) => {
-    player.loop = true;
-    player.muted = true;
-    player.play();
+  
+  // Guard against empty strings or invalid URLs that cause AVFoundation errors
+  const safeSource = source && source.trim() !== '' && source !== '/' ? source : null;
+
+  const player = useVideoPlayer(safeSource, (player) => {
+    if (safeSource) {
+      player.loop = true;
+      player.muted = true;
+      player.play();
+    }
   });
+
+  if (!safeSource) {
+    return (
+      <View style={[styles.container, { height: customHeight || '100%', borderRadius: borderRadius || 0, backgroundColor: colors.surface }]} />
+    );
+  }
 
   return (
     <View style={styles.container}>

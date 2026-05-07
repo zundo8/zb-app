@@ -13,10 +13,10 @@ import { useNavigation } from '@react-navigation/native';
 const { width } = Dimensions.get('window');
 
 const SOCIALS = [
-  { icon: 'logo-instagram', url: 'https://instagram.com/zicabella' },
+  { icon: 'logo-instagram', url: 'https://www.instagram.com/zica.bella' },
   { icon: 'disc-outline', url: 'https://apple.co/zicabella' },
   { icon: 'musical-notes-outline', url: 'https://spotify.com/zicabella' },
-  { icon: 'logo-youtube', url: 'https://youtube.com/zicabella' },
+  { icon: 'logo-youtube', url: 'https://www.youtube.com/@Zicabella' },
 ];
 
 export default function StorefrontFooter() {

@@ -83,7 +83,7 @@ export default function ReturnWizardScreen() {
     else if (step === 'METHOD') setStep('REASON');
     else if (step === 'REFUND_METHOD') setStep('METHOD');
     else if (step === 'REVIEW') setStep('REFUND_METHOD');
-    else navigation.goBack();
+    else navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main');
   };
 
   const selectedItemsData = order?.items?.filter((i: any) => selectedItems.includes(i.id)) || [];
