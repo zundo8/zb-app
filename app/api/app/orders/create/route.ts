@@ -118,12 +118,15 @@ export async function POST(req: Request) {
         // Encode the human-readable order number here so we can keep schema unchanged.
         shopifyOrderId: `#${orderNumber}`,
         status: 'awaiting_approval',
-        orderType: 'REGULAR',
+        orderType: 'MOBILE_APP',
         totalPrice: total,
         subtotalPrice: subtotal,
         totalTax: 0,
         currency: 'INR',
         paymentStatus,
+        razorpayOrderId: body.razorpayOrderId || body.razorpay_order_id,
+        razorpayPaymentId: paymentId,
+        paymentMethod: paymentMethod,
         fulfillmentStatus: 'unfulfilled',
         deliveryStatus: 'pending',
         shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
