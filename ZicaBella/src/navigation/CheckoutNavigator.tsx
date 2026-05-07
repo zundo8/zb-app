@@ -14,7 +14,7 @@ export default function CheckoutNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="DeliveryAddress" component={DeliveryAddressScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
-      <Stack.Screen name="OrderReview" component={require('../screens/checkout/OrderReviewScreen').default} />
+      <Stack.Screen name="OrderReview" component={OrderReviewScreen} />
     </Stack.Navigator>
   );
 }
