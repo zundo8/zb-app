@@ -235,14 +235,25 @@ export default function OrderDetailsScreen() {
           <View style={styles.summaryHeader}>
             <View>
               <Typography size={11} color={colors.textExtraLight} weight="500" style={{ letterSpacing: 1 }}>ORDER</Typography>
-              <Typography size={22} weight="800" color={colors.text} style={{ marginTop: 4, letterSpacing: -0.5 }}>
-                #{orderNumber}
-              </Typography>
+              <TouchableOpacity 
+                onPress={() => {
+                  haptics.buttonTap();
+                  Share.share({ message: `My Zica Bella Order: #${orderNumber}` });
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
+              >
+                <Typography size={22} weight="800" color={colors.text} style={{ letterSpacing: -0.5 }}>
+                  #{orderNumber}
+                </Typography>
+                <Ionicons name="share-outline" size={16} color={colors.textExtraLight} style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
             </View>
             <View style={[styles.statusPill, { backgroundColor: statusColor + '12' }]}>
               <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
               <Typography size={11} weight="700" color={statusColor} style={{ marginLeft: 6 }}>
-                {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : (order.deliveryStatus || 'Processing').replace(/_/g, ' ')}
+                {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : 
+                  (order.status === 'awaiting_approval' ? 'Awaiting Approval' : 
+                  (order.deliveryStatus || 'Processing').replace(/_/g, ' ')).toUpperCase()}
               </Typography>
             </View>
           </View>
@@ -523,6 +534,25 @@ export default function OrderDetailsScreen() {
             <Typography size={22} weight="800" color={colors.text} style={{ letterSpacing: -0.5 }}>
               {formatPrice(order.totalPrice || order.total)}
             </Typography>
+          </View>
+
+          <View style={[styles.paymentInfoBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', marginTop: 16, padding: 12, borderRadius: 12 }]}>
+             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Typography size={10} weight="600" color={colors.textExtraLight}>Payment Method</Typography>
+                <Typography size={10} weight="700" color={colors.textMuted}>{order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'Prepaid (Razorpay)'}</Typography>
+             </View>
+             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Typography size={10} weight="600" color={colors.textExtraLight}>Payment Status</Typography>
+                <Typography size={10} weight="700" color={order.paymentStatus === 'paid' ? colors.success : '#FF9F0A'}>
+                  {(order.paymentStatus || 'Pending').toUpperCase()}
+                </Typography>
+             </View>
+             {order.razorpayPaymentId && (
+               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Typography size={10} weight="600" color={colors.textExtraLight}>Transaction ID</Typography>
+                  <Typography size={10} weight="700" color={colors.textMuted} font="mono">{order.razorpayPaymentId}</Typography>
+               </View>
+             )}
           </View>
         </SectionCard>
 

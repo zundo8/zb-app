@@ -72,20 +72,21 @@ function statusTimeline(order: any) {
   const createdAt = order.createdAt ? new Date(order.createdAt).toISOString() : null;
   const status = String(order.status || '').toLowerCase();
   const delivery = String(order.deliveryStatus || '').toLowerCase();
+  const updatedAt = new Date(order.updatedAt).toISOString();
 
-  const awaitingApprovalCompletedAt = status === 'awaiting_approval' ? createdAt : null;
-  const approvedCompletedAt = status === 'approved' ? new Date(order.updatedAt).toISOString() : null;
-  const shippedCompletedAt = delivery === 'shipped' ? new Date(order.updatedAt).toISOString() : null;
-  const outForDeliveryCompletedAt = delivery === 'out_for_delivery' ? new Date(order.updatedAt).toISOString() : null;
-  const deliveredCompletedAt = delivery === 'delivered' ? new Date(order.updatedAt).toISOString() : null;
+  const isDelivered = delivery === 'delivered';
+  const isOutForDelivery = isDelivered || delivery === 'out_for_delivery';
+  const isShipped = isOutForDelivery || delivery === 'shipped';
+  const isApproved = isShipped || status === 'approved';
+  const isAwaiting = isApproved || status === 'awaiting_approval';
 
   return [
     { step: 'order_placed', completedAt: createdAt },
-    { step: 'awaiting_approval', completedAt: awaitingApprovalCompletedAt ?? createdAt },
-    { step: 'approved', completedAt: approvedCompletedAt },
-    { step: 'shipped', completedAt: shippedCompletedAt },
-    { step: 'out_for_delivery', completedAt: outForDeliveryCompletedAt },
-    { step: 'delivered', completedAt: deliveredCompletedAt },
+    { step: 'awaiting_approval', completedAt: isAwaiting ? createdAt : null },
+    { step: 'approved', completedAt: isApproved ? updatedAt : null },
+    { step: 'shipped', completedAt: isShipped ? updatedAt : null },
+    { step: 'out_for_delivery', completedAt: isOutForDelivery ? updatedAt : null },
+    { step: 'delivered', completedAt: isDelivered ? updatedAt : null },
   ];
 }
 
