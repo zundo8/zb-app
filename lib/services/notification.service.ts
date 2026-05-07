@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
-import db from '../db'; // Assuming standard Prisma client export
+import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+import db from '../db';
 
 // Initialize Firebase Admin SDK if not already initialized
 if (!admin.apps.length) {
@@ -15,6 +16,9 @@ if (!admin.apps.length) {
     console.error('Firebase admin initialization error', error);
   }
 }
+
+// Initialize Expo SDK
+const expo = new Expo();
 
 export const NotificationService = {
   /**
@@ -33,6 +37,7 @@ export const NotificationService = {
         platform: data.platform || 'ios',
         appVersion: data.appVersion,
         isActive: true,
+        updatedAt: new Date()
       },
       create: {
         userId: data.userId,
@@ -51,166 +56,129 @@ export const NotificationService = {
   async unregisterDevice(userId: string, deviceId: string) {
     return db.deviceToken.update({
       where: {
-        userId_deviceId: {
-          userId,
-          deviceId,
-        },
+        userId_deviceId: { userId, deviceId },
       },
-      data: {
-        isActive: false,
-      },
+      data: { isActive: false },
     });
   },
 
   /**
-   * Sends a notification to a specific user using FCM multicast
+   * Sends a notification to a specific user
    */
   async sendToUser(userId: string, title: string, body: string, data?: Record<string, string>) {
     const devices = await db.deviceToken.findMany({
-      where: {
-        userId,
-        isActive: true,
-      },
+      where: { userId, isActive: true },
     });
 
     if (devices.length === 0) {
-      return { success: false, reason: 'No active devices found for user.' };
+      return { success: false, reason: 'No active devices found.' };
     }
 
     const tokens = devices.map(d => d.fcmToken);
-
-    const message: admin.messaging.MulticastMessage = {
-      notification: {
-        title,
-        body,
-        imageUrl: (data as any)?.imageUrl || undefined
-      },
-      data: data as any,
-      tokens,
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default',
-            badge: 1, // You could calculate exact badge count here if needed
-          },
-        },
-      },
-    };
-
-    try {
-      const response = await admin.messaging().sendEachForMulticast(message);
-      
-      // Cleanup stale tokens
-      const tokensToRemove: string[] = [];
-      response.responses.forEach((res, idx) => {
-        if (!res.success) {
-          const errorCode = res.error?.code;
-          if (
-            errorCode === 'messaging/invalid-registration-token' ||
-            errorCode === 'messaging/registration-token-not-registered'
-          ) {
-            tokensToRemove.push(tokens[idx]);
-          }
-        }
-      });
-
-      if (tokensToRemove.length > 0) {
-        await db.deviceToken.updateMany({
-          where: { fcmToken: { in: tokensToRemove } },
-          data: { isActive: false },
-        });
-      }
-
-      return { 
-        success: true, 
-        successCount: response.successCount, 
-        failureCount: response.failureCount 
-      };
-    } catch (error) {
-      console.error('Error sending push notification to user:', error);
-      throw error;
-    }
+    return this.sendToTokens(tokens, title, body, data);
   },
 
   /**
-   * Send notification to an array of user IDs (batches of 500)
-   */
-  async sendToSegment(userIds: string[], title: string, body: string, data?: Record<string, string>) {
-     // Fetch all active tokens for these users
-     const devices = await db.deviceToken.findMany({
-        where: {
-            userId: { in: userIds },
-            isActive: true
-        }
-     });
-
-     const tokens = devices.map(d => d.fcmToken);
-     return this.sendToTokens(tokens, title, body, data);
-  },
-
-  /**
-   * Helper to send to arbitrary tokens with 500-chunk limits
+   * Send notification to an array of tokens (handles both FCM and Expo)
    */
   async sendToTokens(tokens: string[], title: string, body: string, data?: Record<string, string>) {
-      if (tokens.length === 0) return { success: true, successCount: 0, failureCount: 0 };
+    if (tokens.length === 0) return { success: true, successCount: 0, failureCount: 0 };
 
-      let successCount = 0;
-      let failureCount = 0;
-      
-      // Firebase limits to 500 tokens per multicast
-      for (let i = 0; i < tokens.length; i += 500) {
-          const chunk = tokens.slice(i, i + 500);
-          const message: admin.messaging.MulticastMessage = {
-            notification: { 
-              title, 
-              body,
-              imageUrl: (data as any)?.imageUrl || undefined 
-            },
-            data: data as any,
-            tokens: chunk,
-            android: {
-              priority: 'high',
-            },
-            apns: {
-              payload: { 
-                aps: { 
-                  sound: 'default', 
-                  badge: 1,
-                  'content-available': 1,
-                  mutableContent: true
-                } 
-              },
-              headers: {
-                'apns-priority': '10', // High priority
-              }
-            },
-          };
+    const expoTokens: string[] = [];
+    const fcmTokens: string[] = [];
 
-          try {
-              const response = await admin.messaging().sendEachForMulticast(message);
-              successCount += response.successCount;
-              failureCount += response.failureCount;
-
-              // Cleanup
-              const tokensToRemove: string[] = [];
-              response.responses.forEach((res, idx) => {
-                  if (!res.success && (res.error?.code === 'messaging/invalid-registration-token' || res.error?.code === 'messaging/registration-token-not-registered')) {
-                      tokensToRemove.push(chunk[idx]);
-                  }
-              });
-
-              if (tokensToRemove.length > 0) {
-                  await db.deviceToken.updateMany({
-                      where: { fcmToken: { in: tokensToRemove } },
-                      data: { isActive: false }
-                  });
-              }
-          } catch(err) {
-              console.error('Error sending multicast chunk:', err);
-              // continue sending next chunks even if one fails
-          }
+    tokens.forEach(token => {
+      if (Expo.isExpoPushToken(token)) {
+        expoTokens.push(token);
+      } else {
+        fcmTokens.push(token);
       }
+    });
 
-      return { success: true, successCount, failureCount };
+    let successCount = 0;
+    let failureCount = 0;
+
+    // --- Process Expo Tokens ---
+    if (expoTokens.length > 0) {
+      const messages: ExpoPushMessage[] = expoTokens.map(token => ({
+        to: token,
+        sound: 'default',
+        title,
+        body,
+        data: data as any,
+        badge: 1,
+      }));
+
+      const chunks = expo.chunkPushNotifications(messages);
+      for (const chunk of chunks) {
+        try {
+          const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+          ticketChunk.forEach((ticket: any, idx: number) => {
+            if (ticket.status === 'ok') {
+              successCount++;
+            } else {
+              failureCount++;
+              console.error(`Expo send error: ${ticket.details?.error}`);
+              if (ticket.details?.error === 'DeviceNotRegistered') {
+                // Cleanup stale token
+                db.deviceToken.updateMany({
+                  where: { fcmToken: chunk[idx].to as string },
+                  data: { isActive: false }
+                }).catch(() => {});
+              }
+            }
+          });
+        } catch (error) {
+          console.error('Expo chunk send error:', error);
+          failureCount += chunk.length;
+        }
+      }
+    }
+
+    // --- Process FCM Tokens ---
+    if (fcmTokens.length > 0) {
+      // Firebase limits to 500 tokens per multicast
+      for (let i = 0; i < fcmTokens.length; i += 500) {
+        const chunk = fcmTokens.slice(i, i + 500);
+        const message: admin.messaging.MulticastMessage = {
+          notification: { title, body, imageUrl: (data as any)?.imageUrl || undefined },
+          data: data as any,
+          tokens: chunk,
+          android: { priority: 'high' },
+          apns: {
+            payload: {
+              aps: { sound: 'default', badge: 1, 'content-available': 1, mutableContent: true }
+            },
+            headers: { 'apns-priority': '10' }
+          },
+        };
+
+        try {
+          const response = await admin.messaging().sendEachForMulticast(message);
+          successCount += response.successCount;
+          failureCount += response.failureCount;
+
+          // Cleanup stale FCM tokens
+          const tokensToRemove: string[] = [];
+          response.responses.forEach((res, idx) => {
+            if (!res.success && (res.error?.code === 'messaging/invalid-registration-token' || res.error?.code === 'messaging/registration-token-not-registered')) {
+              tokensToRemove.push(chunk[idx]);
+            }
+          });
+
+          if (tokensToRemove.length > 0) {
+            await db.deviceToken.updateMany({
+              where: { fcmToken: { in: tokensToRemove } },
+              data: { isActive: false }
+            }).catch(() => {});
+          }
+        } catch (err) {
+          console.error('FCM multicast error:', err);
+          failureCount += chunk.length;
+        }
+      }
+    }
+
+    return { success: true, successCount, failureCount };
   }
 };

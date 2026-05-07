@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Bell, Send, Smartphone, Users, Zap, Image as ImageIcon, 
-  Link as LinkIcon, Clock, ShieldCheck, Sparkles, AlertCircle 
+  Link as LinkIcon, Clock, ShieldCheck, Sparkles, AlertCircle,
+  History, RefreshCw, CheckCircle2, XCircle
 } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 export default function PushNotificationsPage() {
   const [title, setTitle] = useState("");
@@ -18,6 +20,29 @@ export default function PushNotificationsPage() {
   const [deepLinkId, setDeepLinkId] = useState("");
   const [loading, setLoading] = useState(false);
   const [isInstant, setIsInstant] = useState(true);
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const fetchHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const res = await fetch("/api/notifications/history?limit=10");
+      const data = await res.json();
+      if (data.success) {
+        setHistory(data.history || []);
+        setTotal(data.total || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +70,7 @@ export default function PushNotificationsPage() {
         setTitle("");
         setBody("");
         setImageUrl("");
+        fetchHistory(); // Refresh history
       } else {
         toast.error(data.error || "Failed to send notification");
       }
@@ -335,6 +361,153 @@ export default function PushNotificationsPage() {
           </motion.div>
         </div>
       </div>
+
+      {/* History Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="px-4 space-y-8"
+      >
+        <div className="flex items-center justify-between">
+           <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-500/10 rounded-2xl">
+                 <History className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                 <h2 className="text-2xl font-bold uppercase tracking-tight">Neural History</h2>
+                 <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest mt-1">Audit log of all dispatched engagement packets</p>
+              </div>
+           </div>
+           
+           <button 
+             onClick={fetchHistory}
+             disabled={historyLoading}
+             className="flex items-center gap-2 px-6 py-3 bg-foreground/5 hover:bg-foreground/10 rounded-xl transition-all border border-foreground/[0.05]"
+           >
+              <RefreshCw className={`w-3 h-3 ${historyLoading ? 'animate-spin' : ''}`} />
+              <span className="text-[9px] font-black uppercase tracking-widest">Refresh Registry</span>
+           </button>
+        </div>
+
+        <div className="glass-card rounded-[2.5rem] overflow-hidden border-foreground/[0.03]">
+           <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                 <thead>
+                    <tr className="border-b border-foreground/[0.05] bg-foreground/[0.02]">
+                       <th className="px-8 py-6 text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30">Timestamp</th>
+                       <th className="px-8 py-6 text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30">Campaign Details</th>
+                       <th className="px-8 py-6 text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30">Targeting</th>
+                       <th className="px-8 py-6 text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30">Reach Metrics</th>
+                       <th className="px-8 py-6 text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30">Status</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-foreground/[0.03]">
+                    {historyLoading && history.length === 0 ? (
+                       <tr>
+                          <td colSpan={5} className="px-8 py-20 text-center">
+                             <div className="flex flex-col items-center gap-4 opacity-20">
+                                <RefreshCw className="w-8 h-8 animate-spin" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Accessing Neural Database...</span>
+                             </div>
+                          </td>
+                       </tr>
+                    ) : history.length === 0 ? (
+                       <tr>
+                          <td colSpan={5} className="px-8 py-20 text-center">
+                             <div className="flex flex-col items-center gap-4 opacity-20">
+                                <Bell className="w-8 h-8" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">No dispatch records found</span>
+                             </div>
+                          </td>
+                       </tr>
+                    ) : (
+                       history.map((record) => (
+                          <tr key={record.id} className="hover:bg-foreground/[0.02] transition-colors group">
+                             <td className="px-8 py-8">
+                                <div className="flex flex-col gap-1">
+                                   <span className="text-[11px] font-bold text-foreground/80">
+                                      {format(new Date(record.createdAt), "MMM d, HH:mm")}
+                                   </span>
+                                   <span className="text-[9px] font-medium text-foreground/30 uppercase tracking-widest">
+                                      {format(new Date(record.createdAt), "yyyy")}
+                                   </span>
+                                </div>
+                             </td>
+                             <td className="px-8 py-8">
+                                <div className="flex items-start gap-4">
+                                   {record.imageUrl && (
+                                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-foreground/5 border border-foreground/10 shrink-0">
+                                         <img src={record.imageUrl} alt="" className="w-full h-full object-cover" />
+                                      </div>
+                                   )}
+                                   <div className="flex flex-col gap-1.5 max-w-xs">
+                                      <span className="text-[13px] font-bold tracking-tight leading-none">{record.title}</span>
+                                      <p className="text-[11px] text-foreground/50 line-clamp-1 leading-relaxed">{record.body}</p>
+                                   </div>
+                                </div>
+                             </td>
+                             <td className="px-8 py-8">
+                                <div className="flex flex-col gap-2">
+                                   <div className="flex items-center gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-foreground/60">
+                                         {record.targetType === 'all' ? 'Global' : record.targetType}
+                                      </span>
+                                   </div>
+                                   {record.deepLinkType !== 'none' && (
+                                      <span className="text-[9px] font-bold text-foreground/30 uppercase tracking-[0.15em]">
+                                         Route: {record.deepLinkType}
+                                      </span>
+                                   )}
+                                </div>
+                             </td>
+                             <td className="px-8 py-8">
+                                <div className="flex items-center gap-8">
+                                   <div className="flex flex-col gap-1">
+                                      <span className="text-[14px] font-black leading-none">{record.sentCount}</span>
+                                      <span className="text-[9px] font-bold text-foreground/30 uppercase tracking-widest">Dispatched</span>
+                                   </div>
+                                   <div className="flex flex-col gap-1">
+                                      <span className="text-[14px] font-black text-emerald-500 leading-none">{record.deliveredCount}</span>
+                                      <span className="text-[9px] font-bold text-foreground/30 uppercase tracking-widest">Resolved</span>
+                                   </div>
+                                </div>
+                             </td>
+                             <td className="px-8 py-8 text-right">
+                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border ${
+                                   record.status === 'sent' 
+                                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
+                                      : 'bg-foreground/5 border-foreground/10 text-foreground/40'
+                                }`}>
+                                   {record.status === 'sent' ? (
+                                      <CheckCircle2 className="w-3 h-3" />
+                                   ) : (
+                                      <Clock className="w-3 h-3" />
+                                   )}
+                                   <span className="text-[9px] font-black uppercase tracking-widest">
+                                      {record.status === 'sent' ? 'Success' : record.status}
+                                   </span>
+                                </div>
+                             </td>
+                          </tr>
+                       ))
+                    )}
+                 </tbody>
+              </table>
+           </div>
+        </div>
+
+        <div className="flex items-center justify-between p-8 glass-card rounded-3xl border-foreground/[0.03]">
+           <p className="text-[10px] font-bold uppercase tracking-widest text-foreground/30">
+              Showing {history.length} of {total} Dispatch Operations
+           </p>
+           <div className="flex gap-4">
+              <button disabled className="px-6 py-2 rounded-xl border border-foreground/[0.05] text-[9px] font-bold opacity-30 uppercase tracking-widest">Previous</button>
+              <button disabled={total <= history.length} className="px-6 py-2 rounded-xl border border-foreground/[0.05] text-[9px] font-bold uppercase tracking-widest hover:bg-foreground/5 transition-all">Next Cluster</button>
+           </div>
+        </div>
+      </motion.div>
     </div>
   );
 }

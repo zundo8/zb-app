@@ -12,6 +12,9 @@ import GlassHeader from '../components/GlassHeader';
 import { useNotificationStore, NotificationItem } from '../store/notificationStore';
 import { NotificationService } from '../services/NotificationService';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuthStore } from '../store/authStore';
+import { config } from '../constants/config';
+import { haptics } from '../utils/haptics';
 
 const { width } = Dimensions.get('window');
 
@@ -24,6 +27,34 @@ export default function NotificationsScreen() {
   const notifications = useNotificationStore(s => s.notifications);
   const markAsRead = useNotificationStore(s => s.markAsRead);
   const markAllAsRead = useNotificationStore(s => s.markAllAsRead);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const token = useAuthStore(s => s.token);
+
+  const fetchNotifications = React.useCallback(async () => {
+    try {
+      setRefreshing(true);
+      const res = await fetch(`${config.appUrl}/api/app/notifications/history`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.notifications)) {
+        // We sync server notifications into our local store to merge them
+        data.notifications.forEach((n: any) => {
+          useNotificationStore.getState().addNotification(n);
+        });
+      }
+    } catch (e) {
+      console.warn('[Notifications] Fetch error:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [token]);
+
+  React.useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const handlePress = (item: NotificationItem) => {
     markAsRead(item.id);
@@ -90,6 +121,8 @@ export default function NotificationsScreen() {
         renderItem={renderItem}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={() => { haptics.buttonTap(); fetchNotifications(); }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="notifications-off-outline" size={48} color={colors.textLight} />
