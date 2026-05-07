@@ -15,6 +15,7 @@ import TabNavigator from './TabNavigator';
 import CheckoutNavigator from './CheckoutNavigator';
 import ServiceNavigator from './ServiceNavigator';
 import OrderConfirmationScreen from '../screens/OrderConfirmationScreen';
+import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import ProductDetailScreen from '../screens/ProductDetailScreen';
 import { withErrorBoundary } from '../components/ErrorBoundary';
 import { RootStackParamList } from './types';
@@ -124,15 +125,15 @@ export const RootNavigator = () => {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <NavigationContainer ref={navigationRef} linking={linking as any} theme={navigationTheme}>
         <Stack.Navigator id="RootStackNavigator" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-          {!isAuthenticated ? (
+          <Stack.Screen name="Main" component={TabNavigator} />
+          {!isAuthenticated && (
             <Stack.Screen name="Auth" component={AuthNavigator} />
-          ) : (
-            <Stack.Screen name="Main" component={TabNavigator} />
           )}
           
           <Stack.Screen name="CheckoutFlow" component={CheckoutNavigator} />
           <Stack.Screen name="ServiceFlow" component={ServiceNavigator} />
           <Stack.Screen name="OrderConfirmation" component={SafeOrderConfirmation} />
+          <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
           <Stack.Screen name="ProductDetail" component={SafeProductDetail} />
         </Stack.Navigator>
 
