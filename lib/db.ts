@@ -60,13 +60,29 @@ const prismaClientSingleton = () => {
     return createMockPrismaClient('no_postgres_url');
   }
 
+  // HACK: Force no-verify for SSL to handle self-signed certificates (Supabase pooler issue)
+  const sanitizedPgUrl = pgUrl.includes('sslmode=require') 
+    ? pgUrl.replace('sslmode=require', 'sslmode=no-verify')
+    : pgUrl;
+
   try {
+    // Force allow self-signed certificates globally for the process
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
     const pool = new Pool({
-      connectionString: pgUrl,
-      ssl: { rejectUnauthorized: false },
+      connectionString: sanitizedPgUrl,
+      ssl: { 
+        rejectUnauthorized: false 
+      },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
     });
+
+    pool.on('error', (err) => {
+      console.error('[DB] Unexpected error on idle client', err);
+    });
+
     const adapter = new PrismaPg(pool);
 
     const client = new PrismaClient({
@@ -74,6 +90,7 @@ const prismaClientSingleton = () => {
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     });
 
+    console.log('[DB] Prisma Client initialized with PgAdapter');
     return client;
   } catch (error: any) {
     console.error('[DB] Critical Prisma initialization error:', error.message);
