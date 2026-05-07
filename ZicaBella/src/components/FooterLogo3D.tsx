@@ -3,7 +3,7 @@ import { View, StyleSheet, PanResponder, Image } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Bounds, Float } from '@react-three/drei';
 
-const GLB_URL = 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb';
+const GLB_URL = 'https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb';
 
 function Model({ touchRotation }: { touchRotation: React.MutableRefObject<{ x: number, y: number }> }) {
   const { scene } = useGLTF(GLB_URL);

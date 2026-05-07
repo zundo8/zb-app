@@ -159,7 +159,47 @@ export default function OrderDetailsScreen() {
 
   const contactSupport = () => {
     haptics.buttonTap();
-    Linking.openURL(config.contactPage);
+    navigation.navigate('ChatTab');
+  };
+
+  const handleCancelOrder = async () => {
+    Alert.alert(
+      "Cancel Order",
+      "Are you sure you want to cancel this order?",
+      [
+        { text: "No", style: "cancel" },
+        { 
+          text: "Yes, Cancel", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const token = useAuthStore.getState().token || '';
+              const response = await fetch(`${config.apiUrl}/api/app/orders/cancel`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ orderId: order.id, reason: 'User cancelled' })
+              });
+              
+              const data = await response.json();
+              if (data.error) throw new Error(data.error);
+              
+              haptics.success();
+              Alert.alert("Success", "Your order has been cancelled.");
+              fetchOrderDetails(); // Refresh
+            } catch (e: any) {
+              haptics.error();
+              Alert.alert("Error", e.message || "Failed to cancel order");
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   if (loading && !order) {
@@ -620,13 +660,10 @@ export default function OrderDetailsScreen() {
             <Ionicons name="chatbubble-outline" size={16} color={colors.text} />
             <Typography size={12} weight="600" color={colors.text} style={{ marginLeft: 6 }}>Support</Typography>
           </TouchableOpacity>
-          {(!isCancelled && !isDelivered && (order.status === 'pending' || order.status === 'awaiting_approval' || !order.statusTimeline?.find((t: any) => t.step === 'shipped')?.completedAt)) && (
+          {(!isCancelled && (order.status === 'pending' || order.status === 'awaiting_approval')) && (
             <TouchableOpacity
               style={[styles.supportBtn, { backgroundColor: '#FF3B3015', borderColor: '#FF3B3030' }]}
-              onPress={() => {
-                haptics.error();
-                // Add your cancel logic here
-              }}
+              onPress={handleCancelOrder}
             >
               <Ionicons name="close-circle-outline" size={16} color="#FF3B30" />
               <Typography size={12} weight="600" color="#FF3B30" style={{ marginLeft: 6 }}>Cancel Order</Typography>

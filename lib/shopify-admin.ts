@@ -242,6 +242,16 @@ export async function createOrder(order: any): Promise<ShopifyOrder> {
   return data.order;
 }
 
+export async function cancelOrder(orderId: string, reason = 'customer'): Promise<any> {
+  try {
+    const data = await shopifyPost<any>(`orders/${orderId}/cancel.json`, { reason });
+    return data;
+  } catch (e) {
+    console.error(`[Shopify Admin] Error cancelling order ${orderId}:`, e);
+    throw e;
+  }
+}
+
 // ─── Customers ───────────────────────────────────────────────────────
 
 export interface ShopifyCustomer {
