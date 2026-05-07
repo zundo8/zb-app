@@ -760,4 +760,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  paymentInfoBox: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+  },
 });
