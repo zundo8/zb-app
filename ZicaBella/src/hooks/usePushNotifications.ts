@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import * as Device from 'expo-device';
+
 import Constants from 'expo-constants';
 import { useNotificationStore } from '../store/notificationStore';
 import { useAuthStore } from '../store/authStore';
@@ -71,7 +71,7 @@ export function usePushNotifications() {
 async function registerTokenWithBackend(token: string) {
   try {
     const authToken = useAuthStore.getState().token;
-    await fetch(`${config.apiUrl}/api/app/notifications/register`, {
+    await fetch(`${config.appUrl}/api/app/notifications/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,7 +79,7 @@ async function registerTokenWithBackend(token: string) {
       },
       body: JSON.stringify({
         token,
-        deviceId: Device.osBuildId || Device.modelName || 'unknown',
+        deviceId: Constants.installationId || `dev_${Platform.OS}_${Date.now()}`,
         platform: Platform.OS,
         appVersion: Constants.expoConfig?.version || '1.0.0'
       })

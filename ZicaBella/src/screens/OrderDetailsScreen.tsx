@@ -175,7 +175,7 @@ export default function OrderDetailsScreen() {
             try {
               setLoading(true);
               const token = useAuthStore.getState().token || '';
-              const response = await fetch(`${config.apiUrl}/api/app/orders/cancel`, {
+              const response = await fetch(`${config.appUrl}/api/app/orders/cancel`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

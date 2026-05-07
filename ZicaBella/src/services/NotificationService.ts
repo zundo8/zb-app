@@ -23,18 +23,10 @@ import { haptics } from '../utils/haptics';
  * Falls back to `true` so real devices still attempt push registration.
  */
 function isPhysicalDevice(): boolean {
-  try {
-    // Try expo-device if available (it may be in a custom dev-client build)
-    const ExpoDevice = require('expo-device');
-    return !!ExpoDevice.isDevice;
-  } catch {
-    // expo-device native module not available — use heuristic:
-    // On iOS simulator, Constants.isDevice is false
-    // @ts-ignore — isDevice exists at runtime even if not in types
-    if (Constants.isDevice === false) return false;
-    // If we can't determine, assume physical device (safe default)
-    return true;
-  }
+  // Safe heuristic from expo-constants (always available)
+  // @ts-ignore
+  if (Constants.isDevice === false) return false;
+  return true;
 }
 
 /**
