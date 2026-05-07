@@ -95,7 +95,10 @@ export default function OrderReviewScreen() {
              shipping_address: orderData.shippingAddress
            }, token);
 
-           if (!rzpResult || !rzpResult.razorpay_payment_id) {
+           const paymentId = rzpResult.payment_id || rzpResult.razorpay_payment_id;
+           const rzpOrderId = rzpResult.razorpay_order_id || rzpResult.order_id || (rzpResult.order?.id);
+
+           if (!rzpResult || !paymentId) {
              throw new Error('Payment verification failed or was incomplete.');
            }
 
@@ -109,14 +112,14 @@ export default function OrderReviewScreen() {
              },
              body: JSON.stringify({
                ...orderData,
-               paymentId: rzpResult.razorpay_payment_id,
-               razorpayOrderId: rzpResult.razorpay_order_id,
+               paymentId: paymentId,
+               razorpayOrderId: rzpOrderId,
              })
            });
 
            if (!res.ok) {
              const errJson = await res.json().catch(() => ({}));
-             throw new Error(errJson.error || 'Payment was successful but we failed to record your order. Please contact support with Payment ID: ' + rzpResult.razorpay_payment_id);
+             throw new Error(errJson.error || 'Payment was successful but we failed to record your order. Please contact support with Payment ID: ' + paymentId);
            }
 
            const json = await res.json();

@@ -12,6 +12,8 @@ import { formatPrice } from '../utils/formatPrice';
 import { useAuthStore } from '../store/authStore';
 import { config } from '../constants/config';
 import { haptics } from '../utils/haptics';
+import { useUIStore } from '../store/uiStore';
+import { useEffect } from 'react';
 
 export default function ExchangeSelectProductScreen() {
   const insets = useSafeAreaInsets();
@@ -19,6 +21,12 @@ export default function ExchangeSelectProductScreen() {
   const route = useRoute<any>();
   const { order } = route.params || {};
   const colors = useColors();
+
+  const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
+  useEffect(() => {
+    setTabBarVisible(false);
+    return () => setTabBarVisible(true);
+  }, []);
 
   if (!order) {
     return (

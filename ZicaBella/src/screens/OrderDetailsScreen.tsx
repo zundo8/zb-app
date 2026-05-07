@@ -16,6 +16,7 @@ import { config } from '../constants/config';
 import { Typography } from '../components/Typography';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
+import { useUIStore } from '../store/uiStore';
 import { Image } from 'expo-image';
 import { trackOrder } from '../services/shipmentService';
 
@@ -36,6 +37,13 @@ export default function OrderDetailsScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // ─── All hooks MUST be declared before any early return ────────────
+  const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
+
+  useEffect(() => {
+    setTabBarVisible(false);
+    return () => setTabBarVisible(true);
+  }, []);
+
   // Guard inside the callback if `order` might be null.
   const isCancelledMemo = useMemo(() => {
     if (!order) return false;
@@ -189,6 +197,12 @@ export default function OrderDetailsScreen() {
     );
   }
 
+  const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
+  useEffect(() => {
+    setTabBarVisible(false);
+    return () => setTabBarVisible(true);
+  }, []);
+
   if (!order) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
@@ -237,7 +251,7 @@ export default function OrderDetailsScreen() {
 
       <Animated.ScrollView
         style={{ opacity: fadeAnim }}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 140 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 200 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ─── Order Summary Header ─── */}
