@@ -60,6 +60,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, result });
   } catch (error: any) {
     console.error('Manual notification send error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message,
+      detail: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+    }, { status: 500 });
   }
 }

@@ -90,7 +90,7 @@ const prismaClientSingleton = () => {
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     });
 
-    console.log('[DB] Prisma Client initialized with PgAdapter');
+    console.log('[DB] Prisma Client initialized with PgAdapter (SSL Patch v1.0.2 active)');
     return client;
   } catch (error: any) {
     console.error('[DB] Critical Prisma initialization error:', error.message);
