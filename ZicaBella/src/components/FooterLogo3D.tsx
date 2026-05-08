@@ -13,31 +13,35 @@ function Model({
 }) {
   const { scene } = useGLTF(glbUrl);
   const group = useRef<any>(null);
-  const lastRotation = useRef({ x: 0, y: 0 });
+  const currentRotation = useRef({ x: 0, y: 0 });
 
   useFrame((_state, delta) => {
     if (group.current) {
-      // Gentle base rotation
-      group.current.rotation.y += delta * 0.4;
+      // 1. Base auto-rotation (gentle)
+      group.current.rotation.y += delta * 0.3;
 
-      // Add touch-driven rotation
-      group.current.rotation.x += touchRotation.current.y * 0.05;
-      group.current.rotation.y += touchRotation.current.x * 0.05;
+      // 2. Smoothly interpolate the touch rotation (LERP)
+      // This makes the movement feel "feather light" and fluid
+      currentRotation.current.x += (touchRotation.current.x - currentRotation.current.x) * 0.15;
+      currentRotation.current.y += (touchRotation.current.y - currentRotation.current.y) * 0.15;
 
-      // Decay touch influence for "inertia"
-      touchRotation.current.x *= 0.92;
-      touchRotation.current.y *= 0.92;
+      // 3. Apply the rotation
+      group.current.rotation.x += currentRotation.current.y;
+      group.current.rotation.y += currentRotation.current.x;
+
+      // 4. Decay the touch target (Inertia)
+      touchRotation.current.x *= 0.95;
+      touchRotation.current.y *= 0.95;
     }
   });
 
   return (
     <group ref={group}>
-      <Float speed={1.5} rotationIntensity={0.5} floatIntensity={0.5}>
+      <Float speed={2} rotationIntensity={0.6} floatIntensity={0.6}>
         <primitive 
           object={scene} 
-          scale={2.2} 
+          scale={2.3} 
           position={[0, 0, 0]} 
-          rotation={[0, 0, 0]}
         />
       </Float>
     </group>
@@ -52,22 +56,32 @@ type Props = {
 export default function FooterLogo({ glbUrl }: Props) {
   const url = (glbUrl || config.footerLogo3dGlb).trim();
   const touchRotation = useRef({ x: 0, y: 0 });
-  const lastPos = useRef({ x: 0, y: 0 });
+  const lastGesture = useRef({ dx: 0, dy: 0 });
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        lastPos.current = { x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY };
+      onPanResponderGrant: () => {
+        lastGesture.current = { dx: 0, dy: 0 };
       },
-      onPanResponderMove: (evt, gestureState) => {
-        // Use velocity and displacement for a responsive "flick" feel
-        touchRotation.current.x = gestureState.vx * 0.5;
-        touchRotation.current.y = gestureState.vy * 0.5;
+      onPanResponderMove: (_evt, gestureState) => {
+        // High-sensitivity displacement tracking
+        const sensitivity = 0.02;
+        const dx = (gestureState.dx - lastGesture.current.dx) * sensitivity;
+        const dy = (gestureState.dy - lastGesture.current.dy) * sensitivity;
+        
+        // Accumulate displacement for the next frame
+        touchRotation.current.x = dx;
+        touchRotation.current.y = dy;
+        
+        lastGesture.current = { dx: gestureState.dx, dy: gestureState.dy };
       },
-      onPanResponderRelease: () => {
-        // Inertia takes over via useFrame decay
+      onPanResponderRelease: (_evt, gestureState) => {
+        // Boosted flick velocity for satisfying inertia
+        const flickBoost = 0.25;
+        touchRotation.current.x = gestureState.vx * flickBoost;
+        touchRotation.current.y = gestureState.vy * flickBoost;
       }
     })
   ).current;
@@ -79,10 +93,10 @@ export default function FooterLogo({ glbUrl }: Props) {
         camera={{ position: [0, 0, 6], fov: 40 }}
         gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true }}
       >
-        <ambientLight intensity={1.2} />
-        <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={2} />
-        <pointLight position={[-10, -10, -10]} intensity={1} color="#ffffff" />
-        <directionalLight position={[0, 5, 5]} intensity={1.5} />
+        <ambientLight intensity={1.8} />
+        <spotLight position={[10, 15, 10]} angle={0.2} penumbra={1} intensity={3} />
+        <pointLight position={[-10, -5, -10]} intensity={2} color="#ffffff" />
+        <directionalLight position={[0, 10, 5]} intensity={2.5} />
         <Suspense fallback={null}>
           <Bounds fit clip observe margin={1.1}>
             <Model glbUrl={url} touchRotation={touchRotation} />

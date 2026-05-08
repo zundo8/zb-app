@@ -33,7 +33,15 @@ export const SmsService = {
 
     if (!activeClient || !activeFromNumber) {
       console.error('[SmsService] Twilio credentials not configured. Cannot send SMS.');
-      throw new Error('SMS service is not configured. Please set up Twilio credentials in the admin dashboard.');
+      // If we are in development, we might want to log the message instead of failing completely
+      if (process.env.NODE_ENV === 'development') {
+        console.log('------------------------------------------------');
+        console.log(`[DEV MOCK SMS] To: ${to}`);
+        console.log(`[DEV MOCK SMS] Body: ${body}`);
+        console.log('------------------------------------------------');
+        return { sid: 'mock_sid_dev' };
+      }
+      throw new Error('SMS service is not configured correctly. Please check Twilio credentials.');
     }
 
     try {
@@ -51,7 +59,7 @@ export const SmsService = {
         throw new Error(`Invalid phone number format: ${formattedPhone}`);
       }
 
-      console.log(`[SmsService] Sending SMS to ${formattedPhone.slice(0, 4)}****${formattedPhone.slice(-4)}`);
+      console.log(`[SmsService] Attempting to send SMS to ${formattedPhone.slice(0, 4)}****${formattedPhone.slice(-4)}`);
 
       const messageOptions: any = {
         body,
@@ -70,12 +78,23 @@ export const SmsService = {
       console.log(`[SmsService] SMS sent successfully. SID: ${response.sid}`);
       return response;
     } catch (error: any) {
-      console.error('[SmsService] Twilio SMS error:', {
+      console.error('[SmsService] Twilio SMS error detail:', {
         code: error.code,
         message: error.message,
         status: error.status,
+        moreInfo: error.moreInfo,
       });
-      throw error;
+
+      // Fallback for development if Twilio fails (e.g. invalid credentials)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('------------------------------------------------');
+        console.log(`[DEV FALLBACK SMS] To: ${to}`);
+        console.log(`[DEV FALLBACK SMS] Body: ${body}`);
+        console.log('------------------------------------------------');
+        return { sid: 'mock_sid_fallback' };
+      }
+
+      throw new Error(`Failed to send SMS: ${error.message}`);
     }
   }
 };

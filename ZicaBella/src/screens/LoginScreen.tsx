@@ -15,6 +15,7 @@ import { Typography } from '../components/Typography';
 import { haptics } from '../utils/haptics';
 import { signInWithApple } from '../auth/apple';
 import { useThemeStore } from '../store/themeStore';
+import { config } from '../constants/config';
 
 const COUNTRIES = [
   { name: 'India', code: '+91', flag: '🇮🇳' },
@@ -55,7 +56,6 @@ export default function LoginScreen() {
     
     setLoading(true);
     try {
-      const { config } = require('../constants/config');
       const res = await fetch(`${config.appUrl}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -84,7 +84,6 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const { config } = require('../constants/config');
       const fullPhone = country.code + phone.replace(/\D/g, '');
       const res = await fetch(`${config.appUrl}/api/auth/mobile-verify`, {
         method: 'POST',
