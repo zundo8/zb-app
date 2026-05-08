@@ -144,46 +144,49 @@ export default function LoginScreen() {
           {/* ── AUTH INTERFACE ── */}
           <View style={styles.form}>
             {step === 'PHONE' ? (
-              <View style={[styles.inputGroup, { borderColor: colors.borderLight }]}>
-                 <BlurView intensity={isDark ? 10 : 40} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                 
+              <View style={styles.phoneInputContainer}>
                  <TouchableOpacity 
-                   style={styles.countryTrigger} 
+                   style={styles.countryBox} 
                    onPress={() => { haptics.buttonTap(); setShowPicker(true); }}
+                   activeOpacity={0.7}
                  >
-                   <Typography size={16}>{country.flag}</Typography>
-                   <Typography size={12} weight="600" style={{ marginLeft: 4 }}>{country.code}</Typography>
-                   <Ionicons name="chevron-down" size={12} color={colors.textMuted} style={{ marginLeft: 4 }} />
+                   <BlurView intensity={isDark ? 25 : 65} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                   <Typography size={22} style={{ marginBottom: 2 }}>{country.flag}</Typography>
+                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                     <Typography size={10} weight="700" color={colors.text}>{country.code}</Typography>
+                   </View>
                  </TouchableOpacity>
 
-                 <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-                 <TextInput
-                   value={phone}
-                   onChangeText={(v) => { 
-                     const cleaned = v.replace(/\D/g, '').slice(0, 10);
-                     setPhone(cleaned); 
-                     if (errors.phone) setErrors({}); 
-                   }}
-                   placeholder="Mobile Number"
-                   placeholderTextColor={colors.textExtraLight}
-                   keyboardType="number-pad"
-                   maxLength={10}
-                   style={[styles.input, { color: colors.text }]}
-                 />
+                 <View style={styles.numberBox}>
+                   <BlurView intensity={isDark ? 25 : 65} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                   <TextInput
+                     value={phone}
+                     onChangeText={(v) => { 
+                       const cleaned = v.replace(/\D/g, '').slice(0, 10);
+                       setPhone(cleaned); 
+                       if (errors.phone) setErrors({}); 
+                     }}
+                     placeholder="Phone Number"
+                     placeholderTextColor={colors.textExtraLight}
+                     keyboardType="number-pad"
+                     maxLength={10}
+                     style={[styles.input, { color: colors.text }]}
+                     autoFocus
+                   />
+                 </View>
               </View>
             ) : (
-              <View style={[styles.inputGroup, { borderColor: colors.borderLight }]}>
-                <BlurView intensity={isDark ? 10 : 40} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <View style={[styles.otpBox, { borderColor: colors.borderLight }]}>
+                <BlurView intensity={isDark ? 25 : 65} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                 <TextInput
                   value={otp}
                   onChangeText={(v) => { setOtp(v.replace(/\D/g, '').slice(0, 6)); if (errors.otp) setErrors({}); }}
-                  placeholder="6-Digit Code"
+                  placeholder="000000"
                   placeholderTextColor={colors.textExtraLight}
                   keyboardType="number-pad"
                   maxLength={6}
                   autoFocus
-                  style={[styles.input, { color: colors.text, textAlign: 'center', letterSpacing: 8 }]}
+                  style={[styles.input, { color: colors.text, textAlign: 'center', letterSpacing: 14, fontSize: 18 }]}
                 />
               </View>
             )}
@@ -200,28 +203,29 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator color={colors.background} />
               ) : (
-                <Typography weight="700" size={11} color={colors.background}>
-                  {step === 'PHONE' ? 'SEND CODE' : 'VERIFY'}
+                <Typography weight="700" size={10} color={colors.background} style={{ letterSpacing: 2 }}>
+                  {step === 'PHONE' ? 'CONTINUE' : 'VERIFY'}
                 </Typography>
               )}
             </TouchableOpacity>
 
             {step === 'OTP' && (
               <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.backBtn}>
-                <Typography size={9} weight="600" color={colors.textMuted}>CHANGE NUMBER</Typography>
+                <Typography size={8} weight="600" color={colors.textMuted} style={{ letterSpacing: 1 }}>CHANGE NUMBER</Typography>
               </TouchableOpacity>
             )}
           </View>
 
           <View style={styles.dividerRow}>
             <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
-            <Typography size={8} color={colors.textExtraLight} style={{ marginHorizontal: 15 }}>OR</Typography>
+            <Typography size={8} color={colors.textExtraLight} style={{ marginHorizontal: 15, letterSpacing: 2 }}>OR</Typography>
             <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
           </View>
 
-          <TouchableOpacity style={[styles.appleButton, { backgroundColor: colors.text }]} onPress={handleAppleSignIn}>
-            <Ionicons name="logo-apple" size={18} color={colors.background} />
-            <Typography weight="700" size={10} color={colors.background} style={{ marginLeft: 8 }}>CONTINUE WITH APPLE</Typography>
+          <TouchableOpacity style={[styles.appleButton, { backgroundColor: colors.surface }]} onPress={handleAppleSignIn} activeOpacity={0.7}>
+            <BlurView intensity={isDark ? 10 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <Ionicons name="logo-apple" size={18} color={colors.text} />
+            <Typography weight="600" size={10} color={colors.text} style={{ marginLeft: 8, letterSpacing: 1 }}>CONTINUE WITH APPLE</Typography>
           </TouchableOpacity>
 
           <Typography size={8} color={colors.textExtraLight} style={styles.footerText}>
@@ -238,10 +242,13 @@ export default function LoginScreen() {
           onPress={() => setShowPicker(false)}
         >
           <View style={[styles.pickerContent, { backgroundColor: colors.surface }]}>
-            <Typography weight="700" size={14} style={styles.pickerTitle}>SELECT COUNTRY</Typography>
+            <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <View style={styles.pickerDragIndicator} />
+            <Typography weight="700" size={12} style={styles.pickerTitle}>SELECT COUNTRY</Typography>
             <FlatList
               data={COUNTRIES}
               keyExtractor={item => item.code}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <TouchableOpacity 
                   style={styles.pickerItem}
@@ -251,9 +258,9 @@ export default function LoginScreen() {
                     haptics.buttonTap();
                   }}
                 >
-                  <Typography size={18}>{item.flag}</Typography>
-                  <Typography size={13} weight="600" style={{ flex: 1, marginLeft: 12 }}>{item.name}</Typography>
-                  <Typography size={13} color={colors.textMuted}>{item.code}</Typography>
+                  <Typography size={22}>{item.flag}</Typography>
+                  <Typography size={12} weight="600" style={{ flex: 1, marginLeft: 16 }}>{item.name}</Typography>
+                  <Typography size={12} color={colors.textMuted} weight="500">{item.code}</Typography>
                 </TouchableOpacity>
               )}
             />
@@ -267,77 +274,107 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { paddingHorizontal: 32, paddingBottom: 40 },
-  header: { alignItems: 'center', marginBottom: 60 },
-  logo: { width: 60, height: 60, marginBottom: 16 },
-  title: { letterSpacing: 4 },
-  form: { width: '100%' },
-  inputGroup: {
-    height: 56,
-    borderRadius: 16,
-    borderWidth: 1,
+  header: { alignItems: 'center', marginTop: 40, marginBottom: 50 },
+  logo: { width: 50, height: 50, marginBottom: 12 },
+  title: { letterSpacing: 6 },
+  form: { width: '100%', alignItems: 'center' },
+  phoneInputContainer: {
     flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+    marginBottom: 16,
+  },
+  countryBox: {
+    width: 76,
+    height: 64,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(150,150,150,0.15)',
+    justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    paddingHorizontal: 16,
-    marginBottom: 12,
   },
-  countryTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: '100%',
-    paddingRight: 12,
+  numberBox: {
+    flex: 1,
+    height: 64,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(150,150,150,0.15)',
+    overflow: 'hidden',
   },
-  divider: { width: 1, height: 24, marginHorizontal: 4, opacity: 0.2 },
+  otpBox: {
+    width: '100%',
+    height: 64,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(150,150,150,0.15)',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
   input: {
     flex: 1,
     height: '100%',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    paddingLeft: 10,
+    paddingHorizontal: 20,
   },
-  error: { marginLeft: 4, marginBottom: 8, fontWeight: '600' },
+  error: { alignSelf: 'flex-start', marginLeft: 4, marginBottom: 12, fontWeight: '600', letterSpacing: 0.5 },
   primaryButton: {
-    height: 56,
-    borderRadius: 16,
+    width: '100%',
+    height: 60,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  backBtn: { alignSelf: 'center', marginTop: 20, padding: 10 },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 40 },
+  backBtn: { alignSelf: 'center', marginTop: 24, padding: 10 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 36, width: '100%' },
   line: { flex: 1, height: 1, opacity: 0.1 },
   appleButton: {
-    height: 56,
-    borderRadius: 16,
+    width: '100%',
+    height: 60,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(150,150,150,0.15)',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 40,
+    overflow: 'hidden',
   },
-  footerText: { textAlign: 'center', opacity: 0.5, lineHeight: 16 },
+  footerText: { textAlign: 'center', opacity: 0.4, lineHeight: 16, letterSpacing: 0.5 },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   pickerContent: {
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
     paddingBottom: 40,
-    maxHeight: '60%',
+    maxHeight: '65%',
     paddingHorizontal: 24,
+    overflow: 'hidden',
   },
-  pickerTitle: { textAlign: 'center', marginVertical: 24, letterSpacing: 2 },
+  pickerDragIndicator: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(150,150,150,0.3)',
+    alignSelf: 'center',
+    marginTop: 12,
+  },
+  pickerTitle: { textAlign: 'center', marginVertical: 24, letterSpacing: 3, opacity: 0.6 },
   pickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: 'rgba(150,150,150,0.15)',
   },
 });

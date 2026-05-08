@@ -62,8 +62,6 @@ export class NotificationService {
             allowAlert: true,
             allowBadge: true,
             allowSound: true,
-            allowDisplayInNotificationCenter: true,
-            allowDisplayOnLockScreen: true,
           },
         });
         finalStatus = status;

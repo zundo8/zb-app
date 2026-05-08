@@ -19,8 +19,6 @@ export const initPushNotifications = async () => {
           allowAlert: true,
           allowBadge: true,
           allowSound: true,
-          allowDisplayInNotificationCenter: true,
-          allowDisplayOnLockScreen: true,
         },
       });
       finalStatus = status;

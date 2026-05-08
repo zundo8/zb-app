@@ -424,8 +424,6 @@ export default function ProfileScreen() {
                   {loading ? 'PROCESSING' : otpSent ? 'CONFIRM OTP' : 'SEND CODE'}
                 </Typography>
               </TouchableOpacity>
-
-              </TouchableOpacity>
             </View>
 
             <View style={styles.dividerRow}>

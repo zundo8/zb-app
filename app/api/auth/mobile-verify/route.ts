@@ -13,29 +13,50 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Phone and OTP are required" }, { status: 400 });
     }
 
-    // Verify OTP from database
+    // Validate OTP format
+    if (!/^\d{6}$/.test(otp)) {
+      return NextResponse.json({ error: "OTP must be exactly 6 digits" }, { status: 400 });
+    }
+
+    const phoneDigits = phone.replace(/\D/g, "");
+    const normalizedPhone = phoneDigits.slice(-10);
+
+    // Verify OTP from database — search by last 10 digits to handle country code variations
     const verification = await prisma.verificationCode.findFirst({
       where: {
-        phone: { contains: phone.replace(/\D/g, "").slice(-10) },
+        phone: { contains: normalizedPhone },
         code: otp,
         expiresAt: { gt: new Date() }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    if (!verification && otp !== "123456") { // Keep 123456 for testing if needed, or remove it
+    if (!verification) {
+      // Log failed attempt
+      await prisma.appLogin.create({
+        data: {
+          phone: phone,
+          status: "FAILED",
+          userAgent: req.headers.get("user-agent") || "Mobile App"
+        }
+      }).catch(console.error);
+
       return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 401 });
     }
 
-    // Delete the used code
-    if (verification) {
-      await prisma.verificationCode.delete({
-        where: { id: verification.id }
-      }).catch(console.error);
-    }
+    // Delete the used code to prevent reuse
+    await prisma.verificationCode.delete({
+      where: { id: verification.id }
+    }).catch(console.error);
 
-    const phoneDigits = phone.replace(/\D/g, "");
-    const normalizedPhone = phoneDigits.slice(-10);
+    // Also clean up any other expired codes for this phone
+    await prisma.verificationCode.deleteMany({
+      where: {
+        phone: { contains: normalizedPhone },
+        expiresAt: { lt: new Date() }
+      }
+    }).catch(() => {});
+
     const fullPhone = `+${phoneDigits}`;
 
     // Get default shop for context
@@ -143,6 +164,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error("Mobile verify error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Verification failed. Please try again." }, { status: 500 });
   }
 }

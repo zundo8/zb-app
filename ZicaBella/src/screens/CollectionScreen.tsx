@@ -160,7 +160,6 @@ export default function CollectionScreen() {
           
           <View style={[
             styles.grid,
-            viewMode === 'list' && styles.listGrid
           ]}>
             {filteredProducts.map((p, index) => {
               const isGrid = viewMode === 'grid';
