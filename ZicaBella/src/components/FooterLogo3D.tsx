@@ -1,7 +1,8 @@
-import React, { Suspense, useRef } from 'react';
+import React, { Suspense, useRef, useState, useCallback } from 'react';
 import { View, StyleSheet, PanResponder } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, Bounds, Float } from '@react-three/drei';
+import { useGLTF, Bounds } from '@react-three/drei';
+import { useFocusEffect } from '@react-navigation/native';
 import { config } from '../constants/config';
 
 function Model({
@@ -17,20 +18,11 @@ function Model({
 
   useFrame((_state, delta) => {
     if (group.current) {
-      // 1. Auto-rotation (minimal)
       group.current.rotation.y += delta * 0.2;
-
-      // 2. Momentum physics (Zero friction during touch, high-fluidity decay)
-      // Accumulate velocity from touch
       velocity.current.x += (touchRotation.current.x - velocity.current.x) * 0.2;
       velocity.current.y += (touchRotation.current.y - velocity.current.y) * 0.2;
-
-      // Apply velocity to rotation
       group.current.rotation.y += velocity.current.x;
       group.current.rotation.x += velocity.current.y;
-
-      // 3. Natural decay (Inertia)
-      // 0.98 is very smooth, feels like it's spinning on ice
       touchRotation.current.x *= 0.98;
       touchRotation.current.y *= 0.98;
     }
@@ -48,7 +40,6 @@ function Model({
 }
 
 type Props = {
-  /** Same asset as Next.js `components/StorefrontFooter` model-viewer `src` */
   glbUrl?: string;
 };
 
@@ -56,6 +47,16 @@ export default function FooterLogo({ glbUrl }: Props) {
   const url = (glbUrl || config.footerLogo3dGlb).trim();
   const touchRotation = useRef({ x: 0, y: 0 });
   const lastGesture = useRef({ dx: 0, dy: 0 });
+  const [renderKey, setRenderKey] = useState(0);
+
+  // Force re-initialization of Canvas when screen gains focus
+  // This prevents the GL context from disappearing after navigation
+  useFocusEffect(
+    useCallback(() => {
+      setRenderKey(prev => prev + 1);
+      return () => {};
+    }, [])
+  );
 
   const panResponder = useRef(
     PanResponder.create({
@@ -65,18 +66,14 @@ export default function FooterLogo({ glbUrl }: Props) {
         lastGesture.current = { dx: 0, dy: 0 };
       },
       onPanResponderMove: (_evt, gestureState) => {
-        // Ultra-sensitive displacement tracking
         const sensitivity = 0.025;
         const dx = (gestureState.dx - lastGesture.current.dx) * sensitivity;
         const dy = (gestureState.dy - lastGesture.current.dy) * sensitivity;
-        
         touchRotation.current.x = dx;
         touchRotation.current.y = dy;
-        
         lastGesture.current = { dx: gestureState.dx, dy: gestureState.dy };
       },
       onPanResponderRelease: (_evt, gestureState) => {
-        // Professional flick boost
         const flickBoost = 0.3;
         touchRotation.current.x = gestureState.vx * flickBoost;
         touchRotation.current.y = gestureState.vy * flickBoost;
@@ -87,7 +84,7 @@ export default function FooterLogo({ glbUrl }: Props) {
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
       <Canvas
-        key={url}
+        key={`${url}-${renderKey}`}
         camera={{ position: [0, 0, 6], fov: 40 }}
         gl={{ 
           alpha: true, 

@@ -5,6 +5,7 @@ import {
   Dimensions, Keyboard, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing, FadeInDown, FadeInUp,
@@ -122,10 +123,15 @@ export default function ChatScreen() {
 
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
 
-  useEffect(() => {
-    setTabBarVisible(false);
-    return () => setTabBarVisible(true);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setTabBarVisible(false);
+      // Optional: hide on focus, but we want it hidden as long as we are here
+      return () => {
+        setTabBarVisible(true);
+      };
+    }, [setTabBarVisible])
+  );
 
   const handleSend = useCallback(async (text?: string) => {
     const content = (text ?? input).trim();
