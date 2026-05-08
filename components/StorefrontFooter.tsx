@@ -36,7 +36,7 @@ export default async function StorefrontFooter() {
           <div className="w-14 h-14">
             {/* @ts-expect-error model-viewer web component */}
             <model-viewer
-              src="https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb"
+              src={s?.footerLogo3dUrl || "https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb"}
               alt="Zica Bella 3D Logo"
               auto-rotate
               camera-controls

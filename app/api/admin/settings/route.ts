@@ -83,6 +83,7 @@ function envSettings() {
     communityMinOrders: 1,
     communityAgeRestricted: true,
     communityWhatsAppEnabled: true,
+    footerLogo3dUrl: 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
   };
 }
 
@@ -205,9 +206,9 @@ export async function GET(req: Request) {
       communityMinOrders: s.communityMinOrders ?? 1,
       communityAgeRestricted: s.communityAgeRestricted ?? true,
       communityWhatsAppEnabled: s.communityWhatsAppEnabled ?? true,
-      showRingCarousel: s.showRingCarousel ?? true,
       ringCarouselTitle: s.ringCarouselTitle || 'RING COLLECTION',
       ringCarouselItems: s.ringCarouselItems || '[]',
+      footerLogo3dUrl: s.footerLogo3dUrl || 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
     });
   } catch (e: any) {
     console.error('[Settings API GET Error]:', e);
@@ -282,7 +283,8 @@ export async function PATCH(req: Request) {
       'enabledCollectionsPage', 'enabledCollectionsMenu', 'flipbookConfig',
       'flipbookImage', 'flipbookVideo', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
       'communityMinOrders', 'communityAgeRestricted', 'communityWhatsAppEnabled',
-      'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems'
+      'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems',
+      'footerLogo3dUrl'
     ] as const;
 
     const booleanKeys = [

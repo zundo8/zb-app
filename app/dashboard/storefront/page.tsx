@@ -65,6 +65,7 @@ interface SettingsData {
   showRingCarousel: boolean;
   ringCarouselTitle: string;
   ringCarouselItems: string;
+  footerLogo3dUrl: string;
 }
 
 function SettingsRow({
@@ -296,7 +297,7 @@ export default function StorefrontSettingsPage() {
         'kineticMeshTitle', 'kineticMeshProducts', 'enabledCollectionsHeader', 
         'enabledCollectionsPage', 'enabledCollectionsMenu',
         'flipbookImage', 'flipbookVideo', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
-        'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems'
+        'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl'
     ];
 
     const partialUpdate: any = { shopId: settings.id };
@@ -381,6 +382,9 @@ export default function StorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Featured Media" icon={ImageIcon} description="Image above Spotlight section">
              <MediaPicker value={settings.featuredMediaImage!} onChange={set('featuredMediaImage')} label="Featured Media Image" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Footer 3D Logo" icon={Monitor} description="GLB model for footer logo">
+             <InputField value={settings.footerLogo3dUrl!} onChange={set('footerLogo3dUrl')} placeholder="https://...glb" />
           </SettingsRow>
         </SettingsGroup>
 
