@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, email, imageUrl, styleDescription } = body;
+    const { name, email, imageUrl, styleDescription, instagramUrl } = body;
 
     const user = await prisma.featuredUser.create({
       data: {
@@ -46,6 +46,7 @@ export async function POST(req: Request) {
         email,
         imageUrl,
         styleDescription,
+        instagramUrl,
         status: 'PENDING',
       },
     });

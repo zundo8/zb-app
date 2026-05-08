@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,10 @@ export default function DeliveryAddressScreen() {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const { user } = useAuth();
-  const { total, items, shippingAddress, setShippingAddress } = useCartStore();
+  const { total, items, shippingAddress, setShippingAddress, buyNowItem } = useCartStore();
+
+  const checkoutItems = buyNowItem ? [buyNowItem] : items;
+  const checkoutTotal = buyNowItem ? parseFloat(buyNowItem.price) * buyNowItem.quantity : total();
 
   const [loadingPincode, setLoadingPincode] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -83,6 +86,26 @@ export default function DeliveryAddressScreen() {
       const json = await res.json().catch(() => ({ addresses: [] }));
       if (res.ok && Array.isArray(json.addresses)) {
         setSavedAddresses(json.addresses);
+        // Auto-fill if store is empty
+        if (!shippingAddress && json.addresses.length > 0) {
+          const a = json.addresses[0];
+          const normalized = {
+            name: a.name || user?.name || '',
+            phone: a.phone || user?.phone || '',
+            line1: a.address1 || '',
+            line2: a.address2 || '',
+            city: a.city || '',
+            state: a.state || '',
+            pincode: a.zip || '',
+            country: 'India',
+            street: a.address1 || '',
+            zip: a.zip || '',
+          };
+          setShippingAddress(normalized);
+          setIsEditing(false);
+          // Also update the local form state
+          setAddress(normalized);
+        }
       } else {
         setSavedAddresses([]);
       }
@@ -106,7 +129,11 @@ export default function DeliveryAddressScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView 
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={[styles.back, { backgroundColor: colors.surface }]}>
@@ -329,8 +356,8 @@ export default function DeliveryAddressScreen() {
 
       {/* Summary Bar */}
       <CheckoutSummaryBar 
-        itemCount={items.length}
-        total={total()}
+        itemCount={checkoutItems.length}
+        total={checkoutTotal}
         primaryLabel="CONTINUE TO PAYMENT"
         onPrimaryPress={() => {
           setSubmitted(true);
@@ -363,7 +390,7 @@ export default function DeliveryAddressScreen() {
         }}
         disabled={isEditing ? !isValid : false}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

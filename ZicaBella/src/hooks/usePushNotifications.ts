@@ -6,16 +6,7 @@ import Constants from 'expo-constants';
 import { useNotificationStore } from '../store/notificationStore';
 import { useAuthStore } from '../store/authStore';
 import { config } from '../constants/config';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+import { getExpoProjectId } from '../utils/notifications';
 
 export function usePushNotifications() {
   const notificationListener = useRef<Notifications.EventSubscription>(null);
@@ -106,10 +97,13 @@ async function registerForPushNotifications() {
   }
 
   try {
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId || 'your-actual-project-id-if-not-in-config';
-    const token = await Notifications.getExpoPushTokenAsync({
-      projectId,
-    });
+    const projectId = getExpoProjectId();
+    if (!projectId) {
+      console.warn('Missing EAS projectId. Add expo.extra.eas.projectId in app.json.');
+      return;
+    }
+
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
     console.log('Push token:', token.data);
     return token.data;
   } catch (error) {

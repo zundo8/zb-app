@@ -14,6 +14,7 @@ import { useNotificationStore } from '../store/notificationStore';
 import Constants from 'expo-constants';
 import { config } from '../constants/config';
 import { haptics } from '../utils/haptics';
+import { getExpoProjectId } from '../utils/notifications';
 
 // Module-level refs to avoid registering listeners more than once
 let _foregroundSub: Notifications.Subscription | null = null;
@@ -87,17 +88,14 @@ export class NotificationService {
 
       // ── 3. Get Expo Push Token and register with backend ─────────────
       try {
-        const projectId =
-          Constants.expoConfig?.extra?.eas?.projectId ??
-          Constants.easConfig?.projectId;
+        const projectId = getExpoProjectId();
 
         if (!projectId) {
-          console.warn('[Notifications] No projectId found in app config.');
+          console.warn('[Notifications] Missing EAS projectId. Add expo.extra.eas.projectId in app.json.');
+          return false;
         }
 
-        const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId,
-        });
+        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
 
         if (tokenData?.data) {
           console.log('[Notifications] Push token:', tokenData.data);

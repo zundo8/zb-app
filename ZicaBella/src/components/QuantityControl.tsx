@@ -18,6 +18,10 @@ export default function QuantityControl({ quantity, onUpdate, min = 1, max = 99 
     if (quantity > min) {
       haptics.quantityChange();
       onUpdate(quantity - 1);
+    } else if (min === 0 && quantity === 1) {
+      // If we are at 1 and min is 0, one more decrease removes it
+      haptics.buttonTap();
+      onUpdate(0);
     }
   };
 
@@ -33,10 +37,14 @@ export default function QuantityControl({ quantity, onUpdate, min = 1, max = 99 
       <TouchableOpacity
         onPress={decrease}
         style={styles.button}
-        disabled={quantity <= min}
+        disabled={quantity < min}
         activeOpacity={0.7}
       >
-        <Ionicons name="remove" size={14} color={quantity <= min ? colors.borderLight : colors.textLight} />
+        <Ionicons 
+          name={quantity === 1 && min === 0 ? "trash-outline" : "remove"} 
+          size={quantity === 1 && min === 0 ? 12 : 14} 
+          color={quantity <= min && min !== 0 ? colors.borderLight : colors.textLight} 
+        />
       </TouchableOpacity>
       <Typography weight="600" size={10} color={colors.foreground}>{quantity}</Typography>
       <TouchableOpacity

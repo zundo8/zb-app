@@ -17,6 +17,8 @@ import ServiceNavigator from './ServiceNavigator';
 import OrderConfirmationScreen from '../screens/OrderConfirmationScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import ProductDetailScreen from '../screens/ProductDetailScreen';
+import PolicyScreen from '../screens/PolicyScreen';
+import FAQScreen from '../screens/FAQScreen';
 import { withErrorBoundary } from '../components/ErrorBoundary';
 import { RootStackParamList } from './types';
 import { navigationRef } from './navigationUtils';
@@ -84,12 +86,15 @@ export const RootNavigator = () => {
 
       const now = Date.now();
       const COOLDOWN_MS = 1200;
-      const SHAKE_THRESHOLD = 1.8; // More intentional shake
+      const SHAKE_THRESHOLD = 1.4; // More sensitive
+      const MAGNITUDE_THRESHOLD = 2.0;
 
-      if (delta > SHAKE_THRESHOLD && now - lastShakeAt > COOLDOWN_MS) {
-        lastShakeAt = now;
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setCartOpen(!useUIStore.getState().isCartOpen);
+      if (delta > SHAKE_THRESHOLD || magnitude > MAGNITUDE_THRESHOLD) {
+        if (now - lastShakeAt > COOLDOWN_MS) {
+          lastShakeAt = now;
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setCartOpen(!useUIStore.getState().isCartOpen);
+        }
       }
     });
 
@@ -135,6 +140,8 @@ export const RootNavigator = () => {
           <Stack.Screen name="OrderConfirmation" component={SafeOrderConfirmation} />
           <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
           <Stack.Screen name="ProductDetail" component={SafeProductDetail} />
+          <Stack.Screen name="Policy" component={PolicyScreen as any} />
+          <Stack.Screen name="FAQ" component={FAQScreen as any} />
         </Stack.Navigator>
 
         {/* ── GLOBAL UI OVERLAYS ── */}

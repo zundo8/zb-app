@@ -19,7 +19,8 @@ export default function PaymentScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const colors = useColors();
-  const { total, items, shippingAddress } = useCartStore();
+  const { total, items, shippingAddress, buyNowItem } = useCartStore();
+  const checkoutItems = buyNowItem ? [buyNowItem] : items;
   const { user } = useAuth();
 
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PREPAID' | null>(null);
@@ -37,7 +38,7 @@ export default function PaymentScreen() {
     discountAmount: number;
   } | null>(null);
 
-  const subtotal = useMemo(() => total(), [total]);
+  const subtotal = useMemo(() => buyNowItem ? parseFloat(buyNowItem.price) * buyNowItem.quantity : total(), [total, buyNowItem]);
   const deliveryFee = 0;
   const discountAmount = appliedDiscount?.discountAmount ?? 0;
   const grandTotal = Math.max(0, subtotal + deliveryFee - discountAmount);
@@ -120,7 +121,7 @@ export default function PaymentScreen() {
           <Typography size={7} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 2, marginBottom: 12 }}>
             ORDER SUMMARY
           </Typography>
-          {(items || []).slice(0, 3).map((it: any) => (
+          {(checkoutItems || []).slice(0, 3).map((it: any) => (
             <View key={it.id} style={styles.summaryItemRow}>
               <View style={[styles.thumb, { backgroundColor: colors.background }]}>
                 <Ionicons name="shirt-outline" size={16} color={colors.textExtraLight} />
@@ -136,9 +137,9 @@ export default function PaymentScreen() {
               </Typography>
             </View>
           ))}
-          {items.length > 3 && (
+          {checkoutItems.length > 3 && (
             <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 8 }}>
-              +{items.length - 3} more item(s)
+              +{checkoutItems.length - 3} more item(s)
             </Typography>
           )}
 
@@ -288,7 +289,7 @@ export default function PaymentScreen() {
 
       {/* Summary Bar */}
       <CheckoutSummaryBar
-        itemCount={items.length}
+        itemCount={checkoutItems.length}
         total={grandTotal}
         primaryLabel={loading ? "REDIRECTING..." : "REVIEW ORDER"}
         onPrimaryPress={continueToReview}

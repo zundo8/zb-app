@@ -88,15 +88,13 @@ export default function StorefrontFooter() {
       {/* POLICIES: text-[6px] font-medium uppercase tracking-[0.25em] */}
       <View style={styles.policyRow}>
         {[
-          { label: 'CONTACT', url: config.contactPage },
-          { label: 'PRIVACY', url: config.policies.privacy },
-          { label: 'REFUND', url: config.policies.refund },
-          { label: 'TERMS', url: config.policies.terms },
+          { label: 'SUPPORT', onPress: () => navigation.navigate('FAQ') },
+          { label: 'CONTACT', onPress: () => navigation.navigate('Policy', { url: config.contactPage, title: 'CONTACT' }) },
+          { label: 'PRIVACY', onPress: () => navigation.navigate('Policy', { url: config.policies.privacy, title: 'PRIVACY' }) },
+          { label: 'TERMS', onPress: () => navigation.navigate('Policy', { url: config.policies.terms, title: 'TERMS' }) },
         ].map((policy, index) => (
           <React.Fragment key={policy.label}>
-            <TouchableOpacity 
-              onPress={() => navigation.navigate('Policy', { url: policy.url, title: policy.label })}
-            >
+            <TouchableOpacity onPress={policy.onPress}>
               <Typography size={6.2} weight="500" color={colors.textExtraLight} style={styles.policyText}>
                 {policy.label}
               </Typography>
@@ -121,6 +119,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 40,
     alignItems: 'center',
+    borderTopWidth: 0.5,
   },
   logoWrapper: {
     marginBottom: 8,
@@ -169,7 +168,7 @@ const styles = StyleSheet.create({
   },
   policyText: {
     letterSpacing: 3,
-    opacity: 0.45,
+    opacity: 0.6,
   },
   dot: {
     width: 2,

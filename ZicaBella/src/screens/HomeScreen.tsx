@@ -314,13 +314,15 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 1,
-    marginBottom: 24,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0,
+    marginBottom: 32,
   },
   gridItem: {
-    width: (width - 2) / 2,
-    marginBottom: 16,
+    width: width / 2,
+    borderWidth: 0.25,
+    borderColor: 'rgba(128,128,128,0.15)',
+    marginBottom: 0,
   },
   collectionsSection: {
     paddingVertical: 24,

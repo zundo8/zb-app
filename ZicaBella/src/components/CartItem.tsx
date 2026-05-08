@@ -28,65 +28,47 @@ interface Props {
 export default function CartItem({ item, onUpdateQuantity, onRemove, onPress }: Props) {
   const colors = useColors();
 
-  const handleRemove = useCallback(() => {
-    haptics.buttonTap();
-    onRemove(item.id);
-  }, [item.id, onRemove]);
-
-  const renderRightActions = useCallback(() => {
-    return (
-      <TouchableOpacity
-        style={[styles.deleteButton, { backgroundColor: colors.error }]}
-        onPress={handleRemove}
-        activeOpacity={0.9}
-      >
-        <Ionicons name="trash-outline" size={18} color="#FFF" />
-      </TouchableOpacity>
-    );
-  }, [colors.error, handleRemove]);
-
   return (
-    <Swipeable renderRightActions={renderRightActions}>
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.borderLight,
-          },
-        ]}
-      >
-        <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.contentRow}>
-          {/* Product Image */}
-          <View style={[styles.imageContainer, { backgroundColor: colors.background }]}>
-            <Image source={{ uri: item.image }} style={styles.image} contentFit="cover" />
-          </View>
-
-          {/* Details */}
-          <View style={styles.details}>
-            <Typography size={8} weight="600" color={colors.text} numberOfLines={1}>
-              {item.title.toUpperCase()}
-            </Typography>
-            {item.size && (
-              <Typography size={7} weight="400" color={colors.textExtraLight}>
-                SIZE: {item.size}
-              </Typography>
-            )}
-            <Typography size={10} weight="600" color={colors.textSecondary} style={{ marginTop: 2 }}>
-              {formatPrice(parseFloat(item.price))}
-            </Typography>
-          </View>
-        </TouchableOpacity>
-
-        {/* Quantity Stepper */}
-        <View style={styles.actions}>
-          <QuantityControl 
-            quantity={item.quantity} 
-            onUpdate={(qty) => onUpdateQuantity(item.id, qty)} 
-          />
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.borderLight,
+        },
+      ]}
+    >
+      <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.contentRow}>
+        {/* Product Image */}
+        <View style={[styles.imageContainer, { backgroundColor: colors.background }]}>
+          <Image source={{ uri: item.image }} style={styles.image} contentFit="cover" />
         </View>
+
+        {/* Details */}
+        <View style={styles.details}>
+          <Typography size={8} weight="600" color={colors.text} numberOfLines={1}>
+            {item.title.toUpperCase()}
+          </Typography>
+          {item.size && (
+            <Typography size={7} weight="400" color={colors.textExtraLight}>
+              SIZE: {item.size}
+            </Typography>
+          )}
+          <Typography size={10} weight="600" color={colors.textSecondary} style={{ marginTop: 2 }}>
+            {formatPrice(parseFloat(item.price))}
+          </Typography>
+        </View>
+      </TouchableOpacity>
+
+      {/* Quantity Stepper */}
+      <View style={styles.actions}>
+        <QuantityControl 
+          quantity={item.quantity} 
+          onUpdate={(qty) => onUpdateQuantity(item.id, qty)} 
+          min={0}
+        />
       </View>
-    </Swipeable>
+    </View>
   );
 }
 

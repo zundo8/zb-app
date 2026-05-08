@@ -14,7 +14,9 @@ import Animated, {
   withSpring,
   withTiming,
   interpolate,
+  runOnJS,
 } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCartStore } from '../store/cartStore';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -38,7 +40,33 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
   const isDark = theme === 'dark';
-  const { items, total, updateQuantity, removeItem, itemCount } = useCartStore();
+  const { items, total, updateQuantity, removeItem, itemCount, setBuyNowItem } = useCartStore();
+  const [showShakeTutorial, setShowShakeTutorial] = React.useState(false);
+  const tutorialOpacity = useSharedValue(0);
+
+  // Persistence check for the tutorial
+  React.useEffect(() => {
+    const checkTutorial = async () => {
+      // Use a new key to reset for the user if they missed it
+      const seen = await AsyncStorage.getItem('zicabella_shake_hint_v2');
+      if (!seen && visible) {
+        setShowShakeTutorial(true);
+        tutorialOpacity.value = withTiming(1, { duration: 600 });
+        
+        // Auto-hide after 8 seconds
+        const timer = setTimeout(() => {
+          if (showShakeTutorial) {
+            tutorialOpacity.value = withTiming(0, { duration: 500 }, () => {
+              runOnJS(setShowShakeTutorial)(false);
+              runOnJS(AsyncStorage.setItem)('zicabella_shake_hint_v2', 'true');
+            });
+          }
+        }, 8000);
+        return () => clearTimeout(timer);
+      }
+    };
+    checkTutorial();
+  }, [visible]);
 
   // Consistent height for premium look
   const SHEET_HEIGHT = screenHeight * 0.88;
@@ -58,7 +86,7 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
         stiffness: 180,
         mass: 0.8,
       });
-      haptics.buttonTap();
+      haptics.success();
     } else {
       backdropOpacity.value = withTiming(0, { duration: 250 });
       translateY.value = withTiming(SHEET_HEIGHT, { duration: 300, }, () => {
@@ -85,6 +113,7 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
 
   const handleCheckout = () => {
     haptics.buttonTap();
+    setBuyNowItem(null);
     onClose();
     setTimeout(() => {
       onCheckout();
@@ -143,6 +172,7 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
               <View style={styles.emptyState}>
                 <Ionicons name="bag-outline" size={60} color={colors.text} style={{ opacity: 0.1, marginBottom: 20 }} />
                 <Typography size={10} weight="800" color={colors.textExtraLight} style={styles.emptyText}>YOUR BAG IS EMPTY</Typography>
+                
                 <TouchableOpacity onPress={onClose} style={[styles.shopBtn, { backgroundColor: colors.text }]}>
                   <Typography size={9} weight="800" color={colors.background} style={styles.shopBtnText}>BROWSE COLLECTION</Typography>
                 </TouchableOpacity>
@@ -180,6 +210,13 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
                   <View style={[styles.footerBorder, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }]} />
                   
                   <View style={styles.footerContent}>
+                    <View style={styles.shakeHintRow}>
+                      <Ionicons name="phone-portrait-outline" size={12} color={colors.textExtraLight} />
+                      <Typography size={7} weight="400" color={colors.textExtraLight} style={{ opacity: 0.5, letterSpacing: 1.2 }}>
+                        SHAKE TO TOGGLE BAG
+                      </Typography>
+                    </View>
+
                     <View style={styles.totalRow}>
                       <View>
                         <Typography size={9} weight="800" color={colors.textExtraLight} style={styles.totalLabel}>TOTAL ESTIMATE</Typography>
@@ -203,6 +240,39 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
                   </View>
                 </View>
               </View>
+            )}
+
+            {/* ── SHAKE TUTORIAL OVERLAY ── */}
+            {showShakeTutorial && (
+              <Pressable 
+                onPress={() => {
+                  tutorialOpacity.value = withTiming(0, { duration: 300 }, () => {
+                    runOnJS(setShowShakeTutorial)(false);
+                    runOnJS(AsyncStorage.setItem)('zicabella_shake_hint_v2', 'true');
+                  });
+                }}
+                style={[
+                  styles.tutorialOverlay, 
+                ]}
+              >
+                <Animated.View style={[
+                  styles.tutorialOverlay, 
+                  { opacity: tutorialOpacity },
+                ]}>
+                  <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+                  <View style={styles.tutorialContent}>
+                    <View style={[styles.tutorialIconCircle, { backgroundColor: colors.foreground }]}>
+                        <Ionicons name="phone-portrait" size={32} color={colors.background} />
+                    </View>
+                    <Typography size={10} weight="800" color={colors.text} style={{ letterSpacing: 4, marginTop: 24, textAlign: 'center' }}>
+                      SHAKE TO OPEN
+                    </Typography>
+                    <Typography size={8} weight="400" color={colors.textExtraLight} style={{ marginTop: 8, opacity: 0.6, textAlign: 'center' }}>
+                      Toggle your shopping bag anytime{"\n"}with a gentle shake.
+                    </Typography>
+                  </View>
+                </Animated.View>
+              </Pressable>
             )}
           </View>
         </Animated.View>
@@ -283,6 +353,37 @@ const styles = StyleSheet.create({
   },
   itemWrapper: {
     marginBottom: 8,
+  },
+  shakeHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    marginBottom: 30,
+  },
+  tutorialOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  tutorialContent: {
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  tutorialIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 10,
   },
   emptyState: {
     flex: 0.8,
@@ -366,5 +467,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  shakeHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
   },
 });

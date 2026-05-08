@@ -88,7 +88,7 @@ export default function ProductDetailScreen() {
 
   const { product, loading } = useProductByHandle(handle);
   const { products: recommended } = useProducts(8);
-  const { addItem } = useCartStore();
+  const { addItem, setBuyNowItem } = useCartStore();
   const cartCount = useCartStore(s => s.itemCount());
 
   const { addBookmark, removeBookmark, isBookmarked: checkBookmarked } = useBookmarkStore();
@@ -111,6 +111,7 @@ export default function ProductDetailScreen() {
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [isStickySizeExpanded, setIsStickySizeExpanded] = useState(false);
 
   useEffect(() => {
     const id = scrollY.addListener(({ value }) => {
@@ -186,16 +187,30 @@ export default function ProductDetailScreen() {
       price: variant.price,
       image: product.featuredImage,
     });
+    setIsStickySizeExpanded(false);
     haptics.addToCart();
+    setCartOpen(true);
   };
 
   const handleBuyNow = () => {
     if (!product) return;
     if (!requireSize()) return;
-    handleAddToCart();
-    setTimeout(() => {
-      navigation.navigate('CheckoutFlow');
-    }, 400);
+    
+    const variant = product.variants.find(v => v.size === selectedSize) || product.variants[0];
+    setBuyNowItem({
+      id: `${product.id}_${variant.id}_${selectedSize || 'one-size'}`,
+      productId: product.id,
+      variantId: variant.id,
+      title: product.title,
+      size: selectedSize,
+      handle: product.handle,
+      price: variant.price,
+      image: product.featuredImage,
+      quantity: 1,
+    });
+
+    haptics.buttonTap();
+    navigation.navigate('CheckoutFlow');
   };
 
   const handleBookmarkToggle = () => {
@@ -543,15 +558,59 @@ export default function ProductDetailScreen() {
 
       {/* ── MINIMAL STICKY ACTION ── */}
       <Animated.View style={[styles.minimalStickyFooter, { paddingBottom: insets.bottom + 8, opacity: stickyOpacity, transform: [{ translateY: stickyOpacity.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
-         <TouchableOpacity 
-           style={[styles.minimalAddBtn, { backgroundColor: isDark ? colors.text : colors.foreground }]}
-           onPress={handleAddToCart}
-           activeOpacity={0.9}
-         >
-           <Typography size={8} weight="800" color={isDark ? colors.background : '#FFF'} style={{ letterSpacing: 3 }}>ADD TO BAG</Typography>
-           <View style={{ width: 1, height: 10, backgroundColor: isDark ? colors.background : '#FFF', opacity: 0.25, marginHorizontal: 12 }} />
-           <Typography size={8} weight="300" color={isDark ? colors.background : '#FFF'} style={{ opacity: 0.7 }}>{formatPrice(product.price)}</Typography>
-         </TouchableOpacity>
+         {isStickySizeExpanded && !selectedSize ? (
+           <View style={[styles.stickySizeSelector, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]}>
+             <BlurView intensity={isDark ? 80 : 100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+             <View style={styles.stickySizeHeader}>
+               <Typography size={6} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>SELECT SIZE</Typography>
+               <TouchableOpacity onPress={() => setIsStickySizeExpanded(false)}>
+                 <Ionicons name="close-circle" size={20} color={colors.textExtraLight} />
+               </TouchableOpacity>
+             </View>
+             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 10, paddingVertical: 10 }}>
+               {options.sizes.map(s => {
+                 const variant = product.variants.find(v => v.size === s);
+                 const isOutOfStock = variant?.quantityAvailable === 0;
+                 return (
+                   <TouchableOpacity 
+                     key={s} 
+                     disabled={isOutOfStock}
+                     onPress={() => { haptics.buttonTap(); setSelectedSize(s); setIsStickySizeExpanded(false); }}
+                     style={[
+                       styles.stickySizeBtn, 
+                       { 
+                         backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                         borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' 
+                       },
+                       isOutOfStock && { opacity: 0.3 }
+                     ]}
+                   >
+                     <Typography size={8} weight="700" color={colors.text}>{s.toUpperCase()}</Typography>
+                   </TouchableOpacity>
+                 );
+               })}
+             </ScrollView>
+           </View>
+         ) : (
+           <TouchableOpacity 
+             style={[styles.minimalAddBtn, { backgroundColor: colors.foreground }]}
+             onPress={() => {
+               if (!selectedSize && options.sizes.length > 0) {
+                 setIsStickySizeExpanded(true);
+                 haptics.buttonTap();
+               } else {
+                 handleAddToCart();
+               }
+             }}
+             activeOpacity={0.9}
+           >
+             <Typography size={8} weight="800" color={colors.background} style={{ letterSpacing: 3 }}>
+               {selectedSize ? `ADD ${selectedSize.toUpperCase()}` : 'ADD TO BAG'}
+             </Typography>
+             <View style={{ width: 1, height: 10, backgroundColor: colors.background, opacity: 0.25, marginHorizontal: 12 }} />
+             <Typography size={8} weight="300" color={colors.background} style={{ opacity: 0.7 }}>{formatPrice(product.price)}</Typography>
+           </TouchableOpacity>
+         )}
       </Animated.View>
 
       <SizeChartModal 
@@ -841,6 +900,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 6,
+  },
+  stickySizeSelector: {
+    width: SCREEN_W - 40,
+    padding: 16,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  stickySizeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  stickySizeBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   ghostBtn: {
     width: '100%',

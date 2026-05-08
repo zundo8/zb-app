@@ -32,10 +32,6 @@ export const viewport = {
 export const metadata: Metadata = {
   title: "Zica Bella",
   description: "Premium luxury streetwear. Redefining the standard.",
-  icons: {
-    icon: "/ZB-logo-silver.svg",
-    apple: "/ZB-logo-silver.svg",
-  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

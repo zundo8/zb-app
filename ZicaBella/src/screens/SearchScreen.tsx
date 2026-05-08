@@ -84,7 +84,7 @@ function SearchScreen() {
         <View style={{ height: insets.top + 70 }} />
         
         {/* ── Search Bar: Liquid Glass Capsule ── */}
-        <View style={styles.searchWrapper}>
+        <View style={[styles.searchWrapper, { paddingHorizontal: 16 }]}>
           <View style={[styles.searchIsland, { 
             backgroundColor: isDark ? 'hsla(0,0%,100%,0.06)' : 'hsla(0,0%,0%,0.03)',
             borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
@@ -114,7 +114,7 @@ function SearchScreen() {
 
         {/* ── Results header ── */}
         {query.length > 0 && (
-          <View style={styles.resultsHeader}>
+          <View style={[styles.resultsHeader, { paddingHorizontal: 16 }]}>
             <Typography rocaston size={10} color={colors.textSecondary} style={styles.queryLabel}>"{String(query || '').toUpperCase()}"</Typography>
             <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.countLabel}>
               {(results || []).length} {(results || []).length === 1 ? 'RESULT' : 'RESULTS'}
@@ -156,7 +156,7 @@ function SearchScreen() {
         {query.length === 0 && (
           <View style={styles.sectionsContainer}>
             {/* Trending */}
-            <View style={styles.section}>
+            <View style={[styles.section, { paddingHorizontal: 16 }]}>
               <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>TRENDING</Typography>
               <View style={styles.trendingContainer}>
                 {config.trending.map((term) => (
@@ -191,7 +191,7 @@ function SearchScreen() {
 
             {/* Collections */}
             {collections.length > 0 && (
-              <View style={styles.section}>
+              <View style={[styles.section, { paddingHorizontal: 16 }]}>
                 <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>COLLECTIONS</Typography>
                 {collections.slice(0, 10).map((c) => (
                   <TouchableOpacity
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollView: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
   },
   searchWrapper: {
     marginBottom: 24,
@@ -270,12 +270,14 @@ const styles = StyleSheet.create({
   productGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    paddingHorizontal: 0,
     marginBottom: 32,
   },
   cardWrapper: {
-    width: (width - 32 - 12) / 2,
-    marginBottom: 32,
+    width: width / 2,
+    borderWidth: 0.25,
+    borderColor: 'rgba(128,128,128,0.15)',
+    marginBottom: 0,
   },
   emptyState: {
     alignItems: 'center',

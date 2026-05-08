@@ -55,7 +55,6 @@ function HomeStack() {
       <Stack.Screen name="HomeScreen" component={HomeScreen} />
       <Stack.Screen name="Collection" component={CollectionScreen as any} />
       <Stack.Screen name="Community" component={CommunityScreen as any} />
-      <Stack.Screen name="Policy" component={PolicyScreen as any} />
       <Stack.Screen name="Story" component={StoryScreen as any} />
     </Stack.Navigator>
   );
@@ -88,8 +87,6 @@ function ProfileStack() {
       <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen as any} />
       <Stack.Screen name="ExchangeSelectProduct" component={ExchangeSelectProductScreen as any} />
       <Stack.Screen name="Wishlist" component={WishlistScreen as any} />
-      <Stack.Screen name="Policy" component={PolicyScreen as any} />
-      <Stack.Screen name="FAQ" component={FAQScreen as any} />
       <Stack.Screen name="Blogs" component={BlogsScreen as any} />
       <Stack.Screen name="Collaborations" component={CollaborationsScreen as any} />
       <Stack.Screen name="Notifications" component={NotificationsScreen as any} />

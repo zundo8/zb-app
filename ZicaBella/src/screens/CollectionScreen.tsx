@@ -33,7 +33,8 @@ export default function CollectionScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('featured');
-  const [viewMode, setViewMode] = useState<'grid' | 'large' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'grid4' | 'large'>('grid');
+  const [isSizeOpen, setIsSizeOpen] = useState(false);
 
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -62,6 +63,11 @@ export default function CollectionScreen() {
         setTabBarVisible(false);
       } else {
         setTabBarVisible(true);
+      }
+      
+      // Auto-close filter dropdown on scroll
+      if (Math.abs(diff) > 20 && isSizeOpen) {
+        setIsSizeOpen(false);
       }
     }
     lastScrollY.current = currentY;
@@ -100,13 +106,17 @@ export default function CollectionScreen() {
   }
 
   const toggleView = () => {
-    const modes: ('grid' | 'large' | 'list')[] = ['grid', 'large', 'list'];
+    const modes: ('grid' | 'grid4' | 'large')[] = ['grid', 'grid4', 'large'];
     setViewMode(modes[(modes.indexOf(viewMode) + 1) % modes.length]);
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlassHeader title={collection?.title || 'Collection'} showBack={true} />
+      <GlassHeader 
+        title={collection?.title || 'Collection'} 
+        showBack={true} 
+        style={{ backgroundColor: 'transparent' }}
+      />
       
       <ScrollView
         stickyHeaderIndices={[1]}
@@ -116,32 +126,31 @@ export default function CollectionScreen() {
             refreshing={refreshing} 
             onRefresh={onRefresh} 
             tintColor={isDark ? '#FFF' : '#000'} 
-            progressViewOffset={insets.top + 50} 
+            progressViewOffset={20} 
           />
         }
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
-        {/* Web Parity Collection Carousel */}
-        <View style={{ marginBottom: insets.top + 60, marginTop: insets.top + 60 }}>
+        {/* Top Section - Carousel - Now clearing the header properly */}
+        <View style={{ paddingTop: insets.top + 60, paddingBottom: 8 }}>
           <CollectionHeaderCarousel currentHandle={handle} collections={allCollections as any[]} />
         </View>
 
         {/* Filters Sticky Section */}
-        <View style={{ marginTop: -(insets.top + 60) }}>
-          <View style={{ height: insets.top + 60 }} />
-          <View style={styles.filterSection}>
-            <CollectionFilters 
-              allSizes={allSizes as string[]}
-              selectedSize={selectedSize}
-              onSelectSize={setSelectedSize}
-              sortBy={sortBy}
-              onSelectSort={setSortBy}
-              viewMode={viewMode}
-              onToggleView={toggleView}
-              isTabBarVisible={isTabBarVisible}
-            />
-          </View>
+        <View style={styles.filterSection}>
+          <CollectionFilters 
+            allSizes={allSizes as string[]}
+            selectedSize={selectedSize}
+            onSelectSize={setSelectedSize}
+            sortBy={sortBy}
+            onSelectSort={setSortBy}
+            viewMode={viewMode}
+            onToggleView={toggleView}
+            isTabBarVisible={isTabBarVisible}
+            isSizeOpen={isSizeOpen}
+            setIsSizeOpen={setIsSizeOpen}
+          />
         </View>
 
         <View style={styles.content}>
@@ -153,23 +162,30 @@ export default function CollectionScreen() {
             styles.grid,
             viewMode === 'list' && styles.listGrid
           ]}>
-            {filteredProducts.map((p) => (
-              <View 
-                key={p.id} 
-                style={[
-                  styles.cardWrapper,
-                  viewMode === 'grid' && styles.gridWrapper,
-                  viewMode === 'large' && styles.largeWrapper,
-                  viewMode === 'list' && styles.listWrapper
-                ]}
-              >
-                <ProductCard 
-                  product={p} 
-                  onQuickAdd={handleQuickAdd}
-                  style={(viewMode === 'large' || viewMode === 'list') ? { width: '100%' } : undefined}
-                />
-              </View>
-            ))}
+            {filteredProducts.map((p, index) => {
+              const isGrid = viewMode === 'grid';
+              const isGrid4 = viewMode === 'grid4';
+              const isFullWidthInGrid = isGrid && (index + 1) % 5 === 0;
+              
+              return (
+                <View 
+                  key={p.id} 
+                  style={[
+                    styles.cardWrapper,
+                    isGrid && (isFullWidthInGrid ? styles.largeWrapper : styles.gridWrapper),
+                    isGrid4 && styles.grid4Wrapper,
+                    viewMode === 'large' && styles.largeWrapper,
+                  ]}
+                >
+                  <ProductCard 
+                    product={p} 
+                    onQuickAdd={handleQuickAdd}
+                    style={(viewMode === 'large' || isFullWidthInGrid) ? { width: '100%' } : undefined}
+                    compact={isGrid4}
+                  />
+                </View>
+              );
+            })}
           </View>
           <View style={{ height: 40 }} />
           <StorefrontFooter />
@@ -207,15 +223,14 @@ const styles = StyleSheet.create({
   },
   count: {
     letterSpacing: 4,
-    marginBottom: 24,
+    marginBottom: 12,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: 4,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 1,
+    paddingHorizontal: 0,
   },
   listGrid: {
     flexDirection: 'column',
@@ -224,12 +239,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   gridWrapper: {
-    width: (Math.min(Dimensions.get('window').width, 600) - 3) / 2,
+    width: Math.min(Dimensions.get('window').width, 600) / 2,
+    borderWidth: 0.25,
+    borderColor: 'rgba(128,128,128,0.15)',
+  },
+  grid4Wrapper: {
+    width: Math.min(Dimensions.get('window').width, 600) / 4,
+    borderWidth: 0.25,
+    borderColor: 'rgba(128,128,128,0.1)',
   },
   largeWrapper: {
-    width: '100%',
-  },
-  listWrapper: {
     width: '100%',
   },
 });

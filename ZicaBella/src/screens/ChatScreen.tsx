@@ -125,11 +125,16 @@ export default function ChatScreen() {
   const inputTranslateY = useSharedValue(0);
 
   useEffect(() => {
-    inputTranslateY.value = withTiming(isTabBarVisible ? 0 : 70, {
+    setTabBarVisible(false);
+    return () => setTabBarVisible(true);
+  }, []);
+
+  useEffect(() => {
+    inputTranslateY.value = withTiming(0, {
       duration: 300,
       easing: Easing.bezier(0.33, 1, 0.68, 1),
     });
-  }, [isTabBarVisible]);
+  }, []);
 
   const inputAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: inputTranslateY.value }],
@@ -229,8 +234,8 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <GlassHeader title="ZICA AI" showBack />
 
@@ -264,7 +269,7 @@ export default function ChatScreen() {
 
       <Animated.View style={[
         styles.inputBarWrapper,
-        { paddingBottom: insets.bottom + 90 },
+        { paddingBottom: insets.bottom + 12 },
         inputAnimatedStyle,
       ]}>
         <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>

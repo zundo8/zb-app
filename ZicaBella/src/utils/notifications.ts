@@ -1,35 +1,44 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
 import Constants from 'expo-constants';
+
+export function getExpoProjectId(): string | undefined {
+  return (
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    Constants.easConfig?.projectId
+  );
+}
 
 export const initPushNotifications = async () => {
   try {
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return;
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
 
-    // Get the Expo push token
-    try {
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.expoConfig?.extra?.eas?.projectId,
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          allowDisplayInNotificationCenter: true,
+          allowDisplayOnLockScreen: true,
+        },
       });
-      console.log('[Notifications] Expo push token:', tokenData.data);
-    } catch (tokenErr) {
-      console.warn('[Notifications] Could not get push token:', tokenErr);
+      finalStatus = status;
     }
 
-    // Foreground handler is already set above via setNotificationHandler
+    if (finalStatus !== 'granted') return undefined;
+
+    const projectId = getExpoProjectId();
+    if (!projectId) {
+      console.warn('[Notifications] Missing EAS projectId. Add expo.extra.eas.projectId in app.json.');
+      return undefined;
+    }
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    console.log('[Notifications] Expo push token:', tokenData.data);
+    return tokenData.data;
   } catch (err) {
     console.warn('[Notifications] Error during init:', err);
+    return undefined;
   }
 };

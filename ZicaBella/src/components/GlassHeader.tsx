@@ -20,6 +20,7 @@ interface Props {
   onPressMenu?: () => void;
   isBookmarked?: boolean;
   hideCenter?: boolean;
+  style?: any;
 }
 
 export default function GlassHeader({ 
@@ -28,6 +29,7 @@ export default function GlassHeader({
   onPressMenu,
   isBookmarked = false,
   hideCenter = false,
+  style,
 }: Props) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
@@ -41,7 +43,7 @@ export default function GlassHeader({
   const isDark = theme === 'dark';
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
+    <View style={[styles.container, { paddingTop: insets.top + 8 }, style]}>
       {/* Box 1: Left Action Capsule (Logo/Back) */}
       <TouchableOpacity
         style={[styles.islandBase, styles.leftIsland, { borderColor: colors.borderLight }]}
@@ -55,7 +57,7 @@ export default function GlassHeader({
         }}
         activeOpacity={0.7}
       >
-        <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <View style={styles.iconCircle}>
           {showBack ? (
             <Ionicons name="chevron-back" size={20} color={colors.text} />
@@ -76,7 +78,7 @@ export default function GlassHeader({
           onPress={() => navigation.navigate('HomeTab')}
           activeOpacity={0.8}
         >
-          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <Typography rocaston size={10} color={colors.text} style={styles.titleText}>
             {title.toUpperCase()}
           </Typography>
@@ -85,7 +87,7 @@ export default function GlassHeader({
 
       {/* Box 3: Right Actions Capsule (Consolidated Island) */}
       <View style={[styles.islandBase, styles.rightIsland, { borderColor: colors.borderLight }]}>
-        <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <View style={styles.rightActions}>
           <TouchableOpacity style={styles.actionBtn} onPress={toggleTheme}>
             <Ionicons 

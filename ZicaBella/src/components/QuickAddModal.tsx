@@ -12,6 +12,7 @@ import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { formatPrice } from '../utils/formatPrice';
 import { haptics } from '../utils/haptics';
+import { useUIStore } from '../store/uiStore';
 
 interface Props {
   visible: boolean;
@@ -22,6 +23,7 @@ interface Props {
 
 export default function QuickAddModal({ visible, product, initialSize, onClose }: Props) {
   const { addItem } = useCartStore();
+  const setCartOpen = useUIStore(s => s.setCartOpen);
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
   const isDark = theme === 'dark';
@@ -64,6 +66,8 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
     setTimeout(() => {
       setAdded(false);
       onClose();
+      // Auto-open cart after modal closes
+      setTimeout(() => setCartOpen(true), 300);
     }, 900);
   };
 

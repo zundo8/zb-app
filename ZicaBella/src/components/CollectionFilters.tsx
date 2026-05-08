@@ -11,9 +11,11 @@ interface Props {
   onSelectSize: (size: string | null) => void;
   sortBy: string;
   onSelectSort: (sort: string) => void;
-  viewMode: 'grid' | 'large' | 'list';
+  viewMode: 'grid' | 'grid4' | 'large';
   onToggleView: () => void;
   isTabBarVisible?: boolean;
+  isSizeOpen: boolean;
+  setIsSizeOpen: (open: boolean) => void;
 }
 
 export default function CollectionFilters({
@@ -25,41 +27,38 @@ export default function CollectionFilters({
   viewMode,
   onToggleView,
   isTabBarVisible = true,
+  isSizeOpen,
+  setIsSizeOpen,
 }: Props) {
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
   const isDark = theme === 'dark';
-  const [isSizeOpen, setIsSizeOpen] = React.useState(false);
 
   return (
     <View style={styles.container}>
       <View style={[styles.pillWrapper, { borderColor: colors.borderLight }]}>
-        <BlurView intensity={isDark ? 40 : 80} tint={isDark ? 'dark' : 'light'} style={styles.pill}>
+        <BlurView intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={styles.pill}>
           {/* Sort Button */}
-          {isTabBarVisible && (
-            <>
-              <TouchableOpacity 
-                style={styles.filterBtn} 
-                onPress={() => {
-                  const sorts = ['featured', 'newest', 'price-asc', 'price-desc'];
-                  const next = sorts[(sorts.indexOf(sortBy) + 1) % sorts.length];
-                  onSelectSort(next);
-                }}
-              >
-                <Text style={[styles.filterText, { color: colors.text }]}>
-                  {sortBy.replace('-', ' ').toUpperCase()}
-                </Text>
-                <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} />
-              </TouchableOpacity>
-              <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-            </>
-          )}
+          <TouchableOpacity 
+            style={styles.filterBtn} 
+            onPress={() => {
+              const sorts = ['featured', 'newest', 'price-asc', 'price-desc'];
+              const next = sorts[(sorts.indexOf(sortBy) + 1) % sorts.length];
+              onSelectSort(next);
+            }}
+          >
+            <Text style={[styles.filterText, { color: colors.text }]}>
+              {sortBy.replace('-', ' ').toUpperCase()}
+            </Text>
+            <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} />
+          </TouchableOpacity>
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
           {/* Size Button */}
           <TouchableOpacity 
             style={styles.filterBtn}
             onPress={() => {
-              if (allSizes.length > 0) setIsSizeOpen(true);
+              if (allSizes.length > 0) setIsSizeOpen(!isSizeOpen);
             }}
           >
             <View style={styles.sizeLabelRow}>
@@ -72,19 +71,19 @@ export default function CollectionFilters({
           </TouchableOpacity>
 
           {/* View Toggle */}
-          {isTabBarVisible && (
-            <>
-              <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-              <TouchableOpacity style={styles.viewToggle} onPress={onToggleView}>
-                <Ionicons 
-                  name={viewMode === 'grid' ? 'grid-outline' : viewMode === 'large' ? 'square-outline' : 'list-outline'} 
-                  size={13} 
-                  color={colors.text} 
-                  style={{ opacity: 0.8 }}
-                />
-              </TouchableOpacity>
-            </>
-          )}
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+          <TouchableOpacity style={styles.viewToggle} onPress={onToggleView}>
+            <Ionicons 
+              name={
+                viewMode === 'grid' ? 'grid-outline' : 
+                viewMode === 'grid4' ? 'apps-outline' :
+                'square-outline'
+              } 
+              size={13} 
+              color={colors.text} 
+              style={{ opacity: 0.8 }}
+            />
+          </TouchableOpacity>
         </BlurView>
       </View>
 
@@ -133,8 +132,8 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     zIndex: 100,
-    marginBottom: 24,
-    marginTop: 12,
+    marginBottom: 4,
+    marginTop: 4,
   },
   pillWrapper: {
     borderRadius: 32,
@@ -150,14 +149,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 16,
-    height: 32,
+    height: 28,
   },
   sizeLabelRow: {
     flexDirection: 'row',
@@ -181,10 +180,10 @@ const styles = StyleSheet.create({
     opacity: 0.2,
   },
   viewToggle: {
-    width: 44,
+    width: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    height: 32,
+    height: 28,
   },
   dropdownOverlay: {
     position: 'absolute',

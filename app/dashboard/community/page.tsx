@@ -193,7 +193,13 @@ export default function CommunityAdminPage() {
 
   const fetchFeaturedUsers = async () => {
     try {
-      const res = await fetch('/api/admin/featured-users');
+      const res = await fetch('/api/admin/featured-users', {
+        cache: 'no-store',
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-cache'
+        }
+      });
       const data = await res.json();
       setFeaturedUsers(data.users || []);
     } catch (e) {

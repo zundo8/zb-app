@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, TextInput, Alert, ActivityIndicator,
+  Image, TextInput, Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -88,12 +88,17 @@ export default function CommunityScreen() {
 
   const uploadImage = async (uri: string) => {
     setIsUploading(true);
+    
+    // Create a robust FormData for React Native
     const formData = new FormData();
+    const uriParts = uri.split('.');
+    const fileType = uriParts[uriParts.length - 1];
+    
     // @ts-ignore
     formData.append('file', {
-      uri,
-      name: 'look.jpg',
-      type: 'image/jpeg',
+      uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+      name: `look-${Date.now()}.${fileType}`,
+      type: `image/${fileType === 'png' ? 'png' : 'jpeg'}`,
     });
 
     try {
@@ -101,18 +106,28 @@ export default function CommunityScreen() {
         method: 'POST',
         body: formData,
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'multipart/form-data',
         },
       });
-      const data = await res.json();
+      
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Server returned invalid JSON: ' + text.slice(0, 50));
+      }
+
       if (data.success) {
         setForm((prev: any) => ({ ...prev, imageUrl: data.url }));
         haptics.success();
       } else {
-        Alert.alert('Upload Failed', data.error);
+        Alert.alert('Upload Failed', data.error || 'Unknown error');
       }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to upload image');
+    } catch (e: any) {
+      console.error("Upload error:", e);
+      Alert.alert('Upload Error', e.message || 'Failed to connect to server');
     } finally {
       setIsUploading(false);
     }
@@ -126,7 +141,8 @@ export default function CommunityScreen() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${config.appUrl}/api/admin/featured-users`, {
+      // Use the public endpoint for user submissions
+      const res = await fetch(`${config.appUrl}/api/featured-users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -139,16 +155,18 @@ export default function CommunityScreen() {
         }),
       });
 
-      if (res.ok) {
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         haptics.success();
-        Alert.alert('Success', 'Your fit has been queued for moderation.');
+        Alert.alert('Success', 'Your look has been submitted for moderation. Check back soon!');
         setShowForm(false);
         setForm({ ...form, imageUrl: '', quote: '' });
       } else {
-        Alert.alert('Error', 'Submission failed.');
+        Alert.alert('Submission Failed', data.error || 'Please try again later.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Network error');
+      Alert.alert('Error', 'Network error. Please check your connection.');
     } finally {
       setIsSubmitting(false);
     }

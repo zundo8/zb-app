@@ -36,140 +36,85 @@ export default function CollectionHeaderCarousel({ currentHandle, collections }:
   useEffect(() => {
     const activeIndex = collections.findIndex(c => c.handle === currentHandle);
     if (activeIndex !== -1 && scrollRef.current) {
-      const scrollX = activeIndex * (ITEM_WIDTH + ITEM_MARGIN);
-      // Slight delay to ensure layout is ready
+      // Approximate width of a pill is 100-150px
+      const scrollX = activeIndex * 120; 
       setTimeout(() => {
-        scrollRef.current?.scrollTo({ x: scrollX - (width - ITEM_WIDTH) / 2 + ITEM_MARGIN/2, animated: true });
+        scrollRef.current?.scrollTo({ x: scrollX - width/2 + 60, animated: true });
       }, 300);
     }
   }, [currentHandle, collections]);
 
   return (
     <View style={styles.container}>
-      <BlurView intensity={isDark ? 30 : 25} tint={isDark ? 'dark' : 'light'} style={styles.backgroundBlur}>
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={ITEM_WIDTH + ITEM_MARGIN}
-          decelerationRate="fast"
-          contentContainerStyle={styles.scrollContent}
-        >
-          {collections.map((col) => {
-            const isActive = col.handle === currentHandle;
-            return (
-              <TouchableOpacity
-                key={col.handle}
-                activeOpacity={0.9}
-                onPress={() => {
-                  if (!isActive) {
-                    navigation.navigate('Collection', { handle: col.handle, title: col.title });
-                  }
-                }}
-                style={[
-                  styles.item,
-                  { 
-                    opacity: isActive ? 1 : 0.5,
-                    transform: [{ scale: isActive ? 1 : 0.96 }]
-                  }
-                ]}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {collections.map((col) => {
+          const isActive = col.handle === currentHandle;
+          return (
+            <TouchableOpacity
+              key={col.handle}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (!isActive) {
+                  navigation.navigate('Collection', { handle: col.handle, title: col.title });
+                }
+              }}
+              style={[
+                styles.pill,
+                { 
+                  backgroundColor: isActive ? colors.text : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'),
+                  borderColor: isActive ? colors.text : colors.borderLight,
+                },
+                isActive && styles.activePill
+              ]}
+            >
+              <Typography 
+                size={7} 
+                weight={isActive ? "700" : "400"} 
+                color={isActive ? colors.background : colors.text} 
+                style={styles.pillText}
               >
-                <View style={[
-                  styles.card,
-                  { 
-                    borderColor: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.05)',
-                    shadowOpacity: isActive ? 0.25 : 0.05
-                  }
-                ]}>
-                  {col.image?.src ? (
-                    <Image
-                      source={{ uri: col.image.src }}
-                      style={styles.image}
-                      contentFit="cover"
-                      transition={1000}
-                    />
-                  ) : (
-                    <View style={[styles.placeholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-                       <Typography size={6} weight="800" color={colors.textExtraLight} style={{ opacity: 0.2 }}>{col.title.toUpperCase()}</Typography>
-                    </View>
-                  )}
-                  
-                  <View style={[styles.overlay, { backgroundColor: isActive ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.4)' }]}>
-                    <Typography 
-                      rocaston 
-                      size={12} 
-                      weight="700" 
-                      color="white" 
-                      style={[styles.title, { textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 10 }]}
-                    >
-                      {col.title.toUpperCase()}
-                    </Typography>
-                  </View>
-
-                  {isActive && (
-                    <View style={styles.shine} />
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </BlurView>
+                {col.title.toUpperCase()}
+              </Typography>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 12,
-    marginHorizontal: 6,
-    borderRadius: 32,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
-  },
-  backgroundBlur: {
-    paddingVertical: 12,
+    marginVertical: 8,
   },
   scrollContent: {
-    paddingHorizontal: (width - ITEM_WIDTH) / 2,
-  },
-  item: {
-    width: ITEM_WIDTH,
-    marginRight: ITEM_MARGIN,
-  },
-  card: {
-    aspectRatio: 21 / 9,
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    letterSpacing: 4.5,
-    textAlign: 'center',
     paddingHorizontal: 20,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  shine: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillText: {
+    letterSpacing: 1.8,
+  },
+  activePill: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
 });

@@ -17,9 +17,10 @@ interface Props {
   product: FlatProduct;
   onQuickAdd?: (product: FlatProduct) => void;
   style?: any;
+  compact?: boolean;
 }
 
-export default function ProductCard({ product, onQuickAdd, style }: Props) {
+export default function ProductCard({ product, onQuickAdd, style, compact }: Props) {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
@@ -86,11 +87,11 @@ export default function ProductCard({ product, onQuickAdd, style }: Props) {
       </TouchableOpacity>
 
       {/* Info Floor - clean typography matches Next.js */}
-      <View style={styles.infoRow}>
+      <View style={[styles.infoRow, compact && styles.compactInfoRow]}>
         <View style={styles.textContainer}>
           <Typography 
-            size={8} 
-            weight="600" 
+            size={compact ? 6 : 7.5} 
+            weight="400" 
             color={colors.textLight} 
             numberOfLines={1} 
             style={styles.productTitle}
@@ -99,13 +100,13 @@ export default function ProductCard({ product, onQuickAdd, style }: Props) {
           </Typography>
           <View style={styles.priceRow}>
             <Typography 
-              size={9.5} 
-              weight="500" 
+              size={compact ? 7 : 9} 
+              weight="400" 
               color={colors.textSecondary} 
             >
               {formatPrice(product.price)}
             </Typography>
-            {product.isOnSale && product.compareAtPrice && (
+            {!compact && product.isOnSale && product.compareAtPrice && (
               <Typography 
                 size={8} 
                 weight="300" 
@@ -118,7 +119,7 @@ export default function ProductCard({ product, onQuickAdd, style }: Props) {
           </View>
         </View>
 
-        {!isSoldOut && onQuickAdd && (
+        {!compact && !isSoldOut && onQuickAdd && (
           <TouchableOpacity
             onPress={handleQuickAdd}
             style={styles.quickAddBtn}
@@ -182,9 +183,9 @@ const styles = StyleSheet.create({
   imageTapArea: {
     width: '100%',
     aspectRatio: 3 / 4.8, // Taller for premium feel
-    borderRadius: 6, // Reduced radius per Next.js
+    borderRadius: 0, // Sharp corners for Apple-style grid parity
     overflow: 'hidden',
-    backgroundColor: 'rgba(128,128,128,0.05)',
+    backgroundColor: 'transparent',
     marginBottom: 8,
   },
   image: {
@@ -199,16 +200,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 4,
+    paddingHorizontal: 12, // More breathable padding inside the grid cell
+    paddingVertical: 12,
+  },
+  compactInfoRow: {
+    paddingHorizontal: 6,
+    paddingVertical: 8,
   },
   textContainer: {
     flex: 1,
     gap: 2,
   },
   productTitle: {
-    letterSpacing: 1.2,
+    letterSpacing: 2.2, // More spaced out for luxury feel
     textTransform: 'uppercase',
-    opacity: 0.45,
+    opacity: 0.5,
   },
   priceRow: {
     flexDirection: 'row',

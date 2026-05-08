@@ -22,14 +22,16 @@ export default function OrderReviewScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const colors = useColors();
-  const { total, items, clearCart, shippingAddress } = useCartStore();
+  const { total, items, clearCart, shippingAddress, buyNowItem, setBuyNowItem } = useCartStore();
+  const checkoutItems = buyNowItem ? [buyNowItem] : items;
+  const checkoutTotal = buyNowItem ? parseFloat(buyNowItem.price) * buyNowItem.quantity : total();
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
   
   const appliedCredit = route.params?.appliedCredit || 0;
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'razorpay' | 'cod'>(route.params?.paymentMethod || 'razorpay');
-  const subtotal = total();
+  const subtotal = checkoutTotal;
   const shipping = 0;
   const codFee = selectedPaymentMethod === 'cod' ? 99 : 0;
   const grandTotal = subtotal + shipping + codFee - appliedCredit;
@@ -48,7 +50,7 @@ export default function OrderReviewScreen() {
         customerId: user?.id || 'GUEST',
         customerEmail: user?.email || shippingAddress?.email || 'guest@zicabella.com',
         customerPhone: user?.phone || shippingAddress?.phone || '',
-        lineItems: items.map(i => ({ 
+        lineItems: checkoutItems.map(i => ({ 
           variantId: i.variantId, 
           productId: i.productId,
           quantity: i.quantity, 
@@ -157,7 +159,11 @@ export default function OrderReviewScreen() {
       }
 
       haptics.success();
-      clearCart();
+      if (buyNowItem) {
+        setBuyNowItem(null);
+      } else {
+        clearCart();
+      }
       
       // Navigate to success
       navigation.reset({
@@ -205,7 +211,7 @@ export default function OrderReviewScreen() {
         <View style={styles.section}>
           <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>ITEMS IN ORDER</Typography>
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, padding: 16 }]}>
-            {items.map((item, idx) => (
+            {checkoutItems.map((item, idx) => (
               <View key={item.id || idx} style={[styles.itemRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: 12, marginTop: 12 }]}>
                 <View style={{ width: 48, height: 48, borderRadius: 8, backgroundColor: colors.background, overflow: 'hidden' }}>
                   {item.image && <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />}
@@ -316,7 +322,7 @@ export default function OrderReviewScreen() {
 
       {/* Summary Bar */}
       <CheckoutSummaryBar 
-        itemCount={items.length}
+        itemCount={checkoutItems.length}
         total={grandTotal}
         primaryLabel={loading ? "AUTHENTICATING..." : "PLACE ORDER"}
         onPrimaryPress={handlePlaceOrder}
