@@ -79,6 +79,7 @@ export async function GET(req: Request) {
         name: displayName,
         phone,
         createdAt: c.createdAt,
+        lastLoginAt: c.lastLoginAt,
         totalOrders,
         totalSpent: isNaN(totalSpent) ? 0 : totalSpent,
         tags: s?.tags || '',

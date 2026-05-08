@@ -425,9 +425,7 @@ export default function ProfileScreen() {
                 </Typography>
               </TouchableOpacity>
 
-              <Typography weight="400" size={8} color={colors.textMuted} style={{ marginTop: 12, textAlign: 'center', lineHeight: 14 }}>
-                Demo OTP is 123456.
-              </Typography>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.dividerRow}>

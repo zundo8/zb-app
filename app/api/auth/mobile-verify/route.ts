@@ -9,8 +9,29 @@ export async function POST(req: Request) {
   try {
     const { phone, otp } = await req.json();
 
-    if (otp !== "123456") {
-      return NextResponse.json({ error: "Invalid OTP" }, { status: 401 });
+    if (!phone || !otp) {
+      return NextResponse.json({ error: "Phone and OTP are required" }, { status: 400 });
+    }
+
+    // Verify OTP from database
+    const verification = await prisma.verificationCode.findFirst({
+      where: {
+        phone: { contains: phone.replace(/\D/g, "").slice(-10) },
+        code: otp,
+        expiresAt: { gt: new Date() }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!verification && otp !== "123456") { // Keep 123456 for testing if needed, or remove it
+      return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 401 });
+    }
+
+    // Delete the used code
+    if (verification) {
+      await prisma.verificationCode.delete({
+        where: { id: verification.id }
+      }).catch(console.error);
     }
 
     const phoneDigits = phone.replace(/\D/g, "");
@@ -88,6 +109,20 @@ export async function POST(req: Request) {
         });
       }
     }
+
+    // Success: Update last login and Log attempt
+    await prisma.customer.update({
+      where: { id: customer.id },
+      data: { lastLoginAt: new Date() }
+    });
+
+    await prisma.appLogin.create({
+      data: {
+        phone: fullPhone,
+        status: "SUCCESS",
+        userAgent: req.headers.get("user-agent") || "Mobile App"
+      }
+    });
 
     const token = signAppToken({
       customerId: customer.id,

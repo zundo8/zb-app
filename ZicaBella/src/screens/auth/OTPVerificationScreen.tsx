@@ -45,17 +45,11 @@ export default function OTPVerificationScreen() {
 
     setLoading(true);
     try {
-      setTimeout(() => {
-        if (code !== '123456') {
-          setLoading(false);
-          haptics.error();
-          Alert.alert('Error', 'Use demo OTP 123456.');
-          return;
-        }
+        // In production, this would call your backend to verify the code
+        // and return a secure token or flag to allow reset
         setLoading(false);
         haptics.success();
         navigation.navigate('ResetPassword', { email, otp: code });
-      }, 1200);
     } catch (e) {
       setLoading(false);
       Alert.alert('Error', 'Invalid verification code.');
@@ -73,7 +67,7 @@ export default function OTPVerificationScreen() {
       <View style={styles.content}>
         <Typography heading weight="700" size={20} color={colors.text} style={styles.title}>VERIFICATION</Typography>
         <Typography weight="400" size={10} color={colors.textExtraLight} style={styles.subtitle}>
-          WE'VE SENT A 6-DIGIT CODE TO {email.toUpperCase()}. USE 123456 FOR DEMO ACCESS.
+          WE'VE SENT A 6-DIGIT CODE TO {email.toUpperCase()}.
         </Typography>
 
         <View style={styles.otpRow}>

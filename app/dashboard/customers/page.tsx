@@ -45,6 +45,7 @@ interface AdminCustomer {
   createdAt: string;
   totalOrders: number;
   totalSpent: number;
+  lastLoginAt: string | null;
   orders: CustomerOrder[];
 }
 
@@ -241,6 +242,12 @@ export default function CustomersPage() {
                     <div className="text-right">
                       <p className="text-[9px] text-foreground/40 font-semibold uppercase tracking-widest mb-1">Joined</p>
                       <p className="text-[11px] font-medium text-foreground/60">{new Date(customer.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                    </div>
+                    <div className="text-right min-w-[80px]">
+                      <p className="text-[9px] text-foreground/40 font-semibold uppercase tracking-widest mb-1">Last Login</p>
+                      <p className="text-[11px] font-medium text-foreground/60">
+                        {customer.lastLoginAt ? new Date(customer.lastLoginAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Never"}
+                      </p>
                     </div>
                     <div className="pl-2 text-foreground/40">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}

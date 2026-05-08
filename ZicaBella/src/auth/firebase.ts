@@ -1,32 +1,30 @@
-// Firebase phone OTP authentication placeholder
-// Requires Firebase project setup and @react-native-firebase packages
-// For now, this uses a simple mock that can be replaced with real Firebase
-
 import { useAuthStore } from '../store/authStore';
 import { config } from '../constants/config';
 
-// Mock OTP verification — replace with Firebase Auth in production
+/**
+ * Real OTP sending service integrated with Twilio via Next.js API
+ */
 export async function sendOTP(phone: string): Promise<boolean> {
   console.log(`[Auth] Sending OTP to ${phone}`);
-  // In production: use firebase.auth().signInWithPhoneNumber(phone)
-  return true;
+  try {
+    const res = await fetch(`${config.appUrl}/api/auth/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const data = await res.json();
+    return res.ok;
+  } catch (e) {
+    console.error("[Auth] Send OTP error:", e);
+    return false;
+  }
 }
 
+/**
+ * Real OTP verification service integrated with database via Next.js API
+ */
 export async function verifyOTP(phone: string, otp: string): Promise<boolean> {
   console.log(`[Auth] Verifying OTP ${otp} for ${phone}`);
-
-  if (otp === '123456') {
-    useAuthStore.getState().login(
-      {
-        id: phone || 'demo-phone-user',
-        name: 'Demo User',
-        email: 'demo@zicabella.com',
-        phone,
-      },
-      'demo-otp-token'
-    );
-    return true;
-  }
   
   try {
     const res = await fetch(`${config.appUrl}/api/auth/mobile-verify`, {
@@ -37,7 +35,7 @@ export async function verifyOTP(phone: string, otp: string): Promise<boolean> {
 
     const data = await res.json();
     if (res.ok && data.user) {
-      useAuthStore.getState().login(data.user, data.token || 'mobile-auth-token');
+      useAuthStore.getState().login(data.user, data.token);
       return true;
     } else {
       console.error("[Auth] Verify failed:", data.error);

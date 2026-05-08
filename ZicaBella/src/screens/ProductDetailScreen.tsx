@@ -140,6 +140,17 @@ export default function ProductDetailScreen() {
     player.play();
   });
 
+  const isFocused = useNavigation().isFocused();
+
+  useEffect(() => {
+    if (!player) return;
+    if (!isFocused) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  }, [isFocused, player]);
+
   useEffect(() => {
     if (player) {
       player.muted = isMuted;

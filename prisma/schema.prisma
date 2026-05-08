@@ -111,6 +111,7 @@ model Customer {
   emailOptedOut         Boolean            @default(false)
   smsOptedOut           Boolean            @default(false)
   whatsappOptedOut      Boolean            @default(false)
+  lastLoginAt           DateTime?
   communityMember       CommunityMember?
   communityMessages     CommunityMessage[]
   shop                  Shop               @relation(fields: [shopId], references: [id])
@@ -764,4 +765,26 @@ model Discount {
 
   @@index([code])
   @@index([isActive])
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+}
+
+model AppLogin {
+  id        String   @id @default(cuid())
+  phone     String
+  status    String   @default("SUCCESS")
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@index([createdAt])
 }

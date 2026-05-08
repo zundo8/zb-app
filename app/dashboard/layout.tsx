@@ -36,6 +36,7 @@ import {
   MessageCircle,
   CreditCard,
   Tag,
+  History
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -90,6 +91,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const integrationNav = [
     { name: "App Integration", href: "/dashboard/app-integration", icon: Smartphone },
+    { name: "App Login Logs", href: "/dashboard/app-logins", icon: History },
     { name: "Razorpay", href: "/dashboard/payments/razorpay", icon: CreditCard },
   ];
 
