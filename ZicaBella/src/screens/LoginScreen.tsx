@@ -44,7 +44,15 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState<{ phone?: string; otp?: string }>({});
 
   const handleSendOTP = async () => {
-    const cleaned = phone.replace(/\D/g, '');
+    // Advanced cleaning: Strip non-digits and redundant country code if present
+    let cleaned = phone.replace(/\D/g, '');
+    
+    // If user typed the country code (e.g. 91...) strip it to get the 10-digit base
+    const countryDigits = country.code.replace(/\D/g, '');
+    if (cleaned.startsWith(countryDigits) && cleaned.length > 10) {
+      cleaned = cleaned.slice(countryDigits.length);
+    }
+
     if (cleaned.length !== 10) {
       setErrors({ phone: 'ENTER 10 DIGITS' });
       haptics.error();
@@ -83,7 +91,13 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const fullPhone = country.code + phone.replace(/\D/g, '');
+      let cleanedPhone = phone.replace(/\D/g, '');
+      const countryDigits = country.code.replace(/\D/g, '');
+      if (cleanedPhone.startsWith(countryDigits) && cleanedPhone.length > 10) {
+        cleanedPhone = cleanedPhone.slice(countryDigits.length);
+      }
+      
+      const fullPhone = country.code + cleanedPhone;
       const res = await fetch(`${config.appUrl}/api/auth/mobile-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,36 +161,40 @@ export default function LoginScreen() {
             {step === 'PHONE' ? (
               <View style={styles.phoneInputContainer}>
                  <TouchableOpacity 
-                   style={[styles.countryBox, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} 
+                   style={[styles.countryBox, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }]} 
                    onPress={() => { haptics.buttonTap(); setShowPicker(true); }}
                    activeOpacity={0.7}
                  >
-                   <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                   <Typography size={24} style={{ marginBottom: 2 }}>{country.flag}</Typography>
-                   <Typography size={9} weight="700" color={colors.text}>{country.code}</Typography>
+                   <BlurView intensity={isDark ? 15 : 25} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                   <View style={styles.countryInner}>
+                     <Typography size={22}>{country.flag}</Typography>
+                     <View style={styles.codeRow}>
+                        <Typography size={10} weight="800" color={colors.text}>{country.code}</Typography>
+                        <Ionicons name="chevron-down" size={8} color={colors.textExtraLight} style={{ marginLeft: 2 }} />
+                     </View>
+                   </View>
                  </TouchableOpacity>
 
-                 <View style={[styles.numberBox, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-                   <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                 <View style={[styles.numberBox, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }]}>
+                   <BlurView intensity={isDark ? 15 : 25} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                    <TextInput
                      value={phone}
                      onChangeText={(v) => { 
-                       const cleaned = v.replace(/\D/g, '').slice(0, 10);
+                       const cleaned = v.replace(/[^\d+]/g, ''); // Allow digits and + for now
                        setPhone(cleaned); 
                        if (errors.phone) setErrors({}); 
                      }}
                      placeholder="PHONE NUMBER"
                      placeholderTextColor={colors.textExtraLight}
-                     keyboardType="number-pad"
-                     maxLength={10}
+                     keyboardType="phone-pad"
                      style={[styles.input, { color: colors.text }]}
                      autoFocus
                    />
                  </View>
               </View>
             ) : (
-              <View style={[styles.otpBox, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-                <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <View style={[styles.otpBox, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }]}>
+                <BlurView intensity={isDark ? 15 : 25} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                 <TextInput
                   value={otp}
                   onChangeText={(v) => { setOtp(v.replace(/\D/g, '').slice(0, 6)); if (errors.otp) setErrors({}); }}
@@ -288,24 +306,33 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   countryBox: {
-    width: 80,
-    height: 68,
+    width: 88,
+    height: 72,
     borderRadius: 24,
     borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  countryInner: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
+    paddingTop: 4,
+  },
+  codeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: -2,
   },
   numberBox: {
     flex: 1,
-    height: 68,
+    height: 72,
     borderRadius: 24,
     borderWidth: 1.5,
     overflow: 'hidden',
   },
   otpBox: {
     width: '100%',
-    height: 68,
+    height: 72,
     borderRadius: 24,
     borderWidth: 1.5,
     overflow: 'hidden',
@@ -314,7 +341,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: '100%',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     paddingHorizontal: 24,
     letterSpacing: 1,
