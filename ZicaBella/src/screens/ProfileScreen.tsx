@@ -11,8 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useColors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthStore } from '../store/authStore';
-import { sendOTP, verifyOTP, signOut } from '../auth/firebase';
-import { signInWithApple, isAppleSignInAvailable } from '../auth/apple';
+import { signOut } from '../auth/firebase';
 import { haptics } from '../utils/haptics';
 import { config } from '../constants/config';
 import { navigationRef } from '../navigation/navigationUtils';
@@ -24,6 +23,7 @@ import { useThemeStore } from '../store/themeStore';
 import { useBookmarkStore } from '../store/bookmarkStore';
 import { formatPrice } from '../utils/formatPrice';
 import { useNotificationStore } from '../store/notificationStore';
+import LoginScreen from './LoginScreen';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -36,9 +36,6 @@ export default function ProfileScreen() {
   const { bookmarks } = useBookmarkStore();
   const unreadCount = useNotificationStore(s => s.unreadCount());
 
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [orderCount, setOrderCount] = useState(0);
@@ -239,38 +236,6 @@ export default function ProfileScreen() {
     lastScrollY.current = currentY;
   };
 
-  const handleSendOTP = async () => {
-    if (!phone.trim()) return;
-    setLoading(true);
-    const success = await sendOTP(phone);
-    if (success) {
-      setOtpSent(true);
-    } else {
-      Alert.alert('Error', 'Failed to send OTP');
-    }
-    setLoading(false);
-  };
-
-  const handleVerifyOTP = async () => {
-    if (!otp.trim()) return;
-    setLoading(true);
-    const success = await verifyOTP(phone, otp);
-    if (success) {
-      haptics.success();
-    } else {
-      Alert.alert('Error', 'Invalid OTP');
-      haptics.error();
-    }
-    setLoading(false);
-  };
-
-  const handleAppleSignIn = async () => {
-    setLoading(true);
-    const success = await signInWithApple();
-    if (success) haptics.success();
-    setLoading(false);
-  };
-
   const handleBiometricToggle = async (value: boolean) => {
     if (value) {
       const result = await LocalAuthentication.authenticateAsync({
@@ -294,9 +259,6 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: () => {
           signOut();
-          setOtpSent(false);
-          setPhone('');
-          setOtp('');
         },
       },
     ]);
@@ -351,103 +313,9 @@ export default function ProfileScreen() {
     );
   };
 
-  // ─── NOT AUTHENTICATED ───────────────────────────────────────────────
+  // ─── NOT AUTHENTICATED ───
   if (!isAuthenticated) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingTop: insets.top + 60, paddingHorizontal: 24 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-        >
-          <View style={styles.loginHeader}>
-            <Image 
-              source={require('../../assets/zica-bella-logo_8.png')} 
-              style={{ width: 44, height: 44, marginBottom: 16 }} 
-              contentFit="contain"
-            />
-            <Typography rocaston size={24} color={colors.text} style={styles.loginTitle}>ZICA BELLA</Typography>
-            <Typography weight="400" size={8} color={colors.textExtraLight} style={styles.loginSubtitle}>ARCHIVAL EXCELLENCE</Typography>
-          </View>
-
-          <BlurView 
-            intensity={isDark ? 10 : 60} 
-            tint={theme} 
-            style={[
-              styles.loginCard, 
-              { 
-                borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.4)'
-              }
-            ]}
-          >
-            <Typography weight="300" size={14} color={colors.textSecondary} style={styles.welcomeText}>Sign in to your account</Typography>
-            
-            <View style={styles.formSection}>
-              <Typography heading size={7} color={colors.textExtraLight} style={styles.formLabel}>PHONE NUMBER</Typography>
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+91 00000 00000"
-                placeholderTextColor={colors.textExtraLight}
-                style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.borderLight }]}
-                keyboardType="phone-pad"
-              />
-
-              {otpSent && (
-                <View style={{ marginTop: 20 }}>
-                  <Typography heading size={7} color={colors.textExtraLight} style={styles.formLabel}>VERIFICATION CODE</Typography>
-                  <TextInput
-                    value={otp}
-                    onChangeText={setOtp}
-                    placeholder="0 0 0 0 0 0"
-                    placeholderTextColor={colors.textExtraLight}
-                    style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.borderLight }]}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
-                onPress={otpSent ? handleVerifyOTP : handleSendOTP}
-                disabled={loading}
-                activeOpacity={0.8}
-                accessibilityLabel={otpSent ? 'Confirm OTP and sign in' : 'Send verification code'}
-                accessibilityRole="button"
-              >
-                <Typography heading weight="700" size={9} color={colors.background}>
-                  {loading ? 'PROCESSING' : otpSent ? 'CONFIRM OTP' : 'SEND CODE'}
-                </Typography>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.dividerRow}>
-              <View style={[styles.dividerLine, { backgroundColor: colors.borderLight }]} />
-              <Typography weight="300" size={8} color={colors.textExtraLight} style={{ paddingHorizontal: 12 }}>OR</Typography>
-              <View style={[styles.dividerLine, { backgroundColor: colors.borderLight }]} />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.appleButton, { backgroundColor: colors.text }]}
-              onPress={handleAppleSignIn}
-              activeOpacity={0.8}
-              accessibilityLabel="Sign in with Apple"
-              accessibilityRole="button"
-            >
-              <Ionicons name="logo-apple" size={16} color={colors.background} />
-              <Typography heading weight="600" size={9} color={colors.background} style={{ marginLeft: 6 }}>SIGN IN WITH APPLE</Typography>
-            </TouchableOpacity>
-          </BlurView>
-
-          <View style={{ height: 100 }} />
-        </ScrollView>
-      </View>
-    );
+    return <LoginScreen />;
   }
 
   // ─── AUTHENTICATED VIEW ──────────────────────────────────────────────
