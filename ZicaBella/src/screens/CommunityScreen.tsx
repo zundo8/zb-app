@@ -301,7 +301,7 @@ export default function CommunityScreen() {
                    <TextInput 
                       value={form.quote}
                       onChangeText={(t) => setForm({...form, quote: t})}
-                      placeholder="Describe your curation..."
+                      placeholder="Tell us why you'd love to get featured..."
                       placeholderTextColor={colors.textExtraLight}
                       style={[styles.formInput, { 
                         height: 100, 

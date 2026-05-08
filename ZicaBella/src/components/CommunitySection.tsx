@@ -119,13 +119,6 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
                   contentFit="cover"
                   transition={800}
                 />
-                {!!look.styleDescription && (
-                  <View style={styles.descriptionOverlay} pointerEvents="none">
-                    <Typography size={5.5} color="#ffffff" weight="400" style={styles.descriptionText} numberOfLines={2}>
-                      {look.styleDescription}
-                    </Typography>
-                  </View>
-                )}
                 <View style={styles.labelContainer}>
                   <BlurView
                     intensity={isDark ? 40 : 60}
