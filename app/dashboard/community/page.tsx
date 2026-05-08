@@ -469,8 +469,10 @@ export default function CommunityAdminPage() {
                   />
                    <div className="absolute inset-x-0 top-0 p-6 flex justify-between items-start">
                       <div className="flex flex-col gap-2">
-                         {user.status === 'APPROVED' && <StatusBadge type="success" label="Approved" />}
-                         {user.isTopFeatured && <div className="px-2.5 py-1 bg-emerald-500 text-white rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-md shadow-lg shadow-emerald-500/20">TOP 20</div>}
+                          {user.status === 'APPROVED' && <StatusBadge type="success" label="Approved" />}
+                          {user.status === 'PENDING' && <StatusBadge type="warning" label="Pending Approval" />}
+                          {user.status === 'REJECTED' && <StatusBadge type="info" label="Rejected" />}
+                          {user.isTopFeatured && <div className="px-2.5 py-1 bg-emerald-500 text-white rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-md shadow-lg shadow-emerald-500/20">TOP 20</div>}
                       </div>
                       <button 
                         onClick={() => handleEditClick(user)}
