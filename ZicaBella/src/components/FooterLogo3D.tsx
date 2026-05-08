@@ -13,37 +13,36 @@ function Model({
 }) {
   const { scene } = useGLTF(glbUrl);
   const group = useRef<any>(null);
-  const currentRotation = useRef({ x: 0, y: 0 });
+  const velocity = useRef({ x: 0, y: 0 });
 
   useFrame((_state, delta) => {
     if (group.current) {
-      // 1. Base auto-rotation (gentle)
-      group.current.rotation.y += delta * 0.3;
+      // 1. Auto-rotation (minimal)
+      group.current.rotation.y += delta * 0.2;
 
-      // 2. Smoothly interpolate the touch rotation (LERP)
-      // This makes the movement feel "feather light" and fluid
-      currentRotation.current.x += (touchRotation.current.x - currentRotation.current.x) * 0.15;
-      currentRotation.current.y += (touchRotation.current.y - currentRotation.current.y) * 0.15;
+      // 2. Momentum physics (Zero friction during touch, high-fluidity decay)
+      // Accumulate velocity from touch
+      velocity.current.x += (touchRotation.current.x - velocity.current.x) * 0.2;
+      velocity.current.y += (touchRotation.current.y - velocity.current.y) * 0.2;
 
-      // 3. Apply the rotation
-      group.current.rotation.x += currentRotation.current.y;
-      group.current.rotation.y += currentRotation.current.x;
+      // Apply velocity to rotation
+      group.current.rotation.y += velocity.current.x;
+      group.current.rotation.x += velocity.current.y;
 
-      // 4. Decay the touch target (Inertia)
-      touchRotation.current.x *= 0.95;
-      touchRotation.current.y *= 0.95;
+      // 3. Natural decay (Inertia)
+      // 0.98 is very smooth, feels like it's spinning on ice
+      touchRotation.current.x *= 0.98;
+      touchRotation.current.y *= 0.98;
     }
   });
 
   return (
     <group ref={group}>
-      <Float speed={2} rotationIntensity={0.6} floatIntensity={0.6}>
-        <primitive 
-          object={scene} 
-          scale={2.3} 
-          position={[0, 0, 0]} 
-        />
-      </Float>
+      <primitive 
+        object={scene} 
+        scale={2.4} 
+        position={[0, 0, 0]} 
+      />
     </group>
   );
 }
@@ -66,20 +65,19 @@ export default function FooterLogo({ glbUrl }: Props) {
         lastGesture.current = { dx: 0, dy: 0 };
       },
       onPanResponderMove: (_evt, gestureState) => {
-        // High-sensitivity displacement tracking
-        const sensitivity = 0.02;
+        // Ultra-sensitive displacement tracking
+        const sensitivity = 0.025;
         const dx = (gestureState.dx - lastGesture.current.dx) * sensitivity;
         const dy = (gestureState.dy - lastGesture.current.dy) * sensitivity;
         
-        // Accumulate displacement for the next frame
         touchRotation.current.x = dx;
         touchRotation.current.y = dy;
         
         lastGesture.current = { dx: gestureState.dx, dy: gestureState.dy };
       },
       onPanResponderRelease: (_evt, gestureState) => {
-        // Boosted flick velocity for satisfying inertia
-        const flickBoost = 0.25;
+        // Professional flick boost
+        const flickBoost = 0.3;
         touchRotation.current.x = gestureState.vx * flickBoost;
         touchRotation.current.y = gestureState.vy * flickBoost;
       }
@@ -91,14 +89,19 @@ export default function FooterLogo({ glbUrl }: Props) {
       <Canvas
         key={url}
         camera={{ position: [0, 0, 6], fov: 40 }}
-        gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true }}
+        gl={{ 
+          alpha: true, 
+          antialias: true, 
+          logarithmicDepthBuffer: true,
+          powerPreference: "high-performance" 
+        }}
       >
-        <ambientLight intensity={1.8} />
-        <spotLight position={[10, 15, 10]} angle={0.2} penumbra={1} intensity={3} />
-        <pointLight position={[-10, -5, -10]} intensity={2} color="#ffffff" />
-        <directionalLight position={[0, 10, 5]} intensity={2.5} />
+        <ambientLight intensity={2} />
+        <spotLight position={[10, 20, 10]} angle={0.2} penumbra={1} intensity={4} color="#ffffff" />
+        <pointLight position={[-10, -10, -10]} intensity={3} color="#ffffff" />
+        <directionalLight position={[0, 10, 5]} intensity={3} />
         <Suspense fallback={null}>
-          <Bounds fit clip observe margin={1.1}>
+          <Bounds fit clip observe margin={1}>
             <Model glbUrl={url} touchRotation={touchRotation} />
           </Bounds>
         </Suspense>

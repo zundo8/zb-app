@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { searchCustomerByPhone } from "@/lib/shopify-admin";
 import { signAppToken } from "@/lib/appAuth";
+import { SmsService } from "@/lib/services/sms.service";
 
 export const dynamic = "force-dynamic";
 
@@ -21,17 +22,39 @@ export async function POST(req: Request) {
     const phoneDigits = phone.replace(/\D/g, "");
     const normalizedPhone = phoneDigits.slice(-10);
 
-    // Verify OTP from database — search by last 10 digits to handle country code variations
-    const verification = await prisma.verificationCode.findFirst({
-      where: {
-        phone: { contains: normalizedPhone },
-        code: otp,
-        expiresAt: { gt: new Date() }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    let isVerified = false;
 
-    if (!verification) {
+    // 1. Try Twilio Verify check first
+    try {
+      const verifyCheck = await SmsService.checkVerification(phone, otp);
+      if (verifyCheck === true) {
+        isVerified = true;
+      }
+    } catch (err: any) {
+      console.log("[Mobile Verify] Twilio Verify check failed/skipped:", err.message);
+    }
+
+    // 2. Fallback to local DB check if not verified by Twilio Verify
+    if (!isVerified) {
+      const verification = await prisma.verificationCode.findFirst({
+        where: {
+          phone: { contains: normalizedPhone },
+          code: otp,
+          expiresAt: { gt: new Date() }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (verification) {
+        isVerified = true;
+        // Delete the used code to prevent reuse
+        await prisma.verificationCode.delete({
+          where: { id: verification.id }
+        }).catch(console.error);
+      }
+    }
+
+    if (!isVerified) {
       // Log failed attempt
       await prisma.appLogin.create({
         data: {
@@ -44,11 +67,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 401 });
     }
 
-    // Delete the used code to prevent reuse
-    await prisma.verificationCode.delete({
-      where: { id: verification.id }
-    }).catch(console.error);
-
+    // Success logic follows...
     // Also clean up any other expired codes for this phone
     await prisma.verificationCode.deleteMany({
       where: {

@@ -31,32 +31,17 @@ export const SmsService = {
       }
     }
 
-    if (!activeClient || !activeFromNumber) {
-      console.error('[SmsService] Twilio credentials not configured. Cannot send SMS.');
-      // If we are in development, we might want to log the message instead of failing completely
-      if (process.env.NODE_ENV === 'development') {
-        console.log('------------------------------------------------');
-        console.log(`[DEV MOCK SMS] To: ${to}`);
-        console.log(`[DEV MOCK SMS] Body: ${body}`);
-        console.log('------------------------------------------------');
-        return { sid: 'mock_sid_dev' };
-      }
-      throw new Error('SMS service is not configured correctly. Please check Twilio credentials.');
+    if (!activeClient) {
+      console.error('[SmsService] Twilio client not initialized.');
+      throw new Error('Twilio service is not configured correctly.');
     }
 
     try {
-      // Normalize phone number: ensure it has + prefix and only digits
+      // Normalize phone number
       let formattedPhone = to.trim();
-      // Remove any spaces, dashes, or parentheses
       formattedPhone = formattedPhone.replace(/[\s\-\(\)]/g, '');
       if (!formattedPhone.startsWith('+')) {
         formattedPhone = '+' + formattedPhone.replace(/\D/g, '');
-      }
-
-      // Validate the phone number has enough digits
-      const digits = formattedPhone.replace(/\D/g, '');
-      if (digits.length < 10) {
-        throw new Error(`Invalid phone number format: ${formattedPhone}`);
       }
 
       console.log(`[SmsService] Attempting to send SMS to ${formattedPhone.slice(0, 4)}****${formattedPhone.slice(-4)}`);
@@ -66,35 +51,73 @@ export const SmsService = {
         to: formattedPhone,
       };
 
-      // Use messaging service if available, otherwise use the from number
       if (activeMessagingServiceSid) {
         messageOptions.messagingServiceSid = activeMessagingServiceSid;
-      } else {
+      } else if (activeFromNumber) {
         messageOptions.from = activeFromNumber;
+      } else {
+        throw new Error('No sender (phone number or messaging service) configured.');
       }
 
       const response = await activeClient.messages.create(messageOptions);
-
       console.log(`[SmsService] SMS sent successfully. SID: ${response.sid}`);
       return response;
     } catch (error: any) {
-      console.error('[SmsService] Twilio SMS error detail:', {
-        code: error.code,
-        message: error.message,
-        status: error.status,
-        moreInfo: error.moreInfo,
-      });
-
-      // Fallback for development if Twilio fails (e.g. invalid credentials)
+      console.error('[SmsService] Twilio SMS error detail:', error);
       if (process.env.NODE_ENV === 'development') {
-        console.log('------------------------------------------------');
-        console.log(`[DEV FALLBACK SMS] To: ${to}`);
-        console.log(`[DEV FALLBACK SMS] Body: ${body}`);
-        console.log('------------------------------------------------');
-        return { sid: 'mock_sid_fallback' };
+        console.log(`[DEV FALLBACK] SMS to ${to}: ${body}`);
+        return { sid: 'mock_sid' };
       }
-
       throw new Error(`Failed to send SMS: ${error.message}`);
+    }
+  },
+
+  /**
+   * Sends a verification code via Twilio Verify API.
+   */
+  async sendVerification(to: string) {
+    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+    if (!client || !serviceSid) {
+      console.log('[SmsService] Twilio Verify not configured, falling back to manual SMS.');
+      return null;
+    }
+
+    try {
+      let formattedPhone = to.trim().replace(/[\s\-\(\)]/g, '');
+      if (!formattedPhone.startsWith('+')) formattedPhone = '+' + formattedPhone.replace(/\D/g, '');
+
+      const verification = await client.verify.v2.services(serviceSid)
+        .verifications
+        .create({ to: formattedPhone, channel: 'sms' });
+      
+      console.log(`[SmsService] Verify OTP sent to ${formattedPhone}. SID: ${verification.sid}`);
+      return verification;
+    } catch (error: any) {
+      console.error('[SmsService] Twilio Verify send error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Checks a verification code via Twilio Verify API.
+   */
+  async checkVerification(to: string, code: string) {
+    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+    if (!client || !serviceSid) return null;
+
+    try {
+      let formattedPhone = to.trim().replace(/[\s\-\(\)]/g, '');
+      if (!formattedPhone.startsWith('+')) formattedPhone = '+' + formattedPhone.replace(/\D/g, '');
+
+      const check = await client.verify.v2.services(serviceSid)
+        .verificationChecks
+        .create({ to: formattedPhone, code });
+      
+      console.log(`[SmsService] Verify OTP check for ${formattedPhone}: ${check.status}`);
+      return check.status === 'approved';
+    } catch (error: any) {
+      console.error('[SmsService] Twilio Verify check error:', error);
+      return false;
     }
   }
 };

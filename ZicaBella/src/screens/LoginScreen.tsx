@@ -33,7 +33,7 @@ export default function LoginScreen() {
   const colors = useColors();
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
-  const { login, rememberMe, setRememberMe } = useAuth();
+  const { login } = useAuth();
 
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -44,10 +44,9 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState<{ phone?: string; otp?: string }>({});
 
   const handleSendOTP = async () => {
-    // Exact 10 digit validation as requested
     const cleaned = phone.replace(/\D/g, '');
     if (cleaned.length !== 10) {
-      setErrors({ phone: 'Please enter exactly 10 digits' });
+      setErrors({ phone: 'ENTER 10 DIGITS' });
       haptics.error();
       return;
     }
@@ -63,12 +62,12 @@ export default function LoginScreen() {
       });
       const json = await res.json();
       
-      if (!res.ok) throw new Error(json.error || 'Failed to send OTP');
+      if (!res.ok) throw new Error(json.error || 'UNABLE TO SEND OTP');
 
       setStep('OTP');
       haptics.success();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('DELIVERY FAILED', e.message);
       haptics.error();
     } finally {
       setLoading(false);
@@ -77,7 +76,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!otp || otp.length < 6) {
-      setErrors({ otp: 'Enter 6-digit OTP' });
+      setErrors({ otp: 'ENTER 6-DIGIT CODE' });
       haptics.error();
       return;
     }
@@ -92,13 +91,13 @@ export default function LoginScreen() {
       });
       const json = await res.json();
       
-      if (!res.ok) throw new Error(json.error || 'Verification failed');
+      if (!res.ok) throw new Error(json.error || 'VERIFICATION FAILED');
 
-      if (!json.token) throw new Error('Missing session token');
+      if (!json.token) throw new Error('SESSION EXPIRED');
       login(json.user, json.token);
       haptics.success();
     } catch (e: any) {
-      Alert.alert('Login Failed', e.message);
+      Alert.alert('ACCESS DENIED', e.message);
       haptics.error();
     } finally {
       setLoading(false);
@@ -124,7 +123,7 @@ export default function LoginScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 60 }]}
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 80 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -135,8 +134,11 @@ export default function LoginScreen() {
               style={styles.logo}
               contentFit="contain"
             />
-            <Typography weight="700" size={14} color={colors.text} style={styles.title}>
+            <Typography weight="700" size={16} color={colors.text} style={styles.title}>
               ZICA BELLA
+            </Typography>
+            <Typography size={7} color={colors.textExtraLight} weight="500" style={styles.subtitle}>
+              AUTHENTIC LUXURY STREETWEAR
             </Typography>
           </View>
 
@@ -145,19 +147,17 @@ export default function LoginScreen() {
             {step === 'PHONE' ? (
               <View style={styles.phoneInputContainer}>
                  <TouchableOpacity 
-                   style={styles.countryBox} 
+                   style={[styles.countryBox, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} 
                    onPress={() => { haptics.buttonTap(); setShowPicker(true); }}
                    activeOpacity={0.7}
                  >
-                   <BlurView intensity={isDark ? 25 : 65} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                   <Typography size={22} style={{ marginBottom: 2 }}>{country.flag}</Typography>
-                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                     <Typography size={10} weight="700" color={colors.text}>{country.code}</Typography>
-                   </View>
+                   <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                   <Typography size={24} style={{ marginBottom: 2 }}>{country.flag}</Typography>
+                   <Typography size={9} weight="700" color={colors.text}>{country.code}</Typography>
                  </TouchableOpacity>
 
-                 <View style={styles.numberBox}>
-                   <BlurView intensity={isDark ? 25 : 65} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                 <View style={[styles.numberBox, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                   <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                    <TextInput
                      value={phone}
                      onChangeText={(v) => { 
@@ -165,7 +165,7 @@ export default function LoginScreen() {
                        setPhone(cleaned); 
                        if (errors.phone) setErrors({}); 
                      }}
-                     placeholder="Phone Number"
+                     placeholder="PHONE NUMBER"
                      placeholderTextColor={colors.textExtraLight}
                      keyboardType="number-pad"
                      maxLength={10}
@@ -175,8 +175,8 @@ export default function LoginScreen() {
                  </View>
               </View>
             ) : (
-              <View style={[styles.otpBox, { borderColor: colors.borderLight }]}>
-                <BlurView intensity={isDark ? 25 : 65} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <View style={[styles.otpBox, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                 <TextInput
                   value={otp}
                   onChangeText={(v) => { setOtp(v.replace(/\D/g, '').slice(0, 6)); if (errors.otp) setErrors({}); }}
@@ -185,69 +185,72 @@ export default function LoginScreen() {
                   keyboardType="number-pad"
                   maxLength={6}
                   autoFocus
-                  style={[styles.input, { color: colors.text, textAlign: 'center', letterSpacing: 14, fontSize: 18 }]}
+                  style={[styles.input, { color: colors.text, textAlign: 'center', letterSpacing: 16, fontSize: 20, fontWeight: '700' }]}
                 />
               </View>
             )}
 
-            {errors.phone && <Typography size={8} color={colors.error} style={styles.error}>{errors.phone}</Typography>}
-            {errors.otp && <Typography size={8} color={colors.error} style={styles.error}>{errors.otp}</Typography>}
+            <View style={styles.errorContainer}>
+              {errors.phone && <Typography size={7} weight="700" color={colors.error} style={styles.errorText}>{errors.phone}</Typography>}
+              {errors.otp && <Typography size={7} weight="700" color={colors.error} style={styles.errorText}>{errors.otp}</Typography>}
+            </View>
 
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
               onPress={step === 'PHONE' ? handleSendOTP : handleLogin}
               disabled={loading}
-              activeOpacity={0.8}
+              activeOpacity={0.9}
             >
               {loading ? (
                 <ActivityIndicator color={colors.background} />
               ) : (
-                <Typography weight="700" size={10} color={colors.background} style={{ letterSpacing: 2 }}>
-                  {step === 'PHONE' ? 'CONTINUE' : 'VERIFY'}
+                <Typography weight="700" size={10} color={colors.background} style={{ letterSpacing: 4 }}>
+                  {step === 'PHONE' ? 'GET ACCESS' : 'VERIFY CODE'}
                 </Typography>
               )}
             </TouchableOpacity>
 
             {step === 'OTP' && (
               <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.backBtn}>
-                <Typography size={8} weight="600" color={colors.textMuted} style={{ letterSpacing: 1 }}>CHANGE NUMBER</Typography>
+                <Typography size={7} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>BACK TO PHONE</Typography>
               </TouchableOpacity>
             )}
           </View>
 
           <View style={styles.dividerRow}>
-            <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
-            <Typography size={8} color={colors.textExtraLight} style={{ marginHorizontal: 15, letterSpacing: 2 }}>OR</Typography>
-            <View style={[styles.line, { backgroundColor: colors.borderLight }]} />
+            <View style={[styles.line, { backgroundColor: colors.text, opacity: 0.05 }]} />
+            <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginHorizontal: 20, letterSpacing: 3, opacity: 0.3 }}>OR</Typography>
+            <View style={[styles.line, { backgroundColor: colors.text, opacity: 0.05 }]} />
           </View>
 
-          <TouchableOpacity style={[styles.appleButton, { backgroundColor: colors.surface }]} onPress={handleAppleSignIn} activeOpacity={0.7}>
-            <BlurView intensity={isDark ? 10 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <TouchableOpacity style={[styles.appleButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]} onPress={handleAppleSignIn} activeOpacity={0.8}>
+            <BlurView intensity={5} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
             <Ionicons name="logo-apple" size={18} color={colors.text} />
-            <Typography weight="600" size={10} color={colors.text} style={{ marginLeft: 8, letterSpacing: 1 }}>CONTINUE WITH APPLE</Typography>
+            <Typography weight="700" size={9} color={colors.text} style={{ marginLeft: 10, letterSpacing: 2 }}>CONTINUE WITH APPLE</Typography>
           </TouchableOpacity>
 
-          <Typography size={8} color={colors.textExtraLight} style={styles.footerText}>
-            By continuing, you agree to our Terms & Privacy Policy
+          <Typography size={7} color={colors.textExtraLight} style={styles.footerText}>
+            BY CONTINUING, YOU AGREE TO OUR{'\n'}
+            <Typography size={7} weight="700" color={colors.text}>TERMS & PRIVACY POLICY</Typography>
           </Typography>
         </ScrollView>
       </KeyboardAvoidingView>
 
       {/* ── COUNTRY PICKER MODAL ── */}
-      <Modal visible={showPicker} transparent animationType="slide">
+      <Modal visible={showPicker} transparent animationType="fade">
         <TouchableOpacity 
           style={styles.modalOverlay} 
           activeOpacity={1} 
           onPress={() => setShowPicker(false)}
         >
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={[styles.pickerContent, { backgroundColor: colors.surface }]}>
-            <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
             <View style={styles.pickerDragIndicator} />
-            <Typography weight="700" size={12} style={styles.pickerTitle}>SELECT COUNTRY</Typography>
+            <Typography weight="700" size={11} style={styles.pickerTitle}>SELECT ORIGIN</Typography>
             <FlatList
               data={COUNTRIES}
               keyExtractor={item => item.code}
-              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 40 }}
               renderItem={({ item }) => (
                 <TouchableOpacity 
                   style={styles.pickerItem}
@@ -257,9 +260,9 @@ export default function LoginScreen() {
                     haptics.buttonTap();
                   }}
                 >
-                  <Typography size={22}>{item.flag}</Typography>
-                  <Typography size={12} weight="600" style={{ flex: 1, marginLeft: 16 }}>{item.name}</Typography>
-                  <Typography size={12} color={colors.textMuted} weight="500">{item.code}</Typography>
+                  <Typography size={24}>{item.flag}</Typography>
+                  <Typography size={12} weight="700" style={{ flex: 1, marginLeft: 20, letterSpacing: 1 }}>{item.name.toUpperCase()}</Typography>
+                  <Typography size={11} color={colors.textExtraLight} weight="700">{item.code}</Typography>
                 </TouchableOpacity>
               )}
             />
@@ -272,108 +275,117 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scroll: { paddingHorizontal: 32, paddingBottom: 40 },
-  header: { alignItems: 'center', marginTop: 40, marginBottom: 50 },
-  logo: { width: 50, height: 50, marginBottom: 12 },
-  title: { letterSpacing: 6 },
+  scroll: { paddingHorizontal: 40, paddingBottom: 60 },
+  header: { alignItems: 'center', marginBottom: 60 },
+  logo: { width: 60, height: 60, marginBottom: 20 },
+  title: { letterSpacing: 8, marginBottom: 8 },
+  subtitle: { letterSpacing: 3, opacity: 0.3 },
   form: { width: '100%', alignItems: 'center' },
   phoneInputContainer: {
     flexDirection: 'row',
     width: '100%',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   countryBox: {
-    width: 76,
-    height: 64,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.15)',
+    width: 80,
+    height: 68,
+    borderRadius: 24,
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   numberBox: {
     flex: 1,
-    height: 64,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.15)',
+    height: 68,
+    borderRadius: 24,
+    borderWidth: 1.5,
     overflow: 'hidden',
   },
   otpBox: {
     width: '100%',
-    height: 64,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.15)',
+    height: 68,
+    borderRadius: 24,
+    borderWidth: 1.5,
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   input: {
     flex: 1,
     height: '100%',
-    fontSize: 16,
-    fontWeight: '600',
-    paddingHorizontal: 20,
+    fontSize: 15,
+    fontWeight: '700',
+    paddingHorizontal: 24,
+    letterSpacing: 1,
   },
-  error: { alignSelf: 'flex-start', marginLeft: 4, marginBottom: 12, fontWeight: '600', letterSpacing: 0.5 },
+  errorContainer: {
+    height: 20,
+    width: '100%',
+    justifyContent: 'center',
+    paddingLeft: 8,
+    marginBottom: 8,
+  },
+  errorText: { letterSpacing: 2, textTransform: 'uppercase' },
   primaryButton: {
     width: '100%',
-    height: 60,
-    borderRadius: 20,
+    height: 64,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  backBtn: { alignSelf: 'center', marginTop: 24, padding: 10 },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 36, width: '100%' },
-  line: { flex: 1, height: 1, opacity: 0.1 },
+  backBtn: { alignSelf: 'center', marginTop: 32, padding: 12 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 40, width: '100%' },
+  line: { flex: 1, height: 1.5 },
   appleButton: {
     width: '100%',
-    height: 60,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.15)',
+    height: 64,
+    borderRadius: 24,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 60,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(150,150,150,0.05)',
   },
-  footerText: { textAlign: 'center', opacity: 0.4, lineHeight: 16, letterSpacing: 0.5 },
+  footerText: { textAlign: 'center', opacity: 0.3, lineHeight: 18, letterSpacing: 2 },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   pickerContent: {
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    paddingBottom: 40,
-    maxHeight: '65%',
-    paddingHorizontal: 24,
-    overflow: 'hidden',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    maxHeight: '70%',
+    paddingHorizontal: 32,
+    paddingTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -20 },
+    shadowOpacity: 0.1,
+    shadowRadius: 40,
+    elevation: 20,
   },
   pickerDragIndicator: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(150,150,150,0.3)',
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(150,150,150,0.15)',
     alignSelf: 'center',
-    marginTop: 12,
+    marginBottom: 32,
   },
-  pickerTitle: { textAlign: 'center', marginVertical: 24, letterSpacing: 3, opacity: 0.6 },
+  pickerTitle: { textAlign: 'center', marginBottom: 32, letterSpacing: 4, opacity: 0.4 },
   pickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(150,150,150,0.15)',
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150,150,150,0.05)',
   },
 });

@@ -50,6 +50,22 @@ export async function POST(req: Request) {
       );
     }
 
+    // 1. Try Twilio Verify first
+    try {
+      const verifyResult = await SmsService.sendVerification(normalizedPhone);
+      if (verifyResult) {
+        return NextResponse.json({ 
+          success: true, 
+          message: "Verification code sent via Twilio Verify",
+          provider: "verify",
+          phone: normalizedPhone.slice(0, 4) + "****" + normalizedPhone.slice(-4)
+        });
+      }
+    } catch (verifyError: any) {
+      console.error("Twilio Verify send failed, falling back to manual SMS:", verifyError.message);
+    }
+
+    // 2. Fallback to manual SMS if Verify is not available or failed
     // Generate cryptographically-influenced 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
@@ -93,6 +109,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ 
       success: true, 
       message: "OTP sent successfully",
+      provider: "sms",
       // Mask the phone number in the response
       phone: normalizedPhone.slice(0, 4) + "****" + normalizedPhone.slice(-4)
     });
