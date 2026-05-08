@@ -2,13 +2,14 @@ import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
-  Dimensions, Keyboard,
+  Dimensions, Keyboard, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing, FadeInDown, FadeInUp,
 } from 'react-native-reanimated';
+import * as ImagePicker from 'expo-image-picker';
 import { useColors } from '../constants/colors';
 import { useUIStore } from '../store/uiStore';
 import GlassHeader from '../components/GlassHeader';
@@ -27,26 +28,21 @@ interface Message {
   createdAt: Date;
   toolsUsed?: number;
   isError?: boolean;
+  image?: string;
 }
 
-// ─── Quick prompts (customer-facing) ─────────────
+// ─── Quick prompts ───────────────────────────────
 
 const QUICK_PROMPTS = [
   { label: 'Size guide', icon: 'shirt-outline' },
   { label: 'Track my order', icon: 'location-outline' },
   { label: 'Return policy', icon: 'refresh-outline' },
   { label: 'Trending now', icon: 'flame-outline' },
-  { label: 'Payment options', icon: 'card-outline' },
-  { label: 'Fabric quality', icon: 'diamond-outline' },
 ];
-
-// ─── Admin quick prompts ─────────────────────────
 
 const ADMIN_QUICK_PROMPTS = [
   { label: "Today's briefing", icon: 'sunny-outline' },
   { label: 'Low stock alert', icon: 'alert-circle-outline' },
-  { label: 'Orders update', icon: 'cart-outline' },
-  { label: 'Production status', icon: 'build-outline' },
 ];
 
 // ─── Claude API call ─────────────────────────────
@@ -84,21 +80,25 @@ const MessageBubble = memo(({ item }: { item: Message }) => {
     >
       <View style={[
         msgStyles.bubble,
-        isUser ? { backgroundColor: colors.surface } : { backgroundColor: colors.surfaceElevated },
-        !isUser && msgStyles.aiBubbleDecoration,
-        item.isError && msgStyles.errorBubble,
+        isUser ? { backgroundColor: colors.foreground } : { backgroundColor: colors.surface },
         isUser ? msgStyles.userBubble : msgStyles.aiBubble,
+        item.isError && msgStyles.errorBubble,
       ]}>
-        <Text style={[msgStyles.text, { color: colors.text }]}>
+        <Typography 
+            size={13} 
+            weight={isUser ? "500" : "400"} 
+            color={isUser ? colors.background : colors.text}
+            style={{ lineHeight: 20, letterSpacing: -0.2 }}
+        >
           {item.content}
-        </Text>
+        </Typography>
         <View style={msgStyles.metaRow}>
           {item.toolsUsed ? (
-            <Typography size={7} weight="700" color={colors.info} style={{ letterSpacing: 1 }}>
+            <Typography size={6} weight="800" color={isUser ? colors.background : colors.info} style={{ letterSpacing: 1, opacity: 0.8 }}>
               ⚡ {item.toolsUsed} TOOL{item.toolsUsed > 1 ? 'S' : ''}
             </Typography>
           ) : null}
-          <Typography size={8} weight="300" color={colors.textExtraLight} style={msgStyles.time}>
+          <Typography size={7} weight="500" color={isUser ? colors.background : colors.textExtraLight} style={[msgStyles.time, { opacity: 0.5 }]}>
             {item.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </Typography>
         </View>
@@ -121,30 +121,16 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
-  const isTabBarVisible = useUIStore(s => s.isTabBarVisible);
-  const inputTranslateY = useSharedValue(0);
 
   useEffect(() => {
     setTabBarVisible(false);
     return () => setTabBarVisible(true);
   }, []);
 
-  useEffect(() => {
-    inputTranslateY.value = withTiming(0, {
-      duration: 300,
-      easing: Easing.bezier(0.33, 1, 0.68, 1),
-    });
-  }, []);
-
-  const inputAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: inputTranslateY.value }],
-  }));
-
   const handleSend = useCallback(async (text?: string) => {
     const content = (text ?? input).trim();
     if (!content || isTyping) return;
 
-    Keyboard.dismiss();
     setInput('');
     haptics.buttonTap();
 
@@ -193,37 +179,63 @@ export default function ChatScreen() {
     }
   }, [input, isTyping, conversationHistory]);
 
-  const quickPrompts = isAdmin
-    ? [...ADMIN_QUICK_PROMPTS, ...QUICK_PROMPTS.slice(0, 2)]
-    : QUICK_PROMPTS;
+  const handlePickImage = async (mode: 'camera' | 'library') => {
+    haptics.buttonTap();
+    const permission = mode === 'camera' 
+      ? await ImagePicker.requestCameraPermissionsAsync() 
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert('Permission denied', `Access to ${mode === 'camera' ? 'camera' : 'library'} is required.`);
+      return;
+    }
+
+    const result = mode === 'camera'
+      ? await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true })
+      : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true });
+
+    if (!result.canceled && result.assets[0]) {
+      // In a real app, upload result.assets[0].uri to storage and get URL
+      // For now, we simulate sending an image message
+      const imgMsg: Message = {
+          id: Date.now().toString(),
+          content: "Shared an image.",
+          isUser: true,
+          createdAt: new Date(),
+          image: result.assets[0].uri
+      };
+      setMessages(prev => [...prev, imgMsg]);
+      haptics.success();
+    }
+  };
 
   const renderOnboarding = () => (
     <View style={styles.onboarding}>
-      <Animated.View entering={FadeInUp.delay(200).duration(800)}>
-        <Typography heading weight="700" size={32} color={colors.text} style={[styles.onboardingTitle, { textShadowColor: colors.borderLight }]}>
+      <Animated.View entering={FadeInUp.delay(200).duration(800)} style={{ alignItems: 'center' }}>
+        <Typography heading weight="700" size={36} color={colors.text} style={styles.onboardingTitle}>
           ZICA AI
         </Typography>
-        <Typography weight="300" size={12} color={colors.textMuted} style={styles.onboardingSubtitle}>
+        <Typography weight="400" size={10} color={colors.textMuted} style={styles.onboardingSubtitle}>
           {isAdmin ? 'OPERATIONS INTELLIGENCE ENGINE' : 'YOUR ARCHIVAL STYLE CONCIERGE'}
         </Typography>
         <View style={styles.statusDot}>
           <View style={styles.dotGreen} />
-          <Typography weight="700" size={8} color={colors.textExtraLight} style={{ letterSpacing: 3 }}>
-            ONLINE · POWERED BY CLAUDE
+          <Typography weight="800" size={7} color={colors.textExtraLight} style={{ letterSpacing: 2 }}>
+            ONLINE
           </Typography>
         </View>
       </Animated.View>
 
       <View style={styles.promptGrid}>
-        {quickPrompts.map((item, idx) => (
+        {(isAdmin ? ADMIN_QUICK_PROMPTS : QUICK_PROMPTS).map((item, idx) => (
           <Animated.View key={idx} entering={FadeInDown.delay(400 + idx * 100).duration(600)}>
             <TouchableOpacity
-              style={[styles.promptCard, { backgroundColor: colors.surface, borderColor: colors.borderExtraLight }]}
+              style={[styles.promptCard, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}
               activeOpacity={0.7}
               onPress={() => handleSend(item.label)}
             >
-              <Ionicons name={item.icon as any} size={18} color={colors.textMuted} />
-              <Typography size={10} weight="400" color={colors.text}>{item.label}</Typography>
+              <Ionicons name={item.icon as any} size={14} color={colors.textMuted} />
+              <Typography size={9} weight="600" color={colors.text}>{item.label.toUpperCase()}</Typography>
             </TouchableOpacity>
           </Animated.View>
         ))}
@@ -232,122 +244,143 @@ export default function ChatScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <GlassHeader title="ZICA AI" showBack />
+      
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <View style={{ flex: 1 }}>
+          {messages.length === 0 ? (
+            renderOnboarding()
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => <MessageBubble item={item} />}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: insets.top + 70 }}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            />
+          )}
 
-      {messages.length === 0 ? (
-        renderOnboarding()
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble item={item} />}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 150, paddingTop: insets.top + 70 }}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          scrollEventThrottle={16}
-        />
-      )}
+          {isTyping && (
+            <View style={styles.typingRow}>
+              <ActivityIndicator size="small" color={colors.textExtraLight} style={{ marginRight: 8 }} />
+              <Typography size={8} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>
+                ZICA AI IS THINKING...
+              </Typography>
+            </View>
+          )}
+        </View>
 
-      {isTyping && (
-        <View style={styles.typingRow}>
-          <View style={styles.typingDots}>
-            <View style={[styles.dot, styles.dot1, { backgroundColor: colors.info }]} />
-            <View style={[styles.dot, styles.dot2, { backgroundColor: colors.info }]} />
-            <View style={[styles.dot, styles.dot3, { backgroundColor: colors.info }]} />
+        <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>
+            <View style={styles.attachRow}>
+              <TouchableOpacity onPress={() => handlePickImage('library')} style={styles.attachBtn}>
+                <Ionicons name="images-outline" size={18} color={colors.textExtraLight} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handlePickImage('camera')} style={styles.attachBtn}>
+                <Ionicons name="camera-outline" size={18} color={colors.textExtraLight} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.attachBtn}>
+                <Ionicons name="attach-outline" size={18} color={colors.textExtraLight} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder="Message..."
+              placeholderTextColor={colors.textExtraLight}
+              style={[styles.input, { color: colors.text }]}
+              multiline
+              maxLength={1000}
+              editable={!isTyping}
+            />
+
+            <TouchableOpacity
+              onPress={() => handleSend()}
+              disabled={!input.trim() || isTyping}
+              style={[styles.sendButton, {
+                backgroundColor: input.trim() && !isTyping ? colors.foreground : 'rgba(150,150,150,0.05)',
+              }]}
+            >
+              <Ionicons name="arrow-up" size={16} color={input.trim() ? colors.background : colors.textExtraLight} />
+            </TouchableOpacity>
           </View>
-          <Typography size={9} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>
-            ZICA AI IS THINKING...
-          </Typography>
         </View>
-      )}
-
-      <Animated.View style={[
-        styles.inputBarWrapper,
-        { paddingBottom: insets.bottom + 12 },
-        inputAnimatedStyle,
-      ]}>
-        <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder={isAdmin ? 'Command Zica AI...' : 'Ask anything...'}
-            placeholderTextColor={colors.textExtraLight}
-            style={[styles.input, { color: colors.text }]}
-            returnKeyType="send"
-            onSubmitEditing={() => handleSend()}
-            multiline
-            maxLength={1000}
-            editable={!isTyping}
-          />
-          <TouchableOpacity
-            onPress={() => handleSend()}
-            disabled={!input.trim() || isTyping}
-            style={[styles.sendButton, {
-              backgroundColor: input.trim() && !isTyping ? colors.text : colors.surfaceElevated,
-            }]}
-            activeOpacity={0.8}
-          >
-            {isTyping ? (
-              <ActivityIndicator size="small" color={colors.background} />
-            ) : (
-              <Ionicons name="arrow-up" size={18} color={input.trim() ? colors.background : colors.textExtraLight} />
-            )}
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 // ─── Styles ──────────────────────────────────────
 
 const msgStyles = StyleSheet.create({
-  row: { marginBottom: 12, flexDirection: 'row' },
+  row: { marginBottom: 16, flexDirection: 'row' },
   rowRight: { justifyContent: 'flex-end' },
-  bubble: { maxWidth: width * 0.8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
+  bubble: { 
+    maxWidth: width * 0.75, 
+    paddingHorizontal: 16, 
+    paddingVertical: 12, 
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(150,150,150,0.05)',
+  },
   userBubble: { borderBottomRightRadius: 4 },
   aiBubble: { borderBottomLeftRadius: 4 },
-  aiBubbleDecoration: { borderLeftWidth: 2, borderLeftColor: 'rgba(138, 110, 255, 0.4)' },
-  errorBubble: { borderLeftColor: 'rgba(255, 59, 48, 0.4)' },
-  text: { fontSize: 15, lineHeight: 22, fontWeight: '300', letterSpacing: -0.2 },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
-  time: { textAlign: 'right' },
+  errorBubble: { borderColor: 'rgba(255, 59, 48, 0.2)' },
+  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  time: { marginLeft: 12 },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   onboarding: { flex: 1, paddingHorizontal: 32, justifyContent: 'center', alignItems: 'center' },
-  onboardingTitle: { textAlign: 'center', letterSpacing: 12, marginBottom: 8, textShadowRadius: 10 },
-  onboardingSubtitle: { textAlign: 'center', letterSpacing: 4, marginBottom: 16 },
-  statusDot: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 48 },
+  onboardingTitle: { letterSpacing: 10, marginBottom: 8 },
+  onboardingSubtitle: { letterSpacing: 3, marginBottom: 16, opacity: 0.6 },
+  statusDot: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 60 },
   dotGreen: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#34C759' },
-  promptGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' },
+  promptGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   promptCard: {
-    width: (width - 64 - 12) / 2,
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderWidth: 1,
   },
-  typingRow: { paddingHorizontal: 24, paddingBottom: 150, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  typingDots: { flexDirection: 'row', gap: 4 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(138, 110, 255, 0.4)' },
-  dot1: { opacity: 0.6 },
-  dot2: { opacity: 0.4 },
-  dot3: { opacity: 0.2 },
-  inputBarWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16 },
+  typingRow: { paddingHorizontal: 24, paddingBottom: 16, flexDirection: 'row', alignItems: 'center' },
+  inputBarWrapper: { paddingHorizontal: 16, paddingTop: 10 },
   inputPill: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    borderRadius: 32,
-    padding: 6, borderWidth: 1,
+    flexDirection: 'row', 
+    alignItems: 'center',
+    borderRadius: 30,
+    padding: 4, 
+    borderWidth: 1,
+    minHeight: 52,
   },
-  input: { flex: 1, fontSize: 16, paddingHorizontal: 16, paddingVertical: 12, maxHeight: 120, fontWeight: '300' },
-  sendButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 2, marginRight: 2 },
+  attachRow: { flexDirection: 'row', paddingLeft: 8 },
+  attachBtn: { padding: 6 },
+  input: { 
+    flex: 1, 
+    fontSize: 14, 
+    paddingHorizontal: 12, 
+    maxHeight: 100, 
+    fontWeight: '500',
+  },
+  sendButton: { 
+    width: 36, 
+    height: 36, 
+    borderRadius: 18, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    marginRight: 2,
+  },
 });
 
