@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
-  Dimensions, Keyboard, Alert,
+  Dimensions, Keyboard, Alert, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -258,30 +258,32 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={{ flex: 1 }}>
-          {messages.length === 0 ? (
-            renderOnboarding()
-          ) : (
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <MessageBubble item={item} />}
-              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: insets.top + 70 }}
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-            />
-          )}
+        <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
+          <View style={{ flex: 1 }}>
+            {messages.length === 0 ? (
+              renderOnboarding()
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={messages}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => <MessageBubble item={item} />}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: insets.top + 70 }}
+                showsVerticalScrollIndicator={false}
+                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              />
+            )}
 
-          {isTyping && (
-            <View style={styles.typingRow}>
-              <ActivityIndicator size="small" color={colors.textExtraLight} style={{ marginRight: 8 }} />
-              <Typography size={8} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>
-                ZICA AI IS THINKING...
-              </Typography>
-            </View>
-          )}
-        </View>
+            {isTyping && (
+              <View style={styles.typingRow}>
+                <ActivityIndicator size="small" color={colors.textExtraLight} style={{ marginRight: 8 }} />
+                <Typography size={8} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>
+                  ZICA AI IS THINKING...
+                </Typography>
+              </View>
+            )}
+          </View>
+        </Pressable>
 
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>

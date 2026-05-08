@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Pressable, RefreshControl,
+  TextInput, Alert, Pressable, RefreshControl, Keyboard,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -318,7 +319,7 @@ export default function ProfileScreen() {
     return <LoginScreen />;
   }
 
-  // ─── AUTHENTICATED VIEW ──────────────────────────────────────────────
+  // ─── AUTHENTICATED VIEW ───
   const goRoot = (name: 'OrderHistory' | 'Wishlist' | 'Community') => {
     haptics.buttonTap();
     if (navigationRef.isReady()) {
@@ -337,306 +338,238 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: insets.top + 40, paddingHorizontal: 20 }}
-        showsVerticalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
-        }
       >
-        <View style={styles.profileHeader}>
-          <TouchableOpacity activeOpacity={0.8} onPress={handlePickAvatar}>
-            <BlurView intensity={isDark ? 20 : 60} tint={theme} style={[styles.avatarGlass, { borderColor: colors.borderLight }]}>
-              {profileImage ? (
-                <Image
-                  source={{ uri: profileImage }}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="cover"
-                  transition={250}
-                />
-              ) : (
-                <Typography heading weight="700" size={24} color={colors.text}>
-                  {(user?.name || 'U')[0].toUpperCase()}
-                </Typography>
-              )}
-              <View style={styles.avatarEditDot}>
-                <Ionicons name="pencil" size={12} color={colors.background} />
-              </View>
-            </BlurView>
-          </TouchableOpacity>
-          <View style={styles.headerInfo}>
-            <Typography heading weight="600" size={18} color={colors.text}>{user?.name || 'ZICA USER'}</Typography>
-            <Typography weight="300" size={9} color={colors.textLight} style={{ letterSpacing: 1 }}>{user?.id ? `ID: ${user.id.slice(0, 8).toUpperCase()}` : 'MEMBER SINCE 2024'}</Typography>
-          </View>
-        </View>
-
-        <View style={[styles.statsRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderExtraLight }]}>
-          <TouchableOpacity style={styles.statItem} onPress={() => goRoot('OrderHistory')}>
-            <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
-              {String(orderCount).padStart(2, '0')}
-            </Typography>
-            <Typography size={6.5} color={colors.textExtraLight} weight="600">ORDERS</Typography>
-          </TouchableOpacity>
-          <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
-          <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Wishlist')}>
-            <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
-               {String(bookmarks.length).padStart(2, '0')}
-            </Typography>
-            <Typography size={6.5} color={colors.textExtraLight} weight="600">WISHLIST</Typography>
-          </TouchableOpacity>
-          <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
-          <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('ServiceFlow', { screen: 'ServiceHistory' })}>
-             <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
-               {String(serviceCount).padStart(2, '0')}
-             </Typography>
-             <Typography size={6.5} color={colors.textExtraLight} weight="600">SERVICES</Typography>
-          </TouchableOpacity>
-          <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
-          <TouchableOpacity style={styles.statItem}>
-            <Typography heading size={16} color={storeCredits > 0 ? colors.success : colors.text} style={{ letterSpacing: 1 }}>
-              {storeCredits > 0 ? `₹${storeCredits}` : '—'}
-            </Typography>
-            <Typography size={6.5} color={colors.textExtraLight} weight="600">CREDITS</Typography>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.quickActionsGrid}>
-          {quickActions.map((action) => (
-            <TouchableOpacity
-              key={action.label}
-              style={[styles.quickActionItem, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderExtraLight }]}
-              onPress={() => { haptics.buttonTap(); action.onPress(); }}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
-                <Ionicons name={action.icon} size={18} color={colors.text} />
-              </View>
-              <Typography size={7} weight="600" color={colors.textMuted} style={{ marginTop: 8, letterSpacing: 0.5 }}>{action.label.toUpperCase()}</Typography>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>NOTIFICATIONS</Typography>
-          <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
-            <MenuItem 
-              icon="notifications-outline" 
-              title="Notifications" 
-              onPress={() => navigation.navigate('Notifications')} 
-              badge={unreadCount > 0 ? unreadCount : undefined}
-            />
-          </BlurView>
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>STORE CREDITS</Typography>
-          <BlurView 
-            intensity={isDark ? 10 : 40} 
-            tint={theme} 
-            style={[styles.menuGlass, { borderColor: storeCredits > 0 ? 'rgba(52, 199, 89, 0.2)' : colors.borderLight }]}
+        <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
+          <ScrollView
+            ref={lastScrollY as any}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingTop: insets.top + 40, paddingHorizontal: 20, paddingBottom: 120 }}
+            showsVerticalScrollIndicator={false}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.textExtraLight}
+              />
+            }
           >
-            <View style={styles.creditCard}>
-              <View style={styles.creditBalanceRow}>
-                <View>
-                  <Typography size={7} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>AVAILABLE BALANCE</Typography>
-                  <Typography heading size={28} weight="700" color={storeCredits > 0 ? colors.success : colors.text} style={{ marginTop: 4 }}>
-                    {formatPrice(storeCredits)}
+            <View style={styles.profileHeader}>
+              <TouchableOpacity activeOpacity={0.8} onPress={handlePickAvatar}>
+                <BlurView intensity={isDark ? 20 : 60} tint={theme} style={[styles.avatarGlass, { borderColor: colors.borderLight }]}>
+                  {profileImage ? (
+                    <Image
+                      source={{ uri: profileImage }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      transition={250}
+                    />
+                  ) : (
+                    <Typography heading weight="700" size={24} color={colors.text}>
+                      {(user?.name || 'U')[0].toUpperCase()}
+                    </Typography>
+                  )}
+                  <View style={styles.avatarEditDot}>
+                    <Ionicons name="pencil" size={12} color={colors.background} />
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
+              <View style={styles.headerInfo}>
+                <Typography heading weight="600" size={18} color={colors.text}>{user?.name || 'ZICA USER'}</Typography>
+                <Typography weight="300" size={9} color={colors.textLight} style={{ letterSpacing: 1 }}>{user?.id ? `ID: ${user.id.slice(0, 8).toUpperCase()}` : 'MEMBER SINCE 2024'}</Typography>
+              </View>
+            </View>
+
+            <View style={[styles.statsRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderExtraLight }]}>
+              <TouchableOpacity style={styles.statItem} onPress={() => goRoot('OrderHistory')}>
+                <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
+                  {String(orderCount).padStart(2, '0')}
+                </Typography>
+                <Typography size={6.5} color={colors.textExtraLight} weight="600">ORDERS</Typography>
+              </TouchableOpacity>
+              <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
+              <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Wishlist')}>
+                <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
+                   {String(bookmarks.length).padStart(2, '0')}
+                </Typography>
+                <Typography size={6.5} color={colors.textExtraLight} weight="600">WISHLIST</Typography>
+              </TouchableOpacity>
+              <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
+              <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('ServiceFlow', { screen: 'ServiceHistory' })}>
+                 <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
+                   {String(serviceCount).padStart(2, '0')}
+                 </Typography>
+                 <Typography size={6.5} color={colors.textExtraLight} weight="600">SERVICES</Typography>
+              </TouchableOpacity>
+              <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
+              <TouchableOpacity style={styles.statItem}>
+                <Typography heading size={16} color={storeCredits > 0 ? colors.success : colors.text} style={{ letterSpacing: 1 }}>
+                  {storeCredits > 0 ? `₹${storeCredits}` : '—'}
+                </Typography>
+                <Typography size={6.5} color={colors.textExtraLight} weight="600">CREDITS</Typography>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.quickActionsGrid}>
+              {quickActions.map((action) => (
+                <TouchableOpacity
+                  key={action.label}
+                  style={[styles.quickActionItem, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderExtraLight }]}
+                  onPress={() => { haptics.buttonTap(); action.onPress(); }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.quickActionIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+                    <Ionicons name={action.icon} size={18} color={colors.text} />
+                  </View>
+                  <Typography size={7} weight="600" color={colors.textMuted} style={{ marginTop: 8, letterSpacing: 0.5 }}>{action.label.toUpperCase()}</Typography>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.sectionContainer}>
+              <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>NOTIFICATIONS</Typography>
+              <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
+                <MenuItem 
+                  icon="notifications-outline" 
+                  title="Notifications" 
+                  onPress={() => navigation.navigate('Notifications')} 
+                  badge={unreadCount > 0 ? unreadCount : undefined}
+                />
+              </BlurView>
+            </View>
+
+            <View style={styles.sectionContainer}>
+              <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>STORE CREDITS</Typography>
+              <BlurView 
+                intensity={isDark ? 10 : 40} 
+                tint={theme} 
+                style={[styles.menuGlass, { borderColor: storeCredits > 0 ? 'rgba(52, 199, 89, 0.2)' : colors.borderLight }]}
+              >
+                <View style={styles.creditCard}>
+                  <View style={styles.creditBalanceRow}>
+                    <View>
+                      <Typography size={7} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>AVAILABLE BALANCE</Typography>
+                      <Typography heading size={28} weight="700" color={storeCredits > 0 ? colors.success : colors.text} style={{ marginTop: 4 }}>
+                        {formatPrice(storeCredits)}
+                      </Typography>
+                    </View>
+                    <View style={[styles.creditIcon, { backgroundColor: storeCredits > 0 ? 'rgba(52,199,89,0.12)' : colors.surface }]}>
+                      <Ionicons name="wallet-outline" size={24} color={storeCredits > 0 ? colors.success : colors.textExtraLight} />
+                    </View>
+                  </View>
+                  
+                  <View style={[styles.creditDivider, { backgroundColor: colors.borderExtraLight }]} />
+                  
+                  <TouchableOpacity
+                    style={styles.creditPreferenceRow}
+                    onPress={() => handleToggleStoreCreditPreference(!storeCreditPreference)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Typography size={10} weight="600" color={colors.text}>Prefer Store Credits on Refund</Typography>
+                      <Typography size={8} weight="400" color={colors.textMuted} style={{ marginTop: 2 }}>Get instant credit instead of waiting for bank refund</Typography>
+                    </View>
+                    <View style={[styles.toggleTrack, { backgroundColor: storeCreditPreference ? colors.success : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') }]}>
+                      <View style={[styles.toggleThumb, { transform: [{ translateX: storeCreditPreference ? 20 : 2 }], backgroundColor: '#FFF' }]} />
+                    </View>
+                  </TouchableOpacity>
+
+                  <Typography size={7} weight="400" color={colors.textExtraLight} style={{ paddingHorizontal: 20, paddingBottom: 16, lineHeight: 12 }}>
+                    Store credits can be used on any future purchase and never expire.
                   </Typography>
                 </View>
-                <View style={[styles.creditIcon, { backgroundColor: storeCredits > 0 ? 'rgba(52,199,89,0.12)' : colors.surface }]}>
-                  <Ionicons name="wallet-outline" size={24} color={storeCredits > 0 ? colors.success : colors.textExtraLight} />
-                </View>
+              </BlurView>
+            </View>
+
+            <View style={styles.sectionContainer}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>PERSONAL DETAILS</Typography>
+                <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
+                  <Typography size={7} color={colors.foreground} weight="600">{isEditing ? 'CANCEL' : 'EDIT'}</Typography>
+                </TouchableOpacity>
               </View>
-              
-              <View style={[styles.creditDivider, { backgroundColor: colors.borderExtraLight }]} />
-              
-              <TouchableOpacity
-                style={styles.creditPreferenceRow}
-                onPress={() => handleToggleStoreCreditPreference(!storeCreditPreference)}
-                activeOpacity={0.7}
+
+              <BlurView 
+                intensity={isDark ? 10 : 40} 
+                tint={theme} 
+                style={[styles.menuGlass, { borderColor: colors.borderLight }]}
               >
-                <View style={{ flex: 1 }}>
-                  <Typography size={10} weight="600" color={colors.text}>Prefer Store Credits on Refund</Typography>
-                  <Typography size={8} weight="400" color={colors.textMuted} style={{ marginTop: 2 }}>Get instant credit instead of waiting for bank refund</Typography>
+                <View style={styles.editForm}>
+                  <View style={styles.editField}>
+                    <Typography size={7} color={colors.textExtraLight} style={styles.fieldLabel}>FULL NAME</Typography>
+                    {isEditing ? (
+                      <TextInput 
+                        value={editName}
+                        onChangeText={setEditName}
+                        style={[styles.editInput, { color: colors.text, borderBottomColor: colors.borderLight }]}
+                      />
+                    ) : (
+                      <Typography size={12} color={colors.text}>{user?.name || 'Set Name'}</Typography>
+                    )}
+                  </View>
+                  <View style={[styles.fieldDivider, { backgroundColor: colors.borderLight }]} />
+                  <View style={styles.editField}>
+                    <Typography size={7} color={colors.textExtraLight} style={styles.fieldLabel}>EMAIL ADDRESS</Typography>
+                    {isEditing ? (
+                      <TextInput 
+                        value={editEmail}
+                        onChangeText={setEditEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        style={[styles.editInput, { color: colors.text, borderBottomColor: colors.borderLight }]}
+                      />
+                    ) : (
+                      <Typography size={12} color={colors.text}>{user?.email || 'Set Email'}</Typography>
+                    )}
+                  </View>
+                  <View style={[styles.fieldDivider, { backgroundColor: colors.borderLight }]} />
+                  <View style={styles.editField}>
+                    <Typography size={7} color={colors.textExtraLight} style={styles.fieldLabel}>PHONE NUMBER</Typography>
+                    <Typography size={12} color={colors.textMuted}>{user?.phone || 'Not provided'}</Typography>
+                  </View>
                 </View>
-                <View style={[styles.toggleTrack, { backgroundColor: storeCreditPreference ? colors.success : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') }]}>
-                  <View style={[styles.toggleThumb, { transform: [{ translateX: storeCreditPreference ? 20 : 2 }], backgroundColor: '#FFF' }]} />
-                </View>
-              </TouchableOpacity>
-
-              <Typography size={7} weight="400" color={colors.textExtraLight} style={{ paddingHorizontal: 20, paddingBottom: 16, lineHeight: 12 }}>
-                Store credits can be used on any future purchase and never expire.
-              </Typography>
+              </BlurView>
+              
+              {isEditing && (
+                <TouchableOpacity 
+                  style={[styles.saveBtn, { backgroundColor: colors.foreground }]}
+                  onPress={handleSaveProfile}
+                  disabled={loading}
+                >
+                  <Typography heading size={8} weight="700" color={colors.background}>
+                    {loading ? 'SAVING...' : 'SAVE CHANGES'}
+                  </Typography>
+                </TouchableOpacity>
+              )}
             </View>
-          </BlurView>
-        </View>
 
-        {/* Personal Details Section */}
-
-        {/* ── Edit Profile Section ── */}
-        <View style={styles.sectionContainer}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>PERSONAL DETAILS</Typography>
-            <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
-              <Typography size={7} color={colors.foreground} weight="600">{isEditing ? 'CANCEL' : 'EDIT'}</Typography>
-            </TouchableOpacity>
-          </View>
-
-          <BlurView 
-            intensity={isDark ? 10 : 40} 
-            tint={theme} 
-            style={[styles.menuGlass, { borderColor: colors.borderLight }]}
-          >
-            <View style={styles.editForm}>
-              <View style={styles.editField}>
-                <Typography size={7} color={colors.textExtraLight} style={styles.fieldLabel}>FULL NAME</Typography>
-                {isEditing ? (
-                  <TextInput 
-                    value={editName}
-                    onChangeText={setEditName}
-                    style={[styles.editInput, { color: colors.text, borderBottomColor: colors.borderLight }]}
-                  />
-                ) : (
-                  <Typography size={12} color={colors.text}>{user?.name || 'Set Name'}</Typography>
-                )}
-              </View>
-              <View style={[styles.fieldDivider, { backgroundColor: colors.borderLight }]} />
-              <View style={styles.editField}>
-                <Typography size={7} color={colors.textExtraLight} style={styles.fieldLabel}>EMAIL ADDRESS</Typography>
-                {isEditing ? (
-                  <TextInput 
-                    value={editEmail}
-                    onChangeText={setEditEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    style={[styles.editInput, { color: colors.text, borderBottomColor: colors.borderLight }]}
-                  />
-                ) : (
-                  <Typography size={12} color={colors.text}>{user?.email || 'Set Email'}</Typography>
-                )}
-              </View>
-              <View style={[styles.fieldDivider, { backgroundColor: colors.borderLight }]} />
-              <View style={styles.editField}>
-                <Typography size={7} color={colors.textExtraLight} style={styles.fieldLabel}>PHONE NUMBER</Typography>
-                <Typography size={12} color={colors.textMuted}>{user?.phone || 'Not provided'}</Typography>
-              </View>
-            </View>
-          </BlurView>
-          
-          {isEditing && (
             <TouchableOpacity 
-              style={[styles.saveBtn, { backgroundColor: colors.foreground }]}
-              onPress={handleSaveProfile}
-              disabled={loading}
+              style={[styles.logoutBtn, { borderColor: colors.error + '40' }]} 
+              onPress={handleLogout}
+              activeOpacity={0.7}
             >
-              <Typography heading size={8} weight="700" color={colors.background}>
-                {loading ? 'SAVING...' : 'SAVE CHANGES'}
-              </Typography>
+              <Ionicons name="log-out-outline" size={16} color={colors.error} />
+              <Typography weight="500" size={11} color={colors.error}>SIGN OUT</Typography>
             </TouchableOpacity>
-          )}
-        </View>
 
-        {/* ── Logout ── */}
-        <TouchableOpacity 
-          style={[styles.logoutBtn, { borderColor: colors.error + '40' }]} 
-          onPress={handleLogout}
-          activeOpacity={0.7}
-          accessibilityLabel="Sign out"
-          accessibilityRole="button"
-        >
-          <Ionicons name="log-out-outline" size={16} color={colors.error} />
-          <Typography weight="500" size={11} color={colors.error}>SIGN OUT</Typography>
-        </TouchableOpacity>
-
-        <Typography weight="300" size={8} color={colors.textExtraLight} style={styles.versionText}>ZICA ARCHIVE v1.0.5</Typography>
-
-        <View style={{ height: 120 + insets.bottom }} />
-      </ScrollView>
+            <Typography weight="300" size={8} color={colors.textExtraLight} style={styles.versionText}>ZICA ARCHIVE v1.0.5</Typography>
+          </ScrollView>
+        </Pressable>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  // ── Login Styles ──
-  loginHeader: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  loginTitle: {
-    fontFamily: 'Rocaston',
-    letterSpacing: 4,
-    marginBottom: 4,
-  },
-  loginSubtitle: {
-    letterSpacing: 4,
-    opacity: 0.5,
-  },
-  loginCard: {
-    padding: 24,
-    borderRadius: 24,
-    borderWidth: 1,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
-  welcomeText: {
-    textAlign: 'center',
-    marginBottom: 20,
-    letterSpacing: 1,
-  },
-  formSection: {
-    gap: 16,
-  },
-  formLabel: {
-    letterSpacing: 3,
-    marginLeft: 4,
-    opacity: 0.6,
-  },
-  input: {
-    height: 60,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 20,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  primaryButton: {
-    height: 60,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    marginVertical: 40,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    opacity: 0.2,
-  },
-  appleButton: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    borderRadius: 16,
-  },
-  // ── Authenticated Profile Styles ──
+  container: { flex: 1 },
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 28,
-    paddingHorizontal: 16,
   },
   avatarGlass: {
     width: 80,
@@ -674,7 +607,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderRadius: 24,
     borderWidth: 1,
-    marginHorizontal: 4,
   },
   statItem: {
     alignItems: 'center',
@@ -686,12 +618,10 @@ const styles = StyleSheet.create({
     height: 28,
     opacity: 0.15,
   },
-  // ── Quick Actions ──
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    paddingHorizontal: 4,
     marginBottom: 32,
   },
   quickActionItem: {
@@ -708,10 +638,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // ── Sections ──
   sectionContainer: {
     marginBottom: 32,
-    paddingHorizontal: 4,
   },
   sectionTitle: {
     letterSpacing: 4,
@@ -746,7 +674,6 @@ const styles = StyleSheet.create({
     flex: 1,
     letterSpacing: 0.5,
   },
-  // ── Store Credits ──
   creditCard: {
     overflow: 'hidden',
   },
@@ -774,7 +701,6 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
-  // ── Edit Profile ──
   editForm: {
     padding: 20,
     gap: 20,
@@ -801,7 +727,22 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
   },
-  // ── Controls ──
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 16,
+  },
+  versionText: {
+    textAlign: 'center',
+    marginTop: 32,
+    letterSpacing: 3,
+    opacity: 0.3,
+  },
   toggleTrack: {
     width: 44,
     height: 24,
@@ -812,24 +753,5 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    position: 'absolute',
-  },
-  // ── Footer ──
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 20,
-    borderRadius: 24,
-    borderWidth: 1,
-    marginTop: 8,
-    marginBottom: 48,
-    marginHorizontal: 4,
-  },
-  versionText: {
-    textAlign: 'center',
-    letterSpacing: 4,
-    opacity: 0.4,
   },
 });
