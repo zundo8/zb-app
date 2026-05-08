@@ -45,6 +45,7 @@ export async function GET() {
         featuredMediaImage: true,
         collectionsMedia: true,
         footerVideo: true,
+        footerLogo3dUrl: true,
         // Navigation
         mainMenuHandle: true,
         secondaryMenuHandle: true,
@@ -144,8 +145,7 @@ export async function GET() {
         featuredImage: shop.featuredMediaImage,
         collections: shop.collectionsMedia,
         footer: shop.footerVideo,
-        footerLogo3dUrl:
-          'https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb',
+        footerLogo3dUrl: shop.footerLogo3dUrl || 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
       },
       navigation: {
         mainMenu: shop.mainMenuHandle,
