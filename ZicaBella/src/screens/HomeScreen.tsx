@@ -39,8 +39,8 @@ export default function HomeScreen() {
 
   const { settings, loading: settingsLoading } = useAdminSettings();
   
-  const ringHandle = settings?.ringCarousel?.collection || 'accessories';
-  const ringTitle = settings?.ringCarousel?.title || 'ACCESSORIES';
+  const ringHandle = 'accessories';
+  const ringTitle = 'ACCESSORIES';
 
   const heroVideoSrc = settings?.hero?.video || config.heroVideoUrl;
   const heroImageSrc = settings?.hero?.image;
