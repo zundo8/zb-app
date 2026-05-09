@@ -303,9 +303,9 @@ export default function OrderDetailsScreen() {
 
       </Animated.ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20), borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-        <TouchableOpacity style={[styles.mainBtn, { backgroundColor: colors.foreground }]} onPress={contactSupport}>
-          <Typography size={14} weight="700" color={colors.background}>Contact Support</Typography>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <TouchableOpacity style={[styles.mainBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} onPress={contactSupport}>
+          <Typography size={13} weight="700" color={colors.text}>Contact Support</Typography>
         </TouchableOpacity>
       </View>
 
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   itemThumb: { width: 64, height: 64, borderRadius: 16, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between' },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1 },
-  footer: { padding: 16, borderTopWidth: 1, position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.9)' },
+  footer: { padding: 16, position: 'absolute', bottom: 0, left: 0, right: 0 },
   mainBtn: { height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   retryBtn: { marginTop: 20, paddingHorizontal: 24, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 });
