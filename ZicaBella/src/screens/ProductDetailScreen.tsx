@@ -142,6 +142,7 @@ export default function ProductDetailScreen() {
 
   const { product, loading } = useProductByHandle(handle);
   const { products: allProducts, loading: recommendedLoading } = useProducts(24);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   
   // Randomly shuffle products for "Curated Pairs" on each visit
   const recommended = useMemo(() => {
@@ -284,6 +285,15 @@ export default function ProductDetailScreen() {
     });
 
     haptics.buttonTap();
+    
+    if (!isAuthenticated) {
+      Alert.alert('Login Required', 'Please log in to proceed with checkout and payment.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Log In', onPress: () => navigation.navigate('Auth') }
+      ]);
+      return;
+    }
+    
     navigation.navigate('CheckoutFlow');
   };
 

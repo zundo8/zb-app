@@ -45,6 +45,13 @@ export default function CartScreen() {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
 
   const handleCheckout = useCallback(() => {
+    if (!isAuthenticated) {
+      Alert.alert('Login Required', 'Please log in to proceed with checkout and payment.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Log In', onPress: () => navigation.navigate('Auth') }
+      ]);
+      return;
+    }
     navigation.navigate('CheckoutFlow');
   }, [navigation, isAuthenticated]);
 
@@ -134,7 +141,7 @@ export default function CartScreen() {
               activeOpacity={0.9}
             >
               <Typography size={10} weight="800" color={colors.background} style={styles.checkoutText}>
-                {isAuthenticated ? 'CHECKOUT NOW' : 'GUEST CHECKOUT'}
+                CHECKOUT NOW
               </Typography>
             </TouchableOpacity>
 
