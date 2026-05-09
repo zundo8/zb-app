@@ -20,8 +20,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     const { lastFetched, loading } = get();
     const now = Date.now();
     
-    // Cache for 5 minutes unless forced
-    if (!force && lastFetched && (now - lastFetched < 300000) && get().settings) {
+    // Cache for 10 seconds unless forced
+    if (!force && lastFetched && (now - lastFetched < 10000) && get().settings) {
       return;
     }
 

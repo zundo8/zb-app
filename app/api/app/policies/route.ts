@@ -28,7 +28,9 @@ export async function GET(req: Request) {
       return NextResponse.json(policy, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
         },
       });
     }
@@ -44,7 +46,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ policies }, {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     });
   } catch (e: any) {

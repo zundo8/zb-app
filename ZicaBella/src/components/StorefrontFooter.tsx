@@ -89,9 +89,9 @@ export default function StorefrontFooter() {
       <View style={styles.policyRow}>
         {[
           { label: 'SUPPORT', onPress: () => navigation.navigate('FAQ') },
-          { label: 'CONTACT', onPress: () => navigation.navigate('Policy', { url: config.contactPage, title: 'CONTACT' }) },
-          { label: 'PRIVACY', onPress: () => navigation.navigate('Policy', { url: config.policies.privacy, title: 'PRIVACY' }) },
-          { label: 'TERMS', onPress: () => navigation.navigate('Policy', { url: config.policies.terms, title: 'TERMS' }) },
+          { label: 'CONTACT', onPress: () => navigation.navigate('Policy', { handle: 'contact-information', title: 'CONTACT' }) },
+          { label: 'PRIVACY', onPress: () => navigation.navigate('Policy', { handle: 'privacy-policy', title: 'PRIVACY' }) },
+          { label: 'TERMS', onPress: () => navigation.navigate('Policy', { handle: 'terms-of-service', title: 'TERMS' }) },
         ].map((policy, index) => (
           <React.Fragment key={policy.label}>
             <TouchableOpacity onPress={policy.onPress}>

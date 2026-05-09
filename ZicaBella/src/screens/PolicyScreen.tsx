@@ -49,7 +49,7 @@ export default function PolicyScreen() {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 12000);
       
-      const res = await fetch(`${config.appUrl}/api/app/policies?handle=${handle}`, {
+      const res = await fetch(`${config.appUrl}/api/app/policies?handle=${handle}&t=${Date.now()}`, {
         signal: controller.signal
       });
       clearTimeout(id);
