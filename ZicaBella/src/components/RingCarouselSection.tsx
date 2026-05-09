@@ -10,10 +10,11 @@ import { Typography } from './Typography';
 
 interface Props {
   title?: string;
+  handle?: string;
   products: FlatProduct[];
 }
 
-export default function RingCarouselSection({ title = "ACCESSORIES", products }: Props) {
+export default function RingCarouselSection({ title = "ACCESSORIES", handle = "accessories", products }: Props) {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
@@ -38,7 +39,7 @@ export default function RingCarouselSection({ title = "ACCESSORIES", products }:
         <View style={styles.header}>
           <Typography size={7.5} color={colors.text} weight="500" style={styles.title}>{title}</Typography>
           <TouchableOpacity 
-            onPress={() => navigation.navigate('SearchTab')}
+            onPress={() => navigation.navigate('Collection', { handle })}
           >
             <Typography size={6.5} color={colors.textExtraLight} weight="400">VIEW ALL</Typography>
           </TouchableOpacity>

@@ -40,7 +40,7 @@ export default function HomeScreen() {
   const { settings, loading: settingsLoading } = useAdminSettings();
   
   const ringHandle = settings?.ringCarousel?.collection || 'accessories';
-  const ringTitle = settings?.ringCarousel?.title || 'RING COLLECTION';
+  const ringTitle = settings?.ringCarousel?.title || 'ACCESSORIES';
 
   const heroVideoSrc = settings?.hero?.video || config.heroVideoUrl;
   const heroImageSrc = settings?.hero?.image;
@@ -193,6 +193,7 @@ export default function HomeScreen() {
           {/* ═══ RING COLLECTION CAROUSEL ═══ */}
           <RingCarouselSection 
             title={ringTitle} 
+            handle={ringHandle}
             products={accessories.length > 0 ? accessories : products.slice(12, 20)} 
           />
 
