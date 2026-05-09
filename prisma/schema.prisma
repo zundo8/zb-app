@@ -48,7 +48,6 @@ model Shop {
   featuredMedia            String?
   collectionsMedia         String?
   footerVideo              String?
-  footerLogo3dUrl          String?    @default("https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb")
   mainMenuHandle           String?
   secondaryMenuHandle      String?
   showTreeText             Boolean    @default(true)
@@ -88,6 +87,7 @@ model Shop {
   twilioPhoneNumber        String?
   whatsappPhoneId          String?
   whatsappToken            String?
+  footerLogo3dUrl          String?    @default("https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb")
   customers                Customer[]
   orders                   Order[]
   products                 Product[]
@@ -165,13 +165,13 @@ model Order {
   razorpayPaymentId     String?           @unique
   rtoRiskFactors        String?
   rtoRiskScore          Int?
+  discountAmount        Float?            @default(0)
+  discountCode          String?
   exchanges             Exchange[]
   exchangeRequests      ExchangeRequest[]
   customer              Customer          @relation(fields: [customerId], references: [id])
   shop                  Shop              @relation(fields: [shopId], references: [id])
   items                 OrderItem[]
-  discountCode         String?
-  discountAmount       Float?    @default(0)
   payments              Payment[]
   returns               Return[]
   returnRequests        ReturnRequest[]
@@ -200,9 +200,9 @@ model Product {
   sku               String?
   barcode           String?
   inventoryItemId   String?     @unique
-  featuredImage     String?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
+  featuredImage     String?
   newExchanges      Exchange[]  @relation("NewProduct")
   originalExchanges Exchange[]  @relation("OriginalProduct")
   inventory         Inventory[]
@@ -750,21 +750,22 @@ model CampaignAnalyticsEvent {
   @@index([userId, channel])
   @@index([createdAt])
 }
+
 model Discount {
-  id             String   @id @default(cuid())
-  code           String   @unique
-  type           String   @default("percentage") // percentage or fixed
+  id             String    @id @default(cuid())
+  code           String    @unique
+  type           String    @default("percentage")
   value          Float
-  minOrderAmount Float    @default(0)
+  minOrderAmount Float     @default(0)
   maxDiscount    Float?
-  startDate      DateTime @default(now())
+  startDate      DateTime  @default(now())
   endDate        DateTime?
   usageLimit     Int?
-  usageCount     Int      @default(0)
-  isActive       Boolean  @default(true)
+  usageCount     Int       @default(0)
+  isActive       Boolean   @default(true)
   description    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([code])
   @@index([isActive])

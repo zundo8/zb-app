@@ -14,7 +14,9 @@ export async function OPTIONS() {
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
     const { id } = params;
-    const { key_id, key_secret } = await resolveRazorpayCredentials();
+    let { key_id, key_secret } = await resolveRazorpayCredentials();
+    key_id = key_id.trim();
+    key_secret = key_secret.trim();
 
     const auth = Buffer.from(`${key_id}:${key_secret}`).toString('base64');
 

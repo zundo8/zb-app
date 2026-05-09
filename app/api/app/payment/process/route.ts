@@ -17,7 +17,11 @@ export async function OPTIONS() {
  */
 export async function POST(req: Request) {
   try {
-    const { key_id, key_secret } = await resolveRazorpayCredentials();
+    let { key_id, key_secret, source } = await resolveRazorpayCredentials();
+    key_id = key_id.trim();
+    key_secret = key_secret.trim();
+
+    console.log(`[Razorpay Process] Using key: ${key_id.slice(0, 10)}... (Secret: ${key_secret.slice(0, 2)}..${key_secret.slice(-2)}, Source: ${source})`);
     const body = await req.json();
 
     // Required fields

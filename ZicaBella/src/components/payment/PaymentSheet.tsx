@@ -224,87 +224,99 @@ export default function PaymentSheet({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={s.overlay}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-        <Animated.View style={[s.sheet, { backgroundColor: colors.background, transform: [{ translateY: slideAnim }], paddingBottom: insets.bottom + 20 }]}>
-          <View style={[s.handle, { backgroundColor: isDark ? '#333' : '#D1D1D6' }]} />
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={s.header}>
-              <View style={[s.logoPill, { backgroundColor: colors.primary }]}>
-                <Text style={[s.logoChar, { color: colors.background }]}>Z</Text>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => {
+           onClose();
+        }} />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ width: '100%' }}
+        >
+          <Animated.View style={[s.sheet, { backgroundColor: colors.background, transform: [{ translateY: slideAnim }], paddingBottom: insets.bottom + 20 }]}>
+            <View style={[s.handle, { backgroundColor: isDark ? '#333' : '#D1D1D6' }]} />
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 40 }}
+            >
+              <View style={s.header}>
+                <View style={[s.logoPill, { backgroundColor: colors.primary }]}>
+                  <Text style={[s.logoChar, { color: colors.background }]}>Z</Text>
+                </View>
+                <View style={s.headerText}>
+                  <Text style={[s.brandTitle, { color: colors.text }]}>Zica Bella</Text>
+                  <Text style={[s.secureTag, { color: colors.success }]}>Secure Checkout</Text>
+                </View>
+                <TouchableOpacity onPress={onClose} style={[s.closeBtn, { backgroundColor: isDark ? '#222' : '#E5E5EA' }]}>
+                  <Ionicons name="close" size={18} color={colors.text} />
+                </TouchableOpacity>
               </View>
-              <View style={s.headerText}>
-                <Text style={[s.brandTitle, { color: colors.text }]}>Zica Bella</Text>
-                <Text style={[s.secureTag, { color: colors.success }]}>Secure Checkout</Text>
+
+              <View style={[s.priceBox, { backgroundColor: isDark ? '#111' : '#FFF', borderColor: colors.borderLight }]}>
+                <Text style={[s.priceLabel, { color: colors.textExtraLight }]}>TOTAL AMOUNT</Text>
+                <Text style={[s.priceValue, { color: colors.text }]}>₹{amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
               </View>
-              <TouchableOpacity onPress={onClose} style={[s.closeBtn, { backgroundColor: isDark ? '#222' : '#E5E5EA' }]}>
-                <Ionicons name="close" size={18} color={colors.text} />
-              </TouchableOpacity>
-            </View>
 
-            <View style={[s.priceBox, { backgroundColor: isDark ? '#111' : '#FFF', borderColor: colors.borderLight }]}>
-              <Text style={[s.priceLabel, { color: colors.textExtraLight }]}>TOTAL AMOUNT</Text>
-              <Text style={[s.priceValue, { color: colors.text }]}>₹{amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
-            </View>
+              <View style={s.section}>
+                <Text style={[s.sectionLabel, { color: colors.textExtraLight }]}>QUICK PAY</Text>
+                <View style={s.appsGrid}>
+                  {UPI_APPS.map(app => (
+                    <TouchableOpacity key={app.id} style={s.appItem} onPress={() => {
+                      if (Platform.OS === 'android' && app.package) {
+                        handleSdk({ key: razorpayKeyId, amount: Math.round(amount * 100), order_id: orderId, method: 'upi', upi_type: 'intent', upi_app_package_name: app.package, prefill: safePrefill });
+                      } else {
+                        handleHeadless('upi', { vpa: `${safePrefill.contact}@ybl` });
+                      }
+                    }}>
+                      <View style={[s.iconWrapper, { backgroundColor: isDark ? '#111' : '#FFF', borderColor: colors.borderLight }]}>
+                        <Image source={{ uri: app.icon }} style={s.brandIcon} resizeMode="contain" />
+                      </View>
+                      <Text style={[s.appTitle, { color: colors.text }]}>{app.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
 
-            <View style={s.section}>
-              <Text style={[s.sectionLabel, { color: colors.textExtraLight }]}>QUICK PAY</Text>
-              <View style={s.appsGrid}>
-                {UPI_APPS.map(app => (
-                  <TouchableOpacity key={app.id} style={s.appItem} onPress={() => {
-                    if (Platform.OS === 'android' && app.package) {
-                      handleSdk({ key: razorpayKeyId, amount: Math.round(amount * 100), order_id: orderId, method: 'upi', upi_type: 'intent', upi_app_package_name: app.package, prefill: safePrefill });
-                    } else {
-                      handleHeadless('upi', { vpa: `${safePrefill.contact}@ybl` });
-                    }
-                  }}>
-                    <View style={[s.iconWrapper, { backgroundColor: isDark ? '#111' : '#FFF', borderColor: colors.borderLight }]}>
-                      <Image source={{ uri: app.icon }} style={s.brandIcon} resizeMode="contain" />
+              <View style={s.section}>
+                <Text style={[s.sectionLabel, { color: colors.textExtraLight }]}>ALL OPTIONS</Text>
+                <View style={[s.optionsCard, { backgroundColor: isDark ? '#111' : '#FFF', borderColor: colors.borderLight }]}>
+                  <TouchableOpacity style={s.optionItem} onPress={() => setTab('card')}>
+                    <View style={s.optionLeft}>
+                      <Ionicons name="card-outline" size={18} color={tab === 'card' ? colors.primary : colors.textExtraLight} />
+                      <Text style={[s.optionText, { color: tab === 'card' ? colors.text : colors.textMuted }, tab === 'card' && s.optionTextActive]}>Cards</Text>
                     </View>
-                    <Text style={[s.appTitle, { color: colors.text }]}>{app.label}</Text>
+                    <Ionicons name="chevron-forward" size={12} color={colors.textExtraLight} />
                   </TouchableOpacity>
-                ))}
+                  <View style={[s.divider, { backgroundColor: colors.borderLight }]} />
+                  <TouchableOpacity style={s.optionItem} onPress={() => setTab('upi')}>
+                    <View style={s.optionLeft}>
+                      <Ionicons name="at-outline" size={18} color={tab === 'upi' ? colors.primary : colors.textExtraLight} />
+                      <Text style={[s.optionText, { color: tab === 'upi' ? colors.text : colors.textMuted }, tab === 'upi' && s.optionTextActive]}>UPI ID</Text>
+                    </View>
+                    <Ionicons name="chevron-down" size={12} color={colors.textExtraLight} />
+                  </TouchableOpacity>
+                  {tab === 'upi' && <TextInput style={[s.input, { backgroundColor: isDark ? '#222' : '#F2F2F7', color: colors.text }]} placeholder="name@upi" placeholderTextColor={colors.textExtraLight} value={upiId} onChangeText={setUpiId} autoCapitalize="none" />}
+                  <View style={[s.divider, { backgroundColor: colors.borderLight }]} />
+                  <TouchableOpacity style={s.optionItem} onPress={() => setTab('netbanking')}>
+                    <View style={s.optionLeft}>
+                      <Ionicons name="business-outline" size={18} color={tab === 'netbanking' ? colors.primary : colors.textExtraLight} />
+                      <Text style={[s.optionText, { color: tab === 'netbanking' ? colors.text : colors.textMuted }, tab === 'netbanking' && s.optionTextActive]}>Netbanking</Text>
+                    </View>
+                    <Ionicons name="chevron-down" size={12} color={colors.textExtraLight} />
+                  </TouchableOpacity>
+                  {tab === 'netbanking' && <View style={s.nbGrid}>{TOP_BANKS.map(b => (
+                    <TouchableOpacity key={b.code} style={[s.nbItem, { backgroundColor: isDark ? '#222' : '#F2F2F7' }, selectedBank === b.code && s.nbItemActive]} onPress={() => setSelectedBank(b.code)}>
+                      <Text style={{fontSize:18}}>{b.icon}</Text><Text style={[s.nbLabel, { color: colors.text }]}>{b.name}</Text>
+                    </TouchableOpacity>
+                  ))}</View>}
+                </View>
               </View>
-            </View>
 
-            <View style={s.section}>
-              <Text style={[s.sectionLabel, { color: colors.textExtraLight }]}>ALL OPTIONS</Text>
-              <View style={[s.optionsCard, { backgroundColor: isDark ? '#111' : '#FFF', borderColor: colors.borderLight }]}>
-                <TouchableOpacity style={s.optionItem} onPress={() => setTab('card')}>
-                  <View style={s.optionLeft}>
-                    <Ionicons name="card-outline" size={18} color={tab === 'card' ? colors.primary : colors.textExtraLight} />
-                    <Text style={[s.optionText, { color: tab === 'card' ? colors.text : colors.textMuted }, tab === 'card' && s.optionTextActive]}>Cards</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={12} color={colors.textExtraLight} />
-                </TouchableOpacity>
-                <View style={[s.divider, { backgroundColor: colors.borderLight }]} />
-                <TouchableOpacity style={s.optionItem} onPress={() => setTab('upi')}>
-                  <View style={s.optionLeft}>
-                    <Ionicons name="at-outline" size={18} color={tab === 'upi' ? colors.primary : colors.textExtraLight} />
-                    <Text style={[s.optionText, { color: tab === 'upi' ? colors.text : colors.textMuted }, tab === 'upi' && s.optionTextActive]}>UPI ID</Text>
-                  </View>
-                  <Ionicons name="chevron-down" size={12} color={colors.textExtraLight} />
-                </TouchableOpacity>
-                {tab === 'upi' && <TextInput style={[s.input, { backgroundColor: isDark ? '#222' : '#F2F2F7', color: colors.text }]} placeholder="name@upi" placeholderTextColor={colors.textExtraLight} value={upiId} onChangeText={setUpiId} autoCapitalize="none" />}
-                <View style={[s.divider, { backgroundColor: colors.borderLight }]} />
-                <TouchableOpacity style={s.optionItem} onPress={() => setTab('netbanking')}>
-                  <View style={s.optionLeft}>
-                    <Ionicons name="business-outline" size={18} color={tab === 'netbanking' ? colors.primary : colors.textExtraLight} />
-                    <Text style={[s.optionText, { color: tab === 'netbanking' ? colors.text : colors.textMuted }, tab === 'netbanking' && s.optionTextActive]}>Netbanking</Text>
-                  </View>
-                  <Ionicons name="chevron-down" size={12} color={colors.textExtraLight} />
-                </TouchableOpacity>
-                {tab === 'netbanking' && <View style={s.nbGrid}>{TOP_BANKS.map(b => (
-                  <TouchableOpacity key={b.code} style={[s.nbItem, { backgroundColor: isDark ? '#222' : '#F2F2F7' }, selectedBank === b.code && s.nbItemActive]} onPress={() => setSelectedBank(b.code)}>
-                    <Text style={{fontSize:18}}>{b.icon}</Text><Text style={[s.nbLabel, { color: colors.text }]}>{b.name}</Text>
-                  </TouchableOpacity>
-                ))}</View>}
-              </View>
-            </View>
-          </ScrollView>
-          <TouchableOpacity style={[s.payBtn, { backgroundColor: colors.primary }, loading && { opacity: 0.7 }]} onPress={onPay} disabled={loading}>
-            {loading ? <ActivityIndicator color={colors.background} /> : <Text style={[s.payBtnText, { color: colors.background }]}>PAY NOW</Text>}
-          </TouchableOpacity>
-        </Animated.View>
+              <TouchableOpacity style={[s.payBtn, { backgroundColor: colors.primary, marginTop: 30 }, loading && { opacity: 0.7 }]} onPress={onPay} disabled={loading}>
+                {loading ? <ActivityIndicator color={colors.background} /> : <Text style={[s.payBtnText, { color: colors.background }]}>PAY NOW</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

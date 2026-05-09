@@ -27,7 +27,11 @@ function razorpayErrMessage(err: unknown): string {
 
 export async function POST(req: Request) {
   try {
-    const { key_id, key_secret } = await resolveRazorpayCredentials();
+    let { key_id, key_secret, source } = await resolveRazorpayCredentials();
+    key_id = key_id.trim();
+    key_secret = key_secret.trim();
+    
+    console.log(`[Razorpay Create Order] Using key: ${key_id.slice(0, 10)}... (Secret: ${key_secret.slice(0, 2)}..${key_secret.slice(-2)}, Source: ${source})`);
 
     const instance = new Razorpay({
       key_id,
