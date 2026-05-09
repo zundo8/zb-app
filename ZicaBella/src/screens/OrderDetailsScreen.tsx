@@ -3,9 +3,10 @@ import {
   View, StyleSheet, TouchableOpacity, Animated, ScrollView, ActivityIndicator, Linking, Share,
   Platform, Alert,
 } from 'react-native';
-import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import GlassHeader from '../components/GlassHeader';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -39,10 +40,14 @@ export default function OrderDetailsScreen() {
   // ─── All hooks MUST be declared before any early return ────────────
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
 
-  useEffect(() => {
-    setTabBarVisible(false);
-    return () => setTabBarVisible(true);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setTabBarVisible(false);
+      return () => {
+        setTabBarVisible(true);
+      };
+    }, [setTabBarVisible])
+  );
 
   // Guard inside the callback if `order` might be null.
   const isCancelledMemo = useMemo(() => {
@@ -304,8 +309,18 @@ export default function OrderDetailsScreen() {
       </Animated.ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <TouchableOpacity style={[styles.mainBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} onPress={contactSupport}>
-          <Typography size={13} weight="700" color={colors.text}>Contact Support</Typography>
+        <TouchableOpacity onPress={contactSupport} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
+          <BlurView 
+            intensity={isDark ? 30 : 60} 
+            tint={isDark ? 'dark' : 'light'} 
+            style={[styles.mainBtn, { 
+              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.4)', 
+              borderWidth: 1, 
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' 
+            }]}
+          >
+            <Typography size={13} weight="700" color={colors.text}>Contact Support</Typography>
+          </BlurView>
         </TouchableOpacity>
       </View>
 
