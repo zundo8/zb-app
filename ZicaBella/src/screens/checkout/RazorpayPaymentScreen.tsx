@@ -272,7 +272,7 @@ export default function RazorpayPaymentScreen() {
           {/* Section 1: Amount Header */}
           <View style={[s.amountBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: colors.borderLight }]}>
             <Typography size={9} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>TOTAL AMOUNT</Typography>
-            <Typography size={32} weight="900" color={colors.text} style={{ marginTop: 4, letterSpacing: -0.5 }}>₹{(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+            <Typography size={32} weight="800" color={colors.text} style={{ marginTop: 4, letterSpacing: -0.5 }}>₹{(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
             <Typography size={9} color={colors.textMuted} style={{ marginTop: 6 }}>Order ID: {orderId?.slice(-12)}</Typography>
           </View>
 
@@ -371,7 +371,7 @@ export default function RazorpayPaymentScreen() {
         <TouchableOpacity style={[s.payBtn, { backgroundColor: isPayReady() ? colors.foreground : colors.surface, opacity: isPayReady() ? 1 : 0.5 }]}
           onPress={onPay} disabled={loading || !isPayReady()} activeOpacity={0.85}>
           {loading ? <ActivityIndicator color={colors.background} /> :
-            <Typography size={13} weight="900" color={isPayReady() ? colors.background : colors.textMuted} style={{ letterSpacing: 1 }}>
+            <Typography size={13} weight="800" color={isPayReady() ? colors.background : colors.textMuted} style={{ letterSpacing: 1 }}>
               PAY ₹{(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
             </Typography>
           }
