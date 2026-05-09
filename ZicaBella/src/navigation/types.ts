@@ -22,6 +22,13 @@ export type TabParamList = {
 export type CheckoutStackParamList = {
   DeliveryAddress: undefined;
   OrderReview: undefined;
+  RazorpayPayment: {
+    amount: number;
+    orderId: string;
+    razorpayKeyId: string;
+    prefill: { name: string; email: string; contact: string };
+    orderData: any;
+  };
 };
 
 export type ServiceStackParamList = {

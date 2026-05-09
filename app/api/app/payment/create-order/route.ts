@@ -1,7 +1,7 @@
 import Razorpay from 'razorpay';
 import { NextResponse } from 'next/server';
-
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
+import { getAppAuthFromRequest } from '@/lib/appAuth';
 
 const corsJsonHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,6 +27,11 @@ function razorpayErrMessage(err: unknown): string {
 
 export async function POST(req: Request) {
   try {
+    const userAuth = getAppAuthFromRequest(req);
+    if (!userAuth) {
+      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401, headers: corsJsonHeaders });
+    }
+
     let { key_id, key_secret, source } = await resolveRazorpayCredentials();
     key_id = key_id.trim();
     key_secret = key_secret.trim();

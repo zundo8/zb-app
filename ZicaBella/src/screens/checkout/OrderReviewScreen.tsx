@@ -13,7 +13,6 @@ import { config, getPaymentApiBaseUrl } from '../../constants/config';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/authStore';
 import { Image } from 'expo-image';
-import PaymentSheet from '../../components/payment/PaymentSheet';
 
 const { width } = Dimensions.get('window');
 
@@ -29,10 +28,7 @@ export default function OrderReviewScreen() {
   const [loading, setLoading] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
 
-  // ─── Payment Sheet State ──────────────────────────────────────────────
-  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
-  const [razorpayOrderId, setRazorpayOrderId] = useState<string | null>(null);
-  const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(null);
+  // ─── Payment State ──────────────────────────────────────────────
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
 
   // ─── Promo Code State ────────────────────────────────────────────────
@@ -171,13 +167,17 @@ export default function OrderReviewScreen() {
       return;
     }
 
-    // Razorpay: Step 1 — create order on backend, then open PaymentSheet
+    // Razorpay: Step 1 — create order on backend, then navigate to Payment Screen
     setLoading(true);
     try {
       const apiBase = getPaymentApiBaseUrl();
       const orderRes = await fetch(`${apiBase}/api/app/payment/create-order`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Accept': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify({ amount: grandTotal, currency: 'INR', receipt: `zb_${Date.now()}` }),
       });
       
@@ -195,16 +195,20 @@ export default function OrderReviewScreen() {
       if (!orderJson.key_id || !String(orderJson.key_id).startsWith('rzp_')) {
         throw new Error('Invalid Razorpay key. Please contact support.');
       }
-      // Store for PaymentSheet
-      setRazorpayOrderId(orderJson.order_id);
-      setRazorpayKeyId(orderJson.key_id);
-      setPendingOrderData(orderData);
+      
       setLoading(false);
       
-      // Delay slightly to ensure state is committed
-      setTimeout(() => {
-        setPaymentSheetVisible(true);
-      }, 50);
+      navigation.navigate('RazorpayPayment', {
+        amount: grandTotal,
+        orderId: orderJson.order_id,
+        razorpayKeyId: orderJson.key_id,
+        prefill: {
+          name: shippingAddress?.name || user?.name || '',
+          email: user?.email || shippingAddress?.email || '',
+          contact: (user?.phone || shippingAddress?.phone || '').replace(/^\+91/, ''),
+        },
+        orderData: orderData,
+      });
     } catch (e: any) {
       haptics.error();
       Alert.alert('Payment Error', e.message || 'Could not start payment. Please try again.');
@@ -212,72 +216,10 @@ export default function OrderReviewScreen() {
     }
   };
 
-  // ─── After PaymentSheet reports success ───────────────────────────────
-  const handlePaymentSuccess = async (rzpData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
-    setPaymentSheetVisible(false);
-    setLoading(true);
-    const token = useAuthStore.getState().token || '';
-    const orderData = pendingOrderData;
 
-    try {
-      // Step 2: Verify signature
-      const apiBase = getPaymentApiBaseUrl();
-      const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(rzpData),
-      });
-      const verifyJson = await verifyRes.json();
-      if (!verifyJson.success) throw new Error(verifyJson.error || 'Payment verification failed.');
-
-      // Step 3: Create order in DB
-      const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-        body: JSON.stringify({ ...orderData, paymentId: rzpData.razorpay_payment_id, razorpayOrderId: rzpData.razorpay_order_id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Payment succeeded but order recording failed. Contact support with ID: ' + rzpData.razorpay_payment_id);
-
-      haptics.success();
-      buyNowItem ? setBuyNowItem(null) : clearCart();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId || json.id, paymentMethod: 'PREPAID', estimatedDelivery: '3-5 Business Days' } }],
-      });
-    } catch (e: any) {
-      haptics.error();
-      Alert.alert('Order Recording Failed', e.message || 'Your payment was captured, but we could not record your order. Please contact support.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePaymentFailure = (error: any) => {
-    haptics.error();
-    setPaymentSheetVisible(false);
-    Alert.alert('Payment Failed', error?.description || error?.message || 'Something went wrong. Please try again.');
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Razorpay custom Payment Sheet */}
-      {razorpayOrderId && razorpayKeyId && (
-        <PaymentSheet
-          visible={paymentSheetVisible}
-          amount={grandTotal}
-          orderId={razorpayOrderId}
-          razorpayKeyId={razorpayKeyId}
-          prefill={{
-            name: shippingAddress?.name || user?.name || '',
-            email: user?.email || shippingAddress?.email || '',
-            contact: (user?.phone || shippingAddress?.phone || '').replace(/^\+91/, ''),
-          }}
-          onSuccess={handlePaymentSuccess}
-          onFailure={handlePaymentFailure}
-          onClose={() => setPaymentSheetVisible(false)}
-        />
-      )}
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={[styles.back, { backgroundColor: colors.surface }]}>
