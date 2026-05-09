@@ -217,7 +217,7 @@ export default function HomeScreen() {
 
               {/* ═══ RING COLLECTION CAROUSEL ═══ */}
                <RingCarouselSection 
-                title={settings?.ringCarousel?.title || ringTitle} 
+                title={ringTitle} 
                 handle={ringHandle}
                 products={(accessories || []).length > 0 ? (accessories || []).slice(0, 15) : (products || []).slice(12, 20)} 
               />
