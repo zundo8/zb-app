@@ -4,7 +4,7 @@ import {
   TouchableOpacity, RefreshControl, ActivityIndicator, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect, useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
 import { config } from '../constants/config';
@@ -22,6 +22,9 @@ import { withErrorBoundary } from '../components/ErrorBoundary';
 const { width } = Dimensions.get('window');
 
 function SearchScreen() {
+  const flatListRef = useRef<FlatList>(null);
+  const searchInputRef = useRef<TextInput>(null);
+  useScrollToTop(flatListRef);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -35,6 +38,16 @@ function SearchScreen() {
       search(route.params.query);
     }
   }, [route.params?.query, search]);
+
+  useFocusEffect(
+    useCallback(() => {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 300);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   const { collections, loading: collectionsLoading, refetch } = useCollections(20, 'menu');
   const { recentProducts } = useRecentStore();
@@ -76,7 +89,7 @@ function SearchScreen() {
   };
 
   const renderHeader = () => (
-    <>
+    <View>
       <View style={{ height: insets.top + 70 }} />
       
       {/* ── Search Bar: Liquid Glass Capsule ── */}
@@ -88,6 +101,7 @@ function SearchScreen() {
           <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <Ionicons name="search-outline" size={16} color={colors.textExtraLight} style={styles.searchIcon} />
           <TextInput
+            ref={searchInputRef}
             value={query}
             onChangeText={handleSearch}
             placeholder="SEARCH ZICA BELLA…"
@@ -123,11 +137,11 @@ function SearchScreen() {
           <ActivityIndicator size="small" color={colors.textExtraLight} />
         </View>
       )}
-    </>
+    </View>
   );
 
   const renderFooter = () => (
-    <>
+    <View>
       {query.length > 0 && !loading && results.length === 0 && (
         <View style={styles.emptyState}>
           <View style={[styles.emptyIcon, {
@@ -199,7 +213,7 @@ function SearchScreen() {
 
       <StorefrontFooter />
       <View style={{ height: 100 + insets.bottom }} />
-    </>
+    </View>
   );
 
   return (
@@ -207,6 +221,7 @@ function SearchScreen() {
       <GlassHeader title={query ? query : 'SEARCH'} showBack={false} />
       
       <FlatList
+        ref={flatListRef}
         data={query.length > 0 ? results : []}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
@@ -215,8 +230,8 @@ function SearchScreen() {
           </View>
         )}
         numColumns={2}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
+        ListHeaderComponent={renderHeader()}
+        ListFooterComponent={renderFooter()}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#FFF' : '#000'} />
