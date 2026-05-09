@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
-  Dimensions, Keyboard, Alert, Pressable,
+  Dimensions, Keyboard, Alert, Pressable, Image as RNImage,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -85,6 +86,14 @@ const MessageBubble = memo(({ item }: { item: Message }) => {
         isUser ? msgStyles.userBubble : msgStyles.aiBubble,
         item.isError && msgStyles.errorBubble,
       ]}>
+        {item.image && (
+          <Image 
+            source={{ uri: item.image }} 
+            style={msgStyles.imageContent} 
+            contentFit="cover"
+            transition={300}
+          />
+        )}
         <Typography 
             size={13} 
             weight={isUser ? "500" : "400"} 
@@ -293,7 +302,14 @@ export default function ChatScreen() {
 
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>
-            <View style={{ paddingLeft: 12 }} />
+          <View style={styles.attachRow}>
+            <TouchableOpacity style={styles.attachBtn} onPress={() => handlePickImage('camera')}>
+              <Ionicons name="camera-outline" size={20} color={colors.textExtraLight} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.attachBtn} onPress={() => handlePickImage('library')}>
+              <Ionicons name="image-outline" size={20} color={colors.textExtraLight} />
+            </TouchableOpacity>
+          </View>
 
             <TextInput
               value={input}
@@ -338,6 +354,13 @@ const msgStyles = StyleSheet.create({
   userBubble: { borderBottomRightRadius: 4 },
   aiBubble: { borderBottomLeftRadius: 4 },
   errorBubble: { borderColor: 'rgba(255, 59, 48, 0.2)' },
+  imageContent: {
+    width: width * 0.65,
+    height: width * 0.85,
+    borderRadius: 16,
+    marginBottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   time: { marginLeft: 12 },
 });

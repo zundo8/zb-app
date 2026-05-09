@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TextProps, TextStyle } from 'react-native';
+import { Text, TextProps, TextStyle, Platform } from 'react-native';
 import { useColors } from '../constants/colors';
 import { TypographyPresets, TypographyPreset } from '../constants/typography';
 
@@ -59,9 +59,39 @@ export const Typography: React.FC<TypographyProps> = ({
     ...(fontFamily ? { fontFamily } : {}),
   } as TextStyle;
 
+  // Explicit numeric fallback font — must be a named font, NOT undefined,
+  // because React Native inherits fontFamily from parent <Text> nodes.
+  const NUMERIC_FONT = Platform.select({
+    ios: 'Helvetica Neue',
+    android: 'sans-serif',
+    default: 'System',
+  });
+
+  const renderContent = () => {
+    if (!rocaston || typeof children !== 'string') return children;
+
+    // Split text into parts of numbers and non-numbers to handle Rocaston font limitation
+    const parts = children.split(/(\d+)/g);
+    return parts.map((part, i) => {
+      const isNumber = /^\d+$/.test(part);
+      if (isNumber) {
+        // Explicitly override fontFamily so the numeric font is never inherited
+        return (
+          <Text key={i} style={[
+            baseStyle,
+            { fontFamily: NUMERIC_FONT, fontWeight: resolvedWeight ?? '400' },
+          ]}>
+            {part}
+          </Text>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
     <Text style={[baseStyle, style]} {...props}>
-      {children}
+      {renderContent()}
     </Text>
   );
 };

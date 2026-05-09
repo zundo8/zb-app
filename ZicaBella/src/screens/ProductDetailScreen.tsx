@@ -103,8 +103,8 @@ const CuratedItem = React.memo(({ product, onPress, onQuickAdd, colors }: { prod
       </View>
       <View style={styles.curatedMeta}>
          <View style={{ flex: 1 }}>
-           <Typography size={7.5} weight="400" color={colors.text} numberOfLines={1} style={curatedStyles.titleText}>{product.title.toUpperCase()}</Typography>
-           <Typography size={7.5} weight="300" color={colors.textSecondary}>{formatPrice(product.price)}</Typography>
+           <Typography size={7.5} weight="400" color={colors.text} numberOfLines={1} style={curatedStyles.titleText}>{String(product?.title || '').toUpperCase()}</Typography>
+           <Typography size={7.5} weight="300" color={colors.textSecondary}>{formatPrice(product?.price)}</Typography>
          </View>
          <TouchableOpacity 
            onPress={(e) => { 
@@ -135,13 +135,22 @@ export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'ProductDetail'>>();
-  const { handle } = route.params;
+  const { handle } = route.params || { handle: '' };
   const colors = useColors();
   const theme = useThemeStore((state) => state.theme);
   const isDark = theme === 'dark';
 
   const { product, loading } = useProductByHandle(handle);
-  const { products: recommended } = useProducts(8);
+  const { products: allProducts, loading: recommendedLoading } = useProducts(24);
+  
+  // Randomly shuffle products for "Curated Pairs" on each visit
+  const recommended = useMemo(() => {
+    if (!allProducts || allProducts.length === 0) return [];
+    return [...allProducts]
+      .filter(p => p.id !== product?.id)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 8);
+  }, [allProducts, product?.id]);
   const { addItem, setBuyNowItem } = useCartStore();
   const cartCount = useCartStore(s => s.itemCount());
 
@@ -158,6 +167,7 @@ export default function ProductDetailScreen() {
 
   const mainScrollRef = useRef<ScrollView>(null);
   const carouselRef = useRef<any>(null);
+  const thumbnailCarouselRef = useRef<any>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [showMinimalSticky, setShowMinimalSticky] = useState(false);
@@ -365,7 +375,10 @@ export default function ProductDetailScreen() {
               renderItem={renderHeroItem}
               width={SCREEN_W}
               height={SCREEN_H * 0.72} // Much taller for full screen feel
-              onSnapToItem={(index) => setActiveImageIndex(index)}
+              onSnapToItem={(index) => {
+                setActiveImageIndex(index);
+                thumbnailCarouselRef.current?.scrollTo({ index, animated: true });
+              }}
               loop
               autoPlay={false}
               onScrollStart={() => setIsScrollEnabled(false)}
@@ -374,32 +387,39 @@ export default function ProductDetailScreen() {
            />
         </View>
 
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={[styles.thumbnailScroll, { gap: 6 }]}
-          style={{ marginTop: 16 }}
-        >
-          {images.map((img, idx) => (
-            <TouchableOpacity 
-              key={idx} 
-              onPress={() => { 
-                haptics.buttonTap(); 
-                setActiveImageIndex(idx);
-                carouselRef.current?.scrollTo({ index: idx, animated: true });
-              }}
-              style={[
-                styles.thumbnail, 
-                activeImageIndex === idx && {
-                  borderWidth: 1.5,
-                  borderColor: colors.text,
-                }
-              ]}
-            >
-              <Image source={img} style={StyleSheet.absoluteFill} contentFit="cover" />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <View style={{ height: 180, marginTop: 16 }}>
+          <Carousel
+            ref={thumbnailCarouselRef}
+            data={images}
+            width={120}
+            height={165}
+            style={{ width: SCREEN_W }}
+            loop
+            autoPlay={false}
+            renderItem={({ index }) => (
+              <TouchableOpacity 
+                key={index} 
+                activeOpacity={0.8}
+                onPress={() => { 
+                  haptics.buttonTap(); 
+                  setActiveImageIndex(index);
+                  carouselRef.current?.scrollTo({ index, animated: true });
+                  thumbnailCarouselRef.current?.scrollTo({ index, animated: true });
+                }}
+                style={[
+                  styles.thumbnail, 
+                  activeImageIndex === index && {
+                    borderWidth: 1.5,
+                    borderColor: colors.text,
+                  },
+                  { width: 110 }
+                ]}
+              >
+                <Image source={images[index]} style={StyleSheet.absoluteFill} contentFit="cover" />
+              </TouchableOpacity>
+            )}
+          />
+        </View>
 
         {/* ── PRODUCT INFO ── */}
         <View style={styles.infoSection}>
@@ -411,7 +431,7 @@ export default function ProductDetailScreen() {
                   color={colors.text} 
                   style={[styles.title, { letterSpacing: 4, lineHeight: 22 }]}
                 >
-                  {product.title.toUpperCase()}
+                  {String(product?.title || '').toUpperCase()}
                 </Typography>
                 <Typography size={11} weight="400" color={colors.textSecondary} style={[styles.price, { marginTop: 2, opacity: 0.6 }]}>
                   {formatPrice(product.price)}
@@ -584,15 +604,15 @@ export default function ProductDetailScreen() {
              </View>
             )}
 
-           {/* RECENTLY VIEWED */}
-           {recentProducts.length > 1 && (
-              <View style={styles.recentSection}>
-                <Typography size={7} color={colors.textExtraLight} weight="700" style={[styles.sectionTag, { marginLeft: 24 }]}>RECENTLY VIEWED</Typography>
-                <View style={styles.recentGrid}>
-                  {recentProducts.filter(p => p.id !== product.id).slice(0, 4).map(p => (
+            {recentProducts.length > 1 && (
+               <View style={styles.recentSection}>
+                 <Typography size={7} color={colors.textExtraLight} weight="700" style={[styles.sectionTag, { marginLeft: 20 }]}>RECENTLY VIEWED</Typography>
+                 <View style={styles.recentGrid}>
+                  {recentProducts.filter(p => p.id !== product.id).slice(0, 9).map(p => (
                     <View key={p.id} style={styles.recentCardWrapper}>
                       <ProductCard 
                         product={p} 
+                        style={{ width: SCREEN_W / 2 }}
                         onQuickAdd={(item) => {
                           setSelectedProduct(item);
                           setQuickAddVisible(true);
@@ -741,7 +761,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   videoWrapper: {
-    width: SCREEN_W - 48,
+    width: SCREEN_W - 40,
     alignSelf: 'center',
     aspectRatio: 10 / 14,
     borderRadius: 16,
@@ -788,7 +808,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   infoSection: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 24,
   },
   titleRow: {
@@ -868,7 +888,7 @@ const styles = StyleSheet.create({
   },
   curatedSection: {
     marginBottom: 32,
-    marginHorizontal: -24,
+    marginHorizontal: -20,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.03)',
@@ -878,7 +898,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 16,
     marginBottom: 4,
   },
@@ -914,17 +934,16 @@ const styles = StyleSheet.create({
   },
   recentSection: {
     marginBottom: 36,
-    marginHorizontal: -24, // Break out of infoSection padding
+    marginHorizontal: -20, // Break out of infoSection padding
   },
   recentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12, // Reduced gap between cards and screen edges
+    paddingHorizontal: 0,
   },
   recentCardWrapper: {
-    width: (SCREEN_W - 24 - 10) / 2, // Recalculated for better edge-to-edge fit
-    marginBottom: 10,
+    width: SCREEN_W / 2,
+    marginBottom: 0,
   },
   inlineActions: {
     marginBottom: 20,

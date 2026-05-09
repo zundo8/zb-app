@@ -266,16 +266,10 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const navigatePolicy = (type: 'privacy' | 'refund' | 'shipping' | 'terms') => {
-    const titles: Record<string, string> = {
-      privacy: 'Privacy Policy',
-      refund: 'Refund Policy',
-      shipping: 'Shipping Policy',
-      terms: 'Terms of Service',
-    };
+  const navigatePolicy = (handle: string, title: string) => {
     haptics.buttonTap();
     if (navigationRef.isReady()) {
-      navigationRef.navigate('Policy', { url: config.policies[type], title: titles[type] });
+      navigationRef.navigate('Policy', { handle, title });
     }
   };
 
@@ -547,6 +541,18 @@ export default function ProfileScreen() {
                   </Typography>
                 </TouchableOpacity>
               )}
+            </View>
+
+            <View style={styles.sectionContainer}>
+              <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>SUPPORT & LEGAL</Typography>
+              <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
+                <MenuItem icon="information-circle-outline" title="About Zica Bella" onPress={() => navigatePolicy('about-us', 'About Us')} />
+                <MenuItem icon="call-outline" title="Contact Information" onPress={() => navigatePolicy('contact-information', 'Contact Information')} />
+                <MenuItem icon="shield-checkmark-outline" title="Privacy Policy" onPress={() => navigatePolicy('privacy-policy', 'Privacy Policy')} />
+                <MenuItem icon="document-text-outline" title="Terms of Service" onPress={() => navigatePolicy('terms-of-service', 'Terms of Service')} />
+                <MenuItem icon="refresh-outline" title="Refund Policy" onPress={() => navigatePolicy('refund-policy', 'Refund Policy')} />
+                <MenuItem icon="bus-outline" title="Shipping Policy" onPress={() => navigatePolicy('shipping-policy', 'Shipping Policy')} />
+              </BlurView>
             </View>
 
             <TouchableOpacity 

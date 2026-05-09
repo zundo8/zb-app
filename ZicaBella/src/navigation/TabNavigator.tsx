@@ -56,6 +56,7 @@ function HomeStack() {
       <Stack.Screen name="Collection" component={CollectionScreen as any} />
       <Stack.Screen name="Community" component={CommunityScreen as any} />
       <Stack.Screen name="Story" component={StoryScreen as any} />
+      <Stack.Screen name="Editorials" component={BlogsScreen as any} />
     </Stack.Navigator>
   );
 }

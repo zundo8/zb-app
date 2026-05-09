@@ -102,7 +102,7 @@ export default function CollectionCarousel({ collections }: Props) {
           index,
         })}
         initialScrollIndex={initialIndex}
-        removeClippedSubviews={true}
+        removeClippedSubviews={false}
         initialNumToRender={3}
         maxToRenderPerBatch={2}
         updateCellsBatchingPeriod={50}
@@ -192,7 +192,7 @@ function AnimatedCard({ item, index, scrollX, onPress }: any) {
             style={styles.title}
             numberOfLines={1}
           >
-            {item.title?.toUpperCase()}
+            {String(item?.title || '').toUpperCase()}
           </Typography>
         </View>
       </TouchableOpacity>

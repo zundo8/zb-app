@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { config } from '../constants/config';
+import { haptics } from '../utils/haptics';
 import ProductCard from '../components/ProductCard';
 import CollectionCarousel from '../components/CollectionCarousel';
 import HeroVideo from '../components/HeroVideo';
@@ -24,7 +25,7 @@ import MenuDrawer from '../components/MenuDrawer';
 import SpotlightSection from '../components/SpotlightSection';
 import FlipbookSection from '../components/FlipbookSection';
 import CommunitySection from '../components/CommunitySection';
-import { useAdminSettings } from '../hooks/useAdminFeatures';
+import { useAdminSettings, useFeaturedUsers } from '../hooks/useAdminFeatures';
 import { useUIStore } from '../store/uiStore';
 import { Typography } from '../components/Typography';
 import StorefrontFooter from '../components/StorefrontFooter';
@@ -39,6 +40,7 @@ export default function HomeScreen() {
   const isDark = theme === 'dark';
 
   const { settings, loading: settingsLoading } = useAdminSettings();
+  const { users: communityUsers } = useFeaturedUsers(); // Pre-fetch community data early
   
   const ringHandle = 'accessories';
   const ringTitle = 'ACCESSORIES';
@@ -107,7 +109,7 @@ export default function HomeScreen() {
 
   const renderProductGrid = (items: FlatProduct[]) => (
     <View style={styles.gridContainer}>
-      {items.map((product) => (
+      {(items || []).map((product) => (
         <View key={product.id} style={styles.gridItem}>
           <ProductCard 
             product={product} 
@@ -118,10 +120,18 @@ export default function HomeScreen() {
     </View>
   );
 
+  const [isHeroMuted, setIsHeroMuted] = useState(true);
+
+  const toggleHeroMute = useCallback(() => {
+    setIsHeroMuted(prev => !prev);
+    haptics.buttonTap();
+  }, []);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <GlassHeader 
         onPressMenu={() => setMenuVisible(true)}
+        onPressCenter={toggleHeroMute}
       />
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
@@ -138,7 +148,11 @@ export default function HomeScreen() {
       >
         {/* ═══ HERO VIDEO ═══ */}
         <View style={{ position: 'relative' }}>
-          <HeroVideo source={heroVideoSrc} />
+          <HeroVideo 
+            source={heroVideoSrc} 
+            isMuted={isHeroMuted}
+            onToggleMute={toggleHeroMute}
+          />
         </View>
 
         {/* ═══ CONTENT BELOW HERO ═══ */}
@@ -173,7 +187,7 @@ export default function HomeScreen() {
           
           {/* ═══ PRODUCT GRID 1 ═══ */}
           <View style={styles.gridContainer}>
-            {products.slice(0, 4).map((product) => (
+            {(products || []).slice(0, 4).map((product) => (
               <View key={product.id} style={styles.gridItem}>
                 <ProductCard product={product} onQuickAdd={handleQuickAdd} />
               </View>
@@ -181,9 +195,9 @@ export default function HomeScreen() {
           </View>
 
           {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
-          {renderBelowFold && settings?.collectionsMedia && (
+          {renderBelowFold && settings?.media?.collections && (
             <View style={styles.mediaSection}>
-               <HeroVideo source={settings.collectionsMedia} height={200} borderRadius={12} />
+               <HeroVideo source={settings.media.collections} height={200} borderRadius={12} />
             </View>
           )}
 
@@ -202,10 +216,10 @@ export default function HomeScreen() {
               </View>
 
               {/* ═══ RING COLLECTION CAROUSEL ═══ */}
-              <RingCarouselSection 
-                title={ringTitle} 
+               <RingCarouselSection 
+                title={settings?.ringCarousel?.title || ringTitle} 
                 handle={ringHandle}
-                products={accessories.length > 0 ? accessories.slice(0, 15) : products.slice(12, 20)} 
+                products={(accessories || []).length > 0 ? (accessories || []).slice(0, 15) : (products || []).slice(12, 20)} 
               />
 
               {/* ═══ FLIPBOOK SECTION ═══ */}
@@ -215,9 +229,9 @@ export default function HomeScreen() {
               {renderProductGrid(products.slice(4, 8))}
 
               {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
-              {settings?.blueprint?.video ? (
+              {settings?.media?.featured ? (
                 <View style={styles.blueprintSection}>
-                   <HeroVideo source={settings.blueprint.video} height={520} borderRadius={16} />
+                   <HeroVideo source={settings.media.featured} height={520} borderRadius={16} />
                 </View>
               ) : (
                 <View style={styles.blueprintSection}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { View, StyleSheet, FlatList, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '../constants/colors';
 import { useBookmarkStore } from '../store/bookmarkStore';
@@ -25,19 +25,23 @@ export default function WishlistScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <GlassHeader title="WISHLIST" showBack />
       
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
+      <FlatList 
+        data={bookmarks}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent, 
           { paddingTop: insets.top + 70, paddingBottom: 120 }
         ]}
-      >
-        <View style={styles.header}>
-          <Typography heading size={24} weight="700" color={colors.text} style={styles.title}>THE VAULT</Typography>
-          <Typography size={12} weight="300" color={colors.textSecondary}>Your curated selection of Zica Bella pieces.</Typography>
-        </View>
-
-        {bookmarks.length === 0 ? (
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Typography heading size={24} weight="700" color={colors.text} style={styles.title}>THE VAULT</Typography>
+            <Typography size={12} weight="300" color={colors.textSecondary}>Your curated selection of Zica Bella pieces.</Typography>
+          </View>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIconWrapper}>
               <BlurView intensity={isDark ? 40 : 80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
@@ -48,19 +52,20 @@ export default function WishlistScreen() {
               Explore the archive to build your collection.
             </Typography>
           </View>
-        ) : (
-          <View style={styles.grid}>
-             {bookmarks.map((product) => (
-               <View key={product.id} style={styles.cardWrapper}>
-                 <ProductCard 
-                    product={product} 
-                    style={styles.card}
-                 />
-               </View>
-             ))}
+        }
+        renderItem={({ item }) => (
+          <View style={styles.cardWrapper}>
+            <ProductCard 
+              product={item} 
+              style={styles.card}
+            />
           </View>
         )}
-      </ScrollView>
+        removeClippedSubviews={true}
+        initialNumToRender={6}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+      />
     </View>
   );
 }
@@ -81,15 +86,13 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     marginBottom: 4,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  columnWrapper: {
     paddingHorizontal: 16,
-    gap: 16,
+    justifyContent: 'space-between',
   },
   cardWrapper: {
     width: COLUMN_WIDTH,
-    marginBottom: 8,
+    marginBottom: 16,
   },
   card: {
     width: '100%',

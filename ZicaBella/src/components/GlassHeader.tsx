@@ -18,6 +18,7 @@ interface Props {
   title?: string;
   showBack?: boolean;
   onPressMenu?: () => void;
+  onPressCenter?: () => void;
   isBookmarked?: boolean;
   hideCenter?: boolean;
   style?: any;
@@ -27,6 +28,7 @@ export default function GlassHeader({
   title = 'ZICA BELLA', 
   showBack = false,
   onPressMenu,
+  onPressCenter,
   isBookmarked = false,
   hideCenter = false,
   style,
@@ -75,7 +77,13 @@ export default function GlassHeader({
       {!hideCenter && (
         <TouchableOpacity 
           style={[styles.islandBase, styles.centerIsland, { borderColor: colors.borderLight }]}
-          onPress={() => navigation.navigate('HomeTab')}
+          onPress={() => {
+            if (onPressCenter) {
+              onPressCenter();
+            } else {
+              navigation.navigate('HomeTab');
+            }
+          }}
           activeOpacity={0.8}
         >
           <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />

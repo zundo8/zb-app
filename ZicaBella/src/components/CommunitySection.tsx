@@ -59,16 +59,7 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
   const displayTitle = (title ?? community?.title ?? 'FEATURED LOOKS').toUpperCase();
   const displaySubtitle = (subtitle ?? community?.subtitle ?? 'COMMUNITY').toUpperCase();
 
-  const displayUsers: FeaturedLook[] =
-    users && users.length > 0
-      ? users.map((u: any) => ({
-          id: u.id,
-          imageUrl: u.imageUrl,
-          name: u.name,
-          instagramUrl: u.instagramUrl ?? null,
-          styleDescription: u.styleDescription ?? null,
-        }))
-      : DEFAULT_LOOKS;
+  const displayUsers: FeaturedLook[] = users && users.length > 0 ? users : DEFAULT_LOOKS;
 
   const onCardPress = useCallback((look: FeaturedLook) => {
     if (look.instagramUrl) {
@@ -117,7 +108,10 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
                   source={{ uri: look.imageUrl }}
                   style={styles.image}
                   contentFit="cover"
-                  transition={800}
+                  transition={200}
+                  priority="high"
+                  cachePolicy="memory-disk"
+                  recyclingKey={look.id}
                 />
                 <View style={styles.labelContainer}>
                   <BlurView

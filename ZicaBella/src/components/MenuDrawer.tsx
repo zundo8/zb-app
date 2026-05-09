@@ -5,7 +5,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Typography } from './Typography';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -85,117 +85,137 @@ export default function MenuDrawer({ visible, onClose }: Props) {
   const handleNavigate = (screen: string, params?: any) => {
     haptics.buttonTap();
     onClose();
+    // Use a small timeout to allow drawer close animation to finish
     setTimeout(() => {
       navigation.navigate(screen, params);
     }, 300);
   };
 
-  const shopTerms = ["T-SHIRT", "JEANS", "PANTS", "SHIRTS", "ACCESSORIES"];
+  const shopTerms = ['T-SHIRTS', 'HOODIES', 'DENIM', 'ACCESSORIES', 'OUTERWEAR'];
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'}>
-      {/* Backdrop with 2xl Blur */}
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* ── BACKDROP ── */}
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
         <Animated.View style={[styles.backdrop, { opacity: opacityAnim }]}>
-           <BlurView intensity={isDark ? 40 : 60} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+           <BlurView intensity={isDark ? 30 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         </Animated.View>
       </Pressable>
 
-      {/* Floating Glass Drawer — Left Aligned (Next.js Parity) */}
+      {/* ── ETHEREAL GLASS DRAWER ── */}
       <Animated.View style={[
         styles.drawer, 
         { 
           transform: [{ translateX: slideAnim }, { scale: scaleAnim }],
-          backgroundColor: isDark ? 'rgba(8, 8, 8, 0.75)' : 'rgba(255, 255, 255, 0.82)',
-          top: insets.top + 12,
-          bottom: insets.bottom + 12,
-          borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+          backgroundColor: isDark ? 'rgba(10, 10, 10, 0.7)' : 'rgba(255, 255, 255, 0.8)',
+          top: insets.top + 10,
+          bottom: insets.bottom + 10,
+          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
         }
       ]}>
         <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         
-        {/* TOP BAR */}
+        {/* HEADER: MINIMAL SYSTEM TAG */}
         <View style={styles.header}>
-          <Typography size={6.5} weight="300" color={colors.text} style={{ letterSpacing: 5, opacity: 0.15 }}>
-            ZICA BELLA
-          </Typography>
-          <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-             <Ionicons name="close" size={14} color={colors.textExtraLight} />
+          <View>
+            <Typography size={7} weight="800" color={colors.text} style={{ letterSpacing: 6, opacity: 0.2 }}>
+              ZICA BELLA
+            </Typography>
+            <Typography size={5} weight="400" color={colors.textExtraLight} style={{ letterSpacing: 2, opacity: 0.15, marginTop: 2 }}>
+              SYSTEM ARCHIVE v.26
+            </Typography>
+          </View>
+          <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+             <Ionicons name="close" size={16} color={colors.text} />
           </TouchableOpacity>
         </View>
 
-        {/* ZONE A: COLLECTIONS & SHOP SPLIT */}
-        <View style={styles.mainZone}>
-           <View style={styles.collectionsCol}>
-             <Typography size={5.5} weight="300" color={colors.textExtraLight} style={styles.zoneTag}>COLLECTIONS</Typography>
-             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.colItems}>
-               {loading ? [1,2,3,4].map(i => (
-                 <View key={i} style={[styles.skeleton, { backgroundColor: isDark ? 'white' : 'black' }]} />
-               )) : collections.map(c => (
-                 <TouchableOpacity 
-                   key={c.id} 
-                   style={styles.colLink}
-                   onPress={() => handleNavigate('Main', { screen: 'ShopTab', params: { screen: 'Collection', params: { handle: c.handle } } })}
-                 >
-                   <Typography size={10} weight="300" color={colors.textSecondary} style={{ letterSpacing: 1.5 }}>{c.title.toUpperCase()}</Typography>
-                   <Ionicons name="chevron-forward" size={10} color={colors.textExtraLight} style={{ opacity: 0 }} />
-                 </TouchableOpacity>
-               ))}
-             </ScrollView>
-           </View>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          contentContainerStyle={{ paddingBottom: 100 }}
+          style={{ flex: 1 }}
+        >
+          {/* PRIMARY ARCHIVE LIST */}
+          <View style={styles.archiveSection}>
+            {loading ? (
+              [1, 2, 3, 4, 5].map(i => <View key={i} style={[styles.skeleton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]} />)
+            ) : (
+              collections.map((c, idx) => (
+                <TouchableOpacity 
+                  key={c.id} 
+                  activeOpacity={0.7}
+                  style={styles.archiveLink}
+                  onPress={() => handleNavigate('Main', { screen: 'ShopTab', params: { screen: 'Collection', params: { handle: c.handle } } })}
+                >
+                  <Typography size={6} weight="400" color={colors.textExtraLight} style={styles.archiveIndex}>
+                    0{idx + 1}
+                  </Typography>
+                  <Typography size={12} weight="300" color={colors.text} style={styles.archiveTitle}>
+                    {c.title.toUpperCase()}
+                  </Typography>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textExtraLight} style={{ opacity: 0.3 }} />
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
 
-           <View style={[styles.divider, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]} />
+          {/* SECONDARY UTILITIES */}
+          <View style={[styles.utilsSection, { borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+            {[
+              { label: 'COMMUNITY', tab: 'HomeTab', screen: 'Community', icon: 'people-outline' },
+              { label: 'EDITORIALS', tab: 'HomeTab', screen: 'Editorials', icon: 'newspaper-outline' },
+              { label: 'ZICA AI', tab: 'ChatTab', screen: undefined, icon: 'sparkles-outline' }
+            ].map(item => (
+              <TouchableOpacity 
+                key={item.label} 
+                style={styles.utilLink}
+                onPress={() => {
+                  if (item.screen) {
+                    handleNavigate('Main', { screen: item.tab, params: { screen: item.screen } });
+                  } else {
+                    handleNavigate('Main', { screen: item.tab });
+                  }
+                }}
+              >
+                <Ionicons name={item.icon as any} size={18} color={colors.textSecondary} style={{ marginRight: 12, opacity: 0.7 }} />
+                <Typography size={10} weight="400" color={colors.textSecondary}>{item.label}</Typography>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-           <View style={styles.shopCol}>
-             <Typography size={5.5} weight="300" color={colors.textExtraLight} style={styles.zoneTag}>SHOP</Typography>
-             <View style={styles.colItems}>
-               {shopTerms.map(term => (
-                 <TouchableOpacity 
-                   key={term} 
-                   style={styles.shopLink}
-                   onPress={() => handleNavigate('Main', { screen: 'SearchTab', params: { screen: 'SearchScreen', params: { query: term } } })}
-                 >
-                   <Typography size={9} weight="300" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>{term}</Typography>
-                 </TouchableOpacity>
-               ))}
-             </View>
-           </View>
-        </View>
+          {/* SHOP SHORTCUTS: HORIZONTAL CHIPS */}
+          <View style={styles.chipsContainer}>
+            <Typography size={5.5} weight="700" color={colors.textExtraLight} style={styles.chipsLabel}>QUICK DISCOVER</Typography>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+              {shopTerms.map(term => (
+                <TouchableOpacity 
+                  key={term} 
+                  style={[styles.chip, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
+                  onPress={() => handleNavigate('Main', { screen: 'SearchTab', params: { screen: 'SearchScreen', params: { query: term } } })}
+                >
+                  <Typography size={7} weight="500" color={colors.textExtraLight}>{term}</Typography>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </ScrollView>
 
-        {/* ZONE B: PRIMARY NAV (LARGE) */}
-        <View style={[styles.primaryNav, { borderTopColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}>
-           {[
-             { label: 'COMMUNITY', tab: 'HomeTab', screen: 'Community' },
-             { label: 'BLOGS', tab: 'ProfileTab', screen: 'Blogs' },
-             { label: 'FAQ', tab: 'ProfileTab', screen: 'FAQ' },
-             { label: 'STORY', tab: 'HomeTab', screen: 'Story' }
-           ].map(item => (
-             <TouchableOpacity 
-               key={item.label} 
-               style={styles.navLink}
-               onPress={() => handleNavigate('Main', { screen: item.tab, params: { screen: item.screen } })}
-             >
-               <Typography size={16} weight="300" color={colors.textSecondary} style={{ letterSpacing: -0.5 }}>{item.label}</Typography>
-               <View style={styles.navDot} />
-             </TouchableOpacity>
-           ))}
-        </View>
-
-        {/* ZONE C: ICON DOCK (BOTTOM) */}
-        <View style={[styles.dock, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}>
+        {/* FLOATING SYSTEM DOCK */}
+        <View style={[styles.dock, { backgroundColor: isDark ? 'rgba(20,20,20,0.4)' : 'rgba(240,240,240,0.4)' }]}>
+           <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
            <TouchableOpacity style={styles.dockItem} onPress={() => handleNavigate('Main', { screen: 'ProfileTab' })}>
-              <Ionicons name="person-outline" size={16} color={colors.textExtraLight} />
-              <Typography size={5.5} weight="300" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>PROFILE</Typography>
+              <Ionicons name="person-outline" size={18} color={colors.text} />
+              <Typography size={5} weight="700" color={colors.text} style={{ letterSpacing: 1 }}>PROFILE</Typography>
            </TouchableOpacity>
-           <View style={[styles.dockDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]} />
+           <View style={[styles.dockDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} />
            <TouchableOpacity style={styles.dockItem} onPress={() => handleNavigate('Main', { screen: 'ProfileTab', params: { screen: 'OrderHistory' } })}>
-              <Ionicons name="receipt-outline" size={16} color={colors.textExtraLight} />
-              <Typography size={5.5} weight="300" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>ORDERS</Typography>
+              <Ionicons name="receipt-outline" size={18} color={colors.text} />
+              <Typography size={5} weight="700" color={colors.text} style={{ letterSpacing: 1 }}>ORDERS</Typography>
            </TouchableOpacity>
-           <View style={[styles.dockDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]} />
+           <View style={[styles.dockDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} />
            <TouchableOpacity style={styles.dockItem} onPress={() => handleNavigate('Main', { screen: 'HomeTab', params: { screen: 'Story' } })}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.textExtraLight} />
-              <Typography size={5.5} weight="300" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>STORY</Typography>
+              <Ionicons name="infinite-outline" size={20} color={colors.text} />
+              <Typography size={5} weight="700" color={colors.text} style={{ letterSpacing: 1 }}>STORY</Typography>
            </TouchableOpacity>
         </View>
       </Animated.View>
@@ -204,116 +224,109 @@ export default function MenuDrawer({ visible, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' },
   drawer: {
     width: DRAWER_WIDTH,
     position: 'absolute',
-    borderRadius: 32,
+    borderRadius: 40,
     borderWidth: 1,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 30 },
-    shadowOpacity: 0.15,
-    shadowRadius: 60,
-    paddingTop: 16,
+    shadowOffset: { width: 0, height: 40 },
+    shadowOpacity: 0.2,
+    shadowRadius: 80,
+    paddingTop: 24,
+    left: 12,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 8,
+    paddingHorizontal: 28,
+    marginBottom: 32,
   },
   closeBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  mainZone: {
-    flex: 1,
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    maxHeight: 300,
+  archiveSection: {
+    paddingHorizontal: 28,
+    gap: 24,
   },
-  collectionsCol: {
-    flex: 1.8,
-    paddingVertical: 10,
-  },
-  shopCol: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingLeft: 12,
-  },
-  zoneTag: {
-    letterSpacing: 4,
-    opacity: 0.15,
-    marginBottom: 16,
-  },
-  colItems: {
-    gap: 10,
-  },
-  colLink: {
+  archiveLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
-  shopLink: {
-    marginBottom: 2,
+  archiveIndex: {
+    width: 32,
+    opacity: 0.3,
+    letterSpacing: 1,
+  },
+  archiveTitle: {
+    flex: 1,
+    letterSpacing: 2,
   },
   skeleton: {
-    height: 14,
-    width: '80%',
-    borderRadius: 4,
-    opacity: 0.05,
-    marginBottom: 4,
+    height: 40,
+    width: '100%',
+    borderRadius: 12,
+    marginBottom: 16,
   },
-  divider: {
-    width: 1,
-    marginVertical: 40,
-  },
-  primaryNav: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 15,
+  utilsSection: {
+    marginTop: 40,
+    paddingTop: 32,
+    paddingHorizontal: 28,
     borderTopWidth: 1,
-    gap: 12,
+    gap: 24,
   },
-  navLink: {
+  utilLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
-  navDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    opacity: 0,
+  chipsContainer: {
+    marginTop: 40,
+  },
+  chipsLabel: {
+    paddingHorizontal: 28,
+    letterSpacing: 4,
+    opacity: 0.2,
+    marginBottom: 16,
+  },
+  chipsScroll: {
+    paddingHorizontal: 28,
+    gap: 10,
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
   },
   dock: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    marginTop: 4,
-    paddingVertical: 4,
-    borderRadius: 20,
+    position: 'absolute',
+    bottom: 20,
+    left: 16,
+    right: 16,
+    height: 70,
+    borderRadius: 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
+    overflow: 'hidden',
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   dockItem: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
+    justifyContent: 'center',
     gap: 4,
   },
   dockDivider: {
     width: 1,
-    height: 16,
+    height: 20,
   }
 });

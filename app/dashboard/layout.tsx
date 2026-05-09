@@ -87,6 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Chat Management", href: "/dashboard/community/chat", icon: MessageSquare },
     { name: "Community", href: "/dashboard/community", icon: Users },
     { name: "Blogs", href: "/dashboard/blogs", icon: Newspaper },
+    { name: "Policies", href: "/dashboard/policies", icon: FileText },
   ];
 
   const integrationNav = [

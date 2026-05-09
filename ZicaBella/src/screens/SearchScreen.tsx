@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  View, StyleSheet, TextInput, ScrollView,
+  View, StyleSheet, TextInput, FlatList,
   TouchableOpacity, RefreshControl, ActivityIndicator, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
 import { config } from '../constants/config';
@@ -17,7 +17,6 @@ import GlassHeader from '../components/GlassHeader';
 import { Typography } from '../components/Typography';
 import { BlurView } from 'expo-blur';
 import StorefrontFooter from '../components/StorefrontFooter';
-
 import { withErrorBoundary } from '../components/ErrorBoundary';
 
 const { width } = Dimensions.get('window');
@@ -25,9 +24,18 @@ const { width } = Dimensions.get('window');
 function SearchScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const colors = useColors();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(route.params?.query || '');
   const { results, loading, search } = useSearchProducts();
+
+  useEffect(() => {
+    if (route.params?.query) {
+      setQuery(route.params.query);
+      search(route.params.query);
+    }
+  }, [route.params?.query, search]);
+
   const { collections, loading: collectionsLoading, refetch } = useCollections(20, 'menu');
   const { recentProducts } = useRecentStore();
   const theme = useThemeStore(state => state.theme);
@@ -67,150 +75,159 @@ function SearchScreen() {
     lastScrollY.current = currentY;
   };
 
+  const renderHeader = () => (
+    <>
+      <View style={{ height: insets.top + 70 }} />
+      
+      {/* ── Search Bar: Liquid Glass Capsule ── */}
+      <View style={[styles.searchWrapper, { paddingHorizontal: 16 }]}>
+        <View style={[styles.searchIsland, { 
+          backgroundColor: isDark ? 'hsla(0,0%,100%,0.06)' : 'hsla(0,0%,0%,0.03)',
+          borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+        }]}>
+          <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <Ionicons name="search-outline" size={16} color={colors.textExtraLight} style={styles.searchIcon} />
+          <TextInput
+            value={query}
+            onChangeText={handleSearch}
+            placeholder="SEARCH ZICA BELLA…"
+            placeholderTextColor={isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'}
+            style={[styles.searchInput, { color: colors.text }]}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity 
+              onPress={() => { setQuery(''); search(''); }} 
+              style={styles.clearButton}
+            >
+              <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.clearText}>CLEAR</Typography>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* ── Results header ── */}
+      {query.length > 0 && (
+        <View style={[styles.resultsHeader, { paddingHorizontal: 16 }]}>
+          <Typography rocaston size={10} color={colors.textSecondary} style={styles.queryLabel}>"{String(query || '').toUpperCase()}"</Typography>
+          <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.countLabel}>
+            {(results || []).length} {(results || []).length === 1 ? 'RESULT' : 'RESULTS'}
+          </Typography>
+        </View>
+      )}
+
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={colors.textExtraLight} />
+        </View>
+      )}
+    </>
+  );
+
+  const renderFooter = () => (
+    <>
+      {query.length > 0 && !loading && results.length === 0 && (
+        <View style={styles.emptyState}>
+          <View style={[styles.emptyIcon, {
+            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+            borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+          }]}>
+            <Ionicons name="search-outline" size={20} color={colors.textExtraLight} style={{ opacity: 0.4 }} />
+          </View>
+          <Typography size={9} weight="400" color={colors.textExtraLight} style={styles.emptyTitle}>NO RESULTS FOR "{String(query || '').toUpperCase()}"</Typography>
+          <Typography size={7} weight="300" color={colors.textExtraLight} style={styles.emptySubtitle}>TRY A DIFFERENT TERM</Typography>
+        </View>
+      )}
+
+      {/* ── Empty state: trending + collections ── */}
+      {query.length === 0 && (
+        <View style={styles.sectionsContainer}>
+          {/* Trending */}
+          <View style={[styles.section, { paddingHorizontal: 16 }]}>
+            <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>TRENDING</Typography>
+            <View style={styles.trendingContainer}>
+              {config.trending.map((term) => (
+                <TouchableOpacity
+                  key={term}
+                  style={[styles.trendingPill, { 
+                    backgroundColor: isDark ? 'hsla(0,0%,100%,0.04)' : 'hsla(255,100%,100%,0.4)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                  }]}
+                  onPress={() => handleSearch(term)}
+                >
+                  <BlurView intensity={12} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  <Typography size={8} color={colors.textSecondary} weight="300" style={styles.trendingText}>{String(term || '').toUpperCase()}</Typography>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Recently Viewed */}
+          {recentProducts.length > 0 && (
+            <View style={styles.section}>
+              <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>RECENTLY VIEWED</Typography>
+              <View style={[styles.productGrid, { paddingHorizontal: 0 }]}>
+                {recentProducts.slice(0, 4).map((product) => (
+                  <View key={product.id} style={styles.cardWrapper}>
+                    <ProductCard product={product} />
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Collections */}
+          {collections.length > 0 && (
+            <View style={[styles.section, { paddingHorizontal: 16 }]}>
+              <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>COLLECTIONS</Typography>
+              {collections.slice(0, 10).map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.collectionRow, { borderBottomColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }]}
+                  onPress={() => navigation.navigate('Collection', { handle: c.handle, title: c.title })}
+                >
+                  <Typography size={12} color={colors.textSecondary} weight="300" style={styles.collectionTitle}>{String(c.title || '').toUpperCase()}</Typography>
+                  <Ionicons name="chevron-forward" size={14} color={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
+      <StorefrontFooter />
+      <View style={{ height: 100 + insets.bottom }} />
+    </>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <GlassHeader title={query ? query : 'SEARCH'} showBack={false} />
       
-      <ScrollView
-        style={styles.scrollView}
+      <FlatList
+        data={query.length > 0 ? results : []}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.cardWrapper}>
+            <ProductCard product={item} />
+          </View>
+        )}
+        numColumns={2}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#FFF' : '#000'} />
         }
-        keyboardShouldPersistTaps="handled"
         onScroll={onScroll}
         scrollEventThrottle={16}
-      >
-        <View style={{ height: insets.top + 70 }} />
-        
-        {/* ── Search Bar: Liquid Glass Capsule ── */}
-        <View style={[styles.searchWrapper, { paddingHorizontal: 16 }]}>
-          <View style={[styles.searchIsland, { 
-            backgroundColor: isDark ? 'hsla(0,0%,100%,0.06)' : 'hsla(0,0%,0%,0.03)',
-            borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-          }]}>
-            <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            <Ionicons name="search-outline" size={16} color={colors.textExtraLight} style={styles.searchIcon} />
-            <TextInput
-              value={query}
-              onChangeText={handleSearch}
-              placeholder="SEARCH ZICA BELLA…"
-              placeholderTextColor={isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'}
-              style={[styles.searchInput, { color: colors.text }]}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-            {query.length > 0 && (
-              <TouchableOpacity 
-                onPress={() => { setQuery(''); search(''); }} 
-                style={styles.clearButton}
-              >
-                <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.clearText}>CLEAR</Typography>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* ── Results header ── */}
-        {query.length > 0 && (
-          <View style={[styles.resultsHeader, { paddingHorizontal: 16 }]}>
-            <Typography rocaston size={10} color={colors.textSecondary} style={styles.queryLabel}>"{String(query || '').toUpperCase()}"</Typography>
-            <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.countLabel}>
-              {(results || []).length} {(results || []).length === 1 ? 'RESULT' : 'RESULTS'}
-            </Typography>
-          </View>
-        )}
-
-        {/* ── Search Results ── */}
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.textExtraLight} />
-          </View>
-        )}
-
-        {query.length > 0 && results.length > 0 && (
-          <View style={styles.productGrid}>
-            {results.map((product) => (
-              <View key={product.id} style={styles.cardWrapper}>
-                <ProductCard product={product} />
-              </View>
-            ))}
-          </View>
-        )}
-
-        {query.length > 0 && !loading && results.length === 0 && (
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyIcon, {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-              borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-            }]}>
-              <Ionicons name="search-outline" size={20} color={colors.textExtraLight} style={{ opacity: 0.4 }} />
-            </View>
-            <Typography size={9} weight="400" color={colors.textExtraLight} style={styles.emptyTitle}>NO RESULTS FOR "{query.toUpperCase()}"</Typography>
-            <Typography size={7} weight="300" color={colors.textExtraLight} style={styles.emptySubtitle}>TRY A DIFFERENT TERM</Typography>
-          </View>
-        )}
-
-        {/* ── Empty state: trending + collections ── */}
-        {query.length === 0 && (
-          <View style={styles.sectionsContainer}>
-            {/* Trending */}
-            <View style={[styles.section, { paddingHorizontal: 16 }]}>
-              <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>TRENDING</Typography>
-              <View style={styles.trendingContainer}>
-                {config.trending.map((term) => (
-                  <TouchableOpacity
-                    key={term}
-                    style={[styles.trendingPill, { 
-                      backgroundColor: isDark ? 'hsla(0,0%,100%,0.04)' : 'hsla(255,100%,100%,0.4)',
-                      borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                    }]}
-                    onPress={() => handleSearch(term)}
-                  >
-                    <BlurView intensity={12} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                    <Typography size={8} color={colors.textSecondary} weight="300" style={styles.trendingText}>{term.toUpperCase()}</Typography>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Recently Viewed */}
-            {recentProducts.length > 0 && (
-              <View style={styles.section}>
-                <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>RECENTLY VIEWED</Typography>
-                <View style={[styles.productGrid, { paddingHorizontal: 0 }]}>
-                  {recentProducts.slice(0, 4).map((product) => (
-                    <View key={product.id} style={styles.cardWrapper}>
-                      <ProductCard product={product} />
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Collections */}
-            {collections.length > 0 && (
-              <View style={[styles.section, { paddingHorizontal: 16 }]}>
-                <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>COLLECTIONS</Typography>
-                {collections.slice(0, 10).map((c) => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[styles.collectionRow, { borderBottomColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }]}
-                    onPress={() => navigation.navigate('Collection', { handle: c.handle, title: c.title })}
-                  >
-                    <Typography size={12} color={colors.textSecondary} weight="300" style={styles.collectionTitle}>{c.title.toUpperCase()}</Typography>
-                    <Ionicons name="chevron-forward" size={14} color={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        <StorefrontFooter />
-        <View style={{ height: 100 + insets.bottom }} />
-      </ScrollView>
+        removeClippedSubviews={true}
+        initialNumToRender={6}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+      />
     </View>
   );
 }
@@ -218,9 +235,6 @@ function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  scrollView: {
-    paddingHorizontal: 0,
   },
   searchWrapper: {
     marginBottom: 24,
@@ -339,4 +353,5 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
+
 export default withErrorBoundary(SearchScreen, 'SearchScreen');

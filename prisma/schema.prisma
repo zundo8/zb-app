@@ -789,3 +789,12 @@ model AppLogin {
   @@index([phone])
   @@index([createdAt])
 }
+
+model Policy {
+  id        String   @id @default(cuid())
+  handle    String   @unique
+  title     String
+  content   String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
