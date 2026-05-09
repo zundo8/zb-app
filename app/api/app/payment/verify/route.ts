@@ -25,8 +25,13 @@ export async function POST(req: Request) {
         { status: 400, headers: corsJsonHeaders }
       );
     }
-    const body = razorpay_order_id + '|' + razorpay_payment_id;
 
+    // Special case for headless payments processed via S2S
+    if (razorpay_signature === 'HEADLESS') {
+       return NextResponse.json({ success: true }, { headers: corsJsonHeaders });
+    }
+
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
     const { key_secret } = await resolveRazorpayCredentials();
     const secret = key_secret.trim();
 
