@@ -154,10 +154,13 @@ export default function OrderReviewScreen() {
         if (!res.ok) throw new Error(json.error || 'Failed to place order');
         haptics.success();
         buyNowItem ? setBuyNowItem(null) : clearCart();
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId || json.id, paymentMethod: 'COD', estimatedDelivery: '3-5 Business Days' } }],
-        });
+        navigation.getParent()?.reset({
+            index: 1,
+            routes: [
+              { name: 'Main' },
+              { name: 'OrderConfirmation', params: { orderId: json.orderId || json.id, paymentMethod: 'COD', estimatedDelivery: '3-5 Business Days' } }
+            ],
+          });
       } catch (e: any) {
         haptics.error();
         Alert.alert('Order Failed', e.message || 'Something went wrong. Please try again.');

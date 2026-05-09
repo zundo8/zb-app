@@ -14,6 +14,7 @@ import { useThemeStore } from '../store/themeStore';
 import { haptics } from '../utils/haptics';
 import { useProductByHandle, useProducts } from '../hooks/useProducts';
 import { useCartStore } from '../store/cartStore';
+import { useAuthStore } from '../store/authStore';
 import { useBookmarkStore } from '../store/bookmarkStore';
 import { RootStackParamList } from '../navigation/types';
 import { Typography } from '../components/Typography';

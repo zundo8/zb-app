@@ -93,9 +93,12 @@ export default function RazorpayPaymentScreen() {
 
       haptics.success();
       buyNowItem ? setBuyNowItem(null) : clearCart();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId || json.id, paymentMethod: 'PREPAID', estimatedDelivery: '3-5 Business Days' } }],
+      navigation.getParent()?.reset({
+        index: 1,
+        routes: [
+          { name: 'Main' },
+          { name: 'OrderConfirmation', params: { orderId: json.orderId || json.id, paymentMethod: 'PREPAID', estimatedDelivery: '3-5 Business Days' } }
+        ],
       });
     } catch (e: any) {
       haptics.error();
@@ -143,7 +146,13 @@ export default function RazorpayPaymentScreen() {
   const handleSdk = async (options: any) => {
     setLoading(true);
     try {
-      const data = await RazorpayCheckout.open(options);
+      const fullOptions = {
+        ...options,
+        currency: 'INR',
+        name: 'Zica Bella',
+        description: 'Order Payment',
+      };
+      const data = await RazorpayCheckout.open(fullOptions);
       handlePaymentSuccess(data);
     } catch (e: any) {
       if (e?.code !== 2) Alert.alert('Payment Error', e?.description || 'Failed to process.');
