@@ -34,3 +34,16 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Razorpay — Production Deployment Checklist
+
+1. **Switch keys**: Replace `rzp_test_` with `rzp_live_` in both `RAZORPAY_KEY_ID` and `EXPO_PUBLIC_RAZORPAY_KEY_ID`
+2. **Set webhook URL**: Razorpay Dashboard → Webhooks → `https://app.zicabella.com/api/razorpay/webhook`
+3. **Enable events**: `payment.captured`, `payment.failed`, `refund.created`
+4. **Set `RAZORPAY_WEBHOOK_SECRET`**: Copy from Dashboard → Webhooks → Secret
+5. **Test ₹1 live transaction**: Create a real ₹1 order to validate the full flow before go-live
+6. **Verify DB connectivity**: Ensure `prisma db push` has been run on production
+7. **Check CORS**: Confirm `/api/razorpay/*` routes return proper CORS headers
+8. **Rate limiting**: Create-order is limited to 10 requests/IP/minute
+
+See `docs/razorpay-testing.md` for full testing and debugging guide.
