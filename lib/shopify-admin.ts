@@ -772,51 +772,160 @@ export async function fetchPolicies(): Promise<{ title: string; body: string; ur
 }
 
 /**
- * Search products by keyword — queries title, product_type, vendor, and tags in parallel.
- * Deduplicates results by product ID for a true full-text search experience.
+ * Score a product's relevancy to a search query.
+ * Higher score = more relevant. 0 = no match at all.
+ */
+function productRelevancyScore(p: ShopifyProduct, lq: string): number {
+  let score = 0;
+  const title = (p.title || '').toLowerCase();
+  const type = (p.product_type || '').toLowerCase();
+  const tags = (p.tags || '').toLowerCase();
+  const vendor = (p.vendor || '').toLowerCase();
+  const handle = (p.handle || '').toLowerCase();
+
+  // Title matches (highest priority)
+  if (title === lq) score += 100;
+  else if (title.startsWith(lq)) score += 80;
+  else if (title.includes(lq)) score += 60;
+
+  // Handle matches
+  if (handle.includes(lq)) score += 30;
+
+  // Product type matches
+  if (type === lq) score += 40;
+  else if (type.includes(lq)) score += 25;
+
+  // Tag matches
+  if (tags.includes(lq)) score += 20;
+
+  // Vendor matches
+  if (vendor.includes(lq)) score += 10;
+
+  return score;
+}
+
+/**
+ * Search products by keyword — uses GraphQL for full-text search,
+ * then filters and sorts results by relevancy. Falls back to REST for redundancy.
  */
 export async function searchProducts(query: string, limit = 48): Promise<ShopifyProduct[]> {
   if (!query?.trim()) return [];
   const q = query.trim();
+  const lq = q.toLowerCase();
 
-  try {
-    // Run 4 parallel searches across different fields
-    const [byTitle, byType, byVendor, byTag] = await Promise.allSettled([
-      shopifyFetch<{ products: ShopifyProduct[] }>('products.json', { limit: String(limit), title: q }),
-      shopifyFetch<{ products: ShopifyProduct[] }>('products.json', { limit: String(limit), product_type: q }),
-      shopifyFetch<{ products: ShopifyProduct[] }>('products.json', { limit: String(limit), vendor: q }),
-      shopifyFetch<{ products: ShopifyProduct[] }>('products.json', { limit: String(limit), tag: q }),
-    ]);
+  // Map a GraphQL product node to ShopifyProduct shape
+  function mapGraphQLNode(node: any): ShopifyProduct {
+    const extractId = (gid: string) => parseInt(gid.split('/').pop() || '0', 10);
+    return {
+      id: extractId(node.id),
+      title: node.title,
+      handle: node.handle,
+      body_html: node.bodyHtml || null,
+      status: node.status,
+      created_at: node.createdAt,
+      updated_at: node.updatedAt,
+      product_type: node.productType || '',
+      vendor: node.vendor || '',
+      tags: (node.tags || []).join(', '),
+      image: node.featuredImage ? { src: node.featuredImage.url } : null,
+      images: (node.images?.edges || []).map((edge: any) => ({
+        id: extractId(edge.node.id),
+        src: edge.node.url,
+      })),
+      variants: (node.variants?.edges || []).map((edge: any) => {
+        const v = edge.node;
+        return {
+          id: extractId(v.id),
+          title: v.title,
+          price: v.price,
+          compare_at_price: v.compareAtPrice || null,
+          sku: null,
+          barcode: null,
+          inventory_item_id: 0,
+          inventory_quantity: v.inventoryQuantity || 0,
+          inventory_management: null,
+          option1: v.selectedOptions?.[0]?.value || null,
+          option2: v.selectedOptions?.[1]?.value || null,
+          option3: v.selectedOptions?.[2]?.value || null,
+        };
+      }),
+    };
+  }
 
-    // Merge all results, deduplicate by product ID
-    const seen = new Set<string | number>();
-    const merged: ShopifyProduct[] = [];
-
-    for (const result of [byTitle, byType, byVendor, byTag]) {
-      if (result.status === 'fulfilled') {
-        for (const product of result.value.products || []) {
-          if (!seen.has(product.id)) {
-            seen.add(product.id);
-            merged.push(product);
+  const graphqlQuery = `
+    query searchProducts($query: String!, $limit: Int!) {
+      products(first: $limit, query: $query) {
+        edges {
+          node {
+            id
+            title
+            handle
+            bodyHtml
+            status
+            createdAt
+            updatedAt
+            productType
+            vendor
+            tags
+            featuredImage { url }
+            images(first: 5) { edges { node { id, url } } }
+            variants(first: 10) {
+              edges {
+                node {
+                  id
+                  title
+                  price
+                  compareAtPrice
+                  inventoryQuantity
+                  selectedOptions { name, value }
+                }
+              }
+            }
           }
         }
       }
     }
+  `;
 
-    // Also do a client-side partial-match filter on title for broader substring matching
-    const lq = q.toLowerCase();
-    const extra = merged.filter(p =>
-      p.title?.toLowerCase().includes(lq) ||
-      (p as any).product_type?.toLowerCase().includes(lq) ||
-      (p as any).vendor?.toLowerCase().includes(lq) ||
-      (p as any).tags?.toLowerCase().includes(lq)
-    );
+  try {
+    // Use plain text query — Shopify's GraphQL does built-in full-text search
+    const data = await shopifyGraphqlFetch<any>(graphqlQuery, { query: q, limit });
 
-    // Return the extra filtered subset if it has hits, otherwise return all merged
-    return extra.length > 0 ? extra : merged;
+    if (data?.products?.edges?.length > 0) {
+      const products = data.products.edges.map(({ node }: any) => mapGraphQLNode(node));
+
+      // Filter to only products that actually match the query
+      const matching = products.filter((p: ShopifyProduct) => productRelevancyScore(p, lq) > 0);
+
+      // Sort by relevancy score (highest first)
+      const sorted = (matching.length > 0 ? matching : products)
+        .sort((a: ShopifyProduct, b: ShopifyProduct) => productRelevancyScore(b, lq) - productRelevancyScore(a, lq));
+
+      console.log(`[Search] GraphQL returned ${products.length} products, ${matching.length} matched query "${q}"`);
+      return sorted.slice(0, limit);
+    }
+
+    throw new Error('GraphQL search returned no results');
   } catch (e) {
-    console.error('searchProducts error:', e);
-    return [];
+    console.warn('[Search] GraphQL search failed, using REST fallback:', (e as Error).message);
+
+    try {
+      // Fetch all products and filter/sort locally — REST title param is exact match only
+      const allData = await shopifyFetch<{ products: ShopifyProduct[] }>('products.json', { limit: '250' });
+      const allProducts = allData.products || [];
+
+      // Score, filter, and sort
+      const scored = allProducts
+        .map(p => ({ product: p, score: productRelevancyScore(p, lq) }))
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+      console.log(`[Search] REST fallback: ${scored.length} matches out of ${allProducts.length} products for "${q}"`);
+      return scored.map(item => item.product).slice(0, limit);
+    } catch (restError) {
+      console.error('[Search] REST fallback also failed:', restError);
+      return [];
+    }
   }
 }
 

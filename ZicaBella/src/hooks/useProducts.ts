@@ -297,6 +297,28 @@ export function useProductByHandle(handle: string) {
   return { product, loading, error };
 }
 
+/**
+ * Score a product's relevancy to a search query (client-side).
+ * Higher score = more relevant. 0 = no match.
+ */
+function relevancyScore(product: FlatProduct, lq: string): number {
+  let score = 0;
+  const title = (product.title || '').toLowerCase();
+  const handle = (product.handle || '').toLowerCase();
+  const type = (product.productType || '').toLowerCase();
+
+  if (title === lq) score += 100;
+  else if (title.startsWith(lq)) score += 80;
+  else if (title.includes(lq)) score += 60;
+
+  if (handle.includes(lq)) score += 30;
+
+  if (type === lq) score += 40;
+  else if (type.includes(lq)) score += 25;
+
+  return score;
+}
+
 export function useSearchProducts() {
   const [results, setResults] = useState<FlatProduct[]>([]);
   const [loading, setLoading] = useState(false);
@@ -306,6 +328,8 @@ export function useSearchProducts() {
       setResults([]);
       return;
     }
+    const normalizedQuery = query.trim().toLowerCase();
+
     try {
       setLoading(true);
       const data = await apiGet<{ products: FlatProduct[] }>(
@@ -315,7 +339,11 @@ export function useSearchProducts() {
       const normalizedProducts = extractProducts(data);
 
       if (normalizedProducts.length > 0) {
-        setResults(normalizedProducts);
+        // Sort by relevancy so the best matches appear first
+        const sorted = [...normalizedProducts].sort(
+          (a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery)
+        );
+        setResults(sorted);
         return;
       }
 
@@ -323,14 +351,17 @@ export function useSearchProducts() {
     } catch (err) {
       const cachedProducts = await loadCachedProducts();
       const source = cachedProducts.length > 0 ? cachedProducts : fallbackProducts;
-      const normalizedQuery = query.trim().toLowerCase();
-      setResults(
-        source.filter((product) =>
+
+      // Filter to matching products, then sort by relevancy
+      const filtered = source
+        .filter((product) =>
           product.title.toLowerCase().includes(normalizedQuery)
           || product.handle.toLowerCase().includes(normalizedQuery)
           || product.productType.toLowerCase().includes(normalizedQuery)
         )
-      );
+        .sort((a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery));
+
+      setResults(filtered);
     } finally {
       setLoading(false);
     }

@@ -238,10 +238,11 @@ function SearchScreen() {
         }
         onScroll={onScroll}
         scrollEventThrottle={16}
-        removeClippedSubviews={true}
+        removeClippedSubviews={false}
         initialNumToRender={6}
         maxToRenderPerBatch={4}
         windowSize={5}
+        extraData={results}
       />
     </View>
   );

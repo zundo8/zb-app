@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useColors } from '../constants/colors';
-import { config } from '../constants/config';
+import { config, getPaymentApiBaseUrl } from '../constants/config';
 import { formatPrice } from '../utils/formatPrice';
 import { useCartStore } from '../store/cartStore';
 import { useAuth } from '../hooks/useAuth';
@@ -25,9 +25,7 @@ import { useUIStore } from '../store/uiStore';
 import { BlurView } from 'expo-blur';
 import { Typography } from '../components/Typography';
 import { haptics } from '../utils/haptics';
-import RazorpayCheckout from 'react-native-razorpay';
-import Constants from 'expo-constants';
-import { BACKEND_BASE_URL } from '../constants/config';
+import PaymentSheet from '../components/payment/PaymentSheet';
 
 type Address = {
   name: string;
@@ -69,6 +67,11 @@ export default function CheckoutScreen() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'ONLINE' | 'COD'>('ONLINE');
+
+  // PaymentSheet state
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const [razorpayOrderId, setRazorpayOrderId] = useState<string | null>(null);
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(null);
 
   const [address, setAddress] = useState<Address>({
     name: user?.name || '',
@@ -219,124 +222,94 @@ export default function CheckoutScreen() {
 
     try {
       if (paymentMethod === 'COD') {
-        try {
-          const orderId = await completeShopifyCheckout();
-          
-          updateUser({
-            name: address.name,
-            phone: address.phone,
-            email: address.email,
-          });
-
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          clearCart();
-          navigation.replace('OrderConfirmation', { orderId });
-        } catch (codErr: any) {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert(
-            'Order Failed', 
-            codErr?.message || 'Could not place your COD order. Please try again.',
-            [{ text: 'OK' }]
-          );
-        }
+        const orderId = await completeShopifyCheckout();
+        updateUser({ name: address.name, phone: address.phone, email: address.email });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        clearCart();
+        navigation.replace('OrderConfirmation', { orderId });
         return;
       }
 
-      // Step 1: Create order on your backend
-
-      const orderResponse = await fetch(`${BACKEND_BASE_URL}/api/payment/create-order`, {
+      // Online: create Razorpay order, then open custom PaymentSheet
+      const apiBase = getPaymentApiBaseUrl();
+      const orderResponse = await fetch(`${apiBase}/api/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: cartTotal,
-          currency: 'INR',
-          receipt: 'zb_' + Date.now(),
-        }),
+        body: JSON.stringify({ amount: cartTotal, currency: 'INR', receipt: `zb_${Date.now()}` }),
       });
-
       const orderData = await orderResponse.json();
 
       if (!orderResponse.ok || !orderData.order_id) {
         throw new Error(orderData.error || 'Failed to create payment order. Please try again.');
       }
-
-      const razorpayKeyId = Constants.expoConfig?.extra?.razorpayKeyId;
-
-      if (!razorpayKeyId) {
+      if (!orderData.key_id || !String(orderData.key_id).startsWith('rzp_')) {
         throw new Error('Payment configuration error. Please contact support.');
       }
 
-      // Step 3: Open Razorpay checkout sheet
-      const paymentData = await RazorpayCheckout.open({
-        description: 'Zica Bella Order',
-        image: 'https://zicabella.com/logo.png',
-        currency: 'INR',
-        key: razorpayKeyId,
-        amount: orderData.amount,
-        order_id: orderData.order_id,
-        name: 'Zica Bella',
-        prefill: {
-          email: user?.email || '',
-          contact: user?.phone || '',
-          name: user?.name || '',
-        },
-        theme: { color: '#FFFFFF' },
-      });
+      setRazorpayOrderId(orderData.order_id);
+      setRazorpayKeyId(orderData.key_id);
+      setPaymentLoading(false);
+      setPaymentSheetVisible(true);
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Payment Error', error?.message || 'Something went wrong. Please try again.');
+      setPaymentLoading(false);
+    }
+  };
 
-      // Step 4: Verify signature on backend
-      const verifyResponse = await fetch(`${BACKEND_BASE_URL}/api/payment/verify`, {
+  const handlePaymentSheetSuccess = async (rzpData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+    setPaymentSheetVisible(false);
+    setPaymentLoading(true);
+    try {
+      const apiBase = getPaymentApiBaseUrl();
+      const verifyRes = await fetch(`${apiBase}/api/payment/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          razorpay_order_id: paymentData.razorpay_order_id,
-          razorpay_payment_id: paymentData.razorpay_payment_id,
-          razorpay_signature: paymentData.razorpay_signature,
-        }),
+        body: JSON.stringify(rzpData),
       });
+      const verifyData = await verifyRes.json();
+      if (!verifyData.success) throw new Error(verifyData.error || 'Signature verification failed.');
 
-      const verifyData = await verifyResponse.json();
-
-      if (verifyData.success) {
-        const orderId = await completeShopifyCheckout({
-          razorpay_payment_id: paymentData.razorpay_payment_id,
-          razorpay_order_id: paymentData.razorpay_order_id,
-          razorpay_signature: paymentData.razorpay_signature,
-        });
-
-        // Ensure user state is updated
-        updateUser({
-          name: address.name,
-          phone: address.phone,
-          email: address.email,
-        });
-
-        clearCart();
-        navigation.navigate('OrderConfirmation', {
-          paymentId: paymentData.razorpay_payment_id,
-          orderId: paymentData.razorpay_order_id,
-        });
-      } else {
-        Alert.alert(
-          'Verification Issue',
-          'Payment was received but could not be verified. Please contact support with Payment ID: ' +
-            paymentData.razorpay_payment_id
-        );
-      }
-    } catch (error: any) {
-      if (error?.code === 'PAYMENT_CANCELLED' || error?.description === 'User cancelled') {
-        Alert.alert('Cancelled', 'You cancelled the payment.');
-      } else {
-        Alert.alert('Payment Failed', error?.message || 'Something went wrong. Please try again.');
-      }
+      const orderId = await completeShopifyCheckout(rzpData);
+      updateUser({ name: address.name, phone: address.phone, email: address.email });
+      clearCart();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      navigation.replace('OrderConfirmation', { orderId });
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Order Failed', e.message || 'Payment succeeded but order could not be recorded. Contact support.');
     } finally {
       setPaymentLoading(false);
     }
   };
 
+  const handlePaymentSheetFailure = (error: any) => {
+    setPaymentSheetVisible(false);
+    Alert.alert('Payment Failed', error?.description || error?.message || 'Something went wrong. Please try again.');
+  };
+
   const inputBg = colors.surface;
 
   return (
-    <ScrollView
+    <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
+      {/* Custom Razorpay Payment Sheet */}
+      {razorpayOrderId && razorpayKeyId && (
+        <PaymentSheet
+          visible={paymentSheetVisible}
+          amount={cartTotal}
+          orderId={razorpayOrderId}
+          razorpayKeyId={razorpayKeyId}
+          prefill={{
+            name: address.name || user?.name || '',
+            email: address.email || user?.email || '',
+            contact: (address.phone || user?.phone || '').replace(/^\+91/, ''),
+          }}
+          onSuccess={handlePaymentSheetSuccess}
+          onFailure={handlePaymentSheetFailure}
+          onClose={() => setPaymentSheetVisible(false)}
+        />
+      )}
+      <ScrollView
       style={[styles.root, { paddingTop: insets.top, backgroundColor: colors.background }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
@@ -623,10 +596,12 @@ export default function CheckoutScreen() {
 
       <View style={{ height: 40 + insets.bottom }} />
     </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  rootContainer: { flex: 1 },
   root: { flex: 1 },
   header: { 
     flexDirection: 'row', 

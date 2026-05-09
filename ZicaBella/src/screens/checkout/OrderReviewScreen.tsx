@@ -9,11 +9,11 @@ import CheckoutSummaryBar from '../../components/CheckoutSummaryBar';
 import { useCartStore } from '../../store/cartStore';
 import { formatPrice } from '../../utils/formatPrice';
 import { haptics } from '../../utils/haptics';
-import { config } from '../../constants/config';
+import { config, getPaymentApiBaseUrl } from '../../constants/config';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/authStore';
-import { openRazorpayCheckout } from '../../services/razorpayService';
 import { Image } from 'expo-image';
+import PaymentSheet from '../../components/payment/PaymentSheet';
 
 const { width } = Dimensions.get('window');
 
@@ -28,6 +28,12 @@ export default function OrderReviewScreen() {
 
   const [loading, setLoading] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
+
+  // ─── Payment Sheet State ──────────────────────────────────────────────
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const [razorpayOrderId, setRazorpayOrderId] = useState<string | null>(null);
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(null);
+  const [pendingOrderData, setPendingOrderData] = useState<any>(null);
 
   // ─── Promo Code State ────────────────────────────────────────────────
   const [promoCode, setPromoCode] = useState('');
@@ -84,163 +90,182 @@ export default function OrderReviewScreen() {
     setPromoError(null);
   };
 
-  // ─── Place Order ─────────────────────────────────────────────────────
+  // ─── Build the shared order payload ──────────────────────────────────
+  const buildOrderData = () => {
+    return {
+      customerId: user?.id || 'GUEST',
+      customerEmail: user?.email || shippingAddress?.email || 'guest@zicabella.com',
+      customerPhone: user?.phone || shippingAddress?.phone || '',
+      lineItems: checkoutItems.map((i: any) => ({
+        variantId: i.variantId,
+        productId: i.productId,
+        quantity: i.quantity,
+        price: i.price,
+        name: i.title,
+        image: i.image,
+        sku: i.sku || `variant:${i.variantId}`,
+      })),
+      appliedStoreCredits: 0,
+      discountCode: appliedDiscount?.code || null,
+      discountAmount,
+      shippingAddress: {
+        name: shippingAddress?.name || user?.name || 'Zica User',
+        first_name: (shippingAddress?.name || user?.name || 'Zica').split(' ')[0],
+        last_name: (shippingAddress?.name || user?.name || 'User').split(' ').slice(1).join(' ') || 'User',
+        line1: shippingAddress?.street || shippingAddress?.line1 || 'Address not provided',
+        line2: shippingAddress?.line2 || '',
+        city: shippingAddress?.city || 'New Delhi',
+        state: shippingAddress?.state || 'Delhi',
+        pincode: shippingAddress?.zip || shippingAddress?.pincode || '110001',
+        country: 'India',
+        phone: shippingAddress?.phone || user?.phone || '',
+        email: user?.email || shippingAddress?.email || '',
+      },
+      paymentMethod: selectedPaymentMethod === 'cod' ? 'COD' : 'PREPAID',
+      paymentStatus: selectedPaymentMethod === 'cod' ? 'pending' : 'paid',
+      total: grandTotal,
+      total_price: grandTotal,
+      subtotal,
+      deliveryFee: codFee,
+      tags: `mobile-app, AppOrder, ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}`,
+      note: `Mobile app order | Payment: ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}`,
+    };
+  };
+
+  // ─── Place Order (COD) or open PaymentSheet (Razorpay) ───────────────
   const handlePlaceOrder = async () => {
     if (loading) return;
-    setLoading(true);
     haptics.buttonTap();
 
-    try {
-      // Get the real auth token from the store (optional for guest)
-      const token = useAuthStore.getState().token || '';
+    const token = useAuthStore.getState().token || '';
+    const orderData = buildOrderData();
 
-      // Build order payload first
-      const orderData = {
-        customerId: user?.id || 'GUEST',
-        customerEmail: user?.email || shippingAddress?.email || 'guest@zicabella.com',
-        customerPhone: user?.phone || shippingAddress?.phone || '',
-        lineItems: checkoutItems.map(i => ({ 
-          variantId: i.variantId, 
-          productId: i.productId,
-          quantity: i.quantity, 
-          price: i.price,
-          name: i.title,
-          image: i.image,
-          sku: (i as any).sku || `variant:${i.variantId}` // Ensure variant ID is encoded in SKU for Shopify sync
-        })),
-        appliedStoreCredits: 0,
-        discountCode: appliedDiscount?.code || null,
-        discountAmount: discountAmount,
-        shippingAddress: {
-          name: shippingAddress?.name || user?.name || 'Zica User',
-          first_name: (shippingAddress?.name || user?.name || 'Zica').split(' ')[0],
-          last_name: (shippingAddress?.name || user?.name || 'User').split(' ').slice(1).join(' ') || 'User',
-          line1: shippingAddress?.street || shippingAddress?.line1 || 'Address not provided',
-          line2: shippingAddress?.line2 || '',
-          city: shippingAddress?.city || 'New Delhi',
-          state: shippingAddress?.state || 'Delhi',
-          pincode: shippingAddress?.zip || shippingAddress?.pincode || '110001',
-          country: 'India',
-          phone: shippingAddress?.phone || user?.phone || '',
-          email: user?.email || shippingAddress?.email || ''
-        },
-        paymentMethod: selectedPaymentMethod === 'cod' ? 'COD' : 'PREPAID',
-        paymentStatus: selectedPaymentMethod === 'cod' ? 'pending' : 'paid',
-        total: grandTotal,
-        total_price: grandTotal, // Backward compatibility
-        subtotal: subtotal,
-        deliveryFee: codFee,
-        tags: `mobile-app, AppOrder, ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}`,
-        note: `Mobile app order | Payment: ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}`
-      };
-
-      let finalOrder: any = null;
-
-      // Handle Razorpay Flow
-      if (selectedPaymentMethod === 'razorpay') {
-        try {
-           // 1. Get payment details from Razorpay native UI
-           const rzpResult = await openRazorpayCheckout({
-             amount: grandTotal,
-             currency: 'INR',
-             email: orderData.customerEmail,
-             phone: orderData.customerPhone,
-             shipping_address: orderData.shippingAddress
-           }, token);
-
-           const paymentId = rzpResult.payment_id || rzpResult.razorpay_payment_id;
-           const rzpOrderId = rzpResult.razorpay_order_id || rzpResult.order_id || (rzpResult.order?.id);
-
-           if (!rzpResult || !paymentId) {
-             throw new Error('Payment verification failed or was incomplete.');
-           }
-
-           // 2. Create the actual order in our DB with the verified payment info
-           const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
-             method: 'POST',
-             headers: { 
-               'Content-Type': 'application/json', 
-               'Accept': 'application/json',
-               'Authorization': token ? `Bearer ${token}` : ''
-             },
-             body: JSON.stringify({
-               ...orderData,
-               paymentId: paymentId,
-               razorpayOrderId: rzpOrderId,
-             })
-           });
-
-           if (!res.ok) {
-             const errJson = await res.json().catch(() => ({}));
-             throw new Error(errJson.error || 'Payment was successful but we failed to record your order. Please contact support with Payment ID: ' + paymentId);
-           }
-
-           const json = await res.json();
-           finalOrder = { id: json.orderId || json.id };
-        } catch (e: any) {
-           console.log('Payment Flow Error:', e);
-           if (e.message?.toLowerCase().includes('cancel') || e.code === 2) {
-              setLoading(false);
-              return;
-           }
-           throw new Error(e.message || 'Payment failed. Please try again.');
-        }
-      } else {
-        // Handle COD Flow
+    if (selectedPaymentMethod === 'cod') {
+      setLoading(true);
+      try {
         const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json', 
+          headers: {
+            'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : ''
+            'Authorization': token ? `Bearer ${token}` : '',
           },
-          body: JSON.stringify(orderData)
+          body: JSON.stringify(orderData),
         });
-
         const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-          throw new Error(`Server error (${res.status}). Please try again.`);
-        }
-
+        if (!contentType.includes('application/json')) throw new Error(`Server error (${res.status})`);
         const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error || 'Failed to place order');
-        }
-        finalOrder = { id: json.orderId || json.id };
+        if (!res.ok) throw new Error(json.error || 'Failed to place order');
+        haptics.success();
+        buyNowItem ? setBuyNowItem(null) : clearCart();
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId || json.id, paymentMethod: 'COD', estimatedDelivery: '3-5 Business Days' } }],
+        });
+      } catch (e: any) {
+        haptics.error();
+        Alert.alert('Order Failed', e.message || 'Something went wrong. Please try again.');
+      } finally {
+        setLoading(false);
       }
+      return;
+    }
+
+    // Razorpay: Step 1 — create order on backend, then open PaymentSheet
+    setLoading(true);
+    try {
+      const apiBase = getPaymentApiBaseUrl();
+      const orderRes = await fetch(`${apiBase}/api/payment/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ amount: grandTotal, currency: 'INR', receipt: `zb_${Date.now()}` }),
+      });
+      const orderJson = await orderRes.json();
+      if (!orderRes.ok || !orderJson.order_id) {
+        throw new Error(orderJson.error || 'Failed to create payment order.');
+      }
+      if (!orderJson.key_id || !String(orderJson.key_id).startsWith('rzp_')) {
+        throw new Error('Invalid Razorpay key. Please contact support.');
+      }
+      // Store for PaymentSheet
+      setRazorpayOrderId(orderJson.order_id);
+      setRazorpayKeyId(orderJson.key_id);
+      setPendingOrderData(orderData);
+      setLoading(false);
+      setPaymentSheetVisible(true);
+    } catch (e: any) {
+      haptics.error();
+      Alert.alert('Payment Error', e.message || 'Could not start payment. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  // ─── After PaymentSheet reports success ───────────────────────────────
+  const handlePaymentSuccess = async (rzpData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+    setPaymentSheetVisible(false);
+    setLoading(true);
+    const token = useAuthStore.getState().token || '';
+    const orderData = pendingOrderData;
+
+    try {
+      // Step 2: Verify signature
+      const apiBase = getPaymentApiBaseUrl();
+      const verifyRes = await fetch(`${apiBase}/api/payment/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(rzpData),
+      });
+      const verifyJson = await verifyRes.json();
+      if (!verifyJson.success) throw new Error(verifyJson.error || 'Payment verification failed.');
+
+      // Step 3: Create order in DB
+      const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+        body: JSON.stringify({ ...orderData, paymentId: rzpData.razorpay_payment_id, razorpayOrderId: rzpData.razorpay_order_id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Payment succeeded but order recording failed. Contact support with ID: ' + rzpData.razorpay_payment_id);
 
       haptics.success();
-      if (buyNowItem) {
-        setBuyNowItem(null);
-      } else {
-        clearCart();
-      }
-      
-      // Navigate to success
+      buyNowItem ? setBuyNowItem(null) : clearCart();
       navigation.reset({
         index: 0,
-        routes: [{ 
-          name: 'OrderConfirmation', 
-          params: { 
-            orderId: finalOrder?.id || 'ZB-SUCCESS',
-            orderNumber: finalOrder?.orderNumber || finalOrder?.order_number || null,
-            paymentMethod: selectedPaymentMethod === 'cod' ? 'COD' : 'PREPAID',
-            estimatedDelivery: '3-5 Business Days'
-          } 
-        }],
+        routes: [{ name: 'OrderConfirmation', params: { orderId: json.orderId || json.id, paymentMethod: 'PREPAID', estimatedDelivery: '3-5 Business Days' } }],
       });
-      
     } catch (e: any) {
-      console.error('Order Submission Error:', e);
       haptics.error();
-      Alert.alert('Checkout Interrupted', e.message || 'Something went wrong. Please check your connection and try again.');
+      Alert.alert('Order Recording Failed', e.message || 'Your payment was captured, but we could not record your order. Please contact support.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handlePaymentFailure = (error: any) => {
+    haptics.error();
+    setPaymentSheetVisible(false);
+    Alert.alert('Payment Failed', error?.description || error?.message || 'Something went wrong. Please try again.');
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Razorpay custom Payment Sheet */}
+      {razorpayOrderId && razorpayKeyId && (
+        <PaymentSheet
+          visible={paymentSheetVisible}
+          amount={grandTotal}
+          orderId={razorpayOrderId}
+          razorpayKeyId={razorpayKeyId}
+          prefill={{
+            name: shippingAddress?.name || user?.name || '',
+            email: user?.email || shippingAddress?.email || '',
+            contact: (user?.phone || shippingAddress?.phone || '').replace(/^\+91/, ''),
+          }}
+          onSuccess={handlePaymentSuccess}
+          onFailure={handlePaymentFailure}
+          onClose={() => setPaymentSheetVisible(false)}
+        />
+      )}
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={[styles.back, { backgroundColor: colors.surface }]}>
