@@ -139,7 +139,8 @@ export async function POST(req: Request) {
         city: address.city,
         province: address.state,
         zip: address.zip,
-        country: address.country
+        country: address.country,
+        phone: address.phone
       },
       shipping_address: {
         first_name: address.name.split(' ')[0],
@@ -148,8 +149,10 @@ export async function POST(req: Request) {
         city: address.city,
         province: address.state,
         zip: address.zip,
-        country: address.country
+        country: address.country,
+        phone: address.phone
       },
+      phone: address.phone,
       financial_status: paymentMethod === "COD" ? "pending" : "paid",
       note: paymentMethod === "COD" ? "COD Order from Mobile App - ₹99 fee included" : "Paid via Razorpay from Mobile App",
       tags: `AppOrder, MobileApp, ${paymentMethod === "COD" ? "COD" : "Razorpay"}`,
@@ -217,6 +220,7 @@ export async function POST(req: Request) {
         await updateCustomer(shopifyCustomerId, {
             first_name: address.name.split(' ')[0],
             last_name: address.name.split(' ').slice(1).join(' ') || '.',
+            phone: address.phone,
         });
     } catch (e) {
         console.error("Shopify Customer Name Update Error:", e);

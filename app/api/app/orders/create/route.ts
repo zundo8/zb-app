@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
+import { createOrder, createCustomer } from '@/lib/shopify-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,13 +112,70 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join(' | ');
 
+    const initialStatus = paymentStatus === 'paid' ? 'approved' : 'awaiting_approval';
+    let finalShopifyOrderId = `#${orderNumber}`;
+    let finalTags = tags;
+
+    // --- SHOPIFY INSTANT SYNC FOR PAID ORDERS ---
+    if (initialStatus === 'approved') {
+        try {
+            // Ensure customer exists
+            let shopifyCustomerId = customer.shopifyId;
+            if (!shopifyCustomerId || shopifyCustomerId.startsWith('GUEST_') || shopifyCustomerId.startsWith('temp_')) {
+                const nameParts = String(customer.name || 'App User').split(' ');
+                const createdCustomer = await createCustomer({
+                    first_name: nameParts[0] || 'App',
+                    last_name: nameParts.slice(1).join(' ') || 'User',
+                    email: customer.email,
+                    phone: customerPhone || customer.phone || '',
+                    verified_email: true
+                });
+                shopifyCustomerId = String(createdCustomer.id);
+                await prisma.customer.update({ where: { id: customer.id }, data: { shopifyId: shopifyCustomerId } });
+            }
+
+            // Sync Order
+            const shopifyOrderPayload: any = {
+                line_items: lineItems.map((li: any) => ({
+                    variant_id: parseInt(li.variantId || li.variant_id || li.sku?.split(':')[1], 10),
+                    quantity: Number(li.quantity || 1),
+                    title: li.name || li.title,
+                })).filter((li: any) => !isNaN(li.variant_id)),
+                financial_status: 'paid',
+                tags: `${tags}, synced`,
+                note: note,
+                currency: 'INR',
+                customer: { id: parseInt(shopifyCustomerId, 10) },
+                shipping_address: {
+                    first_name: shippingAddress?.first_name || shippingAddress?.name?.split(' ')[0] || customer.name?.split(' ')[0] || 'App',
+                    last_name: shippingAddress?.last_name || shippingAddress?.name?.split(' ').slice(1).join(' ') || customer.name?.split(' ').slice(1).join(' ') || 'User',
+                    address1: shippingAddress?.line1 || shippingAddress?.street || '',
+                    address2: shippingAddress?.line2 || '',
+                    city: shippingAddress?.city || '',
+                    province: shippingAddress?.state || '',
+                    zip: shippingAddress?.pincode || shippingAddress?.zip || '',
+                    country: shippingAddress?.country || 'India',
+                    phone: customerPhone || customer.phone || shippingAddress?.phone || '',
+                },
+                phone: customerPhone || customer.phone || shippingAddress?.phone || '',
+            };
+            shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
+
+            const shopifyOrderRes = await createOrder(shopifyOrderPayload);
+            finalShopifyOrderId = String(shopifyOrderRes.id);
+            finalTags = `${tags}, synced`;
+        } catch (shopifyErr: any) {
+            console.error('[App API] Shopify instant sync failed:', shopifyErr.message);
+        }
+    }
+
     const created = await prisma.order.create({
       data: {
         shopId: shop.id,
         customerId: resolvedCustomerId,
         // Encode the human-readable order number here so we can keep schema unchanged.
-        shopifyOrderId: `#${orderNumber}`,
-        status: 'awaiting_approval',
+        shopifyOrderId: finalShopifyOrderId,
+        status: initialStatus,
         orderType: 'MOBILE_APP',
         totalPrice: total,
         subtotalPrice: subtotal,
@@ -142,7 +200,7 @@ export async function POST(req: Request) {
         }),
         billingAddress: null,
         note,
-        tags,
+        tags: finalTags,
         razorpayPaymentId: paymentId || null,
         paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
         paymentCapturedAt: paymentStatus === 'paid' ? now : null,
@@ -179,7 +237,7 @@ export async function POST(req: Request) {
       success: true,
       orderId: created.id,
       orderNumber,
-      status: 'awaiting_approval',
+      status: initialStatus,
       estimatedDelivery: null,
     }, { headers: corsHeaders });
   } catch (e: any) {
