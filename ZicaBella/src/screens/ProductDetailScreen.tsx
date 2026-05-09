@@ -531,7 +531,11 @@ export default function ProductDetailScreen() {
                            <Typography size={7.5} weight="300" color={colors.textSecondary}>{formatPrice(p.price)}</Typography>
                          </View>
                          <TouchableOpacity 
-                           onPress={(e) => { e.stopPropagation(); haptics.addToCart(); }}
+                           onPress={(e) => { 
+                             e.stopPropagation(); 
+                             setSelectedProduct(p);
+                             setQuickAddVisible(true);
+                           }}
                            style={styles.plusBtn}
                          >
                             <Ionicons name="add" size={16} color={colors.text} style={{ opacity: 0.4 }} />
@@ -546,7 +550,7 @@ export default function ProductDetailScreen() {
            {/* RECENTLY VIEWED */}
            {recentProducts.length > 1 && (
               <View style={styles.recentSection}>
-                <Typography size={7} color={colors.textExtraLight} weight="700" style={styles.sectionTag}>RECENTLY VIEWED</Typography>
+                <Typography size={7} color={colors.textExtraLight} weight="700" style={[styles.sectionTag, { marginLeft: 24 }]}>RECENTLY VIEWED</Typography>
                 <View style={styles.recentGrid}>
                   {recentProducts.filter(p => p.id !== product.id).slice(0, 4).map(p => (
                     <View key={p.id} style={styles.recentCardWrapper}>
@@ -873,16 +877,17 @@ const styles = StyleSheet.create({
   },
   recentSection: {
     marginBottom: 36,
+    marginHorizontal: -24, // Break out of infoSection padding
   },
   recentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 0,
+    paddingHorizontal: 12, // Reduced gap between cards and screen edges
   },
   recentCardWrapper: {
-    width: (SCREEN_W - 48 - 1) / 2,
-    marginBottom: 12,
+    width: (SCREEN_W - 24 - 10) / 2, // Recalculated for better edge-to-edge fit
+    marginBottom: 10,
   },
   inlineActions: {
     marginBottom: 20,
