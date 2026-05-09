@@ -99,7 +99,7 @@ export async function GET(req: Request) {
       include: {
         items: {
           include: {
-            product: { select: { id: true, shopifyProductId: true, title: true } },
+            product: { select: { id: true, shopifyProductId: true, title: true, featuredImage: true } },
           },
         },
         customer: {
@@ -164,7 +164,7 @@ export async function GET(req: Request) {
           size,
           productId: item.productId,
           shopifyProductId: item.product?.shopifyProductId || null,
-          image: null, // Will be resolved by the app if needed
+          image: item.image || item.product?.featuredImage || null,
         };
       });
 
@@ -249,18 +249,83 @@ export async function GET(req: Request) {
           priceDifference: e.priceDifference,
           createdAt: e.createdAt,
         })),
-        timeline: {
-          placedAt: o.createdAt,
-          confirmedAt: o.paymentStatus === 'paid' ? o.updatedAt : null,
-          packedAt:
-            (o.fulfillmentStatus && String(o.fulfillmentStatus).toLowerCase() !== 'unfulfilled')
-              ? o.updatedAt
-              : null,
-          shippedAt: latestShipment?.createdAt || (o.fulfillmentStatus ? o.updatedAt : null),
-          outForDeliveryAt:
-            String(o.deliveryStatus || '').toLowerCase() === 'out_for_delivery' ? o.updatedAt : null,
-          deliveredAt: String(o.deliveryStatus || '').toLowerCase() === 'delivered' ? o.updatedAt : null,
-        },
+      // Build comprehensive status timeline for the app
+      const timeline = {
+        placedAt: o.createdAt,
+        confirmedAt: o.paymentStatus === 'paid' ? o.updatedAt : null,
+        packedAt: (o.fulfillmentStatus && String(o.fulfillmentStatus).toLowerCase() !== 'unfulfilled') ? o.updatedAt : null,
+        shippedAt: latestShipment?.createdAt || (o.fulfillmentStatus && String(o.fulfillmentStatus).toLowerCase() !== 'unfulfilled' ? o.updatedAt : null),
+        outForDeliveryAt: String(o.deliveryStatus || '').toLowerCase() === 'out_for_delivery' ? o.updatedAt : null,
+        deliveredAt: String(o.deliveryStatus || '').toLowerCase() === 'delivered' ? o.updatedAt : null,
+      };
+
+      const statusTimeline = [
+        { step: 'order_placed', label: 'Order Placed', completedAt: timeline.placedAt },
+        { step: 'confirmed', label: 'Confirmed', completedAt: timeline.confirmedAt },
+        { step: 'shipped', label: 'Shipped', completedAt: timeline.shippedAt },
+        { step: 'out_for_delivery', label: 'Out for Delivery', completedAt: timeline.outForDeliveryAt },
+        { step: 'delivered', label: 'Delivered', completedAt: timeline.deliveredAt },
+      ];
+
+      return {
+        id: o.id,
+        orderNumber,
+        shopifyOrderId: o.shopifyOrderId,
+        createdAt: o.createdAt,
+        updatedAt: o.updatedAt,
+        status: normalizedStatus,
+        rawStatus: o.status,
+        paymentStatus: o.paymentStatus,
+        fulfillmentStatus: o.fulfillmentStatus,
+        deliveryStatus: o.deliveryStatus,
+        trackingNumber: latestShipment?.trackingNumber || null,
+        trackingUrl: latestShipment?.trackingUrl || (latestShipment?.trackingNumber
+          ? latestShipment.courier?.toLowerCase() === 'shiprocket'
+            ? `https://shiprocket.co/tracking/${latestShipment.trackingNumber}`
+            : `https://www.delhivery.com/track/package/${latestShipment.trackingNumber}`
+          : null),
+        courier: latestShipment?.courier || null,
+        shipmentCreatedAt: latestShipment?.createdAt || null,
+        totalPrice: o.totalPrice,
+        subtotalPrice: o.subtotalPrice,
+        totalTax: o.totalTax,
+        currency: o.currency,
+        note: o.note,
+        tags: o.tags,
+        paymentMethod,
+        paymentMethod2: o.paymentMethod, // direct from DB
+        razorpayOrderId: o.razorpayOrderId,
+        razorpayPaymentId: o.razorpayPaymentId,
+        shippingMethod: shippingMethodInfo,
+        discountInfo,
+        shippingAddress: parsedShippingAddress,
+        billingAddress: parsedBillingAddress,
+        customer: o.customer ? {
+          id: o.customer.id,
+          name: o.customer.name,
+          email: o.customer.email,
+          phone: o.customer.phone,
+        } : null,
+        items: itemsFormatted,
+        returns: (o.returns || []).map((r: any) => ({
+          id: r.id,
+          productId: r.productId,
+          reason: r.reason,
+          status: r.status,
+          refundMethod: r.refundMethod,
+          refundAmount: r.refundAmount,
+          requestedAt: r.requestedAt,
+        })),
+        exchanges: (o.exchanges || []).map((e: any) => ({
+          id: e.id,
+          originalProductId: e.originalProductId,
+          newProductId: e.newProductId,
+          status: e.status,
+          priceDifference: e.priceDifference,
+          createdAt: e.createdAt,
+        })),
+        timeline,
+        statusTimeline, // Added for mobile app compatibility
         shipmentEvents: (() => {
           if (!latestShipment?.events) return [];
           try {
@@ -287,6 +352,16 @@ export async function GET(req: Request) {
                 (order.timeline as any).estimatedDelivery = status.estimatedDelivery;
              }
 
+             // Update statusTimeline too
+             if (status.status.toLowerCase() === 'delivered') {
+               const deliveredStep = order.statusTimeline.find((s: any) => s.step === 'delivered');
+               if (deliveredStep) deliveredStep.completedAt = new Date().toISOString();
+             }
+             if (status.status.toLowerCase() === 'out_for_delivery') {
+               const ofdStep = order.statusTimeline.find((s: any) => s.step === 'out_for_delivery');
+               if (ofdStep) ofdStep.completedAt = new Date().toISOString();
+             }
+
              // Update DB in background
              prisma.shipment.updateMany({
                where: { trackingNumber: order.trackingNumber },
@@ -301,8 +376,8 @@ export async function GET(req: Request) {
              // Also update order delivery status if changed
              if (status.status.toLowerCase() === 'delivered') {
                 prisma.order.update({
-                  where: { id: order.id },
-                  data: { deliveryStatus: 'delivered' }
+                   where: { id: order.id },
+                   data: { deliveryStatus: 'delivered' }
                 }).catch(e => console.error('DB Order Sync Error:', e));
              }
           }
@@ -312,7 +387,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // Optional pagination metadata (kept non-breaking: existing callers can ignore).
+    // Optional pagination metadata
     if (limit && !orderId) {
       const total = await prisma.order.count({
         where: { customerId: { in: customerIds } },

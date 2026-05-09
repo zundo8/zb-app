@@ -63,12 +63,14 @@ export async function POST() {
               sku: firstVariant?.sku || null,
               barcode: firstVariant?.barcode || null,
               inventoryItemId: firstVariant ? String(firstVariant.inventory_item_id) : null,
+              featuredImage: p.image?.src || p.images?.[0]?.src || null,
             },
             update: {
               title: p.title,
               sku: firstVariant?.sku || null,
               barcode: firstVariant?.barcode || null,
               inventoryItemId: firstVariant ? String(firstVariant.inventory_item_id) : null,
+              featuredImage: p.image?.src || p.images?.[0]?.src || null,
             },
           });
           results.products++;
@@ -112,6 +114,14 @@ export async function POST() {
 
     const syncOrders = async () => {
       try {
+        // Fetch products first to have a cache of images
+        const productsRaw = await fetchAllProducts(250);
+        const productImageMap = new Map<string, string>();
+        productsRaw.forEach(p => {
+          const img = p.image?.src || p.images?.[0]?.src;
+          if (img) productImageMap.set(String(p.id), img);
+        });
+
         const orders = await fetchAllOrders(250);
         for (const o of orders) {
           const customerId = o.customer ? String(o.customer.id) : 'anonymous';
@@ -181,6 +191,9 @@ export async function POST() {
               dbProductId = prod?.id || null;
             }
 
+            // Resolve image for this item
+            const itemImage = shopifyProductId ? productImageMap.get(shopifyProductId) : null;
+
             await prisma.orderItem.upsert({
               where: { shopifyLineItemId: String(item.id) },
               create: {
@@ -191,11 +204,13 @@ export async function POST() {
                 quantity: item.quantity,
                 price: parseFloat(item.price || '0'),
                 sku: item.sku || null,
+                image: itemImage || null,
               },
               update: {
                 quantity: item.quantity,
                 price: parseFloat(item.price || '0'),
                 sku: item.sku || null,
+                image: itemImage || null,
               },
             });
           }));

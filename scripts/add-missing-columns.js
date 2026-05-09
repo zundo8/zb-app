@@ -34,6 +34,10 @@ async function migrate() {
     // Customer missing columns
     `ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "storeCredits" DOUBLE PRECISION DEFAULT 0`,
     `ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "storeCreditPreference" BOOLEAN DEFAULT false`,
+
+    // Product & OrderItem image support
+    `ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "featuredImage" TEXT`,
+    `ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "image" TEXT`,
   ];
   
   console.log('Adding missing columns to production database...\n');

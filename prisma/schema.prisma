@@ -187,6 +187,7 @@ model OrderItem {
   quantity          Int
   price             Float
   sku               String?
+  image             String?
   order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product           Product? @relation(fields: [productId], references: [id])
 }
@@ -199,6 +200,7 @@ model Product {
   sku               String?
   barcode           String?
   inventoryItemId   String?     @unique
+  featuredImage     String?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   newExchanges      Exchange[]  @relation("NewProduct")

@@ -52,15 +52,12 @@ export default function OrderDetailsScreen() {
 
   const steps = useMemo(() => {
     if (!order) return [];
-    const isPrepaid = order.paymentMethod === 'PREPAID' || order.paymentMethod2 === 'PREPAID';
-    const cancelled = (order.status || '').toLowerCase().includes('cancel');
     return [
       { step: 'order_placed', label: 'Order Placed' },
-      { step: 'awaiting_approval', label: isPrepaid ? 'Payment Confirmed' : 'Awaiting Approval' },
-      { step: 'approved', label: 'Approved & Processing' },
+      { step: 'confirmed', label: 'Confirmed' },
       { step: 'shipped', label: 'Shipped' },
       { step: 'out_for_delivery', label: 'Out for Delivery' },
-      { step: 'delivered', label: cancelled ? 'Cancelled' : 'Delivered' },
+      { step: 'delivered', label: 'Delivered' },
     ];
   }, [order]);
 
@@ -68,16 +65,9 @@ export default function OrderDetailsScreen() {
     const tl = Array.isArray(order?.statusTimeline) ? order.statusTimeline : [];
     const m = new Map<string, string | null>();
     tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
-
-    // Fallback to basic timeline if available
-    if (order?.timeline?.placedAt && !m.has('order_placed')) m.set('order_placed', order.timeline.placedAt);
-    if (order?.timeline?.shippedAt && !m.has('shipped')) m.set('shipped', order.timeline.shippedAt);
-    if (order?.timeline?.deliveredAt && !m.has('delivered')) m.set('delivered', order.timeline.deliveredAt);
-
     return m;
   }, [order]);
 
-  // ─── Early returns (after ALL hooks) ───────────────────────────────
   if (!orderId) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
@@ -102,24 +92,17 @@ export default function OrderDetailsScreen() {
       if (user?.phone) params.set('phone', user.phone);
       if (user?.email) params.set('email', user.email);
       
-      // Guest fallback tracking info
       if (!user?.id) {
         if (guestAddress?.phone) params.set('phone', guestAddress.phone);
         if (guestAddress?.email) params.set('email', guestAddress.email);
       }
 
       const res = await fetch(`${config.appUrl}/api/app/orders/${orderId}?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Accept': 'application/json',
-        }
+        headers: { Authorization: `Bearer ${token}`, 'Accept': 'application/json' }
       });
 
-      // Guard against non-JSON responses
       const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error(`Server error (${res.status})`);
-      }
+      if (!contentType.includes('application/json')) throw new Error(`Server error (${res.status})`);
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch order');
@@ -138,10 +121,7 @@ export default function OrderDetailsScreen() {
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     fetchOrderDetails();
-
-    const interval = setInterval(() => {
-      fetchOrderDetails(true);
-    }, 60000); // 60s polling
+    const interval = setInterval(() => fetchOrderDetails(true), 60000);
     return () => clearInterval(interval);
   }, [fadeAnim, fetchOrderDetails]);
 
@@ -155,7 +135,7 @@ export default function OrderDetailsScreen() {
     } catch (e: any) {
       setTrackingError(e?.message || 'Failed to fetch tracking');
     }
-  }, [order?.trackingNumber, order?.tracking?.awb]);
+  }, [order]);
 
   const contactSupport = () => {
     haptics.buttonTap();
@@ -163,50 +143,40 @@ export default function OrderDetailsScreen() {
   };
 
   const handleCancelOrder = async () => {
-    Alert.alert(
-      "Cancel Order",
-      "Are you sure you want to cancel this order?",
-      [
-        { text: "No", style: "cancel" },
-        { 
-          text: "Yes, Cancel", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const token = useAuthStore.getState().token || '';
-              const response = await fetch(`${config.appUrl}/api/app/orders/cancel`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ orderId: order.id, reason: 'User cancelled' })
-              });
-              
-              const data = await response.json();
-              if (data.error) throw new Error(data.error);
-              
-              haptics.success();
-              Alert.alert("Success", "Your order has been cancelled.");
-              fetchOrderDetails(); // Refresh
-            } catch (e: any) {
-              haptics.error();
-              Alert.alert("Error", e.message || "Failed to cancel order");
-            } finally {
-              setLoading(false);
-            }
+    Alert.alert("Cancel Order", "Are you sure you want to cancel this order?", [
+      { text: "No", style: "cancel" },
+      { 
+        text: "Yes, Cancel", 
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setLoading(true);
+            const token = useAuthStore.getState().token || '';
+            const response = await fetch(`${config.appUrl}/api/app/orders/cancel`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ orderId: order.id, reason: 'User cancelled' })
+            });
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+            haptics.success();
+            Alert.alert("Success", "Your order has been cancelled.");
+            fetchOrderDetails();
+          } catch (e: any) {
+            haptics.error();
+            Alert.alert("Error", e.message || "Failed to cancel order");
+          } finally {
+            setLoading(false);
           }
         }
-      ]
-    );
+      }
+    ]);
   };
 
   if (loading && !order) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.foreground} />
-        <Typography size={14} color={colors.textMuted} style={{ marginTop: 16 }}>LOADING ORDER DETAILS...</Typography>
+        <ActivityIndicator size="small" color={colors.foreground} />
       </View>
     );
   }
@@ -215,514 +185,128 @@ export default function OrderDetailsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 40 }]}>
         <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
-        <Typography size={16} weight="700" color={colors.text} style={{ marginTop: 24, textAlign: 'center' }}>
-          Unable to Load Order
-        </Typography>
-        <Typography size={13} color={colors.textMuted} style={{ marginTop: 8, textAlign: 'center' }}>
-          {error}
-        </Typography>
-        <TouchableOpacity 
-          style={[styles.retryBtn, { backgroundColor: colors.foreground }]}
-          onPress={() => fetchOrderDetails()}
-        >
+        <Typography size={16} weight="700" color={colors.text} style={{ marginTop: 24, textAlign: 'center' }}>Unable to Load Order</Typography>
+        <Typography size={13} color={colors.textMuted} style={{ marginTop: 8, textAlign: 'center' }}>{error}</Typography>
+        <TouchableOpacity style={[styles.retryBtn, { backgroundColor: colors.foreground }]} onPress={() => fetchOrderDetails()}>
           <Typography size={12} weight="800" color={colors.background}>TRY AGAIN</Typography>
         </TouchableOpacity>
-        <TouchableOpacity 
-          onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')}
-          style={{ marginTop: 20 }}
-        >
-          <Typography size={12} weight="600" color={colors.iosBlue}>Go Back</Typography>
-        </TouchableOpacity>
       </View>
     );
   }
 
+  if (!order) return null;
 
-  if (!order) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="small" color={colors.foreground} />
-      </View>
-    );
-  }
-
-  const isCancelled = isCancelledMemo;
-  const isDelivered = (Array.isArray(order.statusTimeline) ? order.statusTimeline : []).some((t: any) => t.step === 'delivered' && t.completedAt) || order.deliveryStatus === 'delivered';
+  const isCancelled = (order.status || '').toLowerCase().includes('cancel');
+  const isDelivered = (order.deliveryStatus || '').toLowerCase() === 'delivered';
   const orderNumber = order.orderNumber || order.id?.slice(0, 8);
-  const trackingNumber = order.trackingNumber || order.tracking?.awb;
-
   const statusColor = isCancelled ? '#FF3B30' : isDelivered ? '#34C759' : '#007AFF';
-
-  const getItemImage = (item: any): string | null => {
-    if (item.image) return item.image;
-    if (item.imageUrl) return item.imageUrl;
-    if (item.product?.image) return item.product.image;
-    if (item.product?.images?.[0]) return item.product.images[0];
-    if (order.lineItems) {
-      const match = order.lineItems.find((li: any) =>
-        li.name === item.title || li.productId === item.productId
-      );
-      if (match?.imageUrl) return match.imageUrl;
-    }
-    return null;
-  };
-
-  const SectionCard = ({ children, style }: { children: React.ReactNode; style?: any }) => (
-    <View style={[
-      styles.sectionCard,
-      {
-        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#FFFFFF',
-        borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-      },
-      style,
-    ]}>
-      {children}
-    </View>
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlassHeader title={`#${orderNumber}`} showBack />
+      <GlassHeader title={`Order #${orderNumber}`} showBack />
 
       <Animated.ScrollView
         style={{ opacity: fadeAnim }}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 200 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 74, paddingBottom: insets.bottom + 140 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ─── Order Summary Header ─── */}
-        <SectionCard>
-          <View style={styles.summaryHeader}>
-            <View>
-              <Typography size={11} color={colors.textExtraLight} weight="500" style={{ letterSpacing: 1 }}>ORDER</Typography>
-              <TouchableOpacity 
-                onPress={() => {
-                  haptics.buttonTap();
-                  Share.share({ message: `My Zica Bella Order: #${orderNumber}` });
-                }}
-                style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
-              >
-                <Typography size={22} weight="800" color={colors.text} style={{ letterSpacing: -0.5 }}>
-                  #{orderNumber}
-                </Typography>
-                <Ionicons name="share-outline" size={16} color={colors.textExtraLight} style={{ marginLeft: 8 }} />
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.statusPill, { backgroundColor: statusColor + '12' }]}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-              <Typography size={11} weight="700" color={statusColor} style={{ marginLeft: 6 }}>
-                {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : 
-                  (order.status === 'awaiting_approval' ? 'Awaiting Approval' : 
-                  (order.deliveryStatus || 'Processing').replace(/_/g, ' ')).toUpperCase()}
-              </Typography>
-            </View>
-          </View>
-
-          <View style={styles.summaryMeta}>
-            <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={14} color={colors.textExtraLight} />
-              <Typography size={12} color={colors.textMuted} weight="500" style={{ marginLeft: 6 }}>
-                {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </Typography>
-            </View>
-            {order.paymentMethod && (
-              <View style={styles.metaItem}>
-                <Ionicons
-                  name={order.paymentMethod.includes('COD') || order.paymentMethod.includes('Cash') ? 'cash-outline' : 'card-outline'}
-                  size={14}
-                  color={colors.textExtraLight}
-                />
-                <Typography size={12} color={colors.textMuted} weight="500" style={{ marginLeft: 6 }}>
-                  {order.paymentMethod}
-                </Typography>
-              </View>
-            )}
-            <View style={styles.metaItem}>
-              <Ionicons name="cube-outline" size={14} color={colors.textExtraLight} />
-              <Typography size={12} color={colors.textMuted} weight="500" style={{ marginLeft: 6 }}>
-                {order.items?.length || 0} {(order.items?.length || 0) === 1 ? 'item' : 'items'}
-              </Typography>
-            </View>
-          </View>
-        </SectionCard>
-
-        {/* ─── Live Tracking Stepper ─── */}
-        {!isCancelled && (
-          <SectionCard>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
-              <Ionicons name="navigate-outline" size={16} color={colors.text} />
-              <Typography size={13} weight="700" color={colors.text}>Order Tracking</Typography>
-            </View>
-            <View style={{ marginTop: 6 }}>
-              {steps.map((s, idx) => {
-                const completedAt = timelineByStep.get(s.step) || null;
-                const isCompleted = !!completedAt;
-                const isCurrent = !isCompleted && (steps.slice(0, idx).every(prev => !!timelineByStep.get(prev.step)));
-                return (
-                  <View key={s.step} style={{ flexDirection: 'row', gap: 12, paddingBottom: 18 }}>
-                    <View style={{ width: 22, alignItems: 'center' }}>
-                      <View style={{
-                        width: 16, height: 16, borderRadius: 8,
-                        backgroundColor: isCompleted ? colors.foreground : 'transparent',
-                        borderWidth: 2,
-                        borderColor: isCompleted ? colors.foreground : isCurrent ? colors.iosBlue : colors.borderLight,
-                        justifyContent: 'center', alignItems: 'center'
-                      }}>
-                        {isCompleted && <Ionicons name="checkmark" size={10} color={colors.background} />}
-                        {!isCompleted && isCurrent && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.iosBlue }} />}
-                      </View>
-                      {idx < steps.length - 1 && (
-                        <View style={{ width: 2, flex: 1, backgroundColor: isCompleted ? colors.foreground : colors.borderExtraLight, marginTop: 4 }} />
-                      )}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Typography size={11} weight="700" color={colors.text} style={{ letterSpacing: 1 }}>{s.label.toUpperCase()}</Typography>
-                      {completedAt ? (
-                        <Typography size={9} color={colors.textMuted} style={{ marginTop: 2 }}>
-                          {new Date(completedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </Typography>
-                      ) : isCurrent ? (
-                        <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 2 }}>IN PROGRESS</Typography>
-                      ) : null}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </SectionCard>
-        )}
-
-        {/* ─── Tracking Block (only when Tracking Number is set) ─── */}
-        {!!trackingNumber && (
-          <SectionCard>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Typography size={10} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>TRACKING</Typography>
-                <Typography size={14} weight="800" color={colors.text} style={{ marginTop: 6 }}>
-                  {order.courier ? `${order.courier} • ` : ''}{trackingNumber}
-                </Typography>
-                {(trackingLive?.current_location || order.location) && (
-                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 6 }}>
-                    {trackingLive?.current_location || order.location}
-                  </Typography>
-                )}
-                {(trackingLive?.estimated_delivery || order.estimatedDelivery) && (
-                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 2 }}>
-                    ETA: {String(trackingLive?.estimated_delivery || order.estimatedDelivery)}
-                  </Typography>
-                )}
-                {!!trackingError && (
-                  <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 8 }}>
-                    {trackingError}
-                  </Typography>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => { haptics.buttonTap(); refreshTracking(); }}
-                activeOpacity={0.7}
-                style={[styles.copyBtn, { backgroundColor: colors.foreground }]}
-              >
-                {loading ? <ActivityIndicator color={colors.background} /> : <Ionicons name="refresh" size={16} color={colors.background} />}
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              onPress={async () => {
-                try {
-                  haptics.buttonTap();
-                  if (order.trackingUrl) {
-                    Linking.openURL(order.trackingUrl);
-                  } else {
-                    await refreshTracking();
-                  }
-                } catch {}
-              }}
-              activeOpacity={0.7}
-              style={{ marginTop: 16, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', alignItems: 'center' }}
-            >
-              <Typography size={10} weight="700" color={colors.text}>View Full Tracking</Typography>
-            </TouchableOpacity>
-          </SectionCard>
-        )}
-
-        {/* ─── Return/Exchange Request Status ─── */}
-        {(order.returnRequests?.length > 0 || order.exchangeRequests?.length > 0) && (
-          <>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="sync-circle-outline" size={16} color={colors.text} />
-              <Typography size={13} weight="700" color={colors.text} style={{ marginLeft: 8 }}>Service Requests</Typography>
-            </View>
-            {order.returnRequests?.map((req: any) => (
-              <SectionCard key={req.id}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Typography size={13} weight="700" color={colors.text}>Return Request</Typography>
-                  <View style={[styles.itemMeta, { backgroundColor: req.status === 'approved' ? '#34C75915' : req.status === 'rejected' ? '#FF3B3015' : '#FF9F0A15' }]}>
-                    <Typography size={10} weight="700" color={req.status === 'approved' ? '#34C759' : req.status === 'rejected' ? '#FF3B30' : '#FF9F0A'}>
-                      {req.status.replace('_', ' ').toUpperCase()}
-                    </Typography>
-                  </View>
-                </View>
-                <Typography size={11} color={colors.textMuted} style={{ marginBottom: 4 }}>Created on {new Date(req.createdAt).toLocaleDateString()}</Typography>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography size={11} color={colors.textMuted}>Estimated Refund: {formatPrice(req.estimatedRefund)}</Typography>
-                  {req.returns?.[0]?.refundStatus && (
-                    <View style={[styles.itemMeta, { backgroundColor: req.returns[0].refundStatus === 'PROCESSED' ? '#34C75915' : '#FF9F0A15' }]}>
-                      <Typography size={9} weight="700" color={req.returns[0].refundStatus === 'PROCESSED' ? '#34C759' : '#FF9F0A'}>
-                        REFUND: {req.returns[0].refundStatus}
-                      </Typography>
-                    </View>
-                  )}
-                </View>
-                {req.reason && <Typography size={11} color={colors.textMuted} style={{ marginTop: 4 }}>Note: {req.reason}</Typography>}
-              </SectionCard>
-            ))}
-            {order.exchangeRequests?.map((req: any) => (
-              <SectionCard key={req.id}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Typography size={13} weight="700" color={colors.text}>Exchange Request</Typography>
-                  <View style={[styles.itemMeta, { backgroundColor: req.status === 'approved' ? '#34C75915' : req.status === 'rejected' ? '#FF3B3015' : '#FF9F0A15' }]}>
-                    <Typography size={10} weight="700" color={req.status === 'approved' ? '#34C759' : req.status === 'rejected' ? '#FF3B30' : '#FF9F0A'}>
-                      {req.status.replace('_', ' ').toUpperCase()}
-                    </Typography>
-                  </View>
-                </View>
-                <Typography size={11} color={colors.textMuted} style={{ marginBottom: 4 }}>Created on {new Date(req.createdAt).toLocaleDateString()}</Typography>
-                <Typography size={11} color={colors.textMuted}>Price Difference: {formatPrice(Math.abs(req.priceDifference))} {req.priceDifference > 0 ? '(To Pay)' : '(Refund)'}</Typography>
-                {req.reason && <Typography size={11} color={colors.textMuted} style={{ marginTop: 4 }}>Note: {req.reason}</Typography>}
-              </SectionCard>
-            ))}
-          </>
-        )}
-
-        {/* ─── Order Items ─── */}
-        <View style={styles.sectionHeader}>
-          <Ionicons name="bag-outline" size={16} color={colors.text} />
-          <Typography size={13} weight="700" color={colors.text} style={{ marginLeft: 8 }}>Order Items</Typography>
-        </View>
-        <SectionCard style={{ padding: 0 }}>
-          {order.items?.map((item: any, index: number) => {
-            const imgUrl = getItemImage(item);
-            return (
-              <View
-                key={item.id || index}
-                style={[
-                  styles.orderItemRow,
-                  index > 0 && { borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }
-                ]}
-              >
-                <View style={[
-                  styles.orderItemThumb,
-                  { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)' }
-                ]}>
-                  {imgUrl ? (
-                    <Image source={{ uri: imgUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                  ) : (
-                    <Ionicons name="shirt-outline" size={20} color={colors.textExtraLight} />
-                  )}
-                </View>
-                <View style={{ flex: 1, marginLeft: 14 }}>
-                  <Typography size={14} weight="600" color={colors.text} numberOfLines={2}>
-                    {item.title || item.fullTitle || item.name}
-                  </Typography>
-                  <View style={{ flexDirection: 'row', marginTop: 6, gap: 12 }}>
-                    {item.size && (
-                      <View style={[styles.itemMeta, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                        <Typography size={10} weight="600" color={colors.textMuted}>Size: {item.size}</Typography>
-                      </View>
-                    )}
-                    <View style={[styles.itemMeta, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                      <Typography size={10} weight="600" color={colors.textMuted}>Qty: {item.quantity}</Typography>
-                    </View>
-                  </View>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Typography size={15} weight="700" color={colors.text}>{formatPrice(item.price * item.quantity)}</Typography>
-                  <Typography size={10} weight="500" color={colors.textMuted} style={{ marginTop: 2 }}>{formatPrice(item.price)} each</Typography>
-                </View>
-              </View>
-            );
-          })}
-        </SectionCard>
-
-        {/* ─── Delivery Address ─── */}
-        {order.shippingAddress && (
-          <>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="location-outline" size={16} color={colors.text} />
-              <Typography size={13} weight="700" color={colors.text} style={{ marginLeft: 8 }}>Delivery Address</Typography>
-            </View>
-            <SectionCard>
-              <Typography size={14} weight="600" color={colors.text}>
-                {order.shippingAddress?.name || 'Customer'}
-              </Typography>
-              <Typography size={13} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 20 }}>
-                {order.shippingAddress?.address1 || order.shippingAddress?.line1 || order.shippingAddress?.raw || ''}
-                {order.shippingAddress?.address2 || order.shippingAddress?.line2 ? `, ${order.shippingAddress.address2 || order.shippingAddress.line2}` : ''}
-                {'\n'}
-                {[order.shippingAddress?.city, order.shippingAddress?.province || order.shippingAddress?.state].filter(Boolean).join(', ')}
-                {order.shippingAddress?.zip || order.shippingAddress?.pincode ? ` - ${order.shippingAddress.zip || order.shippingAddress.pincode}` : ''}
-              </Typography>
-              {(order.shippingAddress?.phone) && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 6 }}>
-                  <Ionicons name="call-outline" size={13} color={colors.textMuted} />
-                  <Typography size={12} color={colors.textMuted} weight="500">{order.shippingAddress.phone}</Typography>
-                </View>
-              )}
-            </SectionCard>
-          </>
-        )}
-
-        {/* ─── Price Summary ─── */}
-        <View style={styles.sectionHeader}>
-          <Ionicons name="receipt-outline" size={16} color={colors.text} />
-          <Typography size={13} weight="700" color={colors.text} style={{ marginLeft: 8 }}>Payment Summary</Typography>
-        </View>
-        <SectionCard>
-          <View style={styles.priceRow}>
-            <Typography size={13} color={colors.textMuted} weight="500">Subtotal</Typography>
-            <Typography size={13} color={colors.text} weight="600">{formatPrice(order.subtotalPrice || order.subtotal || order.totalPrice)}</Typography>
-          </View>
-          {order.totalTax != null && order.totalTax > 0 && (
-            <View style={styles.priceRow}>
-              <Typography size={13} color={colors.textMuted} weight="500">Tax</Typography>
-              <Typography size={13} color={colors.text} weight="600">{formatPrice(order.totalTax)}</Typography>
-            </View>
-          )}
-          <View style={styles.priceRow}>
-            <Typography size={13} color={colors.textMuted} weight="500">Shipping</Typography>
-            <Typography size={13} color="#34C759" weight="600">FREE</Typography>
-          </View>
-          {order.discountInfo && (
-            <View style={styles.priceRow}>
-              <Typography size={13} color={colors.textMuted} weight="500">Discount</Typography>
-              <Typography size={13} color="#FF3B30" weight="600">-{order.discountInfo}</Typography>
-            </View>
-          )}
-          <View style={[styles.totalRow, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
-            <Typography size={15} weight="800" color={colors.text}>Total</Typography>
-            <Typography size={22} weight="800" color={colors.text} style={{ letterSpacing: -0.5 }}>
-              {formatPrice(order.totalPrice || order.total)}
+        <View style={[styles.statusCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' }]}>
+          <View style={{ flex: 1 }}>
+            <Typography size={10} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 0.5, marginBottom: 4 }}>STATUS</Typography>
+            <Typography size={17} weight="800" color={colors.text}>
+              {isCancelled ? 'Order Cancelled' : isDelivered ? 'Delivered' : (order.deliveryStatus || order.status || 'Processing').replace(/_/g, ' ')}
+            </Typography>
+            <Typography size={12} color={colors.textMuted} style={{ marginTop: 4 }}>
+              {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
             </Typography>
           </View>
-
-          <View style={[styles.paymentInfoBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', marginTop: 16, padding: 12, borderRadius: 12 }]}>
-             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Typography size={10} weight="600" color={colors.textExtraLight}>Payment Method</Typography>
-                <Typography size={10} weight="700" color={colors.textMuted}>{order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'Prepaid (Razorpay)'}</Typography>
-             </View>
-             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Typography size={10} weight="600" color={colors.textExtraLight}>Payment Status</Typography>
-                <Typography size={10} weight="700" color={
-                  order.paymentStatus === 'paid' ? colors.success : 
-                  order.paymentStatus === 'refunded' ? '#5856D6' : 
-                  order.paymentStatus === 'failed' ? colors.error : 
-                  '#FF9F0A'
-                }>
-                  {(order.paymentStatus || 'Pending').toUpperCase()}
-                </Typography>
-             </View>
-             {order.razorpayPaymentId && (
-               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Typography size={10} weight="600" color={colors.textExtraLight}>Transaction ID</Typography>
-                  <Typography size={10} weight="700" color={colors.textMuted} style={{ fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{order.razorpayPaymentId}</Typography>
-               </View>
-             )}
-          </View>
-        </SectionCard>
-
-        {/* ─── Order Notes ─── */}
-        {order.note && (
-          <>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="document-text-outline" size={16} color={colors.text} />
-              <Typography size={13} weight="700" color={colors.text} style={{ marginLeft: 8 }}>Notes</Typography>
-            </View>
-            <SectionCard>
-              <Typography size={12} color={colors.textMuted} style={{ lineHeight: 18 }}>{order.note}</Typography>
-            </SectionCard>
-          </>
-        )}
-      </Animated.ScrollView>
-
-      {/* ─── Floating Action Footer ─── */}
-      <View style={[
-        styles.footer,
-        {
-          paddingBottom: Math.max(insets.bottom, 20),
-          backgroundColor: isDark ? 'rgba(0,0,0,0.9)' : 'rgba(255,255,255,0.95)',
-          borderTopColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-        }
-      ]}>
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[styles.supportBtn, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}
-            onPress={contactSupport}
-          >
-            <Ionicons name="chatbubble-outline" size={16} color={colors.text} />
-            <Typography size={12} weight="600" color={colors.text} style={{ marginLeft: 6 }}>Support</Typography>
-          </TouchableOpacity>
-          {(() => {
-            if (isCancelled) return null;
-            
-            const isCOD = order.paymentMethod?.includes('COD') || order.paymentMethod?.includes('Cash');
-            const status = (order.status || '').toLowerCase();
-            
-            // COD: until approved
-            // Paid: until shipped
-            let canCancel = false;
-            const initialStatuses = ['pending', 'awaiting_approval', 'order_placed', 'placed', 'processing'];
-            
-            if (isCOD) {
-              canCancel = initialStatuses.includes(status);
-            } else {
-              canCancel = initialStatuses.includes(status) || status === 'approved';
-            }
-
-            if (canCancel) {
-              return (
-                <TouchableOpacity
-                  style={[styles.supportBtn, { backgroundColor: '#FF3B3015', borderColor: '#FF3B3030' }]}
-                  onPress={handleCancelOrder}
-                >
-                  <Ionicons name="close-circle-outline" size={16} color="#FF3B30" />
-                  <Typography size={12} weight="600" color="#FF3B30" style={{ marginLeft: 6 }}>Cancel Order</Typography>
-                </TouchableOpacity>
-              );
-            }
-            return null;
-          })()}
+          <View style={[styles.statusLine, { backgroundColor: statusColor }]} />
         </View>
 
-        {/* ─── Returns & Exchanges Actions ─── */}
-        {isDelivered && (!order.returnRequests?.length && !order.exchangeRequests?.length) && (
-          <>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <TouchableOpacity
-                style={[styles.supportBtn, { backgroundColor: colors.foreground, flex: 1, borderColor: colors.foreground }]}
-                onPress={() => {
-                  haptics.buttonTap();
-                  navigation.navigate('ReturnRequest', { order });
-                }}
-              >
-                <Ionicons name="return-down-back-outline" size={16} color={colors.background} />
-                <Typography size={12} weight="700" color={colors.background} style={{ marginLeft: 6 }}>Request Return</Typography>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.supportBtn, { backgroundColor: colors.foreground, flex: 1, borderColor: colors.foreground }]}
-                onPress={() => {
-                  haptics.buttonTap();
-                  navigation.navigate('ExchangeSelectProduct', { order });
-                }}
-              >
-                <Ionicons name="swap-horizontal-outline" size={16} color={colors.background} />
-                <Typography size={12} weight="700" color={colors.background} style={{ marginLeft: 6 }}>Request Exchange</Typography>
-              </TouchableOpacity>
-            </View>
-            <View style={{ alignItems: 'center', marginTop: 10 }}>
-              <Typography size={10} color={colors.textMuted}>Returns and exchanges available within 30 days of delivery</Typography>
-            </View>
-          </>
+        {!isCancelled && (
+          <View style={styles.stepperBox}>
+            {steps.map((s, idx) => {
+              const completedAt = timelineByStep.get(s.step);
+              const isCompleted = !!completedAt;
+              return (
+                <View key={s.step} style={styles.stepItem}>
+                  <View style={styles.stepIndicator}>
+                    <View style={[styles.stepDot, { backgroundColor: isCompleted ? colors.foreground : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                      {isCompleted && <Ionicons name="checkmark" size={10} color={colors.background} />}
+                    </View>
+                    {idx < steps.length - 1 && <View style={[styles.stepLine, { backgroundColor: isCompleted && timelineByStep.get(steps[idx+1].step) ? colors.foreground : colors.borderExtraLight }]} />}
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Typography size={11} weight={isCompleted ? "700" : "500"} color={isCompleted ? colors.text : colors.textExtraLight}>{s.label.toUpperCase()}</Typography>
+                    {completedAt && <Typography size={9} color={colors.textMuted} style={{ marginTop: 2 }}>{new Date(completedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</Typography>}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         )}
+
+        {order.trackingNumber && (
+          <TouchableOpacity style={[styles.trackingPill, { borderColor: colors.borderExtraLight }]} onPress={() => order.trackingUrl && Linking.openURL(order.trackingUrl)}>
+            <View style={{ flex: 1 }}>
+              <Typography size={10} weight="700" color={colors.textExtraLight}>TRACKING</Typography>
+              <Typography size={13} weight="600" color={colors.text} style={{ marginTop: 2 }}>{order.courier ? `${order.courier} • ` : ''}{order.trackingNumber}</Typography>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textExtraLight} />
+          </TouchableOpacity>
+        )}
+
+        <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>ORDER ITEMS</Typography>
+        <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
+          {order.items?.map((item: any, idx: number) => (
+            <View key={item.id || idx} style={[styles.itemRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.borderExtraLight, paddingTop: 16, marginTop: 16 }]}>
+              <View style={[styles.itemThumb, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                {item.image ? (
+                  <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                ) : (
+                  <Ionicons name="bag-handle-outline" size={20} color={colors.textExtraLight} />
+                )}
+              </View>
+              <View style={{ flex: 1, marginLeft: 16 }}>
+                <Typography size={14} weight="700" color={colors.text} numberOfLines={1}>{item.title || item.fullTitle}</Typography>
+                <Typography size={12} color={colors.textMuted} style={{ marginTop: 4 }}>{item.quantity} × {formatPrice(item.price)}</Typography>
+              </View>
+              <Typography size={15} weight="800" color={colors.text}>{formatPrice(item.price * item.quantity)}</Typography>
+            </View>
+          ))}
+        </View>
+
+        <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>DELIVERY</Typography>
+        <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
+          <Typography size={14} weight="700" color={colors.text}>{order.shippingAddress?.name || 'Customer'}</Typography>
+          <Typography size={12} color={colors.textMuted} style={{ marginTop: 4, lineHeight: 18 }}>
+            {order.shippingAddress?.address1 || order.shippingAddress?.raw}{'\n'}
+            {order.shippingAddress?.city}, {order.shippingAddress?.province} {order.shippingAddress?.zip}
+          </Typography>
+        </View>
+
+        <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>PAYMENT</Typography>
+        <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
+          <View style={styles.priceRow}>
+            <Typography size={12} color={colors.textMuted}>Subtotal</Typography>
+            <Typography size={12} weight="600" color={colors.text}>{formatPrice(order.subtotalPrice || order.totalPrice)}</Typography>
+          </View>
+          <View style={[styles.priceRow, { marginTop: 8 }]}>
+            <Typography size={12} color={colors.textMuted}>Shipping</Typography>
+            <Typography size={12} weight="600" color="#34C759">Free</Typography>
+          </View>
+          <View style={[styles.totalRow, { borderTopColor: colors.borderExtraLight }]}>
+            <Typography size={14} weight="800" color={colors.text}>Total</Typography>
+            <Typography size={18} weight="900" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
+          </View>
+        </View>
+
+      </Animated.ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20), borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+        <TouchableOpacity style={[styles.mainBtn, { backgroundColor: colors.foreground }]} onPress={contactSupport}>
+          <Typography size={14} weight="700" color={colors.background}>Contact Support</Typography>
+        </TouchableOpacity>
       </View>
 
       {loading && (
@@ -738,122 +322,22 @@ export default function OrderDetailsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16 },
-  sectionCard: {
-    padding: 18,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.03,
-        shadowRadius: 8,
-      },
-      android: { elevation: 1 }
-    }),
-  },
-  summaryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  summaryMeta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 16,
-    gap: 16,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 10,
-    marginLeft: 4,
-  },
-  copyBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  orderItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  orderItemThumb: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  itemMeta: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 14,
-    borderTopWidth: 1,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  actionRow: { flexDirection: 'row', gap: 8 },
-  supportBtn: {
-    flexDirection: 'row',
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  retryBtn: {
-    marginTop: 32,
-    paddingHorizontal: 32,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  paymentInfoBox: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 12,
-  },
+  scrollContent: { paddingHorizontal: 20 },
+  statusCard: { padding: 16, borderRadius: 18, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  statusLine: { width: 3, height: 32, borderRadius: 2, marginLeft: 12 },
+  stepperBox: { marginBottom: 24, paddingLeft: 8 },
+  stepItem: { flexDirection: 'row', gap: 14 },
+  stepIndicator: { alignItems: 'center', width: 16 },
+  stepDot: { width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  stepLine: { width: 1.5, flex: 1, marginVertical: 4 },
+  stepContent: { flex: 1, paddingBottom: 20 },
+  trackingPill: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, borderStyle: 'dashed', borderWidth: 1 },
+  infoCard: { padding: 14, borderRadius: 14 },
+  itemRow: { flexDirection: 'row', alignItems: 'center' },
+  itemThumb: { width: 64, height: 64, borderRadius: 16, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  priceRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1 },
+  footer: { padding: 16, borderTopWidth: 1, position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.9)' },
+  mainBtn: { height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  retryBtn: { marginTop: 20, paddingHorizontal: 24, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 });

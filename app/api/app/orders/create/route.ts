@@ -149,11 +149,12 @@ export async function POST(req: Request) {
         items: {
           create: lineItems.map((li: any, idx: number) => ({
             shopifyLineItemId: `app_${orderNumber}_${idx}`,
-            productId: null,
+            productId: li.productId || li.product_id || null,
             title: li.name || li.title || 'Product',
             quantity: Number(li.quantity || 0),
             price: Number(li.price || 0),
-            sku: (li.variantId || li.variant_id) ? `variant:${String(li.variantId || li.variant_id)}` : null,
+            sku: li.sku || ((li.variantId || li.variant_id) ? `variant:${String(li.variantId || li.variant_id)}` : null),
+            image: li.image || li.imageUrl || null,
           })),
         },
         payments:

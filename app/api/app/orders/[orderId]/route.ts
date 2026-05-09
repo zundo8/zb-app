@@ -105,7 +105,7 @@ export async function GET(req: Request, { params }: { params: { orderId: string 
         items: {
           include: {
             product: {
-              select: { id: true, shopifyProductId: true, title: true }
+              select: { id: true, shopifyProductId: true, title: true, featuredImage: true }
             }
           }
         },
@@ -162,8 +162,8 @@ export async function GET(req: Request, { params }: { params: { orderId: string 
         quantity: it.quantity,
         price: it.price,
         sku: it.sku,
-        image: null, // Will be resolved client-side from product data
-        imageUrl: null,
+        image: it.image || it.product?.featuredImage || null,
+        imageUrl: it.image || it.product?.featuredImage || null,
         shopifyProductId: it.product?.shopifyProductId || null,
       };
     };
