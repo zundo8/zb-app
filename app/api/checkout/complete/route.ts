@@ -178,7 +178,7 @@ export async function POST(req: Request) {
         shopId: shop.id,
         shopifyOrderId: shopifyOrderId,
         customerId: localCustomer.id,
-        status: "open",
+        status: paymentMethod === "COD" ? "open" : "approved",
         totalPrice: total,
         subtotalPrice: subtotal,
         paymentStatus: paymentMethod === "COD" ? "pending" : "paid",

@@ -169,7 +169,6 @@ export default function ProductDetailScreen() {
   const carouselRef = useRef<any>(null);
   const thumbnailCarouselRef = useRef<any>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
-  const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [showMinimalSticky, setShowMinimalSticky] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
@@ -365,7 +364,6 @@ export default function ProductDetailScreen() {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
-        scrollEnabled={isScrollEnabled}
       >
         {/* ── HERO GALLERY: CAROUSEL EXPERIENCE ── */}
         <View style={styles.heroWrapper}>
@@ -381,8 +379,7 @@ export default function ProductDetailScreen() {
               }}
               loop
               autoPlay={false}
-              onScrollStart={() => setIsScrollEnabled(false)}
-              onScrollEnd={() => setIsScrollEnabled(true)}
+              onConfigurePanGesture={(panGesture: any) => panGesture.activeOffsetX([-10, 10])}
               windowSize={3}
            />
         </View>
@@ -396,6 +393,7 @@ export default function ProductDetailScreen() {
             style={{ width: SCREEN_W }}
             loop
             autoPlay={false}
+            onConfigurePanGesture={(panGesture: any) => panGesture.activeOffsetX([-10, 10])}
             renderItem={({ index }) => (
               <TouchableOpacity 
                 key={index} 

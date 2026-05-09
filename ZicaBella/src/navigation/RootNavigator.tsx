@@ -45,6 +45,7 @@ const linking = {
       Main: {
         screens: {
           HomeTab: '',
+          ShopTab: 'shop',
           SearchTab: 'search',
           ChatTab: 'ai',
           OrdersTab: 'orders',

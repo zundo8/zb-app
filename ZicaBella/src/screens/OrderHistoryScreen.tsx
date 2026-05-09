@@ -158,7 +158,7 @@ export default function OrderHistoryScreen() {
             </View>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Typography size={16} weight="900" color={colors.text}>{totalPrice}</Typography>
+            <Typography size={16} weight="800" color={colors.text}>{totalPrice}</Typography>
             <Typography size={9} weight="600" color={colors.textMuted}>{items.length} {items.length === 1 ? 'ITEM' : 'ITEMS'}</Typography>
           </View>
         </View>

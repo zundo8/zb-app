@@ -43,12 +43,19 @@ export default function DeliveryAddressScreen() {
     try {
       const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
       const json = await res.json();
-      if (json[0]?.Status === 'Success') {
+      if (json[0]?.Status === 'Success' && Array.isArray(json[0].PostOffice) && json[0].PostOffice.length > 0) {
         const postOffice = json[0].PostOffice[0];
+        // Use District first (most reliable for city), then Division, Block, and finally Name
+        const city = (postOffice.District && postOffice.District !== 'NA' ? postOffice.District : null)
+          || (postOffice.Division && postOffice.Division !== 'NA' ? postOffice.Division : null)
+          || (postOffice.Block && postOffice.Block !== 'NA' ? postOffice.Block : null)
+          || postOffice.Name
+          || '';
+        const state = postOffice.State || postOffice.Circle || '';
         setAddress(prev => ({
           ...prev,
-          city: postOffice.Block || postOffice.Name,
-          state: postOffice.State,
+          city,
+          state,
         }));
         haptics.success();
       } else {
@@ -140,7 +147,7 @@ export default function DeliveryAddressScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.stepTag}>DELIVERY</Typography>
+          <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.stepTag}>STEP 1 OF 2</Typography>
           <Typography size={14} color={colors.text} weight="700">DELIVERY ADDRESS</Typography>
         </View>
         <View style={{ width: 44 }} />
@@ -223,7 +230,7 @@ export default function DeliveryAddressScreen() {
                       zip: a.zip || '',
                     };
                     setShippingAddress(normalized);
-                    navigation.navigate('Payment');
+                    navigation.navigate('OrderReview');
                   }}
                   activeOpacity={0.7}
                   style={[styles.savedCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
@@ -358,12 +365,12 @@ export default function DeliveryAddressScreen() {
       <CheckoutSummaryBar 
         itemCount={checkoutItems.length}
         total={checkoutTotal}
-        primaryLabel="CONTINUE TO PAYMENT"
+        primaryLabel="REVIEW & PAY"
         onPrimaryPress={() => {
           setSubmitted(true);
           if (!isEditing && shippingAddress) {
             haptics.buttonTap();
-            navigation.navigate('Payment');
+            navigation.navigate('OrderReview');
             return;
           }
           if (!isValid) {
@@ -386,7 +393,7 @@ export default function DeliveryAddressScreen() {
           };
           setShippingAddress(normalized);
           setIsEditing(false);
-          navigation.navigate('Payment');
+          navigation.navigate('OrderReview');
         }}
         disabled={isEditing ? !isValid : false}
       />

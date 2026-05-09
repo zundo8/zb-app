@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Dimensions } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Dimensions, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../components/Typography';
@@ -20,7 +20,6 @@ const { width } = Dimensions.get('window');
 export default function OrderReviewScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
   const colors = useColors();
   const { total, items, clearCart, shippingAddress, buyNowItem, setBuyNowItem } = useCartStore();
   const checkoutItems = buyNowItem ? [buyNowItem] : items;
@@ -28,14 +27,64 @@ export default function OrderReviewScreen() {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
-  
-  const appliedCredit = route.params?.appliedCredit || 0;
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'razorpay' | 'cod'>(route.params?.paymentMethod || 'razorpay');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
+
+  // ─── Promo Code State ────────────────────────────────────────────────
+  const [promoCode, setPromoCode] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    type: string;
+    value: number;
+    discountAmount: number;
+  } | null>(null);
+
   const subtotal = checkoutTotal;
   const shipping = 0;
   const codFee = selectedPaymentMethod === 'cod' ? 99 : 0;
-  const grandTotal = subtotal + shipping + codFee - appliedCredit;
+  const discountAmount = appliedDiscount?.discountAmount ?? 0;
+  const grandTotal = Math.max(0, subtotal + shipping + codFee - discountAmount);
 
+  // ─── Promo Code Handlers ─────────────────────────────────────────────
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError(null);
+
+    try {
+      const res = await fetch(`${config.appUrl}/api/app/discounts/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoCode.trim(), orderAmount: subtotal }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        haptics.success();
+        setAppliedDiscount(data.discount);
+        setPromoError(null);
+      } else {
+        haptics.error();
+        setPromoError(data.error || 'Invalid promo code');
+        setAppliedDiscount(null);
+      }
+    } catch (e) {
+      haptics.error();
+      setPromoError('Could not validate code. Please try again.');
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    haptics.buttonTap();
+    setAppliedDiscount(null);
+    setPromoCode('');
+    setPromoError(null);
+  };
+
+  // ─── Place Order ─────────────────────────────────────────────────────
   const handlePlaceOrder = async () => {
     if (loading) return;
     setLoading(true);
@@ -59,7 +108,9 @@ export default function OrderReviewScreen() {
           image: i.image,
           sku: (i as any).sku || `variant:${i.variantId}` // Ensure variant ID is encoded in SKU for Shopify sync
         })),
-        appliedStoreCredits: appliedCredit,
+        appliedStoreCredits: 0,
+        discountCode: appliedDiscount?.code || null,
+        discountAmount: discountAmount,
         shippingAddress: {
           name: shippingAddress?.name || user?.name || 'Zica User',
           first_name: (shippingAddress?.name || user?.name || 'Zica').split(' ')[0],
@@ -196,8 +247,8 @@ export default function OrderReviewScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.stepTag}>STEP 5 OF 5</Typography>
-          <Typography size={14} color={colors.text} weight="700">REVIEW ORDER</Typography>
+          <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.stepTag}>STEP 2 OF 2</Typography>
+          <Typography size={14} color={colors.text} weight="700">REVIEW & PAY</Typography>
         </View>
         <View style={{ width: 44 }} />
       </View>
@@ -205,9 +256,9 @@ export default function OrderReviewScreen() {
       <ScrollView 
         contentContainerStyle={[styles.scroll, { paddingBottom: 180 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <Typography size={22} weight="700" color={colors.text} style={styles.title}>Final glance before dispatch.</Typography>
-
+        {/* ─── ITEMS IN ORDER ─── */}
         <View style={styles.section}>
           <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>ITEMS IN ORDER</Typography>
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, padding: 16 }]}>
@@ -218,7 +269,9 @@ export default function OrderReviewScreen() {
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Typography size={12} weight="600" color={colors.text} numberOfLines={1}>{item.title}</Typography>
-                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 4 }}>Qty: {item.quantity}</Typography>
+                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 4 }}>
+                    Qty: {item.quantity}{(item as any).size ? ` · ${(item as any).size}` : ''}
+                  </Typography>
                 </View>
                 <Typography size={13} weight="700" color={colors.text}>{formatPrice(Number(item.price || 0) * Number(item.quantity || 1))}</Typography>
               </View>
@@ -226,6 +279,7 @@ export default function OrderReviewScreen() {
           </View>
         </View>
 
+        {/* ─── DELIVERY ADDRESS ─── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>DELIVERY</Typography>
@@ -241,47 +295,122 @@ export default function OrderReviewScreen() {
           </View>
         </View>
 
+        {/* ─── PROMO CODE ─── */}
+        <View style={styles.section}>
+          <View style={[styles.promoSection, { borderColor: colors.borderLight }]}>
+            <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.promoLabel}>
+              PROMO CODE
+            </Typography>
+
+            {appliedDiscount ? (
+              <View style={[styles.promoApplied, { backgroundColor: 'rgba(52,199,89,0.08)', borderColor: 'rgba(52,199,89,0.2)' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                  <Ionicons name="checkmark-circle" size={18} color="#34C759" />
+                  <View>
+                    <Typography size={11} weight="800" color="#34C759">{appliedDiscount.code}</Typography>
+                    <Typography size={9} color="#34C759" style={{ opacity: 0.8 }}>
+                      {appliedDiscount.type === 'percentage'
+                        ? `${appliedDiscount.value}% off applied`
+                        : `₹${appliedDiscount.value} off applied`}
+                      {' · '}Saving {formatPrice(discountAmount)}
+                    </Typography>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={handleRemovePromo} style={styles.removeBtn}>
+                  <Ionicons name="close-circle" size={20} color="rgba(52,199,89,0.5)" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.promoRow}>
+                <TextInput
+                  value={promoCode}
+                  onChangeText={(v) => { setPromoCode(v.toUpperCase()); setPromoError(null); }}
+                  placeholder="Enter promo code"
+                  placeholderTextColor={colors.textExtraLight}
+                  autoCapitalize="characters"
+                  style={[styles.promoInput, { 
+                    backgroundColor: colors.surface, 
+                    borderColor: promoError ? 'rgba(255,59,48,0.4)' : colors.borderLight, 
+                    color: colors.text 
+                  }]}
+                />
+                <TouchableOpacity
+                  onPress={handleApplyPromo}
+                  disabled={promoLoading || !promoCode.trim()}
+                  style={[styles.applyBtn, { 
+                    backgroundColor: promoCode.trim() ? colors.foreground : colors.surface,
+                    opacity: !promoCode.trim() ? 0.4 : 1,
+                  }]}
+                >
+                  {promoLoading ? (
+                    <ActivityIndicator size="small" color={colors.background} />
+                  ) : (
+                    <Typography size={9} weight="800" color={promoCode.trim() ? colors.background : colors.textMuted} style={{ letterSpacing: 1 }}>
+                      APPLY
+                    </Typography>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {promoError && (
+              <View style={styles.promoErrorRow}>
+                <Ionicons name="alert-circle-outline" size={12} color="rgba(255,59,48,0.8)" />
+                <Typography size={9} color="rgba(255,59,48,0.8)" weight="600" style={{ marginLeft: 4 }}>
+                  {promoError}
+                </Typography>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* ─── PAYMENT METHOD ─── */}
         <View style={styles.section}>
           <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>PAYMENT METHOD</Typography>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, padding: 16 }]}>
-            <TouchableOpacity 
-              activeOpacity={0.7}
-              onPress={() => setSelectedPaymentMethod('razorpay')}
-              style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+          <View style={{ gap: 12 }}>
+            <TouchableOpacity
+              style={[
+                styles.optionCard,
+                { backgroundColor: colors.surface, borderColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.borderLight },
+              ]}
+              onPress={() => { haptics.buttonTap(); setSelectedPaymentMethod('razorpay'); }}
+              activeOpacity={0.8}
             >
+              <View style={[styles.iconBox, { backgroundColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.background }]}>
+                <Ionicons name="flash-outline" size={18} color={selectedPaymentMethod === 'razorpay' ? colors.background : colors.textMuted} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 16 }}>
+                <Typography size={12} weight="800" color={colors.text}>Pay Now</Typography>
+                <Typography size={9} weight="600" color={colors.textExtraLight} style={{ marginTop: 4 }}>UPI / Card / Netbanking via Razorpay</Typography>
+              </View>
               <View style={[styles.radio, { borderColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.borderLight }]}>
                 {selectedPaymentMethod === 'razorpay' && <View style={[styles.radioInner, { backgroundColor: colors.foreground }]} />}
               </View>
-              <View style={[styles.methodIcon, { backgroundColor: colors.background, marginLeft: 12 }]}>
-                <Ionicons name="flash" size={18} color={colors.text} />
-              </View>
-              <View style={{ marginLeft: 12 }}>
-                <Typography size={12} weight="700" color={colors.text}>Razorpay Secure</Typography>
-                <Typography size={10} color={colors.textMuted} style={{ marginTop: 2 }}>UPI, Cards, Wallets</Typography>
-              </View>
             </TouchableOpacity>
 
-            <View style={[styles.divider, { backgroundColor: colors.borderLight, marginVertical: 0, marginBottom: 16 }]} />
-
-            <TouchableOpacity 
-              activeOpacity={0.7}
-              onPress={() => setSelectedPaymentMethod('cod')}
-              style={{ flexDirection: 'row', alignItems: 'center' }}
+            <TouchableOpacity
+              style={[
+                styles.optionCard,
+                { backgroundColor: colors.surface, borderColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.borderLight },
+              ]}
+              onPress={() => { haptics.buttonTap(); setSelectedPaymentMethod('cod'); }}
+              activeOpacity={0.8}
             >
+              <View style={[styles.iconBox, { backgroundColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.background }]}>
+                <Ionicons name="cash-outline" size={18} color={selectedPaymentMethod === 'cod' ? colors.background : colors.textMuted} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 16 }}>
+                <Typography size={12} weight="800" color={colors.text}>Cash on Delivery</Typography>
+                <Typography size={9} weight="600" color={colors.textExtraLight} style={{ marginTop: 4 }}>Extra ₹99 service fee applies</Typography>
+              </View>
               <View style={[styles.radio, { borderColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.borderLight }]}>
                 {selectedPaymentMethod === 'cod' && <View style={[styles.radioInner, { backgroundColor: colors.foreground }]} />}
-              </View>
-              <View style={[styles.methodIcon, { backgroundColor: colors.background, marginLeft: 12 }]}>
-                <Ionicons name="cash" size={18} color={colors.text} />
-              </View>
-              <View style={{ marginLeft: 12 }}>
-                <Typography size={12} weight="700" color={colors.text}>Cash on Delivery</Typography>
-                <Typography size={10} color={colors.textMuted} style={{ marginTop: 2 }}>Extra ₹99 service fee applies</Typography>
               </View>
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* ─── ORDER SUMMARY ─── */}
         <View style={styles.section}>
           <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>ORDER SUMMARY</Typography>
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
@@ -299,10 +428,13 @@ export default function OrderReviewScreen() {
                <Typography size={10} color={colors.textSecondary}>Shipping</Typography>
                <Typography size={10} weight="600" color={colors.success}>FREE</Typography>
              </View>
-             {appliedCredit > 0 && (
+             {discountAmount > 0 && (
                <View style={styles.row}>
-                 <Typography size={10} color={colors.success} weight="600">Store Credit Applied</Typography>
-                 <Typography size={10} weight="700" color={colors.success}>- {formatPrice(appliedCredit)}</Typography>
+                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                   <Ionicons name="pricetag-outline" size={12} color="#34C759" />
+                   <Typography size={10} color="#34C759" weight="700">{appliedDiscount?.code}</Typography>
+                 </View>
+                 <Typography size={10} color="#34C759" weight="700">−{formatPrice(discountAmount)}</Typography>
                </View>
              )}
              <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
@@ -324,7 +456,7 @@ export default function OrderReviewScreen() {
       <CheckoutSummaryBar 
         itemCount={checkoutItems.length}
         total={grandTotal}
-        primaryLabel={loading ? "AUTHENTICATING..." : "PLACE ORDER"}
+        primaryLabel={loading ? "PROCESSING..." : "PLACE ORDER"}
         onPrimaryPress={handlePlaceOrder}
         loading={loading}
       />
@@ -339,16 +471,59 @@ const styles = StyleSheet.create({
   headerTitle: { alignItems: 'center' },
   stepTag: { letterSpacing: 2, marginBottom: 2 },
   scroll: { paddingHorizontal: 24, paddingTop: 20 },
-  title: { letterSpacing: -0.5, marginBottom: 32 },
-  section: { marginBottom: 32 },
+  section: { marginBottom: 24 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionLabel: { letterSpacing: 2, marginLeft: 4 },
+  sectionLabel: { letterSpacing: 2, marginLeft: 4, marginBottom: 12 },
   card: { padding: 24, borderRadius: 28, borderWidth: 1.5 },
-  methodIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8 },
   itemRow: { flexDirection: 'row', alignItems: 'center' },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  radioInner: { width: 10, height: 10, borderRadius: 5 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8 },
   divider: { height: 1, marginVertical: 16, opacity: 0.5 },
   legalBox: { marginTop: 12, paddingHorizontal: 30, opacity: 0.6 },
+  // Payment option styles
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1.5,
+  },
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
+  // Promo Code styles
+  promoSection: { padding: 18, borderRadius: 24, borderWidth: 1.5 },
+  promoLabel: { letterSpacing: 2, marginBottom: 12 },
+  promoRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  promoInput: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  applyBtn: {
+    height: 52,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  promoApplied: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1.5,
+  },
+  removeBtn: { padding: 4 },
+  promoErrorRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingLeft: 2 },
 });

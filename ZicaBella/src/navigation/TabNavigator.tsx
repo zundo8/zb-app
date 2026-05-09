@@ -137,9 +137,13 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         style={StyleSheet.absoluteFill} 
       />
       <View style={[styles.tabContent, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
-        {state.routes.map((route: any, index: number) => {
+        {state.routes
+          .filter((route: any) => route.name !== 'ShopTab') // ShopTab is nav-only, not shown in bar
+          .map((route: any, index: number) => {
+          // Recalculate the real index for the route
+          const realIndex = state.routes.findIndex((r: any) => r.key === route.key);
           const { options } = descriptors[route.key];
-          const isFocused = state.index === index;
+          const isFocused = state.index === realIndex;
           const isAI = route.name === 'ChatTab';
 
           const onPress = () => {
@@ -200,6 +204,15 @@ export const TabNavigator = () => {
         options={{
           tabBarLabel: 'Home',
           tabBarIcon: ({ color }) => <Ionicons name="home-outline" size={20} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="ShopTab"
+        component={ShopStack}
+        options={{
+          tabBarLabel: 'Shop',
+          tabBarIcon: ({ color }) => <Ionicons name="bag-outline" size={20} color={color} />,
+          tabBarButton: () => null, // Hides from tab bar; accessible via nav only
         }}
       />
       <Tab.Screen

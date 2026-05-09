@@ -297,7 +297,7 @@ export default function OrderDetailsScreen() {
           </View>
           <View style={[styles.totalRow, { borderTopColor: colors.borderExtraLight }]}>
             <Typography size={14} weight="800" color={colors.text}>Total</Typography>
-            <Typography size={18} weight="900" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
+            <Typography size={18} weight="800" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
           </View>
         </View>
 

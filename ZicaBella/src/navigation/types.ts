@@ -21,8 +21,7 @@ export type TabParamList = {
 
 export type CheckoutStackParamList = {
   DeliveryAddress: undefined;
-  Payment: undefined;
-  OrderReview: { paymentMethod: 'razorpay' | 'cod'; appliedCredit?: number };
+  OrderReview: undefined;
 };
 
 export type ServiceStackParamList = {

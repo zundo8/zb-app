@@ -252,7 +252,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backdropBlur: 10,
   },
   scrollContent: {
     paddingHorizontal: 20,

@@ -554,7 +554,7 @@ export async function POST(req: Request) {
         subtotalPrice: subtotal_price || (shopifyOrder ? parseFloat(shopifyOrder.subtotal_price) : 0),
         currency: currency || (shopifyOrder ? shopifyOrder.currency : 'INR'),
         orderType: 'MOBILE_APP',
-        status: 'OPEN',
+        status: financial_status === 'paid' ? 'approved' : 'OPEN',
         paymentStatus: financial_status,
         fulfillmentStatus: 'unfulfilled',
         shippingAddress: typeof ((shopifyOrder ? shopifyOrder.shipping_address : null) || shipping_address) === 'string' 

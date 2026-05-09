@@ -104,7 +104,7 @@ export default function DeliveryMethodScreen() {
         itemCount={items.length}
         total={currentTotal}
         primaryLabel="CONTINUE TO PAYMENT"
-        onPrimaryPress={() => navigation.navigate('Payment')}
+        onPrimaryPress={() => navigation.navigate('OrderReview')}
       />
     </View>
   );
