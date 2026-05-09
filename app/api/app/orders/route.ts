@@ -192,63 +192,7 @@ export async function GET(req: Request) {
         if (shippingMatch) shippingMethodInfo = shippingMatch[1].trim();
       }
 
-      return {
-        id: o.id,
-        orderNumber,
-        shopifyOrderId: o.shopifyOrderId,
-        createdAt: o.createdAt,
-        updatedAt: o.updatedAt,
-        status: normalizedStatus,
-        rawStatus: o.status,
-        paymentStatus: o.paymentStatus,
-        fulfillmentStatus: o.fulfillmentStatus,
-        deliveryStatus: o.deliveryStatus,
-        trackingNumber: latestShipment?.trackingNumber || null,
-        trackingUrl: latestShipment?.trackingUrl || (latestShipment?.trackingNumber
-          ? latestShipment.courier?.toLowerCase() === 'shiprocket'
-            ? `https://shiprocket.co/tracking/${latestShipment.trackingNumber}`
-            : `https://www.delhivery.com/track/package/${latestShipment.trackingNumber}`
-          : null),
-        courier: latestShipment?.courier || null,
-        shipmentCreatedAt: latestShipment?.createdAt || null,
-        totalPrice: o.totalPrice,
-        subtotalPrice: o.subtotalPrice,
-        totalTax: o.totalTax,
-        currency: o.currency,
-        note: o.note,
-        tags: o.tags,
-        paymentMethod,
-        paymentMethod2: o.paymentMethod, // direct from DB
-        razorpayOrderId: o.razorpayOrderId,
-        razorpayPaymentId: o.razorpayPaymentId,
-        shippingMethod: shippingMethodInfo,
-        discountInfo,
-        shippingAddress: parsedShippingAddress,
-        billingAddress: parsedBillingAddress,
-        customer: o.customer ? {
-          id: o.customer.id,
-          name: o.customer.name,
-          email: o.customer.email,
-          phone: o.customer.phone,
-        } : null,
-        items: itemsFormatted,
-        returns: (o.returns || []).map((r: any) => ({
-          id: r.id,
-          productId: r.productId,
-          reason: r.reason,
-          status: r.status,
-          refundMethod: r.refundMethod,
-          refundAmount: r.refundAmount,
-          requestedAt: r.requestedAt,
-        })),
-        exchanges: (o.exchanges || []).map((e: any) => ({
-          id: e.id,
-          originalProductId: e.originalProductId,
-          newProductId: e.newProductId,
-          status: e.status,
-          priceDifference: e.priceDifference,
-          createdAt: e.createdAt,
-        })),
+
       // Build comprehensive status timeline for the app
       const timeline = {
         placedAt: o.createdAt,
