@@ -175,12 +175,20 @@ export default function OrderReviewScreen() {
     setLoading(true);
     try {
       const apiBase = getPaymentApiBaseUrl();
-      const orderRes = await fetch(`${apiBase}/api/payment/create-order`, {
+      const orderRes = await fetch(`${apiBase}/api/app/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({ amount: grandTotal, currency: 'INR', receipt: `zb_${Date.now()}` }),
       });
-      const orderJson = await orderRes.json();
+      
+      const resText = await orderRes.text();
+      let orderJson: any;
+      try {
+        orderJson = JSON.parse(resText);
+      } catch (e) {
+        throw new Error(`Server returned HTML instead of JSON. Check if your backend is running at ${apiBase}`);
+      }
+
       if (!orderRes.ok || !orderJson.order_id) {
         throw new Error(orderJson.error || 'Failed to create payment order.');
       }
@@ -192,7 +200,11 @@ export default function OrderReviewScreen() {
       setRazorpayKeyId(orderJson.key_id);
       setPendingOrderData(orderData);
       setLoading(false);
-      setPaymentSheetVisible(true);
+      
+      // Delay slightly to ensure state is committed
+      setTimeout(() => {
+        setPaymentSheetVisible(true);
+      }, 50);
     } catch (e: any) {
       haptics.error();
       Alert.alert('Payment Error', e.message || 'Could not start payment. Please try again.');
@@ -210,7 +222,7 @@ export default function OrderReviewScreen() {
     try {
       // Step 2: Verify signature
       const apiBase = getPaymentApiBaseUrl();
-      const verifyRes = await fetch(`${apiBase}/api/payment/verify`, {
+      const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify(rzpData),

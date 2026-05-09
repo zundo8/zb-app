@@ -28,9 +28,10 @@ export async function POST(req: Request) {
     const body = razorpay_order_id + '|' + razorpay_payment_id;
 
     const { key_secret } = await resolveRazorpayCredentials();
+    const secret = key_secret.trim();
 
     const expected = crypto
-      .createHmac('sha256', key_secret)
+      .createHmac('sha256', secret)
       .update(body)
       .digest('hex');
 
@@ -38,6 +39,15 @@ export async function POST(req: Request) {
       Buffer.from(expected, 'hex'),
       Buffer.from(razorpay_signature, 'hex')
     );
+
+    if (!valid) {
+      console.error('Razorpay signature mismatch:', {
+        order_id: razorpay_order_id,
+        payment_id: razorpay_payment_id,
+        received_sig: razorpay_signature,
+        expected_sig: expected
+      });
+    }
 
     if (valid) {
       return NextResponse.json({ success: true }, { headers: corsJsonHeaders });
