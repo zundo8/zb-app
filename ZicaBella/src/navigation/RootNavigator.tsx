@@ -3,7 +3,7 @@ import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTh
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { Accelerometer } from 'expo-sensors';
-import { View } from 'react-native';
+import { View, InteractionManager } from 'react-native';
 
 import { useThemeStore } from '../store/themeStore';
 import { getColors, useColors, lightColors, darkColors } from '../constants/colors';
@@ -46,7 +46,7 @@ const linking = {
         screens: {
           HomeTab: '',
           SearchTab: 'search',
-          ShopTab: 'shop',
+          ChatTab: 'ai',
           OrdersTab: 'orders',
           ProfileTab: 'profile',
         },
@@ -68,37 +68,53 @@ export const RootNavigator = () => {
 
   useEffect(() => {
     let subscription: { remove: () => void } | null = null;
-    let lastMagnitude: number | null = null;
-    let lastShakeAt = 0;
 
-    Accelerometer.setUpdateInterval(100);
-    subscription = Accelerometer.addListener((data) => {
-      const { x, y, z } = data;
-      const magnitude = Math.sqrt(x * x + y * y + z * z);
+    // Defer accelerometer setup to ensure smooth startup
+    const startAccelerometer = () => {
+      let lastMagnitude: number | null = null;
+      let lastShakeAt = 0;
 
-      if (lastMagnitude == null) {
-        lastMagnitude = magnitude;
-        return;
+      try {
+        Accelerometer.setUpdateInterval(100);
+        subscription = Accelerometer.addListener((data) => {
+          try {
+            const { x, y, z } = data;
+            const magnitude = Math.sqrt(x * x + y * y + z * z);
+
+            if (lastMagnitude == null) {
+              lastMagnitude = magnitude;
+              return;
+            }
+
+            const delta = Math.abs(magnitude - lastMagnitude);
+            lastMagnitude = magnitude;
+
+            const now = Date.now();
+            const COOLDOWN_MS = 1200;
+            const SHAKE_THRESHOLD = 1.4;
+            const MAGNITUDE_THRESHOLD = 2.0;
+
+            if (delta > SHAKE_THRESHOLD || magnitude > MAGNITUDE_THRESHOLD) {
+              if (now - lastShakeAt > COOLDOWN_MS) {
+                lastShakeAt = now;
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                setCartOpen(!useUIStore.getState().isCartOpen);
+              }
+            }
+          } catch (innerErr) {
+            // Silently ignore
+          }
+        });
+      } catch (err) {
+        // Accelerometer not available
       }
+    };
 
-      const delta = Math.abs(magnitude - lastMagnitude);
-      lastMagnitude = magnitude;
-
-      const now = Date.now();
-      const COOLDOWN_MS = 1200;
-      const SHAKE_THRESHOLD = 1.4; // More sensitive
-      const MAGNITUDE_THRESHOLD = 2.0;
-
-      if (delta > SHAKE_THRESHOLD || magnitude > MAGNITUDE_THRESHOLD) {
-        if (now - lastShakeAt > COOLDOWN_MS) {
-          lastShakeAt = now;
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setCartOpen(!useUIStore.getState().isCartOpen);
-        }
-      }
-    });
+    // Use requestAnimationFrame instead of deprecated InteractionManager
+    const frameId = requestAnimationFrame(startAccelerometer);
 
     return () => {
+      cancelAnimationFrame(frameId);
       subscription?.remove();
     };
   }, []);
@@ -131,14 +147,19 @@ export const RootNavigator = () => {
       <NavigationContainer ref={navigationRef} linking={linking as any} theme={navigationTheme}>
         <Stack.Navigator id="RootStackNavigator" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
           <Stack.Screen name="Main" component={TabNavigator} />
-          {!isAuthenticated && (
-            <Stack.Screen name="Auth" component={AuthNavigator} />
+          <Stack.Screen name="Auth" component={AuthNavigator} />
+          
+          {/* Auth-gated screens — deep links to these redirect to login if unauthenticated */}
+          {isAuthenticated && (
+            <>
+              <Stack.Screen name="CheckoutFlow" component={CheckoutNavigator} />
+              <Stack.Screen name="ServiceFlow" component={ServiceNavigator} />
+              <Stack.Screen name="OrderConfirmation" component={SafeOrderConfirmation} />
+              <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
+            </>
           )}
           
-          <Stack.Screen name="CheckoutFlow" component={CheckoutNavigator} />
-          <Stack.Screen name="ServiceFlow" component={ServiceNavigator} />
-          <Stack.Screen name="OrderConfirmation" component={SafeOrderConfirmation} />
-          <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
+          {/* Public screens — accessible without auth */}
           <Stack.Screen name="ProductDetail" component={SafeProductDetail} />
           <Stack.Screen name="Policy" component={PolicyScreen as any} />
           <Stack.Screen name="FAQ" component={FAQScreen as any} />

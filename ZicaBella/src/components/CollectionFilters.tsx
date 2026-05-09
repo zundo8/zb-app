@@ -16,6 +16,7 @@ interface Props {
   isTabBarVisible?: boolean;
   isSizeOpen: boolean;
   setIsSizeOpen: (open: boolean) => void;
+  compact?: boolean;
 }
 
 export default function CollectionFilters({
@@ -29,6 +30,7 @@ export default function CollectionFilters({
   isTabBarVisible = true,
   isSizeOpen,
   setIsSizeOpen,
+  compact = false,
 }: Props) {
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
@@ -40,34 +42,42 @@ export default function CollectionFilters({
         <BlurView intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={styles.pill}>
           {/* Sort Button */}
           <TouchableOpacity 
-            style={styles.filterBtn} 
+            style={[styles.filterBtn, compact && styles.compactBtn]} 
             onPress={() => {
               const sorts = ['featured', 'newest', 'price-asc', 'price-desc'];
               const next = sorts[(sorts.indexOf(sortBy) + 1) % sorts.length];
               onSelectSort(next);
             }}
           >
-            <Text style={[styles.filterText, { color: colors.text }]}>
-              {sortBy.replace('-', ' ').toUpperCase()}
-            </Text>
-            <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} />
+            {!compact ? (
+              <Text style={[styles.filterText, { color: colors.text }]}>
+                {sortBy.replace('-', ' ').toUpperCase()}
+              </Text>
+            ) : (
+              <Ionicons name="swap-vertical" size={12} color={colors.text} />
+            )}
+            {!compact && <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} />}
           </TouchableOpacity>
           <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
           {/* Size Button */}
           <TouchableOpacity 
-            style={styles.filterBtn}
+            style={[styles.filterBtn, compact && styles.compactBtn]}
             onPress={() => {
               if (allSizes.length > 0) setIsSizeOpen(!isSizeOpen);
             }}
           >
             <View style={styles.sizeLabelRow}>
-              <Text style={[styles.filterText, { color: colors.text }]}>
-                {selectedSize || 'SIZE'}
-              </Text>
+              {!compact ? (
+                <Text style={[styles.filterText, { color: colors.text }]}>
+                  {selectedSize || 'SIZE'}
+                </Text>
+              ) : (
+                <Ionicons name="options-outline" size={12} color={colors.text} />
+              )}
               {selectedSize && <View style={[styles.activeDot, { backgroundColor: colors.iosBlue }]} />}
             </View>
-            <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} />
+            {!compact && <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} />}
           </TouchableOpacity>
 
           {/* View Toggle */}
@@ -156,7 +166,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 16,
-    height: 28,
+    height: 32,
+  },
+  compactBtn: {
+    paddingHorizontal: 12,
+    width: 44,
+    justifyContent: 'center',
   },
   sizeLabelRow: {
     flexDirection: 'row',

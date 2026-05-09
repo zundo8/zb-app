@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Animated, Alert, Modal, Pressable,
+  View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Animated, Alert, Modal, Pressable
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -76,6 +76,60 @@ const ImageViewerModal = ({ visible, images, activeIndex, onClose }: any) => {
     </Modal>
   );
 };
+
+/**
+ * CuratedItem component for the "Curated Pairs" section
+ */
+const CuratedItem = React.memo(({ product, onPress, onQuickAdd, colors }: { product: FlatProduct, onPress: () => void, onQuickAdd: () => void, colors: any }) => {
+  const featuredImage = useMemo(() => {
+    return product.featuredImage || (product.images && product.images.length > 0 ? product.images[0] : '');
+  }, [product.featuredImage, product.images]);
+
+  return (
+    <TouchableOpacity 
+      onPress={onPress} 
+      activeOpacity={0.9}
+    >
+      <View style={styles.curatedItem}>
+      <View style={styles.curatedCard}>
+        <View style={{ flex: 1 }}>
+          <Image 
+            source={{ uri: featuredImage }} 
+            style={StyleSheet.absoluteFill} 
+            contentFit="cover" 
+            cachePolicy="memory-disk"
+          />
+        </View>
+      </View>
+      <View style={styles.curatedMeta}>
+         <View style={{ flex: 1 }}>
+           <Typography size={7.5} weight="400" color={colors.text} numberOfLines={1} style={curatedStyles.titleText}>{product.title.toUpperCase()}</Typography>
+           <Typography size={7.5} weight="300" color={colors.textSecondary}>{formatPrice(product.price)}</Typography>
+         </View>
+         <TouchableOpacity 
+           onPress={(e) => { 
+             e.stopPropagation(); 
+             onQuickAdd();
+           }}
+           style={styles.plusBtn}
+         >
+            <Ionicons name="add" size={16} color={colors.text} style={curatedStyles.plusIcon} />
+         </TouchableOpacity>
+      </View>
+    </View>
+    </TouchableOpacity>
+  );
+});
+
+const curatedStyles = StyleSheet.create({
+  titleText: {
+    letterSpacing: 1.5,
+    marginBottom: 2,
+  },
+  plusIcon: {
+    opacity: 0.4,
+  },
+});
 
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -514,34 +568,17 @@ export default function ProductDetailScreen() {
                   snapToInterval={SCREEN_W * 0.85}
                   decelerationRate="fast"
                 >
-                  {recommended.slice(0, 6).map((p, idx) => (
-                    <TouchableOpacity 
-                      key={p.id} 
-                      style={[
-                        styles.curatedItem,
-                      ]}
+                  {recommended.slice(0, 6).map((p) => (
+                    <CuratedItem 
+                      key={p.id}
+                      product={p}
+                      colors={colors}
                       onPress={() => navigation.push('ProductDetail', { handle: p.handle })}
-                    >
-                      <View style={styles.curatedCard}>
-                        <Image source={{ uri: p.featuredImage }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                      </View>
-                      <View style={styles.curatedMeta}>
-                         <View style={{ flex: 1 }}>
-                           <Typography size={7.5} weight="400" color={colors.text} numberOfLines={1} style={{ letterSpacing: 1.5, marginBottom: 2 }}>{p.title.toUpperCase()}</Typography>
-                           <Typography size={7.5} weight="300" color={colors.textSecondary}>{formatPrice(p.price)}</Typography>
-                         </View>
-                         <TouchableOpacity 
-                           onPress={(e) => { 
-                             e.stopPropagation(); 
-                             setSelectedProduct(p);
-                             setQuickAddVisible(true);
-                           }}
-                           style={styles.plusBtn}
-                         >
-                            <Ionicons name="add" size={16} color={colors.text} style={{ opacity: 0.4 }} />
-                         </TouchableOpacity>
-                      </View>
-                    </TouchableOpacity>
+                      onQuickAdd={() => {
+                        setSelectedProduct(p);
+                        setQuickAddVisible(true);
+                      }}
+                    />
                   ))}
                 </ScrollView>
              </View>

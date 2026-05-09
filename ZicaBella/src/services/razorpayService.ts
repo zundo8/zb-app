@@ -58,7 +58,6 @@ export async function openRazorpayCheckout(
       (orderJson.error as string) ||
       (orderJson.message as string) ||
       (orderParsed.raw ? `Server HTTP ${orderParsed.status}` : 'Failed to create payment order');
-    console.error('[Razorpay] create-order failed', orderParsed.status, detail, orderParsed.raw?.slice(0, 500));
     throw new Error(detail);
   }
 
@@ -95,11 +94,8 @@ export async function openRazorpayCheckout(
     },
   };
 
-  console.log('[Razorpay] Opening native checkout with options:', JSON.stringify(options, null, 2));
-
   try {
     const paymentData = await RazorpayCheckout.open(options) as PaymentResult;
-    console.log('[Razorpay] Payment captured by native SDK:', JSON.stringify(paymentData, null, 2));
 
     // Step 4: Verify signature server-side
     const verifyRes = await fetch(`${apiBase}/api/payment/verify`, {

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Animated, { useAnimatedStyle, interpolate, Extrapolation, SharedValue } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useNavigation } from '@react-navigation/native';
 import { useColors } from '../constants/colors';
 import { useAdminSettings } from '../hooks/useAdminFeatures';
 import { Typography } from './Typography';
@@ -43,8 +44,18 @@ export default function FlipbookSection({ imgUrl, videoUrl, tag, title, desc, sc
     if (!resolvedVideoUrl) return;
     player.loop = true;
     player.muted = true;
-    player.play();
   });
+
+  const isFocused = useNavigation().isFocused();
+
+  React.useEffect(() => {
+    if (!player) return;
+    if (!isFocused) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  }, [isFocused, player]);
 
   const imageAnimatedStyle = useAnimatedStyle(() => {
     if (!scrollY) return {};

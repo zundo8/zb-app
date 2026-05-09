@@ -51,6 +51,7 @@ export default function ProfileScreen() {
   const [editEmail, setEditEmail] = useState('');
 
   const lastScrollY = useRef(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   const fetchProfile = useCallback(async () => {
     if (!isAuthenticated || !user) return;
@@ -64,7 +65,7 @@ export default function ProfileScreen() {
       
       const [profileRes, ordersRes, addrRes, returnsRes, exchangesRes, creditsRes] = await Promise.all([
         fetch(`${config.appUrl}/api/app/profile?${params.toString()}`, authOptions),
-        fetch(`${config.appUrl}/api/app/orders?${params.toString()}&limit=1&count=true`, authOptions),
+        fetch(`${config.appUrl}/api/app/orders?${params.toString()}&limit=1`, authOptions),
         fetch(`${config.appUrl}/api/app/customers/addresses?${params.toString()}`, authOptions),
         fetch(`${config.appUrl}/api/app/returns?${params.toString()}`, authOptions),
         fetch(`${config.appUrl}/api/app/exchanges?${params.toString()}`, authOptions),
@@ -104,8 +105,8 @@ export default function ProfileScreen() {
         setStoreCredits(creditsJson.balance);
         setStoreCreditPreference(creditsJson.preferStoreCredits ?? false);
       }
-    } catch (e) {
-      console.error('Fetch profile orders error:', e);
+    } catch (_e) {
+      // Profile fetch failed — non-fatal
     }
   }, [isAuthenticated, user?.id]);
 
@@ -139,8 +140,7 @@ export default function ProfileScreen() {
           preferStoreCredits: val,
         }),
       });
-    } catch (e) {
-      console.error('Toggle store credit preference error:', e);
+    } catch (_e) {
       setStoreCreditPreference(!val); // Revert on error
     }
   };
@@ -227,14 +227,15 @@ export default function ProfileScreen() {
     const currentY = event.nativeEvent.contentOffset.y;
     const diff = currentY - lastScrollY.current;
     
-    if (Math.abs(diff) > 5) {
+    if (Math.abs(diff) > 15) {
+      const isCurrentlyVisible = useUIStore.getState().isTabBarVisible;
       if (diff > 0 && currentY > 100) {
-        setTabBarVisible(false);
+        if (isCurrentlyVisible) setTabBarVisible(false);
       } else {
-        setTabBarVisible(true);
+        if (!isCurrentlyVisible) setTabBarVisible(true);
       }
+      lastScrollY.current = currentY;
     }
-    lastScrollY.current = currentY;
   };
 
   const handleBiometricToggle = async (value: boolean) => {
@@ -342,15 +343,15 @@ export default function ProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={{ flex: 1 }}
       >
-        <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
-          <ScrollView
-            ref={lastScrollY as any}
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingTop: insets.top + 40, paddingHorizontal: 20, paddingBottom: 120 }}
-            showsVerticalScrollIndicator={false}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            refreshControl={
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingTop: insets.top + 40, paddingHorizontal: 20, paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
@@ -520,6 +521,7 @@ export default function ProfileScreen() {
                         onChangeText={setEditEmail}
                         keyboardType="email-address"
                         autoCapitalize="none"
+                        autoCorrect={false}
                         style={[styles.editInput, { color: colors.text, borderBottomColor: colors.borderLight }]}
                       />
                     ) : (
@@ -558,7 +560,6 @@ export default function ProfileScreen() {
 
             <Typography weight="300" size={8} color={colors.textExtraLight} style={styles.versionText}>ZICA ARCHIVE v1.0.5</Typography>
           </ScrollView>
-        </Pressable>
       </KeyboardAvoidingView>
     </View>
   );

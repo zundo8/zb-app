@@ -2,6 +2,7 @@ import React, { useCallback, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, Dimensions,
   RefreshControl, TouchableOpacity, ActivityIndicator,
+  InteractionManager
 } from 'react-native';
 import Animated, { useSharedValue, useAnimatedScrollHandler, runOnJS } from 'react-native-reanimated';
 import { Image } from 'expo-image';
@@ -59,6 +60,15 @@ export default function HomeScreen() {
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [renderBelowFold, setRenderBelowFold] = useState(false);
+
+  React.useEffect(() => {
+    // Delay rendering heavy sections below the fold to avoid locking the UI thread and overheating on launch
+    const task = InteractionManager.runAfterInteractions(() => {
+      setRenderBelowFold(true);
+    });
+    return () => task.cancel();
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -115,7 +125,6 @@ export default function HomeScreen() {
       />
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -172,63 +181,67 @@ export default function HomeScreen() {
           </View>
 
           {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
-          {settings?.collectionsMedia && (
+          {renderBelowFold && settings?.collectionsMedia && (
             <View style={styles.mediaSection}>
                <HeroVideo source={settings.collectionsMedia} height={200} borderRadius={12} />
             </View>
           )}
 
-          <View style={styles.collectionsSection}>
-            <View style={styles.archiveLabel}>
-              <Typography size={7.5} color={colors.textExtraLight} weight="300" style={styles.archiveLabelText}>— {settings?.archive?.title || 'THE ARCHIVE'} —</Typography>
-            </View>
+          {renderBelowFold && (
+            <>
+              <View style={styles.collectionsSection}>
+                <View style={styles.archiveLabel}>
+                  <Typography size={7.5} color={colors.textExtraLight} weight="300" style={styles.archiveLabelText}>— {settings?.archive?.title || 'THE ARCHIVE'} —</Typography>
+                </View>
 
-            <CollectionCarousel collections={collections} />
+                <CollectionCarousel collections={collections} />
 
-            <View style={styles.archiveLabel}>
-              <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.archiveSubtext}>{settings?.archive?.subtitle || 'SUSTAINABLE EVOLUTION'}</Typography>
-            </View>
-          </View>
+                <View style={styles.archiveLabel}>
+                  <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.archiveSubtext}>{settings?.archive?.subtitle || 'SUSTAINABLE EVOLUTION'}</Typography>
+                </View>
+              </View>
 
-          {/* ═══ RING COLLECTION CAROUSEL ═══ */}
-          <RingCarouselSection 
-            title={ringTitle} 
-            handle={ringHandle}
-            products={accessories.length > 0 ? accessories : products.slice(12, 20)} 
-          />
+              {/* ═══ RING COLLECTION CAROUSEL ═══ */}
+              <RingCarouselSection 
+                title={ringTitle} 
+                handle={ringHandle}
+                products={accessories.length > 0 ? accessories.slice(0, 15) : products.slice(12, 20)} 
+              />
 
-          {/* ═══ FLIPBOOK SECTION ═══ */}
-          <FlipbookSection scrollY={scrollY} />
+              {/* ═══ FLIPBOOK SECTION ═══ */}
+              <FlipbookSection scrollY={scrollY} />
 
-          {/* ═══ PRODUCT GRID 2 ═══ */}
-          {renderProductGrid(products.slice(4, 8))}
+              {/* ═══ PRODUCT GRID 2 ═══ */}
+              {renderProductGrid(products.slice(4, 8))}
 
-          {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
-          {settings?.blueprint?.video ? (
-            <View style={styles.blueprintSection}>
-               <HeroVideo source={settings.blueprint.video} height={520} borderRadius={16} />
-            </View>
-          ) : (
-            <View style={styles.blueprintSection}>
-               <Image source={{ uri: settings?.blueprint?.image || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000" }} style={styles.blueprintImage} contentFit="cover" />
-            </View>
+              {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
+              {settings?.blueprint?.video ? (
+                <View style={styles.blueprintSection}>
+                   <HeroVideo source={settings.blueprint.video} height={520} borderRadius={16} />
+                </View>
+              ) : (
+                <View style={styles.blueprintSection}>
+                   <Image source={{ uri: settings?.blueprint?.image || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000" }} style={styles.blueprintImage} contentFit="cover" />
+                </View>
+              )}
+
+              {/* ═══ SPOTLIGHT SECTION ═══ */}
+              <SpotlightSection 
+                collectionHandle={settings?.spotlight?.collection || "tshirts"} 
+                title={settings?.spotlight?.title || "AUTHENTIC STREETWEAR"} 
+                subtitle={settings?.spotlight?.subtitle}
+              />
+
+              {/* ═══ PRODUCT GRID 3 ═══ */}
+              {products.length > 12 && renderProductGrid(products.slice(12, 16))}
+
+              {/* ═══ COMMUNITY SECTION ═══ */}
+              <CommunitySection community={settings?.community} />
+
+              {/* ═══ GLOBAL STOREFRONT FOOTER ═══ */}
+              <StorefrontFooter />
+            </>
           )}
-
-          {/* ═══ SPOTLIGHT SECTION ═══ */}
-          <SpotlightSection 
-            collectionHandle={settings?.spotlight?.collection || "tshirts"} 
-            title={settings?.spotlight?.title || "AUTHENTIC STREETWEAR"} 
-            subtitle={settings?.spotlight?.subtitle}
-          />
-
-          {/* ═══ PRODUCT GRID 3 ═══ */}
-          {products.length > 12 && renderProductGrid(products.slice(12, 16))}
-
-          {/* ═══ COMMUNITY SECTION ═══ */}
-          <CommunitySection community={settings?.community} />
-
-          {/* ═══ GLOBAL STOREFRONT FOOTER ═══ */}
-          <StorefrontFooter />
         </View>
 
         {/* Bottom padding for tab bar */}
@@ -320,10 +333,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   gridItem: {
-    width: width / 2,
-    borderWidth: 0.25,
-    borderColor: 'rgba(128,128,128,0.15)',
+    width: Math.floor(width / 2),
     marginBottom: 0,
+    backgroundColor: 'transparent',
   },
   collectionsSection: {
     paddingVertical: 24,

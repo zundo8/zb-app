@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
-import { config } from '../constants/config';
-
+import { useEffect } from 'react';
 import { useAdminStore } from '../store/adminStore';
+import { useCommunityStore } from '../store/communityStore';
 
+/**
+ * Hook for global admin settings (hero, spotlight, etc)
+ */
 export function useAdminSettings() {
   const { settings, loading, fetchSettings } = useAdminStore();
 
@@ -13,25 +15,16 @@ export function useAdminSettings() {
   return { settings, loading, refetch: () => fetchSettings(true) };
 }
 
-export function useFeaturedUsers(isTopFeatured = false) {
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+/**
+ * Hook for featured community looks/users
+ * Connects to centralized communityStore for real-time sync across pages
+ */
+export function useFeaturedUsers() {
+  const { looks, loading, fetchCommunityData } = useCommunityStore();
 
   useEffect(() => {
-    const url = isTopFeatured 
-      ? `${config.appUrl}/api/featured-users?isTopFeatured=true`
-      : `${config.appUrl}/api/featured-users`;
+    fetchCommunityData();
+  }, [fetchCommunityData]);
 
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.users) {
-          setUsers(data.users);
-        }
-      })
-      .catch((err) => console.error('Error fetching featured users:', err))
-      .finally(() => setLoading(false));
-  }, [isTopFeatured]);
-
-  return { users, loading };
+  return { users: looks, loading, refetch: () => fetchCommunityData(true) };
 }

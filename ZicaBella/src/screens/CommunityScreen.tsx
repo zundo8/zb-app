@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, TextInput, Alert, ActivityIndicator, Platform,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  TextInput, Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-
+import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
+
 import { useColors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { config } from '../constants/config';
 import { Typography } from '../components/Typography';
 import CommunitySection from '../components/CommunitySection';
-import { useAdminSettings } from '../hooks/useAdminFeatures';
+import { useAdminSettings, useFeaturedUsers } from '../hooks/useAdminFeatures';
+import { useCommunityStore } from '../store/communityStore';
 import { haptics } from '../utils/haptics';
 import { useThemeStore } from '../store/themeStore';
 
@@ -26,11 +28,9 @@ export default function CommunityScreen() {
   const isDark = theme === 'dark';
 
   const { settings } = useAdminSettings();
-
-  const [updates, setUpdates] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const { updates, loading, fetchCommunityData } = useCommunityStore();
   
+  const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -42,26 +42,12 @@ export default function CommunityScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchUpdates();
-  }, []);
-
-  const fetchUpdates = async () => {
-    try {
-      const res = await fetch(`${config.appUrl}/api/community/updates`);
-      const data = await res.json();
-      setUpdates(data.updates || []);
-    } catch (e) {
-      console.error("Fetch updates error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchCommunityData();
+  }, [fetchCommunityData]);
 
   const pickImage = async () => {
     try {
-      // Dynamic require to prevent boot-time crash if native module is missing
       const ImagePicker = require('expo-image-picker');
-      
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
@@ -74,22 +60,12 @@ export default function CommunityScreen() {
       }
     } catch (e: any) {
       console.error("ImagePicker Error:", e);
-      if (e.message?.includes('native module') || e.message?.includes('not found')) {
-        Alert.alert(
-          'Rebuild Required',
-          "The 'expo-image-picker' native module is not present in this build. Please run 'npx expo run:ios' or 'npx expo run:android' to rebuild your development client.",
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Error', 'Could not open image library');
-      }
+      Alert.alert('Error', 'Could not open image library');
     }
   };
 
   const uploadImage = async (uri: string) => {
     setIsUploading(true);
-    
-    // Create a robust FormData for React Native
     const formData = new FormData();
     const uriParts = uri.split('.');
     const fileType = uriParts[uriParts.length - 1];
@@ -111,14 +87,7 @@ export default function CommunityScreen() {
         },
       });
       
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error('Server returned invalid JSON: ' + text.slice(0, 50));
-      }
-
+      const data = await res.json();
       if (data.success) {
         setForm((prev: any) => ({ ...prev, imageUrl: data.url }));
         haptics.success();
@@ -127,7 +96,7 @@ export default function CommunityScreen() {
       }
     } catch (e: any) {
       console.error("Upload error:", e);
-      Alert.alert('Upload Error', e.message || 'Failed to connect to server');
+      Alert.alert('Upload Error', 'Failed to connect to server');
     } finally {
       setIsUploading(false);
     }
@@ -141,7 +110,6 @@ export default function CommunityScreen() {
 
     setIsSubmitting(true);
     try {
-      // Use the public endpoint for user submissions
       const res = await fetch(`${config.appUrl}/api/featured-users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,12 +124,13 @@ export default function CommunityScreen() {
       });
 
       const data = await res.json();
-
       if (res.ok && data.success) {
         haptics.success();
-        Alert.alert('Success', 'Your look has been submitted for moderation. Check back soon!');
+        Alert.alert('Success', 'Your look has been submitted for moderation!');
         setShowForm(false);
         setForm({ ...form, imageUrl: '', quote: '' });
+        // Refresh community data to show new updates if any
+        fetchCommunityData(true);
       } else {
         Alert.alert('Submission Failed', data.error || 'Please try again later.');
       }
@@ -187,7 +156,6 @@ export default function CommunityScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Announcement Banner */}
         <BlurView 
           intensity={isDark ? 80 : 100} 
           tint={isDark ? 'dark' : 'light'} 
@@ -198,7 +166,6 @@ export default function CommunityScreen() {
           <Typography size={11} color={colors.textSecondary} style={styles.bannerSub}>Be the first to know</Typography>
         </BlurView>
 
-        {/* Featured Button */}
         <TouchableOpacity 
           style={[styles.featuredBtn, { backgroundColor: colors.foreground }]}
           onPress={() => isAuthenticated ? setShowForm(true) : navigation.navigate('ProfileTab')}
@@ -208,12 +175,10 @@ export default function CommunityScreen() {
           <Typography heading weight="700" size={9} color={colors.background}>PUBLISH YOUR LOOK</Typography>
         </TouchableOpacity>
 
-        {/* Featured Users Section */}
         <View style={{ marginBottom: 24 }}>
           <CommunitySection community={settings?.community} />
         </View>
 
-        {/* Updates Section */}
         {updates.length > 0 && (
           <View style={styles.section}>
             <Typography heading size={8} color={colors.textLight} style={styles.sectionLabel}>LIVE UPDATES</Typography>
@@ -234,7 +199,6 @@ export default function CommunityScreen() {
           </View>
         )}
 
-        {/* Form Overlay */}
         {showForm && (
           <View style={StyleSheet.absoluteFill}>
              <BlurView intensity={isDark ? 80 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
@@ -247,7 +211,6 @@ export default function CommunityScreen() {
                 </View>
                 <Typography size={10} color={colors.textSecondary} style={{ marginBottom: 24 }}>Share your fit with the community</Typography>
 
-                {/* Image Upload */}
                 <TouchableOpacity 
                    style={[styles.uploadZone, { 
                      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
@@ -301,7 +264,7 @@ export default function CommunityScreen() {
                    <TextInput 
                       value={form.quote}
                       onChangeText={(t) => setForm({...form, quote: t})}
-                      placeholder="What do you love most about Zica Bella? Share your vibe..."
+                      placeholder="What do you love most about Zica Bella?..."
                       placeholderTextColor={colors.textExtraLight}
                       style={[styles.formInput, { 
                         height: 100, 
@@ -327,7 +290,6 @@ export default function CommunityScreen() {
           </View>
         )}
 
-        {/* Coming Soon if no updates */}
         {updates.length === 0 && !loading && !showForm && (
           <View style={styles.comingSoon}>
             <Ionicons name="people-outline" size={48} color={colors.borderLight} />
@@ -345,161 +307,30 @@ export default function CommunityScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-  },
-  banner: {
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 20,
-  },
-  bannerLabel: {
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  bannerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-    marginBottom: 4,
-  },
-  bannerSub: {
-    fontSize: 11,
-    fontWeight: '400',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 32,
-  },
-  statItem: {
-    flex: 1,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 8,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  comingSoon: {
-    alignItems: 'center',
-    paddingTop: 40,
-    gap: 12,
-  },
-  comingSoonTitle: {
-    marginTop: 8,
-  },
-  comingSoonText: {
-    textAlign: 'center',
-    maxWidth: 280,
-    lineHeight: 18,
-  },
-  featuredBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 16,
-    borderRadius: 16,
-    marginBottom: 32,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionLabel: {
-    letterSpacing: 2,
-    marginBottom: 16,
-    opacity: 0.6,
-  },
-  updateCard: {
-    padding: 24,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  updateBadge: {
-    marginBottom: 8,
-  },
-  formContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  formHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  uploadZone: {
-    height: 300,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    marginBottom: 24,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-  },
-  uploadPlaceholder: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    letterSpacing: 2,
-    marginBottom: 10,
-    marginLeft: 4,
-  },
-  formInput: {
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 14,
-    borderWidth: 1,
-  },
-  submitBtn: {
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 10,
-  },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 3, textTransform: 'uppercase' },
+  scrollContent: { paddingHorizontal: 16 },
+  banner: { borderRadius: 16, padding: 24, marginBottom: 20 },
+  bannerLabel: { fontSize: 8, fontWeight: '700', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 },
+  bannerTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3, marginBottom: 4 },
+  bannerSub: { fontSize: 11, fontWeight: '400' },
+  comingSoon: { alignItems: 'center', paddingTop: 40, gap: 12 },
+  comingSoonTitle: { marginTop: 8 },
+  comingSoonText: { textAlign: 'center', maxWidth: 280, lineHeight: 18 },
+  featuredBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, borderRadius: 16, marginBottom: 32 },
+  section: { marginBottom: 32 },
+  sectionLabel: { letterSpacing: 2, marginBottom: 16, opacity: 0.6 },
+  updateCard: { padding: 24, borderRadius: 20, borderWidth: 1, marginBottom: 12 },
+  updateBadge: { marginBottom: 8 },
+  formContainer: { ...StyleSheet.absoluteFillObject },
+  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  uploadZone: { height: 300, borderRadius: 24, borderWidth: 2, borderStyle: 'dashed', marginBottom: 24, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  previewImage: { width: '100%', height: '100%' },
+  uploadPlaceholder: { alignItems: 'center', gap: 12 },
+  inputGroup: { marginBottom: 20 },
+  inputLabel: { letterSpacing: 2, marginBottom: 10, marginLeft: 4 },
+  formInput: { borderRadius: 16, padding: 16, fontSize: 14, borderWidth: 1 },
+  submitBtn: { paddingVertical: 18, borderRadius: 16, alignItems: 'center', marginTop: 10 },
 });

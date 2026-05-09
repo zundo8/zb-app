@@ -73,7 +73,6 @@ export default function OrderHistoryScreen() {
 
       setOrders(json.orders || []);
     } catch (err: any) {
-      console.error('Fetch Orders:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -385,6 +384,11 @@ export default function OrderHistoryScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
           }
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          initialNumToRender={6}
+          maxToRenderPerBatch={4}
+          updateCellsBatchingPeriod={50}
+          windowSize={5}
           ListEmptyComponent={
             error ? (
               <View style={styles.empty}>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { config } from '../constants/config';
+import { fetchWithTimeout } from '../utils/network';
 
 interface AdminState {
   settings: any | null;
@@ -29,7 +30,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const res = await fetch(`${config.appUrl}/api/app/config?t=${now}`);
+      // Use the robust fetch with timeout
+      const res = await fetchWithTimeout(`${config.appUrl}/api/app/config?t=${now}`, {}, 8000);
       const data = await res.json();
       
       if (data.config) {
@@ -40,7 +42,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         throw new Error(data.error || 'Failed to load settings');
       }
     } catch (err: any) {
-      console.error('Error fetching admin settings:', err);
+      // Silent fail for background fetches, only log in dev
+      if (__DEV__) {
+        console.warn('Admin settings fetch failed (network issues):', err.message);
+      }
       set({ error: err.message, loading: false });
     }
   },

@@ -59,6 +59,15 @@ export default function CollectionsAdminPage() {
         : [...prev[location], handle]
     }));
   };
+  
+  const syncAll = () => {
+    const allHandles = collections.map(c => c.handle);
+    setEnabled({
+      header: allHandles,
+      page: allHandles,
+      menu: allHandles
+    });
+  };
 
   const saveChanges = async () => {
     setSaving(true);
@@ -116,6 +125,14 @@ export default function CollectionsAdminPage() {
         >
           {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : success ? <Check className="w-3 h-3" /> : <Save className="w-3 h-3" strokeWidth={1.5} />}
           {saving ? "SAVING..." : success ? "SAVED" : "SAVE"}
+        </button>
+
+        <button 
+          onClick={syncAll}
+          className="flex items-center gap-2 px-4 py-2 rounded-md font-normal text-[8px] uppercase tracking-[0.2em] bg-foreground/5 text-foreground hover:bg-foreground/10 transition-all border border-foreground/5"
+        >
+          <Layers className="w-3 h-3" strokeWidth={1.5} />
+          SYNC SPECTRUM
         </button>
       </div>
 

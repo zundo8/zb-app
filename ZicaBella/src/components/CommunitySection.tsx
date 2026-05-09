@@ -51,7 +51,7 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
   const colors = useColors();
   const theme = useThemeStore((s) => s.theme);
   const isDark = theme === 'dark';
-  const { users } = useFeaturedUsers(true);
+  const { users } = useFeaturedUsers();
 
   const showSection = community?.show !== false;
   if (!showSection) return null;

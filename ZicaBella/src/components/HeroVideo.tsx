@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useNavigation } from '@react-navigation/native';
 import { useColors } from '../constants/colors';
 
 const { width, height } = Dimensions.get('window');
@@ -21,21 +22,31 @@ export default function HeroVideo({ source, height: customHeight, borderRadius }
     if (safeSource) {
       player.loop = true;
       player.muted = true;
-      player.play();
     }
   });
 
+  const isFocused = useNavigation().isFocused();
+
+  React.useEffect(() => {
+    if (!player) return;
+    if (!isFocused) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  }, [isFocused, player]);
+
   if (!safeSource) {
     return (
-      <View style={[styles.container, { height: customHeight || '100%', borderRadius: borderRadius || 0, backgroundColor: colors.surface }]} />
+      <View style={[styles.container, { height: customHeight || height, borderRadius: borderRadius || 0, backgroundColor: colors.surface }]} />
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height: customHeight || height, borderRadius: borderRadius || 0, backgroundColor: colors.surface }]}>
       <VideoView
         player={player}
-        style={[styles.video, { backgroundColor: colors.background, height: customHeight || '100%', borderRadius: borderRadius || 0 }]}
+        style={[styles.video, { backgroundColor: colors.background, borderRadius: borderRadius || 0 }]}
         nativeControls={false}
         contentFit="cover"
       />
@@ -46,7 +57,6 @@ export default function HeroVideo({ source, height: customHeight, borderRadius }
 const styles = StyleSheet.create({
   container: {
     width,
-    height,
   },
   video: {
     width: '100%',

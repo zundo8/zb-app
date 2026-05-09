@@ -95,6 +95,11 @@ export default function CartScreen() {
             })}
             style={styles.list}
             showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            initialNumToRender={6}
+            maxToRenderPerBatch={4}
+            updateCellsBatchingPeriod={50}
+            windowSize={5}
             contentContainerStyle={styles.listContent}
             onScroll={onScroll}
             scrollEventThrottle={16}

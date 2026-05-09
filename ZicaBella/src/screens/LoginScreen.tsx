@@ -102,6 +102,10 @@ export default function LoginScreen() {
       setOtp(newOtp);
       const nextIdx = Math.min(index + digits.length, 5);
       otpInputs.current[nextIdx]?.focus();
+      
+      if (newOtp.every(d => d !== '')) {
+        handleLogin(newOtp.join(''));
+      }
       return;
     }
 
@@ -209,6 +213,8 @@ export default function LoginScreen() {
                     keyboardType="phone-pad"
                     style={[styles.phoneInput, { color: colors.text }]}
                     autoFocus
+                    autoCorrect={false}
+                    autoCapitalize="none"
                   />
                 </View>
               ) : (

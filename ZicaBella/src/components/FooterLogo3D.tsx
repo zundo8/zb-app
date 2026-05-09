@@ -88,9 +88,8 @@ export default function FooterLogo({ glbUrl }: Props) {
         camera={{ position: [0, 0, 6], fov: 40 }}
         gl={{ 
           alpha: true, 
-          antialias: true, 
-          logarithmicDepthBuffer: true,
-          powerPreference: "high-performance" 
+          antialias: false,
+          powerPreference: "low-power" 
         }}
       >
         <ambientLight intensity={2} />

@@ -173,6 +173,11 @@ export default function NotificationsScreen() {
           { paddingBottom: insets.bottom + 100 }
         ]}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        initialNumToRender={6}
+        maxToRenderPerBatch={4}
+        updateCellsBatchingPeriod={50}
+        windowSize={5}
         refreshing={refreshing}
         onRefresh={() => { haptics.buttonTap(); fetchNotifications(); }}
         ListEmptyComponent={

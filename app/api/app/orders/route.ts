@@ -26,9 +26,9 @@ export async function GET(req: Request) {
     const limit = limitRaw ? Math.max(1, Math.min(50, parseInt(limitRaw, 10) || 10)) : null;
     const offset = offsetRaw ? Math.max(0, parseInt(offsetRaw, 10) || 0) : 0;
 
-    // Quick count mode for admin sync stats
+    // Quick count mode for admin sync stats (global)
     const countOnly = url.searchParams.get('count') === 'true';
-    if (countOnly) {
+    if (countOnly && !customerId && !phone && !email && !orderId && !all) {
       const total = await prisma.order.count();
       return NextResponse.json({ total }, { headers: corsHeaders });
     }

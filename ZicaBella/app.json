@@ -55,7 +55,8 @@
           }
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store"
     ],
     "extra": {
       "appStoreMetadata": {

@@ -258,7 +258,7 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
+        <View style={{ flex: 1 }}>
           <View style={{ flex: 1 }}>
             {messages.length === 0 ? (
               renderOnboarding()
@@ -270,6 +270,12 @@ export default function ChatScreen() {
                 renderItem={({ item }) => <MessageBubble item={item} />}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                removeClippedSubviews={true}
+                initialNumToRender={6}
+                maxToRenderPerBatch={4}
+                updateCellsBatchingPeriod={50}
+                windowSize={5}
                 onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
               />
             )}
@@ -283,21 +289,11 @@ export default function ChatScreen() {
               </View>
             )}
           </View>
-        </Pressable>
+        </View>
 
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>
-            <View style={styles.attachRow}>
-              <TouchableOpacity onPress={() => handlePickImage('library')} style={styles.attachBtn}>
-                <Ionicons name="images-outline" size={18} color={colors.textExtraLight} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handlePickImage('camera')} style={styles.attachBtn}>
-                <Ionicons name="camera-outline" size={18} color={colors.textExtraLight} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.attachBtn}>
-                <Ionicons name="attach-outline" size={18} color={colors.textExtraLight} />
-              </TouchableOpacity>
-            </View>
+            <View style={{ paddingLeft: 12 }} />
 
             <TextInput
               value={input}

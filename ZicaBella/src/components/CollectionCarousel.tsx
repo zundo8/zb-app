@@ -102,6 +102,11 @@ export default function CollectionCarousel({ collections }: Props) {
           index,
         })}
         initialScrollIndex={initialIndex}
+        removeClippedSubviews={true}
+        initialNumToRender={3}
+        maxToRenderPerBatch={2}
+        updateCellsBatchingPeriod={50}
+        windowSize={3}
         keyExtractor={(_: any, i: number) => i.toString()}
       />
     </View>

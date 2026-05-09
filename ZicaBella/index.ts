@@ -5,9 +5,13 @@
  * All listener registration (received, response) is done in NotificationService.initialize()
  * to avoid duplicate listeners causing duplicate-key crashes.
  */
+import { suppressProductionLogs } from './src/utils/logger';
 import * as Notifications from 'expo-notifications';
 import { registerRootComponent } from 'expo';
 import App from './App';
+
+// ─── CRITICAL: Suppress console output in production to prevent PII leaks ───
+suppressProductionLogs();
 
 // ─── CRITICAL: Configure how notifications behave when app is in foreground ───
 // This MUST be set at the module level before anything else.

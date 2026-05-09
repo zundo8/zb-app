@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Dimensions } from 'react-native';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Dimensions, Animated } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
@@ -28,7 +28,7 @@ export default function CollectionScreen() {
   const isDark = theme === 'dark';
 
   const { collection, products, loading, refetch } = useCollectionByHandle(handle);
-  const { collections: allCollections } = useCollections(20);
+  const { collections: allCollections } = useCollections(50);
   
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -52,25 +52,55 @@ export default function CollectionScreen() {
 
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
   const isTabBarVisible = useUIStore(s => s.isTabBarVisible);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const filterTranslateY = useRef(new Animated.Value(0)).current;
+  const filterOpacity = useRef(new Animated.Value(1)).current;
   const lastScrollY = useRef(0);
+  const [isCompact, setIsCompact] = useState(false);
 
   const onScroll = (event: any) => {
     const currentY = event.nativeEvent.contentOffset.y;
     const diff = currentY - lastScrollY.current;
     
-    if (Math.abs(diff) > 5) {
-      if (diff > 0 && currentY > 100) {
-        setTabBarVisible(false);
+    // Smart Header Logic - Adjusted for GlassHeader clearance
+    const stickyOffset = insets.top + 50;
+    const isInStickyZone = currentY > 150;
+
+    if (currentY < 100) {
+      // Always show full at top
+      Animated.spring(filterTranslateY, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+      setIsCompact(false);
+    } else if (diff > 20) {
+      // Scrolling down - make compact and ensure it's below GlassHeader islands
+      Animated.spring(filterTranslateY, { 
+        toValue: isInStickyZone ? stickyOffset : 0, 
+        useNativeDriver: true,
+        bounciness: 0
+      }).start();
+      setIsCompact(true);
+    } else if (diff < -15) {
+      // Scrolling up - show full and ensure it's below GlassHeader islands
+      Animated.spring(filterTranslateY, { 
+        toValue: isInStickyZone ? stickyOffset : 0, 
+        useNativeDriver: true,
+        bounciness: 0
+      }).start();
+      setIsCompact(false);
+    }
+
+    if (Math.abs(diff) > 15) {
+      const isCurrentlyVisible = useUIStore.getState().isTabBarVisible;
+      if (diff > 0 && currentY > 200) {
+        if (isCurrentlyVisible) setTabBarVisible(false);
       } else {
-        setTabBarVisible(true);
+        if (!isCurrentlyVisible) setTabBarVisible(true);
       }
       
-      // Auto-close filter dropdown on scroll
       if (Math.abs(diff) > 20 && isSizeOpen) {
         setIsSizeOpen(false);
       }
+      lastScrollY.current = currentY;
     }
-    lastScrollY.current = currentY;
   };
 
   const { width: screenWidth } = Dimensions.get('window');
@@ -138,7 +168,10 @@ export default function CollectionScreen() {
         </View>
 
         {/* Filters Sticky Section */}
-        <View style={styles.filterSection}>
+        <Animated.View style={[
+          styles.filterSection,
+          { transform: [{ translateY: filterTranslateY }] }
+        ]}>
           <CollectionFilters 
             allSizes={allSizes as string[]}
             selectedSize={selectedSize}
@@ -150,8 +183,9 @@ export default function CollectionScreen() {
             isTabBarVisible={isTabBarVisible}
             isSizeOpen={isSizeOpen}
             setIsSizeOpen={setIsSizeOpen}
+            compact={isCompact}
           />
-        </View>
+        </Animated.View>
 
         <View style={styles.content}>
           <Typography size={7} weight="300" color={colors.textExtraLight} style={styles.count}>
@@ -238,14 +272,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   gridWrapper: {
-    width: Math.min(Dimensions.get('window').width, 600) / 2,
-    borderWidth: 0.25,
-    borderColor: 'rgba(128,128,128,0.15)',
+    width: Math.floor(Dimensions.get('window').width / 2),
+    backgroundColor: 'transparent',
   },
   grid4Wrapper: {
-    width: Math.min(Dimensions.get('window').width, 600) / 4,
-    borderWidth: 0.25,
-    borderColor: 'rgba(128,128,128,0.1)',
+    width: Math.floor(Dimensions.get('window').width / 4),
+    backgroundColor: 'transparent',
   },
   largeWrapper: {
     width: '100%',

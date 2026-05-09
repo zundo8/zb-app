@@ -243,7 +243,6 @@ export default function CheckoutScreen() {
       }
 
       // Step 1: Create order on your backend
-      console.log('[Payment] Creating order, amount:', cartTotal);
 
       const orderResponse = await fetch(`${BACKEND_BASE_URL}/api/payment/create-order`, {
         method: 'POST',
@@ -256,15 +255,12 @@ export default function CheckoutScreen() {
       });
 
       const orderData = await orderResponse.json();
-      console.log('[Payment] Order response:', orderData);
 
       if (!orderResponse.ok || !orderData.order_id) {
         throw new Error(orderData.error || 'Failed to create payment order. Please try again.');
       }
 
-      // Step 2: Read KEY_ID from app config
       const razorpayKeyId = Constants.expoConfig?.extra?.razorpayKeyId;
-      console.log('[Payment] Key ID present:', !!razorpayKeyId);
 
       if (!razorpayKeyId) {
         throw new Error('Payment configuration error. Please contact support.');
@@ -287,8 +283,6 @@ export default function CheckoutScreen() {
         theme: { color: '#FFFFFF' },
       });
 
-      console.log('[Payment] Payment success:', paymentData);
-
       // Step 4: Verify signature on backend
       const verifyResponse = await fetch(`${BACKEND_BASE_URL}/api/payment/verify`, {
         method: 'POST',
@@ -301,7 +295,6 @@ export default function CheckoutScreen() {
       });
 
       const verifyData = await verifyResponse.json();
-      console.log('[Payment] Verify response:', verifyData);
 
       if (verifyData.success) {
         const orderId = await completeShopifyCheckout({
@@ -330,7 +323,6 @@ export default function CheckoutScreen() {
         );
       }
     } catch (error: any) {
-      console.error('[Payment] Error:', error);
       if (error?.code === 'PAYMENT_CANCELLED' || error?.description === 'User cancelled') {
         Alert.alert('Cancelled', 'You cancelled the payment.');
       } else {
@@ -435,6 +427,7 @@ export default function CheckoutScreen() {
             style={[styles.input, { backgroundColor: inputBg, color: colors.text }]}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
           />
           <TextInput
             value={address.zip}

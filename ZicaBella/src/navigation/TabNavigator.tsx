@@ -135,51 +135,49 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         tint={isDark ? 'dark' : 'light'}
         style={StyleSheet.absoluteFill} 
       />
-      <View style={[styles.tabContent, { borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
+      <View style={[styles.tabContent, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
         {state.routes.map((route: any, index: number) => {
-        const { options } = descriptors[route.key];
-        const isFocused = state.index === index;
+          const { options } = descriptors[route.key];
+          const isFocused = state.index === index;
+          const isAI = route.name === 'ChatTab';
 
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
 
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
-          }
-        };
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
 
-        const Icon = options?.tabBarIcon;
+          const Icon = options?.tabBarIcon;
 
-        return (
-          <TouchableOpacity
-            key={route.key}
-            onPress={onPress}
-            style={styles.tabItem}
-            activeOpacity={0.7}
-          >
-             <View style={[styles.iconWrapper, isFocused && styles.activeIconWrapper]}>
-               {Icon && typeof Icon === 'function' ? Icon({ 
-                 focused: isFocused, 
-                 color: isFocused ? colors.text : colors.textExtraLight, 
-                 size: 18 
-               }) : null}
-            </View>
-            <Text 
-              numberOfLines={1}
-              style={[
-                styles.tabLabel, 
-                { color: isFocused ? colors.text : colors.textExtraLight, opacity: isFocused ? 0.9 : 0.4 }
-              ]}
+          return (
+            <TouchableOpacity
+              key={route.key}
+              onPress={onPress}
+              style={[styles.tabItem, isAI && styles.aiTabItem]}
+              activeOpacity={0.7}
             >
-              {options.tabBarLabel}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+              <View style={[
+                styles.iconWrapper, 
+                isFocused && styles.activeIconWrapper,
+              ]}>
+                {Icon && typeof Icon === 'function' ? Icon({ 
+                  focused: isFocused, 
+                  color: isFocused ? colors.text : colors.textExtraLight, 
+                  size: 20 
+                }) : null}
+              </View>
+              {isFocused && (
+                <View style={[styles.focusDot, { backgroundColor: colors.text }]} />
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </Animated.View>
   );
@@ -192,6 +190,7 @@ export const TabNavigator = () => {
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        lazy: true,
       }}
     >
       <Tab.Screen
@@ -199,7 +198,7 @@ export const TabNavigator = () => {
         component={HomeStack}
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: ({ color }) => <Ionicons name="home-outline" size={18} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="home-outline" size={20} color={color} />,
         }}
       />
       <Tab.Screen
@@ -207,31 +206,17 @@ export const TabNavigator = () => {
         component={SearchStack}
         options={{
           tabBarLabel: 'Search',
-          tabBarIcon: ({ color }) => <Ionicons name="search-outline" size={18} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="search-outline" size={20} color={color} />,
         }}
       />
       <Tab.Screen
         name="ChatTab"
         component={ChatScreen}
         options={{
-          tabBarLabel: 'AI Chat',
-          tabBarIcon: ({ color }) => <Ionicons name="sparkles-outline" size={18} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="ShopTab"
-        component={ShopStack}
-        options={{
-          tabBarLabel: 'Shop',
-          tabBarIcon: ({ color }) => <Ionicons name="storefront-outline" size={18} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStack}
-        options={{
-          tabBarLabel: 'Account',
-          tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={18} color={color} />,
+          tabBarLabel: 'AI',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="sparkles-sharp" size={22} color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -239,7 +224,15 @@ export const TabNavigator = () => {
         component={OrdersStack}
         options={{
           tabBarLabel: 'Orders',
-          tabBarIcon: ({ color }) => <Ionicons name="receipt-outline" size={18} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="receipt-outline" size={20} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileStack}
+        options={{
+          tabBarLabel: 'Account',
+          tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={20} color={color} />,
         }}
       />
     </Tab.Navigator>
@@ -249,47 +242,54 @@ export const TabNavigator = () => {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    height: 60,
-    borderRadius: 30,
+    bottom: 34,
+    left: 20,
+    right: 20,
+    height: 64,
+    borderRadius: 32,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.2,
+    shadowRadius: 30,
+    elevation: 10,
   },
   tabContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderRadius: 30,
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderRadius: 32,
   },
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
+    height: '100%',
+  },
+  aiTabItem: {
+    flex: 1.2,
   },
   iconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2,
   },
   activeIconWrapper: {
   },
+  focusDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    position: 'absolute',
+    bottom: 8,
+  },
   tabLabel: {
-    fontSize: 6.5,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 2,
+    display: 'none',
   },
 });
 

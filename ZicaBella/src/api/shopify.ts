@@ -41,11 +41,8 @@ export async function apiFetch<T>(
     const response = await fetch(url, fetchOptions);
     clearTimeout(timeout);
 
-    console.log('[API]', options?.method || 'GET', endpoint, '→', response.status);
-
     // Handle 401 — token expired or invalid
     if (response.status === 401) {
-      console.warn('[API] 401 Unauthorized — logging out user');
       useAuthStore.getState().logout();
       throw new Error('Session expired. Please log in again.');
     }
@@ -53,13 +50,12 @@ export async function apiFetch<T>(
     // Guard against non-JSON responses (e.g. HTML error pages)
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      const text = await response.text();
-      throw new Error(`Server error (${response.status}): expected JSON, got ${contentType.split(';')[0] || 'unknown'}`);
+      throw new Error(`Something went wrong. Please try again.`);
     }
 
     if (!response.ok) {
       const errorJson = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(errorJson.error || `API ${response.status}`);
+      throw new Error(errorJson.error || 'Something went wrong. Please try again.');
     }
 
     return (await response.json()) as T;

@@ -47,7 +47,6 @@ export class NotificationService {
 
     try {
       if (!isPhysicalDevice()) {
-        console.log('[Notifications] Skipping: simulator detected.');
         return false;
       }
 
@@ -68,7 +67,6 @@ export class NotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('[Notifications] Permission denied.');
         return false;
       }
 
@@ -89,19 +87,16 @@ export class NotificationService {
         const projectId = getExpoProjectId();
 
         if (!projectId) {
-          console.warn('[Notifications] Missing EAS projectId. Add expo.extra.eas.projectId in app.json.');
           return false;
         }
 
         const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
 
         if (tokenData?.data) {
-          console.log('[Notifications] Push token:', tokenData.data);
           useNotificationStore.getState().setPushToken(tokenData.data);
           await this.registerDevice(tokenData.data);
         }
-      } catch (tokenErr) {
-        console.warn('[Notifications] Could not get push token:', tokenErr);
+      } catch (_tokenErr) {
         // Non-fatal — app still works, just won't receive remote pushes
       }
 
@@ -141,10 +136,8 @@ export class NotificationService {
       await Notifications.setBadgeCountAsync(unread);
 
       _initialized = true;
-      console.log('[Notifications] Initialized successfully.');
       return true;
-    } catch (err) {
-      console.error('[NotificationService] initialize error:', err);
+    } catch (_err) {
       return false;
     }
   }
@@ -159,7 +152,6 @@ export class NotificationService {
     const token = pushToken || useNotificationStore.getState().pushToken;
 
     if (!userId || !token) {
-      console.log('[Notifications] Registration skipped: missing userId or token', { userId, hasToken: !!token });
       return;
     }
 
@@ -179,13 +171,10 @@ export class NotificationService {
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        console.warn('[Notifications] Backend registration failed:', err);
-      } else {
-        console.log('[Notifications] Device registered successfully.');
+        // Registration failed — non-fatal, will retry on next launch
       }
-    } catch (e) {
-      console.error('[Notifications] Failed to register device token:', e);
+    } catch (_e) {
+      // Network error — non-fatal
     }
   }
 

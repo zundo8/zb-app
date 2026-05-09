@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureStorage } from '../utils/secureStorage';
 // NOTE: NotificationService is intentionally NOT imported at top-level to break
 // the circular dependency:  authStore -> NotificationService -> authStore
 // Instead it is lazily required inside the login() action.
@@ -28,19 +28,6 @@ interface AuthStore {
   updateUser: (updates: Partial<User>) => void;
 }
 
-// Use the installed async storage backend for persisted auth state.
-const authStorage = {
-  getItem: async (name: string): Promise<string | null> => {
-    return await AsyncStorage.getItem(name);
-  },
-  setItem: async (name: string, value: string): Promise<void> => {
-    await AsyncStorage.setItem(name, value);
-  },
-  removeItem: async (name: string): Promise<void> => {
-    await AsyncStorage.removeItem(name);
-  },
-};
-
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set) => ({
@@ -57,8 +44,8 @@ export const useAuthStore = create<AuthStore>()(
           // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { NotificationService } = require('../services/NotificationService');
           NotificationService.registerDevice(undefined, user.id);
-        } catch (e) {
-          console.warn('[authStore] Could not register notification device:', e);
+        } catch (_e) {
+          // Notification registration failed — non-fatal
         }
       },
       logout: () => set({ user: null, token: null, isAuthenticated: false }),
@@ -79,7 +66,8 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'zicabella-auth-secure',
-      storage: createJSONStorage(() => authStorage),
+      // Use iOS Keychain via expo-secure-store instead of AsyncStorage
+      storage: createJSONStorage(() => secureStorage),
     }
   )
 );
