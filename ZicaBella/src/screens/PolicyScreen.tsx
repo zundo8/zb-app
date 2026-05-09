@@ -12,7 +12,7 @@ import { useColors } from '../constants/colors';
 import { RootStackParamList } from '../navigation/types';
 import { Typography } from '../components/Typography';
 import { useThemeStore } from '../store/themeStore';
-import { BACKEND_BASE_URL } from '../constants/config';
+import { config } from '../constants/config';
 import { haptics } from '../utils/haptics';
 
 const { width } = Dimensions.get('window');
@@ -49,7 +49,7 @@ export default function PolicyScreen() {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 12000);
       
-      const res = await fetch(`${BACKEND_BASE_URL}/api/app/policies?handle=${handle}`, {
+      const res = await fetch(`${config.appUrl}/api/app/policies?handle=${handle}`, {
         signal: controller.signal
       });
       clearTimeout(id);
@@ -78,7 +78,7 @@ export default function PolicyScreen() {
     haptics.buttonTap();
     try {
       await Share.share({
-        message: `Check out Zica Bella's ${title}: ${url || `${BACKEND_BASE_URL}/policies/${handle}`}`,
+        message: `Check out Zica Bella's ${title}: ${url || `${config.appUrl}/policies/${handle}`}`,
       });
     } catch (error) {
       console.log(error);
