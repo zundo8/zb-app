@@ -42,6 +42,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsJsonHeaders });
     }
 
+    const auth = Buffer.from(`${key_id}:${key_secret}`).toString('base64');
+
     const payload: any = {
       amount: Math.round(Number(amount)),
       currency: 'INR',
@@ -63,21 +65,43 @@ export async function POST(req: Request) {
 
     console.log(`[Razorpay Process] Initiating ${method} payment for order ${order_id} using ${source} keys`);
 
-    // S2S Payment Initiation
-    // @ts-ignore - payments.create exists in recent SDK versions but might not be in all @types
-    const payment = await instance.payments.create(payload);
+    // Use manual fetch as SDK doesn't support .payments.create for headless initiation
+    const response = await fetch('https://api.razorpay.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${auth}`,
+        'User-Agent': 'Razorpay-Node-SDK-ZicaBella',
+      },
+      body: JSON.stringify(payload),
+    });
 
-    return NextResponse.json(payment, { headers: corsJsonHeaders });
+    const processText = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(processText);
+    } catch {
+      throw new Error('Server returned invalid response. Please try again.');
+    }
+
+    if (!response.ok) {
+      console.error('Razorpay process error:', JSON.stringify(data));
+      const msg = source 
+        ? `${data.error?.description || 'Authentication error'} (Source: ${source})`
+        : data.error?.description || 'Payment initiation failed';
+      return NextResponse.json({ 
+        error: msg,
+        code: data.error?.code,
+        source 
+      }, { status: response.status, headers: corsJsonHeaders });
+    }
+
+    return NextResponse.json(data, { headers: corsJsonHeaders });
   } catch (err: any) {
-    console.error('Razorpay process error:', err);
-    
-    // Check for specific error types from Razorpay SDK
-    const message = err.error?.description || err.message || 'Payment initiation failed';
-    const statusCode = err.statusCode || 500;
-
+    console.error('Razorpay process server error:', err);
     return NextResponse.json(
-      { error: message, code: err.error?.code, source },
-      { status: statusCode, headers: corsJsonHeaders }
+      { error: err.message || 'Internal server error', source: 'server' },
+      { status: 500, headers: corsJsonHeaders }
     );
   }
 }

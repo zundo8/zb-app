@@ -203,18 +203,26 @@ export function useRazorpay(): UseRazorpayReturn {
               }),
             });
 
-            const processJson = await processRes.json();
+            const processText = await processRes.text();
+            let processJson: any;
+            try {
+              processJson = JSON.parse(processText);
+            } catch {
+              throw new Error('Server returned invalid response. Please try again.');
+            }
+
             if (!processRes.ok) {
               const msg = processJson.source 
-                ? `${processJson.error} (Source: ${processJson.source})`
+                ? `${processJson.error || 'Authentication error'} (Source: ${processJson.source})`
                 : processJson.error || 'Failed to initiate payment';
               throw new Error(msg);
             }
 
-            // The link is returned in 'vpa' or 'next.url'
-            const upiLink = processJson.vpa || processJson.next?.url;
+            // The link is returned in 'vpa', 'intent_url', or 'next.url'
+            const upiLink = processJson.vpa || processJson.intent_url || processJson.next?.url;
             if (!upiLink) {
-              throw new Error('No payment link returned from server');
+              console.log('[useRazorpay] Process Response:', JSON.stringify(processJson));
+              throw new Error('No payment link returned from server. Check console for details.');
             }
 
             console.log('[useRazorpay] Opening Direct UPI Link:', upiLink);
