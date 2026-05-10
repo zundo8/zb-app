@@ -277,17 +277,6 @@ export function useRazorpay(): UseRazorpayReturn {
           if (opts.upiId) {
             rzpOptions.prefill.vpa = opts.upiId;
           }
-          // Direct App Intent support
-          if (opts.upiApp) {
-             let upiApp = opts.upiApp;
-             if (Platform.OS === 'android') {
-               if (upiApp === 'gpay') upiApp = 'com.google.android.apps.nbu.paisa.user';
-               else if (upiApp === 'phonepe') upiApp = 'com.phonepe.app';
-               else if (upiApp === 'paytm') upiApp = 'net.one97.paytm';
-             }
-             // @ts-ignore
-             rzpOptions.prefill.upi_app = upiApp;
-          }
         } else if (method === 'netbanking' && opts.bankCode) {
           rzpOptions.prefill.bank = opts.bankCode;
         } else if (method === 'wallet' && opts.walletCode) {

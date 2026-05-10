@@ -308,7 +308,7 @@ export default function RazorpayPaymentScreen() {
                     ]}
                     onPress={() => { haptics.buttonTap(); setSelectedUpiApp(app.app); setUpiId(''); }}
                   >
-                    <Image source={{ uri: app.icon }} style={s.methodIcon} contentFit="contain" />
+                    <Image source={{ uri: app.icon }} style={s.methodIcon} resizeMode="contain" />
                     <Typography size={10} weight="700" color={colors.text} style={{ marginTop: 8 }}>{app.label}</Typography>
                     {selectedUpiApp === app.app && (
                       <View style={[s.checkBadge, { backgroundColor: colors.foreground }]}>
@@ -374,7 +374,7 @@ export default function RazorpayPaymentScreen() {
                     ]}
                     onPress={() => { haptics.buttonTap(); setSelectedBank(bank.code); }}
                   >
-                    <Image source={{ uri: bank.icon }} style={s.methodIcon} contentFit="contain" />
+                    <Image source={{ uri: bank.icon }} style={s.methodIcon} resizeMode="contain" />
                     <Typography size={9} weight="700" color={colors.text} style={{ marginTop: 8 }}>{bank.name}</Typography>
                     {selectedBank === bank.code && (
                       <View style={[s.checkBadge, { backgroundColor: colors.foreground }]}>
@@ -408,7 +408,7 @@ export default function RazorpayPaymentScreen() {
                     ]}
                     onPress={() => { haptics.buttonTap(); setSelectedWallet(wallet.id); }}
                   >
-                    <Image source={{ uri: wallet.icon }} style={s.methodIcon} contentFit="contain" />
+                    <Image source={{ uri: wallet.icon }} style={s.methodIcon} resizeMode="contain" />
                     <Typography size={9} weight="700" color={colors.text} style={{ marginTop: 8 }}>{wallet.name}</Typography>
                     {selectedWallet === wallet.id && (
                       <View style={[s.checkBadge, { backgroundColor: colors.foreground }]}>
