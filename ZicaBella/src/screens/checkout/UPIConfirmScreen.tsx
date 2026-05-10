@@ -392,7 +392,7 @@ export default function UPIConfirmScreen() {
         <Typography size={11} color={colors.textMuted} style={{ marginTop: 12, textAlign: 'center', paddingHorizontal: 40, lineHeight: 18 }}>
           {state === 'confirming'
             ? 'Verifying your payment with Razorpay...'
-            : 'Complete the payment in your UPI app.\nWe'll automatically detect it.'}
+            : 'Complete the payment in your UPI app.\nWe will automatically detect it.'}
         </Typography>
 
         {/* Timer */}
@@ -432,7 +432,7 @@ export default function UPIConfirmScreen() {
             nav.goBack();
           }}
         >
-          <Typography size={10} weight="600" color={colors.textMuted}>Cancel \u0026 Go Back</Typography>
+          <Typography size={10} weight="600" color={colors.textMuted}>Cancel and Go Back</Typography>
         </TouchableOpacity>
       </View>
     </View>
