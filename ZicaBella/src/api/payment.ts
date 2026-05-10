@@ -45,6 +45,36 @@ export interface RefundResponse {
   status: string;
 }
 
+export interface ProcessPaymentRequest {
+  order_id: string;
+  amount: number;
+  method: string;
+  email?: string;
+  contact?: string;
+  name?: string;
+  vpa?: string;
+  bank?: string;
+  wallet?: string;
+}
+
+export interface ProcessPaymentResponse {
+  id: string;
+  entity: string;
+  amount: number;
+  currency: string;
+  status: string;
+  order_id: string;
+  method: string;
+  vpa?: string;
+  bank?: string;
+  wallet?: string;
+  // If redirect is needed
+  next?: {
+    action: string;
+    url: string;
+  };
+}
+
 /** Response from /api/app/payment/order-status */
 export interface OrderStatusResponse {
   status: 'created' | 'attempted' | 'paid';
@@ -156,4 +186,10 @@ export async function requestRefund(
     paymentId,
     amount,
   });
+}
+
+export async function processPaymentHeadless(
+  data: ProcessPaymentRequest,
+): Promise<ProcessPaymentResponse> {
+  return paymentFetch<ProcessPaymentResponse>('/api/app/payment/process', data);
 }

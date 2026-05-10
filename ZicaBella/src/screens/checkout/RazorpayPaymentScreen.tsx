@@ -56,7 +56,7 @@ export default function RazorpayPaymentScreen() {
   const isDark = colors.background === '#000000';
 
   const { status, error, successData, startPayment, reset } = useRazorpay();
-  const isProcessing = status === 'processing' || status === 'verifying' || status === 'creating_order';
+  const isProcessing = status === 'processing' || status === 'verifying' || status === 'creating_order' || status === 'awaiting_confirmation';
 
   const [tab, setTab] = useState<PaymentMethod>('upi');
   const [upiId, setUpiId] = useState('');
@@ -310,8 +310,12 @@ export default function RazorpayPaymentScreen() {
           <Animated.View style={{ transform: [{ rotate: spin }] }}>
             <Ionicons name="sync-outline" size={48} color="rgba(255,255,255,0.6)" />
           </Animated.View>
-          <Typography size={16} weight="700" color="#FFF" style={{ marginTop: 28, letterSpacing: 2 }}>{status === 'creating_order' ? 'INITIATING' : 'PROCESSING'}</Typography>
-          <Typography size={11} color="rgba(255,255,255,0.5)" style={{ marginTop: 8 }}>Please do not close the app...</Typography>
+          <Typography size={16} weight="700" color="#FFF" style={{ marginTop: 28, letterSpacing: 2 }}>
+            {status === 'creating_order' ? 'INITIATING' : status === 'awaiting_confirmation' ? 'WAITING FOR PAYMENT' : 'PROCESSING'}
+          </Typography>
+          <Typography size={11} color="rgba(255,255,255,0.5)" style={{ marginTop: 8 }}>
+            {status === 'awaiting_confirmation' ? 'Please complete payment in your UPI/Bank app' : 'Please do not close the app...'}
+          </Typography>
         </View>
       )}
     </View>

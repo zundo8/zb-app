@@ -1,7 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Linking, AppState, AppStateStatus } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 import { getPaymentApiBaseUrl } from '../constants/config';
 import { useAuthStore } from '../store/authStore';
+import { checkOrderStatus, processPaymentHeadless } from '../api/payment';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -11,6 +13,7 @@ export type PaymentStatus =
   | 'idle'
   | 'creating_order'
   | 'processing'
+  | 'awaiting_confirmation' // ← Waiting for S2S payment completion
   | 'verifying'
   | 'success'
   | 'failed';
@@ -26,11 +29,6 @@ export interface PaymentSuccessData {
   orderId: string;
 }
 
-export interface PaymentErrorData {
-  code: number;
-  description: string;
-}
-
 export interface UseRazorpayOptions {
   amount: number; // In rupees
   currency?: string;
@@ -43,7 +41,6 @@ export interface UseRazorpayOptions {
   notes?: Record<string, string>;
   // ── Method-specific fields ──
   upiId?: string;               // For UPI VPA payments
-  upiApp?: 'gpay' | 'phonepe' | 'paytm' | 'bhim'; // For UPI app quick-select
   cardNumber?: string;          // For card payments
   cardExpiry?: string;          // MM/YY
   cardCvv?: string;
@@ -66,16 +63,86 @@ export function useRazorpay(): UseRazorpayReturn {
   const [status, setStatus] = useState<PaymentStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<PaymentSuccessData | null>(null);
+  
   const abortRef = useRef(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentOrderIdRef = useRef<string | null>(null);
+
+  // ── Cleanup polling on unmount ──
+  useEffect(() => {
+    return () => stopPolling();
+  }, []);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  }, []);
+
+  // ── AppState listener: detect return from UPI/Bank app ──
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (
+        nextState === 'active' &&
+        status === 'awaiting_confirmation' &&
+        currentOrderIdRef.current
+      ) {
+        console.log('[useRazorpay] App active, polling status...');
+        pollOnce(currentOrderIdRef.current);
+      }
+    };
+
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
+  }, [status]);
+
+  const pollOnce = useCallback(async (orderId: string) => {
+    try {
+      const result = await checkOrderStatus(orderId);
+      if (result.status === 'paid') {
+        stopPolling();
+        setSuccessData({
+          paymentId: result.paymentId || 's2s_payment',
+          orderId,
+        });
+        setStatus('success');
+        return true;
+      }
+    } catch (e) {
+      console.log('[useRazorpay] Poll error:', e);
+    }
+    return false;
+  }, [stopPolling]);
+
+  const startPolling = useCallback((orderId: string) => {
+    currentOrderIdRef.current = orderId;
+    setStatus('awaiting_confirmation');
+
+    pollIntervalRef.current = setInterval(() => pollOnce(orderId), 3000);
+
+    pollTimeoutRef.current = setTimeout(() => {
+      stopPolling();
+      if (status === 'awaiting_confirmation') {
+        setError('Payment confirmation timed out. Check your payment app.');
+        setStatus('failed');
+      }
+    }, 300000); // 5 mins
+  }, [pollOnce, stopPolling, status]);
 
   const reset = useCallback(() => {
     abortRef.current = false;
+    stopPolling();
     setStatus('idle');
     setError(null);
     setSuccessData(null);
-  }, []);
+  }, [stopPolling]);
 
-  // ── Clean phone helper ──
   const cleanContact = (phone?: string) =>
     (phone || '').replace(/\D/g, '').slice(-10);
 
@@ -113,7 +180,7 @@ export function useRazorpay(): UseRazorpayReturn {
         try {
           orderJson = JSON.parse(orderText);
         } catch {
-          throw new Error('Invalid server response. Check backend connectivity.');
+          throw new Error('Invalid server response.');
         }
 
         if (!orderRes.ok || !orderJson.order_id) {
@@ -123,262 +190,91 @@ export function useRazorpay(): UseRazorpayReturn {
         const orderId = orderJson.order_id;
         const keyId = orderJson.key_id;
 
-        if (!keyId || !String(keyId).startsWith('rzp_')) {
-          throw new Error('Invalid Razorpay key returned from server.');
-        }
-
         if (abortRef.current) return;
 
-        // ── Step 2: Build method-specific Razorpay options ──
+        // ── Step 2: Handle based on method ──
         setStatus('processing');
 
-        const contact = cleanContact(opts.prefill?.contact);
-        const basePrefill = {
-          name: opts.prefill?.name || '',
-          email: opts.prefill?.email || '',
-          contact,
-        };
-
-        let rzpOptions: Record<string, any>;
-
-        switch (method) {
+        if (method === 'card') {
           // ════════════════════════════════════════════════════════════
-          // UPI — Razorpay SDK with strict UPI-only lock
-          // The SDK handles UPI intent/collect internally on both iOS+Android
+          // CARD — Use SDK (PCI compliance)
           // ════════════════════════════════════════════════════════════
-          case 'upi': {
-            rzpOptions = {
-              key: keyId,
-              amount: amountPaise,
-              currency: opts.currency || 'INR',
-              order_id: orderId,
-              name: 'Zica Bella',
-              description: 'Order Payment',
-              prefill: {
-                ...basePrefill,
-                method: 'upi',
-                // Pre-fill VPA if user typed one
-                ...(opts.upiId ? { vpa: opts.upiId } : {}),
+          const rzpOptions: Record<string, any> = {
+            key: keyId,
+            amount: amountPaise,
+            currency: opts.currency || 'INR',
+            order_id: orderId,
+            name: 'Zica Bella',
+            description: 'Order Payment',
+            prefill: {
+              name: opts.cardName || opts.prefill?.name || '',
+              email: opts.prefill?.email || '',
+              contact: cleanContact(opts.prefill?.contact),
+              method: 'card',
+              ...(opts.cardNumber ? { 'card[number]': opts.cardNumber.replace(/\s/g, '') } : {}),
+              ...(opts.cardExpiry ? { 'card[expiry]': opts.cardExpiry } : {}),
+              ...(opts.cardCvv ? { 'card[cvv]': opts.cardCvv } : {}),
+            },
+            method: { card: true, upi: false, netbanking: false, wallet: false },
+            config: {
+              display: {
+                hide: [{ method: 'upi' }, { method: 'netbanking' }, { method: 'wallet' }],
               },
-              // CRITICAL: Only allow UPI, disable everything else
-              method: {
-                upi: true,
-                card: false,
-                netbanking: false,
-                wallet: false,
-                emi: false,
-                paylater: false,
-              },
-              config: {
-                display: {
-                  hide: [
-                    { method: 'card' },
-                    { method: 'netbanking' },
-                    { method: 'wallet' },
-                    { method: 'emi' },
-                    { method: 'paylater' },
-                  ],
-                  preferences: {
-                    show_default_blocks: false,
-                  },
-                },
-              },
-              theme: { color: '#000000' },
-              modal: { backdropclose: false, confirm_close: true },
-              notes: opts.notes || {},
-            };
-            break;
+            },
+            theme: { color: '#000000' },
+            modal: { backdropclose: false, confirm_close: true },
+          };
+
+          const paymentData = await RazorpayCheckout.open(rzpOptions);
+          
+          setStatus('verifying');
+          const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: paymentData.razorpay_order_id,
+              razorpay_payment_id: paymentData.razorpay_payment_id,
+              razorpay_signature: paymentData.razorpay_signature,
+            }),
+          });
+
+          const verifyJson = await verifyRes.json();
+          if (!verifyJson.success) throw new Error(verifyJson.error || 'Verification failed');
+
+          setSuccessData({ paymentId: paymentData.razorpay_payment_id, orderId: orderId });
+          setStatus('success');
+        } else {
+          // ════════════════════════════════════════════════════════════
+          // UPI, NETBANKING, WALLET — Use Backend S2S (Headless)
+          // ════════════════════════════════════════════════════════════
+          const processRes = await processPaymentHeadless({
+            order_id: orderId,
+            amount: amountPaise,
+            method: method,
+            vpa: opts.upiId,
+            bank: opts.bankCode,
+            wallet: opts.walletCode,
+            email: opts.prefill?.email,
+            contact: cleanContact(opts.prefill?.contact),
+            name: opts.prefill?.name,
+          });
+
+          // If Razorpay requires a redirect (Netbanking/Wallets)
+          if (processRes.next?.action === 'redirect' && processRes.next?.url) {
+            await Linking.openURL(processRes.next.url);
           }
 
-          // ════════════════════════════════════════════════════════════
-          // CARD — Razorpay SDK with strict card-only lock
-          // ════════════════════════════════════════════════════════════
-          case 'card': {
-            rzpOptions = {
-              key: keyId,
-              amount: amountPaise,
-              currency: opts.currency || 'INR',
-              order_id: orderId,
-              name: 'Zica Bella',
-              description: 'Order Payment',
-              prefill: {
-                ...basePrefill,
-                name: opts.cardName || basePrefill.name,
-                method: 'card',
-                ...(opts.cardNumber ? { 'card[number]': opts.cardNumber.replace(/\s/g, '') } : {}),
-                ...(opts.cardExpiry ? { 'card[expiry]': opts.cardExpiry } : {}),
-                ...(opts.cardCvv ? { 'card[cvv]': opts.cardCvv } : {}),
-                ...(opts.cardName ? { 'card[name]': opts.cardName } : {}),
-              },
-              method: {
-                card: true,
-                upi: false,
-                netbanking: false,
-                wallet: false,
-                emi: false,
-                paylater: false,
-              },
-              config: {
-                display: {
-                  hide: [
-                    { method: 'upi' },
-                    { method: 'netbanking' },
-                    { method: 'wallet' },
-                    { method: 'emi' },
-                    { method: 'paylater' },
-                  ],
-                  preferences: { show_default_blocks: false },
-                },
-              },
-              theme: { color: '#000000' },
-              modal: { backdropclose: false, confirm_close: true },
-              notes: opts.notes || {},
-            };
-            break;
-          }
-
-          // ════════════════════════════════════════════════════════════
-          // NETBANKING — Razorpay SDK with strict bank lock
-          // ════════════════════════════════════════════════════════════
-          case 'netbanking': {
-            if (!opts.bankCode) throw new Error('Please select a bank first.');
-            rzpOptions = {
-              key: keyId,
-              amount: amountPaise,
-              currency: opts.currency || 'INR',
-              order_id: orderId,
-              name: 'Zica Bella',
-              description: 'Order Payment',
-              prefill: {
-                ...basePrefill,
-                method: 'netbanking',
-                bank: opts.bankCode,
-              },
-              method: {
-                netbanking: true,
-                card: false,
-                upi: false,
-                wallet: false,
-                emi: false,
-                paylater: false,
-              },
-              config: {
-                display: {
-                  hide: [
-                    { method: 'upi' },
-                    { method: 'card' },
-                    { method: 'wallet' },
-                    { method: 'emi' },
-                    { method: 'paylater' },
-                  ],
-                  preferences: { show_default_blocks: false },
-                },
-              },
-              theme: { color: '#000000' },
-              modal: { backdropclose: false, confirm_close: true },
-              notes: opts.notes || {},
-            };
-            break;
-          }
-
-          // ════════════════════════════════════════════════════════════
-          // WALLET — Razorpay SDK with strict wallet lock
-          // ════════════════════════════════════════════════════════════
-          case 'wallet': {
-            if (!opts.walletCode) throw new Error('Please select a wallet first.');
-            rzpOptions = {
-              key: keyId,
-              amount: amountPaise,
-              currency: opts.currency || 'INR',
-              order_id: orderId,
-              name: 'Zica Bella',
-              description: 'Order Payment',
-              prefill: {
-                ...basePrefill,
-                method: 'wallet',
-                wallet: opts.walletCode,
-              },
-              method: {
-                wallet: true,
-                netbanking: false,
-                card: false,
-                upi: false,
-                emi: false,
-                paylater: false,
-              },
-              config: {
-                display: {
-                  hide: [
-                    { method: 'upi' },
-                    { method: 'card' },
-                    { method: 'netbanking' },
-                    { method: 'emi' },
-                    { method: 'paylater' },
-                  ],
-                  preferences: { show_default_blocks: false },
-                },
-              },
-              theme: { color: '#000000' },
-              modal: { backdropclose: false, confirm_close: true },
-              notes: opts.notes || {},
-            };
-            break;
-          }
-
-          default:
-            throw new Error('Unsupported payment method.');
+          // Start polling for payment capture
+          startPolling(orderId);
         }
-
-        // ── Step 3: Open Razorpay SDK ──
-        let paymentData: PaymentResult;
-        try {
-          console.log('[useRazorpay] Opening Razorpay SDK | method:', method, '| locks:', JSON.stringify(rzpOptions.method));
-          paymentData = await RazorpayCheckout.open(rzpOptions);
-        } catch (rzpErr: any) {
-          // code === 2 means user cancelled
-          if (rzpErr?.code === 2) {
-            setStatus('idle');
-            return;
-          }
-          throw new Error(rzpErr?.description || 'Payment was not completed.');
-        }
-
-        if (abortRef.current) return;
-
-        // ── Step 4: Verify on backend ──
-        setStatus('verifying');
-
-        const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({
-            razorpay_order_id: paymentData.razorpay_order_id,
-            razorpay_payment_id: paymentData.razorpay_payment_id,
-            razorpay_signature: paymentData.razorpay_signature,
-          }),
-        });
-
-        const verifyJson = await verifyRes.json();
-        if (!verifyJson.success) {
-          throw new Error(verifyJson.error || 'Payment verification failed.');
-        }
-
-        setSuccessData({
-          paymentId: paymentData.razorpay_payment_id,
-          orderId: paymentData.razorpay_order_id,
-        });
-        setStatus('success');
       } catch (err: any) {
         if (!abortRef.current) {
-          setError(err.message || 'Payment failed. Please try again.');
+          setError(err.message || 'Payment failed.');
           setStatus('failed');
         }
       }
     },
-    [],
+    [startPolling],
   );
 
   return { status, error, successData, startPayment, reset };
