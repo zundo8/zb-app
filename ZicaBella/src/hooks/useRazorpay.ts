@@ -40,12 +40,13 @@ export interface UPIApp {
   app_name: string;
   app_icon: string; // base64 encoded PNG
   package_name: string;
+  is_available?: boolean;
 }
 
 export interface PaymentResult {
   razorpay_order_id: string;
   razorpay_payment_id: string;
-  razorpay_signature: string;
+  razorpay_signature?: string;
 }
 
 export interface PaymentSuccessData {
@@ -106,6 +107,53 @@ export function useRazorpay(): UseRazorpayReturn {
 
   const cleanContact = (phone?: string) =>
     (phone || '').replace(/\D/g, '').slice(-10);
+
+  const normalizeEmail = (email?: string) => {
+    const value = (email || '').trim();
+    return value.includes('@') ? value : 'support@zicabella.com';
+  };
+
+  const normalizeExpiry = (expiry?: string) => {
+    const [monthRaw, yearRaw] = (expiry || '').split('/');
+    const month = (monthRaw || '').replace(/\D/g, '').padStart(2, '0');
+    const year = (yearRaw || '').replace(/\D/g, '');
+    return {
+      month,
+      year: year.length === 2 ? year : year.slice(-2),
+      combined: month && year ? `${month}/${year.length === 2 ? year : year.slice(-2)}` : '',
+    };
+  };
+
+  const normalizePaymentResult = (data: any, fallbackOrderId: string): PaymentResult => {
+    const paymentId =
+      data?.razorpay_payment_id ||
+      data?.payment_id ||
+      data?.paymentId ||
+      data?.data?.razorpay_payment_id ||
+      data?.data?.payment_id;
+    const resolvedOrderId =
+      data?.razorpay_order_id ||
+      data?.order_id ||
+      data?.orderId ||
+      data?.data?.razorpay_order_id ||
+      data?.data?.order_id ||
+      fallbackOrderId;
+    const signature =
+      data?.razorpay_signature ||
+      data?.signature ||
+      data?.data?.razorpay_signature ||
+      data?.data?.signature;
+
+    if (!paymentId) {
+      throw new Error('Payment completed, but Razorpay did not return a payment id.');
+    }
+
+    return {
+      razorpay_payment_id: String(paymentId),
+      razorpay_order_id: String(resolvedOrderId),
+      razorpay_signature: signature ? String(signature) : undefined,
+    };
+  };
 
   // ── Initialize SDK when key is available ───────────────────────────
   useEffect(() => {
@@ -176,9 +224,11 @@ export function useRazorpay(): UseRazorpayReturn {
       return;
     }
     try {
-      razorpayGetAppsWhichSupportUPI((data: UPIApp[]) => {
-        console.log('[useRazorpay] Installed UPI apps:', data?.length || 0);
-        setUpiApps(data || []);
+      razorpayGetAppsWhichSupportUPI((data: BridgeUPIApp[]) => {
+        const apps = Array.isArray(data) ? data : [];
+        const availableCount = apps.filter(app => app.is_available !== false).length;
+        console.log('[useRazorpay] Installed UPI apps:', availableCount);
+        setUpiApps(apps);
         setIsLoadingApps(false);
       });
     } catch (e) {
@@ -247,19 +297,26 @@ export function useRazorpay(): UseRazorpayReturn {
         // ── Step 2: Build Custom UI SDK options (method-specific) ──
         setStatus('processing');
         const contact = cleanContact(opts.prefill?.contact);
-        const email = opts.prefill?.email || 'support@zicabella.com';
-        const name = opts.prefill?.name || 'Zica Customer';
+        const email = normalizeEmail(opts.prefill?.email);
+        const name = (opts.prefill?.name || 'Zica Customer').trim();
 
         // Base options common to all methods
         const baseOptions: Record<string, any> = {
           description: 'Zica Bella Order Payment',
+          image: 'https://zicabella.com/icon.png',
           currency: opts.currency || 'INR',
           key_id: keyId,
           amount: String(amountPaise),
           order_id: orderId,
-          email: email,
-          contact: contact ? `+91${contact}` : '+918000000000',
-          name: name,
+          email,
+          contact: contact || '9999999999',
+          name,
+          prefill: {
+            name,
+            email,
+            contact: contact || '9999999999',
+          },
+          notes: opts.notes || {},
         };
 
         let rzpOptions: Record<string, any>;
@@ -284,13 +341,18 @@ export function useRazorpay(): UseRazorpayReturn {
             if (!opts.cardNumber || !opts.cardExpiry || !opts.cardCvv) {
               throw new Error('Please fill in all card details');
             }
-            const expiryParts = opts.cardExpiry.split('/');
+            const cardNumber = opts.cardNumber.replace(/\s/g, '');
+            const expiry = normalizeExpiry(opts.cardExpiry);
+            if (cardNumber.length < 12 || !expiry.month || !expiry.year || Number(expiry.month) < 1 || Number(expiry.month) > 12) {
+              throw new Error('Please enter valid card details');
+            }
             rzpOptions = {
               ...baseOptions,
               method: 'card',
-              'card[number]': opts.cardNumber.replace(/\s/g, ''),
-              'card[expiry_month]': expiryParts[0]?.trim(),
-              'card[expiry_year]': expiryParts[1]?.trim(),
+              'card[number]': cardNumber,
+              'card[expiry]': expiry.combined,
+              'card[expiry_month]': expiry.month,
+              'card[expiry_year]': expiry.year,
               'card[cvv]': opts.cardCvv,
               'card[name]': opts.cardName || name,
             };
@@ -305,7 +367,7 @@ export function useRazorpay(): UseRazorpayReturn {
             rzpOptions = {
               ...baseOptions,
               method: 'netbanking',
-              bank: opts.bankCode,
+              bank: opts.bankCode.toUpperCase(),
             };
             break;
           }
@@ -342,7 +404,7 @@ export function useRazorpay(): UseRazorpayReturn {
             startPolling(orderId!);
           }
 
-          paymentData = await razorpayOpen(rzpOptions);
+          paymentData = normalizePaymentResult(await razorpayOpen(rzpOptions), orderId!);
           console.log('[useRazorpay] SDK Success:', {
             payment_id: paymentData.razorpay_payment_id,
             order_id: paymentData.razorpay_order_id,
@@ -373,17 +435,24 @@ export function useRazorpay(): UseRazorpayReturn {
         // ── Step 4: Verify signature on backend ──
         setStatus('verifying');
 
+        const verifyBody = paymentData.razorpay_signature
+          ? {
+              razorpay_order_id: paymentData.razorpay_order_id,
+              razorpay_payment_id: paymentData.razorpay_payment_id,
+              razorpay_signature: paymentData.razorpay_signature,
+            }
+          : {
+              razorpay_order_id: paymentData.razorpay_order_id,
+              razorpay_payment_id: paymentData.razorpay_payment_id,
+            };
+
         const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify({
-            razorpay_order_id: paymentData.razorpay_order_id,
-            razorpay_payment_id: paymentData.razorpay_payment_id,
-            razorpay_signature: paymentData.razorpay_signature,
-          }),
+          body: JSON.stringify(verifyBody),
         });
 
         const verifyText = await verifyRes.text();

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
 import { createOrder, createCustomer } from '@/lib/shopify-admin';
+import { extractNumericId } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
 
     // Map fields from different naming conventions
     const customerId = body.customerId || body.customer_id;
-    const customerEmail = body.customerEmail || body.email;
+    let customerEmail = body.customerEmail || body.email;
     const customerPhone = body.customerPhone || body.phone;
     const shippingAddress = body.shippingAddress || body.shipping_address;
     const lineItems = body.lineItems || body.line_items;
@@ -57,8 +58,18 @@ export async function POST(req: Request) {
     const subtotal = Number(body.subtotal || body.subtotal_price || 0);
     const total = Number(body.total || body.total_price || 0);
 
-    if (!customerEmail) return jsonError('customerEmail is required', 400);
-    if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) return jsonError('lineItems is required', 400);
+    // Fallback to auth email if missing in body
+    if (!customerEmail && auth?.customerEmail) {
+      customerEmail = auth.customerEmail;
+    }
+
+    if (!customerEmail && !customerPhone) {
+      return jsonError('Either customerEmail or customerPhone is required', 400);
+    }
+    
+    if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) {
+      return jsonError('lineItems is required and cannot be empty', 400);
+    }
 
     const shop = await prisma.shop.findFirst();
     if (!shop) return jsonError('Shop not configured', 500);
@@ -136,11 +147,15 @@ export async function POST(req: Request) {
 
             // Sync Order
             const shopifyOrderPayload: any = {
-                line_items: lineItems.map((li: any) => ({
-                    variant_id: parseInt(li.variantId || li.variant_id || li.sku?.split(':')[1], 10),
-                    quantity: Number(li.quantity || 1),
-                    title: li.name || li.title,
-                })).filter((li: any) => !isNaN(li.variant_id)),
+                line_items: lineItems.map((li: any) => {
+                    const vid = extractNumericId(li.variantId || li.variant_id || (li.sku?.startsWith('variant:') ? li.sku.split(':')[1] : null));
+                    return {
+                        variant_id: vid ? parseInt(vid, 10) : null,
+                        quantity: Number(li.quantity || 1),
+                        title: li.name || li.title,
+                        price: li.price ? String(li.price) : undefined,
+                    };
+                }).filter((li: any) => li.variant_id && !isNaN(li.variant_id)),
                 financial_status: 'paid',
                 tags: `${tags}, synced`,
                 note: note,
@@ -244,15 +259,19 @@ export async function POST(req: Request) {
         paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
         paymentCapturedAt: paymentStatus === 'paid' ? now : null,
         items: {
-          create: lineItems.map((li: any, idx: number) => ({
-            shopifyLineItemId: `app_${orderNumber}_${idx}`,
-            productId: li.productId || li.product_id || null,
-            title: li.name || li.title || 'Product',
-            quantity: Number(li.quantity || 0),
-            price: Number(li.price || 0),
-            sku: li.sku || ((li.variantId || li.variant_id) ? `variant:${String(li.variantId || li.variant_id)}` : null),
-            image: li.image || li.imageUrl || null,
-          })),
+          create: lineItems.map((li: any, idx: number) => {
+            const pid = extractNumericId(li.productId || li.product_id);
+            const vid = extractNumericId(li.variantId || li.variant_id);
+            return {
+              shopifyLineItemId: `app_${orderNumber}_${idx}`,
+              productId: pid || null,
+              title: li.name || li.title || 'Product',
+              quantity: Number(li.quantity || 0),
+              price: Number(li.price || 0),
+              sku: li.sku || (vid ? `variant:${vid}` : null),
+              image: li.image || li.imageUrl || null,
+            };
+          }),
         },
         payments:
           paymentStatus === 'paid'

@@ -44,3 +44,19 @@ export function matchKey(key: string, target: string): boolean {
   const normTarget = target.toLowerCase().replace(/[\s_-]/g, '');
   return normKey === normTarget;
 }
+
+/**
+ * Extracts a numeric ID from a Shopify GID or returns the string if it's already a number.
+ * Example: "gid://shopify/ProductVariant/44585324544212" -> "44585324544212"
+ */
+export function extractNumericId(id: string | number | null | undefined): string | null {
+  if (id === null || id === undefined) return null;
+  const s = String(id);
+  if (/^\d+$/.test(s)) return s;
+  if (s.includes('/')) {
+    const parts = s.split('/');
+    const last = parts[parts.length - 1];
+    if (/^\d+$/.test(last)) return last;
+  }
+  return s;
+}

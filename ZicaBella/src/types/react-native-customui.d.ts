@@ -12,7 +12,7 @@ declare module 'react-native-customui' {
   export interface PaymentResult {
     razorpay_payment_id: string;
     razorpay_order_id: string;
-    razorpay_signature: string;
+    razorpay_signature?: string;
   }
 
   export interface RazorpayCustomUI {

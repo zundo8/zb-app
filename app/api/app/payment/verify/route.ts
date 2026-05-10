@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
+import prisma from '@/lib/db';
 
 const corsJsonHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -64,6 +65,40 @@ export async function POST(req: Request) {
     }
 
     console.log(`[Verify] ✅ Payment verified: ${razorpay_payment_id} for order ${razorpay_order_id}`);
+
+    // Update local order status immediately to avoid race conditions with webhook
+    try {
+      const order = await prisma.order.findUnique({
+        where: { razorpayOrderId: razorpay_order_id }
+      });
+      if (order && order.paymentStatus !== 'paid') {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            paymentStatus: 'paid',
+            razorpayPaymentId: razorpay_payment_id,
+            paymentCapturedAt: new Date(),
+            status: (order.status === 'PENDING' || order.status === 'awaiting_approval') ? 'OPEN' : order.status,
+          }
+        });
+        
+        // Record payment
+        await prisma.payment.create({
+          data: {
+            orderId: order.id,
+            customerId: order.customerId,
+            amount: order.totalPrice,
+            type: 'CAPTURE',
+            status: 'success',
+            gateway: 'razorpay',
+          }
+        });
+        console.log(`[Verify] Local order ${order.id} marked as PAID`);
+      }
+    } catch (dbErr: any) {
+      console.warn('[Verify] Failed to update local order:', dbErr.message);
+    }
+
     return NextResponse.json({ success: true, payment_id: razorpay_payment_id }, { headers: corsJsonHeaders });
   } catch (err: unknown) {
     console.error('[Verify] Internal Error:', err);

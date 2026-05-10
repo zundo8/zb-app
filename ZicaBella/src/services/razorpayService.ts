@@ -24,7 +24,38 @@ async function readJsonResponse(res: Response): Promise<{ ok: boolean; status: n
 export interface PaymentResult {
   razorpay_payment_id: string;
   razorpay_order_id: string;
-  razorpay_signature: string;
+  razorpay_signature?: string;
+}
+
+function normalizePaymentResult(data: any, fallbackOrderId: string): PaymentResult {
+  const paymentId =
+    data?.razorpay_payment_id ||
+    data?.payment_id ||
+    data?.paymentId ||
+    data?.data?.razorpay_payment_id ||
+    data?.data?.payment_id;
+  const orderId =
+    data?.razorpay_order_id ||
+    data?.order_id ||
+    data?.orderId ||
+    data?.data?.razorpay_order_id ||
+    data?.data?.order_id ||
+    fallbackOrderId;
+  const signature =
+    data?.razorpay_signature ||
+    data?.signature ||
+    data?.data?.razorpay_signature ||
+    data?.data?.signature;
+
+  if (!paymentId) {
+    throw new Error('Payment completed, but Razorpay did not return a payment id.');
+  }
+
+  return {
+    razorpay_payment_id: String(paymentId),
+    razorpay_order_id: String(orderId),
+    razorpay_signature: signature ? String(signature) : undefined,
+  };
 }
 
 
@@ -103,8 +134,13 @@ export async function openRazorpayCheckout(
     amount: String(orderJson.amount),
     name: 'Zica Bella',
     order_id: orderJson.order_id,
-    email: orderData.email || '',
-    contact: contact ? `+91${contact}` : '',
+    email: orderData.email || 'support@zicabella.com',
+    contact: contact || '9999999999',
+    prefill: {
+      name: orderData.name || 'Zica Customer',
+      email: orderData.email || 'support@zicabella.com',
+      contact: contact || '9999999999',
+    },
   };
 
   // Build method-specific options
@@ -117,7 +153,7 @@ export async function openRazorpayCheckout(
       options['_[flow]'] = 'intent';
       options.upi_app_package_name = paymentMethod.upi_app_package_name;
     } else if (paymentMethod.method === 'netbanking' && paymentMethod.bank) {
-      options.bank = paymentMethod.bank;
+      options.bank = paymentMethod.bank.toUpperCase();
     } else if (paymentMethod.method === 'wallet' && paymentMethod.wallet) {
       options.wallet = paymentMethod.wallet;
     } else if (paymentMethod.method === 'card' && paymentMethod.card) {
@@ -131,7 +167,7 @@ export async function openRazorpayCheckout(
 
   try {
     console.log('[razorpayService] Opening Custom UI SDK with key:', razorpayKeyId?.slice(0, 12) + '...');
-    const paymentData = await razorpayOpen(options) as PaymentResult;
+    const paymentData = normalizePaymentResult(await razorpayOpen(options), String(orderJson.order_id));
 
     // Step 3: Verify signature server-side
     const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {
@@ -140,11 +176,16 @@ export async function openRazorpayCheckout(
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({
-        razorpay_order_id: paymentData.razorpay_order_id,
-        razorpay_payment_id: paymentData.razorpay_payment_id,
-        razorpay_signature: paymentData.razorpay_signature,
-      }),
+      body: JSON.stringify(paymentData.razorpay_signature
+        ? {
+            razorpay_order_id: paymentData.razorpay_order_id,
+            razorpay_payment_id: paymentData.razorpay_payment_id,
+            razorpay_signature: paymentData.razorpay_signature,
+          }
+        : {
+            razorpay_order_id: paymentData.razorpay_order_id,
+            razorpay_payment_id: paymentData.razorpay_payment_id,
+          }),
     });
 
     const verifyParsed = await readJsonResponse(verifyRes);
