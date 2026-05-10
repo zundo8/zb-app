@@ -164,6 +164,13 @@ export default function RazorpayPaymentScreen() {
     setScreenState('processing');
 
     try {
+      if (!razorpayKeyId || !String(razorpayKeyId).startsWith('rzp_')) {
+        throw new Error('Invalid Razorpay key. Please go back and try again.');
+      }
+      if (!orderId) {
+        throw new Error('Missing order ID. Please go back and try again.');
+      }
+
       const safePrefill = { ...prefill, contact: cleanPhone(prefill?.contact) };
       const rzpOptions: any = {
         key: razorpayKeyId,
@@ -173,13 +180,15 @@ export default function RazorpayPaymentScreen() {
         name: 'Zica Bella',
         description: 'Order Payment',
         prefill: safePrefill,
-        method: { upi: tab === 'upi', card: tab === 'card', netbanking: tab === 'netbanking', wallet: tab === 'wallet' },
         theme: { color: '#000000' },
         modal: { backdropclose: false },
       };
+      console.log('[RazorpayPayment] Opening checkout with key:', razorpayKeyId?.slice(0, 12) + '...', 'order:', orderId);
       const data = await RazorpayCheckout.open(rzpOptions);
+      console.log('[RazorpayPayment] Checkout returned:', JSON.stringify(data));
       await handlePaymentSuccess(data);
     } catch (e: any) {
+      console.log('[RazorpayPayment] Error:', JSON.stringify(e));
       if (e?.code === 2) { setScreenState('form'); }
       else { setErrorMsg(e?.description || e?.message || 'Payment failed.'); setScreenState('failed'); }
     } finally {
