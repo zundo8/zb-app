@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       receipt,
       payment_capture: true,
       notes: {
-        customerId: orderData?.customerId || userAuth.id,
+        customerId: orderData?.customerId || userAuth.customerId,
         source: 'mobile-app'
       }
     });
