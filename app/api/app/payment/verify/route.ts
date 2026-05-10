@@ -19,19 +19,15 @@ export async function OPTIONS() {
 export async function POST(req: Request) {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = await req.json();
+    
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      console.error('[Verify] Missing fields:', { razorpay_order_id, razorpay_payment_id, has_signature: !!razorpay_signature });
       return NextResponse.json(
         { success: false, error: 'Missing payment fields' },
         { status: 400, headers: corsJsonHeaders }
       );
     }
 
-    // Special case for headless payments processed via S2S
-    if (razorpay_signature === 'HEADLESS') {
-       return NextResponse.json({ success: true }, { headers: corsJsonHeaders });
-    }
-
-    const body = razorpay_order_id + '|' + razorpay_payment_id;
     let secret: string;
     try {
       const creds = await resolveRazorpayCredentials();
@@ -39,38 +35,30 @@ export async function POST(req: Request) {
     } catch (credErr: any) {
       console.error('[Verify] Credential resolution failed:', credErr.message);
       return NextResponse.json(
-        { success: false, error: 'Payment gateway not configured. Please contact support.' },
+        { success: false, error: 'Payment gateway not configured correctly.' },
         { status: 500, headers: corsJsonHeaders }
       );
     }
 
-    const expected = crypto
+    // Razorpay signature verification logic:
+    // HMAC_SHA256(order_id + "|" + payment_id, secret) == signature
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(body)
       .digest('hex');
 
-    // Both are hex strings — compare as plain UTF-8 to avoid Buffer.from('hex') crash
-    // when Razorpay returns a signature with characters outside hex range
-    let valid = false;
-    try {
-      const expectedBuf = Buffer.from(expected, 'utf8');
-      const receivedBuf = Buffer.from(razorpay_signature, 'utf8');
-      if (expectedBuf.length === receivedBuf.length) {
-        valid = crypto.timingSafeEqual(expectedBuf, receivedBuf);
-      }
-    } catch {
-      valid = false;
-    }
+    const isValid = expectedSignature === razorpay_signature;
 
-    if (!valid) {
-      console.error('Razorpay signature mismatch:', {
+    if (!isValid) {
+      console.error('[Verify] Signature mismatch:', {
         order_id: razorpay_order_id,
         payment_id: razorpay_payment_id,
-        received_sig: razorpay_signature?.slice(0, 12) + '...',
-        expected_sig: expected?.slice(0, 12) + '...',
+        received: razorpay_signature.slice(0, 10) + '...',
+        expected: expectedSignature.slice(0, 10) + '...',
       });
       return NextResponse.json(
-        { success: false, error: 'Payment signature verification failed. Please try again.' },
+        { success: false, error: 'Payment verification failed: Signature mismatch.' },
         { status: 400, headers: corsJsonHeaders }
       );
     }
@@ -78,11 +66,10 @@ export async function POST(req: Request) {
     console.log(`[Verify] ✅ Payment verified: ${razorpay_payment_id} for order ${razorpay_order_id}`);
     return NextResponse.json({ success: true, payment_id: razorpay_payment_id }, { headers: corsJsonHeaders });
   } catch (err: unknown) {
-    console.error('Razorpay verification error:', err);
-    const message = err instanceof Error ? err.message : 'Verification failed';
+    console.error('[Verify] Internal Error:', err);
     return NextResponse.json(
-      { success: false, error: message },
-      { status: 400, headers: corsJsonHeaders }
+      { success: false, error: 'Internal server error during verification' },
+      { status: 500, headers: corsJsonHeaders }
     );
   }
 }

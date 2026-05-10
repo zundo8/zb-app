@@ -1,4 +1,12 @@
-import RazorpayCheckout from 'react-native-razorpay';
+/**
+ * Razorpay Service — Custom UI SDK (react-native-customui)
+ * 
+ * This service provides a simpler alternative to the useRazorpay hook
+ * for scenarios where the full hook state management isn't needed.
+ * Uses Custom UI SDK — no Razorpay checkout sheet is shown.
+ */
+import { razorpayOpen } from '../utils/razorpayBridge';
+import type { PaymentResult as BridgePaymentResult } from '../utils/razorpayBridge';
 import { getPaymentApiBaseUrl } from '../constants/config';
 import { useAuthStore } from '../store/authStore';
 
@@ -21,15 +29,28 @@ export interface PaymentResult {
 
 
 /**
- * Full Razorpay checkout flow:
+ * Full Razorpay Custom UI payment flow:
  * 1. Creates server-side order
- * 2. Opens Razorpay native checkout (all payment methods)
+ * 2. Opens Razorpay Custom UI SDK (method-specific, NO checkout sheet)
  * 3. Verifies payment signature server-side
  * Returns PaymentResult on success, throws on failure or user cancel
  */
 export async function openRazorpayCheckout(
   orderData: any,
-  _authToken: string
+  _authToken: string,
+  paymentMethod?: {
+    method: 'upi' | 'card' | 'netbanking' | 'wallet';
+    upi_app_package_name?: string;
+    bank?: string;
+    wallet?: string;
+    card?: {
+      number: string;
+      expiry_month: string;
+      expiry_year: string;
+      cvv: string;
+      name: string;
+    };
+  }
 ): Promise<any> {
   const amountInRupees = Number(orderData.amount || orderData.total || orderData.total_price || 0);
   if (!amountInRupees || amountInRupees <= 0) {
@@ -72,36 +93,45 @@ export async function openRazorpayCheckout(
     );
   }
 
-  // Step 2: Build checkout options per Razorpay docs
+  // Step 2: Build Custom UI SDK options
   const contact = (orderData.phone ? String(orderData.phone).replace(/\D/g, '').slice(-10) : '');
   
-  const options: Record<string, any> = {
+  const baseOptions: Record<string, any> = {
     description: 'Zica Bella Order',
-    image: 'https://app.zicabella.com/zb-logo-silver.png', 
     currency: orderJson.currency || 'INR',
-    key: razorpayKeyId,
+    key_id: razorpayKeyId,
     amount: String(orderJson.amount),
     name: 'Zica Bella',
     order_id: orderJson.order_id,
-    prefill: {
-      name: orderData.shipping_address?.name || orderData.shipping_address?.first_name || '',
-      email: orderData.email || '',
-      contact: contact ? `+91${contact}` : '',
-    },
-    theme: { color: '#000000' },
-    modal: {
-      confirm_close: true,
-      backdropclose: false,
-    },
-    retry: {
-      enabled: true,
-      max_count: 4
-    },
+    email: orderData.email || '',
+    contact: contact ? `+91${contact}` : '',
   };
 
+  // Build method-specific options
+  let options: Record<string, any> = { ...baseOptions };
+
+  if (paymentMethod) {
+    options.method = paymentMethod.method;
+
+    if (paymentMethod.method === 'upi' && paymentMethod.upi_app_package_name) {
+      options['_[flow]'] = 'intent';
+      options.upi_app_package_name = paymentMethod.upi_app_package_name;
+    } else if (paymentMethod.method === 'netbanking' && paymentMethod.bank) {
+      options.bank = paymentMethod.bank;
+    } else if (paymentMethod.method === 'wallet' && paymentMethod.wallet) {
+      options.wallet = paymentMethod.wallet;
+    } else if (paymentMethod.method === 'card' && paymentMethod.card) {
+      options['card[number]'] = paymentMethod.card.number;
+      options['card[expiry_month]'] = paymentMethod.card.expiry_month;
+      options['card[expiry_year]'] = paymentMethod.card.expiry_year;
+      options['card[cvv]'] = paymentMethod.card.cvv;
+      options['card[name]'] = paymentMethod.card.name;
+    }
+  }
+
   try {
-    console.log('[razorpayService] Opening checkout with key:', razorpayKeyId?.slice(0, 12) + '...');
-    const paymentData = await RazorpayCheckout.open(options) as PaymentResult;
+    console.log('[razorpayService] Opening Custom UI SDK with key:', razorpayKeyId?.slice(0, 12) + '...');
+    const paymentData = await razorpayOpen(options) as PaymentResult;
 
     // Step 3: Verify signature server-side
     const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {

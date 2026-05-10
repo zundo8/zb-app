@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, TextInput, ScrollView,
   Dimensions, ActivityIndicator, Platform, KeyboardAvoidingView, Animated,
-  Image,
+  Image, FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -14,31 +14,10 @@ import { useRazorpay, PaymentMethod } from '../../hooks/useRazorpay';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
 import { config } from '../../constants/config';
+import { TOP_BANKS } from '../../constants/bankCodes';
+import { WALLETS } from '../../constants/walletCodes';
 
 const { width: SW } = Dimensions.get('window');
-
-const UPI_APPS = [
-  { id: 'gpay', label: 'Google Pay', app: 'gpay' as const, icon: 'https://cdn.razorpay.com/app/gpay.png' },
-  { id: 'phonepe', label: 'PhonePe', app: 'phonepe' as const, icon: 'https://cdn.razorpay.com/app/phonepe.png' },
-  { id: 'paytm', label: 'Paytm', app: 'paytm' as const, icon: 'https://cdn.razorpay.com/app/paytm.png' },
-  { id: 'bhim', label: 'BHIM', app: 'bhim' as const, icon: 'https://cdn.razorpay.com/app/bhim.png' },
-];
-const TOP_BANKS = [
-  { code: 'SBIN', name: 'SBI', icon: 'https://cdn.razorpay.com/bank/SBIN.gif' },
-  { code: 'HDFC', name: 'HDFC', icon: 'https://cdn.razorpay.com/bank/HDFC.gif' },
-  { code: 'ICIC', name: 'ICICI', icon: 'https://cdn.razorpay.com/bank/ICIC.gif' },
-  { code: 'UTIB', name: 'Axis', icon: 'https://cdn.razorpay.com/bank/UTIB.gif' },
-  { code: 'KKBK', name: 'Kotak', icon: 'https://cdn.razorpay.com/bank/KKBK.gif' },
-];
-const WALLETS = [
-  { id: 'paytm', name: 'Paytm', icon: 'https://cdn.razorpay.com/app/paytm.png' },
-  { id: 'phonepe', name: 'PhonePe', icon: 'https://cdn.razorpay.com/app/phonepe.png' },
-  { id: 'amazonpay', name: 'Amazon Pay', icon: 'https://cdn.razorpay.com/app/amazonpay.png' },
-  { id: 'mobikwik', name: 'Mobikwik', icon: 'https://cdn.razorpay.com/app/mobikwik.png' },
-  { id: 'freecharge', name: 'Freecharge', icon: 'https://cdn.razorpay.com/app/freecharge.png' },
-];
-
-const UPI_REGEX = /^[\w.-]+@[\w.-]+$/;
 
 function detectCardType(num: string): string {
   const n = num.replace(/\s/g, '');
@@ -62,24 +41,25 @@ export default function RazorpayPaymentScreen() {
   const { clearCart, buyNowItem, setBuyNowItem } = useCartStore();
   const isDark = colors.background === '#000000';
 
-  const { status, error, successData, startPayment, reset } = useRazorpay();
+  const {
+    status, error, successData, startPayment, reset,
+    upiApps, isLoadingApps, fetchInstalledUPIApps,
+  } = useRazorpay();
   const isProcessing = status === 'processing' || status === 'verifying' || status === 'creating_order';
 
   const [tab, setTab] = useState<PaymentMethod>('upi');
-  const [upiId, setUpiId] = useState('');
-  const [selectedUpiApp, setSelectedUpiApp] = useState<'gpay' | 'phonepe' | 'paytm' | 'bhim' | null>(null);
-  
+  const [selectedUPIApp, setSelectedUPIApp] = useState<string | null>(null);
+
   const [cardNum, setCardNum] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [cardName, setCardName] = useState('');
-  
+
   const [selectedBank, setSelectedBank] = useState<string | null>(null);
   const [bankSearch, setBankSearch] = useState('');
-  
+
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
 
-  // Track if we've already recorded the order (prevent double-recording)
   const orderRecordedRef = useRef(false);
 
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -92,12 +72,19 @@ export default function RazorpayPaymentScreen() {
   const TAB_LABELS = ['UPI', 'Card', 'Netbanking', 'Wallets'];
   const tabWidth = (SW - 48) / 4;
 
+  // Fetch installed UPI apps when UPI tab is selected
+  useEffect(() => {
+    if (tab === 'upi') {
+      fetchInstalledUPIApps();
+    }
+  }, [tab]);
+
   useEffect(() => {
     Animated.spring(tabIndicator, { toValue: TABS.indexOf(tab) * tabWidth, useNativeDriver: true }).start();
   }, [tab]);
 
   useEffect(() => {
-    if (status === 'processing' || status === 'verifying' || status === 'creating_order') {
+    if (isProcessing) {
       Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1200, useNativeDriver: true })).start();
     } else {
       spinAnim.setValue(0);
@@ -150,7 +137,6 @@ export default function RazorpayPaymentScreen() {
         }
       }
 
-      // Clear cart
       buyNowItem ? setBuyNowItem(null) : clearCart();
     } catch (e: any) {
       console.error('[RazorpayPayment] Error recording order:', e.message);
@@ -163,8 +149,6 @@ export default function RazorpayPaymentScreen() {
         Animated.spring(successScale, { toValue: 1, friction: 4, useNativeDriver: true }),
         Animated.timing(successOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
       ]).start();
-      
-      // Record the paid order on backend
       recordOrderOnBackend(successData.paymentId, successData.orderId);
     }
   }, [status, successData]);
@@ -175,11 +159,8 @@ export default function RazorpayPaymentScreen() {
     }
   }, [status]);
 
-
-  const cleanPhone = (p: string) => p ? p.replace(/\D/g, '').slice(-10) : '';
-
   const isPayReady = (): boolean => {
-    if (tab === 'upi') return UPI_REGEX.test(upiId.trim()) || !!selectedUpiApp;
+    if (tab === 'upi') return !!selectedUPIApp;
     if (tab === 'card') return cardNum.replace(/\s/g, '').length === 16 && cardExpiry.length === 5 && cardCvv.length >= 3 && cardName.trim().length > 0;
     if (tab === 'netbanking') return !!selectedBank;
     if (tab === 'wallet') return !!selectedWallet;
@@ -189,35 +170,30 @@ export default function RazorpayPaymentScreen() {
   const onPay = async () => {
     if (!isPayReady()) return;
     haptics.buttonTap();
-
-    // Reset order recording flag for new attempt
     orderRecordedRef.current = false;
 
-    const opts = {
+    const opts: any = {
       amount,
-      // Pass pre-created order from OrderReviewScreen
-      orderId: orderId,
-      razorpayKeyId: razorpayKeyId,
+      orderId,
+      razorpayKeyId,
       prefill,
-      upiId: upiId.trim() || undefined,
-      upiApp: selectedUpiApp || undefined,
+      selectedAppPackage: selectedUPIApp || undefined,
       cardNumber: cardNum,
       cardExpiry,
       cardCvv,
       cardName,
       bankCode: selectedBank || undefined,
       walletCode: selectedWallet || undefined,
-      notes: { source: 'zicabella-app' },
+      notes: { source: 'zicabella-app', flow: 'custom-ui' },
     };
 
     await startPayment(tab, opts);
   };
 
-
   const goToOrders = () => {
     nav.getParent()?.reset({
       index: 1,
-      routes: [{ name: 'Main' }, { name: 'OrderConfirmation', params: { orderId: orderId, paymentMethod: 'PREPAID', estimatedDelivery: '3-5 Business Days' } }],
+      routes: [{ name: 'Main' }, { name: 'OrderConfirmation', params: { orderId, paymentMethod: 'PREPAID', estimatedDelivery: '3-5 Business Days' } }],
     });
   };
 
@@ -229,6 +205,7 @@ export default function RazorpayPaymentScreen() {
   const filteredBanks = TOP_BANKS.filter(b => b.name.toLowerCase().includes(bankSearch.toLowerCase()));
   const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
+  // ── SUCCESS STATE ──
   if (status === 'success') {
     return (
       <View style={[s.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -248,6 +225,7 @@ export default function RazorpayPaymentScreen() {
     );
   }
 
+  // ── FAILED STATE ──
   if (status === 'failed') {
     return (
       <View style={[s.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -265,6 +243,7 @@ export default function RazorpayPaymentScreen() {
     );
   }
 
+  // ── MAIN PAYMENT UI ──
   return (
     <View style={[s.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={s.headerBar}>
@@ -286,55 +265,68 @@ export default function RazorpayPaymentScreen() {
           <View style={[s.tabBar, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }]}>
             <Animated.View style={[s.tabIndicator, { width: tabWidth - 8, backgroundColor: colors.foreground, transform: [{ translateX: Animated.add(tabIndicator, 4) }] }]} />
             {TABS.map((t, i) => (
-              <TouchableOpacity key={t} style={[s.tabItem, { width: tabWidth }]} onPress={() => { haptics.tabPress(); setTab(t); setSelectedUpiApp(null); }}>
+              <TouchableOpacity key={t} style={[s.tabItem, { width: tabWidth }]} onPress={() => { haptics.tabPress(); setTab(t); }}>
                 <Typography size={10} weight={tab === t ? '800' : '600'} color={tab === t ? colors.background : colors.textMuted}>{TAB_LABELS[i]}</Typography>
               </TouchableOpacity>
             ))}
           </View>
 
+          {/* ── UPI PANEL (Dynamic App Detection) ── */}
           {tab === 'upi' && (
             <View style={s.panel}>
               <Typography size={8} weight="700" color={colors.textExtraLight} style={s.panelLabel}>SELECT UPI APP</Typography>
-              <View style={s.methodGrid}>
-                {UPI_APPS.map(app => (
-                  <TouchableOpacity 
-                    key={app.id} 
-                    style={[
-                      s.methodCard, 
-                      { 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                        borderColor: selectedUpiApp === app.app ? colors.foreground : colors.borderLight
-                      }
-                    ]}
-                    onPress={() => { haptics.buttonTap(); setSelectedUpiApp(app.app); setUpiId(''); }}
-                  >
-                    <Image source={{ uri: app.icon }} style={s.methodIcon} resizeMode="contain" />
-                    <Typography size={10} weight="700" color={colors.text} style={{ marginTop: 8 }}>{app.label}</Typography>
-                    {selectedUpiApp === app.app && (
-                      <View style={[s.checkBadge, { backgroundColor: colors.foreground }]}>
-                        <Ionicons name="checkmark" size={10} color={colors.background} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={{ marginVertical: 24, flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ flex: 1, height: 1, backgroundColor: colors.borderLight }} />
-                <Typography size={10} weight="800" color={colors.textExtraLight} style={{ marginHorizontal: 16 }}>OR</Typography>
-                <View style={{ flex: 1, height: 1, backgroundColor: colors.borderLight }} />
-              </View>
-
-              <Typography size={8} weight="700" color={colors.textExtraLight} style={s.panelLabel}>ENTER UPI ID</Typography>
-              <TextInput
-                style={[s.input, { backgroundColor: isDark ? '#111' : '#F2F2F7', color: colors.text, borderColor: upiId && !UPI_REGEX.test(upiId) ? colors.error : colors.borderLight }]}
-                placeholder="name@upi" placeholderTextColor={colors.textExtraLight}
-                value={upiId} onChangeText={(v) => { setUpiId(v); setSelectedUpiApp(null); }} autoCapitalize="none" autoCorrect={false}
-              />
-
+              {isLoadingApps ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator color={colors.textMuted} />
+                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 12 }}>Detecting installed UPI apps...</Typography>
+                </View>
+              ) : upiApps.length === 0 ? (
+                <View style={[s.noAppsBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: colors.borderLight }]}>
+                  <Ionicons name="phone-portrait-outline" size={32} color={colors.textMuted} />
+                  <Typography size={11} weight="600" color={colors.textMuted} style={{ marginTop: 12, textAlign: 'center', lineHeight: 18 }}>
+                    No UPI apps found on this device.{'\n'}Install GPay, PhonePe, or Paytm to pay via UPI.
+                  </Typography>
+                </View>
+              ) : (
+                <View style={s.methodGrid}>
+                  {upiApps.map(app => (
+                    <TouchableOpacity
+                      key={app.package_name}
+                      style={[
+                        s.methodCard,
+                        {
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                          borderColor: selectedUPIApp === app.package_name ? colors.foreground : colors.borderLight,
+                        }
+                      ]}
+                      onPress={() => { haptics.buttonTap(); setSelectedUPIApp(app.package_name); }}
+                    >
+                      <Image
+                        source={{ uri: `data:image/png;base64,${app.app_icon}` }}
+                        style={s.methodIcon}
+                        resizeMode="contain"
+                      />
+                      <Typography size={9} weight="700" color={colors.text} style={{ marginTop: 8 }} numberOfLines={1}>
+                        {app.app_name}
+                      </Typography>
+                      {selectedUPIApp === app.package_name && (
+                        <View style={[s.checkBadge, { backgroundColor: colors.foreground }]}>
+                          <Ionicons name="checkmark" size={10} color={colors.background} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {upiApps.length > 0 && (
+                <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 16, textAlign: 'center' }}>
+                  Select an app → Enter UPI PIN → Done
+                </Typography>
+              )}
             </View>
           )}
 
+          {/* ── CARD PANEL ── */}
           {tab === 'card' && (
             <View style={s.panel}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -358,20 +350,15 @@ export default function RazorpayPaymentScreen() {
             </View>
           )}
 
+          {/* ── NETBANKING PANEL ── */}
           {tab === 'netbanking' && (
             <View style={s.panel}>
               <Typography size={8} weight="700" color={colors.textExtraLight} style={s.panelLabel}>POPULAR BANKS</Typography>
               <View style={s.methodGrid}>
-                {TOP_BANKS.map(bank => (
-                  <TouchableOpacity 
-                    key={bank.code} 
-                    style={[
-                      s.methodCard, 
-                      { 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                        borderColor: selectedBank === bank.code ? colors.foreground : colors.borderLight
-                      }
-                    ]}
+                {filteredBanks.map(bank => (
+                  <TouchableOpacity
+                    key={bank.code}
+                    style={[s.methodCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: selectedBank === bank.code ? colors.foreground : colors.borderLight }]}
                     onPress={() => { haptics.buttonTap(); setSelectedBank(bank.code); }}
                   >
                     <Image source={{ uri: bank.icon }} style={s.methodIcon} resizeMode="contain" />
@@ -384,28 +371,22 @@ export default function RazorpayPaymentScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              
-              <Typography size={8} weight="700" color={colors.textExtraLight} style={[s.panelLabel, { marginTop: 24 }]}>OTHER BANKS</Typography>
+              <Typography size={8} weight="700" color={colors.textExtraLight} style={[s.panelLabel, { marginTop: 24 }]}>SEARCH BANKS</Typography>
               <TextInput style={[s.input, { backgroundColor: isDark ? '#111' : '#F2F2F7', color: colors.text, borderColor: colors.borderLight, marginBottom: 12 }]}
-                placeholder="Search other banks..." placeholderTextColor={colors.textExtraLight}
+                placeholder="Search banks..." placeholderTextColor={colors.textExtraLight}
                 value={bankSearch} onChangeText={setBankSearch} />
             </View>
           )}
 
+          {/* ── WALLET PANEL ── */}
           {tab === 'wallet' && (
             <View style={s.panel}>
               <Typography size={8} weight="700" color={colors.textExtraLight} style={s.panelLabel}>SELECT WALLET</Typography>
               <View style={s.methodGrid}>
                 {WALLETS.map(wallet => (
-                  <TouchableOpacity 
-                    key={wallet.id} 
-                    style={[
-                      s.methodCard, 
-                      { 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                        borderColor: selectedWallet === wallet.id ? colors.foreground : colors.borderLight
-                      }
-                    ]}
+                  <TouchableOpacity
+                    key={wallet.id}
+                    style={[s.methodCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: selectedWallet === wallet.id ? colors.foreground : colors.borderLight }]}
                     onPress={() => { haptics.buttonTap(); setSelectedWallet(wallet.id); }}
                   >
                     <Image source={{ uri: wallet.icon }} style={s.methodIcon} resizeMode="contain" />
@@ -423,6 +404,7 @@ export default function RazorpayPaymentScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* ── PAY BUTTON ── */}
       <View style={[s.bottomBar, { paddingBottom: insets.bottom + 12, backgroundColor: colors.background, borderTopColor: colors.borderLight }]}>
         <TouchableOpacity style={[s.payBtn, { backgroundColor: isPayReady() ? colors.foreground : colors.surface, opacity: isPayReady() ? 1 : 0.5 }]}
           onPress={onPay} disabled={isProcessing || !isPayReady()} activeOpacity={0.85}>
@@ -434,6 +416,7 @@ export default function RazorpayPaymentScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ── PROCESSING OVERLAY ── */}
       {isProcessing && (
         <View style={[StyleSheet.absoluteFill, s.overlay, { backgroundColor: 'rgba(0,0,0,0.92)', zIndex: 9999 }]}>
           <Animated.View style={{ transform: [{ rotate: spin }] }}>
@@ -443,7 +426,7 @@ export default function RazorpayPaymentScreen() {
             {status === 'creating_order' ? 'INITIATING' : status === 'verifying' ? 'VERIFYING' : 'PROCESSING'}
           </Typography>
           <Typography size={11} color="rgba(255,255,255,0.5)" style={{ marginTop: 8 }}>
-            Please do not close the app...
+            {tab === 'upi' ? 'Complete payment in your UPI app...' : 'Please do not close the app...'}
           </Typography>
         </View>
       )}
@@ -471,4 +454,5 @@ const s = StyleSheet.create({
   checkBadge: { position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1 },
   payBtn: { height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center' },
+  noAppsBox: { borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, marginTop: 4 },
 });

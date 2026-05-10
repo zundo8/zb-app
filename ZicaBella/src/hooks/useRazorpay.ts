@@ -1,6 +1,23 @@
+/**
+ * useRazorpay — Custom UI SDK hook (react-native-customui)
+ *
+ * Uses Razorpay Custom UI SDK instead of Standard SDK.
+ * This gives us FULL control over the payment UI — no Razorpay checkout sheet
+ * is ever shown. Razorpay.open() goes directly to the selected payment method.
+ *
+ * Key difference from Standard SDK:
+ *   Standard SDK:  always opens Razorpay's own checkout sheet (cannot suppress)
+ *   Custom UI SDK: you own the entire UI, SDK only processes the payment
+ */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Platform, Linking, AppState, AppStateStatus } from 'react-native';
-import RazorpayCheckout from 'react-native-razorpay';
+import { Platform, AppState, AppStateStatus } from 'react-native';
+import {
+  razorpayOpen,
+  razorpayGetAppsWhichSupportUPI,
+  isRazorpayAvailable,
+  getRazorpayLoadError,
+} from '../utils/razorpayBridge';
+import type { UPIApp as BridgeUPIApp, PaymentResult as BridgePaymentResult } from '../utils/razorpayBridge';
 import { getPaymentApiBaseUrl } from '../constants/config';
 import { useAuthStore } from '../store/authStore';
 import { checkOrderStatus } from '../api/payment';
@@ -13,10 +30,16 @@ export type PaymentStatus =
   | 'idle'
   | 'creating_order'
   | 'processing'
-  | 'waiting_capture' // For headless UPI
+  | 'waiting_capture'
   | 'verifying'
   | 'success'
   | 'failed';
+
+export interface UPIApp {
+  app_name: string;
+  app_icon: string; // base64 encoded PNG
+  package_name: string;
+}
 
 export interface PaymentResult {
   razorpay_order_id: string;
@@ -43,20 +66,22 @@ export interface UseRazorpayOptions {
   orderId?: string;       // Razorpay order_id already created
   razorpayKeyId?: string; // Key used to create the order
   // ── Method-specific fields ──
-  upiId?: string;               // For UPI VPA payments
-  upiApp?: 'gpay' | 'phonepe' | 'paytm' | 'bhim'; // For UPI app quick-select
-  cardNumber?: string;          // For card payments
-  cardExpiry?: string;          // MM/YY
+  selectedAppPackage?: string;    // For UPI Intent — package name from getAppsWhichSupportUPI
+  cardNumber?: string;            // For card payments
+  cardExpiry?: string;            // MM/YY
   cardCvv?: string;
   cardName?: string;
-  bankCode?: string;            // For netbanking (e.g. 'SBIN', 'HDFC')
-  walletCode?: string;          // For wallet (e.g. 'paytm', 'phonepe')
+  bankCode?: string;              // For netbanking (e.g. 'SBIN', 'HDFC')
+  walletCode?: string;            // For wallet (e.g. 'paytm', 'phonepe')
 }
 
 export interface UseRazorpayReturn {
   status: PaymentStatus;
   error: string | null;
   successData: PaymentSuccessData | null;
+  upiApps: UPIApp[];
+  isLoadingApps: boolean;
+  fetchInstalledUPIApps: () => void;
   startPayment: (method: PaymentMethod, options: UseRazorpayOptions) => Promise<void>;
   reset: () => void;
 }
@@ -67,6 +92,8 @@ export function useRazorpay(): UseRazorpayReturn {
   const [status, setStatus] = useState<PaymentStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<PaymentSuccessData | null>(null);
+  const [upiApps, setUpiApps] = useState<UPIApp[]>([]);
+  const [isLoadingApps, setIsLoadingApps] = useState(false);
   const abortRef = useRef(false);
 
   const reset = useCallback(() => {
@@ -78,6 +105,8 @@ export function useRazorpay(): UseRazorpayReturn {
 
   const cleanContact = (phone?: string) =>
     (phone || '').replace(/\D/g, '').slice(-10);
+
+  // ── Polling for UPI Intent (payment may complete in external app) ──
 
   const pollIntervalRef = useRef<any>(null);
   const currentOrderIdRef = useRef<string | null>(null);
@@ -103,6 +132,7 @@ export function useRazorpay(): UseRazorpayReturn {
     }, 3000);
   }, []);
 
+  // AppState listener — check payment status when user returns from UPI app
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'active' && isPollingRef.current && currentOrderIdRef.current) {
@@ -120,6 +150,30 @@ export function useRazorpay(): UseRazorpayReturn {
       sub.remove();
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
+  }, []);
+
+  // ── Fetch UPI apps installed on device ─────────────────────────────
+  // This is the KEY function — shows only apps the user actually has installed.
+  // Only works on real devices. Returns empty on emulators/simulators.
+  const fetchInstalledUPIApps = useCallback(() => {
+    setIsLoadingApps(true);
+    if (!isRazorpayAvailable()) {
+      console.warn('[useRazorpay] SDK not available:', getRazorpayLoadError());
+      setUpiApps([]);
+      setIsLoadingApps(false);
+      return;
+    }
+    try {
+      razorpayGetAppsWhichSupportUPI((data: UPIApp[]) => {
+        console.log('[useRazorpay] Installed UPI apps:', data?.length || 0);
+        setUpiApps(data || []);
+        setIsLoadingApps(false);
+      });
+    } catch (e) {
+      console.warn('[useRazorpay] getAppsWhichSupportUPI error:', e);
+      setUpiApps([]);
+      setIsLoadingApps(false);
+    }
   }, []);
 
   // ── MAIN PAYMENT ENTRY POINT ──────────────────────────────────────
@@ -178,125 +232,120 @@ export function useRazorpay(): UseRazorpayReturn {
 
         if (abortRef.current) return;
 
-        // ── Step 2: Decide Flow (Headless S2S vs Native SDK) ──
-        const contact = cleanContact(opts.prefill?.contact);
-        
-        // Headless for UPI (GPay, PhonePe, Paytm) to bypass Razorpay UI
-        if (method === 'upi' && opts.upiApp) {
-          setStatus('processing');
-          try {
-            const processRes = await fetch(`${apiBase}/api/app/payment/process`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-                Authorization: token ? `Bearer ${token}` : '',
-              },
-              body: JSON.stringify({
-                order_id: orderId,
-                amount: amountPaise,
-                method: 'upi',
-                upi_app: opts.upiApp,
-                email: opts.prefill?.email || 'support@zicabella.com',
-                contact: contact ? `+91${contact}` : '9999999999',
-                name: opts.prefill?.name || 'Zica Customer',
-              }),
-            });
-
-            const processText = await processRes.text();
-            let processJson: any;
-            try {
-              processJson = JSON.parse(processText);
-            } catch {
-              throw new Error('Server returned invalid response. Please try again.');
-            }
-
-            if (!processRes.ok) {
-              const msg = processJson.source 
-                ? `${processJson.error || 'Authentication error'} (Source: ${processJson.source})`
-                : processJson.error || 'Failed to initiate payment';
-              throw new Error(msg);
-            }
-
-            // The link is returned in 'vpa', 'intent_url', or 'next.url'
-            const upiLink = processJson.vpa || processJson.intent_url || processJson.next?.url;
-            if (!upiLink) {
-              console.log('[useRazorpay] Process Response:', JSON.stringify(processJson));
-              throw new Error('No payment link returned from server. Check console for details.');
-            }
-
-            console.log('[useRazorpay] Opening Direct UPI Link:', upiLink);
-            const supported = await Linking.canOpenURL(upiLink);
-            if (!supported) {
-              throw new Error(`Your device cannot open the ${opts.upiApp} app link`);
-            }
-
-            await Linking.openURL(upiLink);
-            setStatus('waiting_capture');
-            startPolling(orderId!);
-            return; // Success handled by polling
-          } catch (headlessErr: any) {
-            console.error('[useRazorpay] S2S Error:', headlessErr.message);
-            throw headlessErr;
-          }
-        }
-
-        // Standard SDK Flow (For Cards and fallbacks)
+        // ── Step 2: Build Custom UI SDK options (method-specific) ──
         setStatus('processing');
-        const rzpOptions: Record<string, any> = {
-          key: keyId,
-          amount: String(amountPaise),
+        const contact = cleanContact(opts.prefill?.contact);
+        const email = opts.prefill?.email || 'support@zicabella.com';
+        const name = opts.prefill?.name || 'Zica Customer';
+
+        // Base options common to all methods
+        const baseOptions: Record<string, any> = {
+          description: 'Zica Bella Order Payment',
           currency: opts.currency || 'INR',
+          key_id: keyId,
+          amount: String(amountPaise),
           order_id: orderId,
-          name: 'Zica Bella',
-          description: 'Order Payment',
-          image: 'https://app.zicabella.com/zb-logo-silver.png',
-          method: method,
-          prefill: {
-            name: opts.cardName || opts.prefill?.name || 'Zica Customer',
-            email: opts.prefill?.email || 'support@zicabella.com',
-            contact: contact ? `+91${contact}` : '+918000000000',
-            method: method,
-          },
-          config: {
-            display: {
-              hide: ['card', 'netbanking', 'wallet', 'upi']
-                .filter(m => m !== method)
-                .map(m => ({ method: m })),
-              preferences: { show_default_blocks: false }
-            }
-          },
-          theme: { color: '#000000' },
-          modal: { backdropclose: false, confirm_close: true },
-          retry: { enabled: true, max_count: 4 },
-          notes: opts.notes || {},
+          email: email,
+          contact: contact ? `+91${contact}` : '+918000000000',
+          name: name,
         };
 
-        // ── Method-specific pre-fills ──
-        if (method === 'upi') {
-          if (opts.upiId) {
-            rzpOptions.prefill.vpa = opts.upiId;
+        let rzpOptions: Record<string, any>;
+
+        switch (method) {
+          case 'upi': {
+            // ── UPI Intent — directly launches the selected UPI app ──
+            if (!opts.selectedAppPackage) {
+              throw new Error('Please select a UPI app to continue');
+            }
+            rzpOptions = {
+              ...baseOptions,
+              method: 'upi',
+              '_[flow]': 'intent',                        // ← CRITICAL: triggers UPI Intent
+              upi_app_package_name: opts.selectedAppPackage, // ← CRITICAL: opens specific app
+            };
+            break;
           }
-        } else if (method === 'netbanking' && opts.bankCode) {
-          rzpOptions.prefill.bank = opts.bankCode;
-        } else if (method === 'wallet' && opts.walletCode) {
-          rzpOptions.prefill.wallet = opts.walletCode;
+
+          case 'card': {
+            // ── Card Payment — direct card processing, no SDK sheet ──
+            if (!opts.cardNumber || !opts.cardExpiry || !opts.cardCvv) {
+              throw new Error('Please fill in all card details');
+            }
+            const expiryParts = opts.cardExpiry.split('/');
+            rzpOptions = {
+              ...baseOptions,
+              method: 'card',
+              'card[number]': opts.cardNumber.replace(/\s/g, ''),
+              'card[expiry_month]': expiryParts[0]?.trim(),
+              'card[expiry_year]': expiryParts[1]?.trim(),
+              'card[cvv]': opts.cardCvv,
+              'card[name]': opts.cardName || name,
+            };
+            break;
+          }
+
+          case 'netbanking': {
+            // ── Netbanking — opens bank login page ──
+            if (!opts.bankCode) {
+              throw new Error('Please select a bank to continue');
+            }
+            rzpOptions = {
+              ...baseOptions,
+              method: 'netbanking',
+              bank: opts.bankCode,
+            };
+            break;
+          }
+
+          case 'wallet': {
+            // ── Wallet — opens wallet payment flow ──
+            if (!opts.walletCode) {
+              throw new Error('Please select a wallet to continue');
+            }
+            rzpOptions = {
+              ...baseOptions,
+              method: 'wallet',
+              wallet: opts.walletCode,
+            };
+            break;
+          }
+
+          default:
+            throw new Error(`Unsupported payment method: ${method}`);
         }
 
-        // ── Step 3: Open Razorpay Native SDK Checkout ──
+        // ── Step 3: Open Custom UI SDK — NO Razorpay screen shown ──
         let paymentData: PaymentResult;
         try {
-          console.log('[useRazorpay] Opening SDK with options:', {
-            ...rzpOptions,
-            key: rzpOptions.key?.slice(0, 10) + '...',
+          console.log('[useRazorpay] Opening Custom UI SDK:', {
+            method,
+            key: rzpOptions.key_id?.slice(0, 10) + '...',
+            order_id: orderId,
+            ...(method === 'upi' ? { app: opts.selectedAppPackage } : {}),
           });
-          paymentData = await RazorpayCheckout.open(rzpOptions);
+
+          // For UPI Intent, also start polling in case SDK callback doesn't fire
+          if (method === 'upi') {
+            startPolling(orderId!);
+          }
+
+          paymentData = await razorpayOpen(rzpOptions);
           console.log('[useRazorpay] SDK Success:', {
             payment_id: paymentData.razorpay_payment_id,
             order_id: paymentData.razorpay_order_id,
           });
+
+          // Stop polling if it was running
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          isPollingRef.current = false;
+
         } catch (rzpErr: any) {
           console.log('[useRazorpay] SDK Error:', JSON.stringify(rzpErr));
+          // Stop polling on error
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          isPollingRef.current = false;
+
           // code 0 or 2 means user cancelled
           if (rzpErr?.code === 0 || rzpErr?.code === 2) {
             setStatus('idle');
@@ -353,8 +402,17 @@ export function useRazorpay(): UseRazorpayReturn {
         }
       }
     },
-    [],
+    [startPolling],
   );
 
-  return { status, error, successData, startPayment, reset };
+  return {
+    status,
+    error,
+    successData,
+    upiApps,
+    isLoadingApps,
+    fetchInstalledUPIApps,
+    startPayment,
+    reset,
+  };
 }
