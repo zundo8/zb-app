@@ -35,8 +35,17 @@
           "tez",
           "phonepe",
           "paytmmp",
+          "paytm",
           "bhim",
-          "gpay"
+          "gpay",
+          "whatsapp",
+          "credpay",
+          "mobikwik",
+          "freecharge",
+          "airtelwaves",
+          "onemobile",
+          "pnbmbank",
+          "ippbmobile"
         ]
       }
     },

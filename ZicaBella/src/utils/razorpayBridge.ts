@@ -84,6 +84,15 @@ export async function razorpayOpen(
   return sdk.open(options);
 }
 
+export async function razorpayInit(key: string): Promise<void> {
+  const sdk = getRazorpay();
+  if (!sdk) {
+    console.warn('[RazorpayBridge] SDK not available for init');
+    return;
+  }
+  return sdk.initRazorpay(key);
+}
+
 export function razorpayGetAppsWhichSupportUPI(
   callback: (apps: UPIApp[]) => void,
 ): void {

@@ -14,6 +14,7 @@ import { Platform, AppState, AppStateStatus } from 'react-native';
 import {
   razorpayOpen,
   razorpayGetAppsWhichSupportUPI,
+  razorpayInit,
   isRazorpayAvailable,
   getRazorpayLoadError,
 } from '../utils/razorpayBridge';
@@ -105,6 +106,17 @@ export function useRazorpay(): UseRazorpayReturn {
 
   const cleanContact = (phone?: string) =>
     (phone || '').replace(/\D/g, '').slice(-10);
+
+  // ── Initialize SDK when key is available ───────────────────────────
+  useEffect(() => {
+    const key = process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID;
+    if (key && isRazorpayAvailable()) {
+      console.log('[useRazorpay] Initializing SDK...');
+      razorpayInit(key).catch(err => {
+        console.warn('[useRazorpay] Init failed:', err);
+      });
+    }
+  }, []);
 
   // ── Polling for UPI Intent (payment may complete in external app) ──
 
