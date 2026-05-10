@@ -45,6 +45,13 @@ export interface RefundResponse {
   status: string;
 }
 
+/** Response from /api/app/payment/order-status */
+export interface OrderStatusResponse {
+  status: 'created' | 'attempted' | 'paid';
+  amount: number;
+  paymentId: string | null;
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 async function paymentFetch<T>(
@@ -62,6 +69,31 @@ async function paymentFetch<T>(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
+  });
+
+  const text = await res.text();
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error('Invalid response from server.');
+  }
+  if (!res.ok) {
+    throw new Error(json.error || 'Request failed');
+  }
+  return json as T;
+}
+
+async function paymentGet<T>(endpoint: string): Promise<T> {
+  const apiBase = getPaymentApiBaseUrl();
+  const token = useAuthStore.getState().token || '';
+
+  const res = await fetch(`${apiBase}${endpoint}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 
   const text = await res.text();
@@ -102,6 +134,18 @@ export async function verifyRazorpayPayment(
     razorpay_payment_id: paymentId,
     razorpay_signature: signature,
   });
+}
+
+/**
+ * Poll the Razorpay order status.
+ * Used after UPI intent to check if the payment was captured.
+ */
+export async function checkOrderStatus(
+  orderId: string,
+): Promise<OrderStatusResponse> {
+  return paymentGet<OrderStatusResponse>(
+    `/api/app/payment/order-status?orderId=${encodeURIComponent(orderId)}`,
+  );
 }
 
 export async function requestRefund(

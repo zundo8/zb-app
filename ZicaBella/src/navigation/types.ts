@@ -29,6 +29,11 @@ export type CheckoutStackParamList = {
     prefill: { name: string; email: string; contact: string };
     orderData: any;
   };
+  UPIConfirm: {
+    orderId: string;
+    amount: number;
+    orderData: any;
+  };
 };
 
 export type ServiceStackParamList = {
