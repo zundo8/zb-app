@@ -44,18 +44,21 @@ export async function POST(req: Request) {
       currency: 'INR',
       order_id,
       method,
-      email: email || 'customer@example.com',
+      email: email || 'customer@zicabella.com',
       contact: contact || '9999999999',
-      customer_name: name || 'Customer',
+      customer_name: name || 'Zica Customer',
     };
 
     if (method === 'upi') {
-      payload.vpa = body.vpa;
+      if (body.vpa) payload.vpa = body.vpa;
+      if (body.upi_app) payload.upi_app = body.upi_app;
     } else if (method === 'netbanking') {
       payload.bank = body.bank;
     } else if (method === 'wallet') {
       payload.wallet = body.wallet;
     }
+
+    console.log(`[Razorpay Process] Initiating ${method} payment for order ${order_id}`);
 
     const response = await fetch('https://api.razorpay.com/v1/payments', {
       method: 'POST',
@@ -69,8 +72,11 @@ export async function POST(req: Request) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('Razorpay process error:', data);
-      return NextResponse.json({ error: data.error?.description || 'Payment initiation failed' }, { status: response.status, headers: corsJsonHeaders });
+      console.error('Razorpay process error:', JSON.stringify(data));
+      return NextResponse.json({ 
+        error: data.error?.description || 'Payment initiation failed',
+        code: data.error?.code 
+      }, { status: response.status, headers: corsJsonHeaders });
     }
 
     return NextResponse.json(data, { headers: corsJsonHeaders });

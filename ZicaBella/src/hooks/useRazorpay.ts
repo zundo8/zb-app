@@ -1,8 +1,9 @@
-import { useState, useCallback, useRef } from 'react';
-import { Platform } from 'react-native';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { Platform, Linking, AppState, AppStateStatus } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 import { getPaymentApiBaseUrl } from '../constants/config';
 import { useAuthStore } from '../store/authStore';
+import { checkOrderStatus } from '../api/payment';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ export type PaymentStatus =
   | 'idle'
   | 'creating_order'
   | 'processing'
+  | 'waiting_capture' // For headless UPI
   | 'verifying'
   | 'success'
   | 'failed';
@@ -77,6 +79,49 @@ export function useRazorpay(): UseRazorpayReturn {
   const cleanContact = (phone?: string) =>
     (phone || '').replace(/\D/g, '').slice(-10);
 
+  const pollIntervalRef = useRef<any>(null);
+  const currentOrderIdRef = useRef<string | null>(null);
+  const isPollingRef = useRef(false);
+
+  const startPolling = useCallback(async (orderId: string) => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    currentOrderIdRef.current = orderId;
+    isPollingRef.current = true;
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await checkOrderStatus(orderId);
+        if (res.status === 'paid' && res.paymentId) {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          setSuccessData({ paymentId: res.paymentId, orderId: orderId });
+          setStatus('success');
+          isPollingRef.current = false;
+        }
+      } catch (e) {
+        console.warn('[useRazorpay] Polling error:', e);
+      }
+    }, 3000);
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active' && isPollingRef.current && currentOrderIdRef.current) {
+        checkOrderStatus(currentOrderIdRef.current).then(res => {
+          if (res.status === 'paid' && res.paymentId) {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            setSuccessData({ paymentId: res.paymentId, orderId: currentOrderIdRef.current! });
+            setStatus('success');
+            isPollingRef.current = false;
+          }
+        }).catch(() => {});
+      }
+    });
+    return () => {
+      sub.remove();
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
+
   // ── MAIN PAYMENT ENTRY POINT ──────────────────────────────────────
 
   const startPayment = useCallback(
@@ -133,14 +178,60 @@ export function useRazorpay(): UseRazorpayReturn {
 
         if (abortRef.current) return;
 
-        // ── Step 2: Build Razorpay SDK checkout options ──
-        // Per Razorpay docs: only use the supported checkout options
-        // key, amount, currency, order_id, name, description, image,
-        // prefill, theme, modal, notes
-        setStatus('processing');
-
+        // ── Step 2: Decide Flow (Headless S2S vs Native SDK) ──
         const contact = cleanContact(opts.prefill?.contact);
+        
+        // Headless for UPI (GPay, PhonePe, Paytm) to bypass Razorpay UI
+        if (method === 'upi' && opts.upiApp) {
+          setStatus('processing');
+          try {
+            const processRes = await fetch(`${apiBase}/api/app/payment/process`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                Authorization: token ? `Bearer ${token}` : '',
+              },
+              body: JSON.stringify({
+                order_id: orderId,
+                amount: amountPaise,
+                method: 'upi',
+                upi_app: opts.upiApp,
+                email: opts.prefill?.email || 'support@zicabella.com',
+                contact: contact ? `+91${contact}` : '9999999999',
+                name: opts.prefill?.name || 'Zica Customer',
+              }),
+            });
 
+            const processJson = await processRes.json();
+            if (!processRes.ok) {
+              throw new Error(processJson.error || 'Failed to initiate payment');
+            }
+
+            // The link is returned in 'vpa' or 'next.url'
+            const upiLink = processJson.vpa || processJson.next?.url;
+            if (!upiLink) {
+              throw new Error('No payment link returned from server');
+            }
+
+            console.log('[useRazorpay] Opening Direct UPI Link:', upiLink);
+            const supported = await Linking.canOpenURL(upiLink);
+            if (!supported) {
+              throw new Error(`Your device cannot open the ${opts.upiApp} app link`);
+            }
+
+            await Linking.openURL(upiLink);
+            setStatus('waiting_capture');
+            startPolling(orderId!);
+            return; // Success handled by polling
+          } catch (headlessErr: any) {
+            console.error('[useRazorpay] S2S Error:', headlessErr.message);
+            throw headlessErr;
+          }
+        }
+
+        // Standard SDK Flow (For Cards and fallbacks)
+        setStatus('processing');
         const rzpOptions: Record<string, any> = {
           key: keyId,
           amount: String(amountPaise),
@@ -149,7 +240,7 @@ export function useRazorpay(): UseRazorpayReturn {
           name: 'Zica Bella',
           description: 'Order Payment',
           image: 'https://app.zicabella.com/zb-logo-silver.png',
-          method: method, // Promote to top level to help skip selection
+          method: method,
           prefill: {
             name: opts.cardName || opts.prefill?.name || 'Zica Customer',
             email: opts.prefill?.email || 'support@zicabella.com',
@@ -158,24 +249,15 @@ export function useRazorpay(): UseRazorpayReturn {
           },
           config: {
             display: {
-              // Hide everything EXCEPT the selected method to force direct view
               hide: ['card', 'netbanking', 'wallet', 'upi']
                 .filter(m => m !== method)
                 .map(m => ({ method: m })),
-              preferences: {
-                show_default_blocks: false
-              }
+              preferences: { show_default_blocks: false }
             }
           },
           theme: { color: '#000000' },
-          modal: {
-            backdropclose: false,
-            confirm_close: true,
-          },
-          retry: {
-            enabled: true,
-            max_count: 4,
-          },
+          modal: { backdropclose: false, confirm_close: true },
+          retry: { enabled: true, max_count: 4 },
           notes: opts.notes || {},
         };
 
