@@ -3,7 +3,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import DeliveryAddressScreen from '../screens/checkout/DeliveryAddressScreen';
 import OrderReviewScreen from '../screens/checkout/OrderReviewScreen';
 import RazorpayPaymentScreen from '../screens/checkout/RazorpayPaymentScreen';
-import UPIConfirmScreen from '../screens/checkout/UPIConfirmScreen';
 
 // Types moved to types.ts to break circular dependencies
 import { CheckoutStackParamList } from './types';
@@ -16,7 +15,6 @@ export default function CheckoutNavigator() {
       <Stack.Screen name="DeliveryAddress" component={DeliveryAddressScreen} />
       <Stack.Screen name="OrderReview" component={OrderReviewScreen} />
       <Stack.Screen name="RazorpayPayment" component={RazorpayPaymentScreen} />
-      <Stack.Screen name="UPIConfirm" component={UPIConfirmScreen} />
     </Stack.Navigator>
   );
 }
