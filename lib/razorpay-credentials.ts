@@ -35,20 +35,30 @@ export async function resolveRazorpayCredentials(): Promise<RazorpayCredentials>
     dbId = shop?.razorpayKeyId ?? null;
     dbSecret = shop?.razorpayKeySecret ?? null;
   } catch {
-    // DB unavailable — fall through to env-only
+    // DB unavailable
   }
 
-  if (validKeyId(dbId) && validSecret(dbSecret)) {
-    return { key_id: dbId, key_secret: dbSecret, source: 'database' };
+  const isLive = (id: string) => id.includes('_live_');
+
+  // Logic: 
+  // 1. If both DB and ENV have live keys, prioritize DB (dashboard control).
+  // 2. If one has live and the other has test, pick live.
+  // 3. Fallback to ENV if DB is missing secret.
+
+  const dbValid = validKeyId(dbId) && validSecret(dbSecret);
+  const envValid = validKeyId(envId) && validSecret(envSecret);
+
+  if (dbValid && envValid) {
+    if (isLive(dbId!) || !isLive(envId!)) {
+      return { key_id: dbId!, key_secret: dbSecret!, source: 'database' };
+    }
+    return { key_id: envId!, key_secret: envSecret!, source: 'environment' };
   }
 
-  if (validKeyId(envId) && validSecret(envSecret)) {
-    return { key_id: envId, key_secret: envSecret, source: 'environment' };
-  }
+  if (dbValid) return { key_id: dbId!, key_secret: dbSecret!, source: 'database' };
+  if (envValid) return { key_id: envId!, key_secret: envSecret!, source: 'environment' };
 
-  throw new Error(
-    'Razorpay keys not configured. Add Razorpay Key ID and Secret in Dashboard → Settings → Payment Gateways (or set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on the server).'
-  );
+  throw new Error('Razorpay keys not configured correctly.');
 }
 
 export async function isRazorpayConfigured(): Promise<boolean> {

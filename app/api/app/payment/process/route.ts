@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     const statusCode = err.statusCode || 500;
 
     return NextResponse.json(
-      { error: message, code: err.error?.code },
+      { error: message, code: err.error?.code, source },
       { status: statusCode, headers: corsJsonHeaders }
     );
   }

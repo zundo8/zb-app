@@ -205,7 +205,10 @@ export function useRazorpay(): UseRazorpayReturn {
 
             const processJson = await processRes.json();
             if (!processRes.ok) {
-              throw new Error(processJson.error || 'Failed to initiate payment');
+              const msg = processJson.source 
+                ? `${processJson.error} (Source: ${processJson.source})`
+                : processJson.error || 'Failed to initiate payment';
+              throw new Error(msg);
             }
 
             // The link is returned in 'vpa' or 'next.url'
