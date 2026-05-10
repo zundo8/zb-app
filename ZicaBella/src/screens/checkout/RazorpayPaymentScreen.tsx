@@ -161,14 +161,13 @@ export default function RazorpayPaymentScreen() {
     if (loading || !isPayReady()) return;
     haptics.buttonTap();
     setLoading(true);
-    setScreenState('processing');
 
     try {
       if (!razorpayKeyId || !String(razorpayKeyId).startsWith('rzp_')) {
-        throw new Error('Invalid Razorpay key. Please go back and try again.');
+        throw new Error('Invalid Razorpay key. Please contact support.');
       }
       if (!orderId) {
-        throw new Error('Missing order ID. Please go back and try again.');
+        throw new Error('Missing order ID. Please try again.');
       }
 
       const safePrefill = { ...prefill, contact: cleanPhone(prefill?.contact) };
@@ -183,14 +182,22 @@ export default function RazorpayPaymentScreen() {
         theme: { color: '#000000' },
         modal: { backdropclose: false },
       };
-      console.log('[RazorpayPayment] Opening checkout with key:', razorpayKeyId?.slice(0, 12) + '...', 'order:', orderId);
+
+      console.log('[RazorpayPayment] Opening SDK...');
       const data = await RazorpayCheckout.open(rzpOptions);
-      console.log('[RazorpayPayment] Checkout returned:', JSON.stringify(data));
+      
+      // Once SDK returns successfully, show the processing overlay while we verify
+      setScreenState('processing');
       await handlePaymentSuccess(data);
     } catch (e: any) {
-      console.log('[RazorpayPayment] Error:', JSON.stringify(e));
-      if (e?.code === 2) { setScreenState('form'); }
-      else { setErrorMsg(e?.description || e?.message || 'Payment failed.'); setScreenState('failed'); }
+      console.log('[RazorpayPayment] SDK Error/Cancel:', JSON.stringify(e));
+      if (e?.code === 2) { 
+        // User cancelled
+        setScreenState('form'); 
+      } else { 
+        setErrorMsg(e?.description || e?.message || 'Payment initiation failed.'); 
+        setScreenState('failed'); 
+      }
     } finally {
       setLoading(false);
     }
@@ -207,21 +214,7 @@ export default function RazorpayPaymentScreen() {
 
   const filteredBanks = TOP_BANKS.filter(b => b.name.toLowerCase().includes(bankSearch.toLowerCase()));
 
-  // ── Processing Modal ──
-  if (screenState === 'processing') {
-    const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-    return (
-      <Modal visible transparent animationType="fade" statusBarTranslucent>
-        <View style={[s.overlay, { backgroundColor: 'rgba(0,0,0,0.92)' }]}>
-          <Animated.View style={{ transform: [{ rotate: spin }] }}>
-            <Ionicons name="sync-outline" size={48} color="rgba(255,255,255,0.6)" />
-          </Animated.View>
-          <Typography size={16} weight="700" color="#FFF" style={{ marginTop: 28, letterSpacing: 2 }}>PROCESSING</Typography>
-          <Typography size={11} color="rgba(255,255,255,0.5)" style={{ marginTop: 8 }}>Processing your payment...</Typography>
-        </View>
-      </Modal>
-    );
-  }
+  const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   // ── Success Screen ──
   if (screenState === 'success') {
@@ -386,6 +379,17 @@ export default function RazorpayPaymentScreen() {
           }
         </TouchableOpacity>
       </View>
+
+      {/* ── Processing Overlay ── */}
+      {screenState === 'processing' && (
+        <View style={[StyleSheet.absoluteFill, s.overlay, { backgroundColor: 'rgba(0,0,0,0.92)', zIndex: 9999 }]}>
+          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+            <Ionicons name="sync-outline" size={48} color="rgba(255,255,255,0.6)" />
+          </Animated.View>
+          <Typography size={16} weight="700" color="#FFF" style={{ marginTop: 28, letterSpacing: 2 }}>PROCESSING</Typography>
+          <Typography size={11} color="rgba(255,255,255,0.5)" style={{ marginTop: 8 }}>Finalizing your order...</Typography>
+        </View>
+      )}
     </View>
   );
 }
