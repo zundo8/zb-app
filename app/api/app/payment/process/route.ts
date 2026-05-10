@@ -1,3 +1,4 @@
+import Razorpay from 'razorpay';
 import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
@@ -27,7 +28,11 @@ export async function POST(req: Request) {
     key_id = key_id.trim();
     key_secret = key_secret.trim();
 
-    console.log(`[Razorpay Process] Using key: ${key_id.slice(0, 10)}... (Secret: ${key_secret.slice(0, 2)}..${key_secret.slice(-2)}, Source: ${source})`);
+    const instance = new Razorpay({
+      key_id,
+      key_secret,
+    });
+
     const body = await req.json();
 
     // Required fields
@@ -37,10 +42,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsJsonHeaders });
     }
 
-    const auth = Buffer.from(`${key_id}:${key_secret}`).toString('base64');
-
     const payload: any = {
-      amount,
+      amount: Math.round(Number(amount)),
       currency: 'INR',
       order_id,
       method,
@@ -58,30 +61,23 @@ export async function POST(req: Request) {
       payload.wallet = body.wallet;
     }
 
-    console.log(`[Razorpay Process] Initiating ${method} payment for order ${order_id}`);
+    console.log(`[Razorpay Process] Initiating ${method} payment for order ${order_id} using ${source} keys`);
 
-    const response = await fetch('https://api.razorpay.com/v1/payments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${auth}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    // S2S Payment Initiation
+    // @ts-ignore - payments.create exists in recent SDK versions but might not be in all @types
+    const payment = await instance.payments.create(payload);
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Razorpay process error:', JSON.stringify(data));
-      return NextResponse.json({ 
-        error: data.error?.description || 'Payment initiation failed',
-        code: data.error?.code 
-      }, { status: response.status, headers: corsJsonHeaders });
-    }
-
-    return NextResponse.json(data, { headers: corsJsonHeaders });
+    return NextResponse.json(payment, { headers: corsJsonHeaders });
   } catch (err: any) {
-    console.error('Server error in payment process:', err);
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500, headers: corsJsonHeaders });
+    console.error('Razorpay process error:', err);
+    
+    // Check for specific error types from Razorpay SDK
+    const message = err.error?.description || err.message || 'Payment initiation failed';
+    const statusCode = err.statusCode || 500;
+
+    return NextResponse.json(
+      { error: message, code: err.error?.code },
+      { status: statusCode, headers: corsJsonHeaders }
+    );
   }
 }
