@@ -29,6 +29,14 @@
         "NSPhotoLibraryUsageDescription": "Allow photo library access to update your profile photo",
         "UIBackgroundModes": [
           "remote-notification"
+        ],
+        "LSApplicationQueriesSchemes": [
+          "upi",
+          "tez",
+          "phonepe",
+          "paytmmp",
+          "bhim",
+          "gpay"
         ]
       }
     },

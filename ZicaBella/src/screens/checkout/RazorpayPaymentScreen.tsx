@@ -56,6 +56,7 @@ export default function RazorpayPaymentScreen() {
   const isDark = colors.background === '#000000';
 
   const { status, error, successData, startPayment, reset } = useRazorpay();
+  const isProcessing = status === 'processing' || status === 'verifying' || status === 'creating_order';
 
   const [tab, setTab] = useState<PaymentMethod>('upi');
   const [upiId, setUpiId] = useState('');
@@ -110,16 +111,6 @@ export default function RazorpayPaymentScreen() {
     }
   }, [status]);
 
-  useEffect(() => {
-    if (status === 'awaiting_upi') {
-      // Navigate to UPI Confirm Screen
-      nav.navigate('UPIConfirm', {
-        orderId: orderId, // This might be updated by startPayment if order creation happens there
-        amount: amount,
-        orderData: orderData
-      });
-    }
-  }, [status]);
 
   const cleanPhone = (p: string) => p ? p.replace(/\D/g, '').slice(-10) : '';
 
@@ -305,8 +296,8 @@ export default function RazorpayPaymentScreen() {
 
       <View style={[s.bottomBar, { paddingBottom: insets.bottom + 12, backgroundColor: colors.background, borderTopColor: colors.borderLight }]}>
         <TouchableOpacity style={[s.payBtn, { backgroundColor: isPayReady() ? colors.foreground : colors.surface, opacity: isPayReady() ? 1 : 0.5 }]}
-          onPress={onPay} disabled={status !== 'idle' || !isPayReady()} activeOpacity={0.85}>
-          {status !== 'idle' && status !== 'awaiting_upi' ? <ActivityIndicator color={colors.background} /> :
+          onPress={onPay} disabled={isProcessing || !isPayReady()} activeOpacity={0.85}>
+          {isProcessing ? <ActivityIndicator color={colors.background} /> :
             <Typography size={13} weight="800" color={isPayReady() ? colors.background : colors.textMuted} style={{ letterSpacing: 1 }}>
               PAY ₹{(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
             </Typography>
@@ -314,7 +305,7 @@ export default function RazorpayPaymentScreen() {
         </TouchableOpacity>
       </View>
 
-      {(status === 'processing' || status === 'verifying' || status === 'creating_order') && (
+      {isProcessing && (
         <View style={[StyleSheet.absoluteFill, s.overlay, { backgroundColor: 'rgba(0,0,0,0.92)', zIndex: 9999 }]}>
           <Animated.View style={{ transform: [{ rotate: spin }] }}>
             <Ionicons name="sync-outline" size={48} color="rgba(255,255,255,0.6)" />
