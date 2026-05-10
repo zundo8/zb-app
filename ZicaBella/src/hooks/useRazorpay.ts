@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 import { getPaymentApiBaseUrl } from '../constants/config';
 import { useAuthStore } from '../store/authStore';
@@ -36,6 +37,9 @@ export interface UseRazorpayOptions {
     contact?: string;
   };
   notes?: Record<string, string>;
+  // Pre-created order fields (from OrderReviewScreen)
+  orderId?: string;       // Razorpay order_id already created
+  razorpayKeyId?: string; // Key used to create the order
   // ── Method-specific fields ──
   upiId?: string;               // For UPI VPA payments
   upiApp?: 'gpay' | 'phonepe' | 'paytm' | 'bhim'; // For UPI app quick-select
@@ -78,7 +82,6 @@ export function useRazorpay(): UseRazorpayReturn {
   const startPayment = useCallback(
     async (method: PaymentMethod, opts: UseRazorpayOptions) => {
       abortRef.current = false;
-      setStatus('creating_order');
       setError(null);
       setSuccessData(null);
 
@@ -87,80 +90,91 @@ export function useRazorpay(): UseRazorpayReturn {
       const amountPaise = Math.round(opts.amount * 100);
 
       try {
-        // ── Step 1: Create order on backend ──
-        const orderRes = await fetch(`${apiBase}/api/app/payment/create-order`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            Authorization: token ? `Bearer ${token}` : '',
-          },
-          body: JSON.stringify({
-            amount: opts.amount,
-            currency: opts.currency || 'INR',
-            receipt: opts.receipt || `zb_${Date.now()}`,
-          }),
-        });
+        let orderId = opts.orderId;
+        let keyId = opts.razorpayKeyId;
 
-        const orderText = await orderRes.text();
-        let orderJson: any;
-        try {
-          orderJson = JSON.parse(orderText);
-        } catch {
-          throw new Error('Server error: Invalid response format');
+        // ── Step 1: Create order on backend (only if not pre-created) ──
+        if (!orderId || !keyId) {
+          setStatus('creating_order');
+
+          const orderRes = await fetch(`${apiBase}/api/app/payment/create-order`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              Authorization: token ? `Bearer ${token}` : '',
+            },
+            body: JSON.stringify({
+              amount: opts.amount,
+              currency: opts.currency || 'INR',
+              receipt: opts.receipt || `zb_${Date.now()}`,
+            }),
+          });
+
+          const orderText = await orderRes.text();
+          let orderJson: any;
+          try {
+            orderJson = JSON.parse(orderText);
+          } catch {
+            throw new Error('Server error: Invalid response format');
+          }
+
+          if (!orderRes.ok || !orderJson.order_id) {
+            throw new Error(orderJson.error || 'Failed to create payment order');
+          }
+
+          orderId = orderJson.order_id;
+          keyId = orderJson.key_id;
         }
 
-        if (!orderRes.ok || !orderJson.order_id) {
-          throw new Error(orderJson.error || 'Failed to create payment order');
+        if (!keyId || !String(keyId).startsWith('rzp_')) {
+          throw new Error('Invalid Razorpay key. Please contact support.');
         }
-
-        const orderId = orderJson.order_id;
-        const keyId = orderJson.key_id;
 
         if (abortRef.current) return;
 
-        // ── Step 2: Build Razorpay options with STRICT method selection ──
+        // ── Step 2: Build Razorpay SDK checkout options ──
+        // Per Razorpay docs: only use the supported checkout options
+        // key, amount, currency, order_id, name, description, image,
+        // prefill, theme, modal, notes
         setStatus('processing');
 
         const contact = cleanContact(opts.prefill?.contact);
-        
-        // Define which methods to HIDE based on selected tab
-        const allMethods = ['card', 'upi', 'netbanking', 'wallet', 'emi', 'paylater'];
-        const hideMethods = allMethods.filter(m => m !== method).map(m => ({ method: m }));
 
-        const rzpOptions: any = {
+        const rzpOptions: Record<string, any> = {
           key: keyId,
-          amount: amountPaise,
+          amount: String(amountPaise),
           currency: opts.currency || 'INR',
           order_id: orderId,
           name: 'Zica Bella',
           description: 'Order Payment',
+          image: 'https://app.zicabella.com/zb-logo-silver.png',
+          method: method, // Promote to top level to help skip selection
           prefill: {
-            name: opts.cardName || opts.prefill?.name || '',
-            email: opts.prefill?.email || '',
-            contact: contact,
-            method: method, // ← Tells Razorpay which tab to open
-          },
-          // ── Force the specific method ──
-          method: {
-            [method]: true,
-            card: method === 'card',
-            upi: method === 'upi',
-            netbanking: method === 'netbanking',
-            wallet: method === 'wallet',
+            name: opts.cardName || opts.prefill?.name || 'Zica Customer',
+            email: opts.prefill?.email || 'support@zicabella.com',
+            contact: contact ? `+91${contact}` : '+918000000000',
+            method: method,
           },
           config: {
             display: {
-              hide: hideMethods,
+              // Hide everything EXCEPT the selected method to force direct view
+              hide: ['card', 'netbanking', 'wallet', 'upi']
+                .filter(m => m !== method)
+                .map(m => ({ method: m })),
               preferences: {
-                show_default_blocks: false,
-              },
-            },
+                show_default_blocks: false
+              }
+            }
           },
           theme: { color: '#000000' },
           modal: {
             backdropclose: false,
             confirm_close: true,
+          },
+          retry: {
+            enabled: true,
+            max_count: 4,
           },
           notes: opts.notes || {},
         };
@@ -169,45 +183,51 @@ export function useRazorpay(): UseRazorpayReturn {
         if (method === 'upi') {
           if (opts.upiId) {
             rzpOptions.prefill.vpa = opts.upiId;
-          } else if (opts.upiApp) {
-            const upiAppMap: Record<string, string> = {
-              gpay: 'google_pay',
-              phonepe: 'phonepe',
-              paytm: 'paytm',
-            };
-            if (upiAppMap[opts.upiApp]) {
-              rzpOptions.prefill.vpa = upiAppMap[opts.upiApp];
-            }
           }
-        } else if (method === 'card') {
-          if (opts.cardNumber) rzpOptions['card[number]'] = opts.cardNumber.replace(/\s/g, '');
-          if (opts.cardExpiry) rzpOptions['card[expiry]'] = opts.cardExpiry;
-          if (opts.cardCvv) rzpOptions['card[cvv]'] = opts.cardCvv;
-          if (opts.cardName) rzpOptions['card[name]'] = opts.cardName;
-        } else if (method === 'netbanking') {
-          if (opts.bankCode) rzpOptions.prefill.bank = opts.bankCode;
-        } else if (method === 'wallet') {
-          if (opts.walletCode) rzpOptions.prefill.wallet = opts.walletCode;
+          // Direct App Intent support
+          if (opts.upiApp) {
+             let upiApp = opts.upiApp;
+             if (Platform.OS === 'android') {
+               if (upiApp === 'gpay') upiApp = 'com.google.android.apps.nbu.paisa.user';
+               else if (upiApp === 'phonepe') upiApp = 'com.phonepe.app';
+               else if (upiApp === 'paytm') upiApp = 'net.one97.paytm';
+             }
+             // @ts-ignore
+             rzpOptions.prefill.upi_app = upiApp;
+          }
+        } else if (method === 'netbanking' && opts.bankCode) {
+          rzpOptions.prefill.bank = opts.bankCode;
+        } else if (method === 'wallet' && opts.walletCode) {
+          rzpOptions.prefill.wallet = opts.walletCode;
         }
 
-        // ── Step 3: Open Razorpay SDK ──
+        // ── Step 3: Open Razorpay Native SDK Checkout ──
         let paymentData: PaymentResult;
         try {
-          console.log('[useRazorpay] Opening SDK for method:', method);
+          console.log('[useRazorpay] Opening SDK with options:', {
+            ...rzpOptions,
+            key: rzpOptions.key?.slice(0, 10) + '...',
+          });
           paymentData = await RazorpayCheckout.open(rzpOptions);
+          console.log('[useRazorpay] SDK Success:', {
+            payment_id: paymentData.razorpay_payment_id,
+            order_id: paymentData.razorpay_order_id,
+          });
         } catch (rzpErr: any) {
-          console.log('[useRazorpay] SDK Error:', rzpErr);
-          // code 2 is user cancelled
-          if (rzpErr?.code === 2) {
+          console.log('[useRazorpay] SDK Error:', JSON.stringify(rzpErr));
+          // code 0 or 2 means user cancelled
+          if (rzpErr?.code === 0 || rzpErr?.code === 2) {
             setStatus('idle');
             return;
           }
-          throw new Error(rzpErr?.description || 'Payment was cancelled or failed');
+          throw new Error(
+            rzpErr?.description || rzpErr?.message || 'Payment was cancelled or failed'
+          );
         }
 
         if (abortRef.current) return;
 
-        // ── Step 4: Verify on backend ──
+        // ── Step 4: Verify signature on backend ──
         setStatus('verifying');
 
         const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {
@@ -223,10 +243,19 @@ export function useRazorpay(): UseRazorpayReturn {
           }),
         });
 
-        const verifyJson = await verifyRes.json();
+        const verifyText = await verifyRes.text();
+        let verifyJson: any;
+        try {
+          verifyJson = JSON.parse(verifyText);
+        } catch {
+          throw new Error('Server error: Invalid verification response');
+        }
+
         if (!verifyJson.success) {
           throw new Error(verifyJson.error || 'Payment verification failed');
         }
+
+        console.log('[useRazorpay] Payment verified successfully');
 
         setSuccessData({
           paymentId: paymentData.razorpay_payment_id,

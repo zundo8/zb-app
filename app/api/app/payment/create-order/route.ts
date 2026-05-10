@@ -2,6 +2,7 @@ import Razorpay from 'razorpay';
 import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
+import prisma from '@/lib/db';
 
 const corsJsonHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,15 +37,13 @@ export async function POST(req: Request) {
     key_id = key_id.trim();
     key_secret = key_secret.trim();
     
-    console.log(`[Razorpay Create Order] Using key: ${key_id.slice(0, 10)}... (Secret: ${key_secret.slice(0, 2)}..${key_secret.slice(-2)}, Source: ${source})`);
-
     const instance = new Razorpay({
       key_id,
       key_secret,
     });
 
     const body = await req.json();
-    const { amount, currency = 'INR', receipt: receiptIn } = body;
+    const { amount, currency = 'INR', receipt: receiptIn, orderData } = body;
     const amountRupees = Number(amount);
     if (!Number.isFinite(amountRupees) || amountRupees <= 0) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400, headers: corsJsonHeaders });
@@ -61,13 +60,60 @@ export async function POST(req: Request) {
       currency,
       receipt,
       payment_capture: true,
+      notes: {
+        customerId: orderData?.customerId || userAuth.id,
+        source: 'mobile-app'
+      }
     });
+
+    // ─── Create a PENDING order in our DB ───
+    // This allows webhooks to find the order even if the app crashes/user leaves.
+    if (orderData) {
+      try {
+        const shop = await prisma.shop.findFirst();
+        if (shop) {
+          await prisma.order.create({
+            data: {
+              shopId: shop.id,
+              customerId: orderData.customerId === 'GUEST' ? undefined : orderData.customerId,
+              razorpayOrderId: order.id,
+              totalPrice: amountRupees,
+              subtotalPrice: orderData.subtotal || amountRupees,
+              currency: 'INR',
+              paymentStatus: 'pending',
+              status: 'PENDING',
+              orderType: 'MOBILE_APP',
+              paymentMethod: 'Razorpay',
+              shippingAddress: typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : JSON.stringify(orderData.shippingAddress),
+              tags: orderData.tags || 'mobile-app, pending',
+              note: orderData.note || 'Created via Payment Initiation',
+              items: {
+                create: (orderData.lineItems || []).map((li: any, idx: number) => ({
+                  shopifyLineItemId: `pending_${order.id}_${idx}`,
+                  productId: li.productId || null,
+                  title: li.name || li.title || 'Product',
+                  quantity: Number(li.quantity || 1),
+                  price: Number(li.price || 0),
+                  sku: li.sku || null,
+                  image: li.image || null,
+                })),
+              }
+            }
+          });
+          console.log(`[Razorpay] Pre-created pending order ${order.id} in DB`);
+        }
+      } catch (dbErr: any) {
+        console.warn('[Razorpay] Failed to pre-create pending order:', dbErr.message);
+        // Non-blocking: we still want to return the Razorpay order_id
+      }
+    }
+
     return NextResponse.json(
       {
         order_id: order.id,
         amount: order.amount,
         currency: order.currency,
-        key_id, // Return the exact key used to create the order
+        key_id,
       },
       { headers: corsJsonHeaders }
     );

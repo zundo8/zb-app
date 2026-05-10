@@ -181,7 +181,12 @@ export default function OrderReviewScreen() {
           'Accept': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ amount: grandTotal, currency: 'INR', receipt: `zb_${Date.now()}` }),
+        body: JSON.stringify({ 
+          amount: grandTotal, 
+          currency: 'INR', 
+          receipt: `zb_${Date.now()}`,
+          orderData: orderData // Pass the full order data to pre-create the record
+        }),
       });
       
       const resText = await orderRes.text();

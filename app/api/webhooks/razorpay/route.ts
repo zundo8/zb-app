@@ -38,10 +38,15 @@ export async function POST(req: Request) {
     // 3. Handle specific events
     const data = eventData.payload;
 
-    if (eventType === 'payment.captured' || eventType === 'order.paid') {
+    if (eventType === 'payment.captured' || eventType === 'order.paid' || eventType === 'payment.authorized') {
       const payment = data.payment.entity;
-      const razorpayOrderId = payment.order_id;
+      const razorpayOrderId = payment.order_id || payment.notes?.order_id || payment.notes?.razorpay_order_id;
       const razorpayPaymentId = payment.id;
+
+      if (!razorpayOrderId) {
+        console.warn('[Razorpay Webhook] Received payment without order_id in payload or notes:', razorpayPaymentId);
+        return NextResponse.json({ success: true, message: 'No order ID found' });
+      }
 
       // Update order status in DB
       const order = await prisma.order.findUnique({
@@ -49,13 +54,18 @@ export async function POST(req: Request) {
       });
 
       if (order) {
+        // If it's already paid, skip
+        if (order.paymentStatus === 'paid') {
+           return NextResponse.json({ success: true });
+        }
+
         await prisma.order.update({
           where: { id: order.id },
           data: {
             paymentStatus: 'paid',
             razorpayPaymentId,
             paymentCapturedAt: new Date(),
-            status: order.status === 'PENDING' ? 'OPEN' : order.status,
+            status: (order.status === 'PENDING' || order.status === 'awaiting_approval') ? 'OPEN' : order.status,
           },
         });
 
@@ -71,9 +81,10 @@ export async function POST(req: Request) {
           },
         });
 
-        console.log(`[Razorpay Webhook] Order ${order.shopifyOrderId} marked as PAID`);
+        console.log(`[Razorpay Webhook] Order ${order.shopifyOrderId || order.id} marked as PAID`);
       }
-    } else if (eventType === 'payment.failed') {
+    }
+ else if (eventType === 'payment.failed') {
       const payment = data.payment.entity;
       const razorpayOrderId = payment.order_id;
 

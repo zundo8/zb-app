@@ -169,6 +169,47 @@ export async function POST(req: Request) {
         }
     }
 
+    // Check if order already exists (pre-created via initiate)
+    const existingOrder = body.razorpayOrderId || body.razorpay_order_id ? await prisma.order.findUnique({
+      where: { razorpayOrderId: body.razorpayOrderId || body.razorpay_order_id },
+      include: { items: true }
+    }) : null;
+
+    if (existingOrder) {
+      console.log(`[App API] Found existing pending order ${existingOrder.id}, updating...`);
+      const updated = await prisma.order.update({
+        where: { id: existingOrder.id },
+        data: {
+          shopifyOrderId: finalShopifyOrderId,
+          status: initialStatus,
+          paymentStatus,
+          razorpayPaymentId: paymentId || null,
+          paymentCapturedAt: paymentStatus === 'paid' ? now : null,
+          tags: finalTags,
+          note: note,
+          shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
+            name: shippingAddress?.name || customer.name,
+            line1: shippingAddress?.line1 || '',
+            line2: shippingAddress?.line2 || '',
+            city: shippingAddress?.city || '',
+            state: shippingAddress?.state || '',
+            pincode: shippingAddress?.pincode || '',
+            country: shippingAddress?.country || 'India',
+            phone: customerPhone || customer.phone,
+            email: customerEmail || customer.email,
+          }),
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        orderId: updated.id,
+        orderNumber,
+        status: initialStatus,
+        estimatedDelivery: null,
+      }, { headers: corsHeaders });
+    }
+
     const created = await prisma.order.create({
       data: {
         shopId: shop.id,
@@ -183,8 +224,6 @@ export async function POST(req: Request) {
         currency: 'INR',
         paymentStatus,
         razorpayOrderId: body.razorpayOrderId || body.razorpay_order_id,
-        razorpayPaymentId: paymentId,
-        paymentMethod: paymentMethod,
         fulfillmentStatus: 'unfulfilled',
         deliveryStatus: 'pending',
         shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({

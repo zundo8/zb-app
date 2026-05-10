@@ -1,5 +1,6 @@
 import RazorpayCheckout from 'react-native-razorpay';
 import { getPaymentApiBaseUrl } from '../constants/config';
+import { useAuthStore } from '../store/authStore';
 
 async function readJsonResponse(res: Response): Promise<{ ok: boolean; status: number; data: Record<string, any>; raw: string }> {
   const raw = await res.text();
@@ -21,7 +22,7 @@ export interface PaymentResult {
 
 /**
  * Full Razorpay checkout flow:
- * 1. Creates server-side order (tries /api/razorpay/create-order first, then /api/checkout/razorpay)
+ * 1. Creates server-side order
  * 2. Opens Razorpay native checkout (all payment methods)
  * 3. Verifies payment signature server-side
  * Returns PaymentResult on success, throws on failure or user cancel
@@ -36,13 +37,15 @@ export async function openRazorpayCheckout(
   }
 
   const apiBase = getPaymentApiBaseUrl();
+  const token = useAuthStore.getState().token || _authToken || '';
 
   // Step 1: Create order on backend
-  const orderRes = await fetch(`${apiBase}/api/payment/create-order`, {
+  const orderRes = await fetch(`${apiBase}/api/app/payment/create-order`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : '',
     },
     body: JSON.stringify({
       amount: amountInRupees,
@@ -69,8 +72,10 @@ export async function openRazorpayCheckout(
     );
   }
 
-  // Step 3: Open Razorpay native checkout (UPI, cards, wallets shown here)
-  const options = {
+  // Step 2: Build checkout options per Razorpay docs
+  const contact = (orderData.phone ? String(orderData.phone).replace(/\D/g, '').slice(-10) : '');
+  
+  const options: Record<string, any> = {
     description: 'Zica Bella Order',
     image: 'https://app.zicabella.com/zb-logo-silver.png', 
     currency: orderJson.currency || 'INR',
@@ -81,7 +86,7 @@ export async function openRazorpayCheckout(
     prefill: {
       name: orderData.shipping_address?.name || orderData.shipping_address?.first_name || '',
       email: orderData.email || '',
-      contact: orderData.phone ? String(orderData.phone).replace(/^\+91/, '') : '',
+      contact: contact ? `+91${contact}` : '',
     },
     theme: { color: '#000000' },
     modal: {
@@ -95,10 +100,11 @@ export async function openRazorpayCheckout(
   };
 
   try {
+    console.log('[razorpayService] Opening checkout with key:', razorpayKeyId?.slice(0, 12) + '...');
     const paymentData = await RazorpayCheckout.open(options) as PaymentResult;
 
-    // Step 4: Verify signature server-side
-    const verifyRes = await fetch(`${apiBase}/api/payment/verify`, {
+    // Step 3: Verify signature server-side
+    const verifyRes = await fetch(`${apiBase}/api/app/payment/verify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -119,7 +125,8 @@ export async function openRazorpayCheckout(
 
     return paymentData;
   } catch (error: any) {
-    if (error?.code === 2 || error?.code === 0) {
+    // code 0 or 2 = user cancelled
+    if (error?.code === 0 || error?.code === 2) {
       throw new Error('Payment cancelled by user');
     }
     throw error;
