@@ -45,6 +45,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+    console.log('[App API] Order creation request body:', JSON.stringify(body).slice(0, 500));
 
     // Map fields from different naming conventions
     const customerId = body.customerId || body.customer_id;
@@ -52,9 +53,16 @@ export async function POST(req: Request) {
     const customerPhone = body.customerPhone || body.phone;
     const shippingAddress = body.shippingAddress || body.shipping_address;
     const lineItems = body.lineItems || body.line_items;
-    const paymentMethod = body.paymentMethod || body.payment_method;
+    const paymentMethod = (body.paymentMethod || body.payment_method || 'PREPAID').toUpperCase();
     const paymentId = body.paymentId || body.payment_id;
-    const paymentStatus = body.paymentStatus || body.financial_status || 'pending';
+    const rzpOrderId = body.razorpayOrderId || body.razorpay_order_id;
+    
+    // Normalize payment status
+    let paymentStatus = (body.paymentStatus || body.financial_status || 'pending').toLowerCase();
+    if (paymentMethod === 'COD') {
+      paymentStatus = 'pending';
+    }
+
     const subtotal = Number(body.subtotal || body.subtotal_price || 0);
     const total = Number(body.total || body.total_price || 0);
 
@@ -85,7 +93,7 @@ export async function POST(req: Request) {
     }
 
     if (!customer && customerPhone) {
-      const phoneDigits = customerPhone.replace(/\D/g, '').slice(-10);
+      const phoneDigits = String(customerPhone).replace(/\D/g, '').slice(-10);
       if (phoneDigits.length === 10) {
         customer = await prisma.customer.findFirst({ where: { phone: { contains: phoneDigits } } });
       }
@@ -123,32 +131,56 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join(' | ');
 
-    const initialStatus = paymentStatus === 'paid' ? 'approved' : 'awaiting_approval';
-    let finalShopifyOrderId = `#${orderNumber}`;
-    let finalTags = tags;
+    // Status: approved for paid, awaiting_approval for COD
+    const initialStatus = paymentStatus === 'paid' ? 'OPEN' : 'awaiting_approval';
+    
+    // Check if order already exists (pre-created via initiate)
+    let existingOrder = null;
+    if (rzpOrderId) {
+      existingOrder = await prisma.order.findUnique({
+        where: { razorpayOrderId: rzpOrderId },
+        include: { items: true }
+      });
+    }
 
-    // --- SHOPIFY INSTANT SYNC FOR PAID ORDERS ---
-    if (initialStatus === 'approved') {
+    let finalShopifyOrderId = existingOrder?.shopifyOrderId || `#${orderNumber}`;
+    let finalTags = existingOrder?.tags || tags;
+    let isSyncedNow = false;
+
+    // --- SHOPIFY SYNC FOR PAID OR COD (If we want COD in shopify too) ---
+    // User requested: "paid orders should be synced and created and updated in shopify"
+    // And "cod orders required an approval" -> usually COD synced AFTER approval, but some want it in Shopify as 'pending'
+    
+    const shouldSyncNow = (paymentStatus === 'paid') && (!existingOrder?.shopifyOrderId || existingOrder.shopifyOrderId.startsWith('#'));
+
+    if (shouldSyncNow) {
         try {
-            // Ensure customer exists
+            // Ensure customer exists in Shopify
             let shopifyCustomerId = customer.shopifyId;
             if (!shopifyCustomerId || shopifyCustomerId.startsWith('GUEST_') || shopifyCustomerId.startsWith('temp_')) {
                 const nameParts = String(customer.name || 'App User').split(' ');
-                const createdCustomer = await createCustomer({
-                    first_name: nameParts[0] || 'App',
-                    last_name: nameParts.slice(1).join(' ') || 'User',
-                    email: customer.email,
-                    phone: customerPhone || customer.phone || '',
-                    verified_email: true
-                });
-                shopifyCustomerId = String(createdCustomer.id);
-                await prisma.customer.update({ where: { id: customer.id }, data: { shopifyId: shopifyCustomerId } });
+                try {
+                  const createdCustomer = await createCustomer({
+                      first_name: nameParts[0] || 'App',
+                      last_name: nameParts.slice(1).join(' ') || 'User',
+                      email: customer.email || `${Date.now()}@guest.zicabella.com`,
+                      phone: customerPhone || customer.phone || '',
+                      verified_email: true
+                  });
+                  shopifyCustomerId = String(createdCustomer.id);
+                  await prisma.customer.update({ where: { id: customer.id }, data: { shopifyId: shopifyCustomerId } });
+                } catch (ce: any) {
+                  console.error('[App API] Customer creation failed:', ce.message);
+                }
             }
 
-            // Sync Order
+            // Sync Order to Shopify
             const shopifyOrderPayload: any = {
                 line_items: lineItems.map((li: any) => {
-                    const vid = extractNumericId(li.variantId || li.variant_id || (li.sku?.startsWith('variant:') ? li.sku.split(':')[1] : null));
+                    let vid = extractNumericId(li.variantId || li.variant_id);
+                    if (!vid && typeof li.sku === 'string' && li.sku.startsWith('variant:')) {
+                      vid = li.sku.split(':')[1];
+                    }
                     return {
                         variant_id: vid ? parseInt(vid, 10) : null,
                         quantity: Number(li.quantity || 1),
@@ -156,11 +188,11 @@ export async function POST(req: Request) {
                         price: li.price ? String(li.price) : undefined,
                     };
                 }).filter((li: any) => li.variant_id && !isNaN(li.variant_id)),
-                financial_status: 'paid',
+                financial_status: paymentStatus === 'paid' ? 'paid' : 'pending',
                 tags: `${tags}, synced`,
                 note: note,
                 currency: 'INR',
-                customer: { id: parseInt(shopifyCustomerId, 10) },
+                customer: shopifyCustomerId && !shopifyCustomerId.includes('GUEST') ? { id: parseInt(shopifyCustomerId, 10) } : undefined,
                 shipping_address: {
                     first_name: shippingAddress?.first_name || shippingAddress?.name?.split(' ')[0] || customer.name?.split(' ')[0] || 'App',
                     last_name: shippingAddress?.last_name || shippingAddress?.name?.split(' ').slice(1).join(' ') || customer.name?.split(' ').slice(1).join(' ') || 'User',
@@ -179,36 +211,33 @@ export async function POST(req: Request) {
             const shopifyOrderRes = await createOrder(shopifyOrderPayload);
             finalShopifyOrderId = String(shopifyOrderRes.id);
             finalTags = `${tags}, synced`;
+            isSyncedNow = true;
+            console.log(`[App API] Order synced to Shopify: ${finalShopifyOrderId}`);
         } catch (shopifyErr: any) {
             console.error('[App API] Shopify instant sync failed:', shopifyErr.message);
         }
     }
 
-    // Check if order already exists (pre-created via initiate)
-    const existingOrder = body.razorpayOrderId || body.razorpay_order_id ? await prisma.order.findUnique({
-      where: { razorpayOrderId: body.razorpayOrderId || body.razorpay_order_id },
-      include: { items: true }
-    }) : null;
-
     if (existingOrder) {
-      console.log(`[App API] Found existing pending order ${existingOrder.id}, updating...`);
+      console.log(`[App API] Updating existing order ${existingOrder.id}...`);
       const updated = await prisma.order.update({
         where: { id: existingOrder.id },
         data: {
           shopifyOrderId: finalShopifyOrderId,
           status: initialStatus,
           paymentStatus,
-          razorpayPaymentId: paymentId || null,
-          paymentCapturedAt: paymentStatus === 'paid' ? now : null,
+          paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
+          razorpayPaymentId: paymentId || existingOrder.razorpayPaymentId || null,
+          paymentCapturedAt: paymentStatus === 'paid' ? now : existingOrder.paymentCapturedAt,
           tags: finalTags,
           note: note,
           shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
             name: shippingAddress?.name || customer.name,
-            line1: shippingAddress?.line1 || '',
+            line1: shippingAddress?.line1 || shippingAddress?.street || '',
             line2: shippingAddress?.line2 || '',
             city: shippingAddress?.city || '',
             state: shippingAddress?.state || '',
-            pincode: shippingAddress?.pincode || '',
+            pincode: shippingAddress?.pincode || shippingAddress?.zip || '',
             country: shippingAddress?.country || 'India',
             phone: customerPhone || customer.phone,
             email: customerEmail || customer.email,
@@ -219,9 +248,9 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         orderId: updated.id,
-        orderNumber,
-        status: initialStatus,
-        estimatedDelivery: null,
+        orderNumber: orderNumber,
+        shopifyOrderId: isSyncedNow ? finalShopifyOrderId : updated.shopifyOrderId,
+        status: updated.status,
       }, { headers: corsHeaders });
     }
 
@@ -238,16 +267,16 @@ export async function POST(req: Request) {
         totalTax: 0,
         currency: 'INR',
         paymentStatus,
-        razorpayOrderId: body.razorpayOrderId || body.razorpay_order_id,
+        razorpayOrderId: rzpOrderId,
         fulfillmentStatus: 'unfulfilled',
         deliveryStatus: 'pending',
         shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
           name: shippingAddress?.name || customer.name,
-          line1: shippingAddress?.line1 || '',
+          line1: shippingAddress?.line1 || shippingAddress?.street || '',
           line2: shippingAddress?.line2 || '',
           city: shippingAddress?.city || '',
           state: shippingAddress?.state || '',
-          pincode: shippingAddress?.pincode || '',
+          pincode: shippingAddress?.pincode || shippingAddress?.zip || '',
           country: shippingAddress?.country || 'India',
           phone: customerPhone || customer.phone,
           email: customerEmail || customer.email,
@@ -263,7 +292,7 @@ export async function POST(req: Request) {
             const pid = extractNumericId(li.productId || li.product_id);
             const vid = extractNumericId(li.variantId || li.variant_id);
             return {
-              shopifyLineItemId: `app_${orderNumber}_${idx}`,
+              shopifyLineItemId: `app_${orderNumber}_${idx}_${Date.now()}`,
               productId: pid || null,
               title: li.name || li.title || 'Product',
               quantity: Number(li.quantity || 0),
@@ -289,14 +318,12 @@ export async function POST(req: Request) {
       select: { id: true, shopifyOrderId: true, status: true },
     });
 
-    // Internal "flag" for admin: tags + status ensure it shows up in admin Mobile App filter.
-
     return NextResponse.json({
       success: true,
       orderId: created.id,
       orderNumber,
-      status: initialStatus,
-      estimatedDelivery: null,
+      status: created.status,
+      shopifyOrderId: isSyncedNow ? finalShopifyOrderId : created.shopifyOrderId,
     }, { headers: corsHeaders });
   } catch (e: any) {
     console.error('[App API] orders/create error:', e);

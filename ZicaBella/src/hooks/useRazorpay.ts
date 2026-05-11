@@ -10,7 +10,7 @@
  *   Custom UI SDK: you own the entire UI, SDK only processes the payment
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Platform, AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Linking } from 'react-native';
 import {
   razorpayOpen,
   razorpayGetAppsWhichSupportUPI,
@@ -18,10 +18,11 @@ import {
   isRazorpayAvailable,
   getRazorpayLoadError,
 } from '../utils/razorpayBridge';
-import type { UPIApp as BridgeUPIApp, PaymentResult as BridgePaymentResult } from '../utils/razorpayBridge';
+import type { UPIApp as BridgeUPIApp } from '../utils/razorpayBridge';
 import { getPaymentApiBaseUrl } from '../constants/config';
 import { useAuthStore } from '../store/authStore';
 import { checkOrderStatus } from '../api/payment';
+import { WALLET_APPS } from '../utils/razorpayBridge';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -69,12 +70,14 @@ export interface UseRazorpayOptions {
   razorpayKeyId?: string; // Key used to create the order
   // ── Method-specific fields ──
   selectedAppPackage?: string;    // For UPI Intent — package name from getAppsWhichSupportUPI
+  vpa?: string;                   // For UPI Collect — user enters their UPI ID (e.g. user@upi)
   cardNumber?: string;            // For card payments
   cardExpiry?: string;            // MM/YY
   cardCvv?: string;
   cardName?: string;
   bankCode?: string;              // For netbanking (e.g. 'SBIN', 'HDFC')
   walletCode?: string;            // For wallet (e.g. 'paytm', 'phonepe')
+  orderData?: any;                // FULL order details for backend pre-creation
 }
 
 export interface UseRazorpayReturn {
@@ -82,8 +85,10 @@ export interface UseRazorpayReturn {
   error: string | null;
   successData: PaymentSuccessData | null;
   upiApps: UPIApp[];
+  installedWallets: string[]; // List of wallet IDs (e.g., ['paytm', 'phonepe'])
   isLoadingApps: boolean;
   fetchInstalledUPIApps: () => void;
+  fetchInstalledWallets: () => Promise<void>;
   startPayment: (method: PaymentMethod, options: UseRazorpayOptions) => Promise<void>;
   reset: () => void;
 }
@@ -95,15 +100,42 @@ export function useRazorpay(): UseRazorpayReturn {
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<PaymentSuccessData | null>(null);
   const [upiApps, setUpiApps] = useState<UPIApp[]>([]);
+  const [installedWallets, setInstalledWallets] = useState<string[]>([]);
   const [isLoadingApps, setIsLoadingApps] = useState(false);
   const abortRef = useRef(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentOrderIdRef = useRef<string | null>(null);
+  const isPollingRef = useRef(false);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    currentOrderIdRef.current = null;
+    isPollingRef.current = false;
+  }, []);
+
+  const fetchInstalledWallets = useCallback(async () => {
+    const installed: string[] = [];
+    for (const wallet of WALLET_APPS) {
+      try {
+        const canOpen = await Linking.canOpenURL(wallet.scheme);
+        if (canOpen) installed.push(wallet.id);
+      } catch (e) {
+        // Ignore errors for individual schemes
+      }
+    }
+    setInstalledWallets(installed);
+  }, []);
 
   const reset = useCallback(() => {
     abortRef.current = false;
+    stopPolling();
     setStatus('idle');
     setError(null);
     setSuccessData(null);
-  }, []);
+  }, [stopPolling]);
 
   const cleanContact = (phone?: string) =>
     (phone || '').replace(/\D/g, '').slice(-10);
@@ -155,6 +187,29 @@ export function useRazorpay(): UseRazorpayReturn {
     };
   };
 
+  const pollOrderStatusOnce = useCallback(async (orderId: string) => {
+    try {
+      const res = await checkOrderStatus(orderId);
+      if (res.status === 'paid' && res.paymentId) {
+        abortRef.current = true;
+        stopPolling();
+        setSuccessData({ paymentId: res.paymentId, orderId });
+        setStatus('success');
+      }
+    } catch (e) {
+      console.warn('[useRazorpay] UPI status poll failed:', e);
+    }
+  }, [stopPolling]);
+
+  const startUPIStatusPolling = useCallback((orderId: string) => {
+    stopPolling();
+    currentOrderIdRef.current = orderId;
+    isPollingRef.current = true;
+    pollIntervalRef.current = setInterval(() => {
+      pollOrderStatusOnce(orderId);
+    }, 3000);
+  }, [pollOrderStatusOnce, stopPolling]);
+
   // ── Initialize SDK when key is available ───────────────────────────
   useEffect(() => {
     const key = process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID;
@@ -166,51 +221,18 @@ export function useRazorpay(): UseRazorpayReturn {
     }
   }, []);
 
-  // ── Polling for UPI Intent (payment may complete in external app) ──
-
-  const pollIntervalRef = useRef<any>(null);
-  const currentOrderIdRef = useRef<string | null>(null);
-  const isPollingRef = useRef(false);
-
-  const startPolling = useCallback(async (orderId: string) => {
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    currentOrderIdRef.current = orderId;
-    isPollingRef.current = true;
-
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const res = await checkOrderStatus(orderId);
-        if (res.status === 'paid' && res.paymentId) {
-          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          setSuccessData({ paymentId: res.paymentId, orderId: orderId });
-          setStatus('success');
-          isPollingRef.current = false;
-        }
-      } catch (e) {
-        console.warn('[useRazorpay] Polling error:', e);
-      }
-    }, 3000);
-  }, []);
-
-  // AppState listener — check payment status when user returns from UPI app
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next === 'active' && isPollingRef.current && currentOrderIdRef.current) {
-        checkOrderStatus(currentOrderIdRef.current).then(res => {
-          if (res.status === 'paid' && res.paymentId) {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            setSuccessData({ paymentId: res.paymentId, orderId: currentOrderIdRef.current! });
-            setStatus('success');
-            isPollingRef.current = false;
-          }
-        }).catch(() => {});
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active' && isPollingRef.current && currentOrderIdRef.current) {
+        pollOrderStatusOnce(currentOrderIdRef.current);
       }
     });
+
     return () => {
       sub.remove();
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      stopPolling();
     };
-  }, []);
+  }, [pollOrderStatusOnce, stopPolling]);
 
   // ── Fetch UPI apps installed on device ─────────────────────────────
   // This is the KEY function — shows only apps the user actually has installed.
@@ -269,6 +291,7 @@ export function useRazorpay(): UseRazorpayReturn {
               amount: opts.amount,
               currency: opts.currency || 'INR',
               receipt: opts.receipt || `zb_${Date.now()}`,
+              orderData: opts.orderData,
             }),
           });
 
@@ -302,15 +325,15 @@ export function useRazorpay(): UseRazorpayReturn {
 
         // Base options common to all methods
         const baseOptions: Record<string, any> = {
-          description: 'Zica Bella Order Payment',
-          image: 'https://zicabella.com/icon.png',
+          key: opts.razorpayKeyId || keyId,
+          key_id: opts.razorpayKeyId || keyId,
+          amount: amountPaise,
           currency: opts.currency || 'INR',
-          key_id: keyId,
-          amount: String(amountPaise),
           order_id: orderId,
+          name: 'Zica Bella',
+          description: `Order ${orderId}`,
           email,
           contact: contact || '9999999999',
-          name,
           prefill: {
             name,
             email,
@@ -323,16 +346,19 @@ export function useRazorpay(): UseRazorpayReturn {
 
         switch (method) {
           case 'upi': {
-            // ── UPI Intent — directly launches the selected UPI app ──
-            if (!opts.selectedAppPackage) {
-              throw new Error('Please select a UPI app to continue');
+            // ── UPI Intent (Apps) or Collect (UPI ID) ──
+            if (!opts.vpa && !opts.selectedAppPackage) {
+              throw new Error('Please select a UPI app or enter a UPI ID');
             }
             rzpOptions = {
               ...baseOptions,
               method: 'upi',
-              '_[flow]': 'intent',                        // ← CRITICAL: triggers UPI Intent
-              upi_app_package_name: opts.selectedAppPackage, // ← CRITICAL: opens specific app
+              vpa: opts.vpa || undefined,
+              upi_app_package_name: opts.selectedAppPackage,
             };
+            if (opts.selectedAppPackage && !opts.vpa) {
+              rzpOptions['_[flow]'] = 'intent';
+            }
             break;
           }
 
@@ -388,43 +414,45 @@ export function useRazorpay(): UseRazorpayReturn {
           default:
             throw new Error(`Unsupported payment method: ${method}`);
         }
-
         // ── Step 3: Open Custom UI SDK — NO Razorpay screen shown ──
         let paymentData: PaymentResult;
         try {
+          if (opts.razorpayKeyId) {
+            console.log('[useRazorpay] Initializing SDK with key:', opts.razorpayKeyId.slice(0, 10));
+            await razorpayInit(opts.razorpayKeyId);
+          }
+
           console.log('[useRazorpay] Opening Custom UI SDK:', {
             method,
-            key: rzpOptions.key_id?.slice(0, 10) + '...',
+            key: (rzpOptions.key || rzpOptions.key_id)?.slice(0, 10) + '...',
             order_id: orderId,
             ...(method === 'upi' ? { app: opts.selectedAppPackage } : {}),
           });
 
-          // For UPI Intent, also start polling in case SDK callback doesn't fire
-          if (method === 'upi') {
-            startPolling(orderId!);
+          if (method === 'upi' && opts.selectedAppPackage) {
+            startUPIStatusPolling(orderId!);
           }
 
           paymentData = normalizePaymentResult(await razorpayOpen(rzpOptions), orderId!);
+          stopPolling();
           console.log('[useRazorpay] SDK Success:', {
             payment_id: paymentData.razorpay_payment_id,
             order_id: paymentData.razorpay_order_id,
           });
 
-          // Stop polling if it was running
-          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          isPollingRef.current = false;
-
         } catch (rzpErr: any) {
           console.log('[useRazorpay] SDK Error:', JSON.stringify(rzpErr));
-          // Stop polling on error
-          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          isPollingRef.current = false;
+          if (abortRef.current) return;
+          stopPolling();
 
           // code 0 or 2 means user cancelled
           if (rzpErr?.code === 0 || rzpErr?.code === 2) {
             setStatus('idle');
             return;
           }
+          
+          setStatus('failed');
+          setError(rzpErr?.description || rzpErr?.message || 'Payment was cancelled or failed');
           throw new Error(
             rzpErr?.description || rzpErr?.message || 'Payment was cancelled or failed'
           );
@@ -483,7 +511,7 @@ export function useRazorpay(): UseRazorpayReturn {
         }
       }
     },
-    [startPolling],
+    [startUPIStatusPolling, stopPolling],
   );
 
   return {
@@ -491,8 +519,10 @@ export function useRazorpay(): UseRazorpayReturn {
     error,
     successData,
     upiApps,
+    installedWallets,
     isLoadingApps,
     fetchInstalledUPIApps,
+    fetchInstalledWallets,
     startPayment,
     reset,
   };

@@ -10,7 +10,7 @@
  *  2. Provides a graceful fallback with clear error messages
  *  3. Auto-recovers once the native binary is rebuilt
  */
-import { NativeModules } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
 export interface UPIApp {
   app_name: string;
@@ -37,49 +37,82 @@ let _razorpay: any = null;
 let _loadError: string | null = null;
 
 const preferredUPIApps: UPIApp[] = [
-  { app_name: 'Google Pay', app_icon: '', package_name: 'google_pay', is_available: false },
-  { app_name: 'PhonePe', app_icon: '', package_name: 'phonepe', is_available: false },
-  { app_name: 'Paytm', app_icon: '', package_name: 'paytm', is_available: false },
-  { app_name: 'MobiKwik', app_icon: '', package_name: 'mobikwik', is_available: false },
-  { app_name: 'BHIM UPI', app_icon: '', package_name: 'bhim', is_available: false },
+  { app_name: 'Google Pay', app_icon: 'https://cdn.razorpay.com/app/google_pay.png', package_name: 'google_pay', is_available: false },
+  { app_name: 'PhonePe', app_icon: 'https://cdn.razorpay.com/app/phonepe.png', package_name: 'phonepe', is_available: false },
+  { app_name: 'Paytm', app_icon: 'https://cdn.razorpay.com/app/paytm.png', package_name: 'paytm', is_available: false },
+  { app_name: 'MobiKwik', app_icon: 'https://cdn.razorpay.com/app/mobikwik.png', package_name: 'mobikwik', is_available: false },
+  { app_name: 'BHIM UPI', app_icon: 'https://cdn.razorpay.com/app/bhim.png', package_name: 'bhim', is_available: false },
 ];
 
-function inferUPIPackageName(value: string): string {
-  const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, '');
+export const WALLET_APPS = [
+  { id: 'paytm', name: 'Paytm', icon: 'https://cdn.razorpay.com/app/paytm.png', package_name: 'net.one97.paytm', scheme: 'paytmmp://' },
+  { id: 'phonepe', name: 'PhonePe', icon: 'https://cdn.razorpay.com/app/phonepe.png', package_name: 'com.phonepe.app', scheme: 'phonepe://' },
+  { id: 'mobikwik', name: 'MobiKwik', icon: 'https://cdn.razorpay.com/app/mobikwik.png', package_name: 'com.mobikwik_new', scheme: 'mobikwik://' },
+  { id: 'freecharge', name: 'Freecharge', icon: 'https://cdn.razorpay.com/app/freecharge.png', package_name: 'com.freecharge.android', scheme: 'freecharge://' },
+  { id: 'amazonpay', name: 'Amazon Pay', icon: 'https://cdn.razorpay.com/app/amazon_pay.png', package_name: 'com.amazon.mShop.android.shopping', scheme: 'amazonpay://' },
+  { id: 'olamoney', name: 'Ola Money', icon: 'https://cdn.razorpay.com/app/olamoney.png', package_name: 'com.olacabs.customer', scheme: 'olamoney://' },
+];
 
-  if (normalized.includes('google') || normalized.includes('gpay') || normalized.includes('tez')) {
-    return 'google_pay';
+export function inferUPIPackageName(value: string): string {
+  const normalized = value.toLowerCase().trim();
+
+  // Preserve exact identifiers returned by Razorpay. Custom UI validates
+  // upi_app_package_name against these values, not against URL schemes.
+  if (['google_pay', 'phonepe', 'paytm', 'mobikwik', 'bhim'].includes(normalized)) {
+    return normalized;
   }
-  if (normalized.includes('phonepe')) return 'phonepe';
-  if (normalized.includes('paytm')) return 'paytm';
-  if (normalized.includes('mobikwik')) return 'mobikwik';
-  if (normalized.includes('bhim')) return 'bhim';
+
+  // If it already looks like a real Android package name, preserve it.
+  if (normalized.includes('.') || normalized.includes('://')) {
+    return normalized;
+  }
+
+  const slug = normalized.replace(/[^a-z0-9]/g, '');
+
+  if (slug.includes('google') || slug.includes('gpay') || slug.includes('tez')) {
+    return Platform.OS === 'android' ? 'com.google.android.apps.nbu.paisa.user' : 'google_pay';
+  }
+  if (slug.includes('phonepe')) {
+    return Platform.OS === 'android' ? 'com.phonepe.app' : 'phonepe';
+  }
+  if (slug.includes('paytm')) {
+    return Platform.OS === 'android' ? 'net.one97.paytm' : 'paytm';
+  }
+  if (slug.includes('mobikwik')) {
+    return Platform.OS === 'android' ? 'com.mobikwik_new' : 'mobikwik';
+  }
+  if (slug.includes('bhim')) {
+    return Platform.OS === 'android' ? 'in.org.npci.upiapp' : 'bhim';
+  }
 
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
 function formatUPIAppName(value: string): string {
-  switch (inferUPIPackageName(value)) {
-    case 'google_pay':
-      return 'Google Pay';
-    case 'phonepe':
-      return 'PhonePe';
-    case 'paytm':
-      return 'Paytm';
-    case 'mobikwik':
-      return 'MobiKwik';
-    case 'bhim':
-      return 'BHIM UPI';
-    default:
-      return value
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, char => char.toUpperCase());
-  }
+  const pkg = inferUPIPackageName(value);
+  if (pkg.includes('google')) return 'Google Pay';
+  if (pkg.includes('phonepe')) return 'PhonePe';
+  if (pkg.includes('paytm')) return 'Paytm';
+  if (pkg.includes('mobikwik')) return 'MobiKwik';
+  if (pkg.includes('bhim')) return 'BHIM UPI';
+  
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
 }
 
-function normalizeIcon(icon: unknown): string {
-  if (typeof icon !== 'string') return '';
-  return icon.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+function normalizeIcon(icon: unknown, packageName: string): string {
+  if (typeof icon === 'string' && icon.length > 50) {
+      return icon.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+  }
+  // Fallback to high-quality hosted icons if SDK doesn't provide one
+  const slug = packageName.toLowerCase();
+  if (slug.includes('google') || slug.includes('tez')) return 'https://cdn.razorpay.com/app/google_pay.png';
+  if (slug.includes('phonepe')) return 'https://cdn.razorpay.com/app/phonepe.png';
+  if (slug.includes('paytm')) return 'https://cdn.razorpay.com/app/paytm.png';
+  if (slug.includes('mobikwik')) return 'https://cdn.razorpay.com/app/mobikwik.png';
+  if (slug.includes('bhim')) return 'https://cdn.razorpay.com/app/bhim.png';
+  return '';
 }
 
 function normalizeUPIApp(item: unknown): UPIApp | null {
@@ -88,10 +121,11 @@ function normalizeUPIApp(item: unknown): UPIApp | null {
     : item;
 
   if (typeof raw === 'string') {
+    const pkg = inferUPIPackageName(raw);
     return {
       app_name: formatUPIAppName(raw),
-      app_icon: '',
-      package_name: inferUPIPackageName(raw),
+      app_icon: normalizeIcon('', pkg),
+      package_name: pkg,
       is_available: true,
     };
   }
@@ -107,7 +141,7 @@ function normalizeUPIApp(item: unknown): UPIApp | null {
   const packageName = inferUPIPackageName(String(packageValue));
   return {
     app_name: typeof nameValue === 'string' ? formatUPIAppName(nameValue) : formatUPIAppName(packageName),
-    app_icon: normalizeIcon(app.app_icon || app.appIcon || app.icon),
+    app_icon: normalizeIcon(app.app_icon || app.appIcon || app.icon, packageName),
     package_name: packageName,
     is_available: true,
   };
@@ -198,7 +232,9 @@ export async function razorpayInit(key: string): Promise<void> {
     console.warn('[RazorpayBridge] SDK not available for init');
     return;
   }
-  return sdk.initRazorpay(key);
+  // react-native-customui@2.2.x creates a Promise here but never resolves it.
+  // Awaiting that Promise blocks the checkout before Razorpay.open() is called.
+  sdk.initRazorpay(key);
 }
 
 export function razorpayGetAppsWhichSupportUPI(

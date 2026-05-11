@@ -130,8 +130,9 @@ export async function openRazorpayCheckout(
   const baseOptions: Record<string, any> = {
     description: 'Zica Bella Order',
     currency: orderJson.currency || 'INR',
+    key: razorpayKeyId,
     key_id: razorpayKeyId,
-    amount: String(orderJson.amount),
+    amount: orderJson.amount,
     name: 'Zica Bella',
     order_id: orderJson.order_id,
     email: orderData.email || 'support@zicabella.com',

@@ -134,35 +134,55 @@ export default function OrderReviewScreen() {
     haptics.buttonTap();
 
     const token = useAuthStore.getState().token || '';
+    const apiBase = getPaymentApiBaseUrl();
     const orderData = buildOrderData();
 
     if (selectedPaymentMethod === 'cod') {
       setLoading(true);
       try {
-        const res = await fetch(`${config.appUrl}/api/app/orders/create`, {
+        console.log('[OrderReview] Placing COD order...');
+        const res = await fetch(`${apiBase}/api/app/orders/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'Authorization': token ? `Bearer ${token}` : '',
           },
-          body: JSON.stringify(orderData),
+          body: JSON.stringify({
+            ...orderData,
+            paymentMethod: 'COD',
+            paymentStatus: 'pending'
+          }),
         });
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) throw new Error(`Server error (${res.status})`);
-        const json = await res.json();
+        
+        const resText = await res.text();
+        let json: any;
+        try {
+          json = JSON.parse(resText);
+        } catch (e) {
+          throw new Error(`Server error: ${res.status}. Please check your connection.`);
+        }
+
         if (!res.ok) throw new Error(json.error || 'Failed to place order');
+        
         haptics.success();
         buyNowItem ? setBuyNowItem(null) : clearCart();
+        
         navigation.getParent()?.reset({
             index: 1,
             routes: [
               { name: 'Main' },
-              { name: 'OrderConfirmation', params: { orderId: json.orderId || json.id, paymentMethod: 'COD', estimatedDelivery: '3-5 Business Days' } }
+              { name: 'OrderConfirmation', params: { 
+                orderId: json.orderId || json.id, 
+                paymentMethod: 'COD', 
+                estimatedDelivery: '3-5 Business Days',
+                orderNumber: json.orderNumber 
+              } }
             ],
           });
       } catch (e: any) {
         haptics.error();
+        console.error('[OrderReview] COD placement error:', e.message);
         Alert.alert('Order Failed', e.message || 'Something went wrong. Please try again.');
       } finally {
         setLoading(false);
@@ -173,7 +193,7 @@ export default function OrderReviewScreen() {
     // Razorpay: Step 1 — create order on backend, then navigate to Payment Screen
     setLoading(true);
     try {
-      const apiBase = getPaymentApiBaseUrl();
+      console.log('[OrderReview] Initiating Razorpay order...');
       const orderRes = await fetch(`${apiBase}/api/app/payment/create-order`, {
         method: 'POST',
         headers: { 
@@ -194,14 +214,11 @@ export default function OrderReviewScreen() {
       try {
         orderJson = JSON.parse(resText);
       } catch (e) {
-        throw new Error(`Server returned HTML instead of JSON. Check if your backend is running at ${apiBase}`);
+        throw new Error('Server returned an invalid response. Please try again.');
       }
 
       if (!orderRes.ok || !orderJson.order_id) {
         throw new Error(orderJson.error || 'Failed to create payment order.');
-      }
-      if (!orderJson.key_id || !String(orderJson.key_id).startsWith('rzp_')) {
-        throw new Error('Invalid Razorpay key. Please contact support.');
       }
       
       setLoading(false);
@@ -219,6 +236,7 @@ export default function OrderReviewScreen() {
       });
     } catch (e: any) {
       haptics.error();
+      console.error('[OrderReview] Razorpay initiation error:', e.message);
       Alert.alert('Payment Error', e.message || 'Could not start payment. Please try again.');
       setLoading(false);
     }

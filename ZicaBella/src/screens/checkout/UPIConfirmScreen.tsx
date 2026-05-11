@@ -12,7 +12,7 @@ import { haptics } from '../../utils/haptics';
 import { checkOrderStatus } from '../../api/payment';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
-import { config } from '../../constants/config';
+import { getPaymentApiBaseUrl } from '../../constants/config';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -137,7 +137,7 @@ export default function UPIConfirmScreen() {
   const recordOrder = async (pId: string) => {
     try {
       // Verify payment (with HEADLESS signature since UPI intent doesn't return signature)
-      const apiBase = config.appUrl;
+      const apiBase = getPaymentApiBaseUrl();
       const vRes = await fetch(`${apiBase}/api/app/payment/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

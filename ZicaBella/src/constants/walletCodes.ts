@@ -13,9 +13,9 @@ export const WALLET_CODES: Record<string, string> = {
 
 /** Wallets shown in the quick-select grid */
 export const WALLETS = [
-  { id: 'paytm', name: 'Paytm', icon: 'https://cdn.razorpay.com/app/paytm.png' },
-  { id: 'phonepe', name: 'PhonePe', icon: 'https://cdn.razorpay.com/app/phonepe.png' },
-  { id: 'amazonpay', name: 'Amazon Pay', icon: 'https://cdn.razorpay.com/app/amazonpay.png' },
-  { id: 'mobikwik', name: 'Mobikwik', icon: 'https://cdn.razorpay.com/app/mobikwik.png' },
-  { id: 'freecharge', name: 'Freecharge', icon: 'https://cdn.razorpay.com/app/freecharge.png' },
+  { id: 'paytm', name: 'Paytm', icon: 'https://cdn.razorpay.com/app/paytm.png', scheme: 'paytmmp://' },
+  { id: 'phonepe', name: 'PhonePe', icon: 'https://cdn.razorpay.com/app/phonepe.png', scheme: 'phonepe://' },
+  { id: 'amazonpay', name: 'Amazon Pay', icon: 'https://cdn.razorpay.com/app/amazon_pay.png', scheme: 'amazonpay://' },
+  { id: 'mobikwik', name: 'Mobikwik', icon: 'https://cdn.razorpay.com/app/mobikwik.png', scheme: 'mobikwik://' },
+  { id: 'freecharge', name: 'Freecharge', icon: 'https://cdn.razorpay.com/app/freecharge.png', scheme: 'freecharge://' },
 ];

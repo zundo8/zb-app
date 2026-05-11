@@ -13,7 +13,7 @@ import { Typography } from '../../components/Typography';
 import { useRazorpay, PaymentMethod } from '../../hooks/useRazorpay';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
-import { config } from '../../constants/config';
+import { getPaymentApiBaseUrl } from '../../constants/config';
 import { TOP_BANKS } from '../../constants/bankCodes';
 import { WALLETS } from '../../constants/walletCodes';
 
@@ -54,12 +54,14 @@ export default function RazorpayPaymentScreen() {
 
   const {
     status, error, successData, startPayment, reset,
-    upiApps, isLoadingApps, fetchInstalledUPIApps,
+    upiApps, installedWallets, isLoadingApps, fetchInstalledUPIApps, fetchInstalledWallets,
   } = useRazorpay();
   const isProcessing = status === 'processing' || status === 'verifying' || status === 'creating_order';
 
   const [tab, setTab] = useState<PaymentMethod>('upi');
+  const [upiSubTab, setUpiSubTab] = useState<'apps' | 'id'>('apps');
   const [selectedUPIApp, setSelectedUPIApp] = useState<string | null>(null);
+  const [upiId, setUpiId] = useState('');
 
   const [cardNum, setCardNum] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -80,26 +82,26 @@ export default function RazorpayPaymentScreen() {
   const failScale = useRef(new Animated.Value(0)).current;
 
   const TABS: PaymentMethod[] = ['upi', 'card', 'netbanking', 'wallet'];
-  const TAB_LABELS = ['UPI', 'Card', 'Netbanking', 'Wallets'];
+  const TAB_LABELS = ['UPI', 'Card', 'Bank', 'Wallets'];
   const tabWidth = (SW - 48) / 4;
 
-  // Fetch installed UPI apps when UPI tab is selected
+  // Fetch installed apps
+  useEffect(() => {
+    fetchInstalledUPIApps();
+    fetchInstalledWallets();
+  }, []);
+
   useEffect(() => {
     if (tab === 'upi') {
-      fetchInstalledUPIApps();
+      const firstAvailableApp = upiApps.find(app => app.is_available !== false);
+      if (firstAvailableApp && !selectedUPIApp) {
+          setSelectedUPIApp(firstAvailableApp.package_name);
+      }
     }
-  }, [tab]);
+  }, [tab, upiApps]);
 
   useEffect(() => {
-    if (tab !== 'upi') return;
-    if (selectedUPIApp && upiApps.some(app => app.package_name === selectedUPIApp && app.is_available !== false)) return;
-
-    const firstAvailableApp = upiApps.find(app => app.is_available !== false);
-    setSelectedUPIApp(firstAvailableApp?.package_name || null);
-  }, [tab, upiApps, selectedUPIApp]);
-
-  useEffect(() => {
-    Animated.spring(tabIndicator, { toValue: TABS.indexOf(tab) * tabWidth, useNativeDriver: true }).start();
+    Animated.spring(tabIndicator, { toValue: TABS.indexOf(tab) * tabWidth, friction: 8, tension: 40, useNativeDriver: true }).start();
   }, [tab]);
 
   useEffect(() => {
@@ -110,9 +112,27 @@ export default function RazorpayPaymentScreen() {
     }
   }, [status]);
 
-  // ── Record order on backend after successful payment ──
+  // ── Success/Fail animations ──
+  useEffect(() => {
+    if (status === 'success' && successData) {
+      Animated.parallel([
+        Animated.spring(successScale, { toValue: 1, friction: 4, useNativeDriver: true }),
+        Animated.timing(successOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]).start();
+      recordOrderOnBackend(successData.paymentId, successData.orderId);
+    }
+  }, [status, successData]);
+
+  useEffect(() => {
+    if (status === 'failed') {
+      Animated.spring(failScale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+    }
+  }, [status]);
+
+  // ── Record order on backend ──
   const [isRecording, setIsRecording] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   const recordOrderOnBackend = useCallback(async (paymentId: string, rzpOrderId: string) => {
     if (orderRecordedRef.current) return;
@@ -121,10 +141,9 @@ export default function RazorpayPaymentScreen() {
 
     try {
       const token = useAuthStore.getState().token || '';
-      const apiBase = config.appUrl;
+      const apiBase = getPaymentApiBaseUrl();
 
       if (orderData) {
-        console.log('[RazorpayPayment] Recording order on backend...');
         const orderPayload = {
           ...orderData,
           paymentId: paymentId,
@@ -145,59 +164,34 @@ export default function RazorpayPaymentScreen() {
         });
 
         const resText = await res.text();
-        let resJson: any;
+        let resJson: any = {};
         try {
-          resJson = JSON.parse(resText);
+          resJson = resText ? JSON.parse(resText) : {};
         } catch {
-          console.warn('[RazorpayPayment] Non-JSON order creation response:', resText.slice(0, 200));
-          resJson = {};
+          throw new Error(`Order sync returned an invalid response (${res.status})`);
         }
 
-        if (!res.ok) {
-          console.error('[RazorpayPayment] Order creation failed:', resJson);
-          setRecordError(resJson.error || 'Failed to sync order. Please contact support.');
-          // Don't mark as recorded so we can retry
-          setIsRecording(false);
-          return;
-        } else {
-          console.log('[RazorpayPayment] Order recorded:', resJson.orderId || resJson.id);
-          orderRecordedRef.current = true;
-          setIsRecording(false);
+        if (!res.ok || resJson.success === false) {
+          throw new Error(resJson.error || 'Failed to sync order');
         }
+        setCreatedOrderId(resJson.orderId || resJson.id || null);
+        orderRecordedRef.current = true;
       } else {
-         orderRecordedRef.current = true;
-         setIsRecording(false);
+        throw new Error('Missing order details for backend sync');
       }
-
       buyNowItem ? setBuyNowItem(null) : clearCart();
+      setIsRecording(false);
     } catch (e: any) {
       console.error('[RazorpayPayment] Error recording order:', e.message);
-      setRecordError('Connection error. Retrying...');
+      setRecordError(e.message || 'Sync failed');
       setIsRecording(false);
-      // Optional: auto-retry after 3s
       setTimeout(() => recordOrderOnBackend(paymentId, rzpOrderId), 3000);
     }
   }, [orderData, buyNowItem, setBuyNowItem, clearCart]);
 
-  useEffect(() => {
-    if (status === 'success' && successData) {
-      Animated.parallel([
-        Animated.spring(successScale, { toValue: 1, friction: 4, useNativeDriver: true }),
-        Animated.timing(successOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-      ]).start();
-      recordOrderOnBackend(successData.paymentId, successData.orderId);
-    }
-  }, [status, successData]);
-
-  useEffect(() => {
-    if (status === 'failed') {
-      Animated.spring(failScale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
-    }
-  }, [status]);
-
   const isPayReady = (): boolean => {
-    if (tab === 'upi') return !!selectedUPIApp;
-    if (tab === 'card') return cardNum.replace(/\s/g, '').length === 16 && cardExpiry.length === 5 && cardCvv.length >= 3 && cardName.trim().length > 0;
+    if (tab === 'upi') return upiSubTab === 'apps' ? !!selectedUPIApp : upiId.includes('@');
+    if (tab === 'card') return cardNum.replace(/\s/g, '').length === 16 && cardExpiry.length === 5 && cardCvv.length >= 3;
     if (tab === 'netbanking') return !!selectedBank;
     if (tab === 'wallet') return !!selectedWallet;
     return false;
@@ -205,91 +199,91 @@ export default function RazorpayPaymentScreen() {
 
   const onPay = async () => {
     if (!isPayReady()) return;
-    haptics.buttonTap();
-    orderRecordedRef.current = false;
-
+    haptics.success();
+    
     const opts: any = {
       amount,
       orderId,
       razorpayKeyId,
       prefill,
-      selectedAppPackage: selectedUPIApp || undefined,
+      selectedAppPackage: upiSubTab === 'apps' ? (selectedUPIApp || undefined) : undefined,
+      vpa: upiSubTab === 'id' ? upiId : undefined,
       cardNumber: cardNum,
       cardExpiry,
       cardCvv,
-      cardName,
+      cardName: cardName || prefill?.name || 'Customer',
       bankCode: selectedBank || undefined,
       walletCode: selectedWallet || undefined,
-      notes: { source: 'zicabella-app', flow: 'custom-ui' },
+      orderData: orderData,
+      notes: { app: 'zicabella', version: '2.0', ui: 'glass' },
     };
 
-    await startPayment(tab, opts);
+    try {
+      await startPayment(tab, opts);
+    } catch (e: any) {
+      console.error('[RazorpayPayment] Payment failed:', e.message);
+      // Optional: show alert if status doesn't catch it
+    }
   };
 
   const goToOrders = () => {
     nav.getParent()?.reset({
       index: 1,
-      routes: [{ name: 'Main' }, { name: 'OrderConfirmation', params: { orderId, paymentMethod: 'PREPAID', estimatedDelivery: '3-5 Business Days' } }],
+      routes: [{ name: 'Main' }, { name: 'OrderConfirmation', params: { orderId: createdOrderId || orderId, paymentMethod: 'PREPAID' } }],
     });
   };
 
-  const retry = () => {
-    orderRecordedRef.current = false;
-    reset();
-  };
-
   const filteredBanks = TOP_BANKS.filter(b => b.name.toLowerCase().includes(bankSearch.toLowerCase()));
+  const filteredWallets = WALLETS.filter(w => installedWallets.includes(w.id));
+  const displayUpiApps = upiApps.filter(a => a.is_available !== false).slice(0, 6);
   const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
-  // ── SUCCESS STATE ──
+  // ── Success State ──
   if (status === 'success') {
     return (
       <View style={[s.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={s.overlay}>
-          <Animated.View style={[s.resultCircle, { backgroundColor: isDark ? 'rgba(52,199,89,0.15)' : 'rgba(52,199,89,0.1)', transform: [{ scale: successScale }], opacity: successOpacity }]}>
-            <Ionicons name="checkmark-done" size={56} color={colors.success} />
+          <Animated.View style={[s.resultCircle, { backgroundColor: 'rgba(52,199,89,0.1)', transform: [{ scale: successScale }], opacity: successOpacity }]}>
+            <Ionicons name="checkmark-done" size={64} color={colors.success} />
           </Animated.View>
-          <Animated.View style={{ opacity: successOpacity, alignItems: 'center' }}>
-            <Typography size={24} weight="800" color={colors.text} style={{ letterSpacing: 4, marginTop: 40 }}>THANK YOU!</Typography>
-            <Typography size={12} weight="600" color={colors.textMuted} style={{ marginTop: 12, letterSpacing: 1 }}>Order Successfully Placed</Typography>
-            
-            {isRecording ? (
-               <View style={{ marginTop: 32, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                 <ActivityIndicator size="small" color={colors.textMuted} />
-                 <Typography size={10} color={colors.textMuted} weight="700" style={{ letterSpacing: 1 }}>SYNCING WITH STORE...</Typography>
-               </View>
-            ) : recordError ? (
-               <View style={{ marginTop: 32, alignItems: 'center' }}>
-                 <Typography size={10} color={colors.error} weight="700" style={{ textAlign: 'center' }}>{recordError}</Typography>
-                 <TouchableOpacity onPress={() => recordOrderOnBackend(successData?.paymentId || '', successData?.orderId || '')} style={{ marginTop: 12 }}>
-                    <Typography size={10} color={colors.foreground} weight="800">RETRY SYNC</Typography>
-                 </TouchableOpacity>
-               </View>
-            ) : (
-               <>
-                <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 24, letterSpacing: 1 }}>Payment ID: {successData?.paymentId}</Typography>
-                <TouchableOpacity style={[s.ctaBtn, { backgroundColor: colors.foreground, marginTop: 48, shadowColor: colors.foreground, shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } }]} onPress={goToOrders}>
-                  <Typography size={11} weight="800" color={colors.background} style={{ letterSpacing: 2 }}>TRACK ORDER</Typography>
-                </TouchableOpacity>
-               </>
-            )}
-          </Animated.View>
+          <Typography size={24} weight="800" color={colors.text} style={{ marginTop: 40, letterSpacing: 4 }}>PAID SUCCESSFULLY</Typography>
+          <Typography size={11} color={colors.textMuted} style={{ marginTop: 12 }}>
+            {recordError ? 'Payment received. Syncing your order again.' : 'Your order has been recorded and synced.'}
+          </Typography>
+          
+          {isRecording ? (
+             <View style={{ marginTop: 32, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+               <ActivityIndicator size="small" color={colors.textMuted} />
+               <Typography size={10} color={colors.textMuted} weight="800">SYNCING WITH STORE...</Typography>
+             </View>
+          ) : recordError && successData ? (
+            <TouchableOpacity
+              style={[s.ctaBtn, { backgroundColor: colors.foreground, marginTop: 40 }]}
+              onPress={() => recordOrderOnBackend(successData.paymentId, successData.orderId)}
+            >
+              <Typography size={11} weight="800" color={colors.background} style={{ letterSpacing: 1 }}>SYNC ORDER</Typography>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={[s.ctaBtn, { backgroundColor: colors.foreground, marginTop: 60 }]} onPress={goToOrders}>
+              <Typography size={12} weight="800" color={colors.background} style={{ letterSpacing: 2 }}>CONTINUE</Typography>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
   }
 
-  // ── FAILED STATE ──
+  // ── Failed State ──
   if (status === 'failed') {
     return (
       <View style={[s.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={s.overlay}>
           <Animated.View style={[s.resultCircle, { backgroundColor: 'rgba(255,59,48,0.1)', transform: [{ scale: failScale }] }]}>
-            <Ionicons name="close" size={48} color={colors.error} />
+            <Ionicons name="close" size={64} color={colors.error} />
           </Animated.View>
-          <Typography size={20} weight="800" color={colors.text} style={{ letterSpacing: 3, marginTop: 32 }}>PAYMENT FAILED</Typography>
-          <Typography size={11} color={colors.textMuted} style={{ marginTop: 12, textAlign: 'center', paddingHorizontal: 40 }}>{error}</Typography>
-          <TouchableOpacity style={[s.ctaBtn, { backgroundColor: colors.foreground, marginTop: 40 }]} onPress={retry}>
+          <Typography size={22} weight="800" color={colors.text} style={{ marginTop: 32, letterSpacing: 2 }}>TRANSACTION FAILED</Typography>
+          <Typography size={11} color={colors.textMuted} style={{ marginTop: 12, textAlign: 'center', paddingHorizontal: 40 }}>{error || 'The payment could not be completed.'}</Typography>
+          <TouchableOpacity style={[s.ctaBtn, { backgroundColor: colors.foreground, marginTop: 40 }]} onPress={() => reset()}>
             <Typography size={11} weight="800" color={colors.background} style={{ letterSpacing: 1 }}>RETRY PAYMENT</Typography>
           </TouchableOpacity>
         </View>
@@ -297,114 +291,83 @@ export default function RazorpayPaymentScreen() {
     );
   }
 
-  // ── MAIN PAYMENT UI ──
   return (
     <View style={[s.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={s.headerBar}>
         <TouchableOpacity style={[s.backBtn, { backgroundColor: colors.surface }]} onPress={() => nav.goBack()}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Typography size={14} weight="700" color={colors.text} style={{ letterSpacing: 1 }}>Complete Payment</Typography>
+        <Typography size={14} weight="800" color={colors.text} style={{ letterSpacing: 1 }}>PAYMENT</Typography>
         <View style={{ width: 44 }} />
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 20 }} keyboardShouldPersistTaps="handled">
-          <View style={[s.amountBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: colors.borderLight }]}>
-            <Typography size={9} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>TOTAL AMOUNT</Typography>
-            <Typography size={32} weight="800" color={colors.text} style={{ marginTop: 4, letterSpacing: -0.5 }}>₹{(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
-            <Typography size={9} color={colors.textMuted} style={{ marginTop: 6 }}>Order ID: {orderId?.slice(-12)}</Typography>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140, paddingHorizontal: 20 }}>
+          <View style={[s.amountCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderLight }]}>
+             <Typography size={8} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 3 }}>GRAND TOTAL</Typography>
+             <Typography size={36} weight="800" color={colors.text} style={{ marginTop: 8 }}>₹{(amount || 0).toLocaleString('en-IN')}</Typography>
+              <View style={[s.orderIdTag, { backgroundColor: colors.surface }]}>
+                <Typography size={8} weight="700" color={colors.textMuted}>
+                  ORDER ID: {orderId?.startsWith('order_') ? orderId.slice(-12).toUpperCase() : orderId}
+                </Typography>
+              </View>
           </View>
 
-          <View style={[s.tabBar, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }]}>
+          <View style={[s.tabBar, { backgroundColor: colors.surface }]}>
             <Animated.View style={[s.tabIndicator, { width: tabWidth - 8, backgroundColor: colors.foreground, transform: [{ translateX: Animated.add(tabIndicator, 4) }] }]} />
             {TABS.map((t, i) => (
               <TouchableOpacity key={t} style={[s.tabItem, { width: tabWidth }]} onPress={() => { haptics.tabPress(); setTab(t); }}>
-                <Typography size={10} weight={tab === t ? '800' : '600'} color={tab === t ? colors.background : colors.textMuted}>{TAB_LABELS[i]}</Typography>
+                <Typography size={9} weight={tab === t ? '800' : '600'} color={tab === t ? colors.background : colors.textMuted}>{TAB_LABELS[i].toUpperCase()}</Typography>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* ── UPI PANEL (Dynamic App Detection) ── */}
+          {/* ── UPI PANEL ── */}
           {tab === 'upi' && (
             <View style={s.panel}>
-              <Typography size={8} weight="700" color={colors.textExtraLight} style={s.panelLabel}>SELECT UPI APP</Typography>
-              {isLoadingApps ? (
-                <View style={{ padding: 40, alignItems: 'center' }}>
-                  <ActivityIndicator color={colors.textMuted} />
-                  <Typography size={10} color={colors.textMuted} style={{ marginTop: 12 }}>Detecting installed UPI apps...</Typography>
-                </View>
-              ) : upiApps.length === 0 ? (
-                <View style={[s.noAppsBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: colors.borderLight }]}>
-                  <Ionicons name="phone-portrait-outline" size={32} color={colors.textMuted} />
-                  <Typography size={11} weight="600" color={colors.textMuted} style={{ marginTop: 12, textAlign: 'center', lineHeight: 18 }}>
-                    No installed UPI apps found on this device.{'\n'}Install GPay, PhonePe, Paytm, MobiKwik, or BHIM to pay via UPI.
-                  </Typography>
-                </View>
-              ) : (
-                <View style={s.methodGrid}>
-                  {upiApps.map(app => {
-                    const isAvailable = app.is_available !== false;
-                    const isSelected = selectedUPIApp === app.package_name;
-                    const originalLogo = UPI_LOGOS[app.package_name];
+              <View style={s.subTabRow}>
+                <TouchableOpacity style={[s.subTab, upiSubTab === 'apps' && { backgroundColor: colors.surface, borderColor: colors.borderLight }]} onPress={() => setUpiSubTab('apps')}>
+                   <Typography size={10} weight="800" color={upiSubTab === 'apps' ? colors.text : colors.textMuted}>UPI APPS</Typography>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.subTab, upiSubTab === 'id' && { backgroundColor: colors.surface, borderColor: colors.borderLight }]} onPress={() => setUpiSubTab('id')}>
+                   <Typography size={10} weight="800" color={upiSubTab === 'id' ? colors.text : colors.textMuted}>UPI ID</Typography>
+                </TouchableOpacity>
+              </View>
 
-                    return (
-                      <TouchableOpacity
-                        key={app.package_name}
-                        disabled={!isAvailable}
-                        style={[
-                          s.methodCard,
-                          {
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                            borderColor: isSelected ? colors.foreground : colors.borderLight,
-                            opacity: isAvailable ? 1 : 0.45,
-                          }
-                        ]}
-                        onPress={() => { haptics.buttonTap(); setSelectedUPIApp(app.package_name); }}
-                      >
-                        {originalLogo ? (
-                          <Image
-                            source={{ uri: originalLogo }}
-                            style={s.methodIcon}
-                            resizeMode="contain"
-                          />
-                        ) : app.app_icon ? (
-                          <Image
-                            source={{ uri: `data:image/png;base64,${app.app_icon}` }}
-                            style={s.methodIcon}
-                            resizeMode="contain"
-                          />
-                        ) : (
-                          <View style={[s.methodIconFallback, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-                            <Ionicons name="phone-portrait-outline" size={20} color={colors.textMuted} />
-                          </View>
-                        )}
-                        <Typography size={9} weight="800" color={colors.text} style={{ marginTop: 10, textAlign: 'center' }} numberOfLines={1}>
-                          {app.app_name.toUpperCase()}
-                        </Typography>
-                        {!isAvailable && (
-                          <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginTop: 2 }} numberOfLines={1}>
-                            NOT INSTALLED
-                          </Typography>
-                        )}
-                        {isSelected && (
-                          <View style={[s.checkBadge, { backgroundColor: colors.foreground }]}>
-                            <Ionicons name="checkmark" size={10} color={colors.background} />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-              {upiApps.filter(app => app.is_available !== false).length > 0 ? (
-                <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 16, textAlign: 'center' }}>
-                  Select an app → Enter UPI PIN → Done
-                </Typography>
+              {upiSubTab === 'apps' ? (
+                <>
+                  <Typography size={8} weight="800" color={colors.textExtraLight} style={s.panelLabel}>SELECT APP</Typography>
+                  {isLoadingApps ? (
+                    <View style={s.loadingBox}><ActivityIndicator color={colors.textMuted} /></View>
+                  ) : displayUpiApps.length === 0 ? (
+                    <View style={s.emptyBox}>
+                       <Typography size={10} color={colors.textMuted} style={{ textAlign: 'center', lineHeight: 18 }}>No UPI apps detected on this device.</Typography>
+                    </View>
+                  ) : (
+                    <View style={s.methodGrid}>
+                      {displayUpiApps.map(app => {
+                        const isSelected = selectedUPIApp === app.package_name;
+                        return (
+                          <TouchableOpacity key={app.package_name} style={[s.glassCard, { borderColor: isSelected ? colors.foreground : colors.borderLight }]} onPress={() => { haptics.buttonTap(); setSelectedUPIApp(app.package_name); }}>
+                             <View style={s.glassIconContainer}>
+                               <Image source={{ uri: app.app_icon || UPI_LOGOS[app.package_name] }} style={s.glassIcon} />
+                             </View>
+                             <Typography size={9} weight="800" color={colors.text} style={{ marginTop: 10 }}>{app.app_name.toUpperCase()}</Typography>
+                             {isSelected && <View style={[s.selectedDot, { backgroundColor: colors.foreground }]} />}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+                </>
               ) : (
-                <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 16, textAlign: 'center', lineHeight: 16 }}>
-                  Install a listed UPI app on this phone to continue.
-                </Typography>
+                <View style={{ marginTop: 20 }}>
+                   <Typography size={8} weight="800" color={colors.textExtraLight} style={s.panelLabel}>ENTER UPI ID</Typography>
+                   <View style={[s.glassInputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderLight, paddingHorizontal: 20 }]}>
+                     <TextInput style={[s.glassInput, { color: colors.text, marginLeft: 0 }]} placeholder="example@upi" placeholderTextColor={colors.textExtraLight} value={upiId} onChangeText={setUpiId} autoCapitalize="none" autoCorrect={false} spellCheck={false} />
+                   </View>
+                   <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 14, textAlign: 'center', opacity: 0.7 }}>A payment request will be sent to your UPI app.</Typography>
+                </View>
               )}
             </View>
           )}
@@ -412,131 +375,105 @@ export default function RazorpayPaymentScreen() {
           {/* ── CARD PANEL ── */}
           {tab === 'card' && (
             <View style={s.panel}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography size={8} weight="700" color={colors.textExtraLight} style={s.panelLabel}>CARD DETAILS</Typography>
-                {detectCardType(cardNum) ? <Typography size={9} weight="800" color={colors.text}>{detectCardType(cardNum)}</Typography> : null}
+              <Typography size={8} weight="800" color={colors.textExtraLight} style={s.panelLabel}>CREDIT / DEBIT CARD</Typography>
+              <View style={[s.glassInputContainer, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+                <Ionicons name="card-outline" size={18} color={colors.textMuted} />
+                <TextInput style={[s.glassInput, { color: colors.text }]} placeholder="0000 0000 0000 0000" placeholderTextColor={colors.textExtraLight} value={cardNum} onChangeText={(v) => setCardNum(formatCardNumber(v))} keyboardType="number-pad" maxLength={19} />
               </View>
-              <TextInput style={[s.input, { backgroundColor: isDark ? '#111' : '#F2F2F7', color: colors.text, borderColor: colors.borderLight }]}
-                placeholder="Card Number" placeholderTextColor={colors.textExtraLight}
-                value={cardNum} onChangeText={(v) => setCardNum(formatCardNumber(v))} keyboardType="number-pad" maxLength={19} />
               <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                <TextInput style={[s.input, { flex: 1, backgroundColor: isDark ? '#111' : '#F2F2F7', color: colors.text, borderColor: colors.borderLight }]}
-                  placeholder="MM/YY" placeholderTextColor={colors.textExtraLight}
-                  value={cardExpiry} onChangeText={(v) => { const c = v.replace(/\D/g, '').slice(0, 4); setCardExpiry(c.length > 2 ? c.slice(0, 2) + '/' + c.slice(2) : c); }} keyboardType="number-pad" maxLength={5} />
-                <TextInput style={[s.input, { flex: 1, backgroundColor: isDark ? '#111' : '#F2F2F7', color: colors.text, borderColor: colors.borderLight }]}
-                  placeholder="CVV" placeholderTextColor={colors.textExtraLight}
-                  value={cardCvv} onChangeText={(v) => setCardCvv(v.replace(/\D/g, '').slice(0, 4))} keyboardType="number-pad" secureTextEntry maxLength={4} />
+                <View style={[s.glassInputContainer, { flex: 1, backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+                  <TextInput style={[s.glassInput, { color: colors.text }]} placeholder="MM/YY" placeholderTextColor={colors.textExtraLight} value={cardExpiry} onChangeText={(v) => { const c = v.replace(/\D/g, '').slice(0, 4); setCardExpiry(c.length > 2 ? c.slice(0, 2) + '/' + c.slice(2) : c); }} keyboardType="number-pad" maxLength={5} />
+                </View>
+                <View style={[s.glassInputContainer, { flex: 1, backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+                  <TextInput style={[s.glassInput, { color: colors.text }]} placeholder="CVV" placeholderTextColor={colors.textExtraLight} value={cardCvv} onChangeText={(v) => setCardCvv(v.replace(/\D/g, '').slice(0, 4))} keyboardType="number-pad" secureTextEntry maxLength={4} />
+                </View>
               </View>
-              <TextInput style={[s.input, { marginTop: 12, backgroundColor: isDark ? '#111' : '#F2F2F7', color: colors.text, borderColor: colors.borderLight }]}
-                placeholder="Cardholder Name" placeholderTextColor={colors.textExtraLight}
-                value={cardName} onChangeText={setCardName} autoCapitalize="words" />
             </View>
           )}
 
-          {/* ── NETBANKING PANEL ── */}
+          {/* ── BANK PANEL ── */}
           {tab === 'netbanking' && (
             <View style={s.panel}>
-              <Typography size={8} weight="700" color={colors.textExtraLight} style={s.panelLabel}>POPULAR BANKS</Typography>
+              <Typography size={8} weight="800" color={colors.textExtraLight} style={s.panelLabel}>POPULAR BANKS</Typography>
               <View style={s.methodGrid}>
-                {filteredBanks.map(bank => (
-                  <TouchableOpacity
-                    key={bank.code}
-                    style={[s.methodCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: selectedBank === bank.code ? colors.foreground : colors.borderLight }]}
-                    onPress={() => { haptics.buttonTap(); setSelectedBank(bank.code); }}
-                  >
-                    <Image source={{ uri: bank.icon }} style={s.methodIcon} resizeMode="contain" />
-                    <Typography size={9} weight="700" color={colors.text} style={{ marginTop: 8 }}>{bank.name}</Typography>
-                    {selectedBank === bank.code && (
-                      <View style={[s.checkBadge, { backgroundColor: colors.foreground }]}>
-                        <Ionicons name="checkmark" size={10} color={colors.background} />
-                      </View>
-                    )}
+                {TOP_BANKS.map(bank => (
+                  <TouchableOpacity key={bank.code} style={[s.glassCard, { borderColor: selectedBank === bank.code ? colors.foreground : colors.borderLight }]} onPress={() => { haptics.buttonTap(); setSelectedBank(bank.code); }}>
+                    <View style={s.glassIconContainer}>
+                      <Image source={{ uri: bank.icon }} style={s.glassIcon} />
+                    </View>
+                    <Typography size={8} weight="700" color={colors.text} style={{ marginTop: 8 }}>{bank.name.toUpperCase()}</Typography>
+                    {selectedBank === bank.code && <View style={[s.selectedDot, { backgroundColor: colors.foreground }]} />}
                   </TouchableOpacity>
                 ))}
               </View>
-              <Typography size={8} weight="700" color={colors.textExtraLight} style={[s.panelLabel, { marginTop: 24 }]}>SEARCH BANKS</Typography>
-              <TextInput style={[s.input, { backgroundColor: isDark ? '#111' : '#F2F2F7', color: colors.text, borderColor: colors.borderLight, marginBottom: 12 }]}
-                placeholder="Search banks..." placeholderTextColor={colors.textExtraLight}
-                value={bankSearch} onChangeText={setBankSearch} />
             </View>
           )}
 
           {/* ── WALLET PANEL ── */}
           {tab === 'wallet' && (
             <View style={s.panel}>
-              <Typography size={8} weight="700" color={colors.textExtraLight} style={s.panelLabel}>SELECT WALLET</Typography>
-              <View style={s.methodGrid}>
-                {WALLETS.map(wallet => (
-                  <TouchableOpacity
-                    key={wallet.id}
-                    style={[s.methodCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: selectedWallet === wallet.id ? colors.foreground : colors.borderLight }]}
-                    onPress={() => { haptics.buttonTap(); setSelectedWallet(wallet.id); }}
-                  >
-                    <Image source={{ uri: wallet.icon }} style={s.methodIcon} resizeMode="contain" />
-                    <Typography size={9} weight="700" color={colors.text} style={{ marginTop: 8 }}>{wallet.name}</Typography>
-                    {selectedWallet === wallet.id && (
-                      <View style={[s.checkBadge, { backgroundColor: colors.foreground }]}>
-                        <Ionicons name="checkmark" size={10} color={colors.background} />
+              <Typography size={8} weight="800" color={colors.textExtraLight} style={s.panelLabel}>AVAILABLE WALLETS</Typography>
+              {filteredWallets.length === 0 ? (
+                <View style={s.emptyBox}>
+                   <Typography size={10} color={colors.textMuted} style={{ textAlign: 'center', lineHeight: 18 }}>No matching wallet apps found.{'\n'}Try paying via UPI or Card.</Typography>
+                </View>
+              ) : (
+                <View style={s.methodGrid}>
+                  {filteredWallets.map(wallet => (
+                    <TouchableOpacity key={wallet.id} style={[s.glassCard, { borderColor: selectedWallet === wallet.id ? colors.foreground : colors.borderLight }]} onPress={() => { haptics.buttonTap(); setSelectedWallet(wallet.id); }}>
+                      <View style={s.glassIconContainer}>
+                        <Image source={{ uri: wallet.icon }} style={s.glassIcon} />
                       </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
+                      <Typography size={9} weight="800" color={colors.text} style={{ marginTop: 8 }}>{wallet.name.toUpperCase()}</Typography>
+                      {selectedWallet === wallet.id && <View style={[s.selectedDot, { backgroundColor: colors.foreground }]} />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── PAY BUTTON ── */}
-      <View style={[s.bottomBar, { paddingBottom: insets.bottom + 12, backgroundColor: colors.background, borderTopColor: colors.borderLight }]}>
-        <TouchableOpacity style={[s.payBtn, { backgroundColor: isPayReady() ? colors.foreground : colors.surface, opacity: isPayReady() ? 1 : 0.5 }]}
-          onPress={onPay} disabled={isProcessing || !isPayReady()} activeOpacity={0.85}>
+      <View style={[s.bottomBar, { paddingBottom: insets.bottom + 20, backgroundColor: colors.background }]}>
+        <TouchableOpacity style={[s.payBtn, { backgroundColor: isPayReady() ? colors.foreground : colors.surface, opacity: isPayReady() ? 1 : 0.4 }]} onPress={onPay} disabled={isProcessing || !isPayReady()}>
           {isProcessing ? <ActivityIndicator color={colors.background} /> :
-            <Typography size={13} weight="800" color={isPayReady() ? colors.background : colors.textMuted} style={{ letterSpacing: 1 }}>
-              PAY ₹{(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
-            </Typography>
+            <Typography size={13} weight="800" color={isPayReady() ? colors.background : colors.textMuted} style={{ letterSpacing: 2 }}>PLACE ORDER</Typography>
           }
         </TouchableOpacity>
       </View>
 
-      {/* ── PROCESSING OVERLAY ── */}
-      {isProcessing && (
-        <View style={[StyleSheet.absoluteFill, s.overlay, { backgroundColor: 'rgba(0,0,0,0.92)', zIndex: 9999 }]}>
-          <Animated.View style={{ transform: [{ rotate: spin }] }}>
-            <Ionicons name="sync-outline" size={48} color="rgba(255,255,255,0.6)" />
-          </Animated.View>
-          <Typography size={16} weight="700" color="#FFF" style={{ marginTop: 28, letterSpacing: 2 }}>
-            {status === 'creating_order' ? 'INITIATING' : status === 'verifying' ? 'VERIFYING' : 'PROCESSING'}
-          </Typography>
-          <Typography size={11} color="rgba(255,255,255,0.5)" style={{ marginTop: 8 }}>
-            {tab === 'upi' ? 'Complete payment in your UPI app...' : 'Please do not close the app...'}
-          </Typography>
-        </View>
-      )}
+      {/* Remove custom processing overlay to let Razorpay's native UI handle feedback */}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1 },
+  headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12 },
+  backBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  amountCard: { borderRadius: 32, padding: 32, alignItems: 'center', borderWidth: 1.5, marginVertical: 12 },
+  orderIdTag: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 10, marginTop: 16 },
+  tabBar: { flexDirection: 'row', marginTop: 24, borderRadius: 24, height: 52, overflow: 'hidden', position: 'relative', padding: 6, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
+  tabIndicator: { position: 'absolute', top: 6, height: 40, borderRadius: 18 },
+  tabItem: { height: 40, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
+  panel: { marginTop: 32 },
+  panelLabel: { letterSpacing: 4, marginBottom: 20, marginLeft: 8 },
+  subTabRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+  subTab: { flex: 1, height: 44, borderRadius: 15, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
+  loadingBox: { padding: 60, alignItems: 'center' },
+  emptyBox: { padding: 40, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
+  methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  glassCard: { width: (SW - 64) / 3, height: 105, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.02)', borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  glassIconContainer: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  glassIcon: { width: 30, height: 30, resizeMode: 'contain' },
+  selectedDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4 },
+  glassInputContainer: { height: 60, borderRadius: 20, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18 },
+  glassInput: { flex: 1, height: '100%', fontSize: 16, fontWeight: '700', marginLeft: 12 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 24, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)' },
+  payBtn: { height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20 },
+  processOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
   overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  resultCircle: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center' },
-  ctaBtn: { paddingVertical: 18, paddingHorizontal: 48, borderRadius: 24, minWidth: 200, alignItems: 'center' },
-  headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16 },
-  backBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  amountBox: { borderRadius: 24, padding: 24, marginTop: 8, alignItems: 'center', borderWidth: 1 },
-  tabBar: { flexDirection: 'row', marginTop: 24, borderRadius: 16, height: 44, overflow: 'hidden', position: 'relative' },
-  tabIndicator: { position: 'absolute', top: 4, height: 36, borderRadius: 12 },
-  tabItem: { height: 44, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  panel: { marginTop: 24 },
-  panelLabel: { letterSpacing: 2, marginBottom: 12, marginLeft: 4 },
-  input: { height: 48, borderRadius: 14, paddingHorizontal: 14, fontSize: 14, borderWidth: 1 },
-  methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'flex-start' },
-  methodCard: { width: (SW - 64) / 3, height: 90, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, position: 'relative', padding: 8 },
-  methodIcon: { width: 36, height: 36 },
-  methodIconFallback: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  checkBadge: { position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1 },
-  payBtn: { height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center' },
-  noAppsBox: { borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, marginTop: 4 },
+  resultCircle: { width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },
+  ctaBtn: { height: 60, borderRadius: 30, width: 240, justifyContent: 'center', alignItems: 'center' },
 });

@@ -26,6 +26,40 @@ function razorpayErrMessage(err: unknown): string {
   return 'Order creation failed';
 }
 
+async function resolveMobileCustomer(shopId: string, orderData: any, userAuth: NonNullable<ReturnType<typeof getAppAuthFromRequest>>) {
+  const customerId = orderData?.customerId && orderData.customerId !== 'GUEST' ? orderData.customerId : userAuth.customerId;
+  const customerEmail = orderData?.customerEmail || orderData?.shippingAddress?.email || userAuth.customerEmail;
+  const customerPhone = orderData?.customerPhone || orderData?.shippingAddress?.phone || '';
+
+  let customer = customerId
+    ? await prisma.customer.findUnique({ where: { id: customerId } })
+    : null;
+
+  if (!customer && customerEmail) {
+    customer = await prisma.customer.findFirst({ where: { email: customerEmail } });
+  }
+
+  if (!customer && customerPhone) {
+    const phoneDigits = String(customerPhone).replace(/\D/g, '').slice(-10);
+    if (phoneDigits.length === 10) {
+      customer = await prisma.customer.findFirst({ where: { phone: { contains: phoneDigits } } });
+    }
+  }
+
+  if (customer) return customer;
+
+  const shippingAddress = orderData?.shippingAddress || {};
+  return prisma.customer.create({
+    data: {
+      shopId,
+      shopifyId: `GUEST_${Date.now()}`,
+      name: shippingAddress.name || orderData?.customerName || 'Guest User',
+      email: customerEmail || 'guest@zicabella.com',
+      phone: customerPhone || '',
+    },
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const userAuth = getAppAuthFromRequest(req);
@@ -72,19 +106,25 @@ export async function POST(req: Request) {
       try {
         const shop = await prisma.shop.findFirst();
         if (shop) {
+          const customer = await resolveMobileCustomer(shop.id, orderData, userAuth);
           await prisma.order.create({
             data: {
               shopId: shop.id,
-              customerId: orderData.customerId === 'GUEST' ? undefined : orderData.customerId,
+              customerId: customer.id,
+              shopifyOrderId: `#PENDING_${order.id}`,
               razorpayOrderId: order.id,
               totalPrice: amountRupees,
               subtotalPrice: orderData.subtotal || amountRupees,
+              totalTax: 0,
               currency: 'INR',
               paymentStatus: 'pending',
               status: 'PENDING',
               orderType: 'MOBILE_APP',
+              fulfillmentStatus: 'unfulfilled',
+              deliveryStatus: 'pending',
               paymentMethod: 'Razorpay',
               shippingAddress: typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : JSON.stringify(orderData.shippingAddress),
+              billingAddress: null,
               tags: orderData.tags || 'mobile-app, pending',
               note: orderData.note || 'Created via Payment Initiation',
               items: {

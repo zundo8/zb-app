@@ -132,11 +132,12 @@ export async function POST(
     // Create order in Shopify
     const shopifyOrder = await createOrder(shopifyOrderPayload);
 
-    // Update local order with Shopify ID
+    // Update local order with Shopify ID and approve it
     await prisma.order.update({
       where: { id: orderId },
       data: { 
         shopifyOrderId: shopifyOrder.id.toString(),
+        status: 'OPEN', // Mark as approved/open now that it's in Shopify
         tags: `AppOrder, MobileApp, Synced, ${order.paymentMethod || 'Razorpay'}`,
       },
     });
