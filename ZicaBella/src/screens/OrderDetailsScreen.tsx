@@ -221,7 +221,13 @@ export default function OrderDetailsScreen() {
           <View style={{ flex: 1 }}>
             <Typography size={10} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 0.5, marginBottom: 4 }}>STATUS</Typography>
             <Typography size={17} weight="800" color={colors.text}>
-              {isCancelled ? 'Order Cancelled' : isDelivered ? 'Delivered' : (order.deliveryStatus || order.status || 'Processing').replace(/_/g, ' ')}
+              {isCancelled 
+                ? 'Order Cancelled' 
+                : (order.status === 'payment_pending' || (order.status || '').toLowerCase() === 'pending')
+                  ? 'Payment Failed'
+                  : isDelivered 
+                    ? 'Delivered' 
+                    : (order.deliveryStatus || order.status || 'Processing').replace(/_/g, ' ')}
             </Typography>
             <Typography size={11} weight="600" color={colors.textMuted} style={{ marginTop: 6, fontFeatures: ['tnum'] }}>
               {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
@@ -324,7 +330,9 @@ export default function OrderDetailsScreen() {
             <Typography size={12} weight="800" color="#34C759">FREE</Typography>
           </View>
           <View style={[styles.totalRow, { borderTopColor: colors.borderExtraLight, marginTop: 16, paddingTop: 16 }]}>
-            <Typography size={15} weight="900" color={colors.text}>TOTAL PAID</Typography>
+            <Typography size={15} weight="900" color={colors.text}>
+              {order.paymentStatus === 'paid' ? 'TOTAL PAID' : 'TOTAL AMOUNT'}
+            </Typography>
             <Typography size={20} weight="900" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
           </View>
         </View>

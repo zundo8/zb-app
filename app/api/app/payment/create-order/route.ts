@@ -118,7 +118,7 @@ export async function POST(req: Request) {
               totalTax: 0,
               currency: 'INR',
               paymentStatus: 'pending',
-              status: 'PENDING',
+              status: 'payment_pending',
               orderType: 'MOBILE_APP',
               fulfillmentStatus: 'unfulfilled',
               deliveryStatus: 'pending',

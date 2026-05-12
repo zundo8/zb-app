@@ -34,10 +34,10 @@ function parseShippingAddress(raw: string | null) {
 
 function orderNumberFromOrder(order: any) {
   const tags = String(order.tags || '');
-  const m = tags.match(/zb-order-(ZB-\d+)/i);
+  const m = tags.match(/zb-order-(ZB[71\d-]+)/i);
   if (m?.[1]) return m[1].toUpperCase();
   const so = String(order.shopifyOrderId || '');
-  if (so.startsWith('#ZB-')) return so.replace(/^#/, '');
+  if (so.startsWith('#ZB')) return so.replace(/^#/, '');
   return so.replace(/^#/, '') || order.id;
 }
 
@@ -122,7 +122,13 @@ export async function GET(req: Request) {
 
   try {
     const orders = await prisma.order.findMany({
-      where: { customerId },
+      where: { 
+        customerId,
+        OR: [
+          { paymentMethod: 'COD' },
+          { paymentStatus: 'paid' }
+        ]
+      },
       include: { items: true, shipments: true },
       orderBy: { createdAt: 'desc' },
     });

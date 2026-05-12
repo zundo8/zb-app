@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         let shopifyOrderId = order.shopifyOrderId;
         let tags = order.tags || 'mobile-app';
         
-        if (!shopifyOrderId || shopifyOrderId.startsWith('#') || shopifyOrderId.startsWith('ZB-')) {
+        if (!shopifyOrderId || shopifyOrderId.startsWith('#') || shopifyOrderId.startsWith('ZB')) {
           try {
             const { createOrder, createCustomer } = await import('@/lib/shopify-admin');
             const { extractNumericId } = await import('@/lib/utils');

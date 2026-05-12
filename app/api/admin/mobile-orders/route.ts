@@ -9,16 +9,31 @@ export async function GET(req: Request) {
     const limitRaw = url.searchParams.get('limit');
     const limit = limitRaw ? Math.max(1, Math.min(100, parseInt(limitRaw, 10) || 50)) : 50;
 
+    const abandoned = url.searchParams.get('abandoned') === 'true';
+    const where: any = {
+      OR: [
+        { orderType: 'MOBILE_APP' },
+        { tags: { contains: 'mobile-app' } },
+        { tags: { contains: 'AppOrder' } },
+        { tags: { contains: 'App' } },
+        { note: { contains: 'Mobile app order' } },
+      ],
+    };
+
+    if (abandoned) {
+      // Failed/Pending prepaid orders
+      where.paymentStatus = { not: 'paid' };
+      where.paymentMethod = { not: 'COD' };
+    } else {
+      // Normal orders: COD or Paid Prepaid
+      where.OR = [
+        { paymentMethod: 'COD' },
+        { paymentStatus: 'paid' }
+      ];
+    }
+
     const orders = await prisma.order.findMany({
-      where: {
-        OR: [
-          { orderType: 'MOBILE_APP' },
-          { tags: { contains: 'mobile-app' } },
-          { tags: { contains: 'AppOrder' } },
-          { tags: { contains: 'App' } },
-          { note: { contains: 'Mobile app order' } },
-        ],
-      },
+      where,
       include: {
         items: {
           include: {
@@ -36,7 +51,7 @@ export async function GET(req: Request) {
       orders: orders.map((o: any) => {
         const latestShipment = o.shipments?.[0];
         const orderNumber =
-          String(o.tags || '').match(/zb-order-(ZB-\d+)/i)?.[1]?.toUpperCase() ||
+          String(o.tags || '').match(/zb-order-(ZB[71\d-]+)/i)?.[1]?.toUpperCase() ||
           String(o.shopifyOrderId || '').replace(/^#/, '') ||
           o.id;
 

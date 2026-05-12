@@ -70,7 +70,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         }
 
         const orderNumber =
-          String(order.tags || '').match(/zb-order-(ZB-\d+)/i)?.[1]?.toUpperCase() ||
+          String(order.tags || '').match(/zb-order-(ZB[71\d-]+)/i)?.[1]?.toUpperCase() ||
           String(order.shopifyOrderId || '').replace(/^#/, '') ||
           order.id;
 

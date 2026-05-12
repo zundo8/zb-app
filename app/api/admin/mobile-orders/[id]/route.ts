@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     }
 
     const orderNumber =
-      String(order.tags || '').match(/zb-order-(ZB-\d+)/i)?.[1]?.toUpperCase() ||
+      String(order.tags || '').match(/zb-order-(ZB[71\d-]+)/i)?.[1]?.toUpperCase() ||
       String(order.shopifyOrderId || '').replace(/^#/, '') ||
       order.id;
 
@@ -70,7 +70,31 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       },
     });
   } catch (e: any) {
-    console.error('[Admin] mobile-orders/[id] error:', e);
+    console.error('[Admin] mobile-orders/[id] GET error:', e);
+    return NextResponse.json({ error: e?.message || 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const body = await req.json();
+    const { status, paymentStatus, fulfillmentStatus, deliveryStatus, note, tags } = body;
+
+    const updated = await prisma.order.update({
+      where: { id: params.id },
+      data: {
+        status: status !== undefined ? status : undefined,
+        paymentStatus: paymentStatus !== undefined ? paymentStatus : undefined,
+        fulfillmentStatus: fulfillmentStatus !== undefined ? fulfillmentStatus : undefined,
+        deliveryStatus: deliveryStatus !== undefined ? deliveryStatus : undefined,
+        note: note !== undefined ? note : undefined,
+        tags: tags !== undefined ? tags : undefined,
+      },
+    });
+
+    return NextResponse.json({ success: true, order: updated });
+  } catch (e: any) {
+    console.error('[Admin] mobile-orders/[id] PATCH error:', e);
     return NextResponse.json({ error: e?.message || 'Internal server error' }, { status: 500 });
   }
 }

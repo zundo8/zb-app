@@ -21,22 +21,31 @@ function jsonError(message: string, status = 400) {
 }
 
 function toOrderNumberFromSeq(seq: number) {
-  return `ZB-${seq}`;
+  return `ZB${seq}`;
 }
 
 async function allocateOrderNumber(): Promise<string> {
   // Best-effort monotonic-ish allocation without schema changes.
-  // We encode the orderNumber into Order.shopifyOrderId as `#${orderNumber}` for uniqueness.
+  // Format: ZB71XXXX (e.g., ZB710001)
   const count = await prisma.order.count();
-  const base = 1000;
+  const base = 710000;
   // Avoid collisions by probing forward a bit.
-  for (let i = 1; i <= 50; i++) {
+  for (let i = 1; i <= 100; i++) {
     const candidate = toOrderNumberFromSeq(base + count + i);
-    const existing = await prisma.order.findUnique({ where: { shopifyOrderId: `#${candidate}` }, select: { id: true } });
+    // Check if any order already has this in shopifyOrderId (prefixed with #) or as a tag
+    const existing = await prisma.order.findFirst({ 
+      where: { 
+        OR: [
+          { shopifyOrderId: `#${candidate}` },
+          { tags: { contains: candidate } }
+        ]
+      }, 
+      select: { id: true } 
+    });
     if (!existing) return candidate;
   }
-  // Fallback (should be extremely rare)
-  return `ZB-${Date.now()}`;
+  // Fallback
+  return `ZB71${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
 export async function POST(req: Request) {
@@ -131,8 +140,15 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join(' | ');
 
-    // Status: approved for paid, awaiting_approval for COD
-    const initialStatus = paymentStatus === 'paid' ? 'OPEN' : 'awaiting_approval';
+    // Status logic: 
+    // 1. Paid -> OPEN (Auto-approved)
+    // 2. COD -> awaiting_approval (Requires manual review)
+    // 3. Unpaid Prepaid -> payment_pending (Abandoned/Failed flow)
+    const initialStatus = paymentStatus === 'paid' 
+      ? 'OPEN' 
+      : paymentMethod === 'COD' 
+        ? 'awaiting_approval' 
+        : 'payment_pending';
     
     // Check if order already exists (pre-created via initiate)
     let existingOrder = null;

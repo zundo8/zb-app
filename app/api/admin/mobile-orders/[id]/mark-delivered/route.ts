@@ -16,7 +16,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     // Push notification (non-blocking)
     try {
       const orderNumber =
-        String(order.tags || '').match(/zb-order-(ZB-\d+)/i)?.[1]?.toUpperCase() ||
+        String(order.tags || '').match(/zb-order-(ZB[71\d-]+)/i)?.[1]?.toUpperCase() ||
         String(order.shopifyOrderId || '').replace(/^#/, '') ||
         'your order';
       const { NotificationService } = await import('@/lib/services/notification.service');

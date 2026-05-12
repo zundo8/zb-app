@@ -36,11 +36,12 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
     if (isLarge) return SCREEN_WIDTH;
     if (compact) return SCREEN_WIDTH / 4;
     
-    // If style.width is a percentage or string, we try to use a numeric fallback for snapToInterval
+    // If style.width is a numeric value (like in WishlistScreen), use it directly.
     const widthFromStyle = style?.width;
     if (typeof widthFromStyle === 'number') return widthFromStyle;
     
-    return SCREEN_WIDTH / 2 - 24; // Default to half screen minus padding
+    // Default for standard 2-column grid. We use Math.floor to match wrappers in HomeScreen/CollectionScreen.
+    return Math.floor(SCREEN_WIDTH / 2);
   }, [isLarge, compact, style?.width]);
 
   const images = useMemo(() => {
@@ -89,7 +90,7 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
   }, [hasInteracted]);
 
   return (
-    <View style={[styles.container, { width: currentCardWidth }, isSoldOut && styles.soldOut, style]}>
+    <View style={[styles.container, style, isSoldOut && styles.soldOut]}>
       {/* Badges */}
       <View style={styles.badgeContainer}>
         {isSoldOut ? (

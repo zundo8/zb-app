@@ -95,7 +95,13 @@ export async function GET(req: Request) {
           { tags: { contains: 'mobile-app' } },
           { tags: { contains: 'AppOrder' } }
         ]
-      } : (orderId ? { id: orderId } : { customerId: { in: customerIds } }),
+      } : (orderId ? { id: orderId } : { 
+        customerId: { in: customerIds },
+        OR: [
+          { paymentMethod: 'COD' },
+          { paymentStatus: 'paid' }
+        ]
+      }),
       include: {
         items: {
           include: {

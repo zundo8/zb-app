@@ -51,14 +51,18 @@ function StatusBadge({ status, type }: { status: string | null; type: "payment" 
     paid: "bg-green-500/10 text-green-600 dark:text-green-400",
     success: "bg-green-500/10 text-green-600 dark:text-green-400",
     refunded: "bg-red-500/10 text-red-600 dark:text-red-400",
+    cancelled: "bg-red-500/10 text-red-600 dark:text-red-400",
+    failed: "bg-red-500/10 text-red-600 dark:text-red-400",
     fulfilled: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     delivered: "bg-green-500/10 text-green-600 dark:text-green-400",
     pending: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+    payment_pending: "bg-red-500/10 text-red-600 dark:text-red-400",
+    awaiting_approval: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
     unfulfilled: "bg-foreground/[0.05] text-foreground/70",
   };
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-sm text-[9px] font-medium uppercase tracking-widest ${colors[label] || "bg-foreground/[0.05] text-foreground/70"}`}>
-      {label}
+      {label.replace('_', ' ')}
     </span>
   );
 }
@@ -71,17 +75,12 @@ export default function MobileOrdersPage() {
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'active' | 'abandoned'>('active');
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (tab: 'active' | 'abandoned' = activeTab) => {
     setLoading(true);
     try {
-      // Fetch from our specialized app orders API (GET)
-      // We pass a secret header or just rely on session for admin
-      const res = await fetch("/api/app/orders?all=true&limit=50", {
-        headers: {
-          'Authorization': 'Bearer ADMIN_SESSION_BYPASS' // Backend needs to support this
-        }
-      });
+      const res = await fetch(`/api/admin/mobile-orders?limit=100${tab === 'abandoned' ? '&abandoned=true' : ''}`);
       const data = await res.json();
       setOrders(data.orders || []);
     } catch (err: any) {
@@ -92,12 +91,54 @@ export default function MobileOrdersPage() {
   };
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    fetchOrders(activeTab);
+  }, [activeTab]);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleUpdateStatus = async (orderId: string, updates: any) => {
+    setSyncingId(orderId);
+    try {
+      const res = await fetch(`/api/admin/mobile-orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Order updated successfully");
+        fetchOrders(activeTab);
+      } else {
+        showToast("Update failed: " + data.error);
+      }
+    } catch (err) {
+      showToast("Update error");
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  const handleApprove = async (orderId: string) => {
+    setSyncingId(orderId);
+    try {
+      const res = await fetch(`/api/admin/mobile-orders/${orderId}/approve`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Order approved and synced to Shopify");
+        fetchOrders(activeTab);
+      } else {
+        showToast("Approval failed: " + data.error);
+      }
+    } catch (err) {
+      showToast("Approval error");
+    } finally {
+      setSyncingId(null);
+    }
   };
 
   const handleSyncToShopify = async (orderId: string) => {
@@ -107,9 +148,10 @@ export default function MobileOrdersPage() {
       const data = await res.json();
       if (data.success) {
         showToast("Successfully synced to Shopify");
-        fetchOrders();
+        fetchOrders(activeTab);
       } else {
-        showToast("Sync failed: " + data.error);
+        // Try the approve endpoint as a fallback if sync fails, as it also handles creation
+        handleApprove(orderId);
       }
     } catch (err) {
       showToast("Sync error");
@@ -156,21 +198,42 @@ export default function MobileOrdersPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Smartphone className="w-5 h-5 text-foreground/70" />
-            <h1 className="text-xl font-semibold text-foreground tracking-tight">Mobile App Orders</h1>
+            <h1 className="text-xl font-semibold text-foreground tracking-tight">
+              {activeTab === 'active' ? 'Mobile App Orders' : 'Abandoned & Failed Payments'}
+            </h1>
           </div>
           <p className="text-[11px] text-foreground/50 tracking-wide">
-            Real-time synchronization for orders placed via React Native application.
+            {activeTab === 'active' 
+              ? 'Real-time synchronization for orders placed via React Native application.'
+              : 'Potential customers who initiated checkout but failed or cancelled payment.'}
           </p>
         </div>
         
-        <button
-          onClick={fetchOrders}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 transition-opacity"
-        >
-          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-          Refresh Orders
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-foreground/[0.03] p-1 rounded-lg border border-foreground/[0.05]">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`px-4 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-widest transition-all ${activeTab === 'active' ? 'bg-background text-foreground shadow-sm' : 'text-foreground/40 hover:text-foreground/60'}`}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setActiveTab('abandoned')}
+              className={`px-4 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-widest transition-all ${activeTab === 'abandoned' ? 'bg-background text-foreground shadow-sm' : 'text-foreground/40 hover:text-foreground/60'}`}
+            >
+              Abandoned
+            </button>
+          </div>
+
+          <button
+            onClick={() => fetchOrders(activeTab)}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 transition-opacity"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -194,8 +257,8 @@ export default function MobileOrdersPage() {
                 <th className="px-5 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Order ID</th>
                 <th className="px-5 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Customer</th>
                 <th className="px-5 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Method</th>
+                <th className="px-5 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Status</th>
                 <th className="px-5 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Payment</th>
-                <th className="px-5 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Fulfillment</th>
                 <th className="px-5 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest text-right">Total</th>
                 <th className="px-5 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest text-right">Actions</th>
               </tr>
@@ -253,17 +316,27 @@ export default function MobileOrdersPage() {
                           </div>
                         </td>
                         <td className="px-5 py-4">
-                          <StatusBadge status={order.paymentStatus} type="payment" />
+                          <StatusBadge status={order.status} type="delivery" />
                         </td>
                         <td className="px-5 py-4">
-                          <StatusBadge status={order.fulfillmentStatus} type="fulfillment" />
+                          <StatusBadge status={order.paymentStatus} type="payment" />
                         </td>
                         <td className="px-5 py-4 text-[12px] font-medium text-foreground text-right">
                           ₹{order.totalPrice.toLocaleString("en-IN")}
                         </td>
                         <td className="px-5 py-4 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
-                            {!isSynced ? (
+                            {order.status === 'awaiting_approval' && (
+                              <button
+                                onClick={() => handleApprove(order.id)}
+                                disabled={isSyncing}
+                                className="px-3 py-1 bg-green-600 text-white rounded-sm text-[9px] font-bold uppercase tracking-widest hover:bg-green-700 transition-colors"
+                              >
+                                {isSyncing ? "Processing..." : "Approve & Sync"}
+                              </button>
+                            )}
+                            
+                            {!isSynced && order.status !== 'awaiting_approval' && (
                               <button
                                 onClick={() => handleSyncToShopify(order.id)}
                                 disabled={isSyncing}
@@ -271,9 +344,11 @@ export default function MobileOrdersPage() {
                               >
                                 {isSyncing ? "Syncing..." : "Sync to Shopify"}
                               </button>
-                            ) : (
+                            )}
+                            
+                            {isSynced && (
                               <a
-                                href={`https://8tiahf-bk.myshopify.com/admin/orders/${order.shopifyOrderId}`}
+                                href={`https://admin.shopify.com/store/8tiahf-bk/orders/${order.shopifyOrderId}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-1.5 bg-foreground/[0.03] rounded-md text-foreground/40 hover:text-foreground transition-colors inline-block"
@@ -358,6 +433,63 @@ export default function MobileOrdersPage() {
                                           </p>
                                           <p className="font-mono font-bold text-foreground/80">{order.shippingAddress?.zip || order.shippingAddress?.pincode}</p>
                                           <p className="text-[9px] font-black text-foreground/30 uppercase tracking-[0.2em] mt-2">{order.shippingAddress?.country || 'INDIA'}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-6 border-b border-foreground/[0.05] pb-2">Manual Status Management</h4>
+                                    <div className="bg-foreground/[0.02] p-5 rounded-xl border border-foreground/[0.05] space-y-4">
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                          <label className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest mb-1 block">Order Status</label>
+                                          <select 
+                                            value={order.status}
+                                            onChange={(e) => handleUpdateStatus(order.id, { status: e.target.value })}
+                                            className="w-full bg-background border border-foreground/[0.05] rounded p-1.5 text-[10px] uppercase font-bold text-foreground"
+                                          >
+                                            <option value="OPEN">Open</option>
+                                            <option value="awaiting_approval">Awaiting Approval</option>
+                                            <option value="approved">Approved</option>
+                                            <option value="cancelled">Cancelled</option>
+                                            <option value="FULFILLED">Fulfilled</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest mb-1 block">Payment</label>
+                                          <select 
+                                            value={order.paymentStatus}
+                                            onChange={(e) => handleUpdateStatus(order.id, { paymentStatus: e.target.value })}
+                                            className="w-full bg-background border border-foreground/[0.05] rounded p-1.5 text-[10px] uppercase font-bold text-foreground"
+                                          >
+                                            <option value="pending">Pending</option>
+                                            <option value="paid">Paid</option>
+                                            <option value="refunded">Refunded</option>
+                                            <option value="voided">Voided</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest mb-1 block">Delivery</label>
+                                          <select 
+                                            value={order.deliveryStatus}
+                                            onChange={(e) => handleUpdateStatus(order.id, { deliveryStatus: e.target.value })}
+                                            className="w-full bg-background border border-foreground/[0.05] rounded p-1.5 text-[10px] uppercase font-bold text-foreground"
+                                          >
+                                            <option value="pending">Pending</option>
+                                            <option value="shipped">Shipped</option>
+                                            <option value="out_for_delivery">Out for Delivery</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="returned">Returned</option>
+                                          </select>
+                                        </div>
+                                        <div className="flex items-end">
+                                          <button 
+                                            onClick={() => fetchOrders()}
+                                            className="w-full py-1.5 bg-foreground text-background text-[9px] font-bold uppercase tracking-widest rounded transition-colors"
+                                          >
+                                            Sync View
+                                          </button>
                                         </div>
                                       </div>
                                     </div>
