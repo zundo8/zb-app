@@ -119,10 +119,19 @@ export async function GET(req: Request) {
         (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )[0];
 
-      let parsedShippingAddress = null;
+      let parsedShippingAddress: any = null;
       if (o.shippingAddress) {
         try {
-          parsedShippingAddress = JSON.parse(o.shippingAddress);
+          const raw = typeof o.shippingAddress === 'string' ? JSON.parse(o.shippingAddress) : o.shippingAddress;
+          parsedShippingAddress = {
+            ...raw,
+            name: raw.name || raw.first_name ? `${raw.first_name} ${raw.last_name || ''}`.trim() : null,
+            address1: raw.address1 || raw.line1 || raw.street || '',
+            address2: raw.address2 || raw.line2 || '',
+            city: raw.city || '',
+            province: raw.province || raw.state || '',
+            zip: raw.zip || raw.pincode || '',
+          };
         } catch {
           parsedShippingAddress = { raw: o.shippingAddress };
         }

@@ -123,19 +123,43 @@ export async function POST(req: Request) {
               fulfillmentStatus: 'unfulfilled',
               deliveryStatus: 'pending',
               paymentMethod: 'Razorpay',
-              shippingAddress: typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : JSON.stringify(orderData.shippingAddress),
+              shippingAddress: typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : JSON.stringify({
+                ...orderData.shippingAddress,
+                address1: orderData.shippingAddress?.address1 || orderData.shippingAddress?.line1 || orderData.shippingAddress?.street || '',
+                province: orderData.shippingAddress?.province || orderData.shippingAddress?.state || '',
+                zip: orderData.shippingAddress?.zip || orderData.shippingAddress?.pincode || '',
+              }),
               billingAddress: null,
               tags: orderData.tags || 'mobile-app, pending',
               note: orderData.note || 'Created via Payment Initiation',
               items: {
-                create: (orderData.lineItems || []).map((li: any, idx: number) => ({
-                  shopifyLineItemId: `pending_${order.id}_${idx}`,
-                  productId: li.productId || null,
-                  title: li.name || li.title || 'Product',
-                  quantity: Number(li.quantity || 1),
-                  price: Number(li.price || 0),
-                  sku: li.sku || null,
-                  image: li.image || null,
+                create: await Promise.all((orderData.lineItems || []).map(async (li: any, idx: number) => {
+                  let resolvedPid: string | null = null;
+                  const rawPid = li.productId || li.product_id;
+                  if (rawPid) {
+                    const pidStr = String(rawPid);
+                    const byId = await prisma.product.findUnique({ where: { id: pidStr }, select: { id: true } }).catch(() => null);
+                    if (byId) {
+                      resolvedPid = byId.id;
+                    } else {
+                      const { extractNumericId } = await import('@/lib/utils');
+                      const numericPid = extractNumericId(pidStr);
+                      if (numericPid) {
+                        const byShopifyId = await prisma.product.findUnique({ where: { shopifyProductId: numericPid }, select: { id: true } }).catch(() => null);
+                        if (byShopifyId) resolvedPid = byShopifyId.id;
+                      }
+                    }
+                  }
+                  
+                  return {
+                    shopifyLineItemId: `pending_${order.id}_${idx}`,
+                    productId: resolvedPid,
+                    title: li.name || li.title || 'Product',
+                    quantity: Number(li.quantity || 1),
+                    price: Number(li.price || 0),
+                    sku: li.sku || null,
+                    image: li.image || null,
+                  };
                 })),
               }
             }

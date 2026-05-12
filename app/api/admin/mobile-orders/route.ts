@@ -20,7 +20,11 @@ export async function GET(req: Request) {
         ],
       },
       include: {
-        items: true,
+        items: {
+          include: {
+            product: { select: { featuredImage: true, title: true } }
+          }
+        },
         customer: { select: { id: true, name: true, email: true, phone: true } },
         shipments: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
@@ -59,7 +63,11 @@ export async function GET(req: Request) {
           shopifyOrderId: o.shopifyOrderId && /^\d+$/.test(String(o.shopifyOrderId)) ? o.shopifyOrderId : null,
           shippingAddress,
           customer: o.customer,
-          items: o.items,
+          items: o.items.map((item: any) => ({
+            ...item,
+            image: item.image || item.product?.featuredImage || null,
+            title: item.title || item.product?.title || 'Unknown Product',
+          })),
           tracking: latestShipment
             ? {
                 awb: latestShipment.awb || latestShipment.trackingNumber || null,

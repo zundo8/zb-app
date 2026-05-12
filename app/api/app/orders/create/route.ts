@@ -233,15 +233,15 @@ export async function POST(req: Request) {
           note: note,
           shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
             name: shippingAddress?.name || customer.name,
-            line1: shippingAddress?.line1 || shippingAddress?.street || '',
-            line2: shippingAddress?.line2 || '',
-            city: shippingAddress?.city || '',
-            state: shippingAddress?.state || '',
-            pincode: shippingAddress?.pincode || shippingAddress?.zip || '',
-            country: shippingAddress?.country || 'India',
-            phone: customerPhone || customer.phone,
-            email: customerEmail || customer.email,
-          }),
+          address1: shippingAddress?.address1 || shippingAddress?.line1 || shippingAddress?.street || '',
+          address2: shippingAddress?.address2 || shippingAddress?.line2 || '',
+          city: shippingAddress?.city || '',
+          province: shippingAddress?.province || shippingAddress?.state || '',
+          zip: shippingAddress?.zip || shippingAddress?.pincode || '',
+          country: shippingAddress?.country || 'India',
+          phone: customerPhone || customer.phone || shippingAddress?.phone || '',
+          email: customerEmail || customer.email || shippingAddress?.email || '',
+        }),
         }
       });
 
@@ -272,14 +272,14 @@ export async function POST(req: Request) {
         deliveryStatus: 'pending',
         shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
           name: shippingAddress?.name || customer.name,
-          line1: shippingAddress?.line1 || shippingAddress?.street || '',
-          line2: shippingAddress?.line2 || '',
+          address1: shippingAddress?.address1 || shippingAddress?.line1 || shippingAddress?.street || '',
+          address2: shippingAddress?.address2 || shippingAddress?.line2 || '',
           city: shippingAddress?.city || '',
-          state: shippingAddress?.state || '',
-          pincode: shippingAddress?.pincode || shippingAddress?.zip || '',
+          province: shippingAddress?.province || shippingAddress?.state || '',
+          zip: shippingAddress?.zip || shippingAddress?.pincode || '',
           country: shippingAddress?.country || 'India',
-          phone: customerPhone || customer.phone,
-          email: customerEmail || customer.email,
+          phone: customerPhone || customer.phone || shippingAddress?.phone || '',
+          email: customerEmail || customer.email || shippingAddress?.email || '',
         }),
         billingAddress: null,
         note,
@@ -288,19 +288,37 @@ export async function POST(req: Request) {
         paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
         paymentCapturedAt: paymentStatus === 'paid' ? now : null,
         items: {
-          create: lineItems.map((li: any, idx: number) => {
-            const pid = extractNumericId(li.productId || li.product_id);
+          create: await Promise.all(lineItems.map(async (li: any, idx: number) => {
+            const rawPid = li.productId || li.product_id;
             const vid = extractNumericId(li.variantId || li.variant_id);
+            
+            let resolvedPid: string | null = null;
+            if (rawPid) {
+              const pidStr = String(rawPid);
+              // Try finding by internal ID (CUID) first
+              const byId = await prisma.product.findUnique({ where: { id: pidStr }, select: { id: true } });
+              if (byId) {
+                resolvedPid = byId.id;
+              } else {
+                // Try finding by Shopify ID
+                const numericPid = extractNumericId(pidStr);
+                if (numericPid) {
+                  const byShopifyId = await prisma.product.findUnique({ where: { shopifyProductId: numericPid }, select: { id: true } });
+                  if (byShopifyId) resolvedPid = byShopifyId.id;
+                }
+              }
+            }
+
             return {
               shopifyLineItemId: `app_${orderNumber}_${idx}_${Date.now()}`,
-              productId: pid || null,
+              productId: resolvedPid,
               title: li.name || li.title || 'Product',
               quantity: Number(li.quantity || 0),
               price: Number(li.price || 0),
               sku: li.sku || (vid ? `variant:${vid}` : null),
               image: li.image || li.imageUrl || null,
             };
-          }),
+          })),
         },
         payments:
           paymentStatus === 'paid'
