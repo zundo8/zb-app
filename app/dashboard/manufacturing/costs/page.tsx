@@ -309,7 +309,7 @@ export default function CostLedgerPage() {
             className={`fixed top-8 left-1/2 z-[200] max-w-[90vw] w-max px-4 py-3 rounded-[1rem] text-[12px] font-bold shadow-2xl flex items-center justify-center gap-2 border backdrop-blur-xl ${
               toast.t === "ok" 
                 ? "bg-background/90 text-foreground border-foreground/10" 
-                : "bg-rose-500 text-white border-rose-500/20"
+                : "bg-rose-500 text-foreground border-rose-500/20"
             }`}
           >
             {toast.t === "ok" && <Check className="w-4 h-4 text-emerald-500" />}
@@ -342,7 +342,7 @@ export default function CostLedgerPage() {
           <button
             onClick={loadLedger}
             disabled={loading}
-            className="flex items-center gap-3 px-6 py-3 bg-background dark:bg-white/[0.03] border border-foreground/[0.08] text-foreground rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-foreground/[0.02] disabled:opacity-50 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-3 px-6 py-3 bg-background dark:bg-foreground/[0.03] border border-foreground/[0.08] text-foreground rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-foreground/[0.02] disabled:opacity-50 transition-all shadow-sm active:scale-95"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} strokeWidth={2.5} />
             Refresh
@@ -351,7 +351,7 @@ export default function CostLedgerPage() {
           <button
             onClick={exportCsv}
             disabled={batches.length === 0}
-             className="flex items-center gap-3 px-6 py-3 bg-background dark:bg-white/[0.03] border border-foreground/[0.08] text-foreground rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-foreground/[0.02] disabled:opacity-50 transition-all shadow-sm active:scale-95"
+             className="flex items-center gap-3 px-6 py-3 bg-background dark:bg-foreground/[0.03] border border-foreground/[0.08] text-foreground rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-foreground/[0.02] disabled:opacity-50 transition-all shadow-sm active:scale-95"
           >
             <Download className="w-3.5 h-3.5" strokeWidth={2.5} />
             Export CSV

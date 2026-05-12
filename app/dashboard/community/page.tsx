@@ -68,7 +68,7 @@ import { motion, AnimatePresence } from "framer-motion";
       variant === 'primary' 
         ? 'bg-foreground text-background hover:opacity-90' 
         : variant === 'secondary'
-        ? 'bg-blue-500 text-white hover:bg-blue-600'
+        ? 'bg-blue-500 text-foreground hover:bg-blue-600'
         : 'bg-foreground/5 text-foreground/80 dark:text-foreground/80 dark:text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 hover:bg-foreground/10'
     }`}
   >
@@ -379,7 +379,7 @@ export default function CommunityAdminPage() {
             <div className="px-2 py-0.5 bg-blue-500/10 text-blue-500 rounded-md text-[8px] font-black uppercase tracking-widest border border-blue-500/20">
                {members.filter(m => m.status === 'PENDING').length} Pending Requests
             </div>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/50 dark:text-foreground/30 dark:text-white/20">Membership Guard</h2>
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/50 dark:text-foreground/30 dark:text-foreground/20">Membership Guard</h2>
          </div>
 
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -394,7 +394,7 @@ export default function CommunityAdminPage() {
                     className="glass-card p-8 flex flex-col gap-6 group relative rounded-[2.5rem]"
                   >
                      <div className="flex items-center gap-4">
-                        <div className="w-11 h-11 rounded-full bg-foreground/[0.03] dark:bg-white/[0.03] flex items-center justify-center overflow-hidden border border-foreground/[0.08] shadow-inner">
+                        <div className="w-11 h-11 rounded-full bg-foreground/[0.03] dark:bg-foreground/[0.03] flex items-center justify-center overflow-hidden border border-foreground/[0.08] shadow-inner">
                            {member.customer.image ? (
                              <img src={member.customer.image} className="w-full h-full object-cover" alt={member.customer.name} />
                            ) : (
@@ -403,17 +403,17 @@ export default function CommunityAdminPage() {
                         </div>
                         <div className="flex flex-col min-w-0">
                            <span className="text-[14px] font-bold text-foreground uppercase tracking-tight truncate leading-none">{member.customer.name || 'Anonymous'}</span>
-                           <span className="text-[9px] font-bold text-foreground/50 dark:text-foreground/30 dark:text-white/10 uppercase tracking-[0.2em] leading-none mt-2 truncate">{member.customer.email}</span>
+                           <span className="text-[9px] font-bold text-foreground/50 dark:text-foreground/30 dark:text-foreground/10 uppercase tracking-[0.2em] leading-none mt-2 truncate">{member.customer.email}</span>
                         </div>
                      </div>
 
                      <div className="grid grid-cols-2 gap-2.5">
-                        <div className="bg-foreground/[0.02] dark:bg-white/[0.01] rounded-[1.2rem] border border-foreground/[0.04] p-3 shadow-inner">
-                           <p className="text-[7.5px] font-bold text-foreground/50 dark:text-foreground/30 dark:text-white/10 uppercase tracking-[0.15em] mb-1.5">Transmission</p>
+                        <div className="bg-foreground/[0.02] dark:bg-foreground/[0.01] rounded-[1.2rem] border border-foreground/[0.04] p-3 shadow-inner">
+                           <p className="text-[7.5px] font-bold text-foreground/50 dark:text-foreground/30 dark:text-foreground/10 uppercase tracking-[0.15em] mb-1.5">Transmission</p>
                            <p className="text-[13px] font-bold text-foreground leading-none">{member.customer.ordersCount || member.customer.orders?.length || 0}</p>
                         </div>
-                        <div className="bg-foreground/[0.02] dark:bg-white/[0.01] rounded-[1.2rem] border border-foreground/[0.04] p-3 shadow-inner">
-                           <p className="text-[7.5px] font-bold text-foreground/50 dark:text-foreground/30 dark:text-white/10 uppercase tracking-[0.15em] mb-1.5">Contact</p>
+                        <div className="bg-foreground/[0.02] dark:bg-foreground/[0.01] rounded-[1.2rem] border border-foreground/[0.04] p-3 shadow-inner">
+                           <p className="text-[7.5px] font-bold text-foreground/50 dark:text-foreground/30 dark:text-foreground/10 uppercase tracking-[0.15em] mb-1.5">Contact</p>
                            <p className="text-[10px] font-medium text-foreground/80 dark:text-foreground/80 dark:text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 leading-none truncate">{member.phone || 'N/A'}</p>
                         </div>
                      </div>
@@ -422,7 +422,7 @@ export default function CommunityAdminPage() {
                         <button 
                           onClick={() => handleUpdateMember(member.id, 'APPROVED')}
                           disabled={processing === 'member-' + member.id}
-                          className="flex-1 py-3 bg-foreground dark:bg-white text-background dark:text-black rounded-xl text-[9px] font-bold uppercase tracking-[0.3em] active:scale-95 transition-all disabled:opacity-20 shadow-xl shadow-foreground/10"
+                          className="flex-1 py-3 bg-foreground dark:bg-foreground text-background dark:text-background rounded-xl text-[9px] font-bold uppercase tracking-[0.3em] active:scale-95 transition-all disabled:opacity-20 shadow-xl shadow-foreground/10"
                         >
                            Access Grant
                         </button>
@@ -437,7 +437,7 @@ export default function CommunityAdminPage() {
                   </motion.div>
                ))}
                {members.filter(m => m.status === 'PENDING').length === 0 && (
-                  <div className="col-span-full py-16 border border-dashed border-foreground/5 dark:border-white/5 rounded-[2rem] flex flex-col items-center justify-center text-foreground/30 dark:text-foreground/10 dark:text-white/5">
+                  <div className="col-span-full py-16 border border-dashed border-foreground/5 dark:border-foreground/5 rounded-[2rem] flex flex-col items-center justify-center text-foreground/30 dark:text-foreground/10 dark:text-foreground/5">
                      <ShieldCheck className="w-10 h-10 mb-3 opacity-20" />
                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-center">Secure Layer Active<br/><span className="opacity-50 font-medium">No pending transmission detected</span></p>
                   </div>
@@ -446,7 +446,7 @@ export default function CommunityAdminPage() {
          </div>
       </div>
 
-      <div className="w-full h-[1px] bg-foreground/5 dark:bg-white/5 mb-16" />
+      <div className="w-full h-[1px] bg-foreground/5 dark:bg-foreground/5 mb-16" />
 
       {/* Main Submission Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
@@ -458,7 +458,7 @@ export default function CommunityAdminPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="group relative bg-white/40 dark:bg-white/[0.01] border border-foreground/[0.06] rounded-[2rem] overflow-hidden shadow-lg shadow-black/5 hover:bg-foreground/[0.02] transition-all backdrop-blur-xl"
+                className="group relative bg-foreground/40 dark:bg-foreground/[0.01] border border-foreground/[0.06] rounded-[2rem] overflow-hidden shadow-lg shadow-black/5 hover:bg-foreground/[0.02] transition-all backdrop-blur-xl"
               >
                 {/* Visual Canvas */}
                 <div className="aspect-[4/5] relative overflow-hidden">
@@ -472,13 +472,13 @@ export default function CommunityAdminPage() {
                           {user.status === 'APPROVED' && <StatusBadge type="success" label="Approved" />}
                           {user.status === 'PENDING' && <StatusBadge type="warning" label="Pending Approval" />}
                           {user.status === 'REJECTED' && <StatusBadge type="info" label="Rejected" />}
-                          {user.isTopFeatured && <div className="px-2.5 py-1 bg-emerald-500 text-white rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-md shadow-lg shadow-emerald-500/20">TOP 20</div>}
+                          {user.isTopFeatured && <div className="px-2.5 py-1 bg-emerald-500 text-foreground rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-md shadow-lg shadow-emerald-500/20">TOP 20</div>}
                       </div>
                       <button 
                         onClick={() => handleEditClick(user)}
-                        className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-90"
+                        className="w-9 h-9 rounded-full bg-background/40 backdrop-blur-md border border-foreground/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-90"
                       >
-                         <MoreVertical className="w-4 h-4 text-white" />
+                         <MoreVertical className="w-4 h-4 text-foreground" />
                       </button>
                    </div>
                    
@@ -486,10 +486,10 @@ export default function CommunityAdminPage() {
                     <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-16">
                       <div className="flex justify-between items-end">
                           <div className="space-y-0.5">
-                             <h4 className="text-[14px] lg:text-[15px] font-semibold text-white tracking-tight leading-none font-inter">{user.name}</h4>
-                             <p className="text-[11px] text-white/70 font-medium leading-none mt-1 font-inter">{user.email}</p>
+                             <h4 className="text-[14px] lg:text-[15px] font-semibold text-foreground tracking-tight leading-none font-inter">{user.name}</h4>
+                             <p className="text-[11px] text-foreground/70 font-medium leading-none mt-1 font-inter">{user.email}</p>
                           </div>
-                          <div className="text-[10px] font-medium text-white/40 font-inter">
+                          <div className="text-[10px] font-medium text-foreground/40 font-inter">
                             {new Date(user.createdAt).toLocaleDateString()}
                          </div>
                       </div>
@@ -507,7 +507,7 @@ export default function CommunityAdminPage() {
                      </div>
                    )}
                    <div className="p-4 bg-foreground/[0.02] rounded-2xl border border-foreground/[0.04] shadow-inner">
-                      <p className="text-[9px] font-medium text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/40 dark:text-white/20 italic leading-snug lowercase">
+                      <p className="text-[9px] font-medium text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/40 dark:text-foreground/20 italic leading-snug lowercase">
                          "{user.styleDescription || 'Unspecified Transmission.'}"
                       </p>
                    </div>
@@ -530,7 +530,7 @@ export default function CommunityAdminPage() {
                          </button>
                          <div 
                            onClick={() => handleToggleFeatured(user.id, user.isTopFeatured)}
-                           className={`flex items-center gap-2 px-4 py-2.5 rounded-full border transition-all cursor-pointer active:scale-95 ${user.isTopFeatured ? 'bg-blue-500 text-white border-transparent shadow-lg shadow-blue-500/20' : 'bg-foreground/5 border-foreground/10 text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 hover:text-foreground/80'}`}
+                           className={`flex items-center gap-2 px-4 py-2.5 rounded-full border transition-all cursor-pointer active:scale-95 ${user.isTopFeatured ? 'bg-blue-500 text-foreground border-transparent shadow-lg shadow-blue-500/20' : 'bg-foreground/5 border-foreground/10 text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 hover:text-foreground/80'}`}
                          >
                             <Sparkles className={`w-3.5 h-3.5 ${user.isTopFeatured ? 'animate-pulse' : ''}`} />
                             <span className="text-[12px] font-medium font-inter">Featured</span>
@@ -544,7 +544,7 @@ export default function CommunityAdminPage() {
                          >
                             Edit
                          </button>
-                         <button onClick={() => handleDeleteFeatured(user.id)} className="w-10 h-10 rounded-full bg-foreground/5 hover:bg-rose-500 text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/30 hover:text-white flex items-center justify-center transition-all border border-foreground/10 active:scale-90">
+                         <button onClick={() => handleDeleteFeatured(user.id)} className="w-10 h-10 rounded-full bg-foreground/5 hover:bg-rose-500 text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/30 hover:text-foreground flex items-center justify-center transition-all border border-foreground/10 active:scale-90">
                             <Trash2 className="w-4 h-4" />
                          </button>
                       </div>
@@ -614,13 +614,13 @@ export default function CommunityAdminPage() {
                    placeholder="Event Title..." 
                    value={newUpdate.title}
                    onChange={(e) => setNewUpdate({...newUpdate, title: e.target.value})}
-                   className="w-full bg-white dark:bg-black/20 border border-foreground/[0.06] rounded-xl px-4 py-3 text-[11px] font-bold text-foreground placeholder:text-foreground/15 transition-all focus:border-foreground/20"
+                   className="w-full bg-foreground dark:bg-background/20 border border-foreground/[0.06] rounded-xl px-4 py-3 text-[11px] font-bold text-foreground placeholder:text-foreground/15 transition-all focus:border-foreground/20"
                  />
                  <textarea 
                    placeholder="Event Description..." 
                    value={newUpdate.description}
                    onChange={(e) => setNewUpdate({...newUpdate, description: e.target.value})}
-                   className="w-full bg-white dark:bg-black/20 border border-foreground/[0.06] rounded-xl px-4 py-3 text-[10px] font-medium text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 min-h-[80px] placeholder:text-foreground/15 resize-none transition-all focus:border-foreground/20"
+                   className="w-full bg-foreground dark:bg-background/20 border border-foreground/[0.06] rounded-xl px-4 py-3 text-[10px] font-medium text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 min-h-[80px] placeholder:text-foreground/15 resize-none transition-all focus:border-foreground/20"
                  />
               </div>
               <div className="md:w-48 flex flex-col gap-3">
@@ -628,7 +628,7 @@ export default function CommunityAdminPage() {
                     <select 
                       value={newUpdate.type}
                       onChange={(e) => setNewUpdate({...newUpdate, type: e.target.value})}
-                      className="w-full bg-white dark:bg-black/20 border border-foreground/[0.06] rounded-xl px-4 py-3 text-[9px] font-bold uppercase tracking-[0.2em] appearance-none text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 focus:outline-none focus:border-foreground/20 cursor-pointer"
+                      className="w-full bg-foreground dark:bg-background/20 border border-foreground/[0.06] rounded-xl px-4 py-3 text-[9px] font-bold uppercase tracking-[0.2em] appearance-none text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 focus:outline-none focus:border-foreground/20 cursor-pointer"
                     >
                        <option value="EVENT">Event</option>
                        <option value="ACTIVITY">Activity</option>
@@ -640,7 +640,7 @@ export default function CommunityAdminPage() {
                  </div>
                  <button 
                    onClick={handleAddUpdate}
-                   className="w-full py-3.5 bg-foreground text-background dark:bg-white dark:text-black rounded-xl text-[9px] font-bold uppercase tracking-[0.3em] active:scale-95 transition-all shadow-xl shadow-foreground/10"
+                   className="w-full py-3.5 bg-foreground text-background dark:bg-foreground dark:text-background rounded-xl text-[9px] font-bold uppercase tracking-[0.3em] active:scale-95 transition-all shadow-xl shadow-foreground/10"
                  >
                    Deploy Node
                  </button>
@@ -671,7 +671,7 @@ export default function CommunityAdminPage() {
                    </div>
                    <div className="flex flex-col">
                       <span className="text-[13px] font-bold text-foreground uppercase tracking-tight leading-none">{update.title}</span>
-                      <span className="text-[8.5px] font-medium text-foreground/50 dark:text-foreground/30 dark:text-white/10 leading-none mt-2 uppercase tracking-[0.1em] truncate max-w-[400px]">{update.description}</span>
+                      <span className="text-[8.5px] font-medium text-foreground/50 dark:text-foreground/30 dark:text-foreground/10 leading-none mt-2 uppercase tracking-[0.1em] truncate max-w-[400px]">{update.description}</span>
                    </div>
                 </div>
                <button 
@@ -714,7 +714,7 @@ export default function CommunityAdminPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowManualForm(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-2xl"
+              className="absolute inset-0 bg-background/80 backdrop-blur-2xl"
             />
              <motion.div 
                initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -764,8 +764,8 @@ export default function CommunityAdminPage() {
                                 className="w-full h-full object-cover opacity-80" 
                                 alt="Preview" 
                               />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/upload:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                                <label className="cursor-pointer px-4 py-2 bg-white text-black rounded-full text-[12px] font-bold uppercase tracking-widest shadow-xl active:scale-95 transition-all">
+                              <div className="absolute inset-0 bg-background/40 opacity-0 group-hover/upload:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                <label className="cursor-pointer px-4 py-2 bg-foreground text-background rounded-full text-[12px] font-bold uppercase tracking-widest shadow-xl active:scale-95 transition-all">
                                   Change Image
                                   <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                                 </label>
@@ -832,7 +832,7 @@ export default function CommunityAdminPage() {
                     <button 
                       onClick={handleSaveFeatured}
                       disabled={processing === 'save-featured' || !newFeatured.name || !newFeatured.imageUrl}
-                      className="px-8 py-3 rounded-full bg-blue-500 text-white text-[14px] font-semibold hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none"
+                      className="px-8 py-3 rounded-full bg-blue-500 text-foreground text-[14px] font-semibold hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none"
                     >
                       {processing === 'save-featured' ? 'Saving...' : (editingUser ? 'Save Changes' : 'Add User')}
                     </button>

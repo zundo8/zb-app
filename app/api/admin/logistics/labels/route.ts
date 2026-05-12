@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     const result = await getShippingLabel(waybills, true);
     
     // The response structure might vary slightly, but usually it's result.pdf_url or result.packages[0].pdf_url
-    const labelUrl = result.pdf_url || result.packages?.[0]?.pdf_url;
+    const labelUrl = result.packages_url || result.packages?.[0]?.pdf_download_link || result.packages?.[0]?.pdf_url || result.pdf_download_link || result.pdf_url;
 
     if (labelUrl) {
       return NextResponse.json({ success: true, labelUrl });

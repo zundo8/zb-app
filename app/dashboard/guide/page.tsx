@@ -164,15 +164,15 @@ export default function GuidePage() {
                     }}
                   >
                     <div className="flex items-center gap-4 relative z-10">
-                      <Icon className={`w-4 h-4 transition-colors ${isActive ? "text-black" : "text-foreground/20 group-hover:text-foreground"}`} />
+                      <Icon className={`w-4 h-4 transition-colors ${isActive ? "text-background" : "text-foreground/20 group-hover:text-foreground"}`} />
                       <div className="flex flex-col">
                         <span className="text-[12px] font-bold truncate">{section.title}</span>
-                        <span className={`text-[8px] uppercase tracking-widest font-black ${isActive ? "text-black/50" : "text-foreground/10"}`}>
+                        <span className={`text-[8px] uppercase tracking-widest font-black ${isActive ? "text-background/50" : "text-foreground/10"}`}>
                           {section.category}
                         </span>
                       </div>
                     </div>
-                    {isRead && <CheckCircle2 className={`w-3.5 h-3.5 relative z-10 ${isActive ? "text-black/60" : "text-green-500"}`} />}
+                    {isRead && <CheckCircle2 className={`w-3.5 h-3.5 relative z-10 ${isActive ? "text-background/60" : "text-green-500"}`} />}
                   </button>
                 );
               })}
@@ -359,7 +359,7 @@ function GuideSectionCard({ section, isOpen, onToggle, isRead, onMarkRead }: {
               className={`flex items-center justify-center gap-3 px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all duration-500 border ${
                 isRead 
                   ? "bg-transparent text-green-500 border-green-500/20" 
-                  : "text-black hover:scale-105 active:scale-95 shadow-2xl"
+                  : "text-background hover:scale-105 active:scale-95 shadow-2xl"
               }`}
               style={{ backgroundColor: isRead ? "transparent" : ACCENT_COLOR, borderColor: isRead ? "rgba(34, 197, 94, 0.2)" : "transparent" }}
             >

@@ -151,7 +151,10 @@ export default function ProfileScreen() {
     try {
       const res = await fetch(`${config.appUrl}/api/app/profile`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${useAuthStore.getState().token || ''}`
+        },
         body: JSON.stringify({ 
           customerId: user.id,
           name: editName,

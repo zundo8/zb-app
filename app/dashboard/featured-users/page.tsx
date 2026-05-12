@@ -147,12 +147,12 @@ export default function FeaturedUsersModeration() {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div className="space-y-1">
-          <div className="px-2 py-0.5 bg-foreground/[0.03] rounded-md text-[8px] font-black text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/40 dark:text-white/30 uppercase tracking-[0.2em] w-fit mb-1">moderation hub</div>
+          <div className="px-2 py-0.5 bg-foreground/[0.03] rounded-md text-[8px] font-black text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/40 dark:text-foreground/30 uppercase tracking-[0.2em] w-fit mb-1">moderation hub</div>
           <h1 className="text-xl font-black text-foreground uppercase tracking-tight mb-0.5 lowercase leading-none">
             Featured Users
           </h1>
           <div className="flex items-center gap-3 mt-1">
-            <p className="text-[10px] text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/40 dark:text-white/20 font-bold uppercase tracking-widest">
+            <p className="text-[10px] text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/40 dark:text-foreground/20 font-bold uppercase tracking-widest">
               Curate the Zica Bella community showcase.
             </p>
             <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border ${featuredTopCount >= 20 ? 'bg-orange-500/5 text-orange-500 border-orange-500/10' : 'bg-emerald-500/5 text-emerald-500 border-emerald-500/10'}`}>
@@ -171,7 +171,7 @@ export default function FeaturedUsersModeration() {
           <a 
             href="/community" 
             target="_blank" 
-            className="flex items-center gap-2 px-6 py-2 bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-emerald-500/5 active:scale-95"
+            className="flex items-center gap-2 px-6 py-2 bg-emerald-500 text-foreground rounded-lg text-[9px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-emerald-500/5 active:scale-95"
           >
             <ExternalLink className="w-3 h-3" /> Live View
           </a>
@@ -184,20 +184,20 @@ export default function FeaturedUsersModeration() {
 
        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {submissions.map((item) => (
-          <div key={item.id} className={`group relative bg-white/50 dark:bg-white/[0.02] border border-foreground/[0.05] rounded-xl overflow-hidden shadow-sm transition-all duration-700 hover:bg-foreground/[0.01] ${
+          <div key={item.id} className={`group relative bg-foreground/50 dark:bg-foreground/[0.02] border border-foreground/[0.05] rounded-xl overflow-hidden shadow-sm transition-all duration-700 hover:bg-foreground/[0.01] ${
             item.isTopFeatured ? 'ring-1 ring-emerald-500/50' : ''
           }`}>
              <div className="relative aspect-[4/5] bg-foreground/[0.02] overflow-hidden">
               <Image src={item.imageUrl || "/zb-logo-220px.png"} alt={item.name} fill className="object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-1000 scale-105 group-hover:scale-100" />
               <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
                 <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1 ${
-                  item.status === 'APPROVED' ? 'bg-emerald-500 text-white' : 
-                  item.status === 'REJECTED' ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white'
+                  item.status === 'APPROVED' ? 'bg-emerald-500 text-foreground' : 
+                  item.status === 'REJECTED' ? 'bg-rose-500 text-foreground' : 'bg-amber-500 text-foreground'
                 }`}>
                   {item.status}
                 </span>
                 {item.isTopFeatured && (
-                  <span className="bg-emerald-500 text-white px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest shadow-lg">
+                  <span className="bg-emerald-500 text-foreground px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest shadow-lg">
                     TOP 20
                   </span>
                 )}
@@ -208,10 +208,10 @@ export default function FeaturedUsersModeration() {
               <div>
                 <div className="flex items-center justify-between">
                   <h3 className="text-[11px] font-black text-foreground uppercase tracking-tight lowercase leading-none">{item.name}</h3>
-                  <span className="text-[7.5px] font-black text-foreground/40 dark:text-foreground/20 dark:text-white/10 uppercase tracking-widest">{new Date(item.createdAt).toLocaleDateString()}</span>
+                  <span className="text-[7.5px] font-black text-foreground/40 dark:text-foreground/20 dark:text-foreground/10 uppercase tracking-widest">{new Date(item.createdAt).toLocaleDateString()}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <p className="text-[7.5px] font-black text-foreground/40 dark:text-foreground/20 dark:text-white/10 uppercase tracking-widest truncate max-w-[120px] leading-none lowercase">{item.email}</p>
+                  <p className="text-[7.5px] font-black text-foreground/40 dark:text-foreground/20 dark:text-foreground/10 uppercase tracking-widest truncate max-w-[120px] leading-none lowercase">{item.email}</p>
                   {item.orderId && (
                     <span className="text-[7px] font-black text-emerald-500 bg-emerald-500/5 px-1 rounded uppercase tracking-widest leading-none">
                       #{item.orderId.substring(0, 8)}
@@ -221,7 +221,7 @@ export default function FeaturedUsersModeration() {
               </div>
 
               <div className="p-3 bg-foreground/[0.01] rounded-lg border border-foreground/[0.02]">
-                <p className="text-[8.5px] font-black text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/40 dark:text-white/20 italic leading-snug lowercase">
+                <p className="text-[8.5px] font-black text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/40 dark:text-foreground/20 italic leading-snug lowercase">
                   "{item.styleDescription || "Unspecified Transmission."}"
                 </p>
               </div>
@@ -246,7 +246,7 @@ export default function FeaturedUsersModeration() {
                     onClick={() => item.status === 'APPROVED' && handleToggleTopFeatured(item.id, item.isTopFeatured)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer ${
                       item.isTopFeatured 
-                        ? 'bg-emerald-500 text-white border-transparent' 
+                        ? 'bg-emerald-500 text-foreground border-transparent' 
                         : 'bg-foreground/[0.03] border-transparent text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/30'
                     } ${item.status !== 'APPROVED' ? 'opacity-20 cursor-not-allowed' : ''}`}
                   >
@@ -367,7 +367,7 @@ export default function FeaturedUsersModeration() {
                     <button
                       type="button"
                       onClick={() => setNewSubmission(prev => ({ ...prev, imageUrl: '' }))}
-                      className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-red-500 transition-all"
+                      className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-background/60 text-foreground hover:bg-red-500 transition-all"
                     >
                       <XCircle className="w-4 h-4" />
                     </button>
@@ -403,7 +403,7 @@ export default function FeaturedUsersModeration() {
               <button
                 onClick={handleCreateSubmission}
                 disabled={isSubmitting}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-emerald-500 text-white rounded-2xl font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-xl shadow-emerald-500/10 disabled:opacity-50 active:scale-[0.98]"
+                className="w-full flex items-center justify-center gap-2 py-4 bg-emerald-500 text-foreground rounded-2xl font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-xl shadow-emerald-500/10 disabled:opacity-50 active:scale-[0.98]"
               >
                 {isSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {isSubmitting ? 'Creating...' : 'Create Submission'}

@@ -64,7 +64,7 @@ const STATUS_THEME: Record<string, { label: string; color: string; bg: string; d
   pending: { label: "Pending", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
   refunded: { label: "Refunded", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
   fulfilled: { label: "Dispatched", color: "text-blue-500", bg: "bg-blue-500/10", dot: "bg-blue-500" },
-  unfulfilled: { label: "Draft", color: "text-white/40", bg: "bg-white/5", dot: "bg-white/20" },
+  unfulfilled: { label: "Draft", color: "text-foreground/40", bg: "bg-foreground/5", dot: "bg-foreground/20" },
   delivered: { label: "Delivered", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
   awaiting_approval: { label: "Reviewing", color: "text-purple-500", bg: "bg-purple-500/10", dot: "bg-purple-500" },
   payment_failed: { label: "Failed", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
@@ -73,13 +73,13 @@ const STATUS_THEME: Record<string, { label: string; color: string; bg: string; d
 function StatusBadge({ status }: { status: string }) {
   const theme = STATUS_THEME[status.toLowerCase()] || { 
     label: status, 
-    color: "text-white/40", 
-    bg: "bg-white/5", 
-    dot: "bg-white/20" 
+    color: "text-foreground/40", 
+    bg: "bg-foreground/5", 
+    dot: "bg-foreground/20" 
   };
   
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/5 ${theme.bg}`}>
+    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-foreground/5 ${theme.bg}`}>
       <div className={`w-1 h-1 rounded-full ${theme.dot}`} />
       <span className={`text-[9px] font-bold uppercase tracking-widest ${theme.color}`}>
         {theme.label}
@@ -145,7 +145,7 @@ export default function OrdersPage() {
             initial={{ opacity: 0, y: -20, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="fixed top-8 left-1/2 z-[100] glass-vibrancy px-6 py-3 rounded-2xl border border-white/10 text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-2xl flex items-center gap-3"
+            className="fixed top-8 left-1/2 z-[100] glass-vibrancy px-6 py-3 rounded-2xl border border-foreground/10 text-[10px] font-bold uppercase tracking-[0.2em] text-foreground shadow-2xl flex items-center gap-3"
           >
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
             {toast}
@@ -157,13 +157,13 @@ export default function OrdersPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
         <div className="space-y-1">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
-              <ShoppingBag className="w-4 h-4 text-white/40" />
+            <div className="w-8 h-8 rounded-lg bg-foreground/5 border border-foreground/10 flex items-center justify-center">
+              <ShoppingBag className="w-4 h-4 text-foreground/40" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/20">Commerce Grid</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/20">Commerce Grid</span>
           </div>
-          <h1 className="text-4xl font-semibold tracking-tight text-white">Orders</h1>
-          <p className="text-[13px] text-white/40 max-w-md font-medium leading-relaxed">
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground">Orders</h1>
+          <p className="text-[13px] text-foreground/40 max-w-md font-medium leading-relaxed">
             Manage your store's transactional data across all platforms.
           </p>
         </div>
@@ -172,14 +172,14 @@ export default function OrdersPage() {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="group flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] text-white transition-all disabled:opacity-50"
+            className="group flex items-center gap-3 px-6 py-3 bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 transition-transform group-hover:rotate-180 duration-700 ${syncing ? "animate-spin" : ""}`} />
             Sync
           </button>
           <Link
             href="/dashboard/orders/new"
-            className="flex items-center gap-3 px-8 py-3 bg-white text-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-90 transition-all shadow-xl shadow-white/5"
+            className="flex items-center gap-3 px-8 py-3 bg-foreground text-background rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-90 transition-all shadow-xl shadow-foreground/5"
           >
             <Plus className="w-4 h-4" />
             New
@@ -188,15 +188,15 @@ export default function OrdersPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col lg:flex-row gap-4 border-b border-white/5 pb-8">
+      <div className="flex flex-col lg:flex-row gap-4 border-b border-foreground/5 pb-8">
         <div className="flex-1 relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/10 group-focus-within:text-white/40 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/10 group-focus-within:text-foreground/40 transition-colors" />
           <input
             type="text"
             placeholder="Search manifest..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-transparent pl-12 pr-4 py-2 text-[13px] text-white placeholder:text-white/10 outline-none"
+            className="w-full bg-transparent pl-12 pr-4 py-2 text-[13px] text-foreground placeholder:text-foreground/10 outline-none"
           />
         </div>
         
@@ -205,42 +205,42 @@ export default function OrdersPage() {
             <select
               value={platformFilter}
               onChange={(e) => setPlatformFilter(e.target.value)}
-              className="bg-white/5 border border-white/5 focus:border-white/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white/40 outline-none appearance-none cursor-pointer pr-10"
+              className="bg-foreground/5 border border-foreground/5 focus:border-foreground/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-foreground/40 outline-none appearance-none cursor-pointer pr-10"
             >
               <option value="any">Platform: All</option>
               <option value="web">Platform: Web</option>
               <option value="mobile">Platform: App</option>
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/10 pointer-events-none" />
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/10 pointer-events-none" />
           </div>
 
           <div className="relative">
             <select
               value={paymentFilter}
               onChange={(e) => setPaymentFilter(e.target.value)}
-              className="bg-white/5 border border-white/5 focus:border-white/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white/40 outline-none appearance-none cursor-pointer pr-10"
+              className="bg-foreground/5 border border-foreground/5 focus:border-foreground/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-foreground/40 outline-none appearance-none cursor-pointer pr-10"
             >
               <option value="any">Payment: All</option>
               <option value="paid">Settled</option>
               <option value="pending">Awaiting</option>
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/10 pointer-events-none" />
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/10 pointer-events-none" />
           </div>
 
           <div className="relative">
             <select
               value={fulfillmentFilter}
               onChange={(e) => setFulfillmentFilter(e.target.value)}
-              className="bg-white/5 border border-white/5 focus:border-white/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white/40 outline-none appearance-none cursor-pointer pr-10"
+              className="bg-foreground/5 border border-foreground/5 focus:border-foreground/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-foreground/40 outline-none appearance-none cursor-pointer pr-10"
             >
               <option value="any">Fulfillment: All</option>
               <option value="fulfilled">Dispatched</option>
               <option value="unfulfilled">Draft</option>
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/10 pointer-events-none" />
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/10 pointer-events-none" />
           </div>
 
-          <div className="px-4 py-2.5 rounded-xl border border-white/5 text-[11px] font-bold text-white/20 uppercase tracking-widest">
+          <div className="px-4 py-2.5 rounded-xl border border-foreground/5 text-[11px] font-bold text-foreground/20 uppercase tracking-widest">
             {total} Records
           </div>
         </div>
@@ -248,7 +248,7 @@ export default function OrdersPage() {
 
       {/* Grid List */}
       <div className="space-y-1">
-        <div className="grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-bold text-white/20 uppercase tracking-[0.2em]">
+        <div className="grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-bold text-foreground/20 uppercase tracking-[0.2em]">
           <div className="col-span-3">Entity / ID</div>
           <div className="col-span-3">Customer</div>
           <div className="col-span-2">Payment</div>
@@ -259,8 +259,8 @@ export default function OrdersPage() {
         <AnimatePresence mode="popLayout">
           {loading ? (
             <div className="py-40 flex flex-col items-center justify-center space-y-6">
-              <Loader2 className="w-6 h-6 animate-spin text-white/10" />
-              <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/10">Synchronizing...</p>
+              <Loader2 className="w-6 h-6 animate-spin text-foreground/10" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/10">Synchronizing...</p>
             </div>
           ) : orders.map((order, i) => (
             <motion.div
@@ -272,28 +272,28 @@ export default function OrdersPage() {
             >
               <Link 
                 href={`/dashboard/orders/${order.id}`}
-                className="grid grid-cols-12 gap-4 items-center px-6 py-5 rounded-2xl hover:bg-white/[0.03] border border-transparent hover:border-white/5 transition-all"
+                className="grid grid-cols-12 gap-4 items-center px-6 py-5 rounded-2xl hover:bg-foreground/[0.03] border border-transparent hover:border-foreground/5 transition-all"
               >
                 <div className="col-span-3 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 shadow-inner">
-                    <ShoppingCart className="w-4 h-4 text-white/20" />
+                  <div className="w-10 h-10 rounded-xl bg-foreground/5 flex items-center justify-center border border-foreground/5 shadow-inner">
+                    <ShoppingCart className="w-4 h-4 text-foreground/20" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-semibold text-white tracking-tight">#{order.shopifyOrderId.replace('#', '')}</span>
+                      <span className="text-[13px] font-semibold text-foreground tracking-tight">#{order.shopifyOrderId.replace('#', '')}</span>
                       {order.shopifyOrderId.startsWith('ZB71') && (
-                        <Smartphone className="w-3 h-3 text-white/20" />
+                        <Smartphone className="w-3 h-3 text-foreground/20" />
                       )}
                     </div>
-                    <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest mt-0.5">
+                    <p className="text-[10px] text-foreground/30 font-bold uppercase tracking-widest mt-0.5">
                       {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                     </p>
                   </div>
                 </div>
 
                 <div className="col-span-3">
-                  <p className="text-[13px] font-semibold text-white/80">{order.customer?.name || "Guest"}</p>
-                  <p className="text-[10px] text-white/20 font-medium truncate max-w-[150px]">{order.customer?.email}</p>
+                  <p className="text-[13px] font-semibold text-foreground/80">{order.customer?.name || "Guest"}</p>
+                  <p className="text-[10px] text-foreground/20 font-medium truncate max-w-[150px]">{order.customer?.email}</p>
                 </div>
 
                 <div className="col-span-2">
@@ -305,9 +305,9 @@ export default function OrdersPage() {
                 </div>
 
                 <div className="col-span-2 text-right flex items-center justify-end gap-4">
-                   <p className="text-[15px] font-bold text-white tracking-tight">₹{order.totalPrice.toLocaleString("en-IN")}</p>
-                   <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-white/10 translate-x-2 group-hover:translate-x-0">
-                      <ChevronRight className="w-4 h-4 text-white/20" />
+                   <p className="text-[15px] font-bold text-foreground tracking-tight">₹{order.totalPrice.toLocaleString("en-IN")}</p>
+                   <div className="w-8 h-8 rounded-lg bg-foreground/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-foreground/10 translate-x-2 group-hover:translate-x-0">
+                      <ChevronRight className="w-4 h-4 text-foreground/20" />
                    </div>
                 </div>
               </Link>

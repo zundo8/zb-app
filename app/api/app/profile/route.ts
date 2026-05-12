@@ -106,6 +106,34 @@ export async function PATCH(req: Request) {
       },
     });
 
+    const historyData: any = { customerId: customer.id, changedBy: 'USER' };
+    let hasChanges = false;
+    
+    if (name !== undefined && String(name) !== (customer.name || '')) {
+      historyData.oldName = customer.name;
+      historyData.newName = String(name);
+      hasChanges = true;
+    }
+    if (email !== undefined && String(email) !== (customer.email || '')) {
+      historyData.oldEmail = customer.email;
+      historyData.newEmail = String(email);
+      hasChanges = true;
+    }
+    if (phone !== undefined && String(phone) !== (customer.phone || '')) {
+      historyData.oldPhone = customer.phone;
+      historyData.newPhone = String(phone);
+      hasChanges = true;
+    }
+    if (image !== undefined && String(image) !== (customer.image || '')) {
+      historyData.oldImage = customer.image;
+      historyData.newImage = String(image);
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      await prisma.profileHistory.create({ data: historyData });
+    }
+
     return NextResponse.json(
       {
         customer: {

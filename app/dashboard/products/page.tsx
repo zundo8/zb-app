@@ -111,7 +111,7 @@ export default function ProductsPage() {
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 bg-white/90 dark:bg-black/80 backdrop-blur-xl rounded-lg px-4 py-2 text-[10px] font-black uppercase tracking-widest text-foreground border border-foreground/[0.05] flex items-center gap-2 shadow-2xl animate-in fade-in slide-in-from-top-4">
+        <div className="fixed top-6 right-6 z-50 bg-foreground/90 dark:bg-background/80 backdrop-blur-xl rounded-lg px-4 py-2 text-[10px] font-black uppercase tracking-widest text-foreground border border-foreground/[0.05] flex items-center gap-2 shadow-2xl animate-in fade-in slide-in-from-top-4">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
           {toast}
         </div>
@@ -175,11 +175,11 @@ export default function ProductsPage() {
       {/* Product List */}
       <div className="grid grid-cols-1 gap-3">
         {loading ? (
-          <div className="bg-white/50 dark:bg-white/[0.01] rounded-[1rem] p-12 text-center flex justify-center border border-foreground/[0.02]">
+          <div className="bg-foreground/50 dark:bg-foreground/[0.01] rounded-[1rem] p-12 text-center flex justify-center border border-foreground/[0.02]">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/20" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white/50 dark:bg-white/[0.01] rounded-[1rem] p-12 text-center border border-foreground/[0.02]">
+          <div className="bg-foreground/50 dark:bg-foreground/[0.01] rounded-[1rem] p-12 text-center border border-foreground/[0.02]">
             <PackageSearch className="w-10 h-10 text-muted-foreground/10 mx-auto mb-4" />
             <h3 className="text-sm font-black text-foreground uppercase tracking-tight lowercase">No nodes detected</h3>
             <p className="text-[10px] text-muted-foreground/20 mt-1 font-bold uppercase tracking-widest uppercase">
@@ -197,7 +197,7 @@ export default function ProductsPage() {
             return (
               <div
                 key={product.id}
-                className="bg-white/50 dark:bg-white/[0.01] backdrop-blur-3xl rounded-[1rem] p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-foreground/[0.02] shadow-sm transition-all"
+                className="bg-foreground/50 dark:bg-foreground/[0.01] backdrop-blur-3xl rounded-[1rem] p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-foreground/[0.02] shadow-sm transition-all"
               >
                 {/* Left: Image + Info */}
                 <div className="flex items-center gap-4 flex-1 min-w-0">

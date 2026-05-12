@@ -232,7 +232,7 @@ function MediaPicker({
           )}
           <button 
             onClick={() => onChange('')}
-            className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white hover:bg-red-500 transition-colors"
+            className="absolute top-1 right-1 p-1 rounded-full bg-background/50 text-white hover:bg-red-500 transition-colors"
           >
             <X className="w-3 h-3" />
           </button>

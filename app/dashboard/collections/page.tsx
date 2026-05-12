@@ -149,7 +149,7 @@ export default function CollectionsAdminPage() {
       </div>
 
       {/* Collections Table-like Grid */}
-       <div className="bg-white/50 dark:bg-white/[0.02] border border-foreground/[0.05] rounded-xl overflow-hidden shadow-sm">
+       <div className="bg-foreground/50 dark:bg-foreground/[0.02] border border-foreground/[0.05] rounded-xl overflow-hidden shadow-sm">
         <div className="grid grid-cols-[1fr,80px,80px,80px] gap-2 px-5 py-3 border-b border-foreground/[0.02] bg-foreground/[0.01]">
           <span className="text-[7px] uppercase tracking-[0.3em] font-normal text-foreground/15">Collection & Info</span>
           <div className="flex items-center justify-center gap-1.5">

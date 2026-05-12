@@ -122,6 +122,26 @@ model Customer {
   payments              Payment[]
   returns               Return[]
   storeCreditTxns       StoreCredit[]
+  profileHistory        ProfileHistory[]
+}
+
+model ProfileHistory {
+  id         String   @id @default(cuid())
+  customerId String
+  oldName    String?
+  newName    String?
+  oldEmail   String?
+  newEmail   String?
+  oldPhone   String?
+  newPhone   String?
+  oldImage   String?
+  newImage   String?
+  changedBy  String   @default("USER")
+  createdAt  DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([createdAt])
 }
 
 model Follow {

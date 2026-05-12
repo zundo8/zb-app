@@ -246,7 +246,7 @@ export default function PushNotificationsPage() {
                         onClick={() => setIsInstant(!isInstant)}
                         className={`w-10 h-5 rounded-full relative transition-colors ${isInstant ? 'bg-emerald-500' : 'bg-foreground/10'}`}
                      >
-                        <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${isInstant ? 'right-1' : 'left-1'}`} />
+                        <div className={`absolute top-1 w-3 h-3 rounded-full bg-foreground transition-all ${isInstant ? 'right-1' : 'left-1'}`} />
                      </button>
                   </div>
                 </div>
@@ -356,7 +356,7 @@ export default function PushNotificationsPage() {
                                     initial={{ y: 20, opacity: 0, scale: 0.9 }}
                                     animate={{ y: 0, opacity: 1, scale: 1 }}
                                     exit={{ y: 20, opacity: 0, scale: 0.9 }}
-                                    className="bg-foreground/5 backdrop-blur-2xl border border-white/10 p-5 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 ring-1 ring-white/5"
+                                    className="bg-foreground/5 backdrop-blur-2xl border border-foreground/10 p-5 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 ring-1 ring-white/5"
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-2xl bg-foreground flex items-center justify-center shadow-lg">
@@ -376,7 +376,7 @@ export default function PushNotificationsPage() {
                                     </p>
 
                                     {imageUrl && (
-                                        <div className="w-full aspect-[2/1] rounded-2xl bg-foreground/5 overflow-hidden mt-1 border border-white/5">
+                                        <div className="w-full aspect-[2/1] rounded-2xl bg-foreground/5 overflow-hidden mt-1 border border-foreground/5">
                                             <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
                                         </div>
                                     )}

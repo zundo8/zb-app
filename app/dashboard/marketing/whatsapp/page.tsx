@@ -246,7 +246,7 @@ function Campaigns() {
         </p>
         <button 
           onClick={() => setShowForm(true)}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+          className="bg-emerald-500 hover:bg-emerald-600 text-foreground px-6 py-3 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Create New Campaign
@@ -351,7 +351,7 @@ function Campaigns() {
             <button
               type="submit"
               disabled={loading}
-              className="flex-[2] bg-emerald-500 text-white font-medium py-3 rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+              className="flex-[2] bg-emerald-500 text-foreground font-medium py-3 rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
             >
               {loading ? (
                 <RefreshCcw className="w-4 h-4 animate-spin" />
@@ -370,7 +370,7 @@ function Campaigns() {
       <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="glass-card p-6 flex flex-col items-center justify-center bg-gradient-to-br from-background to-emerald-500/5">
         <div className="w-[280px] h-[550px] border-[8px] border-foreground/10 rounded-[3rem] relative bg-background shadow-2xl flex flex-col overflow-hidden">
           <div className="absolute top-0 inset-x-0 h-6 bg-foreground/10 z-10 rounded-t-3xl" />
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-20" />
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-6 bg-background rounded-full z-20" />
 
           <div className="flex-1 bg-[#efeae2] dark:bg-[#0b141a] pt-16 px-3 flex flex-col overflow-y-auto scrollbar-hide" style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundSize: 'cover' }}>
             <div className="text-center mb-4 sticky top-0 bg-[#efeae2]/90 dark:bg-[#0b141a]/90 backdrop-blur-sm py-2 rounded-xl border border-foreground/10 shadow-sm z-10">
@@ -380,14 +380,14 @@ function Campaigns() {
 
             <div className="space-y-2 mb-4">
               {mediaUrl && (
-                <div className="bg-white dark:bg-[#005c4b] p-1 rounded-xl rounded-tr-sm shadow-sm self-end max-w-[85%] border border-black/5">
+                <div className="bg-foreground dark:bg-[#005c4b] p-1 rounded-xl rounded-tr-sm shadow-sm self-end max-w-[85%] border border-background/5">
                   <img src={mediaUrl} alt="Campaign Media" className="w-full h-32 object-cover rounded-lg" />
                 </div>
               )}
               {body && (
-                <div className="bg-white dark:bg-[#005c4b] text-black dark:text-white p-2.5 rounded-xl rounded-tr-sm shadow-sm text-sm self-end max-w-[85%] whitespace-pre-wrap relative border border-black/5 dark:border-white/5">
+                <div className="bg-foreground dark:bg-[#005c4b] text-background dark:text-foreground p-2.5 rounded-xl rounded-tr-sm shadow-sm text-sm self-end max-w-[85%] whitespace-pre-wrap relative border border-background/5 dark:border-foreground/5">
                   {body}
-                  <div className="text-[9px] text-black/40 dark:text-white/40 text-right mt-1">12:00 PM</div>
+                  <div className="text-[9px] text-background/40 dark:text-foreground/40 text-right mt-1">12:00 PM</div>
                 </div>
               )}
             </div>

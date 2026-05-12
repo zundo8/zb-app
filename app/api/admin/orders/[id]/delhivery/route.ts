@@ -39,13 +39,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
       const result = await createDelhiveryShipment(shipmentPayload, body.pickupLocation || 'Main Warehouse');
 
-      if (result.success) {
-        const waybill = result.packages?.[0]?.waybill;
+      const isSuccess = result.success || result.status === 'success' || result.status === 'Successful' || (result.packages && result.packages.length > 0);
+
+      if (isSuccess) {
+        const waybill = result.packages?.[0]?.waybill || result.upload_wbn;
+        if (!waybill) {
+          return NextResponse.json({ success: false, error: 'Waybill not returned by Delhivery API', details: result });
+        }
         // Update order with shipment info
         await prisma.shipment.create({
           data: {
             orderId: order.id,
-            awb: waybill,
+            awb: String(waybill),
             courier: 'Delhivery',
             status: 'manifested',
             trackingUrl: `https://www.delhivery.com/track/package/${waybill}`,
@@ -58,9 +63,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           data: { deliveryStatus: 'manifested' }
         });
 
-        return NextResponse.json({ success: true, waybill });
+        return NextResponse.json({ success: true, waybill: String(waybill) });
       } else {
-        return NextResponse.json({ success: false, error: result.errors || 'Delhivery API error' });
+        return NextResponse.json({ success: false, error: result.error || result.errors || result.message || 'Delhivery API error', details: result });
       }
     }
 
@@ -75,7 +80,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
 
       const result = await getShippingLabel(shipment.awb);
-      return NextResponse.json({ success: true, labelUrl: result.packages?.[0]?.pdf_url || result.pdf_url });
+      const labelUrl = result.packages_url || result.packages?.[0]?.pdf_download_link || result.packages?.[0]?.pdf_url || result.pdf_download_link || result.pdf_url;
+      return NextResponse.json({ success: true, labelUrl, rawResult: result });
     }
 
     if (action === 'get_tat') {
