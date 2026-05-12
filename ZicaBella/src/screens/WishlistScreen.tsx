@@ -19,7 +19,7 @@ export default function WishlistScreen() {
   const colors = useColors();
   const isDark = useThemeStore((s) => s.theme) === 'dark';
   const navigation = useNavigation<any>();
-  const { bookmarks } = useBookmarkStore();
+  const { bookmarks, removeBookmark } = useBookmarkStore();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -37,7 +37,7 @@ export default function WishlistScreen() {
         ]}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Typography heading size={24} weight="700" color={colors.text} style={styles.title}>THE VAULT</Typography>
+            <Typography heading size={24} weight="700" color={colors.text} style={styles.title}>WISHLIST</Typography>
             <Typography size={12} weight="300" color={colors.textSecondary}>Your curated selection of Zica Bella pieces.</Typography>
           </View>
         }
@@ -47,7 +47,7 @@ export default function WishlistScreen() {
               <BlurView intensity={isDark ? 40 : 80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
               <Ionicons name="bookmark-outline" size={32} color={colors.textExtraLight} />
             </View>
-            <Typography heading size={12} weight="600" color={colors.text} style={styles.emptyTitle}>YOUR VAULT IS EMPTY</Typography>
+            <Typography heading size={12} weight="600" color={colors.text} style={styles.emptyTitle}>YOUR WISHLIST IS EMPTY</Typography>
             <Typography size={11} weight="300" color={colors.textSecondary} style={styles.emptyText}>
               Explore the archive to build your collection.
             </Typography>
@@ -58,6 +58,7 @@ export default function WishlistScreen() {
             <ProductCard 
               product={item} 
               style={styles.card}
+              onRemove={removeBookmark}
             />
           </View>
         )}

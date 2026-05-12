@@ -25,8 +25,16 @@ export function resolveImageUrl(source: any): string | null {
     }
 
     // 4. Handle Shopify node structure: { node: { url: string } }
-    if (source.node && source.node.url) {
-      return source.node.url;
+    if (source.node) {
+      return resolveImageUrl(source.node);
+    }
+
+    // 5. Handle Shopify list structure (edges/nodes)
+    if (source.edges && Array.isArray(source.edges) && source.edges.length > 0) {
+      return resolveImageUrl(source.edges[0]);
+    }
+    if (source.nodes && Array.isArray(source.nodes) && source.nodes.length > 0) {
+      return resolveImageUrl(source.nodes[0]);
     }
   }
 

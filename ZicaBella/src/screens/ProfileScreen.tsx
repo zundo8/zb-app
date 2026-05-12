@@ -324,7 +324,7 @@ export default function ProfileScreen() {
 
   const quickActions = [
     { icon: 'receipt-outline' as const, label: 'Orders', onPress: () => goRoot('OrderHistory') },
-    { icon: 'heart-outline' as const, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
+    { icon: 'bookmark-outline' as const, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: 'swap-horizontal-outline' as const, label: 'Returns', onPress: () => navigation.navigate('ServiceFlow', { screen: 'ServiceHistory' }) },
     { icon: 'help-circle-outline' as const, label: 'FAQ', onPress: () => navigation.navigate('FAQ') },
     { icon: 'people-outline' as const, label: 'Collabs', onPress: () => navigation.navigate('Collaborations') },

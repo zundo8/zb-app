@@ -66,7 +66,7 @@ export default function BookmarkDrawer({ visible, onClose }: Props) {
           <View style={[styles.header, { paddingTop: 30 }]}>
             <View style={styles.headerLeft}>
               <Ionicons name="bookmark-outline" size={18} color={colors.text} />
-              <Text style={[styles.drawerTitle, { color: colors.text }]}>ZICA BOOKMARKS</Text>
+              <Text style={[styles.drawerTitle, { color: colors.text }]}>ZICA WISHLIST</Text>
               <View style={[styles.badge, { backgroundColor: colors.borderLight }]}>
                 <Text style={[styles.badgeText, { color: colors.textSecondary }]}>{bookmarks.length}</Text>
               </View>

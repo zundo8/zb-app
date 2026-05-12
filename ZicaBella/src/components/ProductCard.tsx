@@ -17,12 +17,13 @@ import { resolveImageUrl, resolveImageArray } from '../utils/imageUtils';
 interface Props {
   product: FlatProduct;
   onQuickAdd?: (product: FlatProduct) => void;
+  onRemove?: (id: string) => void;
   style?: any;
   compact?: boolean;
   isLarge?: boolean;
 }
 
-const ProductCard = React.memo(({ product, onQuickAdd, style, compact, isLarge }: Props) => {
+const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact, isLarge }: Props) => {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
@@ -145,6 +146,15 @@ const ProductCard = React.memo(({ product, onQuickAdd, style, compact, isLarge }
           </TouchableOpacity>
         )}
         {!isSoldOut && <View pointerEvents="none" style={styles.imageOverlay} />}
+        
+        {onRemove && (
+          <TouchableOpacity 
+            style={[styles.removeBtn, { backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.8)' }]} 
+            onPress={() => { haptics.buttonTap(); onRemove(product.id); }}
+          >
+            <Ionicons name="close" size={14} color={colors.text} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Info Floor */}
@@ -193,6 +203,17 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   comparePrice: { textDecorationLine: 'line-through' },
   quickAddBtn: { width: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
+  removeBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+  },
 });
 
 export default ProductCard;
