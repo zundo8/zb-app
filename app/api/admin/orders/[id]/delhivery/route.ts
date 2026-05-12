@@ -1,0 +1,130 @@
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/db';
+import { createDelhiveryShipment, cancelDelhiveryShipment } from '@/lib/delhivery';
+
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const { id } = params;
+    const body = await req.json();
+    const { action } = body;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { items: true, customer: true }
+    });
+
+    if (!order) {
+      return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
+    }
+
+    if (action === 'create_shipment') {
+      const shippingAddr = typeof order.shippingAddress === 'string' 
+        ? JSON.parse(order.shippingAddress) 
+        : order.shippingAddress;
+
+      const shipmentPayload = {
+        name: shippingAddr.name || order.customer.name || 'Customer',
+        add: `${shippingAddr.address1} ${shippingAddr.address2 || ''} ${shippingAddr.city} ${shippingAddr.province}`,
+        pin: shippingAddr.zip || shippingAddr.pincode,
+        phone: shippingAddr.phone || order.customer.phone || '',
+        order: order.shopifyOrderId.replace('#', ''),
+        payment_mode: (order.paymentMethod === 'COD' ? 'COD' : 'Prepaid') as 'COD' | 'Prepaid',
+        total_amount: String(order.totalPrice),
+        cod_amount: order.paymentMethod === 'COD' ? String(order.totalPrice) : '0.00',
+        products_desc: order.items.map(i => i.title).join(', '),
+        weight: body.weight || '500', // Default weight if not provided
+        shipping_mode: (body.shippingMode || 'Surface') as 'Surface' | 'Express',
+        seller_name: 'Zica Bella',
+      };
+
+      const result = await createDelhiveryShipment(shipmentPayload, body.pickupLocation || 'Main Warehouse');
+
+      if (result.success) {
+        const waybill = result.packages?.[0]?.waybill;
+        // Update order with shipment info
+        await prisma.shipment.create({
+          data: {
+            orderId: order.id,
+            awb: waybill,
+            courier: 'Delhivery',
+            status: 'manifested',
+            trackingUrl: `https://www.delhivery.com/track/package/${waybill}`,
+            rawDelhiveryResponse: JSON.stringify(result)
+          }
+        });
+
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { deliveryStatus: 'manifested' }
+        });
+
+        return NextResponse.json({ success: true, waybill });
+      } else {
+        return NextResponse.json({ success: false, error: result.errors || 'Delhivery API error' });
+      }
+    }
+
+    if (action === 'generate_label') {
+      const shipment = await prisma.shipment.findFirst({
+        where: { orderId: order.id, courier: 'Delhivery' },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (!shipment || !shipment.awb) {
+        return NextResponse.json({ success: false, error: 'No waybill found for this order. Manifest the order first.' });
+      }
+
+      const result = await getShippingLabel(shipment.awb);
+      return NextResponse.json({ success: true, labelUrl: result.packages?.[0]?.pdf_url || result.pdf_url });
+    }
+
+    if (action === 'get_tat') {
+      const shippingAddr = typeof order.shippingAddress === 'string' 
+        ? JSON.parse(order.shippingAddress) 
+        : order.shippingAddress;
+      
+      const shop = await prisma.shop.findFirst();
+      const originPin = shop?.zipCode || '110001'; // Default origin if not set
+      const destinationPin = shippingAddr.zip || shippingAddr.pincode;
+
+      if (!destinationPin) {
+        return NextResponse.json({ success: false, error: 'Destination pincode missing' });
+      }
+
+      const result = await getExpectedTAT(originPin, destinationPin, body.mot || 'S');
+      return NextResponse.json({ success: true, tat: result });
+    }
+
+    if (action === 'cancel_shipment') {
+      const shipment = await prisma.shipment.findFirst({
+        where: { orderId: order.id, courier: 'Delhivery' },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (!shipment || !shipment.awb) {
+        return NextResponse.json({ success: false, error: 'No Delhivery shipment found for this order' });
+      }
+
+      const result = await cancelDelhiveryShipment(shipment.awb);
+      
+      if (result.success || result.status === 'cancelled') {
+        await prisma.shipment.update({
+          where: { id: shipment.id },
+          data: { status: 'cancelled' }
+        });
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { deliveryStatus: 'cancelled' }
+        });
+        return NextResponse.json({ success: true });
+      } else {
+        return NextResponse.json({ success: false, error: result.errors || 'Cancellation failed' });
+      }
+    }
+
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error: any) {
+    console.error('[Delhivery API] Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

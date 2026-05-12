@@ -10,27 +10,30 @@ export async function GET(req: Request) {
     const limit = limitRaw ? Math.max(1, Math.min(100, parseInt(limitRaw, 10) || 50)) : 50;
 
     const abandoned = url.searchParams.get('abandoned') === 'true';
+    console.log('[Admin] Fetching mobile orders, abandoned:', abandoned);
+
     const where: any = {
       OR: [
+        { tags: { contains: 'mobile-app', mode: 'insensitive' } },
+        { tags: { contains: 'AppOrder', mode: 'insensitive' } },
+        { tags: { contains: 'App', mode: 'insensitive' } },
+        { note: { contains: 'Mobile app order', mode: 'insensitive' } },
+        { note: { contains: 'App order', mode: 'insensitive' } },
+        { shopifyOrderId: { contains: 'ZB71', mode: 'insensitive' } },
         { orderType: 'MOBILE_APP' },
-        { tags: { contains: 'mobile-app' } },
-        { tags: { contains: 'AppOrder' } },
-        { tags: { contains: 'App' } },
-        { note: { contains: 'Mobile app order' } },
       ],
     };
 
     if (abandoned) {
-      // Failed/Pending prepaid orders
-      where.paymentStatus = { not: 'paid' };
+      where.paymentStatus = { notIn: ['paid', 'authorized'] };
       where.paymentMethod = { not: 'COD' };
     } else {
-      // Normal orders: COD or Paid Prepaid
-      where.OR = [
-        { paymentMethod: 'COD' },
-        { paymentStatus: 'paid' }
+      where.AND = [
+        { OR: [{ paymentMethod: 'COD' }, { paymentStatus: { in: ['paid', 'authorized'] } }] }
       ];
     }
+
+    console.log('[Admin] Mobile orders query:', JSON.stringify(where, null, 2));
 
     const orders = await prisma.order.findMany({
       where,

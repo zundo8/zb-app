@@ -84,6 +84,24 @@ async function handleOrderWebhook(shop: string, orderData: any) {
 
   const orderDate = orderData.created_at ? new Date(orderData.created_at) : new Date();
 
+  // Determine delivery status from fulfillments
+  let deliveryStatus = 'pending';
+  if (orderData.fulfillment_status === 'fulfilled') {
+    deliveryStatus = 'shipped';
+  }
+  
+  if (orderData.fulfillments && Array.isArray(orderData.fulfillments)) {
+    for (const f of orderData.fulfillments) {
+      if (f.shipment_status === 'delivered') {
+        deliveryStatus = 'delivered';
+        break;
+      } else if (f.shipment_status === 'out_for_delivery') {
+        deliveryStatus = 'out_for_delivery';
+        break;
+      }
+    }
+  }
+
   const order = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.id.toString() },
     create: {
@@ -92,14 +110,30 @@ async function handleOrderWebhook(shop: string, orderData: any) {
       customerId: dbCustomer.id,
       status: 'active',
       totalPrice: parseFloat(orderData.total_price || '0'),
+      subtotalPrice: parseFloat(orderData.subtotal_price || '0'),
+      totalTax: parseFloat(orderData.total_tax || '0'),
+      currency: orderData.currency || 'INR',
       paymentStatus: orderData.financial_status || 'pending',
       fulfillmentStatus: orderData.fulfillment_status || 'unfulfilled',
+      deliveryStatus: deliveryStatus,
+      shippingAddress: orderData.shipping_address ? JSON.stringify(orderData.shipping_address) : null,
+      billingAddress: orderData.billing_address ? JSON.stringify(orderData.billing_address) : null,
+      note: orderData.note || null,
+      tags: orderData.tags || null,
       createdAt: orderDate
     },
     update: {
       totalPrice: parseFloat(orderData.total_price || '0'),
+      subtotalPrice: parseFloat(orderData.subtotal_price || '0'),
+      totalTax: parseFloat(orderData.total_tax || '0'),
+      currency: orderData.currency || 'INR',
       paymentStatus: orderData.financial_status || 'pending',
       fulfillmentStatus: orderData.fulfillment_status || 'unfulfilled',
+      deliveryStatus: deliveryStatus,
+      shippingAddress: orderData.shipping_address ? JSON.stringify(orderData.shipping_address) : null,
+      billingAddress: orderData.billing_address ? JSON.stringify(orderData.billing_address) : null,
+      note: orderData.note || null,
+      tags: orderData.tags || null,
     }
   });
 

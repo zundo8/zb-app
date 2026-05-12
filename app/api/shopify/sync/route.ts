@@ -151,6 +151,24 @@ export async function POST() {
             });
           }
 
+          // Determine delivery status from fulfillments
+          let deliveryStatus = 'pending';
+          if (o.fulfillment_status === 'fulfilled') {
+            deliveryStatus = 'shipped';
+          }
+          
+          if (o.fulfillments && Array.isArray(o.fulfillments)) {
+            for (const f of o.fulfillments) {
+              if (f.shipment_status === 'delivered') {
+                deliveryStatus = 'delivered';
+                break;
+              } else if (f.shipment_status === 'out_for_delivery') {
+                deliveryStatus = 'out_for_delivery';
+                break;
+              }
+            }
+          }
+
           const order = await prisma.order.upsert({
             where: { shopifyOrderId: String(o.id) },
             create: {
@@ -164,9 +182,11 @@ export async function POST() {
               currency: o.currency || 'INR',
               paymentStatus: o.financial_status || 'pending',
               fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+              deliveryStatus: deliveryStatus,
               shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
               billingAddress: o.billing_address ? JSON.stringify(o.billing_address) : null,
               note: o.note || null,
+              tags: o.tags || null,
               createdAt: new Date(o.created_at),
             },
             update: {
@@ -176,9 +196,11 @@ export async function POST() {
               currency: o.currency || 'INR',
               paymentStatus: o.financial_status || 'pending',
               fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+              deliveryStatus: deliveryStatus,
               shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
               billingAddress: o.billing_address ? JSON.stringify(o.billing_address) : null,
               note: o.note || null,
+              tags: o.tags || null,
             },
           });
 
