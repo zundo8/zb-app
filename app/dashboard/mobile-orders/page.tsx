@@ -42,7 +42,11 @@ const STATUS_THEME: Record<string, { label: string; bg: string; dot: string }> =
   pending: { label: "Pending", bg: "bg-amber-500/10 text-amber-500", dot: "bg-amber-500" },
   awaiting_approval: { label: "Review Required", bg: "bg-purple-500/10 text-purple-500", dot: "bg-purple-500" },
   payment_failed: { label: "Failed", bg: "bg-rose-500/10 text-rose-500", dot: "bg-rose-500" },
-  delivered: { label: "Delivered", bg: "bg-blue-500/10 text-blue-500", dot: "bg-blue-500" },
+  delivered: { label: "Arrived", bg: "bg-blue-500/10 text-blue-500", dot: "bg-blue-500" },
+  open: { label: "Active", bg: "bg-emerald-500/10 text-emerald-500", dot: "bg-emerald-500" },
+  fulfilled: { label: "Dispatched", bg: "bg-cyan-500/10 text-cyan-500", dot: "bg-cyan-500" },
+  unfulfilled: { label: "Pending Fulfillment", bg: "bg-white/5 text-white/40", dot: "bg-white/20" },
+  payment_pending: { label: "Awaiting Funds", bg: "bg-amber-500/10 text-amber-500", dot: "bg-amber-500" },
 };
 
 export default function MobileOrdersPage() {

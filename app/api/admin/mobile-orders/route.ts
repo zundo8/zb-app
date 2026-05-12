@@ -20,17 +20,18 @@ export async function GET(req: Request) {
         { note: { contains: 'Mobile app order', mode: 'insensitive' } },
         { note: { contains: 'App order', mode: 'insensitive' } },
         { shopifyOrderId: { contains: 'ZB71', mode: 'insensitive' } },
+        { shopifyOrderId: { contains: 'PENDING', mode: 'insensitive' } },
         { orderType: 'MOBILE_APP' },
       ],
     };
 
+    // Keep tabs but loosen them
     if (abandoned) {
-      where.paymentStatus = { notIn: ['paid', 'authorized'] };
-      where.paymentMethod = { not: 'COD' };
+      where.paymentStatus = { notIn: ['paid', 'authorized', 'success'] };
+      // removed paymentMethod: { not: 'COD' } to see if COD is somehow being marked abandoned
     } else {
-      where.AND = [
-        { OR: [{ paymentMethod: 'COD' }, { paymentStatus: { in: ['paid', 'authorized'] } }] }
-      ];
+      // For active, we include EVERYTHING for now to ensure data visibility
+      console.log('[Admin] Active tab debugging: showing all mobile-app records');
     }
 
     console.log('[Admin] Mobile orders query:', JSON.stringify(where, null, 2));
@@ -51,6 +52,7 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({
+      success: true,
       orders: orders.map((o: any) => {
         const latestShipment = o.shipments?.[0];
         const orderNumber =

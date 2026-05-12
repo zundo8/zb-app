@@ -26,7 +26,10 @@ import {
   User,
   Activity,
   Box,
-  CornerDownRight
+  CornerDownRight,
+  Zap,
+  Globe,
+  ArrowRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
