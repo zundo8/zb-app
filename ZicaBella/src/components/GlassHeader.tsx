@@ -99,7 +99,7 @@ export default function GlassHeader({
         <View style={styles.rightActions}>
           <TouchableOpacity style={styles.actionBtn} onPress={toggleTheme}>
             <Ionicons 
-              name={isDark ? "sparkles-outline" : "contrast-outline"} 
+              name={isDark ? "sunny-outline" : "moon-outline"} 
               size={15} 
               color={colors.text} 
               style={{ opacity: 0.7 }} 

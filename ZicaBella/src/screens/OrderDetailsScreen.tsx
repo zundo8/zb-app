@@ -309,19 +309,37 @@ export default function OrderDetailsScreen() {
       </Animated.ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <TouchableOpacity onPress={contactSupport} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
-          <BlurView 
-            intensity={isDark ? 30 : 60} 
-            tint={isDark ? 'dark' : 'light'} 
-            style={[styles.mainBtn, { 
-              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.4)', 
-              borderWidth: 1, 
-              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' 
-            }]}
-          >
-            <Typography size={13} weight="700" color={colors.text}>Contact Support</Typography>
-          </BlurView>
-        </TouchableOpacity>
+        <View style={{ gap: 12 }}>
+          {order.paymentMethod === 'COD' && (order.status || '').toLowerCase() === 'awaiting_approval' && (
+            <TouchableOpacity onPress={handleCancelOrder} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
+              <BlurView 
+                intensity={isDark ? 30 : 60} 
+                tint={isDark ? 'dark' : 'light'} 
+                style={[styles.mainBtn, { 
+                  backgroundColor: 'rgba(255, 59, 48, 0.08)', 
+                  borderWidth: 1, 
+                  borderColor: 'rgba(255, 59, 48, 0.2)' 
+                }]}
+              >
+                <Typography size={13} weight="700" color="#FF3B30">Cancel Order</Typography>
+              </BlurView>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity onPress={contactSupport} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
+            <BlurView 
+              intensity={isDark ? 30 : 60} 
+              tint={isDark ? 'dark' : 'light'} 
+              style={[styles.mainBtn, { 
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.4)', 
+                borderWidth: 1, 
+                borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' 
+              }]}
+            >
+              <Typography size={13} weight="700" color={colors.text}>Contact Support</Typography>
+            </BlurView>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading && (
