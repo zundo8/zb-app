@@ -57,7 +57,7 @@ export default function WishlistScreen() {
           <View style={styles.cardWrapper}>
             <ProductCard 
               product={item} 
-              style={styles.card}
+              style={{ width: COLUMN_WIDTH }}
               onRemove={removeBookmark}
             />
           </View>

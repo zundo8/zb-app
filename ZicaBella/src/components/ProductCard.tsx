@@ -35,21 +35,29 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
   const currentCardWidth = useMemo(() => {
     if (isLarge) return SCREEN_WIDTH;
     if (compact) return SCREEN_WIDTH / 4;
-    return style?.width || SCREEN_WIDTH / 2;
+    
+    // If style.width is a percentage or string, we try to use a numeric fallback for snapToInterval
+    const widthFromStyle = style?.width;
+    if (typeof widthFromStyle === 'number') return widthFromStyle;
+    
+    return SCREEN_WIDTH / 2 - 24; // Default to half screen minus padding
   }, [isLarge, compact, style?.width]);
 
   const images = useMemo(() => {
     // 1. Try images array
+    let resolved: string[] = [];
     if (product?.images && Array.isArray(product.images) && product.images.length > 0) {
-      return resolveImageArray(product.images);
+      resolved = resolveImageArray(product.images);
     }
+    
+    if (resolved.length > 0) return resolved;
+
     // 2. Try featuredImage
-    if (product?.featuredImage) {
-      const feat = resolveImageUrl(product.featuredImage);
-      if (feat) return [feat];
-    }
-    // 3. Try any image field (back-compat)
-    const fallback = resolveImageUrl((product as any).image);
+    const feat = resolveImageUrl(product?.featuredImage || (product as any).image);
+    if (feat) return [feat];
+    
+    // 3. Last ditch: check any nested image fields
+    const fallback = resolveImageUrl((product as any).thumbnail || (product as any).img);
     if (fallback) return [fallback];
     
     return [];
@@ -133,17 +141,21 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
               );
             })}
           </ScrollView>
-        ) : (
+        ) : images[0] ? (
           <TouchableOpacity onPress={handlePress} activeOpacity={0.95} style={StyleSheet.absoluteFill}>
             <Image
-              source={{ uri: String(images[0] || '') }}
+              source={{ uri: String(images[0]) }}
               style={styles.image}
               contentFit="cover"
               cachePolicy="memory-disk"
               transition={200}
-              recyclingKey={String(images[0] || '')}
+              recyclingKey={String(images[0])}
             />
           </TouchableOpacity>
+        ) : (
+          <View style={[styles.image, styles.placeholderContainer, { backgroundColor: isDark ? '#1a1a1a' : '#f0f0f0' }]}>
+            <Ionicons name="image-outline" size={32} color={colors.textExtraLight} style={{ opacity: 0.2 }} />
+          </View>
         )}
         {!isSoldOut && <View pointerEvents="none" style={styles.imageOverlay} />}
         
@@ -203,6 +215,10 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   comparePrice: { textDecorationLine: 'line-through' },
   quickAddBtn: { width: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
+  placeholderContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   removeBtn: {
     position: 'absolute',
     top: 8,
