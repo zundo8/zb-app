@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const { phone, otp } = await req.json();
+    const { phone, otp, name } = await req.json();
 
     if (!phone || !otp) {
       return NextResponse.json({ error: "Phone and OTP are required" }, { status: 400 });
@@ -109,14 +109,14 @@ export async function POST(req: Request) {
           shopifyId: String(shopifyCustomer.id),
           shopId: shop.id,
           email: shopifyCustomer.email,
-          name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || "User",
+          name: name || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || "User",
           phone: shopifyCustomer.phone || fullPhone,
           ordersCount: shopifyCustomer.orders_count || 0,
           totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
         },
         update: {
           email: shopifyCustomer.email || undefined,
-          name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
+          name: name || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
           phone: shopifyCustomer.phone || undefined,
           ordersCount: shopifyCustomer.orders_count || 0,
           totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
@@ -143,8 +143,15 @@ export async function POST(req: Request) {
             phone: fullPhone,
             shopId: shop.id,
             shopifyId: `mobile_${Date.now()}`,
-            name: "New User",
+            name: name || "New User",
           },
+          include: { communityMember: true }
+        });
+      } else if (name) {
+        // Update existing customer name if provided
+        customer = await prisma.customer.update({
+          where: { id: customer.id },
+          data: { name },
           include: { communityMember: true }
         });
       }

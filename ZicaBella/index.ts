@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler';
 /**
  * App Entry Point
  *
@@ -11,6 +12,7 @@ import { registerRootComponent } from 'expo';
 import App from './App';
 
 // ─── CRITICAL: Suppress console output in production to prevent PII leaks ───
+// We call this here, but inside the function it checks if (__DEV__)
 suppressProductionLogs();
 
 // ─── CRITICAL: Configure how notifications behave when app is in foreground ───

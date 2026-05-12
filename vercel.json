@@ -19,6 +19,11 @@
     {
       "path": "/api/automations/evening-summary",
       "schedule": "30 14 * * *"
+    },
+    {
+      "path": "/api/cron/low-stock-check",
+      "schedule": "0 8 * * *"
     }
   ]
 }
+

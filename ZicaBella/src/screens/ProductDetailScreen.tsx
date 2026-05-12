@@ -302,12 +302,22 @@ export default function ProductDetailScreen() {
 
   const handleBookmarkToggle = () => {
     if (!product) return;
-    if (!requireSize()) return;
+    
+    if (!isAuthenticated) {
+      haptics.buttonTap();
+      Alert.alert('Sign In Required', 'Please sign in to add items to your wishlist and sync them across your devices.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => navigation.navigate('Auth') }
+      ]);
+      return;
+    }
+
+    const token = useAuthStore.getState().token;
     haptics.buttonTap();
     if (isBookmarked) {
-      removeBookmark(product.id);
+      removeBookmark(product.id, token);
     } else {
-      addBookmark(product);
+      addBookmark(product, token);
     }
   };
 

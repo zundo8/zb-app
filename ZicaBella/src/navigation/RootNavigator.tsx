@@ -10,6 +10,7 @@ import { getColors, useColors, lightColors, darkColors } from '../constants/colo
 import { useUIStore } from '../store/uiStore';
 
 import { useAuthStore } from '../store/authStore';
+import { useBookmarkStore } from '../store/bookmarkStore';
 import AuthNavigator from './AuthNavigator';
 import TabNavigator from './TabNavigator';
 import CheckoutNavigator from './CheckoutNavigator';
@@ -66,6 +67,14 @@ export const RootNavigator = () => {
     isMenuOpen, setMenuOpen 
   } = useUIStore();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const token = useAuthStore((s) => s.token);
+
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      const { syncBookmarks } = useBookmarkStore.getState();
+      syncBookmarks(token).catch(() => {});
+    }
+  }, [isAuthenticated, token]);
 
   useEffect(() => {
     let subscription: { remove: () => void } | null = null;

@@ -7,7 +7,7 @@
     "scheme": "zicabella",
     "icon": "./assets/zb-logo-icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "jsEngine": "hermes",
     "splash": {
       "image": "./assets/zica-bella-logo_8.png",

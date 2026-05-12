@@ -36,7 +36,8 @@ import {
   MessageCircle,
   CreditCard,
   Tag,
-  History
+  History,
+  Heart
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -111,10 +112,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const marketingNav = [
     { name: "Omnichannel Analytics", href: "/dashboard/marketing/analytics", icon: BarChart3 },
+    { name: "Wishlist Management", href: "/dashboard/wishlist", icon: Heart },
     { name: "Push Notifications", href: "/dashboard/notifications", icon: Bell },
     { name: "Discounts", href: "/dashboard/marketing/discounts", icon: Tag },
     { name: "WhatsApp Hub", href: "/dashboard/marketing/whatsapp", icon: MessageCircle },
-    { name: "Email Campaigns", href: "/dashboard/marketing/email", icon: Mail },
+    { name: "Email Center", href: "/dashboard/marketing/email", icon: Mail },
     { name: "SMS Campaigns", href: "/dashboard/marketing/sms", icon: MessageSquare },
   ];
 

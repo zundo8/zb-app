@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Bell, Send, Smartphone, Users, Zap, Image as ImageIcon, 
@@ -11,11 +12,12 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 
 export default function PushNotificationsPage() {
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const searchParams = useSearchParams();
+  const [title, setTitle] = useState(searchParams.get("title") || "");
+  const [body, setBody] = useState(searchParams.get("body") || "");
   const [imageUrl, setImageUrl] = useState("");
-  const [targetType, setTargetType] = useState("all");
-  const [targetValue, setTargetValue] = useState("");
+  const [targetType, setTargetType] = useState(searchParams.get("targetType") || "all");
+  const [targetValue, setTargetValue] = useState(searchParams.get("targetValue") || "");
   const [deepLinkType, setDeepLinkType] = useState("none");
   const [deepLinkId, setDeepLinkId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,6 +27,18 @@ export default function PushNotificationsPage() {
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState({ activeDevices: 0, vipCount: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    const t = searchParams.get("title");
+    const b = searchParams.get("body");
+    const tt = searchParams.get("targetType");
+    const tv = searchParams.get("targetValue");
+    
+    if (t) setTitle(t);
+    if (b) setBody(b);
+    if (tt) setTargetType(tt);
+    if (tv) setTargetValue(tv);
+  }, [searchParams]);
 
   useEffect(() => {
     fetchHistory();

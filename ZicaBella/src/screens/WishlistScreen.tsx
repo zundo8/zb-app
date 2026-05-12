@@ -10,6 +10,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useThemeStore } from '../store/themeStore';
+import { useAuthStore } from '../store/authStore';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 2;
@@ -20,6 +21,7 @@ export default function WishlistScreen() {
   const isDark = useThemeStore((s) => s.theme) === 'dark';
   const navigation = useNavigation<any>();
   const { bookmarks, removeBookmark } = useBookmarkStore();
+  const token = useAuthStore((s) => s.token);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -58,7 +60,7 @@ export default function WishlistScreen() {
             <ProductCard 
               product={item} 
               style={{ width: COLUMN_WIDTH }}
-              onRemove={removeBookmark}
+              onRemove={(id) => removeBookmark(id, token)}
             />
           </View>
         )}

@@ -386,6 +386,33 @@ export default function ProductionTrackerPage() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
+
+      // Trigger Production Update Email to Vendor
+      if (body.vendor) {
+        try {
+          // Find vendor email if available in vendors state
+          const vendorObj = vendors.find(v => v.id === body.vendor || v.name === body.vendor);
+          const vEmail = (vendorObj as any)?.email || process.env.VENDOR_NOTIFICATION_EMAIL || 'vendors@zicabella.com';
+          
+          await fetch('/api/email/production-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              vendorEmail: vEmail,
+              vendorName: body.vendorName || body.vendor,
+              taskId: modal.batch.id,
+              productName: modal.batch.productName,
+              fromStage: modal.batch.currentStage,
+              toStage: j.newStage || modal.action, // Use the new stage from response
+              notes: body.notes,
+              dashboardUrl: `https://app.zicabella.com/dashboard/manufacturing/production?id=${modal.batch.id}`,
+            }),
+          });
+        } catch (emailErr) {
+          console.error('Failed to send production update email:', emailErr);
+        }
+      }
+
       showToast("Saved - stage updated");
       setModal(null);
       loadBatches();
