@@ -235,11 +235,11 @@ export default function MobileOrdersPage() {
                               #{order.orderNumber || order.id.slice(-6).toUpperCase()}
                             </span>
                             {!isSynced && (
-                              <span className="px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[8px] font-bold uppercase">Unsynced</span>
+                              <span className="px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[8px] font-bold uppercase tracking-tighter">Unsynced</span>
                             )}
                           </div>
-                          <div className="text-[9px] text-foreground/40 mt-1 uppercase tracking-wider">
-                            {new Date(order.createdAt).toLocaleString()}
+                          <div className="text-[9px] text-foreground/40 mt-1 uppercase tracking-wider font-mono">
+                            {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} | {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
                           </div>
                         </td>
                         <td className="px-5 py-4">
@@ -262,24 +262,26 @@ export default function MobileOrdersPage() {
                           ₹{order.totalPrice.toLocaleString("en-IN")}
                         </td>
                         <td className="px-5 py-4 text-right" onClick={e => e.stopPropagation()}>
-                          {!isSynced ? (
-                            <button
-                              onClick={() => handleSyncToShopify(order.id)}
-                              disabled={isSyncing}
-                              className="px-3 py-1 bg-foreground text-background rounded-sm text-[9px] font-bold uppercase tracking-widest hover:opacity-90 transition-opacity"
-                            >
-                              {isSyncing ? "Syncing..." : "Sync to Shopify"}
-                            </button>
-                          ) : (
-                            <a
-                              href={`https://8tiahf-bk.myshopify.com/admin/orders/${order.shopifyOrderId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 text-foreground/40 hover:text-foreground transition-colors inline-block"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            {!isSynced ? (
+                              <button
+                                onClick={() => handleSyncToShopify(order.id)}
+                                disabled={isSyncing}
+                                className="px-3 py-1 bg-foreground text-background rounded-sm text-[9px] font-bold uppercase tracking-widest hover:opacity-90 transition-opacity"
+                              >
+                                {isSyncing ? "Syncing..." : "Sync to Shopify"}
+                              </button>
+                            ) : (
+                              <a
+                                href={`https://8tiahf-bk.myshopify.com/admin/orders/${order.shopifyOrderId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 bg-foreground/[0.03] rounded-md text-foreground/40 hover:text-foreground transition-colors inline-block"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
                         </td>
                       </tr>
 
@@ -289,57 +291,104 @@ export default function MobileOrdersPage() {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="bg-foreground/[0.01] border-b border-foreground/[0.05]"
+                            className="bg-foreground/[0.005] border-b border-foreground/[0.05]"
                           >
                             <td colSpan={8} className="p-0">
-                              <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+                              <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-12">
                                 <div className="md:col-span-2">
-                                  <h4 className="text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/30 mb-4 border-b border-foreground/[0.05] pb-2">Line Items</h4>
-                                  <div className="space-y-4">
-                                    {order.items.map((item) => (
-                                      <div key={item.id} className="flex justify-between items-center">
-                                        <div className="flex-1">
-                                          <p className="text-[11px] font-semibold text-foreground uppercase tracking-tight">{item.title}</p>
-                                          <p className="text-[9px] text-foreground/40 mt-1 font-mono">SKU: {item.sku || 'N/A'}</p>
+                                  <h4 className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-6 border-b border-foreground/[0.05] pb-2">Line Items ({order.items.length})</h4>
+                                  <div className="space-y-6">
+                                    {order.items.map((item: any) => (
+                                      <div key={item.id} className="flex gap-4 items-center">
+                                        <div className="w-16 h-16 bg-foreground/[0.03] rounded-lg border border-foreground/[0.05] overflow-hidden flex-shrink-0">
+                                          {item.image && (
+                                            <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-[11px] font-bold text-foreground uppercase tracking-tight truncate">{item.title}</p>
+                                          <div className="flex items-center gap-3 mt-1.5">
+                                            <span className="text-[9px] text-foreground/40 font-mono">SKU: {item.sku || 'N/A'}</span>
+                                            <span className="w-1 h-1 rounded-full bg-foreground/10" />
+                                            <span className="text-[9px] text-foreground/40 uppercase font-medium">QTY: {item.quantity}</span>
+                                          </div>
                                         </div>
                                         <div className="text-right">
-                                          <p className="text-[11px] font-bold text-foreground">{item.quantity} × ₹{item.price.toLocaleString()}</p>
+                                          <p className="text-[12px] font-bold text-foreground">₹{(item.price * item.quantity).toLocaleString()}</p>
+                                          <p className="text-[9px] text-foreground/40 mt-1">₹{item.price.toLocaleString()} ea</p>
                                         </div>
                                       </div>
                                     ))}
-                                    <div className="pt-4 border-t border-foreground/[0.05] flex justify-between">
-                                      <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Subtotal</span>
-                                      <span className="text-[11px] font-bold text-foreground">₹{order.totalPrice.toLocaleString()}</span>
+                                    
+                                    <div className="pt-6 mt-6 border-t border-foreground/[0.05] space-y-2">
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-medium uppercase tracking-widest text-foreground/40">Subtotal</span>
+                                        <span className="text-[11px] font-bold text-foreground">₹{order.totalPrice.toLocaleString()}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-medium uppercase tracking-widest text-foreground/40">Shipping</span>
+                                        <span className="text-[10px] font-bold text-green-500 uppercase">Free</span>
+                                      </div>
+                                      <div className="flex justify-between items-center pt-2 border-t border-foreground/[0.02]">
+                                        <span className="text-[11px] font-black uppercase tracking-widest text-foreground">Grand Total</span>
+                                        <span className="text-[14px] font-black text-foreground">₹{order.totalPrice.toLocaleString()}</span>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
 
-                                <div className="space-y-8">
+                                <div className="space-y-10">
                                   <div>
-                                    <h4 className="text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/30 mb-4 border-b border-foreground/[0.05] pb-2">Customer & Shipping</h4>
-                                    <div className="text-[11px] text-foreground/80 space-y-1">
-                                      <p className="font-bold text-foreground">{order.shippingAddress?.name || order.customer?.name || 'N/A'}</p>
-                                      <p className="font-mono text-[10px]">{order.shippingAddress?.phone || order.customer?.phone || ''}</p>
-                                      <p className="mt-3 opacity-60">
-                                        {typeof order.shippingAddress === 'string' 
-                                          ? order.shippingAddress 
-                                          : order.shippingAddress 
-                                            ? `${order.shippingAddress?.street || order.shippingAddress?.address1 || ''}, ${order.shippingAddress?.city || ''}, ${order.shippingAddress?.state || order.shippingAddress?.province || ''} ${order.shippingAddress?.zip || ''}`
-                                            : 'No address on file'}
-                                      </p>
+                                    <h4 className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-6 border-b border-foreground/[0.05] pb-2">Shipping Information</h4>
+                                    <div className="bg-foreground/[0.02] p-5 rounded-xl border border-foreground/[0.05] space-y-4">
+                                      <div>
+                                        <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest mb-1">Customer</p>
+                                        <p className="text-[11px] font-black text-foreground uppercase tracking-tight">{order.shippingAddress?.name || order.customer?.name || 'N/A'}</p>
+                                        <p className="text-[10px] font-mono text-foreground/60 mt-0.5">{order.shippingAddress?.phone || order.customer?.phone || 'No phone'}</p>
+                                        <p className="text-[10px] text-foreground/60">{order.shippingAddress?.email || order.customer?.email || 'No email'}</p>
+                                      </div>
+                                      
+                                      <div className="pt-4 border-t border-foreground/[0.05]">
+                                        <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest mb-2">Address</p>
+                                        <div className="text-[11px] text-foreground/70 space-y-1 leading-relaxed">
+                                          <p className="font-semibold text-foreground">{order.shippingAddress?.address1 || order.shippingAddress?.street}</p>
+                                          {order.shippingAddress?.address2 && <p>{order.shippingAddress?.address2}</p>}
+                                          <p className="uppercase tracking-tight">
+                                            {order.shippingAddress?.city}, {order.shippingAddress?.province || order.shippingAddress?.state}
+                                          </p>
+                                          <p className="font-mono font-bold text-foreground/80">{order.shippingAddress?.zip || order.shippingAddress?.pincode}</p>
+                                          <p className="text-[9px] font-black text-foreground/30 uppercase tracking-[0.2em] mt-2">{order.shippingAddress?.country || 'INDIA'}</p>
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
 
                                   <div>
-                                    <h4 className="text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/30 mb-4 border-b border-foreground/[0.05] pb-2">Payment Details</h4>
-                                    <div className="flex items-center gap-3 bg-foreground/[0.02] p-3 rounded-lg border border-foreground/[0.05]">
-                                      <div className="w-8 h-8 rounded-full bg-foreground/[0.05] flex items-center justify-center">
-                                        <AlertCircle className="w-4 h-4 text-foreground/40" />
-                                      </div>
-                                      <div>
-                                        <p className="text-[10px] font-bold text-foreground uppercase">{order.paymentMethod || 'Razorpay'}</p>
-                                        <p className="text-[9px] text-foreground/40 uppercase tracking-widest mt-0.5">{order.paymentStatus === 'paid' ? 'Transaction Verified' : 'Payment Awaiting'}</p>
-                                      </div>
+                                    <h4 className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-6 border-b border-foreground/[0.05] pb-2">Logistics & Tracking</h4>
+                                    <div className="bg-foreground/[0.02] p-5 rounded-xl border border-foreground/[0.05]">
+                                      {order.tracking ? (
+                                        <div className="space-y-3">
+                                          <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-foreground/5 flex items-center justify-center">
+                                              <Truck className="w-4 h-4 text-foreground/40" />
+                                            </div>
+                                            <div>
+                                              <p className="text-[10px] font-bold text-foreground uppercase">{order.tracking.carrier || 'Standard Shipping'}</p>
+                                              <p className="text-[9px] font-mono text-foreground/40 mt-0.5">{order.tracking.awb}</p>
+                                            </div>
+                                          </div>
+                                          <button className="w-full py-2 bg-foreground/[0.05] hover:bg-foreground/[0.08] text-[9px] font-bold uppercase tracking-widest rounded-md transition-colors">
+                                            View in Shiprocket
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-col items-center py-2 text-center">
+                                          <div className="w-10 h-10 rounded-full bg-foreground/[0.03] flex items-center justify-center mb-3">
+                                            <Truck className="w-5 h-5 text-foreground/20" />
+                                          </div>
+                                          <p className="text-[10px] font-medium text-foreground/40 uppercase tracking-widest">Awaiting fulfillment</p>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </div>

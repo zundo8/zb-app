@@ -21,6 +21,8 @@ import { useUIStore } from '../store/uiStore';
 import { Image } from 'expo-image';
 import { trackOrder } from '../services/shipmentService';
 
+import { resolveImageUrl } from '../utils/imageUtils';
+
 export default function OrderDetailsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
@@ -221,8 +223,8 @@ export default function OrderDetailsScreen() {
             <Typography size={17} weight="800" color={colors.text}>
               {isCancelled ? 'Order Cancelled' : isDelivered ? 'Delivered' : (order.deliveryStatus || order.status || 'Processing').replace(/_/g, ' ')}
             </Typography>
-            <Typography size={12} color={colors.textMuted} style={{ marginTop: 4 }}>
-              {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+            <Typography size={11} weight="600" color={colors.textMuted} style={{ marginTop: 6, fontFeatures: ['tnum'] }}>
+              {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
             </Typography>
           </View>
           <View style={[styles.statusLine, { backgroundColor: statusColor }]} />
@@ -266,43 +268,64 @@ export default function OrderDetailsScreen() {
           {order.items?.map((item: any, idx: number) => (
             <View key={item.id || idx} style={[styles.itemRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.borderExtraLight, paddingTop: 16, marginTop: 16 }]}>
               <View style={[styles.itemThumb, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                {item.image ? (
-                  <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                {resolveImageUrl(item.image) ? (
+                  <Image source={{ uri: resolveImageUrl(item.image)! }} style={StyleSheet.absoluteFill} contentFit="cover" />
                 ) : (
                   <Ionicons name="bag-handle-outline" size={20} color={colors.textExtraLight} />
                 )}
               </View>
               <View style={{ flex: 1, marginLeft: 16 }}>
-                <Typography size={14} weight="700" color={colors.text} numberOfLines={1}>{item.title || item.fullTitle}</Typography>
-                <Typography size={12} color={colors.textMuted} style={{ marginTop: 4 }}>{item.quantity} × {formatPrice(item.price)}</Typography>
+                <Typography size={12} weight="700" color={colors.text} numberOfLines={1} style={{ textTransform: 'uppercase' }}>{item.title || item.fullTitle}</Typography>
+                <Typography size={10} color={colors.textMuted} style={{ marginTop: 4 }}>QTY: {item.quantity} • {formatPrice(item.price)}</Typography>
               </View>
-              <Typography size={15} weight="800" color={colors.text}>{formatPrice(item.price * item.quantity)}</Typography>
+              <Typography size={14} weight="800" color={colors.text}>{formatPrice(item.price * item.quantity)}</Typography>
             </View>
           ))}
         </View>
 
-        <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>DELIVERY</Typography>
+        <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>DELIVERY ADDRESS</Typography>
         <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
-          <Typography size={14} weight="700" color={colors.text}>{order.shippingAddress?.name || 'Customer'}</Typography>
-          <Typography size={12} color={colors.textMuted} style={{ marginTop: 4, lineHeight: 18 }}>
-            {order.shippingAddress?.address1 || order.shippingAddress?.raw}{'\n'}
-            {order.shippingAddress?.city}, {order.shippingAddress?.province} {order.shippingAddress?.zip}
+          <Typography size={13} weight="800" color={colors.text}>{order.shippingAddress?.name || 'CUSTOMER'}</Typography>
+          <Typography size={11} color={colors.textMuted} style={{ marginTop: 6, lineHeight: 18 }}>
+            {order.shippingAddress?.address1 || order.shippingAddress?.street}
+            {order.shippingAddress?.address2 ? `\n${order.shippingAddress.address2}` : ''}
+            {`\n${order.shippingAddress?.city}, ${order.shippingAddress?.province || order.shippingAddress?.state}`}
+            {`\n${order.shippingAddress?.zip || order.shippingAddress?.pincode}`}
+            {`\n${order.shippingAddress?.country || 'INDIA'}`}
           </Typography>
+          {(order.shippingAddress?.phone || order.customer?.phone) && (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderExtraLight }}>
+              <Typography size={10} weight="700" color={colors.textExtraLight}>CONTACT</Typography>
+              <Typography size={12} color={colors.text} style={{ marginTop: 2 }}>{order.shippingAddress?.phone || order.customer?.phone}</Typography>
+            </View>
+          )}
         </View>
 
-        <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>PAYMENT</Typography>
+        <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>ORDER INFO</Typography>
+        <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
+          <View style={styles.priceRow}>
+            <Typography size={11} color={colors.textMuted}>Payment Method</Typography>
+            <Typography size={11} weight="700" color={colors.text} style={{ textTransform: 'uppercase' }}>{order.paymentMethod || 'Razorpay'}</Typography>
+          </View>
+          <View style={[styles.priceRow, { marginTop: 10 }]}>
+            <Typography size={11} color={colors.textMuted}>Order Type</Typography>
+            <Typography size={11} weight="700" color={colors.text}>Mobile App</Typography>
+          </View>
+        </View>
+
+        <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>BILLING SUMMARY</Typography>
         <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
           <View style={styles.priceRow}>
             <Typography size={12} color={colors.textMuted}>Subtotal</Typography>
-            <Typography size={12} weight="600" color={colors.text}>{formatPrice(order.subtotalPrice || order.totalPrice)}</Typography>
+            <Typography size={12} weight="700" color={colors.text}>{formatPrice(order.subtotalPrice || order.totalPrice)}</Typography>
           </View>
-          <View style={[styles.priceRow, { marginTop: 8 }]}>
+          <View style={[styles.priceRow, { marginTop: 10 }]}>
             <Typography size={12} color={colors.textMuted}>Shipping</Typography>
-            <Typography size={12} weight="600" color="#34C759">Free</Typography>
+            <Typography size={12} weight="800" color="#34C759">FREE</Typography>
           </View>
-          <View style={[styles.totalRow, { borderTopColor: colors.borderExtraLight }]}>
-            <Typography size={14} weight="800" color={colors.text}>Total</Typography>
-            <Typography size={18} weight="800" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
+          <View style={[styles.totalRow, { borderTopColor: colors.borderExtraLight, marginTop: 16, paddingTop: 16 }]}>
+            <Typography size={15} weight="900" color={colors.text}>TOTAL PAID</Typography>
+            <Typography size={20} weight="900" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
           </View>
         </View>
 

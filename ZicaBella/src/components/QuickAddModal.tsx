@@ -21,6 +21,8 @@ interface Props {
   onClose: () => void;
 }
 
+import { resolveImageUrl } from '../utils/imageUtils';
+
 export default function QuickAddModal({ visible, product, initialSize, onClose }: Props) {
   const { addItem } = useCartStore();
   const setCartOpen = useUIStore(s => s.setCartOpen);
@@ -36,7 +38,7 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
     .filter((v, i, a) => a.findIndex((x) => x.size === v.size) === i) || [];
 
   const price = product?.price || 0;
-  const image = product?.featuredImage;
+  const image = resolveImageUrl(product?.featuredImage);
 
   // Auto-select if single size
   useEffect(() => {

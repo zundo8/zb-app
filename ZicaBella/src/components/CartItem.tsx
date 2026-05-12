@@ -25,6 +25,8 @@ interface Props {
   onPress: () => void;
 }
 
+import { resolveImageUrl } from '../utils/imageUtils';
+
 export default function CartItem({ item, onUpdateQuantity, onRemove, onPress }: Props) {
   const colors = useColors();
 
@@ -41,7 +43,7 @@ export default function CartItem({ item, onUpdateQuantity, onRemove, onPress }: 
       <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.contentRow}>
         {/* Product Image */}
         <View style={[styles.imageContainer, { backgroundColor: colors.background }]}>
-          <Image source={{ uri: item.image }} style={styles.image} contentFit="cover" />
+          <Image source={{ uri: resolveImageUrl(item.image) || undefined }} style={styles.image} contentFit="cover" />
         </View>
 
         {/* Details */}

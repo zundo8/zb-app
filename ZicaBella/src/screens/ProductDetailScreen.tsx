@@ -27,6 +27,8 @@ import { SizeChartModal } from '../components/SizeChartModal';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
 
+import { resolveImageUrl } from '../utils/imageUtils';
+
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 /**
@@ -62,10 +64,10 @@ const ImageViewerModal = ({ visible, images, activeIndex, onClose }: any) => {
           }}
           contentOffset={{ x: index * SCREEN_W, y: 0 }}
         >
-          {images.map((img: string, idx: number) => (
+          {images.map((img: any, idx: number) => (
             <View key={idx} style={styles.viewerItem}>
               <Image 
-                source={img} 
+                source={resolveImageUrl(img) || undefined} 
                 style={styles.viewerImage} 
                 contentFit="contain" 
                 transition={400} 
@@ -95,7 +97,7 @@ const CuratedItem = React.memo(({ product, onPress, onQuickAdd, colors }: { prod
       <View style={styles.curatedCard}>
         <View style={{ flex: 1 }}>
           <Image 
-            source={{ uri: featuredImage }} 
+            source={{ uri: resolveImageUrl(featuredImage) || undefined }} 
             style={StyleSheet.absoluteFill} 
             contentFit="cover" 
             cachePolicy="memory-disk"
@@ -316,7 +318,7 @@ export default function ProductDetailScreen() {
       style={styles.heroContainer}
     >
       <Image 
-        source={item} 
+        source={resolveImageUrl(item) || undefined} 
         style={styles.heroImage} 
         contentFit="cover"
         transition={600}
@@ -424,7 +426,7 @@ export default function ProductDetailScreen() {
                   { width: 110 }
                 ]}
               >
-                <Image source={images[index]} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <Image source={resolveImageUrl(images[index]) || undefined} style={StyleSheet.absoluteFill} contentFit="cover" />
               </TouchableOpacity>
             )}
           />

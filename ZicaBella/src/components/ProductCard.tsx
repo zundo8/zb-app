@@ -12,6 +12,8 @@ import { Typography } from './Typography';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+import { resolveImageUrl, resolveImageArray } from '../utils/imageUtils';
+
 interface Props {
   product: FlatProduct;
   onQuickAdd?: (product: FlatProduct) => void;
@@ -36,12 +38,21 @@ const ProductCard = React.memo(({ product, onQuickAdd, style, compact, isLarge }
   }, [isLarge, compact, style?.width]);
 
   const images = useMemo(() => {
-    const rawImages = (product?.images && Array.isArray(product.images) && product.images.length > 0) 
-      ? product.images 
-      : (product?.featuredImage ? [product.featuredImage] : []);
+    // 1. Try images array
+    if (product?.images && Array.isArray(product.images) && product.images.length > 0) {
+      return resolveImageArray(product.images);
+    }
+    // 2. Try featuredImage
+    if (product?.featuredImage) {
+      const feat = resolveImageUrl(product.featuredImage);
+      if (feat) return [feat];
+    }
+    // 3. Try any image field (back-compat)
+    const fallback = resolveImageUrl((product as any).image);
+    if (fallback) return [fallback];
     
-    return rawImages.filter(Boolean);
-  }, [product?.images, product?.featuredImage]);
+    return [];
+  }, [product?.images, product?.featuredImage, (product as any).image]);
 
   const handlePress = useCallback(() => {
     if (product?.handle) {

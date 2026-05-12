@@ -17,6 +17,8 @@ import { haptics } from '../utils/haptics';
 import { Typography } from '../components/Typography';
 import { OrderSkeleton } from '../components/OrderSkeleton';
 
+import { resolveImageUrl } from '../utils/imageUtils';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 type OrderTab = 'ACTIVE' | 'HISTORY';
 
@@ -167,8 +169,8 @@ export default function OrderHistoryScreen() {
           {isSingle ? (
             <View style={styles.singleItemRow}>
               <View style={[styles.largeThumb, { backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7' }]}>
-                {items[0].image ? (
-                  <Image source={{ uri: items[0].image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                {resolveImageUrl(items[0].image) ? (
+                  <Image source={{ uri: resolveImageUrl(items[0].image)! }} style={StyleSheet.absoluteFill} contentFit="cover" />
                 ) : (
                   <Ionicons name="bag-handle-outline" size={20} color={colors.textExtraLight} />
                 )}
@@ -196,8 +198,8 @@ export default function OrderHistoryScreen() {
                       }
                     ]}
                   >
-                    {item.image ? (
-                      <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                    {resolveImageUrl(item.image) ? (
+                      <Image source={{ uri: resolveImageUrl(item.image)! }} style={StyleSheet.absoluteFill} contentFit="cover" />
                     ) : (
                       <Ionicons name="bag-outline" size={14} color={colors.textExtraLight} />
                     )}

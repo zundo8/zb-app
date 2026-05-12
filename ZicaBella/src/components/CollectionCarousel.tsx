@@ -113,6 +113,8 @@ export default function CollectionCarousel({ collections }: Props) {
   );
 }
 
+import { resolveImageUrl } from '../utils/imageUtils';
+
 function AnimatedCard({ item, index, scrollX, onPress }: any) {
   const animatedStyle = useAnimatedStyle(() => {
     const input = [
@@ -175,7 +177,7 @@ function AnimatedCard({ item, index, scrollX, onPress }: any) {
         style={styles.card}
       >
         <Image
-          source={{ uri: item.image || undefined }}
+          source={{ uri: resolveImageUrl(item.image) || undefined }}
           style={styles.image}
           contentFit="cover"
           transition={500}

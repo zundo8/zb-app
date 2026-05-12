@@ -133,6 +133,27 @@ export default function OrderReviewScreen() {
     if (loading) return;
     haptics.buttonTap();
 
+    // Strict Address Validation
+    const addr = shippingAddress;
+    const isAddrComplete = !!(
+      (addr?.name || user?.name) && 
+      (addr?.phone || user?.phone) && 
+      (addr?.line1 || addr?.street) && 
+      addr?.city && 
+      (addr?.state || addr?.province) && 
+      (addr?.pincode || addr?.zip)
+    );
+
+    if (!isAddrComplete) {
+      haptics.error();
+      Alert.alert(
+        "Incomplete Address",
+        "Please provide a complete shipping address before placing your order.",
+        [{ text: "Update Address", onPress: () => navigation.navigate('DeliveryAddress') }]
+      );
+      return;
+    }
+
     const token = useAuthStore.getState().token || '';
     const apiBase = getPaymentApiBaseUrl();
     const orderData = buildOrderData();

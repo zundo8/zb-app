@@ -528,9 +528,12 @@ export default function OrdersPage() {
                           {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </td>
                         <td className="px-5 py-3">
-                          <Link href={`/dashboard/orders/${order.id}`} className="text-[12px] font-semibold text-foreground hover:text-foreground/70 transition-colors" onClick={(e) => e.stopPropagation()}>
+                          <Link href={`/dashboard/orders/${order.id}`} className="text-[12px] font-semibold text-foreground hover:text-foreground/70 transition-colors font-mono" onClick={(e) => e.stopPropagation()}>
                             {order.name}
                           </Link>
+                          <div className="text-[9px] text-foreground/40 mt-1 uppercase tracking-wider font-mono">
+                            {new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} | {new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </div>
                         </td>
                         <td className="px-5 py-3">
                           <div className={`text-[11px] font-medium ${rawName ? "text-foreground" : "text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 italic"}`}>{customerName}</div>
@@ -557,7 +560,7 @@ export default function OrdersPage() {
                                <button
                                  onClick={() => handleFulfill(order)}
                                  disabled={isFulfilling}
-                                 className="px-2 py-1 bg-foreground text-background rounded-sm text-[9px] font-medium uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50"
+                                 className="px-2 py-1 bg-foreground text-background rounded-sm text-[9px] font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50"
                                >
                                  {isFulfilling ? "..." : "Fulfill"}
                                </button>
@@ -566,96 +569,116 @@ export default function OrdersPage() {
                                <button
                                  onClick={(e) => { e.stopPropagation(); handleDeliver(order); }}
                                  disabled={isDelivering}
-                                 className="px-2 py-1 bg-background border border-foreground/[0.05] text-foreground rounded-sm text-[9px] font-medium uppercase tracking-widest hover:bg-foreground/[0.02] transition-colors disabled:opacity-50"
-                               >
-                                 {isDelivering ? "..." : "Deliver"}
-                               </button>
-                             )}
+                                 className="px-2 py-1 bg-background border border-foreground/[0.05] text-foreground rounded-sm text-[9px] font-bold uppercase tracking-widest hover:bg-foreground/[0.02] transition-colors disabled:opacity-50"
+                                >
+                                  {isDelivering ? "..." : "Deliver"}
+                                </button>
+                              )}
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingOrder(order);
-                                setEditForm({ note: order.note || "", email: order.customer?.email || "" });
-                                setIsEditModalOpen(true);
-                              }}
-                              className="p-1.5 text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 hover:text-foreground transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <a
-                              href={`https://${SHOPIFY_DOMAIN}/admin/orders/${order.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 hover:text-foreground transition-colors"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                          </div>
-                        </td>
-                      </tr>
-
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.tr 
-                             initial={{ opacity: 0, height: 0 }}
-                             animate={{ opacity: 1, height: 'auto' }}
-                             exit={{ opacity: 0, height: 0 }}
-                             className="bg-foreground/[0.01] border-b border-foreground/[0.05] overflow-hidden"
-                          >
-                            <td colSpan={9} className="p-0">
-                               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                                  {/* Line Items */}
-                                  <div>
-                                    <h4 className="text-[9px] font-semibold uppercase tracking-widest text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 mb-3 border-b border-foreground/[0.05] pb-2">
-                                      Items ({order.line_items.length})
-                                    </h4>
-                                    <div className="space-y-3">
-                                      {order.line_items.map((item) => (
-                                        <div key={item.id} className="flex justify-between items-start text-sm">
-                                          <div className="max-w-[70%]">
-                                            <p className="text-[11px] font-medium text-foreground break-words">{item.name || item.title}</p>
-                                            {item.sku && <p className="text-[9px] font-mono text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 mt-0.5">SKU: {item.sku}</p>}
-                                          </div>
-                                          <div className="text-[11px] font-medium text-foreground text-right">
-                                            {item.quantity} × ₹{parseFloat(item.price).toLocaleString("en-IN")}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-
-                                  {/* Details */}
-                                  <div className="space-y-6">
-                                    {order.shipping_address && (
-                                      <div>
-                                        <h4 className="text-[9px] font-semibold uppercase tracking-widest text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 mb-3 border-b border-foreground/[0.05] pb-2">
-                                          Shipping Address
-                                        </h4>
-                                        <div className="text-[11px] text-foreground/80 space-y-0.5">
-                                          <p className="font-medium text-foreground">{order.shipping_address.first_name} {order.shipping_address.last_name}</p>
-                                          {order.shipping_address.company && <p>{order.shipping_address.company}</p>}
-                                          <p>{order.shipping_address.address1}</p>
-                                          {order.shipping_address.address2 && <p>{order.shipping_address.address2}</p>}
-                                          <p>{order.shipping_address.city}, {order.shipping_address.province} {order.shipping_address.zip}</p>
-                                          <p className="text-[9px] uppercase tracking-widest text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 mt-1">{order.shipping_address.country}</p>
-                                          {order.shipping_address.phone && <p className="mt-2 font-mono text-[9px]">{order.shipping_address.phone}</p>}
-                                        </div>
-                                      </div>
-                                    )}
-                                    {order.note && (
-                                       <div>
-                                        <h4 className="text-[9px] font-semibold uppercase tracking-widest text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 mb-3 border-b border-foreground/[0.05] pb-2">
-                                          Order Note
-                                        </h4>
-                                        <p className="text-[11px] text-foreground/80 bg-background border border-foreground/[0.05] p-3 rounded-md">{order.note}</p>
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 setEditingOrder(order);
+                                 setEditForm({ note: order.note || "", email: order.customer?.email || "" });
+                                 setIsEditModalOpen(true);
+                               }}
+                               className="p-1.5 bg-foreground/[0.03] rounded-md text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 hover:text-foreground transition-colors"
+                             >
+                               <Edit2 className="w-3.5 h-3.5" />
+                             </button>
+                             <a
+                               href={`https://${SHOPIFY_DOMAIN}/admin/orders/${order.id}`}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="p-1.5 bg-foreground/[0.03] rounded-md text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 hover:text-foreground transition-colors"
+                             >
+                               <ExternalLink className="w-3.5 h-3.5" />
+                             </a>
+                           </div>
+                         </td>
+                       </tr>
+ 
+                       <AnimatePresence>
+                         {isExpanded && (
+                           <motion.tr 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="bg-foreground/[0.005] border-b border-foreground/[0.05] overflow-hidden"
+                           >
+                             <td colSpan={9} className="p-0">
+                                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
+                                   {/* Line Items */}
+                                   <div>
+                                     <h4 className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-6 border-b border-foreground/[0.05] pb-2">
+                                       Line Items ({order.line_items.length})
+                                     </h4>
+                                     <div className="space-y-4">
+                                       {order.line_items.map((item) => (
+                                         <div key={item.id} className="flex justify-between items-start">
+                                           <div className="max-w-[70%]">
+                                             <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">{item.name || item.title}</p>
+                                             <div className="flex items-center gap-3 mt-1">
+                                               {item.sku && <p className="text-[9px] font-mono text-foreground/40">SKU: {item.sku}</p>}
+                                               <span className="w-0.5 h-0.5 rounded-full bg-foreground/10" />
+                                               <p className="text-[9px] uppercase font-medium text-foreground/40">QTY: {item.quantity}</p>
+                                             </div>
+                                           </div>
+                                           <div className="text-[12px] font-bold text-foreground text-right">
+                                             ₹{parseFloat(item.price).toLocaleString("en-IN")}
+                                           </div>
+                                         </div>
+                                       ))}
+                                       <div className="pt-4 mt-4 border-t border-foreground/[0.05] flex justify-between items-center">
+                                         <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/30">Subtotal</span>
+                                         <span className="text-[13px] font-black text-foreground">₹{parseFloat(order.total_price).toLocaleString("en-IN")}</span>
                                        </div>
-                                    )}
-                                  </div>
-                               </div>
-                            </td>
-                          </motion.tr>
-                        )}
-                      </AnimatePresence>
+                                     </div>
+                                   </div>
+ 
+                                   {/* Details */}
+                                   <div className="space-y-10">
+                                     {order.shipping_address && (
+                                       <div>
+                                         <h4 className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-6 border-b border-foreground/[0.05] pb-2">
+                                           Shipping Destination
+                                         </h4>
+                                         <div className="bg-foreground/[0.02] p-5 rounded-xl border border-foreground/[0.05] space-y-4">
+                                           <div>
+                                             <p className="text-[11px] font-black text-foreground uppercase tracking-tight">{order.shipping_address.first_name} {order.shipping_address.last_name}</p>
+                                             {order.shipping_address.company && <p className="text-[10px] text-foreground/60 mt-0.5">{order.shipping_address.company}</p>}
+                                           </div>
+                                           
+                                           <div className="text-[11px] text-foreground/70 space-y-1 leading-relaxed">
+                                             <p className="font-semibold text-foreground">{order.shipping_address.address1}</p>
+                                             {order.shipping_address.address2 && <p>{order.shipping_address.address2}</p>}
+                                             <p className="uppercase tracking-tight">{order.shipping_address.city}, {order.shipping_address.province}</p>
+                                             <p className="font-mono font-bold text-foreground/80">{order.shipping_address.zip}</p>
+                                             <p className="text-[9px] font-black text-foreground/30 uppercase tracking-[0.2em] mt-2">{order.shipping_address.country}</p>
+                                           </div>
+                                           
+                                           {order.shipping_address.phone && (
+                                             <div className="pt-4 border-t border-foreground/[0.05]">
+                                               <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest mb-1">Contact</p>
+                                               <p className="font-mono text-[10px] text-foreground/60">{order.shipping_address.phone}</p>
+                                             </div>
+                                           )}
+                                         </div>
+                                       </div>
+                                     )}
+                                     {order.note && (
+                                        <div>
+                                         <h4 className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-6 border-b border-foreground/[0.05] pb-2">
+                                           Order Note
+                                         </h4>
+                                         <p className="text-[11px] text-foreground/80 bg-foreground/[0.02] border border-foreground/[0.05] p-4 rounded-xl leading-relaxed italic">"{order.note}"</p>
+                                        </div>
+                                     )}
+                                   </div>
+                                </div>
+                             </td>
+                           </motion.tr>
+                         )}
+                       </AnimatePresence>
                     </React.Fragment>
                   );
                 })
