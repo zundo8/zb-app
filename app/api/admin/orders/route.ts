@@ -9,12 +9,35 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
     const status = searchParams.get('status');
+    const paymentStatus = searchParams.get('paymentStatus');
+    const fulfillmentStatus = searchParams.get('fulfillmentStatus');
+    const platform = searchParams.get('platform');
     const search = searchParams.get('search');
 
     const where: any = {};
     
     if (status && status !== 'any') {
       where.status = status;
+    }
+
+    if (paymentStatus && paymentStatus !== 'any') {
+      where.paymentStatus = paymentStatus;
+    }
+
+    if (fulfillmentStatus && fulfillmentStatus !== 'any') {
+      where.fulfillmentStatus = fulfillmentStatus;
+    }
+
+    if (platform === 'mobile') {
+      where.OR = [
+        { tags: { contains: 'mobile-app', mode: 'insensitive' } },
+        { orderType: 'MOBILE_APP' }
+      ];
+    } else if (platform === 'web') {
+      where.AND = [
+        { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
+        { NOT: { orderType: 'MOBILE_APP' } }
+      ];
     }
 
     if (search) {

@@ -12,26 +12,38 @@ export async function GET(req: Request) {
     const abandoned = url.searchParams.get('abandoned') === 'true';
     console.log('[Admin] Fetching mobile orders, abandoned:', abandoned);
 
+    // Base filters for all mobile orders
+    const mobileIdentityFilters = [
+      { tags: { contains: 'mobile-app', mode: 'insensitive' } },
+      { tags: { contains: 'AppOrder', mode: 'insensitive' } },
+      { tags: { contains: 'App', mode: 'insensitive' } },
+      { note: { contains: 'Mobile app order', mode: 'insensitive' } },
+      { note: { contains: 'App order', mode: 'insensitive' } },
+      { shopifyOrderId: { contains: 'ZB71', mode: 'insensitive' } },
+      { shopifyOrderId: { contains: 'PENDING', mode: 'insensitive' } },
+      { orderType: 'MOBILE_APP' },
+    ];
+
     const where: any = {
-      OR: [
-        { tags: { contains: 'mobile-app', mode: 'insensitive' } },
-        { tags: { contains: 'AppOrder', mode: 'insensitive' } },
-        { tags: { contains: 'App', mode: 'insensitive' } },
-        { note: { contains: 'Mobile app order', mode: 'insensitive' } },
-        { note: { contains: 'App order', mode: 'insensitive' } },
-        { shopifyOrderId: { contains: 'ZB71', mode: 'insensitive' } },
-        { shopifyOrderId: { contains: 'PENDING', mode: 'insensitive' } },
-        { orderType: 'MOBILE_APP' },
-      ],
+      OR: mobileIdentityFilters,
     };
 
-    // Keep tabs but loosen them
     if (abandoned) {
-      where.paymentStatus = { notIn: ['paid', 'authorized', 'success'] };
-      // removed paymentMethod: { not: 'COD' } to see if COD is somehow being marked abandoned
+      // Abandoned = NOT paid AND NOT COD
+      where.AND = [
+        { paymentStatus: { notIn: ['paid', 'authorized', 'success'] } },
+        { paymentMethod: { not: 'COD' } }
+      ];
     } else {
-      // For active, we include EVERYTHING for now to ensure data visibility
-      console.log('[Admin] Active tab debugging: showing all mobile-app records');
+      // Active = Paid OR COD
+      where.AND = [
+        {
+          OR: [
+            { paymentStatus: { in: ['paid', 'authorized', 'success'] } },
+            { paymentMethod: 'COD' }
+          ]
+        }
+      ];
     }
 
     console.log('[Admin] Mobile orders query:', JSON.stringify(where, null, 2));

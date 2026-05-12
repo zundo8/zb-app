@@ -165,6 +165,7 @@ export async function GET(req: Request) {
     const paginated = payload.slice(offset, offset + limit);
 
     return NextResponse.json({
+      success: true,
       customers: paginated,
       total,
       page,

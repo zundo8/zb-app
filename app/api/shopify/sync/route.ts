@@ -151,18 +151,26 @@ export async function POST() {
             });
           }
 
-          // Determine delivery status from fulfillments
+          // Determine delivery status from fulfillments and tags
           let deliveryStatus = 'pending';
+          const lowerTags = (o.tags || '').toLowerCase();
+          
           if (o.fulfillment_status === 'fulfilled') {
             deliveryStatus = 'shipped';
+          }
+
+          // Check tags for manual delivery markers
+          if (lowerTags.includes('delivered') || lowerTags.includes('shipped_successfully')) {
+            deliveryStatus = 'delivered';
           }
           
           if (o.fulfillments && Array.isArray(o.fulfillments)) {
             for (const f of o.fulfillments) {
-              if (f.shipment_status === 'delivered') {
+              const fStatus = (f.shipment_status || '').toLowerCase();
+              if (fStatus === 'delivered' || fStatus === 'shipped' || fStatus === 'success') {
                 deliveryStatus = 'delivered';
                 break;
-              } else if (f.shipment_status === 'out_for_delivery') {
+              } else if (fStatus === 'out_for_delivery') {
                 deliveryStatus = 'out_for_delivery';
                 break;
               }

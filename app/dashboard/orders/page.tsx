@@ -94,21 +94,28 @@ export default function OrdersPage() {
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("any");
+  const [paymentFilter, setPaymentFilter] = useState("any");
+  const [fulfillmentFilter, setFulfillmentFilter] = useState("any");
+  const [platformFilter, setPlatformFilter] = useState("any");
   const [toast, setToast] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const url = `/api/admin/orders?limit=50&status=${statusFilter}&search=${search}`;
+      const url = `/api/admin/orders?limit=50&status=${statusFilter}&paymentStatus=${paymentFilter}&fulfillmentStatus=${fulfillmentFilter}&platform=${platformFilter}&search=${search}`;
       const res = await fetch(url);
       const data = await res.json();
-      if (data.success) setOrders(data.orders);
+      if (data.success) {
+        setOrders(data.orders);
+        setTotal(data.total || data.orders.length);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search]);
+  }, [statusFilter, paymentFilter, fulfillmentFilter, platformFilter, search]);
 
   useEffect(() => {
     const timer = setTimeout(fetchOrders, 300);
@@ -193,22 +200,48 @@ export default function OrdersPage() {
           />
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={platformFilter}
+              onChange={(e) => setPlatformFilter(e.target.value)}
               className="bg-white/5 border border-white/5 focus:border-white/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white/40 outline-none appearance-none cursor-pointer pr-10"
             >
-              <option value="any">All Status</option>
-              <option value="paid">Settled</option>
-              <option value="pending">Awaiting</option>
-              <option value="fulfilled">Dispatched</option>
+              <option value="any">Platform: All</option>
+              <option value="web">Platform: Web</option>
+              <option value="mobile">Platform: App</option>
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/10 pointer-events-none" />
           </div>
+
+          <div className="relative">
+            <select
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              className="bg-white/5 border border-white/5 focus:border-white/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white/40 outline-none appearance-none cursor-pointer pr-10"
+            >
+              <option value="any">Payment: All</option>
+              <option value="paid">Settled</option>
+              <option value="pending">Awaiting</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/10 pointer-events-none" />
+          </div>
+
+          <div className="relative">
+            <select
+              value={fulfillmentFilter}
+              onChange={(e) => setFulfillmentFilter(e.target.value)}
+              className="bg-white/5 border border-white/5 focus:border-white/20 rounded-xl px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white/40 outline-none appearance-none cursor-pointer pr-10"
+            >
+              <option value="any">Fulfillment: All</option>
+              <option value="fulfilled">Dispatched</option>
+              <option value="unfulfilled">Draft</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/10 pointer-events-none" />
+          </div>
+
           <div className="px-4 py-2.5 rounded-xl border border-white/5 text-[11px] font-bold text-white/20 uppercase tracking-widest">
-            {orders.length} Records
+            {total} Records
           </div>
         </div>
       </div>

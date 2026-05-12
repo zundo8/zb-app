@@ -84,18 +84,25 @@ async function handleOrderWebhook(shop: string, orderData: any) {
 
   const orderDate = orderData.created_at ? new Date(orderData.created_at) : new Date();
 
-  // Determine delivery status from fulfillments
+  // Determine delivery status from fulfillments and tags
   let deliveryStatus = 'pending';
+  const lowerTags = (orderData.tags || '').toLowerCase();
+  
   if (orderData.fulfillment_status === 'fulfilled') {
     deliveryStatus = 'shipped';
+  }
+
+  if (lowerTags.includes('delivered') || lowerTags.includes('shipped_successfully')) {
+    deliveryStatus = 'delivered';
   }
   
   if (orderData.fulfillments && Array.isArray(orderData.fulfillments)) {
     for (const f of orderData.fulfillments) {
-      if (f.shipment_status === 'delivered') {
+      const fStatus = (f.shipment_status || '').toLowerCase();
+      if (fStatus === 'delivered' || fStatus === 'shipped' || fStatus === 'success') {
         deliveryStatus = 'delivered';
         break;
-      } else if (f.shipment_status === 'out_for_delivery') {
+      } else if (fStatus === 'out_for_delivery') {
         deliveryStatus = 'out_for_delivery';
         break;
       }
