@@ -85,6 +85,8 @@ const STATUS_THEME: Record<string, { label: string; color: string; bg: string; d
   unfulfilled: { label: "Draft", color: "text-foreground/40", bg: "bg-foreground/5", dot: "bg-foreground/20" },
   delivered: { label: "Arrived", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
   cancelled: { label: "Terminated", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
+  payment_failed: { label: "Failed", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
+  awaiting_approval: { label: "Reviewing", color: "text-purple-500", bg: "bg-purple-500/10", dot: "bg-purple-500" },
 };
 
 export default function OrderDetailPage() {

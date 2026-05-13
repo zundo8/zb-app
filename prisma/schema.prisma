@@ -218,6 +218,8 @@ model Product {
   shopId            String
   shopifyProductId  String      @unique
   title             String
+  handle            String?
+  price             Float?
   sku               String?
   barcode           String?
   inventoryItemId   String?     @unique

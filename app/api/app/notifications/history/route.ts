@@ -43,7 +43,13 @@ export async function GET(req: Request) {
           auth?.customerId ? { 
             AND: [
               { targetType: 'user' },
-              { targetValue: auth.customerId }
+              { 
+                OR: [
+                  { targetValue: auth.customerId },
+                  auth.customerPhone ? { targetValue: auth.customerPhone } : { targetValue: 'NEVER_MATCH' },
+                  auth.customerEmail ? { targetValue: auth.customerEmail } : { targetValue: 'NEVER_MATCH' },
+                ]
+              }
             ]
           } : { targetType: 'NEVER_MATCH' },
           isVip ? { targetType: 'segment' } : { targetType: 'NEVER_MATCH' }

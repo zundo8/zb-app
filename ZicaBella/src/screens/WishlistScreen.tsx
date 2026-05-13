@@ -1,16 +1,19 @@
 import React from 'react';
-import { View, StyleSheet, FlatList, Dimensions } from 'react-native';
+import { View, StyleSheet, FlatList, Dimensions, TouchableOpacity, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '../constants/colors';
 import { useBookmarkStore } from '../store/bookmarkStore';
 import GlassHeader from '../components/GlassHeader';
 import ProductCard from '../components/ProductCard';
+import QuickAddModal from '../components/QuickAddModal';
 import { Typography } from '../components/Typography';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useThemeStore } from '../store/themeStore';
 import { useAuthStore } from '../store/authStore';
+import { FlatProduct } from '../api/types';
+import { haptics } from '../utils/haptics';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 2;
@@ -20,8 +23,39 @@ export default function WishlistScreen() {
   const colors = useColors();
   const isDark = useThemeStore((s) => s.theme) === 'dark';
   const navigation = useNavigation<any>();
-  const { bookmarks, removeBookmark } = useBookmarkStore();
+  const { bookmarks, removeBookmark, syncBookmarks } = useBookmarkStore();
   const token = useAuthStore((s) => s.token);
+
+  // QuickAdd modal state
+  const [selectedProduct, setSelectedProduct] = React.useState<FlatProduct | null>(null);
+  const [modalVisible, setModalVisible] = React.useState(false);
+
+  React.useEffect(() => {
+    if (token) {
+      syncBookmarks(token);
+    }
+  }, [token, syncBookmarks]);
+
+  const handleQuickAdd = React.useCallback((product: FlatProduct) => {
+    // If the product has variants with sizes, show the QuickAddModal
+    // Otherwise, navigate to the product page for proper size selection
+    if (product.variants && product.variants.length > 0) {
+      setSelectedProduct(product);
+      setModalVisible(true);
+    } else if (product.handle) {
+      // Navigate to product detail for full variant/size selection
+      haptics.buttonTap();
+      navigation.navigate('ProductDetail', { handle: product.handle });
+    } else {
+      // No variants and no handle — show an alert
+      haptics.error();
+      Alert.alert(
+        'Size Required',
+        'Please view the product page to select a size before adding to bag.',
+        [{ text: 'OK' }]
+      );
+    }
+  }, [navigation]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -60,6 +94,7 @@ export default function WishlistScreen() {
             <ProductCard 
               product={item} 
               style={{ width: COLUMN_WIDTH }}
+              onQuickAdd={handleQuickAdd}
               onRemove={(id) => removeBookmark(id, token)}
             />
           </View>
@@ -68,6 +103,13 @@ export default function WishlistScreen() {
         initialNumToRender={6}
         maxToRenderPerBatch={4}
         windowSize={5}
+      />
+
+      {/* QuickAdd Modal for size selection */}
+      <QuickAddModal 
+        visible={modalVisible}
+        product={selectedProduct}
+        onClose={() => setModalVisible(false)}
       />
     </View>
   );

@@ -44,8 +44,13 @@ export const useAuthStore = create<AuthStore>()(
           // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { NotificationService } = require('../services/NotificationService');
           NotificationService.registerDevice(undefined, user.id);
+
+          // Also sync bookmarks
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { useBookmarkStore } = require('./bookmarkStore');
+          useBookmarkStore.getState().syncBookmarks(token);
         } catch (_e) {
-          // Notification registration failed — non-fatal
+          // Non-fatal
         }
       },
       logout: () => set({ user: null, token: null, isAuthenticated: false }),

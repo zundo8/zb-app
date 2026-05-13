@@ -6,6 +6,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useCartStore } from '../store/cartStore';
 import { FlatProduct } from '../api/types';
 import { useColors } from '../constants/colors';
@@ -29,9 +30,11 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
   const isDark = theme === 'dark';
+  const navigation = useNavigation<any>();
   
   const [selectedSize, setSelectedSize] = useState<string | null>(initialSize || null);
   const [added, setAdded] = useState(false);
+  const [sizeError, setSizeError] = useState(false);
 
   const sizes = product?.variants
     ?.map((v) => ({ size: v.size ?? "One Size", variantId: String(v.id) }))
@@ -40,21 +43,48 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
   const price = product?.price || 0;
   const image = resolveImageUrl(product?.featuredImage);
 
+  // Reset state when modal opens with a new product
+  useEffect(() => {
+    if (visible) {
+      setSelectedSize(initialSize || (sizes.length === 1 ? sizes[0]?.size : null));
+      setAdded(false);
+      setSizeError(false);
+    }
+  }, [visible, product?.id]);
+
   // Auto-select if single size
   useEffect(() => {
     if (sizes.length === 1) setSelectedSize(sizes[0].size);
+    setSizeError(false);
   }, [sizes.length]);
 
   if (!product) return null;
 
+  const needsSize = sizes.length > 0;
+
+  const handleNavigateToProduct = () => {
+    if (product?.handle) {
+      haptics.buttonTap();
+      onClose();
+      setTimeout(() => {
+        navigation.navigate('ProductDetail', { handle: product.handle });
+      }, 300);
+    }
+  };
+
   const handleAdd = () => {
-    if (sizes.length > 1 && !selectedSize) return;
+    // Strictly require size selection when product has variants
+    if (needsSize && !selectedSize) {
+      setSizeError(true);
+      haptics.error();
+      return;
+    }
     
     const variant = sizes.find((s) => s.size === (selectedSize ?? sizes[0]?.size));
     
     addItem({
       productId: product.id,
-      variantId: variant?.variantId || product.variants[0].id,
+      variantId: variant?.variantId || product.variants?.[0]?.id || product.id,
       title: product.title,
       size: selectedSize,
       handle: product.handle,
@@ -91,15 +121,22 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
             <View style={[styles.dragHandle, { backgroundColor: colors.textMuted }]} />
           </View>
 
-          {/* Header */}
+          {/* Header — tappable product image and name to navigate to product page */}
           <View style={styles.header}>
-            <View style={styles.productInfo}>
+            <TouchableOpacity 
+              style={styles.productInfo} 
+              activeOpacity={product.handle ? 0.6 : 1}
+              onPress={handleNavigateToProduct}
+            >
               <Image source={{ uri: image || undefined }} style={[styles.previewImage, { backgroundColor: colors.surface }]} contentFit="cover" />
               <View style={styles.textInfo}>
-                <Text style={[styles.productTitle, { color: colors.text }]} numberOfLines={1}>{product.title}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={[styles.productTitle, { color: colors.text, flex: 1 }]} numberOfLines={1}>{product.title}</Text>
+                  {product.handle && <Ionicons name="chevron-forward" size={12} color={colors.textExtraLight} />}
+                </View>
                 <Text style={[styles.productPrice, { color: colors.textExtraLight }]}>{formatPrice(price)}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={20} color={colors.text} style={{ opacity: 0.3 }} />
             </TouchableOpacity>
@@ -109,7 +146,9 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
           {sizes.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionLabel, { color: colors.textExtraLight }]}>SELECT SIZE</Text>
+                <Text style={[styles.sectionLabel, { color: sizeError ? '#FF3B30' : colors.textExtraLight }]}>
+                  {sizeError ? 'PLEASE SELECT A SIZE' : 'SELECT SIZE'}
+                </Text>
                 <TouchableOpacity>
                   <Text style={[styles.guideLink, { color: colors.textSecondary }]}>GUIDE</Text>
                 </TouchableOpacity>
@@ -122,11 +161,12 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
                       key={size}
                       onPress={() => {
                         setSelectedSize(size);
+                        setSizeError(false);
                         haptics.buttonTap();
                       }}
                       style={[
                         styles.sizeBox,
-                        { borderColor: colors.borderLight },
+                        { borderColor: sizeError ? 'rgba(255,59,48,0.3)' : colors.borderLight },
                         isActive && { backgroundColor: '#000', borderColor: '#000' }
                       ]}
                     >
@@ -137,8 +177,22 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
                     </TouchableOpacity>
                   );
                 })}
-                {/* Fill empty spots to maintain 6-item symmetry if needed, or just justify-between */}
               </View>
+            </View>
+          )}
+
+          {/* No variants available — navigate to product page for full details */}
+          {sizes.length === 0 && product.handle && (
+            <View style={styles.section}>
+              <TouchableOpacity 
+                onPress={handleNavigateToProduct}
+                style={[styles.viewProductBtn, { borderColor: colors.borderLight }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="expand-outline" size={14} color={colors.text} />
+                <Text style={[styles.viewProductText, { color: colors.text }]}>VIEW FULL PRODUCT DETAILS</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.textExtraLight} />
+              </TouchableOpacity>
             </View>
           )}
 
@@ -146,11 +200,11 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
           <View style={styles.footer}>
             <TouchableOpacity
               onPress={handleAdd}
-              disabled={added || (sizes.length > 1 && !selectedSize)}
+              disabled={added}
               style={[
                 styles.addBtn,
                 { backgroundColor: added ? colors.iosGreen : '#000' },
-                (sizes.length > 1 && !selectedSize) && styles.addBtnDisabled
+                (needsSize && !selectedSize) && styles.addBtnNeedsSize
               ]}
               activeOpacity={0.8}
             >
@@ -159,7 +213,9 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
               ) : (
                 <View style={styles.btnContent}>
                   <Ionicons name="bag-outline" size={16} color="#FFF" />
-                  <Text style={styles.addBtnText}>Add to Bag</Text>
+                  <Text style={styles.addBtnText}>
+                    {needsSize && !selectedSize ? 'Select a Size' : 'Add to Bag'}
+                  </Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -275,6 +331,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
+  viewProductBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  viewProductText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
   footer: {
     paddingHorizontal: 24,
   },
@@ -290,8 +362,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  addBtnDisabled: {
-    opacity: 0.3,
+  addBtnNeedsSize: {
+    opacity: 0.4,
   },
   addBtnText: {
     fontSize: 10,

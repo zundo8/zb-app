@@ -14,41 +14,59 @@ export async function GET(req: Request) {
     const platform = searchParams.get('platform');
     const search = searchParams.get('search');
 
-    const where: any = {};
+    const conditions: any[] = [];
     
     if (status && status !== 'any') {
-      where.status = status;
+      conditions.push({ status });
     }
 
     if (paymentStatus && paymentStatus !== 'any') {
-      where.paymentStatus = paymentStatus;
+      if (paymentStatus === 'failed') {
+        conditions.push({ 
+          OR: [
+            { paymentStatus: 'failed' },
+            { paymentStatus: 'voided' },
+            { status: 'payment_failed' }
+          ]
+        });
+      } else {
+        conditions.push({ paymentStatus });
+      }
     }
 
     if (fulfillmentStatus && fulfillmentStatus !== 'any') {
-      where.fulfillmentStatus = fulfillmentStatus;
+      conditions.push({ fulfillmentStatus });
     }
 
     if (platform === 'mobile') {
-      where.OR = [
-        { tags: { contains: 'mobile-app', mode: 'insensitive' } },
-        { orderType: 'MOBILE_APP' }
-      ];
+      conditions.push({
+        OR: [
+          { tags: { contains: 'mobile-app', mode: 'insensitive' } },
+          { orderType: 'MOBILE_APP' }
+        ]
+      });
     } else if (platform === 'web') {
-      where.AND = [
-        { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
-        { NOT: { orderType: 'MOBILE_APP' } }
-      ];
+      conditions.push({
+        AND: [
+          { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
+          { NOT: { orderType: 'MOBILE_APP' } }
+        ]
+      });
     }
 
     if (search) {
-      where.OR = [
-        { shopifyOrderId: { contains: search, mode: 'insensitive' } },
-        { note: { contains: search, mode: 'insensitive' } },
-        { customer: { name: { contains: search, mode: 'insensitive' } } },
-        { customer: { email: { contains: search, mode: 'insensitive' } } },
-        { customer: { phone: { contains: search, mode: 'insensitive' } } },
-      ];
+      conditions.push({
+        OR: [
+          { shopifyOrderId: { contains: search, mode: 'insensitive' } },
+          { note: { contains: search, mode: 'insensitive' } },
+          { customer: { name: { contains: search, mode: 'insensitive' } } },
+          { customer: { email: { contains: search, mode: 'insensitive' } } },
+          { customer: { phone: { contains: search, mode: 'insensitive' } } },
+        ]
+      });
     }
+
+    const where = conditions.length > 0 ? { AND: conditions } : {};
 
     const orders = await prisma.order.findMany({
       where,

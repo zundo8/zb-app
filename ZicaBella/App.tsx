@@ -1,4 +1,3 @@
-import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { StatusBar, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -8,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import RootNavigator from './src/navigation/RootNavigator';
 import { ConsentModal } from './src/components/ConsentModal';
 import { useThemeStore } from './src/store/themeStore';
+import { suppressProductionLogs } from './src/utils/logger';
 import { useFonts } from 'expo-font';
 import { getColors } from './src/constants/colors';
 import { NotificationService } from './src/services/NotificationService';
@@ -30,6 +30,7 @@ function App() {
   const colors = getColors(theme);
 
   useEffect(() => {
+    suppressProductionLogs();
     if (fontsLoaded) {
       SplashScreen.hideAsync().catch(() => {});
       NotificationService.initialize();

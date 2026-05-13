@@ -1,25 +1,10 @@
 import 'react-native-gesture-handler';
-/**
- * App Entry Point
- *
- * Sets the global foreground notification handler ONLY here.
- * All listener registration (received, response) is done in NotificationService.initialize()
- * to avoid duplicate listeners causing duplicate-key crashes.
- */
-import { suppressProductionLogs } from './src/utils/logger';
-import * as Notifications from 'expo-notifications';
 import { registerRootComponent } from 'expo';
+import * as Notifications from 'expo-notifications';
 import App from './App';
 
-// ─── CRITICAL: Suppress console output in production to prevent PII leaks ───
-// We call this here, but inside the function it checks if (__DEV__)
-suppressProductionLogs();
-
 // ─── CRITICAL: Configure how notifications behave when app is in foreground ───
-// This MUST be set at the module level before anything else.
-// shouldShowAlert: true  → shows banner/lock screen style alert in foreground
-// shouldPlaySound: true  → plays notification sound
-// shouldSetBadge: true   → updates app icon badge
+// This MUST be set at the module level before any other notification logic.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -30,7 +15,4 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App).
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately.
 registerRootComponent(App);

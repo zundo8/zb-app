@@ -71,8 +71,10 @@ export const RootNavigator = () => {
 
   useEffect(() => {
     if (isAuthenticated && token) {
-      const { syncBookmarks } = useBookmarkStore.getState();
-      syncBookmarks(token).catch(() => {});
+      InteractionManager.runAfterInteractions(() => {
+        const { syncBookmarks } = useBookmarkStore.getState();
+        syncBookmarks(token).catch(() => {});
+      });
     }
   }, [isAuthenticated, token]);
 

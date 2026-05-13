@@ -54,34 +54,24 @@ async function sync() {
     for (const p of products) {
       const firstVariant = p.variants[0];
       await prisma.product.upsert({
-        where: { shopifyId: String(p.id) }, // Note: schema says shopifyProductId
+        where: { shopifyProductId: String(p.id) },
         create: {
           shopId: shop.id,
           shopifyProductId: String(p.id),
           title: p.title,
+          handle: p.handle,
+          price: parseFloat(firstVariant?.price || '0'),
           sku: firstVariant?.sku || null,
+          featuredImage: p.image?.src || null,
           inventoryItemId: firstVariant ? String(firstVariant.inventory_item_id) : null,
         },
         update: {
           title: p.title,
+          handle: p.handle,
+          price: parseFloat(firstVariant?.price || '0'),
           sku: firstVariant?.sku || null,
+          featuredImage: p.image?.src || null,
         }
-      }).catch(async () => {
-         // Handle case where schema field name is different
-         await (prisma.product as any).upsert({
-            where: { shopifyProductId: String(p.id) },
-            create: {
-              shopId: shop.id,
-              shopifyProductId: String(p.id),
-              title: p.title,
-              sku: firstVariant?.sku || null,
-              inventoryItemId: firstVariant ? String(firstVariant.inventory_item_id) : null,
-            },
-            update: {
-              title: p.title,
-              sku: firstVariant?.sku || null,
-            }
-         });
       });
     }
 

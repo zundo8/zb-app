@@ -123,10 +123,20 @@ export class NotificationService {
       // ── 5. Response listener (notification tapped) ───────────────────
       _responseSub?.remove();
       _responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-        const notifData = response.notification.request.content.data as Record<string, string>;
-        // Mark as read
+        const { title, body, data } = response.notification.request.content;
+        const notifData = data as Record<string, string>;
         const id = String(response.notification.request.identifier).trim();
-        useNotificationStore.getState().markAsRead(id);
+
+        // Ensure the notification is in our store (especially for background ones)
+        useNotificationStore.getState().addNotification({
+          id,
+          title: title || 'Zica Bella',
+          body: body || '',
+          date: new Date().toISOString(),
+          isRead: true, // It was tapped, so mark as read
+          data: notifData || {},
+        });
+
         // Navigate
         this.handleDeepLink(notifData);
       });

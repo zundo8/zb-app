@@ -105,7 +105,7 @@ export async function GET(req: Request, { params }: { params: { orderId: string 
         items: {
           include: {
             product: {
-              select: { id: true, shopifyProductId: true, title: true, featuredImage: true }
+              select: { id: true, shopifyProductId: true, title: true, featuredImage: true, handle: true }
             }
           }
         },
@@ -165,6 +165,7 @@ export async function GET(req: Request, { params }: { params: { orderId: string 
         image: it.image || it.product?.featuredImage || null,
         imageUrl: it.image || it.product?.featuredImage || null,
         shopifyProductId: it.product?.shopifyProductId || null,
+        handle: it.product?.handle || null,
       };
     };
 

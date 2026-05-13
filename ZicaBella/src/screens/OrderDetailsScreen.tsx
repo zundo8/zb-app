@@ -272,7 +272,17 @@ export default function OrderDetailsScreen() {
         <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>ORDER ITEMS</Typography>
         <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
           {order.items?.map((item: any, idx: number) => (
-            <View key={item.id || idx} style={[styles.itemRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.borderExtraLight, paddingTop: 16, marginTop: 16 }]}>
+            <TouchableOpacity 
+              key={item.id || idx} 
+              style={[styles.itemRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.borderExtraLight, paddingTop: 16, marginTop: 16 }]}
+              activeOpacity={item.handle ? 0.6 : 1}
+              onPress={() => {
+                if (item.handle) {
+                  haptics.buttonTap();
+                  navigation.navigate('ProductDetail', { handle: item.handle });
+                }
+              }}
+            >
               <View style={[styles.itemThumb, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
                 {resolveImageUrl(item.image) ? (
                   <Image source={{ uri: resolveImageUrl(item.image)! }} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -281,11 +291,16 @@ export default function OrderDetailsScreen() {
                 )}
               </View>
               <View style={{ flex: 1, marginLeft: 16 }}>
-                <Typography size={12} weight="700" color={colors.text} numberOfLines={1} style={{ textTransform: 'uppercase' }}>{item.title || item.fullTitle}</Typography>
-                <Typography size={10} color={colors.textMuted} style={{ marginTop: 4 }}>QTY: {item.quantity} • {formatPrice(item.price)}</Typography>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Typography size={12} weight="700" color={colors.text} numberOfLines={1} style={{ textTransform: 'uppercase', flex: 1 }}>{item.title || item.fullTitle}</Typography>
+                  {item.handle && <Ionicons name="chevron-forward" size={12} color={colors.textExtraLight} />}
+                </View>
+                <Typography size={10} color={colors.textMuted} style={{ marginTop: 4 }}>
+                  {item.size ? `SIZE: ${item.size} • ` : ''}QTY: {item.quantity} • {formatPrice(item.price)}
+                </Typography>
               </View>
               <Typography size={14} weight="800" color={colors.text}>{formatPrice(item.price * item.quantity)}</Typography>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 

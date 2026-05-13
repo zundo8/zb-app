@@ -60,6 +60,8 @@ export async function POST() {
               shopId: shop.id,
               shopifyProductId: String(p.id),
               title: p.title,
+              handle: p.handle,
+              price: parseFloat(firstVariant?.price || '0'),
               sku: firstVariant?.sku || null,
               barcode: firstVariant?.barcode || null,
               inventoryItemId: firstVariant ? String(firstVariant.inventory_item_id) : null,
@@ -67,6 +69,8 @@ export async function POST() {
             },
             update: {
               title: p.title,
+              handle: p.handle,
+              price: parseFloat(firstVariant?.price || '0'),
               sku: firstVariant?.sku || null,
               barcode: firstVariant?.barcode || null,
               inventoryItemId: firstVariant ? String(firstVariant.inventory_item_id) : null,

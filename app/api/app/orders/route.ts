@@ -96,11 +96,7 @@ export async function GET(req: Request) {
           { tags: { contains: 'AppOrder' } }
         ]
       } : (orderId ? { id: orderId } : { 
-        customerId: { in: customerIds },
-        OR: [
-          { paymentMethod: 'COD' },
-          { paymentStatus: 'paid' }
-        ]
+        customerId: { in: customerIds }
       }),
       include: {
         items: {
