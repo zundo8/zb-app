@@ -38,7 +38,7 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import { BlurView } from 'expo-blur';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import CartDrawer from '../components/CartDrawer';
-import BookmarkDrawer from '../components/BookmarkDrawer';
+import WishlistDrawer from '../components/WishlistDrawer';
 import MenuDrawer from '../components/MenuDrawer';
 import { useNavigation } from '@react-navigation/native';
 

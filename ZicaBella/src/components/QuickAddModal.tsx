@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, Modal, TouchableOpacity, 
-  Dimensions, Pressable 
+  Dimensions, Pressable, Alert
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
@@ -14,6 +14,9 @@ import { useThemeStore } from '../store/themeStore';
 import { formatPrice } from '../utils/formatPrice';
 import { haptics } from '../utils/haptics';
 import { useUIStore } from '../store/uiStore';
+import { SizeChartModal } from './SizeChartModal';
+import { useWishlistStore } from '../store/wishlistStore';
+import { useAuthStore } from '../store/authStore';
 
 interface Props {
   visible: boolean;
@@ -31,10 +34,13 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
   const theme = useThemeStore(state => state.theme);
   const isDark = theme === 'dark';
   const navigation = useNavigation<any>();
+  const { addWishlist, removeWishlist, isWishlisted } = useWishlistStore();
+  const isAuthenticated = useAuthStore(s => !!s.token);
   
   const [selectedSize, setSelectedSize] = useState<string | null>(initialSize || null);
   const [added, setAdded] = useState(false);
   const [sizeError, setSizeError] = useState(false);
+  const [sizeChartVisible, setSizeChartVisible] = useState(false);
 
   const sizes = product?.variants
     ?.map((v) => ({ size: v.size ?? "One Size", variantId: String(v.id) }))
@@ -69,6 +75,32 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
       setTimeout(() => {
         navigation.navigate('ProductDetail', { handle: product.handle });
       }, 300);
+    }
+  };
+  
+  const handleWishlistToggle = () => {
+    if (!product) return;
+    
+    if (!isAuthenticated) {
+      haptics.buttonTap();
+      Alert.alert('Sign In Required', 'Please sign in to add items to your wishlist.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => { onClose(); navigation.navigate('Auth'); } }
+      ]);
+      return;
+    }
+
+    const token = useAuthStore.getState().token;
+    haptics.buttonTap();
+    if (isWishlisted(product.id)) {
+      removeWishlist(product.id, token);
+    } else {
+      if (needsSize && !selectedSize) {
+        setSizeError(true);
+        haptics.error();
+        return;
+      }
+      addWishlist(product, token);
     }
   };
 
@@ -132,7 +164,6 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
               <View style={styles.textInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Text style={[styles.productTitle, { color: colors.text, flex: 1 }]} numberOfLines={1}>{product.title}</Text>
-                  {product.handle && <Ionicons name="chevron-forward" size={12} color={colors.textExtraLight} />}
                 </View>
                 <Text style={[styles.productPrice, { color: colors.textExtraLight }]}>{formatPrice(price)}</Text>
               </View>
@@ -149,7 +180,7 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
                 <Text style={[styles.sectionLabel, { color: sizeError ? '#FF3B30' : colors.textExtraLight }]}>
                   {sizeError ? 'PLEASE SELECT A SIZE' : 'SELECT SIZE'}
                 </Text>
-                <TouchableOpacity>
+                <TouchableOpacity onPress={() => { haptics.buttonTap(); setSizeChartVisible(true); }}>
                   <Text style={[styles.guideLink, { color: colors.textSecondary }]}>GUIDE</Text>
                 </TouchableOpacity>
               </View>
@@ -197,7 +228,18 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
           )}
 
           {/* Add Button */}
-          <View style={styles.footer}>
+          <View style={styles.footerContainer}>
+            <TouchableOpacity 
+              onPress={handleWishlistToggle} 
+              style={[styles.wishlistBtn, { borderColor: colors.borderLight }]}
+            >
+              <Ionicons 
+                name={isWishlisted(product.id) ? "bookmark" : "bookmark-outline"} 
+                size={20} 
+                color={isWishlisted(product.id) ? colors.text : colors.text} 
+              />
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={handleAdd}
               disabled={added}
@@ -220,6 +262,12 @@ export default function QuickAddModal({ visible, product, initialSize, onClose }
               )}
             </TouchableOpacity>
           </View>
+
+          <SizeChartModal 
+            visible={sizeChartVisible} 
+            onClose={() => setSizeChartVisible(false)} 
+            imageUrl={product.sizeChart}
+          />
         </Pressable>
       </Pressable>
     </Modal>
@@ -347,10 +395,23 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
   },
-  footer: {
+  footerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     paddingHorizontal: 24,
+    paddingBottom: 20,
+  },
+  wishlistBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addBtn: {
+    flex: 1,
     height: 60,
     borderRadius: 24,
     flexDirection: 'row',

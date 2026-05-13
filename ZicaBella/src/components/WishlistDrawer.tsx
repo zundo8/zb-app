@@ -7,12 +7,13 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBookmarkStore } from '../store/bookmarkStore';
+import { useWishlistStore } from '../store/wishlistStore';
 import { useCartStore } from '../store/cartStore';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { formatPrice } from '../utils/formatPrice';
 import { useNavigation } from '@react-navigation/native';
+import QuickAddModal from './QuickAddModal';
 
 const { width } = Dimensions.get('window');
 
@@ -21,27 +22,21 @@ interface Props {
   onClose: () => void;
 }
 
-export default function BookmarkDrawer({ visible, onClose }: Props) {
+export default function WishlistDrawer({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
   const isDark = theme === 'dark';
-  const { bookmarks, removeBookmark } = useBookmarkStore();
+  const { wishlist, removeWishlist } = useWishlistStore();
   const { addItem } = useCartStore();
 
+  const [selectedProduct, setSelectedProduct] = React.useState<any>(null);
+  const [quickAddVisible, setQuickAddVisible] = React.useState(false);
+
   const handleQuickAdd = (p: any) => {
-    addItem({
-      productId: p.id,
-      variantId: p.variants?.[0]?.id || '',
-      title: p.title,
-      size: null,
-      handle: p.handle,
-      price: p.price,
-      image: p.featuredImage || '',
-    });
-    onClose();
-    navigation.navigate('Main', { screen: 'CartTab' });
+    setSelectedProduct(p);
+    setQuickAddVisible(true);
   };
 
   return (
@@ -68,7 +63,7 @@ export default function BookmarkDrawer({ visible, onClose }: Props) {
               <Ionicons name="bookmark-outline" size={18} color={colors.text} />
               <Text style={[styles.drawerTitle, { color: colors.text }]}>ZICA WISHLIST</Text>
               <View style={[styles.badge, { backgroundColor: colors.borderLight }]}>
-                <Text style={[styles.badgeText, { color: colors.textSecondary }]}>{bookmarks.length}</Text>
+                <Text style={[styles.badgeText, { color: colors.textSecondary }]}>{wishlist.length}</Text>
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.borderLight }]}>
@@ -76,10 +71,10 @@ export default function BookmarkDrawer({ visible, onClose }: Props) {
             </TouchableOpacity>
           </View>
 
-          {bookmarks.length === 0 ? (
+          {wishlist.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="bookmark" size={80} color={colors.textExtraLight} style={{ opacity: 0.3 }} />
-              <Text style={[styles.emptyText, { color: colors.textExtraLight }]}>NO BOOKMARKS YET</Text>
+              <Ionicons name="bookmark-outline" size={80} color={colors.textExtraLight} style={{ opacity: 0.3 }} />
+              <Text style={[styles.emptyText, { color: colors.textExtraLight }]}>WISHLIST IS EMPTY</Text>
               <TouchableOpacity onPress={onClose} style={styles.browseBtn}>
                 <Text style={[styles.browseText, { color: colors.textSecondary }]}>KEEP BROWSING</Text>
                 <View style={[styles.browseUnderline, { backgroundColor: colors.borderLight }]} />
@@ -87,7 +82,7 @@ export default function BookmarkDrawer({ visible, onClose }: Props) {
             </View>
           ) : (
             <FlatList
-              data={bookmarks}
+              data={wishlist}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               renderItem={({ item }) => (
@@ -110,7 +105,7 @@ export default function BookmarkDrawer({ visible, onClose }: Props) {
                     <TouchableOpacity onPress={() => handleQuickAdd(item)} style={styles.actionIcon}>
                       <Ionicons name="bag-handle-outline" size={18} color={colors.text} style={{ opacity: 0.5 }} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => removeBookmark(item.id)} style={styles.actionIcon}>
+                    <TouchableOpacity onPress={() => removeWishlist(item.id)} style={styles.actionIcon}>
                       <Ionicons name="trash-outline" size={18} color={colors.iosRed} style={{ opacity: 0.6 }} />
                     </TouchableOpacity>
                   </View>
@@ -119,6 +114,12 @@ export default function BookmarkDrawer({ visible, onClose }: Props) {
             />
           )}
         </View>
+
+        <QuickAddModal 
+          visible={quickAddVisible}
+          product={selectedProduct}
+          onClose={() => setQuickAddVisible(false)}
+        />
       </View>
     </Modal>
   );

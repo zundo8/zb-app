@@ -10,7 +10,7 @@ import { getColors, useColors, lightColors, darkColors } from '../constants/colo
 import { useUIStore } from '../store/uiStore';
 
 import { useAuthStore } from '../store/authStore';
-import { useBookmarkStore } from '../store/bookmarkStore';
+import { useWishlistStore } from '../store/wishlistStore';
 import AuthNavigator from './AuthNavigator';
 import TabNavigator from './TabNavigator';
 import CheckoutNavigator from './CheckoutNavigator';
@@ -25,7 +25,7 @@ import { RootStackParamList } from './types';
 import { navigationRef } from './navigationUtils';
 
 import CartDrawer from '../components/CartDrawer';
-import BookmarkDrawer from '../components/BookmarkDrawer';
+import WishlistDrawer from '../components/WishlistDrawer';
 import MenuDrawer from '../components/MenuDrawer';
 
 const SafeOrderConfirmation = withErrorBoundary(OrderConfirmationScreen, 'OrderConfirmation');
@@ -63,7 +63,7 @@ const linking = {
 export const RootNavigator = () => {
   const { 
     isCartOpen, setCartOpen, 
-    isBookmarkOpen, setBookmarkOpen,
+    isWishlistOpen, setWishlistOpen,
     isMenuOpen, setMenuOpen 
   } = useUIStore();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -72,8 +72,8 @@ export const RootNavigator = () => {
   useEffect(() => {
     if (isAuthenticated && token) {
       InteractionManager.runAfterInteractions(() => {
-        const { syncBookmarks } = useBookmarkStore.getState();
-        syncBookmarks(token).catch(() => {});
+        const { syncWishlist } = useWishlistStore.getState();
+        syncWishlist(token).catch(() => {});
       });
     }
   }, [isAuthenticated, token]);
@@ -187,9 +187,9 @@ export const RootNavigator = () => {
             navigationRef.current?.navigate('CheckoutFlow');
           }}
         />
-        <BookmarkDrawer
-          visible={isBookmarkOpen}
-          onClose={() => setBookmarkOpen(false)}
+        <WishlistDrawer
+          visible={isWishlistOpen}
+          onClose={() => setWishlistOpen(false)}
         />
         <MenuDrawer
           visible={isMenuOpen}

@@ -45,10 +45,10 @@ export const useAuthStore = create<AuthStore>()(
           const { NotificationService } = require('../services/NotificationService');
           NotificationService.registerDevice(undefined, user.id);
 
-          // Also sync bookmarks
+          // Also sync wishlist
           // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const { useBookmarkStore } = require('./bookmarkStore');
-          useBookmarkStore.getState().syncBookmarks(token);
+          const { useWishlistStore } = require('./wishlistStore');
+          useWishlistStore.getState().syncWishlist(token);
         } catch (_e) {
           // Non-fatal
         }

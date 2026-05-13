@@ -21,7 +21,7 @@ import { Typography } from '../components/Typography';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useThemeStore } from '../store/themeStore';
-import { useBookmarkStore } from '../store/bookmarkStore';
+import { useWishlistStore } from '../store/wishlistStore';
 import { formatPrice } from '../utils/formatPrice';
 import { useNotificationStore } from '../store/notificationStore';
 import LoginScreen from './LoginScreen';
@@ -34,7 +34,7 @@ export default function ProfileScreen() {
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
-  const { bookmarks } = useBookmarkStore();
+  const { wishlist } = useWishlistStore();
   const unreadCount = useNotificationStore(s => s.unreadCount());
 
   const [loading, setLoading] = useState(false);
@@ -327,7 +327,7 @@ export default function ProfileScreen() {
 
   const quickActions = [
     { icon: 'receipt-outline' as const, label: 'Orders', onPress: () => goRoot('OrderHistory') },
-    { icon: 'bookmark-outline' as const, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
+    { icon: 'heart-outline' as const, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: 'swap-horizontal-outline' as const, label: 'Returns', onPress: () => navigation.navigate('ServiceFlow', { screen: 'ServiceHistory' }) },
     { icon: 'help-circle-outline' as const, label: 'FAQ', onPress: () => navigation.navigate('FAQ') },
     { icon: 'people-outline' as const, label: 'Collabs', onPress: () => navigation.navigate('Collaborations') },
@@ -392,7 +392,7 @@ export default function ProfileScreen() {
               <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
               <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Wishlist')}>
                 <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
-                   {String(bookmarks.length).padStart(2, '0')}
+                   {String(wishlist.length).padStart(2, '0')}
                 </Typography>
                 <Typography size={6.5} color={colors.textExtraLight} weight="600">WISHLIST</Typography>
               </TouchableOpacity>

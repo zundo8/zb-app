@@ -19,7 +19,7 @@ interface Props {
   showBack?: boolean;
   onPressMenu?: () => void;
   onPressCenter?: () => void;
-  isBookmarked?: boolean;
+  isWishlisted?: boolean;
   hideCenter?: boolean;
   style?: any;
 }
@@ -29,7 +29,7 @@ export default function GlassHeader({
   showBack = false,
   onPressMenu,
   onPressCenter,
-  isBookmarked = false,
+  isWishlisted = false,
   hideCenter = false,
   style,
 }: Props) {
@@ -37,7 +37,7 @@ export default function GlassHeader({
   const navigation = useNavigation<any>();
   const colors = useColors();
   const { theme, toggleTheme } = useThemeStore();
-  const setBookmarkOpen = useUIStore((state) => state.setBookmarkOpen);
+  const setWishlistOpen = useUIStore((state) => state.setWishlistOpen);
   const setMenuOpen = useUIStore((state) => state.setMenuOpen);
   const setCartOpen = useUIStore((state) => state.setCartOpen);
   const cartCount = useCartStore((s) => s.itemCount());
@@ -107,13 +107,13 @@ export default function GlassHeader({
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => setBookmarkOpen(true)}
+            onPress={() => setWishlistOpen(true)}
           >
             <Ionicons 
-              name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+              name={isWishlisted ? "bookmark" : "bookmark-outline"} 
               size={15} 
-              color={isBookmarked ? colors.primary : colors.text} 
-              style={!isBookmarked ? { opacity: 0.7 } : undefined} 
+              color={colors.text} 
+              style={!isWishlisted ? { opacity: 0.7 } : undefined} 
             />
           </TouchableOpacity>
           <TouchableOpacity

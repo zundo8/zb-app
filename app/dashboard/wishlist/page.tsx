@@ -87,7 +87,7 @@ export default function AdminWishlistPage() {
       {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Bookmarks", value: items.length, icon: Heart, color: "text-rose-500" },
+          { label: "Total Wishlisted", value: items.length, icon: Heart, color: "text-rose-500" },
           { label: "Unique Users", value: new Set(items.map(i => i.customer.id)).size, icon: User, color: "text-blue-500" },
           { label: "Active Leads", value: items.filter(i => i.customer.phone).length, icon: Smartphone, color: "text-emerald-500" },
           { label: "Conversion Potential", value: "High", icon: Filter, color: "text-amber-500" },
@@ -192,7 +192,7 @@ export default function AdminWishlistPage() {
                           <Smartphone className="w-3.5 h-3.5" />
                         </a>
                         <a 
-                          href={`https://wa.me/${item.customer.phone.replace('+', '')}?text=Hi%20${item.customer.name},%20we%20noticed%20you%20bookmarked%20the%20${item.product.title}!%20Would%20you%20like%20a%20special%20offer?`}
+                          href={`https://wa.me/${item.customer.phone.replace('+', '')}?text=Hi%20${item.customer.name},%20we%20noticed%20you%20added%20the%20${item.product.title}%20to%20your%20wishlist!%20Would%20you%20like%20a%20special%20offer?`}
                           target="_blank"
                           className="p-2 rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors"
                           title="WhatsApp Offer"
@@ -230,7 +230,7 @@ export default function AdminWishlistPage() {
                 <tr>
                   <td colSpan={5} className="px-6 py-20 text-center">
                     <Heart className="w-12 h-12 text-foreground/10 mx-auto mb-4" />
-                    <p className="text-[13px] font-medium text-foreground/40 uppercase tracking-widest">No bookmarks recorded yet</p>
+                    <p className="text-[13px] font-medium text-foreground/40 uppercase tracking-widest">No wishlist items recorded yet</p>
                   </td>
                 </tr>
               )}

@@ -55,7 +55,7 @@ const prismaClientSingleton = () => {
     return createMockPrismaClient('build');
   }
 
-  if (!pgUrl || pgUrl.includes('placeholder') || pgUrl === '') {
+  if (!pgUrl || pgUrl.includes('placeholder') || pgUrl === '' || pgUrl.includes('(not available)')) {
     console.error('[DB] No Postgres URL found. Set POSTGRES_URL or DATABASE_URL (postgres://…).');
     return createMockPrismaClient('no_postgres_url');
   }

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet, FlatList, Dimensions, TouchableOpacity, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '../constants/colors';
-import { useBookmarkStore } from '../store/bookmarkStore';
+import { useWishlistStore } from '../store/wishlistStore';
 import GlassHeader from '../components/GlassHeader';
 import ProductCard from '../components/ProductCard';
 import QuickAddModal from '../components/QuickAddModal';
@@ -23,7 +23,7 @@ export default function WishlistScreen() {
   const colors = useColors();
   const isDark = useThemeStore((s) => s.theme) === 'dark';
   const navigation = useNavigation<any>();
-  const { bookmarks, removeBookmark, syncBookmarks } = useBookmarkStore();
+  const { wishlist, removeWishlist, syncWishlist } = useWishlistStore();
   const token = useAuthStore((s) => s.token);
 
   // QuickAdd modal state
@@ -32,9 +32,9 @@ export default function WishlistScreen() {
 
   React.useEffect(() => {
     if (token) {
-      syncBookmarks(token);
+      syncWishlist(token);
     }
-  }, [token, syncBookmarks]);
+  }, [token, syncWishlist]);
 
   const handleQuickAdd = React.useCallback((product: FlatProduct) => {
     // If the product has variants with sizes, show the QuickAddModal
@@ -62,7 +62,7 @@ export default function WishlistScreen() {
       <GlassHeader title="WISHLIST" showBack />
       
       <FlatList 
-        data={bookmarks}
+        data={wishlist}
         keyExtractor={(item) => item.id}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}
@@ -78,7 +78,7 @@ export default function WishlistScreen() {
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
+            <View style={styles.emptyState}>
             <View style={styles.emptyIconWrapper}>
               <BlurView intensity={isDark ? 40 : 80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
               <Ionicons name="bookmark-outline" size={32} color={colors.textExtraLight} />
@@ -95,7 +95,7 @@ export default function WishlistScreen() {
               product={item} 
               style={{ width: COLUMN_WIDTH }}
               onQuickAdd={handleQuickAdd}
-              onRemove={(id) => removeBookmark(id, token)}
+              onRemove={(id) => removeWishlist(id, token)}
             />
           </View>
         )}

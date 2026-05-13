@@ -14,7 +14,7 @@ import { Typography } from '../components/Typography';
 import { haptics } from '../utils/haptics';
 import { signInWithApple } from '../auth/apple';
 import { useThemeStore } from '../store/themeStore';
-import { useBookmarkStore } from '../store/bookmarkStore';
+import { useWishlistStore } from '../store/wishlistStore';
 import { config } from '../constants/config';
 
 const COUNTRIES = [
@@ -164,9 +164,9 @@ export default function LoginScreen() {
 
       if (!json.token) throw new Error('Session expired');
       
-      // Sync bookmarks before finalizing login to ensure UI is ready
-      const { syncBookmarks } = useBookmarkStore.getState();
-      await syncBookmarks(json.token);
+      // Sync wishlist before finalizing login to ensure UI is ready
+      const { syncWishlist } = useWishlistStore.getState();
+      await syncWishlist(json.token);
       
       login(json.user, json.token);
       haptics.success();

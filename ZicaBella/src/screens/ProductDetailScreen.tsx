@@ -15,7 +15,7 @@ import { haptics } from '../utils/haptics';
 import { useProductByHandle, useProducts } from '../hooks/useProducts';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { useBookmarkStore } from '../store/bookmarkStore';
+import { useWishlistStore } from '../store/wishlistStore';
 import { RootStackParamList } from '../navigation/types';
 import { Typography } from '../components/Typography';
 import { formatPrice } from '../utils/formatPrice';
@@ -158,8 +158,8 @@ export default function ProductDetailScreen() {
   const { addItem, setBuyNowItem } = useCartStore();
   const cartCount = useCartStore(s => s.itemCount());
 
-  const { addBookmark, removeBookmark, isBookmarked: checkBookmarked } = useBookmarkStore();
-  const isBookmarked = product ? checkBookmarked(product.id) : false;
+  const { addWishlist, removeWishlist, isWishlisted: checkWishlisted } = useWishlistStore();
+  const isWishlisted = product ? checkWishlisted(product.id) : false;
 
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -198,7 +198,7 @@ export default function ProductDetailScreen() {
   }, [showMinimalSticky]);
 
   const setCartOpen = useUIStore(s => s.setCartOpen);
-  const setBookmarkOpen = useUIStore(s => s.setBookmarkOpen);
+  const setWishlistOpen = useUIStore(s => s.setWishlistOpen);
   const { addProduct: recordVisit, recentProducts } = useRecentStore();
 
   const player = useVideoPlayer(product?.productVideo ?? null, (player) => {
@@ -300,7 +300,7 @@ export default function ProductDetailScreen() {
     navigation.navigate('CheckoutFlow');
   };
 
-  const handleBookmarkToggle = () => {
+  const handleWishlistToggle = () => {
     if (!product) return;
     
     if (!isAuthenticated) {
@@ -314,10 +314,11 @@ export default function ProductDetailScreen() {
 
     const token = useAuthStore.getState().token;
     haptics.buttonTap();
-    if (isBookmarked) {
-      removeBookmark(product.id, token);
+    if (isWishlisted) {
+      removeWishlist(product.id, token);
     } else {
-      addBookmark(product, token);
+      if (!requireSize()) return;
+      addWishlist(product, token);
     }
   };
 
@@ -363,7 +364,7 @@ export default function ProductDetailScreen() {
 
         <View style={styles.topRightActions}>
           <TouchableOpacity 
-            onPress={() => { haptics.buttonTap(); setBookmarkOpen(true); }} 
+            onPress={() => { haptics.buttonTap(); setWishlistOpen(true); }} 
             style={[styles.actionBtnSmall, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }]}
           >
             <Ionicons name="bookmark-outline" size={14} color={colors.textSecondary} />
@@ -459,10 +460,14 @@ export default function ProductDetailScreen() {
                 </Typography>
               </View>
               <TouchableOpacity 
-                style={[styles.bookmarkToggle, { backgroundColor: isBookmarked ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)') : 'transparent' }]}
-                onPress={handleBookmarkToggle}
+                style={[styles.wishlistToggle, { backgroundColor: isWishlisted ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)') : 'transparent' }]}
+                onPress={handleWishlistToggle}
               >
-                <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={14} color={isBookmarked ? colors.text : colors.textExtraLight} />
+                <Ionicons 
+                  name={isWishlisted ? "bookmark" : "bookmark-outline"} 
+                  size={16} 
+                  color={isWishlisted ? colors.text : colors.textExtraLight} 
+                />
               </TouchableOpacity>
            </View>
 
@@ -840,7 +845,7 @@ const styles = StyleSheet.create({
   },
   title: { letterSpacing: 0.5, marginBottom: 2, lineHeight: 20 },
   price: { letterSpacing: 2 },
-  bookmarkToggle: {
+  wishlistToggle: {
     width: 32,
     height: 32,
     borderRadius: 16,
