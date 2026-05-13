@@ -698,6 +698,43 @@ export default function AppIntegrationPage() {
                   </div>
                 )}
 
+                {/* ── Social Tab ── */}
+                {settingsTab === 'social' && (
+                  <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <SectionHeader icon={Globe} title="Social Connections" description="Configure links for the app footer and community sections." />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <SettingsInput 
+                        label="Instagram URL" 
+                        value={settings.instagramUrl || ''} 
+                        onChange={v => updateSetting('instagramUrl', v)} 
+                        placeholder="https://instagram.com/zica.bella"
+                        hint="Primary social channel"
+                      />
+                      <SettingsInput 
+                        label="Spotify URL" 
+                        value={settings.spotifyUrl || ''} 
+                        onChange={v => updateSetting('spotifyUrl', v)} 
+                        placeholder="https://open.spotify.com/..."
+                        hint="Music curation channel"
+                      />
+                      <SettingsInput 
+                        label="Apple Music URL" 
+                        value={settings.appleUrl || ''} 
+                        onChange={v => updateSetting('appleUrl', v)} 
+                        placeholder="https://music.apple.com/..."
+                        hint="Secondary music channel"
+                      />
+                      <SettingsInput 
+                        label="YouTube URL" 
+                        value={settings.youtubeUrl || ''} 
+                        onChange={v => updateSetting('youtubeUrl', v)} 
+                        placeholder="https://youtube.com/@zicabella"
+                        hint="Video archive channel"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* ── Community Tab ── */}
                 {settingsTab === 'community' && (
                   <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">

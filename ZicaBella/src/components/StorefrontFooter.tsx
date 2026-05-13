@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Linking } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { Typography } from './Typography';
@@ -27,11 +27,11 @@ export default function StorefrontFooter() {
   const youtube = settings?.social?.youtube?.trim();
 
   const socials = [
-    instagram ? { icon: 'logo-instagram' as const, url: instagram } : null,
-    apple ? { icon: 'disc-outline' as const, url: apple } : null,
-    spotify ? { icon: 'musical-notes-outline' as const, url: spotify } : null,
-    youtube ? { icon: 'logo-youtube' as const, url: youtube } : null,
-  ].filter(Boolean) as { icon: 'logo-instagram' | 'disc-outline' | 'musical-notes-outline' | 'logo-youtube'; url: string }[];
+    instagram ? { icon: 'logo-instagram', type: 'Ionicons' as const, url: instagram } : null,
+    spotify ? { icon: 'spotify', type: 'FontAwesome' as const, url: spotify } : null,
+    apple ? { icon: 'apple', type: 'FontAwesome' as const, url: apple } : null,
+    youtube ? { icon: 'logo-youtube', type: 'Ionicons' as const, url: youtube } : null,
+  ].filter(Boolean) as { icon: string; type: 'Ionicons' | 'FontAwesome'; url: string }[];
 
   const openSocial = (url: string) => {
     try {
@@ -69,20 +69,23 @@ export default function StorefrontFooter() {
       {/* SOCIAL LINKS: w-[16px] h-[16px] sizing */}
       <View style={styles.socialRow}>
         {(socials.length > 0 ? socials : [
-          { icon: 'logo-instagram' as const, url: 'https://www.instagram.com/zica.bella' },
-          { icon: 'disc-outline' as const, url: 'https://apple.co/zicabella' },
-          { icon: 'musical-notes-outline' as const, url: 'https://spotify.com/zicabella' },
-          { icon: 'logo-youtube' as const, url: 'https://www.youtube.com/@Zicabella' },
-        ]).map((soc, i) => (
-          <TouchableOpacity
-            key={`${soc.url}-${i}`}
-            onPress={() => openSocial(soc.url)}
-            style={styles.socialIcon}
-            activeOpacity={0.6}
-          >
-            <Ionicons name={soc.icon as any} size={15} color={colors.textExtraLight} style={{ opacity: 0.35 }} />
-          </TouchableOpacity>
-        ))}
+          { icon: 'logo-instagram', type: 'Ionicons' as const, url: 'https://www.instagram.com/zica.bella' },
+          { icon: 'spotify', type: 'FontAwesome' as const, url: 'https://spotify.com/zicabella' },
+          { icon: 'apple', type: 'FontAwesome' as const, url: 'https://apple.co/zicabella' },
+          { icon: 'logo-youtube', type: 'Ionicons' as const, url: 'https://www.youtube.com/@Zicabella' },
+        ]).map((soc, i) => {
+          const IconComp = soc.type === 'FontAwesome' ? FontAwesome : Ionicons;
+          return (
+            <TouchableOpacity
+              key={`${soc.url}-${i}`}
+              onPress={() => openSocial(soc.url)}
+              style={styles.socialIcon}
+              activeOpacity={0.6}
+            >
+              <IconComp name={soc.icon as any} size={15} color={colors.textExtraLight} style={{ opacity: 0.45 }} />
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* POLICIES: text-[6px] font-medium uppercase tracking-[0.25em] */}
