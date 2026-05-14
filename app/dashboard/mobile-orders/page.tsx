@@ -58,25 +58,49 @@ const STATUS_THEME: Record<string, { label: string; bg: string; dot: string }> =
 export default function MobileOrdersPage() {
   const [orders, setOrders] = useState<MobileOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<'active' | 'abandoned'>('active');
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
+  const fetchOrders = useCallback(async (isLoadMore = false) => {
+    if (isLoadMore) setLoadingMore(true);
+    else {
+      setLoading(true);
+      setOffset(0);
+    }
+
     try {
-      const res = await fetch(`/api/admin/mobile-orders?limit=50${tab === 'abandoned' ? '&abandoned=true' : ''}`);
+      const currentOffset = isLoadMore ? offset + 50 : 0;
+      const res = await fetch(`/api/admin/mobile-orders?limit=50&offset=${currentOffset}${tab === 'abandoned' ? '&abandoned=true' : ''}${search ? `&search=${search}` : ''}`);
       const data = await res.json();
-      if (data.success) setOrders(data.orders);
+      
+      if (data.success) {
+        if (isLoadMore) {
+          setOrders(prev => [...prev, ...data.orders]);
+        } else {
+          setOrders(data.orders);
+        }
+        setHasMore(data.hasMore);
+        setTotal(data.total);
+        if (isLoadMore) setOffset(currentOffset);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [tab]);
+  }, [tab, search, offset]);
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    const timer = setTimeout(() => {
+      fetchOrders();
+    }, search ? 500 : 0);
+    return () => clearTimeout(timer);
+  }, [tab, search]);
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-10 pb-32 pt-4">
@@ -98,19 +122,19 @@ export default function MobileOrdersPage() {
         <div className="flex items-center gap-3">
           <div className="flex bg-foreground/5 p-1 rounded-xl border border-foreground/5">
             <button 
-              onClick={() => setTab('active')}
+              onClick={() => { setTab('active'); setOrders([]); }}
               className={`px-6 py-2 rounded-lg text-[11px] font-semibold transition-all ${tab === 'active' ? 'bg-foreground text-background shadow-sm' : 'text-foreground/40 hover:text-foreground'}`}
             >
               Active
             </button>
             <button 
-              onClick={() => setTab('abandoned')}
+              onClick={() => { setTab('abandoned'); setOrders([]); }}
               className={`px-6 py-2 rounded-lg text-[11px] font-semibold transition-all ${tab === 'abandoned' ? 'bg-foreground text-background shadow-sm' : 'text-foreground/40 hover:text-foreground'}`}
             >
               Abandoned
             </button>
           </div>
-          <button onClick={fetchOrders} className="p-3 bg-foreground/5 hover:bg-foreground/10 rounded-xl border border-foreground/5 transition-all">
+          <button onClick={() => fetchOrders()} className="p-3 bg-foreground/5 hover:bg-foreground/10 rounded-xl border border-foreground/5 transition-all">
             <RefreshCw className={`w-4 h-4 text-foreground/40 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
@@ -131,7 +155,7 @@ export default function MobileOrdersPage() {
         <div className="flex items-center gap-6">
            <div className="flex items-center gap-2">
              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-             <span className="text-[11px] font-semibold text-foreground/40 uppercase tracking-widest">{orders.length} Records</span>
+             <span className="text-[11px] font-semibold text-foreground/40 uppercase tracking-widest">{total} Records</span>
            </div>
         </div>
       </div>
@@ -243,6 +267,28 @@ export default function MobileOrdersPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center pt-10">
+          <button 
+            onClick={() => fetchOrders(true)}
+            disabled={loadingMore}
+            className="px-12 py-3 bg-foreground/[0.03] hover:bg-foreground hover:text-background border border-foreground/5 rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] transition-all flex items-center gap-3 disabled:opacity-50"
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Expanding Records...
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4" />
+                Load More Protocols
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

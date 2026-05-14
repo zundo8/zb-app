@@ -6,11 +6,11 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const limitRaw = url.searchParams.get('limit');
-    const limit = limitRaw ? Math.max(1, Math.min(100, parseInt(limitRaw, 10) || 50)) : 50;
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const offset = parseInt(url.searchParams.get('offset') || '0');
 
     const abandoned = url.searchParams.get('abandoned') === 'true';
-    console.log('[Admin] Fetching mobile orders, abandoned:', abandoned);
+    console.log('[Admin] Fetching mobile orders, abandoned:', abandoned, 'limit:', limit, 'offset:', offset);
 
     // Base filters for all mobile orders
     const mobileIdentityFilters = [
@@ -19,8 +19,6 @@ export async function GET(req: Request) {
       { tags: { contains: 'App', mode: 'insensitive' } },
       { note: { contains: 'Mobile app order', mode: 'insensitive' } },
       { note: { contains: 'App order', mode: 'insensitive' } },
-      { shopifyOrderId: { contains: 'ZB71', mode: 'insensitive' } },
-      { shopifyOrderId: { contains: 'PENDING', mode: 'insensitive' } },
       { orderType: 'MOBILE_APP' },
     ];
 
@@ -48,25 +46,29 @@ export async function GET(req: Request) {
       ];
     }
 
-    console.log('[Admin] Mobile orders query:', JSON.stringify(where, null, 2));
-
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        items: {
-          include: {
-            product: { select: { featuredImage: true, title: true } }
-          }
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          items: {
+            include: {
+              product: { select: { featuredImage: true, title: true, handle: true } }
+            }
+          },
+          customer: { select: { id: true, name: true, email: true, phone: true } },
+          shipments: { orderBy: { createdAt: 'desc' }, take: 1 },
         },
-        customer: { select: { id: true, name: true, email: true, phone: true } },
-        shipments: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.order.count({ where })
+    ]);
 
     return NextResponse.json({
       success: true,
+      total,
+      hasMore: total > offset + limit,
       orders: orders.map((o: any) => {
         const latestShipment = o.shipments?.[0];
         const orderNumber =
@@ -101,6 +103,7 @@ export async function GET(req: Request) {
             ...item,
             image: item.image || item.product?.featuredImage || null,
             title: item.title || item.product?.title || 'Unknown Product',
+            handle: item.product?.handle || null,
           })),
           tracking: latestShipment
             ? {

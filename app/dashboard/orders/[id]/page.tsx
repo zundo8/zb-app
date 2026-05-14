@@ -80,12 +80,15 @@ interface OrderDetail {
 
 const STATUS_THEME: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   paid: { label: "Settled", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
+  success: { label: "Settled", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
   pending: { label: "Awaiting", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
   fulfilled: { label: "Dispatched", color: "text-blue-500", bg: "bg-blue-500/10", dot: "bg-blue-500" },
   unfulfilled: { label: "Draft", color: "text-foreground/40", bg: "bg-foreground/5", dot: "bg-foreground/20" },
   delivered: { label: "Arrived", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
-  cancelled: { label: "Terminated", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
+  cancelled: { label: "Cancelled", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
   payment_failed: { label: "Failed", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
+  failed: { label: "Failed", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
+  payment_pending: { label: "Unpaid", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
   awaiting_approval: { label: "Reviewing", color: "text-purple-500", bg: "bg-purple-500/10", dot: "bg-purple-500" },
 };
 
@@ -183,12 +186,14 @@ export default function OrderDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">Order #{order.shopifyOrderId.replace('#', '')}</h1>
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground uppercase tracking-tighter">
+                ORDER #{order.shopifyOrderId.replace('#', '') || order.id.slice(-8).toUpperCase()}
+              </h1>
+              <StatusBadge status={order.status} />
             </div>
             <p className="text-[11px] text-foreground/20 font-bold uppercase tracking-widest mt-1.5 flex items-center gap-2">
               <Calendar className="w-3.5 h-3.5" />
-              {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+              {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })} at {new Date(order.createdAt).toLocaleTimeString()}
             </p>
           </div>
         </div>
@@ -207,13 +212,28 @@ export default function OrderDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
         {/* Main Content */}
         <div className="lg:col-span-8 space-y-12">
+          {/* Status Alert for Failed/Cancelled */}
+          {(order.status === 'cancelled' || order.status === 'payment_failed') && (
+            <div className="p-8 rounded-[32px] bg-rose-500/5 border border-rose-500/10 flex items-center gap-6">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+                <AlertCircle className="w-6 h-6 text-rose-500" />
+              </div>
+              <div>
+                <h4 className="text-[15px] font-bold text-rose-500 uppercase tracking-tighter">Process Terminated</h4>
+                <p className="text-[12px] text-rose-500/60 font-medium mt-1">
+                  This order has been {order.status === 'cancelled' ? 'cancelled by the user' : 'failed due to payment issues'}. All downstream logistics and fulfillment protocols have been suspended.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Metrics Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Payment", value: order.paymentStatus, icon: CreditCard },
+              { label: "Financial", value: order.paymentStatus, icon: CreditCard },
               { label: "Inventory", value: order.fulfillmentStatus, icon: Box },
-              { label: "Logistics", value: order.deliveryStatus || 'Awaiting', icon: Truck },
-              { label: "Network", value: order.shopifyOrderId.startsWith('ZB71') ? 'Mobile' : 'Web', icon: Activity },
+              { label: "Logistics", value: (order.status === 'cancelled' || order.status === 'payment_failed') ? 'Terminated' : (order.deliveryStatus || 'Awaiting'), icon: Truck },
+              { label: "Network", value: order.shopifyOrderId.startsWith('ZB71') ? 'Native App' : 'Web Store', icon: Activity },
             ].map((s, i) => (
               <div key={i} className="p-6 rounded-[24px] bg-foreground/[0.02] border border-foreground/5 space-y-3">
                 <div className="flex justify-between items-center text-[9px] font-bold text-foreground/20 uppercase tracking-widest">
@@ -255,7 +275,7 @@ export default function OrderDetailPage() {
                <div className="flex justify-between items-end">
                   <div className="space-y-1">
                     <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest">Subtotal Manifest</p>
-                    <p className="text-[13px] font-semibold text-foreground/40 tracking-tight">₹{order.subtotalPrice?.toLocaleString()}</p>
+                    <p className="text-[13px] font-semibold text-foreground/40 tracking-tight">₹{order.subtotalPrice?.toLocaleString() || order.totalPrice.toLocaleString()}</p>
                   </div>
                   <div className="text-right space-y-1">
                     <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Total Transaction Value</p>
@@ -266,7 +286,7 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Logistics Terminal */}
-          <div className="p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-10">
+          <div className={`p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-10 ${(order.status === 'cancelled' || order.status === 'payment_failed') ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <h3 className="text-lg font-semibold text-foreground tracking-tight">Logistics Command</h3>
@@ -289,7 +309,7 @@ export default function OrderDetailPage() {
                    </div>
                    <button 
                     onClick={() => handleAction("create_shipment")}
-                    disabled={delhiveryLoading}
+                    disabled={delhiveryLoading || order.status === 'cancelled' || order.status === 'payment_failed'}
                     className="flex items-center gap-3 px-10 py-4 bg-foreground text-background rounded-2xl text-[11px] font-bold uppercase tracking-[0.3em] hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
                    >
                      {delhiveryLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-background" />}
