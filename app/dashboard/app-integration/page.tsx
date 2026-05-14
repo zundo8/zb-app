@@ -310,14 +310,11 @@ export default function AppIntegrationPage() {
     // Test DB endpoints in parallel (they don't hit Shopify rate limits)
     const dbResults = await Promise.all(dbEndpoints.map(testOne));
     
-    // Test Shopify endpoints sequentially with a small delay
-    const shopifyResults: any[] = [];
-    for (const ep of shopifyEndpoints) {
-      const result = await testOne(ep);
-      shopifyResults.push(result);
-      // Small delay between Shopify calls to stay under 2 req/sec
-      await new Promise(r => setTimeout(r, 600));
-    }
+    // Test Shopify endpoints with a 100ms stagger for speed
+    const shopifyResults = await Promise.all(shopifyEndpoints.map(async (ep, index) => {
+      await new Promise(r => setTimeout(r, index * 100));
+      return testOne(ep);
+    }));
 
     // Merge results back in original order
     const allResults = endpoints.map(ep => {
@@ -333,14 +330,10 @@ export default function AppIntegrationPage() {
   const fetchSyncStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      // Fetch Shopify-dependent endpoints sequentially to avoid 429
-      const products = await fetch('/api/app/products?limit=100').then(r => r.json()).catch(() => ({ products: [], total: 0 }));
-      await new Promise(r => setTimeout(r, 600));
-      const collections = await fetch('/api/app/collections?all=true').then(r => r.json()).catch(() => ({ collections: [] }));
-      await new Promise(r => setTimeout(r, 600));
-      
-      // DB-only endpoints can run in parallel
-      const [customers, orders, returns, exchanges] = await Promise.all([
+      // Parallelize all sync stats fetches for maximum speed
+      const [productsData, collectionsData, customers, orders, returns, exchanges] = await Promise.all([
+        fetch('/api/app/products?limit=100').then(r => r.json()).catch(() => ({ products: [], total: 0 })),
+        fetch('/api/app/collections?all=true').then(r => r.json()).catch(() => ({ collections: [] })),
         fetch('/api/admin/customers?limit=1').then(r => r.json()).catch(() => ({ total: 0 })),
         fetch('/api/app/orders?count=true').then(r => r.json()).catch(() => ({ total: 0 })),
         fetch('/api/admin/returns').then(r => r.json()).catch(() => ({ summary: { total: 0 } })),
@@ -348,8 +341,8 @@ export default function AppIntegrationPage() {
       ]);
 
       setSyncStats({
-        productsCount: products.total || products.products?.length || 0,
-        collectionsCount: collections.collections?.length || 0,
+        productsCount: productsData.total || productsData.products?.length || 0,
+        collectionsCount: collectionsData.collections?.length || 0,
         customersCount: customers.total || 0,
         ordersCount: orders.total || 0,
         returnsCount: returns.summary?.total || 0,
@@ -357,11 +350,11 @@ export default function AppIntegrationPage() {
         lastChecked: new Date().toLocaleTimeString(),
       });
 
-      if (collections.collections) {
-        setAllCollections(collections.collections);
+      if (collectionsData.collections) {
+        setAllCollections(collectionsData.collections);
       }
-      if (products.products) {
-        setAllProducts(products.products);
+      if (productsData.products) {
+        setAllProducts(productsData.products);
       }
     } catch (err) {
       console.error('Error fetching sync stats:', err);

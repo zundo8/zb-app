@@ -26,6 +26,12 @@ export async function GET(req: Request) {
       collections = await fetchEnabledCollections(location || 'page');
     }
 
+    if (url.searchParams.get('count') === 'true') {
+      return NextResponse.json({ total: collections.length }, {
+        headers: { 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
     const flat = collections.map(flattenCollection);
 
     return NextResponse.json({ collections: flat }, {

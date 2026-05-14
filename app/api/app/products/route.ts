@@ -9,12 +9,20 @@ export async function GET(req: Request) {
     const limit = parseInt(url.searchParams.get('limit') || '24', 10);
     const collectionHandle = url.searchParams.get('collection');
 
+    const countOnly = url.searchParams.get('count') === 'true';
+
     let products: ShopifyProduct[] = [];
     if (collectionHandle) {
       const result = await fetchCollectionByHandle(collectionHandle, limit);
       products = result.products;
     } else {
       products = await fetchAllProducts(limit);
+    }
+
+    if (countOnly) {
+      return NextResponse.json({ total: products.length }, {
+        headers: { 'Access-Control-Allow-Origin': '*' },
+      });
     }
 
     const flat = await Promise.all(products.map(flattenProduct));
