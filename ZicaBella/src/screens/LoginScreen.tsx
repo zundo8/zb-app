@@ -277,12 +277,13 @@ export default function LoginScreen() {
             {errors.phone && <Typography size={10} weight="600" color={colors.error} style={styles.errorText}>{errors.phone}</Typography>}
 
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
+              style={styles.primaryButton}
               onPress={handleContinuePhone}
               disabled={loading}
             >
-              {loading ? <ActivityIndicator color={colors.background} /> : (
-                <Typography weight="700" size={14} color={colors.background}>CONTINUE</Typography>
+              <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+              {loading ? <ActivityIndicator color={colors.text} /> : (
+                <Typography weight="400" size={11} color={colors.text} style={{ letterSpacing: 1.5 }}>CONTINUE</Typography>
               )}
             </TouchableOpacity>
           </View>
@@ -310,12 +311,13 @@ export default function LoginScreen() {
             {errors.name && <Typography size={10} weight="600" color={colors.error} style={styles.errorText}>{errors.name}</Typography>}
 
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
+              style={styles.primaryButton}
               onPress={handleContinueName}
               disabled={loading}
             >
-              {loading ? <ActivityIndicator color={colors.background} /> : (
-                <Typography weight="500" size={13} color={colors.background}>CREATE ACCOUNT</Typography>
+              <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+              {loading ? <ActivityIndicator color={colors.text} /> : (
+                <Typography weight="400" size={11} color={colors.text} style={{ letterSpacing: 1.5 }}>CREATE ACCOUNT</Typography>
               )}
             </TouchableOpacity>
 
@@ -353,12 +355,13 @@ export default function LoginScreen() {
             {errors.otp && <Typography size={10} weight="600" color={colors.error} style={styles.errorText}>{errors.otp}</Typography>}
 
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
+              style={styles.primaryButton}
               onPress={() => handleLogin()}
               disabled={loading}
             >
-              {loading ? <ActivityIndicator color={colors.background} /> : (
-                <Typography weight="500" size={13} color={colors.background}>CONTINUE</Typography>
+              <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+              {loading ? <ActivityIndicator color={colors.text} /> : (
+                <Typography weight="400" size={11} color={colors.text} style={{ letterSpacing: 1.5 }}>VERIFY</Typography>
               )}
             </TouchableOpacity>
 
@@ -535,10 +538,13 @@ const styles = StyleSheet.create({
   },
   errorText: { marginTop: -10, marginBottom: 12, marginLeft: 4 },
   primaryButton: {
-    height: 54,
-    borderRadius: 16,
+    height: 48,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: 'rgba(150,150,150,0.1)',
   },
   backLink: { alignSelf: 'center', marginTop: 16, padding: 8 },
   dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
