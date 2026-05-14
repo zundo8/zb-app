@@ -220,7 +220,13 @@ export default function OrdersPage() {
             { value: platformFilter, onChange: setPlatformFilter, options: [
               { label: 'Platform: All', value: 'any' },
               { label: 'Platform: Web', value: 'web' },
-              { label: 'Platform: App', value: 'mobile' }
+              { label: 'Platform: App (Approved)', value: 'mobile' }
+            ]},
+            { value: statusFilter, onChange: setStatusFilter, options: [
+              { label: 'Process: All', value: 'any' },
+              { label: 'Approved', value: 'approved' },
+              { label: 'Open', value: 'open' },
+              { label: 'Cancelled', value: 'cancelled' }
             ]},
             { value: paymentFilter, onChange: setPaymentFilter, options: [
               { label: 'Payment: All', value: 'any' },

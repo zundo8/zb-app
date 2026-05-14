@@ -29,14 +29,16 @@ export async function GET(req: Request) {
     };
 
     if (abandoned) {
-      // Abandoned = NOT paid AND NOT COD
+      // Abandoned = NOT paid AND NOT COD AND NOT approved
       where.AND = [
+        { status: { not: 'approved' } },
         { paymentStatus: { notIn: ['paid', 'authorized', 'success', 'PAID', 'SUCCESS'] } },
         { paymentMethod: { notIn: ['COD', 'cod'] } }
       ];
     } else {
-      // Active = Paid OR COD
+      // Active = (Paid OR COD) AND NOT approved
       where.AND = [
+        { status: { not: 'approved' } },
         {
           OR: [
             { paymentStatus: { in: ['paid', 'authorized', 'success', 'PAID', 'SUCCESS'] } },

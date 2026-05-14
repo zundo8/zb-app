@@ -16,27 +16,58 @@ export async function GET(req: Request) {
 
     const conditions: any[] = [];
     
-    // Default filter: Remove "pending" or "failed" mobile orders from the main list 
-    // unless specifically requested via platform=mobile
-    if (platform !== 'mobile') {
+    // DEFAULT FILTERING LOGIC:
+    // 1. Mobile orders should ONLY show in the main list if they are 'approved'
+    // 2. Web orders show normally
+    
+    if (platform === 'web') {
       conditions.push({
-        NOT: {
-          AND: [
-            { OR: [
+        AND: [
+          { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
+          { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } },
+          { NOT: { orderType: 'MOBILE_APP' } }
+        ]
+      });
+    } else if (platform === 'mobile') {
+      // Even if specifically asking for mobile, main Orders page ONLY shows approved ones
+      conditions.push({
+        AND: [
+          {
+            OR: [
               { tags: { contains: 'mobile-app', mode: 'insensitive' } },
               { tags: { contains: 'AppOrder', mode: 'insensitive' } },
               { orderType: 'MOBILE_APP' }
-            ]},
-            { OR: [
-              { shopifyOrderId: { startsWith: 'app_pending_' } },
-              { shopifyOrderId: { contains: 'temp_' } },
-              { shopifyOrderId: { contains: 'PENDING_order_' } },
-              { status: 'open' }, // COD orders start as 'open' and stay in mobile-only until approved
-              { status: 'payment_failed' },
-              { paymentStatus: { in: ['failed', 'voided', 'cancelled'] } }
-            ]}
-          ]
-        }
+            ]
+          },
+          { status: 'approved' }
+        ]
+      });
+    } else {
+      // Default: Show all Web orders OR Approved Mobile orders
+      conditions.push({
+        OR: [
+          // Web orders (No mobile tags/type)
+          {
+            AND: [
+              { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
+              { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } },
+              { NOT: { orderType: 'MOBILE_APP' } }
+            ]
+          },
+          // Approved Mobile orders
+          {
+            AND: [
+              {
+                OR: [
+                  { tags: { contains: 'mobile-app', mode: 'insensitive' } },
+                  { tags: { contains: 'AppOrder', mode: 'insensitive' } },
+                  { orderType: 'MOBILE_APP' }
+                ]
+              },
+              { status: 'approved' }
+            ]
+          }
+        ]
       });
     }
 
@@ -62,21 +93,6 @@ export async function GET(req: Request) {
       conditions.push({ fulfillmentStatus });
     }
 
-    if (platform === 'mobile') {
-      conditions.push({
-        OR: [
-          { tags: { contains: 'mobile-app', mode: 'insensitive' } },
-          { orderType: 'MOBILE_APP' }
-        ]
-      });
-    } else if (platform === 'web') {
-      conditions.push({
-        AND: [
-          { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
-          { NOT: { orderType: 'MOBILE_APP' } }
-        ]
-      });
-    }
 
     if (search) {
       conditions.push({
