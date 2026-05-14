@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { fetchAllOrders } from '@/lib/shopify-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,78 @@ export async function GET(req: Request) {
     const fulfillmentStatus = searchParams.get('fulfillmentStatus');
     const platform = searchParams.get('platform');
     const search = searchParams.get('search');
+    const sync = searchParams.get('sync') === 'true';
+
+    // To make it "live", we sync the most recent orders from Shopify on the first page load
+    // or if explicitly requested.
+    if (offset === 0 || sync) {
+      try {
+        console.log('[Admin Orders] Triggering live sync from Shopify...');
+        const shopifyOrders = await fetchAllOrders(20); // Sync last 20 for speed
+        const shop = await prisma.shop.findFirst();
+        
+        if (shop && shopifyOrders.length > 0) {
+          for (const o of shopifyOrders) {
+             const customerId = o.customer ? String(o.customer.id) : 'anonymous';
+             let dbCustomer;
+             if (o.customer) {
+               dbCustomer = await prisma.customer.upsert({
+                 where: { shopifyId: customerId },
+                 create: {
+                   shopId: shop.id,
+                   shopifyId: customerId,
+                   email: o.customer.email,
+                   name: `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim(),
+                   phone: o.customer.phone,
+                 },
+                 update: {
+                   email: o.customer.email,
+                   name: `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim(),
+                   phone: o.customer.phone,
+                 },
+               });
+             } else {
+               dbCustomer = await prisma.customer.upsert({
+                 where: { shopifyId: 'anonymous' },
+                 create: { shopId: shop.id, shopifyId: 'anonymous', name: 'Anonymous' },
+                 update: {},
+               });
+             }
+
+             const lowerTags = (o.tags || '').toLowerCase();
+             const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp') || lowerTags.includes('mobile-app');
+             
+             // Extract order number from tags or id
+             const orderNumber = String(o.id);
+             
+             await prisma.order.upsert({
+               where: { shopifyOrderId: String(o.id) },
+               create: {
+                 shopId: shop.id,
+                 shopifyOrderId: String(o.id),
+                 customerId: dbCustomer.id,
+                 status: isMobileAppOrder ? 'approved' : 'active',
+                 totalPrice: parseFloat(o.total_price || '0'),
+                 paymentStatus: o.financial_status || 'pending',
+                 fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+                 shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
+                 createdAt: new Date(o.created_at),
+                 tags: o.tags,
+               },
+               update: {
+                 paymentStatus: o.financial_status || 'pending',
+                 fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+                 totalPrice: parseFloat(o.total_price || '0'),
+                 tags: o.tags,
+               }
+             });
+          }
+        }
+      } catch (syncErr) {
+        console.error('[Admin Orders] Live sync failed:', syncErr);
+        // Continue to return local data even if sync fails
+      }
+    }
 
     const conditions: any[] = [];
     
