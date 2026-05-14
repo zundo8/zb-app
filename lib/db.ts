@@ -107,6 +107,60 @@ const prisma = globalThis.__prisma_fresh_v2 ?? prismaClientSingleton();
 
 export default prisma;
 
+/**
+ * Resiliently fetch shop settings without crashing on missing columns.
+ */
+export async function getShopSettings() {
+  const shopFields = [
+    'id', 'domain', 'name', 'email', 'currency', 'status', 'createdAt', 'updatedAt',
+    'heroTitle', 'heroSubtitle', 'heroVideo', 'heroImage', 'showHeroText',
+    'blueprintTitle', 'blueprintSubtitle', 'blueprintImage', 'archiveTitle', 'archiveSubtitle',
+    'latestCurationTitle', 'latestCurationSubtitle', 'communityTitle', 'communitySubtitle',
+    'flipbookDesc', 'flipbookImage', 'flipbookTag', 'flipbookTitle', 'flipbookVideo', 'flipbookConfig',
+    'ringCarouselItems', 'ringCarouselTitle', 'showRingCarousel',
+    'spotlightCollection', 'spotlightProducts', 'spotlightTitle', 'spotlightSubtitle', 'spotlightMedia',
+    'footerLogo3dUrl', 'showLatestCuration', 'showArchive', 'showBlueprint', 'showProductVideo',
+    'showSizeChart', 'showBrand', 'showShippingReturn', 'showCare', 'showSizeFit', 'showDetails',
+    'pdpBackground', 'instagramUrl', 'appleUrl', 'spotifyUrl', 'youtubeUrl', 'featuredMedia',
+    'collectionsMedia', 'footerVideo', 'mainMenuHandle', 'secondaryMenuHandle', 'showTreeText',
+    'enabledCollectionsHeader', 'enabledCollectionsPage', 'enabledCollectionsMenu', 'featuredMediaImage',
+    'kineticMeshProducts', 'kineticMeshTitle', 'showCommunity', 'communityAgeRestricted',
+    'communityMinOrders', 'communityWhatsAppEnabled'
+  ];
+
+  try {
+    // Try to fetch with all fields first
+    const shop = await prisma.shop.findFirst();
+    return shop;
+  } catch (error) {
+    console.warn('[DB] Full shop fetch failed, falling back to safe selection:', (error as any).message);
+    
+    // Fallback: Fetch fields one by one or in a smaller subset
+    // This handles the case where new columns like 'spotlightMedia' don't exist yet
+    return prisma.shop.findFirst({
+      select: {
+        id: true,
+        domain: true,
+        name: true,
+        email: true,
+        heroTitle: true,
+        heroSubtitle: true,
+        heroVideo: true,
+        heroImage: true,
+        showHeroText: true,
+        featuredMedia: true,
+        featuredMediaImage: true,
+        collectionsMedia: true,
+        footerVideo: true,
+        footerLogo3dUrl: true,
+        mainMenuHandle: true,
+        secondaryMenuHandle: true,
+        pdpBackground: true,
+      }
+    }) as any;
+  }
+}
+
 if (process.env.NODE_ENV !== 'production') {
   globalThis.__prisma_fresh_v2 = prisma;
 }

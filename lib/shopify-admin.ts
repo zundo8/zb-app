@@ -20,7 +20,17 @@ import {
 
 export { getShopConfig, shopifyFetch, adminUrl, headers, clearShopConfigCache, shopifyPatch };
 
+const pageCache = new Map<string, { data: any, nextPageUrl?: string, timestamp: number }>();
+const PAGE_CACHE_TTL = 10000; // 10 seconds
+
 async function shopifyFetchPage<T>(urlStr: string): Promise<{ data: T; nextPageUrl?: string }> {
+  const now = Date.now();
+  const cached = pageCache.get(urlStr);
+
+  if (cached && (now - cached.timestamp < PAGE_CACHE_TTL)) {
+    return { data: cached.data as T, nextPageUrl: cached.nextPageUrl };
+  }
+
   const res = await fetch(urlStr, {
     method: 'GET',
     headers: await headers(),
@@ -29,6 +39,10 @@ async function shopifyFetchPage<T>(urlStr: string): Promise<{ data: T; nextPageU
 
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 429 && cached) {
+      console.warn(`[Shopify Admin] Rate limited on page fetch. Serving stale cache.`);
+      return { data: cached.data as T, nextPageUrl: cached.nextPageUrl };
+    }
     console.error(`Shopify Admin API error [${res.status}]: ${text}`);
     throw new Error(`Shopify API ${res.status}: ${text}`);
   }
@@ -54,6 +68,7 @@ async function shopifyFetchPage<T>(urlStr: string): Promise<{ data: T; nextPageU
     }
   }
 
+  pageCache.set(urlStr, { data, nextPageUrl, timestamp: now });
   return { data, nextPageUrl };
 }
 

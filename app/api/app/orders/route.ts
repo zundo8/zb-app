@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import prisma, { getShopSettings } from '@/lib/db';
 import { getTrackingStatus } from '@/lib/services/logistics';
+import { createOrder as createShopifyOrder } from '@/lib/shopify-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -484,7 +485,6 @@ export async function POST(req: Request) {
       };
     }
 
-    const { createOrder: createShopifyOrder } = require('@/lib/shopify-admin');
     
     let shopifyOrder: any = null;
     let fallbackOrderId = `app_pending_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -497,7 +497,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Save to local database
-    const shop = await prisma.shop.findFirst();
+    const shop = await getShopSettings();
     if (!shop) throw new Error('No shop configuration found');
 
     const localOrder = await prisma.order.create({

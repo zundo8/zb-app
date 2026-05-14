@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import prisma, { getShopSettings } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const shop = await prisma.shop.findFirst();
+    const shop = await getShopSettings();
     
     if (!shop) {
       return NextResponse.json({ error: 'No shop configuration found' }, { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } });
