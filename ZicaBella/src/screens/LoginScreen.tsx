@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 12, paddingBottom: 40, flexGrow: 1 },
   header: { alignItems: 'center', marginBottom: 40 },
   logo: { width: 44, height: 44, marginBottom: 12 },
-  brandTitle: { letterSpacing: 12, fontFamily: 'Rocaston' },
+  brandTitle: { letterSpacing: 4, fontFamily: 'Rocaston' },
   mainCard: {
     borderRadius: 24,
     borderWidth: 0.5,
