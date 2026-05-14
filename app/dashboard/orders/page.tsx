@@ -105,13 +105,22 @@ export default function OrdersPage() {
   const [paymentFilter, setPaymentFilter] = useState("any");
   const [fulfillmentFilter, setFulfillmentFilter] = useState("any");
   const [platformFilter, setPlatformFilter] = useState("any");
+  const [tab, setTab] = useState<'all' | 'unfulfilled' | 'unpaid' | 'open'>('all');
   const [toast, setToast] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const url = `/api/admin/orders?limit=100&status=${statusFilter}&paymentStatus=${paymentFilter}&fulfillmentStatus=${fulfillmentFilter}&platform=${platformFilter}&search=${search}`;
+      let finalStatus = statusFilter;
+      let finalPayment = paymentFilter;
+      let finalFulfillment = fulfillmentFilter;
+
+      if (tab === 'unfulfilled') finalFulfillment = 'unfulfilled';
+      if (tab === 'unpaid') finalPayment = 'pending';
+      if (tab === 'open') finalStatus = 'active';
+
+      const url = `/api/admin/orders?limit=100&status=${finalStatus}&paymentStatus=${finalPayment}&fulfillmentStatus=${finalFulfillment}&platform=${platformFilter}&search=${search}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
@@ -123,7 +132,7 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, paymentFilter, fulfillmentFilter, platformFilter, search]);
+  }, [statusFilter, paymentFilter, fulfillmentFilter, platformFilter, search, tab]);
 
   useEffect(() => {
     const timer = setTimeout(fetchOrders, 300);
@@ -132,12 +141,12 @@ export default function OrdersPage() {
 
   const handleSync = async () => {
     setSyncing(true);
-    setToast("Initializing Shopify Sync...");
+    setToast("Initializing Deep Shopify Sync...");
     try {
       const res = await fetch("/api/shopify/sync", { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        setToast(`Sync Successful: ${data.synced?.orders || 0} orders updated`);
+        setToast(`Live Manifest Synchronized: ${data.synced?.orders || 0} orders updated`);
         fetchOrders();
       } else {
         setToast("Sync partial failure. Check logs.");
@@ -185,12 +194,32 @@ export default function OrdersPage() {
         </div>
 
         <div className="flex items-center gap-4">
+           <div className="flex bg-foreground/5 p-1 rounded-xl border border-foreground/10 mr-4">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'unfulfilled', label: 'Unfulfilled' },
+                { id: 'unpaid', label: 'Unpaid' },
+                { id: 'open', label: 'Open' }
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id as any)}
+                  className={`px-6 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${tab === t.id ? 'bg-foreground text-background shadow-lg' : 'text-foreground/40 hover:text-foreground'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+           </div>
+
           <button
             onClick={handleSync}
             disabled={syncing}
             className="group flex items-center gap-3 px-8 py-3.5 bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] text-foreground transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 transition-transform duration-700 ${syncing ? "animate-spin" : "group-hover:rotate-180"}`} />
+            <div className="relative">
+              <RefreshCw className={`w-4 h-4 transition-transform duration-700 ${syncing ? "animate-spin" : "group-hover:rotate-180"}`} />
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            </div>
             {syncing ? "Syncing..." : "Sync Shopify"}
           </button>
           <Link

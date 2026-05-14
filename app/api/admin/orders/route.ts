@@ -20,8 +20,8 @@ export async function GET(req: Request) {
     // or if explicitly requested.
     if (offset === 0 || sync) {
       try {
-        console.log('[Admin Orders] Triggering live sync from Shopify...');
-        const shopifyOrders = await fetchAllOrders(20); // Sync last 20 for speed
+        console.log('[Admin Orders] Triggering live sync from Shopify (Top 50)...');
+        const shopifyOrders = await fetchAllOrders(50); // Sync last 50 for depth
         const shop = await prisma.shop.findFirst();
         
         if (shop && shopifyOrders.length > 0) {
@@ -96,9 +96,23 @@ export async function GET(req: Request) {
     if (platform === 'web') {
       conditions.push({
         AND: [
-          { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
-          { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } },
-          { NOT: { orderType: 'MOBILE_APP' } }
+          {
+            OR: [
+              { tags: null },
+              {
+                AND: [
+                  { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
+                  { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } }
+                ]
+              }
+            ]
+          },
+          {
+            OR: [
+              { orderType: null },
+              { NOT: { orderType: 'MOBILE_APP' } }
+            ]
+          }
         ]
       });
     } else if (platform === 'mobile') {
@@ -122,9 +136,23 @@ export async function GET(req: Request) {
           // Web orders (No mobile tags/type)
           {
             AND: [
-              { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
-              { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } },
-              { NOT: { orderType: 'MOBILE_APP' } }
+              {
+                OR: [
+                  { tags: null },
+                  {
+                    AND: [
+                      { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
+                      { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } }
+                    ]
+                  }
+                ]
+              },
+              {
+                OR: [
+                  { orderType: null },
+                  { NOT: { orderType: 'MOBILE_APP' } }
+                ]
+              }
             ]
           },
           // Approved Mobile orders
