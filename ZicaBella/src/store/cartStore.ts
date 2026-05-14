@@ -43,28 +43,31 @@ const syncCart = async (items: CartItem[]) => {
     const state = useAuthStore.getState();
     const token = state.token;
     
-    if (!token || !state.isAuthenticated) {
-      console.log('[Cart Sync] Skipping: No auth token');
-      return;
-    }
+    // Identify by userId if authenticated, else by deviceId for guest carts
+    const { Platform } = require('react-native');
+    const Constants = require('expo-constants').default;
+    const deviceId = Constants.sessionId || `dev_${Platform.OS}_${Date.now()}`;
+    const guestId = `guest_${Platform.OS}_${deviceId}`;
 
-    console.log(`[Cart Sync] Transmitting ${items.length} units to cloud...`);
+    console.log(`[Cart Sync] Transmitting ${items.length} units to cloud (ID: ${guestId})...`);
 
     const response = await fetch(`${config.appUrl}/api/cart/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': token ? `Bearer ${token}` : ''
       },
-      body: JSON.stringify({ items })
+      body: JSON.stringify({ items, guestId })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.warn('[Cart Sync] Server rejected sync:', errorData.error || response.status);
+    const resData = await response.json().catch(() => ({}));
+    if (response.ok) {
+      console.log('[Cart Sync] Telemetry resolved successfully:', resData.count, 'items synced');
+    } else {
+      console.warn('[Cart Sync] Node rejected payload:', resData.error || response.status);
     }
   } catch (error) {
-    console.error('[Cart Sync] Network error:', error);
+    console.error('[Cart Sync] Critical network failure:', error);
   }
 };
 

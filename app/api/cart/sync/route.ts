@@ -6,58 +6,87 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
+    const body = await req.json();
+    const { items, guestId, name, email, phone } = body;
     const auth = getAppAuthFromRequest(req);
-    if (!auth) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    
+    let customerId = auth?.customerId;
+
+    if (!customerId && !guestId) {
+      return NextResponse.json({ error: "Unauthorized or Missing guestId" }, { status: 401 });
     }
 
-    const { items } = await req.json();
+    // If guest mode, find or create a placeholder customer
+    if (!customerId && guestId) {
+      const shop = await prisma.shop.findFirst();
+      if (!shop) return NextResponse.json({ error: "Shop not configured" }, { status: 500 });
+
+      const guestIdentifier = `GUEST_${guestId}`;
+      const guestCustomer = await prisma.customer.upsert({
+        where: { shopifyId: guestIdentifier },
+        update: { 
+          updatedAt: new Date(),
+          name: name || undefined,
+          email: email || undefined,
+          phone: phone || undefined,
+        },
+        create: {
+          shopifyId: guestIdentifier,
+          shopId: shop.id,
+          name: name || "Guest Node",
+          email: email || "guest@zicabella.com",
+          phone: phone || null,
+        }
+      });
+      customerId = guestCustomer.id;
+    }
+
+    if (!customerId) {
+       return NextResponse.json({ error: "Failed to resolve identity" }, { status: 500 });
+    }
 
     if (!Array.isArray(items)) {
       return NextResponse.json({ error: "Invalid items format" }, { status: 400 });
     }
 
-    // Ensure customer exists (to avoid foreign key constraint issues)
-    const customer = await prisma.customer.findUnique({
-      where: { id: auth.customerId }
-    });
-
-    if (!customer) {
-      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-    }
 
     // Upsert the cart for this customer
     const cart = await prisma.cart.upsert({
-      where: { customerId: auth.customerId },
-      create: { customerId: auth.customerId },
+      where: { customerId: customerId },
+      create: { customerId: customerId },
       update: { updatedAt: new Date() },
     });
 
-    // Replace all items (simplest way to keep in sync)
-    await prisma.cartItem.deleteMany({
-      where: { cartId: cart.id },
+    let syncedCount = 0;
+
+    // Replace all items atomically
+    await prisma.$transaction(async (tx) => {
+      await tx.cartItem.deleteMany({
+        where: { cartId: cart.id },
+      });
+
+      if (items.length > 0) {
+        const validItems = items.filter((item: any) => item.productId && item.variantId);
+        if (validItems.length > 0) {
+          const result = await tx.cartItem.createMany({
+            data: validItems.map((item: any) => ({
+              cartId: cart.id,
+              productId: String(item.productId),
+              variantId: String(item.variantId),
+              handle: item.handle || null,
+              title: item.title || "Product",
+              price: parseFloat(String(item.price)) || 0,
+              image: item.image || null,
+              quantity: parseInt(String(item.quantity)) || 1,
+              size: item.size || null,
+            })),
+          });
+          syncedCount = result.count;
+        }
+      }
     });
 
-    if (items.length > 0) {
-      // Ensure we only process valid items
-      const validItems = items.filter((item: any) => item.productId && item.variantId);
-      
-      await prisma.cartItem.createMany({
-        data: validItems.map((item: any) => ({
-          cartId: cart.id,
-          productId: String(item.productId),
-          variantId: String(item.variantId),
-          handle: item.handle || null,
-          title: item.title || "Product",
-          price: parseFloat(String(item.price)) || 0,
-          image: item.image || null,
-          quantity: parseInt(String(item.quantity)) || 1,
-          size: item.size || null,
-        })),
-      });
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: syncedCount });
   } catch (error: any) {
     console.error("Cart sync error:", error);
     return NextResponse.json({ error: "Failed to sync cart" }, { status: 500 });

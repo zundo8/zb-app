@@ -63,7 +63,7 @@ export default function LiveCartsPage() {
     try {
       const res = await fetch('/api/admin/live-carts');
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && Array.isArray(data)) {
         setCarts(data);
       }
     } catch (error) {
@@ -93,7 +93,7 @@ export default function LiveCartsPage() {
   useEffect(() => {
     fetchCarts();
     // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchCarts, 30000);
+    const interval = setInterval(fetchCarts, 5000);
     return () => clearInterval(interval);
   }, [fetchCarts]);
 
@@ -133,7 +133,7 @@ export default function LiveCartsPage() {
           </div>
           <p className="text-[12px] text-foreground/40 font-bold uppercase tracking-[0.5em] max-w-xl leading-relaxed">
             Monitoring active commerce sessions across global nodes. <br/>
-            Engagement metrics updated every 30 seconds.
+            Engagement metrics updated every 5 seconds.
           </p>
         </div>
 
@@ -224,7 +224,7 @@ export default function LiveCartsPage() {
                       <div className="flex items-center gap-6 mb-10">
                         <div className="relative">
                             <div className="w-20 h-20 rounded-[2rem] bg-foreground/5 flex items-center justify-center border border-foreground/10 overflow-hidden shadow-2xl relative">
-                              {cart.customer.image ? (
+                              {cart.customer?.image ? (
                                 <img src={cart.customer.image} alt="" className="w-full h-full object-cover" />
                               ) : (
                                 <User className="w-8 h-8 text-foreground/10" />
