@@ -1,8 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
-import Database from 'better-sqlite3'
 
 // Mock Prisma client for when database is unavailable
 const createMockPrismaClient = (reason: string) => {
@@ -54,20 +52,6 @@ const prismaClientSingleton = () => {
   const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
   if (isBuild) {
     return createMockPrismaClient('build');
-  }
-
-  // Support SQLite local development
-  if (isSqlite) {
-    try {
-      const client = new PrismaClient({
-        log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-      });
-      console.log('[DB] Prisma Client initialized for SQLite');
-      return client;
-    } catch (error: any) {
-      console.error('[DB] SQLite initialization error:', error.message);
-      return createMockPrismaClient(`sqlite_error: ${error.message}`);
-    }
   }
 
   if (!pgUrl || pgUrl.includes('placeholder') || pgUrl === '' || pgUrl.includes('(not available)')) {

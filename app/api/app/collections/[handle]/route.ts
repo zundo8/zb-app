@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchCollectionByHandle, flattenProduct, ShopifyProduct } from '@/lib/shopify-admin';
+import { fetchCollectionByHandle, fetchProducts, flattenProduct, ShopifyProduct } from '@/lib/shopify-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +17,6 @@ export async function GET(
     // so the UI doesn't show a 'blank' error section on the homepage
     if (!collection || products.length === 0) {
       console.log(`[App API] Collection ${params.handle} empty or not found. Falling back to global products.`);
-      const { fetchProducts } = require('@/lib/shopify-admin');
       const fallbackProducts = await fetchProducts(limit);
       
       return NextResponse.json({
