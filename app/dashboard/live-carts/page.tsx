@@ -52,6 +52,9 @@ function GlassCard({ children, className = "" }: { children: React.ReactNode; cl
   );
 }
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default function LiveCartsPage() {
   const [carts, setCarts] = useState<Cart[]>([]);
   const [loading, setLoading] = useState(true);

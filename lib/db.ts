@@ -39,14 +39,15 @@ const createMockPrismaClient = (reason: string) => {
 };
 
 const prismaClientSingleton = () => {
+  const dbUrl = process.env.DATABASE_URL || '';
+  const isSqlite = dbUrl.startsWith('file:');
+
   const pgUrl =
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL ||
-    (process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('file:')
-      ? process.env.DATABASE_URL
-      : undefined);
+    (dbUrl && !isSqlite ? dbUrl : undefined);
 
-  if (pgUrl && !process.env.DATABASE_URL?.startsWith('postgres')) {
+  if (pgUrl && !dbUrl.startsWith('postgres') && !isSqlite) {
     process.env.DATABASE_URL = pgUrl;
   }
 
@@ -55,9 +56,24 @@ const prismaClientSingleton = () => {
     return createMockPrismaClient('build');
   }
 
+  // Support SQLite local development
+  if (isSqlite) {
+    try {
+      const sqlitePath = dbUrl.replace('file:', '');
+      const betterSqlite = new Database(sqlitePath);
+      const adapter = new PrismaBetterSqlite3(betterSqlite);
+      const client = new PrismaClient({ adapter });
+      console.log('[DB] Prisma Client initialized with SQLite Adapter');
+      return client;
+    } catch (error: any) {
+      console.error('[DB] SQLite initialization error:', error.message);
+      return createMockPrismaClient(`sqlite_error: ${error.message}`);
+    }
+  }
+
   if (!pgUrl || pgUrl.includes('placeholder') || pgUrl === '' || pgUrl.includes('(not available)')) {
-    console.error('[DB] No Postgres URL found. Set POSTGRES_URL or DATABASE_URL (postgres://…).');
-    return createMockPrismaClient('no_postgres_url');
+    console.error('[DB] No database URL found. Set DATABASE_URL.');
+    return createMockPrismaClient('no_db_url');
   }
 
   // HACK: Force no-verify for SSL to handle self-signed certificates (Supabase pooler issue)
