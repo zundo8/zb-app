@@ -356,7 +356,8 @@ export default function OrderDetailsScreen() {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={{ gap: 12 }}>
-          {order.paymentMethod === 'COD' && (order.status || '').toLowerCase() === 'awaiting_approval' && (
+          {(order.paymentMethod === 'COD' && (order.status || '').toLowerCase() === 'awaiting_approval') || 
+           ((order.status || '').toLowerCase() === 'payment_pending' || (order.status || '').toLowerCase() === 'pending') ? (
             <TouchableOpacity onPress={handleCancelOrder} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
               <BlurView 
                 intensity={isDark ? 30 : 60} 
@@ -370,7 +371,7 @@ export default function OrderDetailsScreen() {
                 <Typography size={13} weight="700" color="#FF3B30">Cancel Order</Typography>
               </BlurView>
             </TouchableOpacity>
-          )}
+          ) : null}
 
           <TouchableOpacity onPress={contactSupport} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
             <BlurView 

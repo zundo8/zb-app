@@ -52,6 +52,7 @@ const STATUS_THEME: Record<string, { label: string; bg: string; dot: string }> =
   fulfilled: { label: "Dispatched", bg: "bg-cyan-500/10 text-cyan-500", dot: "bg-cyan-500" },
   unfulfilled: { label: "Pending Fulfillment", bg: "bg-foreground/5 text-foreground/40", dot: "bg-foreground/20" },
   payment_pending: { label: "Awaiting Funds", bg: "bg-amber-500/10 text-amber-500", dot: "bg-amber-500" },
+  cancelled: { label: "Cancelled", bg: "bg-rose-500/10 text-rose-500", dot: "bg-rose-500" },
 };
 
 export default function MobileOrdersPage() {
