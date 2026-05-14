@@ -26,6 +26,8 @@ export async function GET(req: Request) {
     const offsetRaw = url.searchParams.get('offset');
     const limit = limitRaw ? Math.max(1, Math.min(50, parseInt(limitRaw, 10) || 10)) : null;
     const offset = offsetRaw ? Math.max(0, parseInt(offsetRaw, 10) || 0) : 0;
+    // allow 'all' if requested (used by admin dashboard)
+    const all = url.searchParams.get('all') === 'true';
 
     // Quick count mode for admin sync stats (global)
     const countOnly = url.searchParams.get('count') === 'true';
@@ -41,8 +43,6 @@ export async function GET(req: Request) {
     // Allow specialized admin bypass for dashboard sync
     const isAdmin = token === 'ADMIN_SESSION_BYPASS';
     
-    // allow 'all' if requested (used by admin dashboard)
-    const all = url.searchParams.get('all') === 'true';
     console.log(`[Orders GET] Fetching orders. All=${all}, Phone=${phone}, Email=${email}, CustomerId=${customerId}`);
 
     if (!customerId && !phone && !email && !orderId && !all) {

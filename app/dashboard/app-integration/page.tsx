@@ -256,56 +256,91 @@ export default function AppIntegrationPage() {
 
   const testEndpoints = useCallback(async () => {
     setTesting(true);
-    const results = await Promise.all(
-      endpoints.map(async (ep) => {
-        const start = Date.now();
+    
+    // Helper to test a single endpoint
+    const testOne = async (ep: EndpointStatus) => {
+      const start = Date.now();
+      try {
+        const res = await fetch(ep.path);
+        const elapsed = Date.now() - start;
+        let count: number | undefined;
+        let errorMessage: string | undefined;
+
         try {
-          const res = await fetch(ep.path);
-          const elapsed = Date.now() - start;
-          let count: number | undefined;
-          let errorMessage: string | undefined;
+          const data = await res.json();
+          if (data.products) count = data.products.length;
+          else if (data.collections) count = data.collections.length;
+          else if (data.customers) count = data.customers.length;
+          else if (data.config) count = Object.keys(data.config).length;
+          else if (data.returns) count = data.returns.length;
+          else if (data.exchanges) count = data.exchanges.length;
+          else if (data.total !== undefined) count = data.total;
+          else if (data.orders) count = data.orders.length;
+          else if (data.items) count = data.items.length;
+          
+          if (data.error) errorMessage = data.error;
+        } catch { /* non-json response */ }
 
-          try {
-            const data = await res.json();
-            if (data.products) count = data.products.length;
-            else if (data.collections) count = data.collections.length;
-            else if (data.customers) count = data.customers.length;
-            else if (data.config) count = Object.keys(data.config).length;
-            else if (data.returns) count = data.returns.length;
-            else if (data.exchanges) count = data.exchanges.length;
-            else if (data.total !== undefined) count = data.total;
-            else if (data.orders) count = data.orders.length;
-            else if (data.items) count = data.items.length;
-            
-            if (data.error) errorMessage = data.error;
-          } catch { /* non-json response */ }
+        // Treat 400/401/404 as 'ok' (connected but logically rejected) for the registry
+        // Only 5xx or fetch failures are true 'errors'
+        const isOk = res.status < 500;
 
-          // Treat 400/401/404 as 'ok' (connected but logically rejected) for the registry
-          // Only 5xx or fetch failures are true 'errors'
-          const isOk = res.status < 500;
+        return { 
+          ...ep, 
+          status: isOk ? 'ok' as const : 'error' as const, 
+          responseTime: elapsed, 
+          dataCount: count,
+          error: errorMessage
+        };
+      } catch (err: any) {
+        return { ...ep, status: 'error' as const, responseTime: Date.now() - start, error: err.message };
+      }
+    };
 
-          return { 
-            ...ep, 
-            status: isOk ? 'ok' as const : 'error' as const, 
-            responseTime: elapsed, 
-            dataCount: count,
-            error: errorMessage
-          };
-        } catch (err: any) {
-          return { ...ep, status: 'error' as const, responseTime: Date.now() - start, error: err.message };
-        }
-      })
+    // Stagger calls in small batches to avoid Shopify 429 rate limits
+    // Group 1: Non-Shopify endpoints (DB-only, fast)
+    // Group 2: Shopify-dependent endpoints (staggered)
+    const dbEndpoints = endpoints.filter(ep => 
+      ['Cart', 'Orders', 'Profile', 'Returns', 'Exchanges', 'Public Settings', 'Wishlist', 'App Config'].includes(ep.name)
     );
-    setEndpoints(results);
+    const shopifyEndpoints = endpoints.filter(ep => 
+      ['Products', 'Collections', 'Search', 'Customers'].includes(ep.name)
+    );
+
+    // Test DB endpoints in parallel (they don't hit Shopify rate limits)
+    const dbResults = await Promise.all(dbEndpoints.map(testOne));
+    
+    // Test Shopify endpoints sequentially with a small delay
+    const shopifyResults: any[] = [];
+    for (const ep of shopifyEndpoints) {
+      const result = await testOne(ep);
+      shopifyResults.push(result);
+      // Small delay between Shopify calls to stay under 2 req/sec
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    // Merge results back in original order
+    const allResults = endpoints.map(ep => {
+      return dbResults.find(r => r.name === ep.name) || 
+             shopifyResults.find(r => r.name === ep.name) || 
+             ep;
+    });
+    
+    setEndpoints(allResults);
     setTesting(false);
   }, [endpoints]);
 
   const fetchSyncStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const [products, collections, customers, orders, returns, exchanges] = await Promise.all([
-        fetch('/api/app/products?limit=100').then(r => r.json()).catch(() => ({ products: [], total: 0 })),
-        fetch('/api/app/collections?all=true').then(r => r.json()).catch(() => ({ collections: [] })),
+      // Fetch Shopify-dependent endpoints sequentially to avoid 429
+      const products = await fetch('/api/app/products?limit=100').then(r => r.json()).catch(() => ({ products: [], total: 0 }));
+      await new Promise(r => setTimeout(r, 600));
+      const collections = await fetch('/api/app/collections?all=true').then(r => r.json()).catch(() => ({ collections: [] }));
+      await new Promise(r => setTimeout(r, 600));
+      
+      // DB-only endpoints can run in parallel
+      const [customers, orders, returns, exchanges] = await Promise.all([
         fetch('/api/admin/customers?limit=1').then(r => r.json()).catch(() => ({ total: 0 })),
         fetch('/api/app/orders?count=true').then(r => r.json()).catch(() => ({ total: 0 })),
         fetch('/api/admin/returns').then(r => r.json()).catch(() => ({ summary: { total: 0 } })),
@@ -313,7 +348,7 @@ export default function AppIntegrationPage() {
       ]);
 
       setSyncStats({
-        productsCount: products.total || 0,
+        productsCount: products.total || products.products?.length || 0,
         collectionsCount: collections.collections?.length || 0,
         customersCount: customers.total || 0,
         ordersCount: orders.total || 0,

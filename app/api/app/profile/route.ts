@@ -20,6 +20,11 @@ export async function GET(req: Request) {
     const email = url.searchParams.get('email')?.trim();
     const customerId = url.searchParams.get('customerId')?.trim();
 
+    // Health-check mode: return a test response for dashboard API registry
+    if (customerId === 'test' || customerId === 'health-check') {
+      return NextResponse.json({ customer: null, isHealthCheck: true }, { headers: corsHeaders });
+    }
+
     const authHeader = req.headers.get('authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 

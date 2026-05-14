@@ -71,25 +71,43 @@ export async function shopifyFetch<T>(endpoint: string, params?: Record<string, 
     return cached.data as T;
   }
 
-  const res = await fetch(url.toString(), {
-    method: 'GET',
-    headers: await headers(),
-    cache: 'no-store',
-  });
+  const MAX_RETRIES = 3;
+  let lastError: Error | null = null;
 
-  if (!res.ok) {
-    const text = await res.text();
-    // If rate limited, try to serve from expired cache if available as last resort
-    if (res.status === 429 && cached) {
-      console.warn(`[Shopify Client] Rate limited. Serving stale cache for ${endpoint}`);
-      return cached.data as T;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: await headers(),
+      cache: 'no-store',
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      requestCache.set(cacheKey, { data, timestamp: Date.now() });
+      return data as T;
     }
+
+    if (res.status === 429) {
+      // Rate limited — serve stale cache if available
+      if (cached) {
+        console.warn(`[Shopify Client] Rate limited. Serving stale cache for ${endpoint}`);
+        return cached.data as T;
+      }
+      // No cache — wait with exponential backoff and retry
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '0', 10);
+      const delay = retryAfter > 0 ? retryAfter * 1000 : Math.min(1000 * Math.pow(2, attempt), 4000);
+      console.warn(`[Shopify Client] Rate limited on ${endpoint}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      lastError = new Error(`Shopify API 429: Rate limited on ${endpoint}`);
+      continue;
+    }
+
+    // Non-429 error — throw immediately
+    const text = await res.text();
     throw new Error(`Shopify API ${res.status}: ${text}`);
   }
 
-  const data = await res.json();
-  requestCache.set(cacheKey, { data, timestamp: now });
-  return data as T;
+  throw lastError || new Error(`Shopify API: Max retries exceeded for ${endpoint}`);
 }
 
 export function clearShopConfigCache() {

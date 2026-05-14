@@ -31,45 +31,61 @@ async function shopifyFetchPage<T>(urlStr: string): Promise<{ data: T; nextPageU
     return { data: cached.data as T, nextPageUrl: cached.nextPageUrl };
   }
 
-  const res = await fetch(urlStr, {
-    method: 'GET',
-    headers: await headers(),
-    cache: 'no-store',
-  });
+  const MAX_RETRIES = 3;
 
-  if (!res.ok) {
-    const text = await res.text();
-    if (res.status === 429 && cached) {
-      console.warn(`[Shopify Admin] Rate limited on page fetch. Serving stale cache.`);
-      return { data: cached.data as T, nextPageUrl: cached.nextPageUrl };
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const res = await fetch(urlStr, {
+      method: 'GET',
+      headers: await headers(),
+      cache: 'no-store',
+    });
+
+    if (res.status === 429) {
+      // Rate limited — serve stale cache if available
+      if (cached) {
+        console.warn(`[Shopify Admin] Rate limited on page fetch. Serving stale cache.`);
+        return { data: cached.data as T, nextPageUrl: cached.nextPageUrl };
+      }
+      // No cache — wait with exponential backoff and retry
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '0', 10);
+      const delay = retryAfter > 0 ? retryAfter * 1000 : Math.min(1000 * Math.pow(2, attempt), 4000);
+      console.warn(`[Shopify Admin] Rate limited on page fetch, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      continue;
     }
-    console.error(`Shopify Admin API error [${res.status}]: ${text}`);
-    throw new Error(`Shopify API ${res.status}: ${text}`);
-  }
 
-  const data = await res.json();
-  if (!data) {
-    console.error(`[Shopify Admin] API returned empty/null data`);
-    return { data: {} as T, nextPageUrl: undefined };
-  }
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`Shopify Admin API error [${res.status}]: ${text}`);
+      throw new Error(`Shopify API ${res.status}: ${text}`);
+    }
 
-  const linkHeader = res.headers.get('Link');
-  let nextPageUrl: string | undefined;
+    const data = await res.json();
+    if (!data) {
+      console.error(`[Shopify Admin] API returned empty/null data`);
+      return { data: {} as T, nextPageUrl: undefined };
+    }
 
-  if (linkHeader) {
-    const links = linkHeader.split(',');
-    for (const link of links) {
-      if (link.includes('rel="next"')) {
-        const match = link.match(/<([^>]+)>/);
-        if (match) {
-          nextPageUrl = match[1];
+    const linkHeader = res.headers.get('Link');
+    let nextPageUrl: string | undefined;
+
+    if (linkHeader) {
+      const links = linkHeader.split(',');
+      for (const link of links) {
+        if (link.includes('rel="next"')) {
+          const match = link.match(/<([^>]+)>/);
+          if (match) {
+            nextPageUrl = match[1];
+          }
         }
       }
     }
+
+    pageCache.set(urlStr, { data, nextPageUrl, timestamp: Date.now() });
+    return { data, nextPageUrl };
   }
 
-  pageCache.set(urlStr, { data, nextPageUrl, timestamp: now });
-  return { data, nextPageUrl };
+  throw new Error(`Shopify Admin API: Max retries exceeded for page fetch`);
 }
 
 /**
