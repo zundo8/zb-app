@@ -93,6 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const integrationNav = [
     { name: "App Integration", href: "/dashboard/app-integration", icon: Smartphone },
+    { name: "Live Carts", href: "/dashboard/live-carts", icon: ShoppingCart },
     { name: "App Login Logs", href: "/dashboard/app-logins", icon: History },
     { name: "Razorpay", href: "/dashboard/payments/razorpay", icon: CreditCard },
   ];

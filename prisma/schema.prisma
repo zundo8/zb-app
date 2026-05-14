@@ -124,6 +124,32 @@ model Customer {
   storeCreditTxns       StoreCredit[]
   profileHistory        ProfileHistory[]
   wishlist              Wishlist[]
+  cart                  Cart?
+}
+
+model Cart {
+  id         String     @id @default(cuid())
+  customerId String     @unique
+  updatedAt  DateTime   @updatedAt
+  items      CartItem[]
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  productId String
+  variantId String?
+  handle    String?
+  title     String?
+  price     Float?
+  image     String?
+  quantity  Int
+  size      String?
+  createdAt DateTime @default(now())
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
 }
 
 model ProfileHistory {

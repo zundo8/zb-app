@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { config } from '../constants/config';
 
 export interface CartItem {
   id: string;
@@ -26,11 +27,36 @@ interface CartStore {
   clearCart: () => void;
   setBuyNowItem: (item: CartItem | null) => void;
   setShippingAddress: (address: any) => void;
+  syncWithBackend: () => Promise<void>;
 
   // Computed (via get())
   total: () => number;
   itemCount: () => number;
 }
+
+// Helper to sync cart with backend
+const syncCart = async (items: CartItem[]) => {
+  try {
+    // We need the token from authStore. Since we can't easily import it without circular deps 
+    // in some cases, we'll access it via the store's getState().
+    // However, in React Native/Zustand, it's safe to import if structured well.
+    const { useAuthStore } = require('./authStore');
+    const token = useAuthStore.getState().token;
+    
+    if (!token) return;
+
+    await fetch(`${config.appUrl}/api/cart/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ items })
+    });
+  } catch (error) {
+    console.error('[Cart Sync] Failed:', error);
+  }
+};
 
 export const useCartStore = create<CartStore>()(
   persist(
@@ -44,35 +70,53 @@ export const useCartStore = create<CartStore>()(
         const id = `${item.productId}_${item.variantId}_${item.size || 'one-size'}`;
         set((state) => {
           const existing = state.items.find((i) => i.id === id);
+          let newItems;
           if (existing) {
-            return {
-              items: state.items.map((i) =>
-                i.id === id ? { ...i, quantity: i.quantity + 1 } : i
-              ),
-            };
+            newItems = state.items.map((i) =>
+              i.id === id ? { ...i, quantity: i.quantity + 1 } : i
+            );
+          } else {
+            newItems = [...state.items, { ...item, id, quantity: 1 }];
           }
-          return { items: [...state.items, { ...item, id, quantity: 1 }] };
+          
+          // Trigger sync
+          syncCart(newItems);
+          
+          return { items: newItems };
         });
       },
 
-      removeItem: (id) =>
-        set((state) => ({
-          items: state.items.filter((i) => i.id !== id),
-        })),
+      removeItem: (id) => {
+        set((state) => {
+          const newItems = state.items.filter((i) => i.id !== id);
+          syncCart(newItems);
+          return { items: newItems };
+        });
+      },
 
-      updateQuantity: (id, quantity) =>
-        set((state) => ({
-          items:
-            quantity === 0
-              ? state.items.filter((i) => i.id !== id)
-              : state.items.map((i) => (i.id === id ? { ...i, quantity } : i)),
-        })),
+      updateQuantity: (id, quantity) => {
+        set((state) => {
+          const newItems = quantity === 0
+            ? state.items.filter((i) => i.id !== id)
+            : state.items.map((i) => (i.id === id ? { ...i, quantity } : i));
+          
+          syncCart(newItems);
+          return { items: newItems };
+        });
+      },
 
-      clearCart: () => set({ items: [], buyNowItem: null, cartId: null }),
+      clearCart: () => {
+        set({ items: [], buyNowItem: null, cartId: null });
+        syncCart([]);
+      },
 
       setBuyNowItem: (item) => set({ buyNowItem: item }),
 
       setShippingAddress: (address) => set({ shippingAddress: address }),
+
+      syncWithBackend: async () => {
+        await syncCart(get().items);
+      },
 
       total: () =>
         get().items.reduce((sum, i) => sum + parseFloat(i.price) * i.quantity, 0),

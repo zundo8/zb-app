@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-  Modal, FlatList, Keyboard, Pressable,
+  Modal, FlatList, Keyboard, Pressable, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,11 @@ import { signInWithApple } from '../auth/apple';
 import { useThemeStore } from '../store/themeStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { config } from '../constants/config';
+
+const { width } = Dimensions.get('window');
+
+// Clean base URL to prevent double slashes
+const BASE_URL = config.appUrl.replace(/\/$/, '');
 
 const COUNTRIES = [
   { name: 'India', code: '+91', flag: '🇮🇳' },
@@ -50,7 +55,7 @@ export default function LoginScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
+  const [step, setStep] = useState<'PHONE' | 'NAME' | 'OTP'>('PHONE');
   const [loading, setLoading] = useState(false);
   const [country, setCountry] = useState(COUNTRIES[0]);
   const [showPicker, setShowPicker] = useState(false);
@@ -58,21 +63,17 @@ export default function LoginScreen() {
 
   const otpInputs = useRef<TextInput[]>([]);
 
-  const handleSendOTP = async () => {
-    if (!name.trim()) {
-      setErrors({ name: 'Full name is required' });
-      haptics.error();
-      return;
-    }
-
+  const handleContinuePhone = async () => {
     let cleaned = phone.replace(/\D/g, '');
     const countryDigits = country.code.replace(/\D/g, '');
+    
+    // Handle cases where user might have pasted phone with country code
     if (cleaned.startsWith(countryDigits) && cleaned.length > 10) {
       cleaned = cleaned.slice(countryDigits.length);
     }
 
-    if (cleaned.length !== 10) {
-      setErrors({ phone: 'Enter 10-digit number' });
+    if (cleaned.length < 7) {
+      setErrors({ phone: 'Enter a valid number' });
       haptics.error();
       return;
     }
@@ -81,22 +82,79 @@ export default function LoginScreen() {
     
     setLoading(true);
     try {
-      const res = await fetch(`${config.appUrl}/api/auth/send-otp`, {
+      // 1. Check if user exists
+      const checkRes = await fetch(`${BASE_URL}/api/auth/check-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fullPhone }),
       });
-      const json = await res.json();
       
-      if (!res.ok) throw new Error(json.error || 'Failed to send OTP');
+      const checkData = await checkRes.json().catch(() => ({}));
 
-      setStep('OTP');
-      haptics.success();
+      if (!checkRes.ok) {
+        throw new Error(checkData.error || `Server error (${checkRes.status})`);
+      }
+      
+      if (checkData.exists) {
+        // User exists, send OTP directly
+        try {
+          await sendOTP(fullPhone);
+          if (checkData.name) setName(checkData.name);
+          setStep('OTP');
+          haptics.success();
+        } catch (otpErr: any) {
+          Alert.alert('Verification Error', otpErr.message);
+          haptics.error();
+        }
+      } else {
+        // User doesn't exist, ask for name
+        setStep('NAME');
+        haptics.success();
+      }
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      console.error('Login error:', e);
+      Alert.alert('Unable to proceed', e.message);
       haptics.error();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleContinueName = async () => {
+    if (!name.trim()) {
+      setErrors({ name: 'Tell us your name' });
+      haptics.error();
+      return;
+    }
+
+    const cleaned = phone.replace(/\D/g, '');
+    const fullPhone = country.code + cleaned;
+
+    setLoading(true);
+    try {
+      await sendOTP(fullPhone);
+      setStep('OTP');
+      haptics.success();
+    } catch (e: any) {
+      Alert.alert('OTP Error', e.message);
+      haptics.error();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendOTP = async (fullPhone: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: fullPhone }),
+      });
+      const json = await res.json().catch(() => ({ error: 'Invalid server response' }));
+      if (!res.ok) throw new Error(json.error || `Server error (${res.status})`);
+      return json;
+    } catch (e: any) {
+      throw new Error(e.message || 'Network request failed');
     }
   };
 
@@ -153,7 +211,7 @@ export default function LoginScreen() {
       }
       
       const fullPhone = country.code + cleanedPhone;
-      const res = await fetch(`${config.appUrl}/api/auth/mobile-verify`, {
+      const res = await fetch(`${BASE_URL}/api/auth/mobile-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fullPhone, otp: finalOtp, name: name.trim() }),
@@ -161,10 +219,8 @@ export default function LoginScreen() {
       const json = await res.json();
       
       if (!res.ok) throw new Error(json.error || 'Verification failed');
-
       if (!json.token) throw new Error('Session expired');
       
-      // Sync wishlist before finalizing login to ensure UI is ready
       const { syncWishlist } = useWishlistStore.getState();
       await syncWishlist(json.token);
       
@@ -187,145 +243,197 @@ export default function LoginScreen() {
     setLoading(false);
   };
 
+  const renderStep = () => {
+    switch (step) {
+      case 'PHONE':
+        return (
+          <View style={styles.stepContainer}>
+            <Typography weight="700" size={20} style={styles.stepTitle}>Hello</Typography>
+            <Typography size={13} color={colors.textExtraLight} style={styles.stepSubtitle}>
+              Are you already a community member?
+            </Typography>
+            
+            <View style={[styles.phoneContainer, { borderColor: errors.phone ? colors.error : isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]}>
+              <TouchableOpacity 
+                style={styles.flagPicker} 
+                onPress={() => { haptics.buttonTap(); setShowPicker(true); }}
+              >
+                <Typography size={22}>{country.flag}</Typography>
+                <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} style={{ marginLeft: 2 }} />
+              </TouchableOpacity>
+              
+              <View style={styles.phoneInputWrapper}>
+                <TextInput
+                  value={phone}
+                  onChangeText={(v) => { setPhone(v.replace(/[^\d+]/g, '')); if (errors.phone) setErrors({}); }}
+                  placeholder="Mobile Number"
+                  placeholderTextColor={colors.textExtraLight}
+                  keyboardType="phone-pad"
+                  style={[styles.phoneInput, { color: colors.text }]}
+                  autoFocus
+                />
+              </View>
+            </View>
+            {errors.phone && <Typography size={10} weight="600" color={colors.error} style={styles.errorText}>{errors.phone}</Typography>}
+
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
+              onPress={handleContinuePhone}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color={colors.background} /> : (
+                <Typography weight="700" size={14} color={colors.background}>CONTINUE</Typography>
+              )}
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 'NAME':
+        return (
+          <View style={styles.stepContainer}>
+            <Typography weight="700" size={24} style={styles.stepTitle}>What's your name?</Typography>
+            <Typography size={13} color={colors.textExtraLight} style={styles.stepSubtitle}>
+              Since you're new here, we'd love to know your name.
+            </Typography>
+
+            <View style={[styles.inputWrapper, { borderColor: errors.name ? colors.error : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+              <TextInput
+                value={name}
+                onChangeText={(v) => { setName(v); if (errors.name) setErrors({}); }}
+                placeholder="Full Name"
+                placeholderTextColor={colors.textExtraLight}
+                style={[styles.nameInput, { color: colors.text }]}
+                autoFocus
+                autoCorrect={false}
+              />
+            </View>
+            {errors.name && <Typography size={10} weight="600" color={colors.error} style={styles.errorText}>{errors.name}</Typography>}
+
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
+              onPress={handleContinueName}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color={colors.background} /> : (
+                <Typography weight="700" size={14} color={colors.background}>CREATE ACCOUNT</Typography>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.backLink}>
+              <Typography size={12} weight="600" color={colors.textExtraLight}>Back to Phone</Typography>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 'OTP':
+        return (
+          <View style={styles.stepContainer}>
+            <Typography weight="700" size={24} style={styles.stepTitle}>Verify OTP</Typography>
+            <Typography size={13} color={colors.textExtraLight} style={styles.stepSubtitle}>
+              Sent to {country.code} {phone.slice(-4).padStart(phone.length, '•')}
+            </Typography>
+
+            <View style={styles.otpRow}>
+              {otp.map((digit, i) => (
+                <View key={i} style={[styles.otpBox, { borderColor: digit ? colors.foreground : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                  <TextInput
+                    ref={(el) => { if (el) otpInputs.current[i] = el; }}
+                    value={digit}
+                    onChangeText={(v) => handleOTPChange(v, i)}
+                    onKeyPress={(e) => handleOTPKeyPress(e, i)}
+                    keyboardType="number-pad"
+                    maxLength={i === 0 ? 6 : 1}
+                    style={[styles.otpInput, { color: colors.text }]}
+                    autoFocus={i === 0}
+                    selectTextOnFocus
+                  />
+                </View>
+              ))}
+            </View>
+            {errors.otp && <Typography size={10} weight="600" color={colors.error} style={styles.errorText}>{errors.otp}</Typography>}
+
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
+              onPress={() => handleLogin()}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color={colors.background} /> : (
+                <Typography weight="700" size={14} color={colors.background}>VERIFY & LOGIN</Typography>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.backLink}>
+              <Typography size={12} weight="600" color={colors.textExtraLight}>Edit Phone Number</Typography>
+            </TouchableOpacity>
+          </View>
+        );
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
           <ScrollView 
-            contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 40 }]} 
+            contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 80 }]} 
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-          
-          <View style={styles.header}>
-            <Image source={require('../../assets/zica-bella-logo_8.png')} style={styles.logo} contentFit="contain" />
-            <Typography weight="700" size={20} color={colors.text} style={styles.title}>ZICA BELLA</Typography>
-            <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.subtitle}>ARCHIVAL EXCELLENCE</Typography>
-          </View>
-
-          <View style={[styles.card, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-            <BlurView intensity={isDark ? 20 : 40} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            
-            <Typography weight="700" size={11} style={styles.cardTitle}>
-                {step === 'PHONE' ? 'AUTHENTICATION' : 'VERIFICATION'}
-            </Typography>
-            
-            <View style={styles.form}>
-              {step === 'PHONE' ? (
-                <>
-                  <View style={[styles.glassInput, { borderColor: errors.name ? colors.error : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                    <Ionicons name="person-outline" size={16} color={colors.textExtraLight} style={styles.inputIcon} />
-                    <TextInput
-                      value={name}
-                      onChangeText={(v) => { setName(v); if (errors.name) setErrors({}); }}
-                      placeholder="Full Name"
-                      placeholderTextColor={colors.textExtraLight}
-                      style={[styles.textInput, { color: colors.text }]}
-                      autoCorrect={false}
-                    />
-                  </View>
-                  {errors.name && <Typography size={7} weight="700" color={colors.error} style={styles.errorText}>{errors.name}</Typography>}
-
-                  <View style={[styles.inputGroup, { borderColor: errors.phone ? colors.error : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                    <TouchableOpacity 
-                      style={[styles.countryPicker, { borderRightColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} 
-                      onPress={() => { haptics.buttonTap(); setShowPicker(true); }}
-                    >
-                      <Typography size={14}>{country.flag}</Typography>
-                      <Typography size={11} weight="700" style={{ marginLeft: 4 }}>{country.code}</Typography>
-                    </TouchableOpacity>
-                    
-                    <TextInput
-                      value={phone}
-                      onChangeText={(v) => { setPhone(v.replace(/[^\d+]/g, '')); if (errors.phone) setErrors({}); }}
-                      placeholder="Phone Number"
-                      placeholderTextColor={colors.textExtraLight}
-                      keyboardType="phone-pad"
-                      style={[styles.phoneInput, { color: colors.text }]}
-                    />
-                  </View>
-                  {errors.phone && <Typography size={7} weight="700" color={colors.error} style={styles.errorText}>{errors.phone}</Typography>}
-                </>
-              ) : (
-                <View style={styles.otpRow}>
-                  {otp.map((digit, i) => (
-                    <View key={i} style={[styles.otpBox, { borderColor: digit ? colors.foreground : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                      <TextInput
-                        ref={(el) => { if (el) otpInputs.current[i] = el; }}
-                        value={digit}
-                        onChangeText={(v) => handleOTPChange(v, i)}
-                        onKeyPress={(e) => handleOTPKeyPress(e, i)}
-                        keyboardType="number-pad"
-                        maxLength={i === 0 ? 6 : 1}
-                        style={[styles.otpInput, { color: colors.text }]}
-                        autoFocus={i === 0}
-                        selectTextOnFocus
-                      />
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {errors.otp && <Typography size={7} weight="700" color={colors.error} style={styles.errorText}>{errors.otp}</Typography>}
-
-              <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: colors.foreground }]}
-                onPress={step === 'PHONE' ? handleSendOTP : () => handleLogin()}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color={colors.background} />
-                ) : (
-                  <Typography weight="700" size={9} color={colors.background} style={{ letterSpacing: 2 }}>
-                    {step === 'PHONE' ? 'CONTINUE' : 'VERIFY'}
-                  </Typography>
-                )}
-              </TouchableOpacity>
+            <View style={styles.header}>
+              <Typography weight="700" size={28} color={colors.text} style={styles.brandTitle}>ZICA BELLA</Typography>
             </View>
 
-            {step === 'OTP' && (
-              <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.backBtn}>
-                <Typography size={7} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>BACK TO EDIT</Typography>
-              </TouchableOpacity>
+            <View style={[styles.mainCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]}>
+              <BlurView intensity={isDark ? 15 : 25} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              {renderStep()}
+            </View>
+
+            {step === 'PHONE' && (
+              <>
+                <View style={styles.dividerContainer}>
+                  <View style={[styles.dividerLine, { backgroundColor: colors.textExtraLight, opacity: 0.1 }]} />
+                  <Typography size={10} weight="700" color={colors.textExtraLight} style={styles.dividerText}>OR</Typography>
+                  <View style={[styles.dividerLine, { backgroundColor: colors.textExtraLight, opacity: 0.1 }]} />
+                </View>
+
+                <TouchableOpacity style={[styles.appleButton, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]} onPress={handleAppleSignIn}>
+                  <Ionicons name="logo-apple" size={20} color={colors.text} />
+                  <Typography weight="700" size={12} color={colors.text} style={{ marginLeft: 12 }}>Continue with Apple</Typography>
+                </TouchableOpacity>
+              </>
             )}
 
-            <View style={styles.divider}>
-              <View style={[styles.line, { backgroundColor: colors.textExtraLight }]} />
-              <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginHorizontal: 12, opacity: 0.3 }}>OR</Typography>
-              <View style={[styles.line, { backgroundColor: colors.textExtraLight }]} />
+            <View style={styles.footer}>
+              <Typography size={9} color={colors.textExtraLight} style={styles.footerText}>
+                By continuing, you agree to our Terms and Privacy Policy.
+              </Typography>
+              <Typography size={8} color={colors.textExtraLight} style={[styles.footerText, { marginTop: 4, opacity: 0.4 }]}>
+                SECURED ARCHIVAL PROTOCOL v2.0
+              </Typography>
             </View>
-
-            <TouchableOpacity style={styles.appleButton} onPress={handleAppleSignIn}>
-              <Ionicons name="logo-apple" size={14} color={colors.text} />
-              <Typography weight="700" size={8} color={colors.text} style={{ marginLeft: 8, letterSpacing: 1 }}>SIGN IN WITH APPLE</Typography>
-            </TouchableOpacity>
-          </View>
-
-          <Typography size={7} color={colors.textExtraLight} style={styles.footerText}>
-            Secured by Zica Bella Archival Protocol
-          </Typography>
-        </ScrollView>
-      </Pressable>
-    </KeyboardAvoidingView>
+          </ScrollView>
+        </Pressable>
+      </KeyboardAvoidingView>
 
       <Modal visible={showPicker} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPicker(false)}>
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={[styles.pickerContent, { backgroundColor: colors.surface }]}>
             <View style={styles.pickerDragIndicator} />
-            <Typography weight="700" size={10} style={styles.pickerTitle}>SELECT REGION</Typography>
+            <Typography weight="700" size={12} style={styles.pickerTitle}>SELECT REGION</Typography>
             <FlatList
               data={COUNTRIES}
               keyExtractor={item => item.name}
               contentContainerStyle={{ paddingBottom: 40 }}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <TouchableOpacity 
                   style={styles.pickerItem}
                   onPress={() => { setCountry(item); setShowPicker(false); haptics.buttonTap(); }}
                 >
-                  <Typography size={20}>{item.flag}</Typography>
-                  <Typography size={11} weight="700" style={{ flex: 1, marginLeft: 16 }}>{item.name.toUpperCase()}</Typography>
-                  <Typography size={10} color={colors.textExtraLight} weight="700">{item.code}</Typography>
+                  <Typography size={24}>{item.flag}</Typography>
+                  <Typography size={14} weight="700" style={{ flex: 1, marginLeft: 16 }}>{item.name.toUpperCase()}</Typography>
+                  <Typography size={12} color={colors.textExtraLight} weight="700">{item.code}</Typography>
                 </TouchableOpacity>
               )}
             />
@@ -338,78 +446,81 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scroll: { paddingHorizontal: 32, paddingBottom: 60, flexGrow: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', marginBottom: 30 },
-  logo: { width: 44, height: 44, marginBottom: 12 },
-  title: { letterSpacing: 5, marginBottom: 2, fontFamily: 'Rocaston' },
-  subtitle: { letterSpacing: 3, opacity: 0.3 },
-  card: {
-    borderRadius: 30,
-    borderWidth: 1,
+  scroll: { paddingHorizontal: 12, paddingBottom: 40, flexGrow: 1 },
+  header: { alignItems: 'center', marginBottom: 48 },
+  brandTitle: { letterSpacing: 10, fontFamily: 'Rocaston' },
+  mainCard: {
+    borderRadius: 24,
+    borderWidth: 0.5,
     padding: 24,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 5,
+    width: '100%',
+    minHeight: 280,
+    justifyContent: 'center',
+    // Prism effect using subtle shadow
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
-  cardTitle: { textAlign: 'center', marginBottom: 24, opacity: 0.4, letterSpacing: 2 },
-  form: { width: '100%' },
-  glassInput: {
+  stepContainer: { width: '100%' },
+  stepTitle: { marginBottom: 6, letterSpacing: -0.5 },
+  stepSubtitle: { marginBottom: 24, opacity: 0.4, lineHeight: 18, letterSpacing: 0.2 },
+  phoneContainer: {
     flexDirection: 'row',
-    height: 52,
-    borderRadius: 15,
-    backgroundColor: 'rgba(150,150,150,0.05)',
-    borderWidth: 1,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: 'rgba(150,150,150,0.03)',
+    borderWidth: 0.5,
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  inputIcon: { marginRight: 12, opacity: 0.5 },
-  textInput: {
-    flex: 1,
-    height: '100%',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  inputGroup: {
-    flexDirection: 'row',
-    height: 52,
-    borderRadius: 15,
-    backgroundColor: 'rgba(150,150,150,0.05)',
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  countryPicker: {
-    width: 70,
-    height: '100%',
+  flagPicker: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRightWidth: 1,
+    paddingRight: 8,
+    borderRightWidth: 0.5,
+    borderRightColor: 'rgba(150,150,150,0.1)',
+  },
+  phoneInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
   },
   phoneInput: {
     flex: 1,
     height: '100%',
-    paddingHorizontal: 16,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     letterSpacing: 1,
+  },
+  inputWrapper: {
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: 'rgba(150,150,150,0.03)',
+    borderWidth: 0.5,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    justifyContent: 'center',
+  },
+  nameInput: {
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: 0.5,
   },
   otpRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   otpBox: {
-    width: 40,
-    height: 48,
+    width: (width - 108) / 6,
+    height: 50,
     borderRadius: 12,
-    backgroundColor: 'rgba(150,150,150,0.05)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(150,150,150,0.03)',
+    borderWidth: 0.5,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -418,42 +529,43 @@ const styles = StyleSheet.create({
     height: '100%',
     textAlign: 'center',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  errorText: { marginBottom: 8, marginLeft: 4, letterSpacing: 1, opacity: 0.8 },
+  errorText: { marginTop: -10, marginBottom: 12, marginLeft: 4 },
   primaryButton: {
-    height: 52,
-    borderRadius: 15,
+    height: 54,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 12,
   },
-  backBtn: { alignSelf: 'center', marginTop: 20, padding: 8 },
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
-  line: { flex: 1, height: 1, opacity: 0.05 },
+  backLink: { alignSelf: 'center', marginTop: 16, padding: 8 },
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
+  dividerLine: { flex: 1, height: 0.5 },
+  dividerText: { marginHorizontal: 12, opacity: 0.2 },
   appleButton: {
-    height: 52,
-    borderRadius: 15,
+    height: 54,
+    borderRadius: 16,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.1)',
+    borderWidth: 0.5,
+    backgroundColor: 'transparent',
   },
-  footerText: { textAlign: 'center', marginTop: 30, opacity: 0.2, letterSpacing: 1 },
+  footer: { marginTop: 32, alignItems: 'center' },
+  footerText: { textAlign: 'center', opacity: 0.3, letterSpacing: 0.5 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   pickerContent: {
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    maxHeight: '60%',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    maxHeight: '65%',
     paddingHorizontal: 24,
     paddingTop: 12,
   },
   pickerDragIndicator: {
-    width: 30,
+    width: 32,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(150,150,150,0.1)',
+    backgroundColor: 'rgba(150,150,150,0.2)',
     alignSelf: 'center',
     marginBottom: 20,
   },
@@ -462,7 +574,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(150,150,150,0.03)',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(150,150,150,0.05)',
   },
 });
