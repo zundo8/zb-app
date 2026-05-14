@@ -61,18 +61,25 @@ interface Order {
 
 const STATUS_THEME: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   paid: { label: "Settled", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
+  success: { label: "Settled", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
   pending: { label: "Pending", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
   refunded: { label: "Refunded", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
   fulfilled: { label: "Dispatched", color: "text-blue-500", bg: "bg-blue-500/10", dot: "bg-blue-500" },
   unfulfilled: { label: "Draft", color: "text-foreground/40", bg: "bg-foreground/5", dot: "bg-foreground/20" },
   delivered: { label: "Delivered", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
+  manifested: { label: "Manifested", color: "text-blue-400", bg: "bg-blue-400/10", dot: "bg-blue-400" },
+  'in transit': { label: "In Transit", color: "text-indigo-400", bg: "bg-indigo-400/10", dot: "bg-indigo-400" },
+  'out for delivery': { label: "Out for Delivery", color: "text-amber-400", bg: "bg-amber-400/10", dot: "bg-amber-400" },
+  shipped: { label: "Shipped", color: "text-blue-500", bg: "bg-blue-500/10", dot: "bg-blue-500" },
   awaiting_approval: { label: "Reviewing", color: "text-purple-500", bg: "bg-purple-500/10", dot: "bg-purple-500" },
   payment_failed: { label: "Failed", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
+  failed: { label: "Failed", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const theme = STATUS_THEME[status.toLowerCase()] || { 
-    label: status, 
+  const normalizedStatus = status.toLowerCase().replace(/[_-]/g, ' ');
+  const theme = STATUS_THEME[normalizedStatus] || STATUS_THEME[status.toLowerCase()] || { 
+    label: status.replace(/[_-]/g, ' '), 
     color: "text-foreground/40", 
     bg: "bg-foreground/5", 
     dot: "bg-foreground/20" 

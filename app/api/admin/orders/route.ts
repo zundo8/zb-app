@@ -16,19 +16,24 @@ export async function GET(req: Request) {
 
     const conditions: any[] = [];
     
-    // Default filter: Remove "pending" mobile orders from the main list unless specifically requested via platform=mobile
+    // Default filter: Remove "pending" or "failed" mobile orders from the main list 
+    // unless specifically requested via platform=mobile
     if (platform !== 'mobile') {
       conditions.push({
         NOT: {
           AND: [
             { OR: [
               { tags: { contains: 'mobile-app', mode: 'insensitive' } },
+              { tags: { contains: 'AppOrder', mode: 'insensitive' } },
               { orderType: 'MOBILE_APP' }
             ]},
             { OR: [
               { shopifyOrderId: { startsWith: 'app_pending_' } },
               { shopifyOrderId: { contains: 'temp_' } },
-              { status: 'open' } // COD orders start as 'open'
+              { shopifyOrderId: { contains: 'PENDING_order_' } },
+              { status: 'open' }, // COD orders start as 'open' and stay in mobile-only until approved
+              { status: 'payment_failed' },
+              { paymentStatus: { in: ['failed', 'voided', 'cancelled'] } }
             ]}
           ]
         }

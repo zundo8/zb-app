@@ -42,7 +42,12 @@ const STATUS_THEME: Record<string, { label: string; bg: string; dot: string }> =
   pending: { label: "Pending", bg: "bg-amber-500/10 text-amber-500", dot: "bg-amber-500" },
   awaiting_approval: { label: "Review Required", bg: "bg-purple-500/10 text-purple-500", dot: "bg-purple-500" },
   payment_failed: { label: "Failed", bg: "bg-rose-500/10 text-rose-500", dot: "bg-rose-500" },
-  delivered: { label: "Arrived", bg: "bg-blue-500/10 text-blue-500", dot: "bg-blue-500" },
+  failed: { label: "Failed", bg: "bg-rose-500/10 text-rose-500", dot: "bg-rose-500" },
+  delivered: { label: "Arrived", bg: "bg-emerald-500/10 text-emerald-500", dot: "bg-emerald-500" },
+  manifested: { label: "Manifested", bg: "bg-blue-400/10 text-blue-400", dot: "bg-blue-400" },
+  'in transit': { label: "In Transit", bg: "bg-indigo-400/10 text-indigo-400", dot: "bg-indigo-400" },
+  'out for delivery': { label: "Out for Delivery", bg: "bg-amber-400/10 text-amber-400", dot: "bg-amber-400" },
+  shipped: { label: "Shipped", bg: "bg-blue-500/10 text-blue-500", dot: "bg-blue-500" },
   open: { label: "Active", bg: "bg-emerald-500/10 text-emerald-500", dot: "bg-emerald-500" },
   fulfilled: { label: "Dispatched", bg: "bg-cyan-500/10 text-cyan-500", dot: "bg-cyan-500" },
   unfulfilled: { label: "Pending Fulfillment", bg: "bg-foreground/5 text-foreground/40", dot: "bg-foreground/20" },
@@ -242,8 +247,9 @@ export default function MobileOrdersPage() {
 }
 
 function StatusBadge({ status, type = "payment" }: { status: string; type?: string }) {
-  const theme = STATUS_THEME[status.toLowerCase()] || { 
-    label: status.replace('_', ' '), 
+  const normalizedStatus = status.toLowerCase().replace(/[_-]/g, ' ');
+  const theme = STATUS_THEME[normalizedStatus] || STATUS_THEME[status.toLowerCase()] || { 
+    label: status.replace(/[_-]/g, ' '), 
     bg: "bg-foreground/5 text-foreground/40", 
     dot: "bg-foreground/20" 
   };

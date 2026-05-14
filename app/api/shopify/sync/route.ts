@@ -300,12 +300,58 @@ export async function POST() {
       }
     };
 
+    const syncLogistics = async () => {
+      try {
+        const activeShipments = await prisma.shipment.findMany({
+          where: {
+            courier: 'Delhivery',
+            status: { notIn: ['delivered', 'cancelled', 'returned'] },
+          },
+          take: 50 // Limit batch size
+        });
+
+        if (activeShipments.length === 0) return;
+
+        const { trackDelhiveryShipment } = await import('@/lib/delhivery');
+        const waybills = activeShipments.map(s => s.awb);
+        const trackingData = await trackDelhiveryShipment(waybills);
+
+        if (trackingData && trackingData.ShipmentData) {
+          await Promise.all(trackingData.ShipmentData.map(async (data: any) => {
+            const waybill = data.Shipment?.AWB || data.Shipment?.Waybill;
+            if (!waybill) return;
+
+            const shipment = activeShipments.find(s => s.awb === String(waybill));
+            if (!shipment) return;
+
+            const newStatus = (data.Shipment?.Status?.Status || 'pending').toLowerCase();
+            
+            // Update Shipment record
+            await prisma.shipment.update({
+              where: { id: shipment.id },
+              data: { status: newStatus }
+            });
+
+            // Update Order record delivery status
+            await prisma.order.update({
+              where: { id: shipment.orderId },
+              data: { deliveryStatus: newStatus }
+            });
+          }));
+        }
+        results.inventory++; // Reuse inventory counter or add new one if needed
+      } catch (e: any) {
+        results.errors.push(`Logistics: ${e.message}`);
+      }
+    };
+
     // Run all sync tasks
     await Promise.all([
       syncProducts(),
       syncCustomers(),
       syncOrders(),
       syncInventory(),
+      syncLogistics(),
     ]);
 
     return NextResponse.json({
