@@ -58,26 +58,64 @@ export async function POST(req: Request) {
   try {
     const { orderId, customerId, items } = await req.json();
 
-    if (!orderId || !items || items.length === 0) {
+    if (!orderId || !items || !items.length) {
       return NextResponse.json({ error: "Order ID and items are required" }, { status: 400 });
     }
 
-    const exchangeRequest = await prisma.exchangeRequest.create({
-      data: {
-        orderId,
-        customerId,
-        status: 'pending_approval',
-        exchanges: {
-          create: items.map((item: any) => ({
-            originalLineItemId: item.originalLineItemId,
-            newVariantId: item.newVariantId,
-            reason: item.reason || "Admin manual exchange"
-          }))
-        }
-      },
-      include: {
-        exchanges: true
+    const resolvedExchanges = await Promise.all(items.map(async (item: any) => {
+      const originalItem = await prisma.orderItem.findUnique({
+        where: { id: item.originalLineItemId }
+      });
+
+      if (!originalItem) {
+        throw new Error(`Original order item ${item.originalLineItemId} not found`);
       }
+
+      // If item.newVariantId is a Shopify variant ID, we might need to find our internal Product ID
+      // For now, let's assume we can find it via inventory or product variant sync
+      // If item.replacementProductId was passed, use that
+      let newProductId = item.newProductId;
+      if (!newProductId && item.newVariantId) {
+         const product = await prisma.product.findFirst({
+           where: { shopifyProductId: item.newVariantId.split('/').pop() } // basic fallback
+         });
+         newProductId = product?.id;
+      }
+
+      return {
+        originalProductId: originalItem.productId,
+        newProductId: newProductId,
+        reason: item.reason || "Admin manual exchange"
+      };
+    }));
+
+    const exchangeRequest = await prisma.$transaction(async (tx) => {
+      const er = await tx.exchangeRequest.create({
+        data: {
+          orderId,
+          customerId,
+          status: 'pending_approval',
+          exchanges: {
+            create: resolvedExchanges.map((ex: any) => ({
+              originalProductId: ex.originalProductId!,
+              newProductId: ex.newProductId!,
+              status: 'REQUESTED',
+              reason: ex.reason
+            }))
+          }
+        },
+        include: {
+          exchanges: true
+        }
+      });
+
+      // Update order status
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'exchange_initiated' }
+      });
+
+      return er;
     });
 
     return NextResponse.json({ success: true, exchangeRequest });

@@ -58,28 +58,61 @@ export async function POST(req: Request) {
   try {
     const { orderId, customerId, items, estimatedRefund } = await req.json();
 
-    if (!orderId || !items || items.length === 0) {
+    if (!orderId || !items || !items.length) {
       return NextResponse.json({ error: "Order ID and items are required" }, { status: 400 });
     }
 
-    const returnRequest = await prisma.returnRequest.create({
-      data: {
-        orderId,
-        customerId,
-        estimatedRefund: parseFloat(estimatedRefund) || 0,
-        status: 'pending_approval',
-        returns: {
-          create: items.map((item: any) => ({
-            productId: item.productId || null, // Optional if we only have lineItemId
-            lineItemId: item.lineItemId,
-            quantity: item.quantity || 1,
-            reason: item.reason || "Admin manual return"
-          }))
-        }
-      },
-      include: {
-        returns: true
+    // Resolve product IDs and metadata for each item
+    const resolvedItems = await Promise.all(items.map(async (item: any) => {
+      const orderItem = await prisma.orderItem.findUnique({
+        where: { id: item.lineItemId }
+      });
+      
+      if (!orderItem) {
+        throw new Error(`Order item ${item.lineItemId} not found`);
       }
+
+      return {
+        productId: orderItem.productId,
+        sku: orderItem.sku,
+        quantity: item.quantity || orderItem.quantity,
+        reason: item.reason || "Admin manual return",
+        refundAmount: (orderItem.price * (item.quantity || orderItem.quantity))
+      };
+    }));
+
+    const returnRequest = await prisma.$transaction(async (tx) => {
+      const rr = await tx.returnRequest.create({
+        data: {
+          orderId,
+          customerId,
+          estimatedRefund: parseFloat(estimatedRefund) || resolvedItems.reduce((acc, i) => acc + i.refundAmount, 0),
+          status: 'pending_approval',
+          returns: {
+            create: resolvedItems.map((item: any) => ({
+              productId: item.productId,
+              customerId: customerId,
+              orderId: orderId,
+              sku: item.sku,
+              quantity: item.quantity,
+              reason: item.reason,
+              refundAmount: item.refundAmount,
+              status: "REQUESTED"
+            }))
+          }
+        },
+        include: {
+          returns: true
+        }
+      });
+
+      // Update order status
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'return_initiated' }
+      });
+
+      return rr;
     });
 
     return NextResponse.json({ success: true, returnRequest });

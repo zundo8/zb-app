@@ -172,6 +172,7 @@ export async function GET(req: Request) {
         OR: [
           { shopifyOrderId: { contains: search, mode: 'insensitive' } },
           { note: { contains: search, mode: 'insensitive' } },
+          { tags: { contains: search, mode: 'insensitive' } },
           { customer: { name: { contains: search, mode: 'insensitive' } } },
           { customer: { email: { contains: search, mode: 'insensitive' } } },
           { customer: { phone: { contains: search, mode: 'insensitive' } } },
