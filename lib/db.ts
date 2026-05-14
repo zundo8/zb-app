@@ -59,11 +59,10 @@ const prismaClientSingleton = () => {
   // Support SQLite local development
   if (isSqlite) {
     try {
-      const sqlitePath = dbUrl.replace('file:', '');
-      const betterSqlite = new Database(sqlitePath);
-      const adapter = new PrismaBetterSqlite3(betterSqlite);
-      const client = new PrismaClient({ adapter });
-      console.log('[DB] Prisma Client initialized with SQLite Adapter');
+      const client = new PrismaClient({
+        log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+      });
+      console.log('[DB] Prisma Client initialized for SQLite');
       return client;
     } catch (error: any) {
       console.error('[DB] SQLite initialization error:', error.message);
