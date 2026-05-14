@@ -37,7 +37,8 @@ import {
   CreditCard,
   Tag,
   History,
-  Heart
+  Heart,
+  Wallet
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 

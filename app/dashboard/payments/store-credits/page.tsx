@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, Search, Wallet, Plus, History, Check, X, ArrowUpRight, ArrowDownLeft, User, CreditCard } from "lucide-react";
+import { Loader2, Search, Wallet, Plus, History, Check, X, ArrowUpRight, ArrowDownLeft, User, CreditCard, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type CustomerCredit = {
