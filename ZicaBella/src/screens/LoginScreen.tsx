@@ -248,9 +248,9 @@ export default function LoginScreen() {
       case 'PHONE':
         return (
           <View style={styles.stepContainer}>
-            <Typography weight="700" size={20} style={styles.stepTitle}>Hello</Typography>
-            <Typography size={13} color={colors.textExtraLight} style={styles.stepSubtitle}>
-              Are you already a community member?
+            <Typography weight="400" size={18} style={styles.stepTitle}>Hello</Typography>
+            <Typography size={12} weight="300" color={colors.textExtraLight} style={styles.stepSubtitle}>
+              Are you a member?
             </Typography>
             
             <View style={[styles.phoneContainer, { borderColor: errors.phone ? colors.error : isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]}>
@@ -291,16 +291,16 @@ export default function LoginScreen() {
       case 'NAME':
         return (
           <View style={styles.stepContainer}>
-            <Typography weight="700" size={24} style={styles.stepTitle}>What's your name?</Typography>
-            <Typography size={13} color={colors.textExtraLight} style={styles.stepSubtitle}>
-              Since you're new here, we'd love to know your name.
+            <Typography weight="400" size={18} style={styles.stepTitle}>Welcome</Typography>
+            <Typography size={12} weight="300" color={colors.textExtraLight} style={styles.stepSubtitle}>
+              What's your name?
             </Typography>
 
             <View style={[styles.inputWrapper, { borderColor: errors.name ? colors.error : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
               <TextInput
                 value={name}
                 onChangeText={(v) => { setName(v); if (errors.name) setErrors({}); }}
-                placeholder="Full Name"
+                placeholder="Name"
                 placeholderTextColor={colors.textExtraLight}
                 style={[styles.nameInput, { color: colors.text }]}
                 autoFocus
@@ -315,7 +315,7 @@ export default function LoginScreen() {
               disabled={loading}
             >
               {loading ? <ActivityIndicator color={colors.background} /> : (
-                <Typography weight="700" size={14} color={colors.background}>CREATE ACCOUNT</Typography>
+                <Typography weight="500" size={13} color={colors.background}>CREATE ACCOUNT</Typography>
               )}
             </TouchableOpacity>
 
@@ -328,9 +328,9 @@ export default function LoginScreen() {
       case 'OTP':
         return (
           <View style={styles.stepContainer}>
-            <Typography weight="700" size={24} style={styles.stepTitle}>Verify OTP</Typography>
-            <Typography size={13} color={colors.textExtraLight} style={styles.stepSubtitle}>
-              Sent to {country.code} {phone.slice(-4).padStart(phone.length, '•')}
+            <Typography weight="400" size={18} style={styles.stepTitle}>Verify</Typography>
+            <Typography size={12} weight="300" color={colors.textExtraLight} style={styles.stepSubtitle}>
+              Enter the code sent to you.
             </Typography>
 
             <View style={styles.otpRow}>
@@ -358,7 +358,7 @@ export default function LoginScreen() {
               disabled={loading}
             >
               {loading ? <ActivityIndicator color={colors.background} /> : (
-                <Typography weight="700" size={14} color={colors.background}>VERIFY & LOGIN</Typography>
+                <Typography weight="500" size={13} color={colors.background}>CONTINUE</Typography>
               )}
             </TouchableOpacity>
 
@@ -381,7 +381,7 @@ export default function LoginScreen() {
           >
             <View style={styles.header}>
               <Image source={require('../../assets/zica-bella-logo_8.png')} style={styles.logo} contentFit="contain" />
-              <Typography weight="700" size={28} color={colors.text} style={styles.brandTitle}>ZICA BELLA</Typography>
+              <Typography weight="400" size={18} color={colors.text} style={styles.brandTitle}>ZICA BELLA</Typography>
             </View>
 
             <View style={[styles.mainCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]}>
@@ -448,9 +448,9 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { paddingHorizontal: 12, paddingBottom: 40, flexGrow: 1 },
-  header: { alignItems: 'center', marginBottom: 48 },
-  logo: { width: 54, height: 54, marginBottom: 16 },
-  brandTitle: { letterSpacing: 10, fontFamily: 'Rocaston' },
+  header: { alignItems: 'center', marginBottom: 40 },
+  logo: { width: 44, height: 44, marginBottom: 12 },
+  brandTitle: { letterSpacing: 12, fontFamily: 'Rocaston' },
   mainCard: {
     borderRadius: 24,
     borderWidth: 0.5,
