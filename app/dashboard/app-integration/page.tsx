@@ -71,39 +71,48 @@ function StatBlock({ icon: Icon, label, value, sublabel }: { icon: any; label: s
   );
 }
 
-function EndpointRow({ ep }: { ep: EndpointStatus }) {
+function EndpointRow({ ep }: { ep: any }) {
   const Icon = ep.icon;
   return (
-    <div className="flex items-center gap-5 px-8 py-5 border-b border-foreground/5 last:border-0 group/row hover:bg-foreground/[0.02] transition-all duration-500">
-      <div className="w-10 h-10 rounded-xl bg-foreground/5 flex items-center justify-center text-foreground/30 border border-foreground/5 group-hover/row:bg-foreground group-hover/row:text-background transition-all duration-700">
-        <Icon className="w-4 h-4" strokeWidth={1.5} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-            ep.method === 'GET' ? 'bg-blue-500/10 text-blue-400' : 'bg-amber-500/10 text-amber-400'
-          }`}>{ep.method}</span>
-          <span className="text-[13px] font-bold text-foreground/80">{ep.name}</span>
+    <div className="flex flex-col border-b border-foreground/5 last:border-0 hover:bg-foreground/[0.02] transition-all duration-500">
+      <div className="flex items-center gap-5 px-8 py-5 group/row">
+        <div className="w-10 h-10 rounded-xl bg-foreground/5 flex items-center justify-center text-foreground/30 border border-foreground/5 group-hover/row:bg-foreground group-hover/row:text-background transition-all duration-700">
+          <Icon className="w-4 h-4" strokeWidth={1.5} />
         </div>
-        <div className="text-[10px] font-mono text-foreground/25 tracking-tight truncate">{ep.path}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+              ep.method === 'GET' ? 'bg-blue-500/10 text-blue-400' : 'bg-amber-500/10 text-amber-400'
+            }`}>{ep.method}</span>
+            <span className="text-[13px] font-bold text-foreground/80">{ep.name}</span>
+          </div>
+          <div className="text-[10px] font-mono text-foreground/25 tracking-tight truncate">{ep.path}</div>
+        </div>
+        <div className="flex items-center gap-3">
+          {ep.responseTime !== undefined && (
+            <span className="text-[10px] font-bold font-mono text-foreground/25">{ep.responseTime}ms</span>
+          )}
+          {ep.dataCount !== undefined && (
+            <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/15 bg-foreground/5 px-2.5 py-1 rounded-lg">
+              {ep.dataCount} items
+            </span>
+          )}
+          {ep.status === 'loading' ? (
+            <Loader2 className="w-4 h-4 text-foreground/25 animate-spin" />
+          ) : ep.status === 'ok' ? (
+            <CheckCircle className="w-4 h-4 text-emerald-500" />
+          ) : (
+            <XCircle className="w-4 h-4 text-red-400" />
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-3">
-        {ep.responseTime !== undefined && (
-          <span className="text-[10px] font-bold font-mono text-foreground/25">{ep.responseTime}ms</span>
-        )}
-        {ep.dataCount !== undefined && (
-          <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/15 bg-foreground/5 px-2.5 py-1 rounded-lg">
-            {ep.dataCount} items
-          </span>
-        )}
-        {ep.status === 'loading' ? (
-          <Loader2 className="w-4 h-4 text-foreground/25 animate-spin" />
-        ) : ep.status === 'ok' ? (
-          <CheckCircle className="w-4 h-4 text-emerald-500" />
-        ) : (
-          <XCircle className="w-4 h-4 text-red-400" />
-        )}
-      </div>
+      {ep.error && (
+        <div className="px-8 pb-4 -mt-1">
+          <div className="bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-1.5 text-[9px] font-mono text-red-400/80 break-all">
+             ERR: {ep.error}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -254,6 +263,8 @@ export default function AppIntegrationPage() {
           const res = await fetch(ep.path);
           const elapsed = Date.now() - start;
           let count: number | undefined;
+          let errorMessage: string | undefined;
+
           try {
             const data = await res.json();
             if (data.products) count = data.products.length;
@@ -265,11 +276,23 @@ export default function AppIntegrationPage() {
             else if (data.total !== undefined) count = data.total;
             else if (data.orders) count = data.orders.length;
             else if (data.items) count = data.items.length;
-          } catch { /* non-json response is fine */ }
+            
+            if (data.error) errorMessage = data.error;
+          } catch { /* non-json response */ }
 
-          return { ...ep, status: (res.ok || res.status < 500) ? 'ok' as const : 'error' as const, responseTime: elapsed, dataCount: count };
-        } catch {
-          return { ...ep, status: 'error' as const, responseTime: Date.now() - start };
+          // Treat 400/401/404 as 'ok' (connected but logically rejected) for the registry
+          // Only 5xx or fetch failures are true 'errors'
+          const isOk = res.status < 500;
+
+          return { 
+            ...ep, 
+            status: isOk ? 'ok' as const : 'error' as const, 
+            responseTime: elapsed, 
+            dataCount: count,
+            error: errorMessage
+          };
+        } catch (err: any) {
+          return { ...ep, status: 'error' as const, responseTime: Date.now() - start, error: err.message };
         }
       })
     );

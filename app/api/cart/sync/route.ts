@@ -4,6 +4,16 @@ import { getAppAuthFromRequest } from "@/lib/appAuth";
 
 export const dynamic = "force-dynamic";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -86,9 +96,9 @@ export async function POST(req: Request) {
       }
     });
 
-    return NextResponse.json({ success: true, count: syncedCount });
+    return NextResponse.json({ success: true, count: syncedCount }, { headers: corsHeaders });
   } catch (error: any) {
     console.error("Cart sync error:", error);
-    return NextResponse.json({ error: "Failed to sync cart" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to sync cart", details: error.message }, { status: 500, headers: corsHeaders });
   }
 }

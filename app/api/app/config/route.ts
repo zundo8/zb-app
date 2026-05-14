@@ -79,6 +79,7 @@ export async function GET() {
         ringCarouselItems: true,
         ringCarouselTitle: true,
         showRingCarousel: true,
+        spotlightMedia: true,
       },
     });
 
@@ -172,6 +173,7 @@ export async function GET() {
         subtitle: shop.spotlightSubtitle,
         collection: shop.spotlightCollection,
         products: safeJsonParse(shop.spotlightProducts),
+        media: shop.spotlightMedia,
       },
       flipbook: {
         config: safeJsonParse(shop.flipbookConfig),

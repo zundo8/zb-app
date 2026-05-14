@@ -236,28 +236,56 @@ export default function LiveCartsPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-2xl font-black italic text-foreground tracking-tighter truncate">{cart.customer?.name || 'Anonymous Node'}</h3>
-                          <p className="text-[11px] text-foreground/30 font-bold uppercase tracking-widest truncate">{cart.customer?.email || 'NO_SIGNATURE'}</p>
+                          <p className="text-[11px] text-foreground/40 font-black uppercase tracking-[0.2em] truncate flex items-center gap-2">
+                             <User className="w-3 h-3 text-foreground/20" />
+                             {cart.customer?.email || 'NO_SIGNATURE'}
+                          </p>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-6 mb-10">
-                        <div className="space-y-1">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-foreground/20 block">Endpoint</span>
-                          <span className="text-[13px] font-bold text-foreground/70 flex items-center gap-2">
-                             <Smartphone className="w-3 h-3" /> {cart.customer?.phone || 'HIDDEN'}
+                        <div className="p-5 rounded-[1.5rem] bg-foreground/[0.03] border border-foreground/[0.05] space-y-1">
+                          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30 block">Marketing Contact</span>
+                          <span className="text-[13px] font-black text-foreground italic flex items-center gap-2">
+                             <Smartphone className="w-3 h-3 text-foreground/20" /> 
+                             {cart.customer?.phone || 'NO_PHONE'}
                           </span>
                         </div>
-                        <div className="space-y-1">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-foreground/20 block">Payload</span>
-                          <span className="text-[13px] font-black italic text-foreground">{cart.items.reduce((s, i) => s + i.quantity, 0)} Units</span>
+                        <div className="p-5 rounded-[1.5rem] bg-foreground/[0.03] border border-foreground/[0.05] space-y-1">
+                          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30 block">Session ID</span>
+                          <span className="text-[10px] font-mono font-bold text-foreground/40 truncate block">
+                             {cart.id.slice(0, 12)}...
+                          </span>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 pl-4">
                           <span className="text-[9px] font-black uppercase tracking-widest text-foreground/20 block">Active Since</span>
                           <span className="text-[13px] font-bold text-foreground/70">{new Date(cart.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <div className="space-y-1">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-foreground/20 block">Status</span>
-                          <span className="text-[11px] font-black text-emerald-500 uppercase tracking-widest italic">SYCHRONIZED</span>
+                        <div className="space-y-1 pl-4">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-foreground/20 block">Payload</span>
+                          <span className="text-[13px] font-black italic text-foreground">{cart.items.reduce((s, i) => s + i.quantity, 0)} Units</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-8 border-t border-foreground/[0.05] space-y-4">
+                        <div className="flex items-center justify-between">
+                           <span className="text-[10px] font-black uppercase tracking-widest text-foreground/20">Protocol Status</span>
+                           <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-widest border border-emerald-500/10 italic">Synchronized</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           <button 
+                             onClick={() => window.open(`tel:${cart.customer?.phone}`, '_blank')}
+                             disabled={!cart.customer?.phone}
+                             className="flex-1 h-12 rounded-2xl bg-foreground/5 border border-foreground/10 text-[9px] font-black uppercase tracking-widest text-foreground/60 hover:bg-foreground/10 transition-all active:scale-95 disabled:opacity-30"
+                           >
+                             Call Node
+                           </button>
+                           <button 
+                             onClick={() => handleDeleteCart(cart.id)}
+                             className="w-12 h-12 rounded-2xl bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-400/60 hover:bg-red-500/10 transition-all active:scale-95"
+                           >
+                             <Trash2 className="w-4 h-4" />
+                           </button>
                         </div>
                       </div>
 

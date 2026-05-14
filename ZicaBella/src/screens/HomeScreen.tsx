@@ -260,6 +260,7 @@ export default function HomeScreen() {
                 collectionHandle={settings?.spotlight?.collection || "tshirts"} 
                 title={settings?.spotlight?.title || "AUTHENTIC STREETWEAR"} 
                 subtitle={settings?.spotlight?.subtitle}
+                media={settings?.spotlight?.media}
               />
 
               {/* ═══ PRODUCT GRID 3 ═══ */}
