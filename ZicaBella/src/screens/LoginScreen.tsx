@@ -254,6 +254,7 @@ export default function LoginScreen() {
             </Typography>
             
             <View style={[styles.phoneContainer, { borderColor: errors.phone ? colors.error : isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]}>
+              <BlurView intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
               <TouchableOpacity 
                 style={styles.flagPicker} 
                 onPress={() => { haptics.buttonTap(); setShowPicker(true); }}
@@ -298,6 +299,7 @@ export default function LoginScreen() {
             </Typography>
 
             <View style={[styles.inputWrapper, { borderColor: errors.name ? colors.error : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+              <BlurView intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
               <TextInput
                 value={name}
                 onChangeText={(v) => { setName(v); if (errors.name) setErrors({}); }}
@@ -338,6 +340,7 @@ export default function LoginScreen() {
             <View style={styles.otpRow}>
               {otp.map((digit, i) => (
                 <View key={i} style={[styles.otpBox, { borderColor: digit ? colors.foreground : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                  <BlurView intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                   <TextInput
                     ref={(el) => { if (el) otpInputs.current[i] = el; }}
                     value={digit}
@@ -475,11 +478,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 54,
     borderRadius: 16,
-    backgroundColor: 'rgba(150,150,150,0.03)',
+    backgroundColor: 'rgba(150,150,150,0.01)',
     borderWidth: 0.5,
     alignItems: 'center',
     paddingHorizontal: 16,
     marginBottom: 16,
+    overflow: 'hidden',
   },
   flagPicker: {
     flexDirection: 'row',
@@ -504,11 +508,12 @@ const styles = StyleSheet.create({
   inputWrapper: {
     height: 54,
     borderRadius: 16,
-    backgroundColor: 'rgba(150,150,150,0.03)',
+    backgroundColor: 'rgba(150,150,150,0.01)',
     borderWidth: 0.5,
     paddingHorizontal: 16,
     marginBottom: 16,
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   nameInput: {
     fontSize: 16,
@@ -524,10 +529,11 @@ const styles = StyleSheet.create({
     width: (width - 108) / 6,
     height: 50,
     borderRadius: 12,
-    backgroundColor: 'rgba(150,150,150,0.03)',
+    backgroundColor: 'rgba(150,150,150,0.01)',
     borderWidth: 0.5,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   otpInput: {
     width: '100%',
