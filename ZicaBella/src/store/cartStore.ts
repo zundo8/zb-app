@@ -43,7 +43,12 @@ const syncCart = async (items: CartItem[]) => {
     const state = useAuthStore.getState();
     const token = state.token;
     
-    if (!token || !state.isAuthenticated) return;
+    if (!token || !state.isAuthenticated) {
+      console.log('[Cart Sync] Skipping: No auth token');
+      return;
+    }
+
+    console.log(`[Cart Sync] Transmitting ${items.length} units to cloud...`);
 
     const response = await fetch(`${config.appUrl}/api/cart/sync`, {
       method: 'POST',

@@ -114,7 +114,7 @@ export const NotificationService = {
       }));
 
       const chunks = expo.chunkPushNotifications(messages);
-      for (const chunk of chunks) {
+      const chunkPromises = chunks.map(async (chunk) => {
         try {
           const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
           ticketChunk.forEach((ticket: any, idx: number) => {
@@ -136,7 +136,9 @@ export const NotificationService = {
           console.error('Expo chunk send error:', error);
           failureCount += chunk.length;
         }
-      }
+      });
+      
+      await Promise.all(chunkPromises);
     }
 
     // --- Process FCM Tokens ---

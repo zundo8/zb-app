@@ -34,7 +34,22 @@ export async function POST(req: Request) {
 
     let result;
     if (targetType === 'user') {
-      result = await NotificationService.sendToUser(targetValue, title, msgBody, notificationPayload);
+      // Resolve userId if it's a phone or email
+      let actualUserId = targetValue;
+      if (targetValue.includes('@') || targetValue.length > 10 || /^\+/.test(targetValue)) {
+        const customer = await db.customer.findFirst({
+          where: {
+            OR: [
+              { id: targetValue },
+              { email: targetValue },
+              { phone: targetValue }
+            ]
+          },
+          select: { id: true }
+        });
+        if (customer) actualUserId = customer.id;
+      }
+      result = await NotificationService.sendToUser(actualUserId, title, msgBody, notificationPayload);
     } else if (targetType === 'all') {
       // In production you would do this with a background worker, streaming from DB
       const devices = await db.deviceToken.findMany({ where: { isActive: true }, select: { fcmToken: true } });

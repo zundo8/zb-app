@@ -16,6 +16,15 @@ import { config } from '../constants/config';
 import { haptics } from '../utils/haptics';
 import { getExpoProjectId } from '../utils/notifications';
 
+// Configure how notifications should be handled when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
 // Module-level refs to avoid registering listeners more than once
 let _foregroundSub: Notifications.Subscription | null = null;
 let _responseSub: Notifications.Subscription | null = null;

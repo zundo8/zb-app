@@ -39,17 +39,20 @@ export async function POST(req: Request) {
     });
 
     if (items.length > 0) {
+      // Ensure we only process valid items
+      const validItems = items.filter((item: any) => item.productId && item.variantId);
+      
       await prisma.cartItem.createMany({
-        data: items.map((item: any) => ({
+        data: validItems.map((item: any) => ({
           cartId: cart.id,
           productId: String(item.productId),
           variantId: String(item.variantId),
-          handle: item.handle,
-          title: item.title,
-          price: parseFloat(item.price) || 0,
-          image: item.image,
-          quantity: parseInt(item.quantity) || 1,
-          size: item.size,
+          handle: item.handle || null,
+          title: item.title || "Product",
+          price: parseFloat(String(item.price)) || 0,
+          image: item.image || null,
+          quantity: parseInt(String(item.quantity)) || 1,
+          size: item.size || null,
         })),
       });
     }
