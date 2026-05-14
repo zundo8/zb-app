@@ -43,9 +43,11 @@ const prismaClientSingleton = () => {
   const pgUrl =
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL ||
-    (dbUrl && !isSqlite ? dbUrl : undefined);
+    (dbUrl && !isSqlite ? dbUrl : '');
 
-  if (pgUrl && !dbUrl.startsWith('postgres') && !isSqlite) {
+  const isValidPgUrl = pgUrl && !pgUrl.includes('(not available)') && !pgUrl.includes('placeholder') && pgUrl !== '';
+
+  if (isValidPgUrl && !dbUrl.startsWith('postgres') && !isSqlite) {
     process.env.DATABASE_URL = pgUrl;
   }
 

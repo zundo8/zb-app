@@ -52,12 +52,25 @@ export async function headers(): Promise<HeadersInit> {
   };
 }
 
+// In-memory cache for GET requests to prevent rate limiting (429)
+// especially during dashboard polling.
+const requestCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 10000; // 10 seconds cache
+
 export async function shopifyFetch<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(await adminUrl(endpoint));
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
   
+  const cacheKey = url.toString();
+  const now = Date.now();
+  const cached = requestCache.get(cacheKey);
+
+  if (cached && (now - cached.timestamp < CACHE_TTL)) {
+    return cached.data as T;
+  }
+
   const res = await fetch(url.toString(), {
     method: 'GET',
     headers: await headers(),
@@ -66,14 +79,21 @@ export async function shopifyFetch<T>(endpoint: string, params?: Record<string, 
 
   if (!res.ok) {
     const text = await res.text();
+    // If rate limited, try to serve from expired cache if available as last resort
+    if (res.status === 429 && cached) {
+      console.warn(`[Shopify Client] Rate limited. Serving stale cache for ${endpoint}`);
+      return cached.data as T;
+    }
     throw new Error(`Shopify API ${res.status}: ${text}`);
   }
 
   const data = await res.json();
+  requestCache.set(cacheKey, { data, timestamp: now });
   return data as T;
 }
 
 export function clearShopConfigCache() {
   global._cachedShopConfig = undefined;
+  requestCache.clear();
 }
 
