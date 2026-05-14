@@ -49,7 +49,10 @@ function SearchScreen() {
     }, [])
   );
 
-  const { collections, loading: collectionsLoading, refetch } = useCollections(20, 'menu');
+  const { collections, loading: collectionsLoading, refetch } = useCollections(50);
+  const filteredCollections = query.length > 0 
+    ? collections.filter(c => c.title.toLowerCase().includes(query.toLowerCase()) || c.handle.toLowerCase().includes(query.toLowerCase()))
+    : collections.slice(0, 10);
   const { recentProducts } = useRecentStore();
   const theme = useThemeStore(state => state.theme);
   const isDark = theme === 'dark';
@@ -132,6 +135,23 @@ function SearchScreen() {
         </View>
       )}
 
+      {/* ── Matched Collections ── */}
+      {query.length > 0 && filteredCollections.length > 0 && (
+        <View style={[styles.section, { paddingHorizontal: 16, marginBottom: 24 }]}>
+          <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>MATCHING COLLECTIONS</Typography>
+          {filteredCollections.map((c) => (
+            <TouchableOpacity
+              key={c.id}
+              style={[styles.collectionRow, { borderBottomColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }]}
+              onPress={() => navigation.navigate('Collection', { handle: c.handle, title: c.title })}
+            >
+              <Typography size={12} color={colors.textSecondary} weight="300" style={styles.collectionTitle}>{String(c.title || '').toUpperCase()}</Typography>
+              <Ionicons name="chevron-forward" size={14} color={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={colors.textExtraLight} />
@@ -193,10 +213,10 @@ function SearchScreen() {
           )}
 
           {/* Collections */}
-          {collections.length > 0 && (
+          {filteredCollections.length > 0 && (
             <View style={[styles.section, { paddingHorizontal: 16 }]}>
               <Typography size={7} color={colors.textExtraLight} weight="400" style={styles.sectionLabel}>COLLECTIONS</Typography>
-              {collections.slice(0, 10).map((c) => (
+              {filteredCollections.map((c) => (
                 <TouchableOpacity
                   key={c.id}
                   style={[styles.collectionRow, { borderBottomColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }]}

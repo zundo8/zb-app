@@ -126,6 +126,65 @@ function SettingsInput({ label, value, onChange, placeholder, mono, hint, type =
   );
 }
 
+function SettingsSelect({ label, value, onChange, options, hint }: {
+  label: string; value: string; onChange: (v: string) => void; options: { label: string, value: string }[]; hint?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/60 mb-2">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/20 transition-all appearance-none"
+      >
+        <option value="">Select...</option>
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      {hint && <p className="text-[10px] text-foreground/30 mt-1.5 ml-1">{hint}</p>}
+    </div>
+  );
+}
+
+function SettingsMultiSelect({ label, value, onChange, options, hint }: {
+  label: string; value: string; onChange: (v: string) => void; options: { label: string, value: string }[]; hint?: string;
+}) {
+  let currentValues: string[] = [];
+  try { currentValues = JSON.parse(value || '[]'); } catch { currentValues = []; }
+  
+  const toggleValue = (val: string) => {
+    let newValues = [...currentValues];
+    if (newValues.includes(val)) {
+      newValues = newValues.filter(v => v !== val);
+    } else {
+      newValues.push(val);
+    }
+    onChange(JSON.stringify(newValues));
+  };
+
+  return (
+    <div>
+      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/60 mb-2">{label}</label>
+      <div className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-3 text-sm max-h-[150px] overflow-y-auto custom-scrollbar space-y-1">
+        {options.map(opt => (
+          <label key={opt.value} className="flex items-center gap-2 cursor-pointer hover:bg-foreground/5 p-1 rounded">
+            <input 
+              type="checkbox" 
+              checked={currentValues.includes(opt.value)} 
+              onChange={() => toggleValue(opt.value)}
+              className="accent-foreground"
+            />
+            <span className="text-xs truncate">{opt.label}</span>
+          </label>
+        ))}
+        {options.length === 0 && <span className="text-xs text-foreground/40">No items available</span>}
+      </div>
+      {hint && <p className="text-[10px] text-foreground/30 mt-1.5 ml-1">{hint}</p>}
+    </div>
+  );
+}
+
 function SettingsToggle({ label, checked, onChange, hint }: {
   label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string;
 }) {
@@ -178,6 +237,7 @@ export default function AppIntegrationPage() {
 
   const [settings, setSettings] = useState<any>(null);
   const [allCollections, setAllCollections] = useState<Collection[]>([]);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
   const [loadingCollections, setLoadingCollections] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -221,7 +281,7 @@ export default function AppIntegrationPage() {
     setLoadingStats(true);
     try {
       const [products, collections, customers, orders, returns, exchanges] = await Promise.all([
-        fetch('/api/app/products?limit=1').then(r => r.json()).catch(() => ({ products: [] })),
+        fetch('/api/app/products?limit=100').then(r => r.json()).catch(() => ({ products: [], total: 0 })),
         fetch('/api/app/collections?all=true').then(r => r.json()).catch(() => ({ collections: [] })),
         fetch('/api/admin/customers?limit=1').then(r => r.json()).catch(() => ({ total: 0 })),
         fetch('/api/app/orders?count=true').then(r => r.json()).catch(() => ({ total: 0 })),
@@ -241,6 +301,9 @@ export default function AppIntegrationPage() {
 
       if (collections.collections) {
         setAllCollections(collections.collections);
+      }
+      if (products.products) {
+        setAllProducts(products.products);
       }
     } catch (err) {
       console.error('Error fetching sync stats:', err);
@@ -548,7 +611,12 @@ export default function AppIntegrationPage() {
                           <SettingsToggle label="Show Section" checked={settings.showRingCarousel ?? true} onChange={v => updateSetting('showRingCarousel', v)} />
                         </div>
                         <div className="md:col-span-2">
-                          <SettingsInput label="Featured Handles (JSON)" value={settings.ringCarouselItems || '[]'} onChange={v => updateSetting('ringCarouselItems', v)} mono hint='Example: ["ring-1", "ring-2"]' />
+                          <SettingsMultiSelect 
+                            label="Featured Products" 
+                            value={settings.ringCarouselItems || '[]'} 
+                            onChange={v => updateSetting('ringCarouselItems', v)} 
+                            options={allProducts.map(p => ({ label: p.title, value: p.handle }))}
+                          />
                         </div>
                       </div>
                     </div>
@@ -571,7 +639,12 @@ export default function AppIntegrationPage() {
                       <SectionHeader icon={Eye} title="Spotlight Section" description="Featured collection grid on the homepage." />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <SettingsInput label="Section Title" value={settings.spotlightTitle || ''} onChange={v => updateSetting('spotlightTitle', v)} />
-                        <SettingsInput label="Collection Handle" value={settings.spotlightCollection || ''} onChange={v => updateSetting('spotlightCollection', v)} mono />
+                        <SettingsSelect 
+                          label="Collection" 
+                          value={settings.spotlightCollection || ''} 
+                          onChange={v => updateSetting('spotlightCollection', v)}
+                          options={allCollections.map(c => ({ label: c.title, value: c.handle }))}
+                        />
                         <div className="md:col-span-2">
                           <SettingsInput label="Section Subtitle" value={settings.spotlightSubtitle || ''} onChange={v => updateSetting('spotlightSubtitle', v)} />
                         </div>
