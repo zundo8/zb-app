@@ -366,18 +366,22 @@ export default function DeliveryAddressScreen() {
         itemCount={checkoutItems.length}
         total={checkoutTotal}
         primaryLabel="REVIEW & PAY"
-        onPrimaryPress={() => {
+        onPrimaryPress={async () => {
           setSubmitted(true);
+          
           if (!isEditing && shippingAddress) {
             haptics.buttonTap();
             navigation.navigate('OrderReview');
             return;
           }
+
           if (!isValid) {
             haptics.error();
             return;
           }
+
           haptics.buttonTap();
+          
           const normalized = {
             name: address.name,
             phone: address.phone,
@@ -391,6 +395,35 @@ export default function DeliveryAddressScreen() {
             street: address.line1,
             zip: address.pincode,
           };
+
+          // Save to backend if we have a user identity
+          if (user?.phone || user?.email) {
+            try {
+              await fetch(`${config.appUrl}/api/app/customers/addresses`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  phone: user?.phone,
+                  email: user?.email,
+                  address: {
+                    name: normalized.name,
+                    phone: normalized.phone,
+                    address1: normalized.line1,
+                    address2: normalized.line2,
+                    city: normalized.city,
+                    state: normalized.state,
+                    zip: normalized.pincode,
+                    country: normalized.country,
+                  }
+                }),
+              });
+              // Refresh saved addresses in background
+              fetchSavedAddresses();
+            } catch (e) {
+              console.error('Failed to save address to DB:', e);
+            }
+          }
+
           setShippingAddress(normalized);
           setIsEditing(false);
           navigation.navigate('OrderReview');

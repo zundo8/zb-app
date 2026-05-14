@@ -3,15 +3,14 @@ import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-const corsHeaders = { 'Access-Control-Allow-Origin': '*' };
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
 
-function safeJsonParse(input: string | null): any | null {
-  if (!input) return null;
-  try {
-    return JSON.parse(input);
-  } catch {
-    return null;
-  }
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
 }
 
 export async function GET(req: Request) {
@@ -33,32 +32,100 @@ export async function GET(req: Request) {
 
     const customer = await prisma.customer.findFirst({
       where,
-      select: { defaultAddress: true, name: true, email: true, phone: true },
+      include: { addresses: { orderBy: { updatedAt: 'desc' } } },
     });
 
-    const addr = safeJsonParse(customer?.defaultAddress || null);
-    if (!addr) {
+    if (!customer) {
       return NextResponse.json({ addresses: [] }, { headers: corsHeaders });
     }
 
-    // Normalize to the shape expected by the app Checkout screen.
-    const normalized = {
-      name: addr.name || customer?.name || '',
-      phone: addr.phone || customer?.phone || '',
-      email: addr.email || customer?.email || '',
-      address1: addr.address1 || addr.street || '',
-      address2: addr.address2 || '',
-      city: addr.city || '',
-      state: addr.province || addr.state || '',
-      zip: addr.zip || addr.pincode || '',
-      country: addr.country || 'India',
-    };
-
-    return NextResponse.json({ addresses: [normalized] }, { headers: corsHeaders });
+    return NextResponse.json({ addresses: customer.addresses }, { headers: corsHeaders });
   } catch (e: any) {
-    console.error('[App API] Customer addresses error:', e.message);
+    console.error('[App API] Customer addresses GET error:', e.message);
     return NextResponse.json(
       { addresses: [], error: e.message },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { phone, email, address } = body;
+
+    if (!phone && !email) {
+      return NextResponse.json(
+        { error: 'phone or email required' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    if (!address) {
+      return NextResponse.json(
+        { error: 'address data required' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // 1. Find or create the customer
+    const where: any = { OR: [] };
+    if (phone) where.OR.push({ phone });
+    if (email) where.OR.push({ email });
+
+    let customer = await prisma.customer.findFirst({ where });
+
+    if (!customer) {
+      // Create a minimal customer record if they don't exist
+      // We'll use a placeholder shopId if none provided, or look for the first shop
+      const shop = await prisma.shop.findFirst();
+      if (!shop) throw new Error('No shop configured');
+
+      customer = await prisma.customer.create({
+        data: {
+          shopifyId: `mobile_${Date.now()}`,
+          shopId: shop.id,
+          email: email || null,
+          phone: phone || null,
+          name: address.name || 'Mobile User',
+        },
+      });
+    }
+
+    // 2. Create the new address
+    const newAddress = await prisma.address.create({
+      data: {
+        customerId: customer.id,
+        name: address.name,
+        phone: address.phone || customer.phone,
+        email: address.email || customer.email,
+        address1: address.address1,
+        address2: address.address2,
+        city: address.city,
+        state: address.state,
+        zip: address.zip,
+        country: address.country || 'India',
+        isDefault: true, // Mark as default for now
+      },
+    });
+
+    // 3. Update customer's defaultAddress string for backward compatibility
+    await prisma.customer.update({
+      where: { id: customer.id },
+      data: {
+        defaultAddress: JSON.stringify(newAddress),
+        // If they didn't have a name/email/phone, update it
+        name: customer.name === 'Mobile User' ? address.name : customer.name,
+        email: customer.email || address.email,
+        phone: customer.phone || address.phone,
+      },
+    });
+
+    return NextResponse.json({ success: true, address: newAddress }, { headers: corsHeaders });
+  } catch (e: any) {
+    console.error('[App API] Customer addresses POST error:', e.message);
+    return NextResponse.json(
+      { error: e.message },
       { status: 500, headers: corsHeaders }
     );
   }
