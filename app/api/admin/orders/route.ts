@@ -20,85 +20,95 @@ export async function GET(req: Request) {
     // or if explicitly requested.
     if (offset === 0 || sync) {
       try {
-        console.log('[Admin Orders] Triggering live sync from Shopify (Top 50)...');
-        const shopifyOrders = await fetchAllOrders(50); // Sync last 50 for depth
-        const shop = await prisma.shop.findFirst();
+        let shop = await prisma.shop.findFirst();
         
-        if (shop && shopifyOrders.length > 0) {
-          for (const o of shopifyOrders) {
-             const customerId = o.customer ? String(o.customer.id) : 'anonymous';
-             let dbCustomer;
-             if (o.customer) {
-               dbCustomer = await prisma.customer.upsert({
-                 where: { shopifyId: customerId },
-                 create: {
-                   shopId: shop.id,
-                   shopifyId: customerId,
-                   email: o.customer.email,
-                   name: `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim(),
-                   phone: o.customer.phone,
-                 },
-                 update: {
-                   email: o.customer.email,
-                   name: `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim(),
-                   phone: o.customer.phone,
-                 },
-               });
-             } else {
-               dbCustomer = await prisma.customer.upsert({
-                 where: { shopifyId: 'anonymous' },
-                 create: { shopId: shop.id, shopifyId: 'anonymous', name: 'Anonymous' },
-                 update: {},
-               });
-             }
-
-             const lowerTags = (o.tags || '').toLowerCase();
-             const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp') || lowerTags.includes('mobile-app');
-             
-             // Extract order number from tags or id
-             const orderNumber = String(o.id);
-             
-             await prisma.order.upsert({
-               where: { shopifyOrderId: String(o.id) },
-               create: {
-                 shopId: shop.id,
-                 shopifyOrderId: String(o.id),
-                 customerId: dbCustomer.id,
-                 status: isMobileAppOrder ? 'approved' : 'active',
-                 totalPrice: parseFloat(o.total_price || '0'),
-                 paymentStatus: o.financial_status || 'pending',
-                 fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
-                 shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
-                 createdAt: new Date(o.created_at),
-                 tags: o.tags,
-               },
-               update: {
-                 paymentStatus: o.financial_status || 'pending',
-                 fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
-                 totalPrice: parseFloat(o.total_price || '0'),
-                 tags: o.tags,
-               }
-             });
+        // Ensure shop record exists for sync to work
+        if (!shop) {
+          const domain = process.env.SHOPIFY_STORE_DOMAIN || '8tiahf-bk.myshopify.com';
+          const token = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+          if (token) {
+            console.log('[Admin Orders] Creating missing shop record for sync:', domain);
+            shop = await prisma.shop.create({
+              data: { domain, accessToken: token }
+            });
           }
         }
-      } catch (syncErr) {
-        console.error('[Admin Orders] Live sync failed:', syncErr);
-        // Continue to return local data even if sync fails
+
+        if (shop) {
+          console.log('[Admin Orders] Triggering live sync from Shopify (Top 50)...');
+          const shopifyOrders = await fetchAllOrders(50);
+          console.log(`[Admin Orders] Found ${shopifyOrders.length} orders in Shopify.`);
+          
+          if (shopifyOrders.length > 0) {
+            for (const o of shopifyOrders) {
+               const customerId = o.customer ? String(o.customer.id) : 'anonymous';
+               let dbCustomer;
+               if (o.customer) {
+                 dbCustomer = await prisma.customer.upsert({
+                   where: { shopifyId: customerId },
+                   create: {
+                     shopId: shop.id,
+                     shopifyId: customerId,
+                     email: o.customer.email,
+                     name: `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim(),
+                     phone: o.customer.phone,
+                   },
+                   update: {
+                     email: o.customer.email,
+                     name: `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim(),
+                     phone: o.customer.phone,
+                   },
+                 });
+               } else {
+                 dbCustomer = await prisma.customer.upsert({
+                   where: { shopifyId: 'anonymous' },
+                   create: { shopId: shop.id, shopifyId: 'anonymous', name: 'Anonymous' },
+                   update: {},
+                 });
+               }
+
+               const lowerTags = (o.tags || '').toLowerCase();
+               const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp') || lowerTags.includes('mobile-app');
+               
+               await prisma.order.upsert({
+                 where: { shopifyOrderId: String(o.id) },
+                 create: {
+                   shopId: shop.id,
+                   shopifyOrderId: String(o.id),
+                   customerId: dbCustomer.id,
+                   status: isMobileAppOrder ? 'approved' : 'active',
+                   totalPrice: parseFloat(o.total_price || '0'),
+                   paymentStatus: o.financial_status || 'pending',
+                   fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+                   shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
+                   createdAt: new Date(o.created_at),
+                   tags: o.tags || "",
+                 },
+                 update: {
+                   paymentStatus: o.financial_status || 'pending',
+                   fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+                   totalPrice: parseFloat(o.total_price || '0'),
+                   tags: o.tags || "",
+                 }
+               });
+            }
+          }
+        }
+      } catch (syncErr: any) {
+        console.error('[Admin Orders] Live sync failed:', syncErr.message);
       }
     }
 
     const conditions: any[] = [];
     
-    // DEFAULT FILTERING LOGIC:
-    // 1. Mobile orders should ONLY show in the main list if they are 'approved'
-    // 2. Web orders show normally
-    
+    // Improved Filtering Logic to handle NULL and Empty Strings
     if (platform === 'web') {
       conditions.push({
         AND: [
           {
             OR: [
               { tags: null },
+              { tags: "" },
               {
                 AND: [
                   { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
@@ -110,13 +120,12 @@ export async function GET(req: Request) {
           {
             OR: [
               { orderType: null },
-              { NOT: { orderType: 'MOBILE_APP' } }
+              { orderType: { not: 'MOBILE_APP' } }
             ]
           }
         ]
       });
     } else if (platform === 'mobile') {
-      // Even if specifically asking for mobile, main Orders page ONLY shows approved ones
       conditions.push({
         AND: [
           {
@@ -130,15 +139,15 @@ export async function GET(req: Request) {
         ]
       });
     } else {
-      // Default: Show all Web orders OR Approved Mobile orders
       conditions.push({
         OR: [
-          // Web orders (No mobile tags/type)
+          // Web orders
           {
             AND: [
               {
                 OR: [
                   { tags: null },
+                  { tags: "" },
                   {
                     AND: [
                       { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
@@ -150,7 +159,7 @@ export async function GET(req: Request) {
               {
                 OR: [
                   { orderType: null },
-                  { NOT: { orderType: 'MOBILE_APP' } }
+                  { orderType: { not: 'MOBILE_APP' } }
                 ]
               }
             ]

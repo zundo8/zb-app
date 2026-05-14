@@ -140,11 +140,22 @@ export default function OrdersPage() {
   }, [fetchOrders]);
 
   const handleSync = async () => {
+    if (syncing) return;
     setSyncing(true);
     setToast("Initializing Deep Shopify Sync...");
+    
+    // Safety timeout to prevent stuck UI
+    const timeout = setTimeout(() => {
+      setSyncing(false);
+      setToast("Sync taking longer than expected. Refreshing list...");
+      fetchOrders();
+    }, 30000);
+
     try {
       const res = await fetch("/api/shopify/sync", { method: "POST" });
       const data = await res.json();
+      clearTimeout(timeout);
+      
       if (data.success) {
         setToast(`Live Manifest Synchronized: ${data.synced?.orders || 0} orders updated`);
         fetchOrders();
@@ -152,6 +163,7 @@ export default function OrdersPage() {
         setToast("Sync partial failure. Check logs.");
       }
     } catch (err) {
+      clearTimeout(timeout);
       setToast("Sync connection error");
     } finally {
       setSyncing(false);
@@ -314,11 +326,21 @@ export default function OrdersPage() {
               <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-foreground/10">Reading Encrypted Logs...</p>
             </div>
           ) : orders.length === 0 ? (
-             <div className="py-48 border border-dashed border-foreground/5 rounded-[2.5rem] flex flex-col items-center justify-center space-y-4">
-                <div className="w-16 h-16 rounded-3xl bg-foreground/5 flex items-center justify-center border border-foreground/5">
-                  <Package className="w-6 h-6 text-foreground/10" />
+             <div className="py-48 border border-dashed border-foreground/5 rounded-[2.5rem] flex flex-col items-center justify-center space-y-8 animate-in fade-in zoom-in duration-700">
+                <div className="w-20 h-20 rounded-3xl bg-foreground/5 flex items-center justify-center border border-foreground/5 shadow-2xl relative">
+                  <Package className="w-8 h-8 text-foreground/10" />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500/20 rounded-full blur-sm" />
                 </div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-foreground/20">No matching transactions found</p>
+                <div className="text-center space-y-2">
+                  <p className="text-[14px] font-bold text-foreground/40 uppercase tracking-[0.3em]">No Transactions Detected</p>
+                  <p className="text-[11px] text-foreground/15 max-w-[280px] mx-auto font-medium">Your global manifest is currently empty. Synchronize with Shopify to populate your records.</p>
+                </div>
+                <button 
+                  onClick={handleSync}
+                  className="px-10 py-3.5 bg-foreground/5 hover:bg-foreground hover:text-background border border-foreground/10 rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] transition-all"
+                >
+                  Force Initial Sync
+                </button>
              </div>
           ) : orders.map((order, i) => {
             const isMobile = order.shopifyOrderId.startsWith('ZB71') || (order as any).orderType === 'MOBILE_APP';
