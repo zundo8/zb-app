@@ -7,8 +7,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { userId, deviceId, fcmToken, platform, appVersion } = body;
 
-    if (!userId || !deviceId || !fcmToken) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!deviceId || !fcmToken) {
+      return NextResponse.json({ error: 'Missing required fields (deviceId, fcmToken)' }, { status: 400 });
     }
 
     const token = await NotificationService.registerDeviceToken({

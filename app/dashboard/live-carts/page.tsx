@@ -6,10 +6,11 @@ import {
   RefreshCw, Loader2, Search, User, 
   ExternalLink, Calendar, Trash2, ArrowRight,
   TrendingUp, Activity, Smartphone, Monitor,
-  Zap, ChevronRight, Filter, MoreHorizontal
+  Zap, ChevronRight, Filter, MoreHorizontal,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
+import { toast } from 'sonner';
 
 interface CartItem {
   id: string;
@@ -72,6 +73,22 @@ export default function LiveCartsPage() {
       setRefreshing(false);
     }
   }, []);
+
+  const handleClear = async (cartId: string) => {
+    if (!confirm("Are you sure you want to clear this cart? This action cannot be undone.")) return;
+    
+    try {
+      const res = await fetch(`/api/admin/live-carts/${cartId}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success("Cart cleared successfully");
+        fetchCarts();
+      } else {
+        toast.error("Failed to clear cart");
+      }
+    } catch (err) {
+      toast.error("Network error");
+    }
+  };
 
   useEffect(() => {
     fetchCarts();
@@ -255,8 +272,12 @@ export default function LiveCartsPage() {
                            <button className="flex-1 flex items-center justify-center gap-3 py-5 rounded-[1.5rem] bg-foreground text-background text-[10px] font-black uppercase tracking-[0.2em] hover:opacity-90 transition-all shadow-xl active:scale-95 group">
                               Audit Profile <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                            </button>
-                           <button className="w-14 h-14 rounded-[1.5rem] bg-foreground/5 flex items-center justify-center border border-foreground/10 hover:bg-foreground/10 transition-all">
-                              <MoreHorizontal className="w-5 h-5 text-foreground/40" />
+                           <button 
+                              onClick={() => handleClear(cart.id)}
+                              className="w-14 h-14 rounded-[1.5rem] bg-red-500/5 flex items-center justify-center border border-red-500/10 hover:bg-red-500/10 transition-all text-red-500 shadow-sm"
+                              title="Clear Session"
+                           >
+                              <Trash2 className="w-5 h-5" />
                            </button>
                         </div>
                       </div>

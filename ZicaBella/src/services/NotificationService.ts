@@ -170,12 +170,13 @@ export class NotificationService {
     const userId = forceUserId || user?.id;
     const token = pushToken || useNotificationStore.getState().pushToken;
 
-    if (!userId || !token) {
+    if (!token) {
       return;
     }
 
     try {
-      const deviceId = `dev_${Platform.OS}_${userId}`;
+      // Use userId if available, otherwise fallback to device-only registration
+      const deviceId = userId ? `dev_${Platform.OS}_${userId}` : `guest_${Platform.OS}_${Constants.sessionId || Date.now()}`;
       const response = await fetch(`${config.appUrl}/api/notifications/register-device`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -24,11 +24,12 @@ export const NotificationService = {
   /**
    * Registers or updates a device token for a user
    */
-  async registerDeviceToken(data: { userId: string; deviceId: string; fcmToken: string; platform?: string; appVersion?: string }) {
+  async registerDeviceToken(data: { userId?: string; deviceId: string; fcmToken: string; platform?: string; appVersion?: string }) {
+    const finalUserId = data.userId || `GUEST_${data.deviceId}`;
     return db.deviceToken.upsert({
       where: {
         userId_deviceId: {
-          userId: data.userId,
+          userId: finalUserId,
           deviceId: data.deviceId,
         },
       },
@@ -40,7 +41,7 @@ export const NotificationService = {
         updatedAt: new Date()
       },
       create: {
-        userId: data.userId,
+        userId: finalUserId,
         deviceId: data.deviceId,
         fcmToken: data.fcmToken,
         platform: data.platform || 'ios',
