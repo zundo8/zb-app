@@ -415,6 +415,23 @@ export function useCollectionByHandle(handle: string) {
   const fetchCollection = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // If handle is 'all', we fetch all products instead of a specific collection
+      if (handle === 'all') {
+        const data = await apiGet<any>(ENDPOINTS.products, { limit: '50' });
+        const normalizedProducts = extractProducts(data);
+        
+        setCollection({
+          id: 'all',
+          title: 'All Products',
+          handle: 'all',
+          description: 'Explore the entire Zica Bella archive.',
+          image: normalizedProducts[0]?.featuredImage || null
+        });
+        setProducts(normalizedProducts);
+        return;
+      }
+
       const data = await apiGet<any>(
         ENDPOINTS.collectionByHandle(handle),
         { limit: '50' }

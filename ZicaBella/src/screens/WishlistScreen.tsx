@@ -71,12 +71,6 @@ export default function WishlistScreen() {
           styles.scrollContent, 
           { paddingTop: insets.top + 70, paddingBottom: 120 }
         ]}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <Typography heading size={24} weight="700" color={colors.text} style={styles.title}>WISHLIST</Typography>
-            <Typography size={12} weight="300" color={colors.textSecondary}>Your curated selection of Zica Bella pieces.</Typography>
-          </View>
-        }
         ListEmptyComponent={
             <View style={styles.emptyState}>
             <View style={styles.emptyIconWrapper}>
@@ -121,15 +115,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-  },
-  header: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    marginBottom: 20,
-  },
-  title: {
-    letterSpacing: 4,
-    marginBottom: 4,
   },
   columnWrapper: {
     paddingHorizontal: 16,

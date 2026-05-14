@@ -147,32 +147,46 @@ export default function ProfileScreen() {
 
   const handleSaveProfile = async () => {
     if (!user) return;
+    if (!editName.trim()) {
+      Alert.alert('Error', 'Name cannot be empty');
+      return;
+    }
+
     setLoading(true);
     try {
+      const token = useAuthStore.getState().token;
       const res = await fetch(`${config.appUrl}/api/app/profile`, {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${useAuthStore.getState().token || ''}`
+          'Authorization': `Bearer ${token || ''}`
         },
         body: JSON.stringify({ 
           customerId: user.id,
-          name: editName,
-          email: editEmail,
+          name: editName.trim(),
+          email: editEmail.trim(),
           phone: user.phone,
           image: profileImage,
         }),
       });
 
+      const data = await res.json();
       if (res.ok) {
-        updateUser({ name: editName, email: editEmail });
+        updateUser({ 
+          name: editName.trim(), 
+          email: editEmail.trim(),
+          image: profileImage
+        });
         setIsEditing(false);
         haptics.success();
+        Alert.alert('Success', 'Profile updated successfully');
       } else {
-        Alert.alert('Error', 'Failed to update profile');
+        throw new Error(data.error || 'Failed to update profile');
       }
-    } catch (e) {
-      Alert.alert('Error', 'Network error');
+    } catch (e: any) {
+      console.error('[Profile] Save Profile Error:', e);
+      haptics.error();
+      Alert.alert('Error', e.message || 'Network error');
     } finally {
       setLoading(false);
     }
@@ -181,49 +195,110 @@ export default function ProfileScreen() {
   const handlePickAvatar = async () => {
     if (!user) return;
     haptics.buttonTap();
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission', 'Photo access is required to update your profile photo.');
-      return;
-    }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-    if (res.canceled || !res.assets?.[0]) return;
-    const a = res.assets[0];
-
-    setLoading(true);
+    
     try {
-      const form = new FormData();
-      (form as any).append('file', {
-        uri: a.uri,
-        type: a.mimeType || 'image/jpeg',
-        name: a.fileName || 'avatar.jpg',
-      } as any);
-      const upload = await fetch(`${config.appUrl}/api/admin/upload-image`, {
-        method: 'POST',
-        body: form as any,
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission', 'Photo access is required to update your profile photo.');
+        return;
+      }
+      
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.4, // Lower quality for smaller base64 payload
+        allowsEditing: true,
+        aspect: [1, 1],
+        base64: true, // Get base64 string directly
       });
-      const upJson = await upload.json();
-      if (!upload.ok) throw new Error(upJson.error || 'Upload failed');
-      const url = upJson.url as string;
-      setProfileImage(url);
-      updateUser({ image: url });
-      await fetch(`${config.appUrl}/api/app/profile`, {
+      
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      
+      if (!asset.base64) {
+        throw new Error('Could not get image data. Please try again.');
+      }
+
+      setLoading(true);
+      const token = useAuthStore.getState().token;
+      const base64Image = `data:image/jpeg;base64,${asset.base64}`;
+
+      // Directly update the profile with the base64 image
+      const profileUpdate = await fetch(`${config.appUrl}/api/app/profile`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId: user.id, image: url }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`
+        },
+        body: JSON.stringify({ 
+          customerId: user.id, 
+          image: base64Image 
+        }),
       });
+
+      if (!profileUpdate.ok) {
+        const text = await profileUpdate.text();
+        console.error('[Profile] Update failed status:', profileUpdate.status);
+        console.error('[Profile] Update failed body:', text);
+        throw new Error(`Update failed (${profileUpdate.status})`);
+      }
+
+      const updateData = await profileUpdate.json().catch(() => ({}));
+      
+      setProfileImage(base64Image);
+      updateUser({ image: base64Image });
       haptics.success();
+      Alert.alert('Success', 'Profile photo updated');
     } catch (e: any) {
+      console.error('[Profile] Avatar Update Error:', e);
       haptics.error();
       Alert.alert('Error', e.message || 'Failed to update photo');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user) return;
+    haptics.buttonTap();
+
+    Alert.alert(
+      'Remove Photo',
+      'Are you sure you want to remove your profile photo?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const token = useAuthStore.getState().token;
+              const res = await fetch(`${config.appUrl}/api/app/profile`, {
+                method: 'PATCH',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token || ''}`
+                },
+                body: JSON.stringify({ customerId: user.id, image: null }),
+              });
+
+              if (res.ok) {
+                setProfileImage(null);
+                updateUser({ image: null });
+                haptics.success();
+                Alert.alert('Success', 'Profile photo removed');
+              } else {
+                throw new Error('Failed to remove photo');
+              }
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Network error');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const onScroll = (event: any) => {
@@ -357,7 +432,20 @@ export default function ProfileScreen() {
             }
           >
             <View style={styles.profileHeader}>
-              <TouchableOpacity activeOpacity={0.8} onPress={handlePickAvatar}>
+              <TouchableOpacity 
+                activeOpacity={0.8} 
+                onPress={() => {
+                  Alert.alert(
+                    'Profile Photo',
+                    'Choose an option',
+                    [
+                      { text: 'Upload New Photo', onPress: handlePickAvatar },
+                      profileImage ? { text: 'Remove Photo', onPress: handleRemoveAvatar, style: 'destructive' } : null,
+                      { text: 'Cancel', style: 'cancel' }
+                    ].filter(Boolean) as any
+                  );
+                }}
+              >
                 <BlurView intensity={isDark ? 20 : 60} tint={theme} style={[styles.avatarGlass, { borderColor: colors.borderLight }]}>
                   {profileImage ? (
                     <Image

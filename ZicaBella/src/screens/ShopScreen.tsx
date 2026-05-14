@@ -14,7 +14,7 @@ import { Image } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import { useColors } from '../constants/colors';
-import { useCollections } from '../hooks/useProducts';
+import { useCollections, useProducts } from '../hooks/useProducts';
 import { Typography } from '../components/Typography';
 import GlassHeader from '../components/GlassHeader';
 import { useUIStore } from '../store/uiStore';
@@ -28,6 +28,7 @@ export default function ShopScreen() {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const { collections, loading, refetch } = useCollections(30, 'page');
+  const { products: latestProducts } = useProducts(1);
   const setMenuOpen = useUIStore(s => s.setMenuOpen);
 
   const onRefresh = React.useCallback(async () => {
@@ -96,7 +97,7 @@ export default function ShopScreen() {
           id: 'all',
           handle: 'all',
           title: 'All Products',
-          image: 'https://app.zicabella.com/all-products-hero.jpg' // Placeholder/Web reference
+          image: latestProducts[0]?.featuredImage || 'https://app.zicabella.com/all-products-hero.jpg'
         }, true)}
 
         {loading && collections.length === 0 ? (
