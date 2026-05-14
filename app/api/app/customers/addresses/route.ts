@@ -93,6 +93,12 @@ export async function POST(req: Request) {
     }
 
     // 2. Create the new address
+    // Unset previous defaults for this customer if the new one is default
+    await prisma.address.updateMany({
+      where: { customerId: customer.id, isDefault: true },
+      data: { isDefault: false },
+    });
+
     const newAddress = await prisma.address.create({
       data: {
         customerId: customer.id,
@@ -105,7 +111,7 @@ export async function POST(req: Request) {
         state: address.state,
         zip: address.zip,
         country: address.country || 'India',
-        isDefault: true, // Mark as default for now
+        isDefault: true,
       },
     });
 
@@ -114,8 +120,8 @@ export async function POST(req: Request) {
       where: { id: customer.id },
       data: {
         defaultAddress: JSON.stringify(newAddress),
-        // If they didn't have a name/email/phone, update it
-        name: customer.name === 'Mobile User' ? address.name : customer.name,
+        // Update customer profile info if it was missing
+        name: (!customer.name || customer.name === 'Mobile User') ? address.name : customer.name,
         email: customer.email || address.email,
         phone: customer.phone || address.phone,
       },

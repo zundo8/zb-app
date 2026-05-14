@@ -202,63 +202,88 @@ export default function DeliveryAddressScreen() {
         )}
 
         {/* Saved addresses list (from backend) */}
-        {!isEditing && !shippingAddress && (
-          <View style={{ marginTop: 12 }}>
+        {!isEditing && (
+          <View style={{ marginTop: shippingAddress ? 24 : 12 }}>
             <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginBottom: 12, letterSpacing: 2 }}>
-              SAVED ADDRESSES
+              {shippingAddress ? 'OR CHOOSE ANOTHER SAVED ADDRESS' : 'SAVED ADDRESSES'}
             </Typography>
             {loadingSaved ? (
               <View style={{ paddingVertical: 18, alignItems: 'center' }}>
                 <ActivityIndicator color={colors.foreground} />
               </View>
             ) : savedAddresses.length > 0 ? (
-              savedAddresses.map((a, idx) => (
-                <TouchableOpacity
-                  key={`${a.address1 || idx}`}
-                  onPress={() => {
-                    haptics.buttonTap();
-                    const normalized = {
-                      name: a.name || user?.name || '',
-                      phone: a.phone || user?.phone || '',
-                      line1: a.address1 || '',
-                      line2: a.address2 || '',
-                      city: a.city || '',
-                      state: a.state || '',
-                      pincode: a.zip || '',
-                      country: 'India',
-                      street: a.address1 || '',
-                      zip: a.zip || '',
-                    };
-                    setShippingAddress(normalized);
-                    navigation.navigate('OrderReview');
-                  }}
-                  activeOpacity={0.7}
-                  style={[styles.savedCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
-                >
-                  <Ionicons name="location-outline" size={20} color={colors.text} />
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Typography size={10} weight="700" color={colors.text} numberOfLines={1}>
-                      {a.name || user?.name || 'Saved Address'}
-                    </Typography>
-                    <Typography size={9} color={colors.textMuted} numberOfLines={2} style={{ marginTop: 2 }}>
-                      {a.address1}{a.address2 ? `, ${a.address2}` : ''}{` · ${a.city || ''}, ${a.state || ''} ${a.zip || ''}`}
-                    </Typography>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textExtraLight} />
-                </TouchableOpacity>
-              ))
+              savedAddresses.map((a, idx) => {
+                // Don't show the currently selected address in the list
+                const isSelected = shippingAddress && 
+                  (shippingAddress.line1 === a.address1 && shippingAddress.pincode === a.zip);
+                
+                if (isSelected) return null;
+
+                return (
+                  <TouchableOpacity
+                    key={`${a.id || idx}`}
+                    onPress={() => {
+                      haptics.buttonTap();
+                      const normalized = {
+                        name: a.name || user?.name || '',
+                        phone: a.phone || user?.phone || '',
+                        line1: a.address1 || '',
+                        line2: a.address2 || '',
+                        city: a.city || '',
+                        state: a.state || '',
+                        pincode: a.zip || '',
+                        country: 'India',
+                        street: a.address1 || '',
+                        zip: a.zip || '',
+                      };
+                      setShippingAddress(normalized);
+                      setAddress(normalized); // Update form too
+                      setIsEditing(false);
+                      // Don't navigate away automatically to allow review
+                    }}
+                    activeOpacity={0.7}
+                    style={[styles.savedCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+                  >
+                    <Ionicons name="location-outline" size={20} color={colors.text} />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Typography size={10} weight="700" color={colors.text} numberOfLines={1}>
+                        {a.name || user?.name || 'Saved Address'}
+                      </Typography>
+                      <Typography size={9} color={colors.textMuted} numberOfLines={2} style={{ marginTop: 2 }}>
+                        {a.address1}{a.address2 ? `, ${a.address2}` : ''}{` · ${a.city || ''}, ${a.state || ''} ${a.zip || ''}`}
+                      </Typography>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textExtraLight} />
+                  </TouchableOpacity>
+                );
+              })
             ) : (
-              <Typography size={10} color={colors.textMuted} style={{ textAlign: 'center', marginTop: 8 }}>
-                No saved addresses found.
-              </Typography>
+              !shippingAddress && (
+                <Typography size={10} color={colors.textMuted} style={{ textAlign: 'center', marginTop: 8 }}>
+                  No saved addresses found.
+                </Typography>
+              )
             )}
 
             <TouchableOpacity
-              onPress={() => { haptics.buttonTap(); setIsEditing(true); }}
+              onPress={() => { 
+                haptics.buttonTap(); 
+                setAddress({
+                  name: user?.name || '',
+                  phone: user?.phone || '',
+                  line1: '',
+                  line2: '',
+                  city: '',
+                  state: '',
+                  pincode: '',
+                  country: 'India',
+                });
+                setIsEditing(true); 
+              }}
               activeOpacity={0.8}
               style={{ marginTop: 14, paddingVertical: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center' }}
             >
-              <Typography size={9} weight="800" color={colors.text} style={{ letterSpacing: 2 }}>ADD NEW ADDRESS</Typography>
+              <Typography size={9} weight="800" color={colors.text} style={{ letterSpacing: 2 }}>+ ADD NEW ADDRESS</Typography>
             </TouchableOpacity>
           </View>
         )}
@@ -272,6 +297,8 @@ export default function DeliveryAddressScreen() {
               onChangeText={(v) => setAddress({...address, name: v})}
               placeholder="Charlotte Moss"
               placeholderTextColor={colors.textExtraLight}
+              textContentType="name"
+              autoComplete="name"
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
             {fieldError('name') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('name')}</Typography>}
@@ -285,6 +312,8 @@ export default function DeliveryAddressScreen() {
               placeholder="+91 00000 00000"
               placeholderTextColor={colors.textExtraLight}
               keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+              autoComplete="tel"
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
             {fieldError('phone') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('phone')}</Typography>}
@@ -297,6 +326,8 @@ export default function DeliveryAddressScreen() {
               onChangeText={(v) => setAddress({...address, line1: v})}
               placeholder="House No, Building, Street..."
               placeholderTextColor={colors.textExtraLight}
+              textContentType="streetAddressLine1"
+              autoComplete="address-line1"
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
             {fieldError('line1') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('line1')}</Typography>}
@@ -309,6 +340,8 @@ export default function DeliveryAddressScreen() {
               onChangeText={(v) => setAddress({...address, line2: v})}
               placeholder="Apartment, landmark..."
               placeholderTextColor={colors.textExtraLight}
+              textContentType="streetAddressLine2"
+              autoComplete="address-line2"
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
           </View>
@@ -323,6 +356,8 @@ export default function DeliveryAddressScreen() {
                   placeholder="110001"
                   placeholderTextColor={colors.textExtraLight}
                   keyboardType="number-pad"
+                  textContentType="postalCode"
+                  autoComplete="postal-code"
                   style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
                 />
                 {loadingPincode && (
@@ -340,6 +375,8 @@ export default function DeliveryAddressScreen() {
                 onChangeText={(v) => setAddress({...address, city: v})}
                 placeholder="New Delhi"
                 placeholderTextColor={colors.textExtraLight}
+                textContentType="addressCity"
+                autoComplete="address-level2"
                 style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
               />
               {fieldError('city') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('city')}</Typography>}
@@ -353,6 +390,8 @@ export default function DeliveryAddressScreen() {
               onChangeText={(v) => setAddress({...address, state: v})}
               placeholder="Delhi"
               placeholderTextColor={colors.textExtraLight}
+              textContentType="addressState"
+              autoComplete="address-level1"
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
             {fieldError('state') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('state')}</Typography>}
