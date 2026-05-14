@@ -380,6 +380,7 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
+              <Image source={require('../../assets/zica-bella-logo_8.png')} style={styles.logo} contentFit="contain" />
               <Typography weight="700" size={28} color={colors.text} style={styles.brandTitle}>ZICA BELLA</Typography>
             </View>
 
@@ -448,6 +449,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { paddingHorizontal: 12, paddingBottom: 40, flexGrow: 1 },
   header: { alignItems: 'center', marginBottom: 48 },
+  logo: { width: 54, height: 54, marginBottom: 16 },
   brandTitle: { letterSpacing: 10, fontFamily: 'Rocaston' },
   mainCard: {
     borderRadius: 24,
