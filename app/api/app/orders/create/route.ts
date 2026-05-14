@@ -74,6 +74,7 @@ export async function POST(req: Request) {
 
     const subtotal = Number(body.subtotal || body.subtotal_price || 0);
     const total = Number(body.total || body.total_price || 0);
+    const appliedStoreCredits = Number(body.appliedStoreCredits || 0);
 
     // Fallback to auth email if missing in body
     if (!customerEmail && auth?.customerEmail) {
@@ -121,6 +122,13 @@ export async function POST(req: Request) {
       });
     }
 
+    // ─── Store Credit Redemption ───
+    if (appliedStoreCredits > 0) {
+      if (customer.storeCredits < appliedStoreCredits) {
+        return jsonError('Insufficient store credits balance', 400);
+      }
+    }
+
     const resolvedCustomerId = customer.id;
     const orderNumber = await allocateOrderNumber();
     const now = new Date();
@@ -129,12 +137,14 @@ export async function POST(req: Request) {
       'mobile-app',
       `zb-order-${orderNumber}`,
       paymentMethod === 'COD' ? 'cod' : 'prepaid',
-    ].join(', ');
+      appliedStoreCredits > 0 ? 'store-credit-used' : null
+    ].filter(Boolean).join(', ');
 
     const note = [
       `Mobile app order`,
       `InternalOrderId: pending`,
       `PaymentMethod: ${paymentMethod}`,
+      appliedStoreCredits > 0 ? `Store Credits Used: ₹${appliedStoreCredits}` : null,
       paymentId ? `PaymentId: ${paymentId}` : null,
     ]
       .filter(Boolean)
@@ -164,9 +174,6 @@ export async function POST(req: Request) {
     let isSyncedNow = false;
 
     // --- SHOPIFY SYNC FOR PAID OR COD (If we want COD in shopify too) ---
-    // User requested: "paid orders should be synced and created and updated in shopify"
-    // And "cod orders required an approval" -> usually COD synced AFTER approval, but some want it in Shopify as 'pending'
-    
     const shouldSyncNow = (paymentStatus === 'paid') && (!existingOrder?.shopifyOrderId || existingOrder.shopifyOrderId.startsWith('#'));
 
     if (shouldSyncNow) {
@@ -222,6 +229,14 @@ export async function POST(req: Request) {
                 },
                 phone: customerPhone || customer.phone || shippingAddress?.phone || '',
             };
+
+            // Apply discount if credits used (as a custom line item or discount)
+            if (appliedStoreCredits > 0) {
+              shopifyOrderPayload.discount_codes = [
+                { code: 'STORE_CREDIT', amount: String(appliedStoreCredits), type: 'fixed_amount' }
+              ];
+            }
+
             shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
 
             const shopifyOrderRes = await createOrder(shopifyOrderPayload);
@@ -236,29 +251,48 @@ export async function POST(req: Request) {
 
     if (existingOrder) {
       console.log(`[App API] Updating existing order ${existingOrder.id}...`);
-      const updated = await prisma.order.update({
-        where: { id: existingOrder.id },
-        data: {
-          shopifyOrderId: finalShopifyOrderId,
-          status: initialStatus,
-          paymentStatus,
-          paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
-          razorpayPaymentId: paymentId || existingOrder.razorpayPaymentId || null,
-          paymentCapturedAt: paymentStatus === 'paid' ? now : existingOrder.paymentCapturedAt,
-          tags: finalTags,
-          note: note,
-          shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
-            name: shippingAddress?.name || customer.name,
-          address1: shippingAddress?.address1 || shippingAddress?.line1 || shippingAddress?.street || '',
-          address2: shippingAddress?.address2 || shippingAddress?.line2 || '',
-          city: shippingAddress?.city || '',
-          province: shippingAddress?.province || shippingAddress?.state || '',
-          zip: shippingAddress?.zip || shippingAddress?.pincode || '',
-          country: shippingAddress?.country || 'India',
-          phone: customerPhone || customer.phone || shippingAddress?.phone || '',
-          email: customerEmail || customer.email || shippingAddress?.email || '',
-        }),
+      const updated = await prisma.$transaction(async (tx) => {
+        // 1. Deduct credits if not already deducted
+        if (appliedStoreCredits > 0) {
+          await tx.customer.update({
+            where: { id: customer!.id },
+            data: { storeCredits: { decrement: appliedStoreCredits } }
+          });
+          await tx.storeCredit.create({
+            data: {
+              customerId: customer!.id,
+              amount: -appliedStoreCredits,
+              type: 'DEBIT',
+              description: `Applied to order #${orderNumber}`,
+              orderId: existingOrder!.id
+            }
+          });
         }
+
+        return tx.order.update({
+          where: { id: existingOrder!.id },
+          data: {
+            shopifyOrderId: finalShopifyOrderId,
+            status: initialStatus,
+            paymentStatus,
+            paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
+            razorpayPaymentId: paymentId || existingOrder!.razorpayPaymentId || null,
+            paymentCapturedAt: paymentStatus === 'paid' ? now : existingOrder!.paymentCapturedAt,
+            tags: finalTags,
+            note: note,
+            shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
+              name: shippingAddress?.name || customer!.name,
+              address1: shippingAddress?.address1 || shippingAddress?.line1 || shippingAddress?.street || '',
+              address2: shippingAddress?.address2 || shippingAddress?.line2 || '',
+              city: shippingAddress?.city || '',
+              province: shippingAddress?.province || shippingAddress?.state || '',
+              zip: shippingAddress?.zip || shippingAddress?.pincode || '',
+              country: shippingAddress?.country || 'India',
+              phone: customerPhone || customer!.phone || shippingAddress?.phone || '',
+              email: customerEmail || customer!.email || shippingAddress?.email || '',
+            }),
+          }
+        });
       });
 
       return NextResponse.json({
@@ -270,86 +304,104 @@ export async function POST(req: Request) {
       }, { headers: corsHeaders });
     }
 
-    const created = await prisma.order.create({
-      data: {
-        shopId: shop.id,
-        customerId: resolvedCustomerId,
-        // Encode the human-readable order number here so we can keep schema unchanged.
-        shopifyOrderId: finalShopifyOrderId,
-        status: initialStatus,
-        orderType: 'MOBILE_APP',
-        totalPrice: total,
-        subtotalPrice: subtotal,
-        totalTax: 0,
-        currency: 'INR',
-        paymentStatus,
-        razorpayOrderId: rzpOrderId,
-        fulfillmentStatus: 'unfulfilled',
-        deliveryStatus: 'pending',
-        shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
-          name: shippingAddress?.name || customer.name,
-          address1: shippingAddress?.address1 || shippingAddress?.line1 || shippingAddress?.street || '',
-          address2: shippingAddress?.address2 || shippingAddress?.line2 || '',
-          city: shippingAddress?.city || '',
-          province: shippingAddress?.province || shippingAddress?.state || '',
-          zip: shippingAddress?.zip || shippingAddress?.pincode || '',
-          country: shippingAddress?.country || 'India',
-          phone: customerPhone || customer.phone || shippingAddress?.phone || '',
-          email: customerEmail || customer.email || shippingAddress?.email || '',
-        }),
-        billingAddress: null,
-        note,
-        tags: finalTags,
-        razorpayPaymentId: paymentId || null,
-        paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
-        paymentCapturedAt: paymentStatus === 'paid' ? now : null,
-        items: {
-          create: await Promise.all(lineItems.map(async (li: any, idx: number) => {
-            const rawPid = li.productId || li.product_id;
-            const vid = extractNumericId(li.variantId || li.variant_id);
-            
-            let resolvedPid: string | null = null;
-            if (rawPid) {
-              const pidStr = String(rawPid);
-              // Try finding by internal ID (CUID) first
-              const byId = await prisma.product.findUnique({ where: { id: pidStr }, select: { id: true } });
-              if (byId) {
-                resolvedPid = byId.id;
-              } else {
-                // Try finding by Shopify ID
-                const numericPid = extractNumericId(pidStr);
-                if (numericPid) {
-                  const byShopifyId = await prisma.product.findUnique({ where: { shopifyProductId: numericPid }, select: { id: true } });
-                  if (byShopifyId) resolvedPid = byShopifyId.id;
+    const created = await prisma.$transaction(async (tx) => {
+      // 1. Create order
+      const order = await tx.order.create({
+        data: {
+          shopId: shop.id,
+          customerId: resolvedCustomerId,
+          shopifyOrderId: finalShopifyOrderId,
+          status: initialStatus,
+          orderType: 'MOBILE_APP',
+          totalPrice: total,
+          subtotalPrice: subtotal,
+          totalTax: 0,
+          currency: 'INR',
+          paymentStatus,
+          razorpayOrderId: rzpOrderId,
+          fulfillmentStatus: 'unfulfilled',
+          deliveryStatus: 'pending',
+          shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
+            name: shippingAddress?.name || customer!.name,
+            address1: shippingAddress?.address1 || shippingAddress?.line1 || shippingAddress?.street || '',
+            address2: shippingAddress?.address2 || shippingAddress?.line2 || '',
+            city: shippingAddress?.city || '',
+            province: shippingAddress?.province || shippingAddress?.state || '',
+            zip: shippingAddress?.zip || shippingAddress?.pincode || '',
+            country: shippingAddress?.country || 'India',
+            phone: customerPhone || customer!.phone || shippingAddress?.phone || '',
+            email: customerEmail || customer!.email || shippingAddress?.email || '',
+          }),
+          billingAddress: null,
+          note,
+          tags: finalTags,
+          razorpayPaymentId: paymentId || null,
+          paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
+          paymentCapturedAt: paymentStatus === 'paid' ? now : null,
+          items: {
+            create: await Promise.all(lineItems.map(async (li: any, idx: number) => {
+              const rawPid = li.productId || li.product_id;
+              const vid = extractNumericId(li.variantId || li.variant_id);
+              
+              let resolvedPid: string | null = null;
+              if (rawPid) {
+                const pidStr = String(rawPid);
+                const byId = await tx.product.findUnique({ where: { id: pidStr }, select: { id: true } });
+                if (byId) {
+                  resolvedPid = byId.id;
+                } else {
+                  const numericPid = extractNumericId(pidStr);
+                  if (numericPid) {
+                    const byShopifyId = await tx.product.findUnique({ where: { shopifyProductId: numericPid }, select: { id: true } });
+                    if (byShopifyId) resolvedPid = byShopifyId.id;
+                  }
                 }
               }
-            }
 
-            return {
-              shopifyLineItemId: `app_${orderNumber}_${idx}_${Date.now()}`,
-              productId: resolvedPid,
-              title: li.name || li.title || 'Product',
-              quantity: Number(li.quantity || 0),
-              price: Number(li.price || 0),
-              sku: li.sku || (vid ? `variant:${vid}` : null),
-              image: li.image || li.imageUrl || null,
-            };
-          })),
+              return {
+                shopifyLineItemId: `app_${orderNumber}_${idx}_${Date.now()}`,
+                productId: resolvedPid,
+                title: li.name || li.title || 'Product',
+                quantity: Number(li.quantity || 0),
+                price: Number(li.price || 0),
+                sku: li.sku || (vid ? `variant:${vid}` : null),
+                image: li.image || li.imageUrl || null,
+              };
+            })),
+          },
+          payments:
+            paymentStatus === 'paid'
+              ? {
+                  create: {
+                    customerId: resolvedCustomerId,
+                    amount: total,
+                    type: 'INITIAL',
+                    status: 'success',
+                    gateway: paymentMethod === 'COD' ? 'cod' : 'razorpay',
+                  },
+                }
+              : undefined,
         },
-        payments:
-          paymentStatus === 'paid'
-            ? {
-                create: {
-                  customerId: resolvedCustomerId,
-                  amount: total,
-                  type: 'INITIAL',
-                  status: 'success',
-                  gateway: paymentMethod === 'COD' ? 'cod' : 'razorpay',
-                },
-              }
-            : undefined,
-      },
-      select: { id: true, shopifyOrderId: true, status: true },
+      });
+
+      // 2. Deduct credits
+      if (appliedStoreCredits > 0) {
+        await tx.customer.update({
+          where: { id: customer!.id },
+          data: { storeCredits: { decrement: appliedStoreCredits } }
+        });
+        await tx.storeCredit.create({
+          data: {
+            customerId: customer!.id,
+            amount: -appliedStoreCredits,
+            type: 'DEBIT',
+            description: `Applied to order #${orderNumber}`,
+            orderId: order.id
+          }
+        });
+      }
+
+      return order;
     });
 
     return NextResponse.json({

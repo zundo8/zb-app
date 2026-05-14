@@ -492,7 +492,7 @@ export default function ProfileScreen() {
                  <Typography size={6.5} color={colors.textExtraLight} weight="600">SERVICES</Typography>
               </TouchableOpacity>
               <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
-              <TouchableOpacity style={styles.statItem}>
+              <TouchableOpacity style={styles.statItem} onPress={() => { haptics.buttonTap(); navigation.navigate('StoreCreditHistory'); }}>
                 <Typography heading size={16} color={storeCredits > 0 ? colors.success : colors.text} style={{ letterSpacing: 1 }}>
                   {storeCredits > 0 ? `₹${storeCredits}` : '—'}
                 </Typography>

@@ -121,6 +121,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "SMS Campaigns", href: "/dashboard/marketing/sms", icon: MessageSquare },
   ];
 
+  const financialNav = [
+    { name: "Payments", href: "/dashboard/payments", icon: CreditCard },
+    { name: "Store Credits", href: "/dashboard/payments/store-credits", icon: Wallet },
+    { name: "Refunds", href: "/dashboard/payments/refunds", icon: ArrowLeftRight },
+  ];
+
   const isActive = useCallback(
     (href: string) =>
       pathname === href || (href !== "/dashboard" && pathname.startsWith(href)),
@@ -270,6 +276,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <SectionLabel>Experience</SectionLabel>
               <div className="space-y-0.5">
                 {aestheticNav.map((item) => (
+                  <NavLink key={item.name} item={item} />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <SectionLabel>Financial</SectionLabel>
+              <div className="space-y-0.5">
+                {financialNav.map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>

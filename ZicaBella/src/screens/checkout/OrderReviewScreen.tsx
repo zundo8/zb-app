@@ -28,6 +28,10 @@ export default function OrderReviewScreen() {
   const [loading, setLoading] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
 
+  // ─── Store Credits State ───────────────────────────────────────────
+  const [useStoreCredits, setUseStoreCredits] = useState(false);
+  const [availableCredits, setAvailableCredits] = useState(0);
+
   // ─── Payment State ──────────────────────────────────────────────
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
 
@@ -46,7 +50,33 @@ export default function OrderReviewScreen() {
   const shipping = 0;
   const codFee = selectedPaymentMethod === 'cod' ? 99 : 0;
   const discountAmount = appliedDiscount?.discountAmount ?? 0;
-  const grandTotal = Math.max(0, subtotal + shipping + codFee - discountAmount);
+  
+  // Calculate total before credits
+  const totalBeforeCredits = Math.max(0, subtotal + shipping + codFee - discountAmount);
+  
+  // Applied credits cannot exceed the total
+  const creditToApply = useStoreCredits ? Math.min(availableCredits, totalBeforeCredits) : 0;
+  const grandTotal = Math.max(0, totalBeforeCredits - creditToApply);
+
+  // ─── Fetch Credits ──────────────────────────────────────────────────
+  React.useEffect(() => {
+    const fetchCredits = async () => {
+      if (!user) return;
+      try {
+        const token = useAuthStore.getState().token;
+        const res = await fetch(`${config.appUrl}/api/app/store-credits?customerId=${user.id}`, {
+          headers: { 'Authorization': `Bearer ${token || ''}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableCredits(data.balance || 0);
+        }
+      } catch (e) {
+        console.error('[OrderReview] Fetch credits error:', e);
+      }
+    };
+    fetchCredits();
+  }, [user]);
 
   // ─── Promo Code Handlers ─────────────────────────────────────────────
   const handleApplyPromo = async () => {
@@ -101,7 +131,7 @@ export default function OrderReviewScreen() {
         image: i.image,
         sku: i.sku || `variant:${i.variantId}`,
       })),
-      appliedStoreCredits: 0,
+      appliedStoreCredits: creditToApply,
       discountCode: appliedDiscount?.code || null,
       discountAmount,
       shippingAddress: {
@@ -118,13 +148,13 @@ export default function OrderReviewScreen() {
         email: user?.email || shippingAddress?.email || '',
       },
       paymentMethod: selectedPaymentMethod === 'cod' ? 'COD' : 'PREPAID',
-      paymentStatus: selectedPaymentMethod === 'cod' ? 'pending' : 'paid',
+      paymentStatus: (selectedPaymentMethod === 'cod' || grandTotal > 0) ? 'pending' : 'paid',
       total: grandTotal,
       total_price: grandTotal,
       subtotal,
       deliveryFee: codFee,
-      tags: `mobile-app, AppOrder, ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}`,
-      note: `Mobile app order | Payment: ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}`,
+      tags: `mobile-app, AppOrder, ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}${creditToApply > 0 ? ', StoreCreditUsed' : ''}`,
+      note: `Mobile app order | Payment: ${selectedPaymentMethod === 'cod' ? 'COD' : 'Razorpay'}${creditToApply > 0 ? ` | Credits: ₹${creditToApply}` : ''}`,
     };
   };
 
@@ -157,6 +187,52 @@ export default function OrderReviewScreen() {
     const token = useAuthStore.getState().token || '';
     const apiBase = getPaymentApiBaseUrl();
     const orderData = buildOrderData();
+
+    // If grandTotal is 0 (fully covered by store credits), treat as paid
+    if (grandTotal === 0 && creditToApply > 0) {
+      setLoading(true);
+      try {
+        console.log('[OrderReview] Placing order fully covered by store credits...');
+        const res = await fetch(`${apiBase}/api/app/orders/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({
+            ...orderData,
+            paymentMethod: 'Store Credit',
+            paymentStatus: 'paid'
+          }),
+        });
+        
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to place order');
+        
+        haptics.success();
+        buyNowItem ? setBuyNowItem(null) : clearCart();
+        
+        navigation.getParent()?.reset({
+            index: 1,
+            routes: [
+              { name: 'Main' },
+              { name: 'OrderConfirmation', params: { 
+                orderId: json.orderId || json.id, 
+                paymentMethod: 'Store Credit', 
+                estimatedDelivery: '3-5 Business Days',
+                orderNumber: json.orderNumber 
+              } }
+            ],
+          });
+      } catch (e: any) {
+        haptics.error();
+        Alert.alert('Order Failed', e.message || 'Something went wrong.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     if (selectedPaymentMethod === 'cod') {
       setLoading(true);
@@ -390,6 +466,32 @@ export default function OrderReviewScreen() {
           </View>
         </View>
 
+        {/* ─── STORE CREDITS ─── */}
+        {availableCredits > 0 && (
+          <View style={styles.section}>
+            <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>STORE CREDITS</Typography>
+            <TouchableOpacity
+              style={[
+                styles.optionCard,
+                { backgroundColor: colors.surface, borderColor: useStoreCredits ? colors.success : colors.borderLight },
+              ]}
+              onPress={() => { haptics.buttonTap(); setUseStoreCredits(!useStoreCredits); }}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.iconBox, { backgroundColor: useStoreCredits ? colors.success : colors.background }]}>
+                <Ionicons name="wallet-outline" size={18} color={useStoreCredits ? colors.background : colors.textMuted} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 16 }}>
+                <Typography size={12} weight="800" color={colors.text}>Use Store Credits</Typography>
+                <Typography size={9} weight="600" color={colors.textExtraLight} style={{ marginTop: 4 }}>Available Balance: {formatPrice(availableCredits)}</Typography>
+              </View>
+              <View style={[styles.radio, { borderColor: useStoreCredits ? colors.success : colors.borderLight }]}>
+                {useStoreCredits && <View style={[styles.radioInner, { backgroundColor: colors.success }]} />}
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ─── PAYMENT METHOD ─── */}
         <View style={styles.section}>
           <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>PAYMENT METHOD</Typography>
@@ -461,6 +563,15 @@ export default function OrderReviewScreen() {
                    <Typography size={10} color="#34C759" weight="700">{appliedDiscount?.code}</Typography>
                  </View>
                  <Typography size={10} color="#34C759" weight="700">−{formatPrice(discountAmount)}</Typography>
+               </View>
+             )}
+             {creditToApply > 0 && (
+               <View style={styles.row}>
+                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                   <Ionicons name="wallet-outline" size={12} color="#34C759" />
+                   <Typography size={10} color="#34C759" weight="700">Store Credits</Typography>
+                 </View>
+                 <Typography size={10} color="#34C759" weight="700">−{formatPrice(creditToApply)}</Typography>
                </View>
              )}
              <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />

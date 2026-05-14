@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { getAppAuthFromRequest } from '@/lib/appAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,25 +21,21 @@ export async function OPTIONS() {
  */
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const customerId = url.searchParams.get('customerId')?.trim();
-    const phone = url.searchParams.get('phone')?.trim();
-    const email = url.searchParams.get('email')?.trim();
-
-    if (!customerId && !phone && !email) {
-      return NextResponse.json(
-        { error: 'customerId, phone or email query parameter required' },
-        { status: 400, headers: corsHeaders }
-      );
+    const auth = getAppAuthFromRequest(req);
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 
-    const where: any = { OR: [] };
-    if (customerId) where.OR.push({ id: customerId });
-    if (phone) where.OR.push({ phone });
-    if (email) where.OR.push({ email });
+    const url = new URL(req.url);
+    const customerId = url.searchParams.get('customerId')?.trim() || auth.customerId;
+    
+    // Security: Only allow users to view their own balance
+    if (customerId !== auth.customerId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
+    }
 
-    const customer = await prisma.customer.findFirst({
-      where,
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
       select: { id: true, storeCredits: true, storeCreditPreference: true },
     });
 
@@ -85,18 +82,23 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   try {
+    const auth = getAppAuthFromRequest(req);
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+    }
+
     const body = await req.json();
     const { customerId, action } = body;
 
-    if (!customerId || !action) {
-      return NextResponse.json(
-        { error: 'customerId and action are required' },
-        { status: 400, headers: corsHeaders }
-      );
+    const targetCustomerId = customerId || auth.customerId;
+
+    // Security: Users can only modify their own credits/preferences
+    if (targetCustomerId !== auth.customerId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 
-    const customer = await prisma.customer.findFirst({
-      where: { id: customerId },
+    const customer = await prisma.customer.findUnique({
+      where: { id: targetCustomerId },
       select: { id: true, storeCredits: true },
     });
 
@@ -140,7 +142,7 @@ export async function POST(req: Request) {
         prisma.storeCredit.create({
           data: {
             customerId: customer.id,
-            amount,
+            amount: -amount, // Record as negative for debit
             type: 'DEBIT',
             description: `Applied to order ${orderId || 'checkout'}`,
             orderId: orderId || null,

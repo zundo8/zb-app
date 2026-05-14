@@ -55,4 +55,5 @@ export type RootStackParamList = {
   Blogs: undefined;
   Collaborations: undefined;
   Wishlist: undefined;
+  StoreCreditHistory: undefined;
 };

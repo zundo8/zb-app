@@ -20,6 +20,7 @@ import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import ProductDetailScreen from '../screens/ProductDetailScreen';
 import PolicyScreen from '../screens/PolicyScreen';
 import FAQScreen from '../screens/FAQScreen';
+import StoreCreditHistoryScreen from '../screens/StoreCreditHistoryScreen';
 import { withErrorBoundary } from '../components/ErrorBoundary';
 import { RootStackParamList } from './types';
 import { navigationRef } from './navigationUtils';
@@ -168,6 +169,7 @@ export const RootNavigator = () => {
               <Stack.Screen name="ServiceFlow" component={ServiceNavigator} />
               <Stack.Screen name="OrderConfirmation" component={SafeOrderConfirmation} />
               <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
+              <Stack.Screen name="StoreCreditHistory" component={StoreCreditHistoryScreen} />
             </>
           )}
           

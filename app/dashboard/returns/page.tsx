@@ -53,6 +53,8 @@ export default function ReturnsPage() {
   const [refundModal, setRefundModal] = useState<ReturnRequest | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
 
+  const [refundType, setRefundType] = useState<"original_method" | "store_credit">("original_method");
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
@@ -113,7 +115,11 @@ export default function ReturnsPage() {
 
   const handleRefundSubmit = () => {
     if (!refundModal) return;
-    handleAction(refundModal.returnRequestId, "approve", { actualRefund: parseFloat(refundAmount) || refundModal.estimatedRefund });
+    handleAction(refundModal.returnRequestId, "approve", { 
+      actualRefund: parseFloat(refundAmount) || refundModal.estimatedRefund,
+      isStoreCredit: refundType === "store_credit",
+      customerId: refundModal.userId
+    });
     setRefundModal(null);
     setRefundAmount("");
   };
@@ -259,6 +265,11 @@ export default function ReturnsPage() {
               <div className="space-y-4">
                 <div className="bg-foreground/[0.02] border border-foreground/[0.05] rounded-lg p-3 space-y-1">
                   <p className="text-[10px] text-foreground/50 uppercase tracking-widest">Order #{refundModal.shopifyOrderId}</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={() => setRefundType("original_method")} className={`flex-1 py-2 rounded-lg text-[8px] font-bold uppercase tracking-widest border transition-all ${refundType === "original_method" ? "bg-foreground text-background" : "border-foreground/[0.05] text-foreground/40"}`}>Original Method</button>
+                  <button onClick={() => setRefundType("store_credit")} className={`flex-1 py-2 rounded-lg text-[8px] font-bold uppercase tracking-widest border transition-all ${refundType === "store_credit" ? "bg-foreground text-background" : "border-foreground/[0.05] text-foreground/40"}`}>Store Credit</button>
                 </div>
 
                 <div>
