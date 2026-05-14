@@ -78,11 +78,14 @@ export default function LiveCartsPage() {
     return () => clearInterval(interval);
   }, [fetchCarts]);
 
-  const filteredCarts = carts.filter(cart => 
-    cart.customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    cart.customer.phone?.includes(searchQuery) ||
-    cart.customer.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCarts = carts.filter(cart => {
+    if (!cart.customer) return false;
+    const name = cart.customer.name?.toLowerCase() || "";
+    const email = cart.customer.email?.toLowerCase() || "";
+    const phone = cart.customer.phone || "";
+    const query = searchQuery.toLowerCase();
+    return name.includes(query) || email.includes(query) || phone.includes(query);
+  });
 
   const totalCartValue = carts.reduce((acc, cart) => 
     acc + cart.items.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0), 0

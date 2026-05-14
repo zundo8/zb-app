@@ -17,6 +17,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid items format" }, { status: 400 });
     }
 
+    // Ensure customer exists (to avoid foreign key constraint issues)
+    const customer = await prisma.customer.findUnique({
+      where: { id: auth.customerId }
+    });
+
+    if (!customer) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
     // Upsert the cart for this customer
     const cart = await prisma.cart.upsert({
       where: { customerId: auth.customerId },

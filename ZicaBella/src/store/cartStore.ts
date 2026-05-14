@@ -37,15 +37,15 @@ interface CartStore {
 // Helper to sync cart with backend
 const syncCart = async (items: CartItem[]) => {
   try {
-    // We need the token from authStore. Since we can't easily import it without circular deps 
-    // in some cases, we'll access it via the store's getState().
-    // However, in React Native/Zustand, it's safe to import if structured well.
+    // Avoid importing useAuthStore at top level to prevent circular dependencies
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useAuthStore } = require('./authStore');
-    const token = useAuthStore.getState().token;
+    const state = useAuthStore.getState();
+    const token = state.token;
     
-    if (!token) return;
+    if (!token || !state.isAuthenticated) return;
 
-    await fetch(`${config.appUrl}/api/cart/sync`, {
+    const response = await fetch(`${config.appUrl}/api/cart/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -53,8 +53,13 @@ const syncCart = async (items: CartItem[]) => {
       },
       body: JSON.stringify({ items })
     });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.warn('[Cart Sync] Server rejected sync:', errorData.error || response.status);
+    }
   } catch (error) {
-    console.error('[Cart Sync] Failed:', error);
+    console.error('[Cart Sync] Network error:', error);
   }
 };
 
