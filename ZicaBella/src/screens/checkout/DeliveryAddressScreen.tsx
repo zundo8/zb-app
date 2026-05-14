@@ -178,40 +178,23 @@ export default function DeliveryAddressScreen() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              onPress={() => {
-                haptics.buttonTap();
-                setAddress({
-                  name: user?.name || '',
-                  phone: user?.phone || '',
-                  line1: '',
-                  line2: '',
-                  city: '',
-                  state: '',
-                  pincode: '',
-                  country: 'India',
-                });
-                setIsEditing(true);
-              }}
-              activeOpacity={0.8}
-              style={{ marginTop: 14, paddingVertical: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center' }}
-            >
-              <Typography size={9} weight="800" color={colors.text} style={{ letterSpacing: 2 }}>ADD NEW ADDRESS</Typography>
-            </TouchableOpacity>
           </View>
         )}
 
         {/* Saved addresses list (from backend) */}
         {!isEditing && (
-          <View style={{ marginTop: shippingAddress ? 24 : 12 }}>
-            <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginBottom: 12, letterSpacing: 2 }}>
-              {shippingAddress ? 'OR CHOOSE ANOTHER SAVED ADDRESS' : 'SAVED ADDRESSES'}
-            </Typography>
+          <View style={{ marginTop: 24 }}>
+            {savedAddresses.some(a => !(shippingAddress && shippingAddress.line1 === a.address1 && shippingAddress.pincode === a.zip)) && (
+              <Typography size={7} weight="700" color={colors.textExtraLight} style={{ marginBottom: 12, letterSpacing: 2 }}>
+                {shippingAddress ? 'OR CHOOSE ANOTHER SAVED ADDRESS' : 'SAVED ADDRESSES'}
+              </Typography>
+            )}
+            
             {loadingSaved ? (
               <View style={{ paddingVertical: 18, alignItems: 'center' }}>
                 <ActivityIndicator color={colors.foreground} />
               </View>
-            ) : savedAddresses.length > 0 ? (
+            ) : (
               savedAddresses.map((a, idx) => {
                 // Don't show the currently selected address in the list
                 const isSelected = shippingAddress && 
@@ -239,7 +222,6 @@ export default function DeliveryAddressScreen() {
                       setShippingAddress(normalized);
                       setAddress(normalized); // Update form too
                       setIsEditing(false);
-                      // Don't navigate away automatically to allow review
                     }}
                     activeOpacity={0.7}
                     style={[styles.savedCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
@@ -257,12 +239,6 @@ export default function DeliveryAddressScreen() {
                   </TouchableOpacity>
                 );
               })
-            ) : (
-              !shippingAddress && (
-                <Typography size={10} color={colors.textMuted} style={{ textAlign: 'center', marginTop: 8 }}>
-                  No saved addresses found.
-                </Typography>
-              )
             )}
 
             <TouchableOpacity
@@ -281,7 +257,7 @@ export default function DeliveryAddressScreen() {
                 setIsEditing(true); 
               }}
               activeOpacity={0.8}
-              style={{ marginTop: 14, paddingVertical: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center' }}
+              style={{ marginTop: shippingAddress ? 0 : 12, paddingVertical: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center' }}
             >
               <Typography size={9} weight="800" color={colors.text} style={{ letterSpacing: 2 }}>+ ADD NEW ADDRESS</Typography>
             </TouchableOpacity>
