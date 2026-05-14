@@ -31,13 +31,15 @@ export async function GET(req: Request) {
             shop = await prisma.shop.create({
               data: { domain, accessToken: token }
             });
+          } else {
+             console.warn('[Admin Orders] CANNOT SYNC: No Shop record and NO Shopify token in env.');
           }
         }
 
-        if (shop) {
+        if (shop && shop.accessToken && !shop.accessToken.includes('placeholder')) {
           console.log('[Admin Orders] Triggering live sync from Shopify (Top 50)...');
           const shopifyOrders = await fetchAllOrders(50);
-          console.log(`[Admin Orders] Found ${shopifyOrders.length} orders in Shopify.`);
+          console.log(`[Admin Orders] Sync success. Found ${shopifyOrders.length} orders.`);
           
           if (shopifyOrders.length > 0) {
             for (const o of shopifyOrders) {
@@ -93,36 +95,23 @@ export async function GET(req: Request) {
                });
             }
           }
+        } else {
+           console.warn('[Admin Orders] Skipping sync: Shop token is invalid or missing.');
         }
       } catch (syncErr: any) {
-        console.error('[Admin Orders] Live sync failed:', syncErr.message);
+        console.error('[Admin Orders] Live sync exception:', syncErr.message);
       }
     }
 
     const conditions: any[] = [];
     
-    // Improved Filtering Logic to handle NULL and Empty Strings
+    // SIMPLIFIED FILTERING LOGIC
     if (platform === 'web') {
       conditions.push({
         AND: [
-          {
-            OR: [
-              { tags: null },
-              { tags: "" },
-              {
-                AND: [
-                  { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
-                  { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } }
-                ]
-              }
-            ]
-          },
-          {
-            OR: [
-              { orderType: null },
-              { orderType: { not: 'MOBILE_APP' } }
-            ]
-          }
+          { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
+          { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } },
+          { NOT: { orderType: 'MOBILE_APP' } }
         ]
       });
     } else if (platform === 'mobile') {
@@ -139,45 +128,20 @@ export async function GET(req: Request) {
         ]
       });
     } else {
+      // Platform ANY: Just exclude mobile orders that are NOT approved
       conditions.push({
-        OR: [
-          // Web orders
-          {
-            AND: [
-              {
-                OR: [
-                  { tags: null },
-                  { tags: "" },
-                  {
-                    AND: [
-                      { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
-                      { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } }
-                    ]
-                  }
-                ]
-              },
-              {
-                OR: [
-                  { orderType: null },
-                  { orderType: { not: 'MOBILE_APP' } }
-                ]
-              }
-            ]
-          },
-          // Approved Mobile orders
-          {
-            AND: [
-              {
-                OR: [
-                  { tags: { contains: 'mobile-app', mode: 'insensitive' } },
-                  { tags: { contains: 'AppOrder', mode: 'insensitive' } },
-                  { orderType: 'MOBILE_APP' }
-                ]
-              },
-              { status: 'approved' }
-            ]
-          }
-        ]
+        NOT: {
+          AND: [
+            {
+              OR: [
+                { tags: { contains: 'mobile-app', mode: 'insensitive' } },
+                { tags: { contains: 'AppOrder', mode: 'insensitive' } },
+                { orderType: 'MOBILE_APP' }
+              ]
+            },
+            { status: { not: 'approved' } }
+          ]
+        }
       });
     }
 
@@ -203,7 +167,6 @@ export async function GET(req: Request) {
       conditions.push({ fulfillmentStatus });
     }
 
-
     if (search) {
       conditions.push({
         OR: [
@@ -217,6 +180,7 @@ export async function GET(req: Request) {
     }
 
     const where = conditions.length > 0 ? { AND: conditions } : {};
+    console.log('[Admin Orders] Final WHERE clause:', JSON.stringify(where));
 
     const orders = await prisma.order.findMany({
       where,

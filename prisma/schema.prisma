@@ -77,7 +77,6 @@ model Shop {
   showRingCarousel         Boolean    @default(true)
   spotlightCollection      String?    @default("tshirts")
   spotlightProducts        String?    @default("")
-  spotlightMedia           String?
   shiprocketPassword       String?
   firebaseClientEmail      String?
   firebasePrivateKey       String?
@@ -89,6 +88,7 @@ model Shop {
   whatsappPhoneId          String?
   whatsappToken            String?
   footerLogo3dUrl          String?    @default("https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb")
+  spotlightMedia           String?
   customers                Customer[]
   orders                   Order[]
   products                 Product[]
@@ -114,6 +114,8 @@ model Customer {
   smsOptedOut           Boolean            @default(false)
   whatsappOptedOut      Boolean            @default(false)
   lastLoginAt           DateTime?
+  addresses             Address[]
+  cart                  Cart?
   communityMember       CommunityMember?
   communityMessages     CommunityMessage[]
   shop                  Shop               @relation(fields: [shopId], references: [id])
@@ -121,20 +123,18 @@ model Customer {
   followers             Follow[]           @relation("UserFollowers")
   orders                Order[]
   payments              Payment[]
+  profileHistory        ProfileHistory[]
   returns               Return[]
   storeCreditTxns       StoreCredit[]
-  profileHistory        ProfileHistory[]
   wishlist              Wishlist[]
-  cart                  Cart?
-  addresses             Address[]
 }
 
 model Cart {
   id         String     @id @default(cuid())
   customerId String     @unique
   updatedAt  DateTime   @updatedAt
-  items      CartItem[]
   customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  items      CartItem[]
 }
 
 model CartItem {
@@ -246,14 +246,14 @@ model Product {
   shopId            String
   shopifyProductId  String      @unique
   title             String
-  handle            String?
-  price             Float?
   sku               String?
   barcode           String?
   inventoryItemId   String?     @unique
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   featuredImage     String?
+  handle            String?
+  price             Float?
   newExchanges      Exchange[]  @relation("NewProduct")
   originalExchanges Exchange[]  @relation("OriginalProduct")
   inventory         Inventory[]
@@ -854,8 +854,6 @@ model Policy {
   createdAt DateTime @default(now())
 }
 
-// --- EMAIL MODULE MODELS ---
-
 model EmailLog {
   id             String   @id @default(cuid())
   createdAt      DateTime @default(now())
@@ -865,7 +863,7 @@ model EmailLog {
   templateName   String
   triggerEvent   String?
   referenceId    String?
-  status         String   @default("sent") // "sent" | "failed"
+  status         String   @default("sent")
   messageId      String?
   errorMessage   String?
   sentBy         String   @default("system")
@@ -876,17 +874,17 @@ model EmailLog {
 }
 
 model EmailTemplate {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  name        String
-  category    String // 'transactional' | 'operational' | 'marketing'
-  subject     String
-  htmlBody    String
-  variables   Json?
-  isActive    Boolean  @default(true)
-  createdBy   String?
-  EmailDraft  EmailDraft[]
+  id         String       @id @default(cuid())
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  name       String
+  category   String
+  subject    String
+  htmlBody   String
+  variables  Json?
+  isActive   Boolean      @default(true)
+  createdBy  String?
+  EmailDraft EmailDraft[]
 
   @@index([category])
 }
@@ -909,9 +907,9 @@ model EmailDraft {
   bcc          String?
   htmlBody     String?
   templateId   String?
-  template     EmailTemplate? @relation(fields: [templateId], references: [id])
   scheduledAt  DateTime?
   createdBy    String?
+  template     EmailTemplate? @relation(fields: [templateId], references: [id])
 
   @@index([templateId])
 }
@@ -928,7 +926,6 @@ model Wishlist {
   @@index([customerId])
   @@index([productId])
 }
-
 
 model Address {
   id         String   @id @default(cuid())
