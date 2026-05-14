@@ -1,45 +1,7 @@
 import { NextResponse } from 'next/server';
-import { fetchCollectionByHandle, ShopifyProduct } from '@/lib/shopify-admin';
+import { fetchCollectionByHandle, flattenProduct, ShopifyProduct } from '@/lib/shopify-admin';
 
 export const dynamic = 'force-dynamic';
-
-function flattenProduct(p: ShopifyProduct) {
-  const variants = (p.variants || []).map(v => ({
-    id: `gid://shopify/ProductVariant/${v.id}`,
-    title: v.title,
-    availableForSale: (v.inventory_quantity ?? 0) > 0,
-    quantityAvailable: v.inventory_quantity ?? 0,
-    price: v.price,
-    compareAtPrice: v.compare_at_price || null,
-    size: v.option1 || null,
-  }));
-
-  const price = variants[0]?.price || '0';
-  const compareAtPrice = variants[0]?.compareAtPrice || null;
-  const isOnSale = compareAtPrice ? parseFloat(compareAtPrice) > parseFloat(price) : false;
-  const isSoldOut = !variants.some(v => v.availableForSale);
-
-  return {
-    id: `gid://shopify/Product/${p.id}`,
-    title: p.title,
-    handle: p.handle,
-    productType: p.product_type || '',
-    description: p.body_html ? p.body_html.replace(/<[^>]*>/g, '') : '',
-    availableForSale: !isSoldOut,
-    featuredImage: p.image?.src || p.images?.[0]?.src || '',
-    images: (p.images || []).map(img => img.src),
-    price,
-    compareAtPrice,
-    variants,
-    isSoldOut,
-    isOnSale,
-    allMedia: (p.images || []).map(img => ({
-      mediaContentType: 'IMAGE' as const,
-      image: { url: img.src, altText: null },
-      alt: null,
-    })),
-  };
-}
 
 export async function GET(
   req: Request,
@@ -58,6 +20,8 @@ export async function GET(
       );
     }
 
+    const flatProducts = await Promise.all(products.map(flattenProduct));
+
     return NextResponse.json({
       collection: {
         id: `gid://shopify/Collection/${collection.id}`,
@@ -66,7 +30,7 @@ export async function GET(
         description: collection.body_html ? collection.body_html.replace(/<[^>]*>/g, '') : '',
         image: collection.image?.src || null,
       },
-      products: products.map(flattenProduct),
+      products: flatProducts,
     }, {
       headers: {
         'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
