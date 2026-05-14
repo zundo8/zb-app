@@ -231,9 +231,17 @@ export function useProducts(count = 24) {
     try {
       setLoading(true);
       setError(null);
+
+      // Optimistic load from cache
+      const cached = await loadCachedProducts();
+      if (cached.length > 0) {
+        setProducts(cached.slice(0, count));
+        setLoading(false); // Stop primary loading spinner
+      }
+
       const data = await apiGet<{ products: FlatProduct[] }>(
         ENDPOINTS.products,
-        { limit: String(count) }
+        { limit: String(Math.max(count, 50)) }
       );
       const normalizedProducts = extractProducts(data);
 
@@ -418,17 +426,34 @@ export function useCollectionByHandle(handle: string) {
       
       // If handle is 'all', we fetch all products instead of a specific collection
       if (handle === 'all') {
-        const data = await apiGet<any>(ENDPOINTS.products, { limit: '50' });
+        // Optimistic load from cache
+        const cached = await loadCachedProducts();
+        if (cached.length > 0) {
+          setCollection({
+            id: 'all',
+            title: 'All Products',
+            handle: 'all',
+            description: 'Explore the entire Zica Bella archive.',
+            image: cached[0]?.featuredImage || null
+          });
+          setProducts(cached);
+          setLoading(false); // Stop showing primary loader
+        }
+
+        const data = await apiGet<any>(ENDPOINTS.products, { limit: '80' });
         const normalizedProducts = extractProducts(data);
         
-        setCollection({
-          id: 'all',
-          title: 'All Products',
-          handle: 'all',
-          description: 'Explore the entire Zica Bella archive.',
-          image: normalizedProducts[0]?.featuredImage || null
-        });
-        setProducts(normalizedProducts);
+        if (normalizedProducts.length > 0) {
+          setCollection({
+            id: 'all',
+            title: 'All Products',
+            handle: 'all',
+            description: 'Explore the entire Zica Bella archive.',
+            image: normalizedProducts[0]?.featuredImage || null
+          });
+          setProducts(normalizedProducts);
+          await saveCachedProducts(normalizedProducts);
+        }
         return;
       }
 
