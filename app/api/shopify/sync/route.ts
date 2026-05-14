@@ -181,13 +181,19 @@ export async function POST() {
             }
           }
 
+          const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp');
+          const currentStatus = o.status || 'active';
+          
+          // Orders from Shopify are considered "approved" if they are mobile app orders
+          const finalStatus = isMobileAppOrder ? 'approved' : 'active';
+
           const order = await prisma.order.upsert({
             where: { shopifyOrderId: String(o.id) },
             create: {
               shopId: shop.id,
               shopifyOrderId: String(o.id),
               customerId: dbCustomer.id,
-              status: 'active',
+              status: finalStatus,
               totalPrice: parseFloat(o.total_price || '0'),
               subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
               totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
@@ -202,6 +208,7 @@ export async function POST() {
               createdAt: new Date(o.created_at),
             },
             update: {
+              status: finalStatus, // Always update status from sync if it's in Shopify
               totalPrice: parseFloat(o.total_price || '0'),
               subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
               totalTax: o.total_tax ? parseFloat(o.total_tax) : null,

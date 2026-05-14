@@ -16,6 +16,25 @@ export async function GET(req: Request) {
 
     const conditions: any[] = [];
     
+    // Default filter: Remove "pending" mobile orders from the main list unless specifically requested via platform=mobile
+    if (platform !== 'mobile') {
+      conditions.push({
+        NOT: {
+          AND: [
+            { OR: [
+              { tags: { contains: 'mobile-app', mode: 'insensitive' } },
+              { orderType: 'MOBILE_APP' }
+            ]},
+            { OR: [
+              { shopifyOrderId: { startsWith: 'app_pending_' } },
+              { shopifyOrderId: { contains: 'temp_' } },
+              { status: 'open' } // COD orders start as 'open'
+            ]}
+          ]
+        }
+      });
+    }
+
     if (status && status !== 'any') {
       conditions.push({ status });
     }

@@ -160,52 +160,80 @@ export default function MobileOrdersPage() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-foreground/20">No active signals found</p>
             </motion.div>
           ) : (
-            orders.map((order, i) => (
-              <motion.div
-                key={order.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.02 }}
-                className="group"
-              >
-                <Link 
-                  href={`/dashboard/orders/${order.id}`}
-                  className="grid grid-cols-12 gap-4 items-center px-6 py-4 rounded-2xl hover:bg-foreground/[0.03] border border-transparent hover:border-foreground/5 transition-all"
+            orders.map((order, i) => {
+              const isPendingSync = order.status === 'open' || !/^\d+$/.test(order.shopifyOrderId || '');
+              
+              return (
+                <motion.div
+                  key={order.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.02 }}
+                  className="group"
                 >
-                  <div className="col-span-3 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-foreground/5 flex items-center justify-center border border-foreground/5">
-                      <Smartphone className="w-4 h-4 text-foreground/40" />
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-semibold text-foreground tracking-tight">#{order.orderNumber || order.id.slice(-6).toUpperCase()}</p>
-                      <p className="text-[10px] text-foreground/30 font-medium mt-0.5">{new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
-                    </div>
-                  </div>
-
-                  <div className="col-span-3">
-                    <p className="text-[12px] font-semibold text-foreground/80">{order.customer?.name || "Guest"}</p>
-                    <p className="text-[10px] text-foreground/20 font-medium truncate max-w-[150px]">{order.customer?.email}</p>
-                  </div>
-
-                  <div className="col-span-2">
-                    <StatusBadge status={order.paymentStatus} />
-                  </div>
-
-                  <div className="col-span-2">
-                    <StatusBadge status={order.status} type="fulfillment" />
-                  </div>
-
-                  <div className="col-span-2 text-right">
-                    <div className="flex items-center justify-end gap-3 group/row">
-                      <p className="text-[14px] font-semibold text-foreground tracking-tight">₹{order.totalPrice.toLocaleString()}</p>
-                      <div className="w-8 h-8 rounded-lg bg-foreground/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-foreground/10 translate-x-2 group-hover:translate-x-0">
-                        <ArrowUpRight className="w-3.5 h-3.5 text-foreground/40" />
+                  <div className="flex items-center gap-4">
+                    <Link 
+                      href={`/dashboard/orders/${order.id}`}
+                      className="flex-1 grid grid-cols-12 gap-4 items-center px-6 py-4 rounded-2xl hover:bg-foreground/[0.03] border border-transparent hover:border-foreground/5 transition-all"
+                    >
+                      <div className="col-span-3 flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-foreground/5 flex items-center justify-center border border-foreground/5">
+                          <Smartphone className="w-4 h-4 text-foreground/40" />
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-semibold text-foreground tracking-tight">#{order.orderNumber || order.id.slice(-6).toUpperCase()}</p>
+                          <p className="text-[10px] text-foreground/30 font-medium mt-0.5">{new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
+                        </div>
                       </div>
-                    </div>
+
+                      <div className="col-span-3">
+                        <p className="text-[12px] font-semibold text-foreground/80">{order.customer?.name || "Guest"}</p>
+                        <p className="text-[10px] text-foreground/20 font-medium truncate max-w-[150px]">{order.customer?.email}</p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <StatusBadge status={order.paymentStatus} />
+                      </div>
+
+                      <div className="col-span-2">
+                        <StatusBadge status={isPendingSync ? 'awaiting_approval' : order.status} type="fulfillment" />
+                      </div>
+
+                      <div className="col-span-2 text-right">
+                        <p className="text-[14px] font-semibold text-foreground tracking-tight">₹{order.totalPrice.toLocaleString()}</p>
+                      </div>
+                    </Link>
+
+                    {isPendingSync && tab === 'active' && (
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          const confirmSync = confirm("Approve and Sync this order to Shopify?");
+                          if (confirmSync) {
+                            try {
+                              const res = await fetch(`/api/admin/orders/${order.id}/approve`, { method: 'POST' });
+                              const data = await res.json();
+                              if (data.success) {
+                                alert("Order synced successfully!");
+                                fetchOrders();
+                              } else {
+                                alert("Sync failed: " + data.error);
+                              }
+                            } catch (err) {
+                              alert("Sync error");
+                            }
+                          }
+                        }}
+                        className="px-4 py-2 bg-foreground text-background rounded-xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all mr-4 flex items-center gap-2"
+                      >
+                        <ShieldCheck className="w-3 h-3" />
+                        Approve
+                      </button>
+                    )}
                   </div>
-                </Link>
-              </motion.div>
-            ))
+                </motion.div>
+              );
+            })
           )}
         </AnimatePresence>
       </div>
