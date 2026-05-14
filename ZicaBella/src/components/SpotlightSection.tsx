@@ -55,8 +55,8 @@ export default function SpotlightSection({
     <View style={styles.container}>
       {/* Centered Header - Parity with web */}
       <View style={styles.header}>
-        <Typography size={18} weight="600" color={colors.text} style={styles.title} numberOfLines={1}>
-          {resolvedTitle.toUpperCase()}
+        <Typography size={28} color={colors.text} rocaston style={styles.title}>
+          {resolvedTitle.toUpperCase().replace(' ', '\n')}
         </Typography>
         <Typography size={7.5} color={colors.textExtraLight} weight="300" style={styles.subtitle} numberOfLines={2}>
           {resolvedSubtitle.toUpperCase()}
@@ -111,9 +111,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   title: {
-    letterSpacing: 3,
-    marginBottom: 8,
+    letterSpacing: 4,
+    marginBottom: 12,
     textAlign: 'center',
+    fontWeight: '400',
+    lineHeight: 34,
   },
   subtitle: {
     letterSpacing: 2,

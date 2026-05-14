@@ -634,19 +634,67 @@ export default function AppIntegrationPage() {
                       </div>
                     </div>
 
+                    {/* Featured Media */}
+                    <div className="space-y-8 pt-8 border-t border-foreground/5">
+                      <SectionHeader icon={ImageIcon} title="Featured Media Section" description="Full-screen editorial image/video shown above the Spotlight section." />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <SettingsInput 
+                          label="Overlay Title" 
+                          value={settings.blueprintTitle || ''} 
+                          onChange={v => updateSetting('blueprintTitle', v)} 
+                          placeholder="e.g. THE BLUEPRINT"
+                          hint="Main heading displayed at the bottom of the media"
+                        />
+                        <SettingsInput 
+                          label="Overlay Subtitle" 
+                          value={settings.blueprintSubtitle || ''} 
+                          onChange={v => updateSetting('blueprintSubtitle', v)} 
+                          placeholder="e.g. Technique & Motion"
+                          hint="Secondary caption below the title"
+                        />
+                        <div className="md:col-span-2">
+                          <SettingsInput 
+                            label="Media URL (Video / Image)" 
+                            value={settings.featuredMedia || settings.featuredMediaImage || ''} 
+                            onChange={v => updateSetting('featuredMedia', v)} 
+                            placeholder="https://... (MP4 or image URL)"
+                            hint="Full-screen media displayed above Spotlight. Supports video (MP4) or image."
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Spotlight */}
                     <div className="space-y-8 pt-8 border-t border-foreground/5">
-                      <SectionHeader icon={Eye} title="Spotlight Section" description="Featured collection grid on the homepage." />
+                      <SectionHeader icon={Eye} title="Spotlight Section (Authentic Streetwear)" description="The featured collection grid section — editable title, subtitle and collection." />
+                      <div className="p-4 rounded-xl bg-foreground/[0.03] border border-foreground/[0.05] flex items-start gap-3 mb-2">
+                        <Info className="w-4 h-4 text-foreground/30 mt-0.5 shrink-0" />
+                        <p className="text-[10px] text-foreground/40 leading-relaxed">
+                          The &quot;AUTHENTIC STREETWEAR&quot; heading and subtitle are fully editable below. Changes will reflect in the app within seconds after saving.
+                        </p>
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <SettingsInput label="Section Title" value={settings.spotlightTitle || ''} onChange={v => updateSetting('spotlightTitle', v)} />
+                        <SettingsInput 
+                          label="Section Title" 
+                          value={settings.spotlightTitle || ''} 
+                          onChange={v => updateSetting('spotlightTitle', v)}
+                          placeholder="e.g. AUTHENTIC STREETWEAR"
+                          hint="Displayed in Rocaston brand font — two lines"
+                        />
                         <SettingsSelect 
                           label="Collection" 
                           value={settings.spotlightCollection || ''} 
                           onChange={v => updateSetting('spotlightCollection', v)}
                           options={allCollections.map(c => ({ label: c.title, value: c.handle }))}
+                          hint="Shopify collection to display products from"
                         />
                         <div className="md:col-span-2">
-                          <SettingsInput label="Section Subtitle" value={settings.spotlightSubtitle || ''} onChange={v => updateSetting('spotlightSubtitle', v)} />
+                          <SettingsInput 
+                            label="Section Subtitle" 
+                            value={settings.spotlightSubtitle || ''} 
+                            onChange={v => updateSetting('spotlightSubtitle', v)}
+                            placeholder="e.g. Luxury Indian streetwear for modern men."
+                          />
                         </div>
                       </div>
                     </div>

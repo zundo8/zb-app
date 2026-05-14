@@ -231,11 +231,27 @@ export default function HomeScreen() {
               {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
               {settings?.media?.featured ? (
                 <View style={styles.blueprintSection}>
-                   <HeroVideo source={settings.media.featured} height={520} borderRadius={16} />
+                   <HeroVideo source={settings.media.featured} height={520} borderRadius={0} />
+                   <View style={styles.blueprintOverlay}>
+                     <Typography size={22} weight="600" color="#fff" style={styles.blueprintOverlayTitle}>
+                       {(settings?.blueprint?.title || 'THE BLUEPRINT').toUpperCase()}
+                     </Typography>
+                     <Typography size={9} weight="400" color="rgba(255,255,255,0.7)" style={styles.blueprintOverlaySubtitle}>
+                       {(settings?.blueprint?.subtitle || 'TECHNIQUE & MOTION').toUpperCase()}
+                     </Typography>
+                   </View>
                 </View>
               ) : (
                 <View style={styles.blueprintSection}>
                    <Image source={{ uri: settings?.blueprint?.image || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000" }} style={styles.blueprintImage} contentFit="cover" />
+                   <View style={styles.blueprintOverlay}>
+                     <Typography size={22} weight="600" color="#fff" style={styles.blueprintOverlayTitle}>
+                       {(settings?.blueprint?.title || 'THE BLUEPRINT').toUpperCase()}
+                     </Typography>
+                     <Typography size={9} weight="400" color="rgba(255,255,255,0.7)" style={styles.blueprintOverlaySubtitle}>
+                       {(settings?.blueprint?.subtitle || 'TECHNIQUE & MOTION').toUpperCase()}
+                     </Typography>
+                   </View>
                 </View>
               )}
 
@@ -375,12 +391,38 @@ const styles = StyleSheet.create({
   },
   blueprintSection: {
     marginVertical: 32,
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
+    position: 'relative',
   },
   blueprintImage: {
     width: '100%',
     height: 460,
-    borderRadius: 16,
+    borderRadius: 0,
+  },
+  blueprintOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 32,
+    paddingBottom: 48,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  blueprintOverlayTitle: {
+    letterSpacing: 2,
+    marginBottom: 6,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  blueprintOverlaySubtitle: {
+    letterSpacing: 3,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   footerVideoSection: {
     marginTop: 48,

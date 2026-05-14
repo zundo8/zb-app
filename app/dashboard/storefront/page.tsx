@@ -383,6 +383,12 @@ export default function StorefrontSettingsPage() {
           <SettingsRow label="Featured Media" icon={ImageIcon} description="Image above Spotlight section">
              <MediaPicker value={settings.featuredMediaImage!} onChange={set('featuredMediaImage')} label="Featured Media Image" type="image" />
           </SettingsRow>
+          <SettingsRow label="Featured Media Title" description="Main overlay text">
+             <InputField value={settings.blueprintTitle!} onChange={set('blueprintTitle')} placeholder="e.g. The Blueprint" />
+          </SettingsRow>
+          <SettingsRow label="Featured Media Subtitle" description="Secondary overlay text">
+             <InputField value={settings.blueprintSubtitle!} onChange={set('blueprintSubtitle')} placeholder="e.g. Technique & Motion" />
+          </SettingsRow>
           <SettingsRow label="Footer 3D Logo" icon={Monitor} description="GLB model for footer logo">
              <InputField value={settings.footerLogo3dUrl!} onChange={set('footerLogo3dUrl')} placeholder="https://...glb" />
           </SettingsRow>
