@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Inbox, ArrowRight } from "lucide-react";
+import { Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Inbox, ArrowRight, X, Search, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type ExchangeRequest = {
@@ -49,6 +49,18 @@ export default function ExchangesPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // ─── Manual Create States ─────────────────────────────────────────
+  const [createModal, setCreateModal] = useState(false);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [searchedOrders, setSearchedOrders] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [originalItem, setOriginalItem] = useState<any | null>(null);
+  const [replacementItem, setReplacementItem] = useState<any | null>(null);
+  const [replacements, setReplacements] = useState<any[]>([]);
+  const [searchingReplacements, setSearchingReplacements] = useState(false);
+  const [replacementSearch, setReplacementSearch] = useState("");
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
@@ -84,6 +96,38 @@ export default function ExchangesPage() {
     fetchExchanges();
   }, [fetchExchanges]);
 
+  const searchOrders = async (q: string) => {
+    if (!q) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/admin/orders?search=${encodeURIComponent(q)}&limit=5`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchedOrders(data.orders || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const searchReplacements = async (q: string) => {
+    if (!q) return;
+    setSearchingReplacements(true);
+    try {
+      const res = await fetch(`/api/admin/products?search=${encodeURIComponent(q)}&limit=10`);
+      if (res.ok) {
+        const data = await res.json();
+        setReplacements(data.products || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSearchingReplacements(false);
+    }
+  };
+
   const handleAction = async (id: string, action: "approve" | "reject", extra?: any) => {
     setActionLoading(id);
     try {
@@ -104,6 +148,42 @@ export default function ExchangesPage() {
       showToast("Action failed");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleCreateExchange = async () => {
+    if (!selectedOrder || !originalItem || !replacementItem) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/exchanges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+          customerId: selectedOrder.customerId,
+          items: [{
+            originalLineItemId: originalItem.id,
+            newVariantId: replacementItem.variantId,
+            reason: "Admin manual exchange"
+          }]
+        })
+      });
+      if (res.ok) {
+        showToast("Exchange created successfully");
+        setCreateModal(false);
+        setSelectedOrder(null);
+        setOriginalItem(null);
+        setReplacementItem(null);
+        fetchExchanges();
+      } else {
+        const err = await res.json();
+        showToast(`Error: ${err.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Creation failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -129,10 +209,16 @@ export default function ExchangesPage() {
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Exchanges</h1>
           <p className="text-[11px] text-foreground/50 tracking-wide max-w-xl">Manage exchange requests, replacements, and automatically create new orders.</p>
         </div>
-        <button onClick={fetchExchanges} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity">
-          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCreateModal(true)} className="flex items-center gap-2 px-4 py-2 border border-foreground/[0.05] rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:bg-foreground/[0.02] transition-colors">
+            <ArrowRight className="w-3 h-3" />
+            New Exchange
+          </button>
+          <button onClick={fetchExchanges} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity">
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -240,6 +326,124 @@ export default function ExchangesPage() {
           </table>
         </div>
       </div>
+
+      <AnimatePresence>
+        {createModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+            <div className="absolute inset-0 z-0" onClick={() => { setCreateModal(false); setSelectedOrder(null); setOriginalItem(null); setReplacementItem(null); }} />
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-background w-full max-w-lg rounded-xl p-6 border border-foreground/[0.05] shadow-2xl relative z-10 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-[12px] font-semibold text-foreground tracking-widest uppercase">Create Manual Exchange</h2>
+                <button onClick={() => { setCreateModal(false); setSelectedOrder(null); setOriginalItem(null); setReplacementItem(null); }} className="text-foreground/40 hover:text-foreground"><X className="w-4 h-4" /></button>
+              </div>
+
+              {!selectedOrder ? (
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/30" />
+                    <input 
+                      type="text" 
+                      placeholder="Search order by ID or customer..." 
+                      className="w-full bg-foreground/[0.02] border border-foreground/[0.05] rounded-md pl-10 pr-4 py-2.5 text-[11px] outline-none" 
+                      value={orderSearch}
+                      onChange={(e) => { setOrderSearch(e.target.value); searchOrders(e.target.value); }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    {searching ? (
+                      <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-foreground/10" /></div>
+                    ) : searchedOrders.map(order => (
+                      <button key={order.id} onClick={() => setSelectedOrder(order)} className="w-full text-left p-3 rounded-lg border border-foreground/[0.05] hover:bg-foreground/[0.02] transition-colors">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-bold text-foreground">#{order.shopifyOrderId || order.id.slice(0,8)}</span>
+                          <span className="text-[9px] text-foreground/40">{new Date(order.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="text-[10px] text-foreground/60 mt-1">{order.customer?.name} ({order.customer?.email})</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="p-3 bg-foreground/[0.02] border border-foreground/[0.05] rounded-lg">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] font-bold text-foreground">#{selectedOrder.shopifyOrderId || selectedOrder.id.slice(0,8)}</span>
+                      <button onClick={() => { setSelectedOrder(null); setOriginalItem(null); setReplacementItem(null); }} className="text-[9px] text-blue-500 font-bold uppercase tracking-widest">Change</button>
+                    </div>
+                    <p className="text-[9px] text-foreground/50">{selectedOrder.customer?.name} • {selectedOrder.customer?.email}</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Select Item to Replace</p>
+                    {selectedOrder.items?.map((item: any) => (
+                      <button 
+                        key={item.id} 
+                        onClick={() => setOriginalItem(item)}
+                        className={`w-full flex items-center gap-3 p-2 rounded-lg border transition-all ${originalItem?.id === item.id ? "border-blue-500/50 bg-blue-500/5" : "border-foreground/[0.05]"}`}
+                      >
+                         <div className="flex-1 text-left min-w-0">
+                          <p className="text-[11px] font-semibold text-foreground truncate">{item.title}</p>
+                          <p className="text-[9px] text-foreground/40">₹{item.price.toLocaleString()}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {originalItem && (
+                    <div className="space-y-3 pt-4 border-t border-foreground/[0.05]">
+                      <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Search Replacement Product</p>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/30" />
+                        <input 
+                          type="text" 
+                          placeholder="Search products..." 
+                          className="w-full bg-foreground/[0.02] border border-foreground/[0.05] rounded-md pl-10 pr-4 py-2.5 text-[11px] outline-none" 
+                          value={replacementSearch}
+                          onChange={(e) => { setReplacementSearch(e.target.value); searchReplacements(e.target.value); }}
+                        />
+                      </div>
+
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {searchingReplacements ? (
+                          <Loader2 className="w-4 h-4 animate-spin mx-auto text-foreground/10" />
+                        ) : replacements.map(p => (
+                          <div key={p.id} className="p-2 border border-foreground/[0.05] rounded-lg">
+                            <p className="text-[10px] font-bold text-foreground">{p.title}</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {p.variants?.map((v: any) => (
+                                <button 
+                                  key={v.id} 
+                                  onClick={() => setReplacementItem({ productId: p.id, variantId: v.id, title: `${p.title} - ${v.title}`, price: v.price })}
+                                  className={`px-2 py-1 rounded text-[8px] font-bold border transition-all ${replacementItem?.variantId === v.id ? "bg-foreground text-background" : "border-foreground/10 text-foreground/60"}`}
+                                >
+                                  {v.title}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {replacementItem && (
+                    <div className="pt-4 border-t border-foreground/[0.05]">
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Replacement</span>
+                        <span className="text-[11px] font-bold text-foreground">{replacementItem.title}</span>
+                      </div>
+                      <button onClick={handleCreateExchange} className="w-full py-3 bg-foreground text-background rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" /> Create Exchange Request
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

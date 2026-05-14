@@ -53,3 +53,36 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function POST(req: Request) {
+  try {
+    const { orderId, customerId, items } = await req.json();
+
+    if (!orderId || !items || items.length === 0) {
+      return NextResponse.json({ error: "Order ID and items are required" }, { status: 400 });
+    }
+
+    const exchangeRequest = await prisma.exchangeRequest.create({
+      data: {
+        orderId,
+        customerId,
+        status: 'pending_approval',
+        exchanges: {
+          create: items.map((item: any) => ({
+            originalLineItemId: item.originalLineItemId,
+            newVariantId: item.newVariantId,
+            reason: item.reason || "Admin manual exchange"
+          }))
+        }
+      },
+      include: {
+        exchanges: true
+      }
+    });
+
+    return NextResponse.json({ success: true, exchangeRequest });
+  } catch (error: any) {
+    console.error("Create Admin Exchange Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

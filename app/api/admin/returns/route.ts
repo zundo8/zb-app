@@ -53,3 +53,38 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function POST(req: Request) {
+  try {
+    const { orderId, customerId, items, estimatedRefund } = await req.json();
+
+    if (!orderId || !items || items.length === 0) {
+      return NextResponse.json({ error: "Order ID and items are required" }, { status: 400 });
+    }
+
+    const returnRequest = await prisma.returnRequest.create({
+      data: {
+        orderId,
+        customerId,
+        estimatedRefund: parseFloat(estimatedRefund) || 0,
+        status: 'pending_approval',
+        returns: {
+          create: items.map((item: any) => ({
+            productId: item.productId || null, // Optional if we only have lineItemId
+            lineItemId: item.lineItemId,
+            quantity: item.quantity || 1,
+            reason: item.reason || "Admin manual return"
+          }))
+        }
+      },
+      include: {
+        returns: true
+      }
+    });
+
+    return NextResponse.json({ success: true, returnRequest });
+  } catch (error: any) {
+    console.error("Create Admin Return Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

@@ -52,8 +52,15 @@ export default function ReturnsPage() {
 
   const [refundModal, setRefundModal] = useState<ReturnRequest | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
-
   const [refundType, setRefundType] = useState<"original_method" | "store_credit">("original_method");
+
+  // ─── Manual Create States ─────────────────────────────────────────
+  const [createModal, setCreateModal] = useState(false);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [searchedOrders, setSearchedOrders] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [selectedItems, setSelectedItems] = useState<any[]>([]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -90,6 +97,22 @@ export default function ReturnsPage() {
     fetchReturns();
   }, [fetchReturns]);
 
+  const searchOrders = async (q: string) => {
+    if (!q) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/admin/orders?search=${encodeURIComponent(q)}&limit=5`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchedOrders(data.orders || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const handleAction = async (id: string, action: "approve" | "reject", extra?: any) => {
     setActionLoading(id);
     try {
@@ -110,6 +133,40 @@ export default function ReturnsPage() {
       showToast("Action failed");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleCreateReturn = async () => {
+    if (!selectedOrder || selectedItems.length === 0) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/returns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+          customerId: selectedOrder.customerId,
+          items: selectedItems.map(si => ({
+            lineItemId: si.id,
+            reason: "Admin manual return",
+            quantity: si.quantity
+          })),
+          estimatedRefund: selectedItems.reduce((acc, si) => acc + (si.price * si.quantity), 0)
+        })
+      });
+      if (res.ok) {
+        showToast("Return created successfully");
+        setCreateModal(false);
+        fetchReturns();
+      } else {
+        const err = await res.json();
+        showToast(`Error: ${err.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Creation failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -146,10 +203,16 @@ export default function ReturnsPage() {
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Returns</h1>
           <p className="text-[11px] text-foreground/50 tracking-wide max-w-xl">Manage return requests, view reasons, and process approvals/refunds.</p>
         </div>
-        <button onClick={fetchReturns} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity">
-          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCreateModal(true)} className="flex items-center gap-2 px-4 py-2 border border-foreground/[0.05] rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:bg-foreground/[0.02] transition-colors">
+            <Package className="w-3 h-3" />
+            New Return
+          </button>
+          <button onClick={fetchReturns} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity">
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -281,6 +344,99 @@ export default function ReturnsPage() {
                   <CheckCircle2 className="w-3.5 h-3.5" /> Approve Request
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {createModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+            <div className="absolute inset-0 z-0" onClick={() => { setCreateModal(false); setSelectedOrder(null); setSelectedItems([]); }} />
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-background w-full max-w-lg rounded-xl p-6 border border-foreground/[0.05] shadow-2xl relative z-10 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-[12px] font-semibold text-foreground tracking-widest uppercase">Create Manual Return</h2>
+                <button onClick={() => { setCreateModal(false); setSelectedOrder(null); setSelectedItems([]); }} className="text-foreground/40 hover:text-foreground"><X className="w-4 h-4" /></button>
+              </div>
+
+              {!selectedOrder ? (
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/30" />
+                    <input 
+                      type="text" 
+                      placeholder="Search order by ID or customer..." 
+                      className="w-full bg-foreground/[0.02] border border-foreground/[0.05] rounded-md pl-10 pr-4 py-2.5 text-[11px] outline-none" 
+                      value={orderSearch}
+                      onChange={(e) => { setOrderSearch(e.target.value); searchOrders(e.target.value); }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    {searching ? (
+                      <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-foreground/10" /></div>
+                    ) : searchedOrders.map(order => (
+                      <button key={order.id} onClick={() => setSelectedOrder(order)} className="w-full text-left p-3 rounded-lg border border-foreground/[0.05] hover:bg-foreground/[0.02] transition-colors">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-bold text-foreground">#{order.shopifyOrderId || order.id.slice(0,8)}</span>
+                          <span className="text-[9px] text-foreground/40">{new Date(order.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="text-[10px] text-foreground/60 mt-1">{order.customer?.name} ({order.customer?.email})</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="p-3 bg-foreground/[0.02] border border-foreground/[0.05] rounded-lg">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] font-bold text-foreground">#{selectedOrder.shopifyOrderId || selectedOrder.id.slice(0,8)}</span>
+                      <button onClick={() => { setSelectedOrder(null); setSelectedItems([]); }} className="text-[9px] text-blue-500 font-bold uppercase tracking-widest">Change</button>
+                    </div>
+                    <p className="text-[9px] text-foreground/50">{selectedOrder.customer?.name} • {selectedOrder.customer?.email}</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Select Items to Return</p>
+                    {selectedOrder.items?.map((item: any) => {
+                      const isSelected = selectedItems.some(si => si.id === item.id);
+                      return (
+                        <TouchableOpacity 
+                          key={item.id} 
+                          onPress={() => {
+                            if (isSelected) {
+                              setSelectedItems(selectedItems.filter(si => si.id !== item.id));
+                            } else {
+                              setSelectedItems([...selectedItems, { ...item, quantity: item.quantity }]);
+                            }
+                          }}
+                          className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${isSelected ? "border-emerald-500/50 bg-emerald-500/5" : "border-foreground/[0.05]"}`}
+                        >
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? "bg-emerald-500 border-emerald-500" : "border-foreground/20"}`}>
+                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-semibold text-foreground truncate">{item.title}</p>
+                            <p className="text-[9px] text-foreground/40">₹{item.price.toLocaleString()} x {item.quantity}</p>
+                          </div>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </div>
+
+                  {selectedItems.length > 0 && (
+                    <div className="pt-4 border-t border-foreground/[0.05]">
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Est. Refund</span>
+                        <span className="text-lg font-bold text-foreground">₹{selectedItems.reduce((acc, si) => acc + (si.price * si.quantity), 0).toLocaleString()}</span>
+                      </div>
+                      <button onClick={handleCreateReturn} className="w-full py-3 bg-foreground text-background rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" /> Create Return Request
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

@@ -208,6 +208,30 @@ export default function OrderDetailsScreen() {
   const orderNumber = order.orderNumber || order.id?.slice(0, 8);
   const statusColor = isCancelled ? '#FF3B30' : isDelivered ? '#34C759' : '#007AFF';
 
+  // ─── Return Window Logic ──────────────────────────────────────────
+  const isReturnWindowOpen = useMemo(() => {
+    if (!isDelivered || !order.updatedAt) return false;
+    // Find the 'delivered' step in timeline
+    const deliveredAt = timelineByStep.get('delivered');
+    if (!deliveredAt) return false;
+    
+    const deliveredDate = new Date(deliveredAt);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - deliveredDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 7;
+  }, [isDelivered, order, timelineByStep]);
+
+  const handleReturn = () => {
+    haptics.buttonTap();
+    navigation.navigate('ReturnRequest', { order });
+  };
+
+  const handleExchange = () => {
+    haptics.buttonTap();
+    navigation.navigate('ExchangeSelectProduct', { order });
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <GlassHeader title={`Order #${orderNumber}`} showBack />
@@ -356,22 +380,53 @@ export default function OrderDetailsScreen() {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={{ gap: 12 }}>
-          {(order.paymentMethod === 'COD' && (order.status || '').toLowerCase() === 'awaiting_approval') || 
-           ((order.status || '').toLowerCase() === 'payment_pending' || (order.status || '').toLowerCase() === 'pending') ? (
-            <TouchableOpacity onPress={handleCancelOrder} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
-              <BlurView 
-                intensity={isDark ? 30 : 60} 
-                tint={isDark ? 'dark' : 'light'} 
-                style={[styles.mainBtn, { 
-                  backgroundColor: 'rgba(255, 59, 48, 0.08)', 
-                  borderWidth: 1, 
-                  borderColor: 'rgba(255, 59, 48, 0.2)' 
-                }]}
-              >
-                <Typography size={13} weight="700" color="#FF3B30">Cancel Order</Typography>
-              </BlurView>
-            </TouchableOpacity>
-          ) : null}
+          {isReturnWindowOpen ? (
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity onPress={handleReturn} activeOpacity={0.7} style={{ flex: 1, borderRadius: 24, overflow: 'hidden' }}>
+                <BlurView 
+                  intensity={isDark ? 30 : 60} 
+                  tint={isDark ? 'dark' : 'light'} 
+                  style={[styles.mainBtn, { 
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', 
+                    borderWidth: 1, 
+                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' 
+                  }]}
+                >
+                  <Typography size={13} weight="700" color={colors.text}>Return</Typography>
+                </BlurView>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleExchange} activeOpacity={0.7} style={{ flex: 1, borderRadius: 24, overflow: 'hidden' }}>
+                <BlurView 
+                  intensity={isDark ? 30 : 60} 
+                  tint={isDark ? 'dark' : 'light'} 
+                  style={[styles.mainBtn, { 
+                    backgroundColor: colors.foreground, 
+                  }]}
+                >
+                  <Typography size={13} weight="700" color={colors.background}>Exchange</Typography>
+                </BlurView>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {((order.paymentMethod === 'COD' && (order.status || '').toLowerCase() === 'awaiting_approval') || 
+               ((order.status || '').toLowerCase() === 'payment_pending' || (order.status || '').toLowerCase() === 'pending')) && !isDelivered ? (
+                <TouchableOpacity onPress={handleCancelOrder} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
+                  <BlurView 
+                    intensity={isDark ? 30 : 60} 
+                    tint={isDark ? 'dark' : 'light'} 
+                    style={[styles.mainBtn, { 
+                      backgroundColor: 'rgba(255, 59, 48, 0.08)', 
+                      borderWidth: 1, 
+                      borderColor: 'rgba(255, 59, 48, 0.2)' 
+                    }]}
+                  >
+                    <Typography size={13} weight="700" color="#FF3B30">Cancel Order</Typography>
+                  </BlurView>
+                </TouchableOpacity>
+              ) : null}
+            </>
+          )}
 
           <TouchableOpacity onPress={contactSupport} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
             <BlurView 
