@@ -75,7 +75,9 @@ const RingCarouselSection = React.memo(({ title = "ACCESSORIES", handle = "acces
       </View>
     </View>
   );
-}
+});
+
+export default RingCarouselSection;
 
 const styles = StyleSheet.create({
   container: {

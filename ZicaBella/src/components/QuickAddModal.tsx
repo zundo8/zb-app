@@ -272,7 +272,7 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
       </Pressable>
     </Modal>
   );
-}
+});
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -433,7 +433,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFF',
   },
-});
 });
 
 export default QuickAddModal;

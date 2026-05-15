@@ -202,54 +202,55 @@ export function useProducts(count = 24) {
   const [products, setProducts] = useState<FlatProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMounted = useRef(true);
 
-    let cancelled = false;
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
-    (async () => {
-      const cacheKey = `products_list_${count}`;
-      
-      try {
-        if (!isRefresh) {
-          const cached = await cacheService.get<FlatProduct[]>(cacheKey);
-          if (cached && cached.length > 0 && !cancelled) {
-            setProducts(cached.slice(0, count));
-            setLoading(false);
-          }
-        }
-
-        const data = await apiGet<{ products: FlatProduct[] }>(
-          ENDPOINTS.products,
-          { 
-            limit: String(Math.max(count, 50)),
-            fields: LIST_FIELDS
-          }
-        );
-
-        if (cancelled) return;
-
-        const normalizedProducts = extractProducts(data);
-
-        if (normalizedProducts.length > 0) {
-          setProducts(normalizedProducts);
-          await cacheService.set(cacheKey, normalizedProducts, 5);
-          return;
-        }
-
-        throw new Error('Empty product response');
-      } catch (err: any) {
-        if (cancelled) return;
-        if (products.length === 0) {
-          setProducts(fallbackProducts.slice(0, count));
-          setError('Showing bundled products while the catalog reconnects.');
-        }
-      } finally {
-        if (!cancelled) {
+  const fetchProducts = useCallback(async (isRefresh = false) => {
+    const cacheKey = `products_list_${count}`;
+    
+    try {
+      if (!isRefresh) {
+        const cached = await cacheService.get<FlatProduct[]>(cacheKey);
+        if (cached && cached.length > 0 && isMounted.current) {
+          setProducts(cached.slice(0, count));
           setLoading(false);
         }
       }
-    })();
 
-    return () => { cancelled = true; };
+      const data = await apiGet<{ products: FlatProduct[] }>(
+        ENDPOINTS.products,
+        { 
+          limit: String(Math.max(count, 50)),
+          fields: LIST_FIELDS
+        }
+      );
+
+      if (!isMounted.current) return;
+
+      const normalizedProducts = extractProducts(data);
+
+      if (normalizedProducts.length > 0) {
+        setProducts(normalizedProducts);
+        await cacheService.set(cacheKey, normalizedProducts, 5);
+        return;
+      }
+
+      throw new Error('Empty product response');
+    } catch (err: any) {
+      if (!isMounted.current) return;
+      if (products.length === 0) {
+        setProducts(fallbackProducts.slice(0, count));
+        setError('Showing bundled products while the catalog reconnects.');
+      }
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+      }
+    }
   }, [count, products.length]);
 
   useEffect(() => {
@@ -348,6 +349,12 @@ function relevancyScore(product: FlatProduct, lq: string): number {
 export function useSearchProducts() {
   const [results, setResults] = useState<FlatProduct[]>([]);
   const [loading, setLoading] = useState(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   const search = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -356,61 +363,56 @@ export function useSearchProducts() {
     }
     const normalizedQuery = query.trim().toLowerCase();
     const cacheKey = `search_${normalizedQuery}`;
-    let cancelled = false;
 
-    (async () => {
-      try {
-        setLoading(true);
-        
-        const cached = await cacheService.get<FlatProduct[]>(cacheKey);
-        if (cached && !cancelled) {
-          setResults(cached);
-          setLoading(false);
-        }
-
-        const data = await apiGet<{ products: FlatProduct[] }>(
-          ENDPOINTS.search,
-          { 
-            q: query, 
-            limit: '48',
-            fields: LIST_FIELDS 
-          }
-        );
-
-        if (cancelled) return;
-
-        const normalizedProducts = extractProducts(data);
-
-        if (normalizedProducts.length > 0) {
-          const sorted = [...normalizedProducts].sort(
-            (a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery)
-          );
-          setResults(sorted);
-          await cacheService.set(cacheKey, sorted, 5);
-          return;
-        }
-
-        throw new Error('Search unavailable');
-      } catch (err) {
-        if (cancelled) return;
-        const source = fallbackProducts;
-        const filtered = source
-          .filter((product) =>
-            product.title.toLowerCase().includes(normalizedQuery)
-            || product.handle.toLowerCase().includes(normalizedQuery)
-            || product.productType.toLowerCase().includes(normalizedQuery)
-          )
-          .sort((a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery));
-
-        setResults(filtered);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+    try {
+      setLoading(true);
+      
+      const cached = await cacheService.get<FlatProduct[]>(cacheKey);
+      if (cached && isMounted.current) {
+        setResults(cached);
+        setLoading(false);
       }
-    })();
 
-    return () => { cancelled = true; };
+      const data = await apiGet<{ products: FlatProduct[] }>(
+        ENDPOINTS.search,
+        { 
+          q: query, 
+          limit: '48',
+          fields: LIST_FIELDS 
+        }
+      );
+
+      if (!isMounted.current) return;
+
+      const normalizedProducts = extractProducts(data);
+
+      if (normalizedProducts.length > 0) {
+        const sorted = [...normalizedProducts].sort(
+          (a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery)
+        );
+        setResults(sorted);
+        await cacheService.set(cacheKey, sorted, 5);
+        return;
+      }
+
+      throw new Error('Search unavailable');
+    } catch (err) {
+      if (!isMounted.current) return;
+      const source = fallbackProducts;
+      const filtered = source
+        .filter((product) =>
+          product.title.toLowerCase().includes(normalizedQuery)
+          || product.handle.toLowerCase().includes(normalizedQuery)
+          || product.productType.toLowerCase().includes(normalizedQuery)
+        )
+        .sort((a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery));
+
+      setResults(filtered);
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+      }
+    }
   }, []);
 
   return { results, loading, search };
@@ -419,52 +421,53 @@ export function useSearchProducts() {
 export function useCollections(count = 20, location?: 'header' | 'page' | 'menu') {
   const [collections, setCollections] = useState<FlatCollection[]>([]);
   const [loading, setLoading] = useState(true);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   const fetchCollections = useCallback(async (isRefresh = false) => {
     const cacheKey = `collections_${count}_${location || 'default'}`;
-    let cancelled = false;
 
-    (async () => {
-      try {
-        if (!isRefresh) {
-          const cached = await cacheService.get<FlatCollection[]>(cacheKey);
-          if (cached && !cancelled) {
-            setCollections(cached);
-            setLoading(false);
-          }
-        }
-
-        const params: any = { limit: String(count) };
-        if (location) params.location = location;
-        const data = await apiGet<{ collections: FlatCollection[] }>(
-          ENDPOINTS.collections,
-          params
-        );
-
-        if (cancelled) return;
-
-        const normalizedCollections = extractCollections(data);
-
-        if (normalizedCollections.length > 0) {
-          setCollections(normalizedCollections);
-          await cacheService.set(cacheKey, normalizedCollections, 10);
-          return;
-        }
-
-        throw new Error('Empty collection response');
-      } catch (err) {
-        if (cancelled) return;
-        if (collections.length === 0) {
-          setCollections(fallbackCollections);
-        }
-      } finally {
-        if (!cancelled) {
+    try {
+      if (!isRefresh) {
+        const cached = await cacheService.get<FlatCollection[]>(cacheKey);
+        if (cached && !isMounted.current) {
+          setCollections(cached);
           setLoading(false);
         }
       }
-    })();
 
-    return () => { cancelled = true; };
+      const params: any = { limit: String(count) };
+      if (location) params.location = location;
+      const data = await apiGet<{ collections: FlatCollection[] }>(
+        ENDPOINTS.collections,
+        params
+      );
+
+      if (!isMounted.current) return;
+
+      const normalizedCollections = extractCollections(data);
+
+      if (normalizedCollections.length > 0) {
+        setCollections(normalizedCollections);
+        await cacheService.set(cacheKey, normalizedCollections, 10);
+        return;
+      }
+
+      throw new Error('Empty collection response');
+    } catch (err) {
+      if (!isMounted.current) return;
+      if (collections.length === 0) {
+        setCollections(fallbackCollections);
+      }
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+      }
+    }
   }, [count, location, collections.length]);
 
   useEffect(() => {
@@ -478,77 +481,78 @@ export function useCollectionByHandle(handle: string) {
   const [collection, setCollection] = useState<FlatCollection | null>(null);
   const [products, setProducts] = useState<FlatProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   const fetchCollection = useCallback(async (isRefresh = false) => {
     const cacheKey = `collection_products_${handle}`;
-    let cancelled = false;
 
-    (async () => {
-      try {
-        if (!isRefresh) {
-          const cached = await cacheService.get<{ collection: FlatCollection | null, products: FlatProduct[] }>(cacheKey);
-          if (cached && !cancelled) {
-            setCollection(cached.collection);
-            setProducts(cached.products);
-            setLoading(false);
-          }
-        }
-        
-        // If handle is 'all', we fetch all products instead of a specific collection
-        if (handle === 'all') {
-          const data = await apiGet<any>(ENDPOINTS.products, { limit: '80', fields: LIST_FIELDS });
-          
-          if (cancelled) return;
-
-          const normalizedProducts = extractProducts(data);
-          
-          if (normalizedProducts.length > 0) {
-            const allCollection = {
-              id: 'all',
-              title: 'All Products',
-              handle: 'all',
-              description: 'Explore the entire Zica Bella archive.',
-              image: normalizedProducts[0]?.featuredImage || null
-            };
-            setCollection(allCollection);
-            setProducts(normalizedProducts);
-            await cacheService.set(cacheKey, { collection: allCollection, products: normalizedProducts }, 5);
-          }
-          return;
-        }
-
-        const data = await apiGet<any>(
-          ENDPOINTS.collectionByHandle(handle),
-          { limit: '50', fields: LIST_FIELDS }
-        );
-
-        if (cancelled) return;
-
-        const normalizedCollection = normalizeCollection(data?.collection || data?.data?.collection || data) || null;
-        const normalizedProducts = extractProducts(data);
-
-        if (normalizedCollection || normalizedProducts.length > 0) {
-          setCollection(normalizedCollection);
-          setProducts(normalizedProducts);
-          await cacheService.set(cacheKey, { collection: normalizedCollection, products: normalizedProducts }, 5);
-          return;
-        }
-
-        throw new Error('Collection unavailable');
-      } catch (err) {
-        if (cancelled) return;
-        if (products.length === 0) {
-          setCollection(fallbackCollections.find((c) => c.handle === handle) || null);
-          setProducts(handle === 'accessories' ? fallbackProducts : []);
-        }
-      } finally {
-        if (!cancelled) {
+    try {
+      if (!isRefresh) {
+        const cached = await cacheService.get<{ collection: FlatCollection | null, products: FlatProduct[] }>(cacheKey);
+        if (cached && isMounted.current) {
+          setCollection(cached.collection);
+          setProducts(cached.products);
           setLoading(false);
         }
       }
-    })();
+      
+      // If handle is 'all', we fetch all products instead of a specific collection
+      if (handle === 'all') {
+        const data = await apiGet<any>(ENDPOINTS.products, { limit: '80', fields: LIST_FIELDS });
+        
+        if (!isMounted.current) return;
 
-    return () => { cancelled = true; };
+        const normalizedProducts = extractProducts(data);
+        
+        if (normalizedProducts.length > 0) {
+          const allCollection = {
+            id: 'all',
+            title: 'All Products',
+            handle: 'all',
+            description: 'Explore the entire Zica Bella archive.',
+            image: normalizedProducts[0]?.featuredImage || null
+          };
+          setCollection(allCollection);
+          setProducts(normalizedProducts);
+          await cacheService.set(cacheKey, { collection: allCollection, products: normalizedProducts }, 5);
+        }
+        return;
+      }
+
+      const data = await apiGet<any>(
+        ENDPOINTS.collectionByHandle(handle),
+        { limit: '50', fields: LIST_FIELDS }
+      );
+
+      if (!isMounted.current) return;
+
+      const normalizedCollection = normalizeCollection(data?.collection || data?.data?.collection || data) || null;
+      const normalizedProducts = extractProducts(data);
+
+      if (normalizedCollection || normalizedProducts.length > 0) {
+        setCollection(normalizedCollection);
+        setProducts(normalizedProducts);
+        await cacheService.set(cacheKey, { collection: normalizedCollection, products: normalizedProducts }, 5);
+        return;
+      }
+
+      throw new Error('Collection unavailable');
+    } catch (err) {
+      if (!isMounted.current) return;
+      if (products.length === 0) {
+        setCollection(fallbackCollections.find((c) => c.handle === handle) || null);
+        setProducts(handle === 'accessories' ? fallbackProducts : []);
+      }
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+      }
+    }
   }, [handle, products.length]);
 
   useEffect(() => {

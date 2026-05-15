@@ -27,7 +27,7 @@ const SpotlightSection = React.memo(({
   subtitle,
   collectionHandle,
   media
-}: Props) {
+}: Props) => {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);

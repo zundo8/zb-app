@@ -72,7 +72,9 @@ const CartItem = React.memo(({ item, onUpdateQuantity, onRemove, onPress }: Prop
       </View>
     </View>
   );
-}
+});
+
+export default CartItem;
 
 const styles = StyleSheet.create({
   container: {
@@ -116,7 +118,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginLeft: 12,
   },
-});
 });
 
 export default CartItem;
