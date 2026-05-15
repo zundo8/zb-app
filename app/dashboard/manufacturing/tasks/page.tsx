@@ -17,7 +17,9 @@ import {
   ChevronRight,
   TrendingUp,
   Target,
-  Zap
+  Zap,
+  Edit2,
+  X
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { mfgFetch } from "@/lib/manufacturing/mfg-fetch";
@@ -116,14 +118,21 @@ export default function PendingTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"ALL" | "PENDING" | "COMPLETED">("PENDING");
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+  
+  // Modals state
   const [newOpen, setNewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
     priority: "MEDIUM" as const,
     dueDate: "",
   });
+
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const showToast = (msg: string, type: "ok" | "err" = "ok") => {
     setToast({ msg, type });
@@ -166,8 +175,31 @@ export default function PendingTasksPage() {
     }
   };
 
+  const updateTask = async () => {
+    if (!editingTask || !editingTask.title.trim()) return;
+    try {
+      const res = await mfgFetch("/api/admin/manufacturing/tasks", {
+        method: "PATCH",
+        body: JSON.stringify({
+          id: editingTask.id,
+          title: editingTask.title,
+          description: editingTask.description,
+          priority: editingTask.priority,
+          dueDate: editingTask.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : null,
+          status: editingTask.status
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update task");
+      showToast("Task updated successfully");
+      setEditOpen(false);
+      setEditingTask(null);
+      loadTasks();
+    } catch (e: any) {
+      showToast(e.message, "err");
+    }
+  };
+
   const updateTaskStatus = async (id: string, status: string) => {
-    // If it's a production task, we can't manually complete it here easily without updating batch stage
     if (id.startsWith("PROD-")) {
       showToast("Production tasks must be updated via Production Tracker stages", "err");
       return;
@@ -188,6 +220,8 @@ export default function PendingTasksPage() {
 
   const deleteTask = async (id: string) => {
     if (id.startsWith("PROD-")) return;
+    if (!confirm("Are you sure you want to delete this task?")) return;
+    
     try {
       const res = await mfgFetch(`/api/admin/manufacturing/tasks?id=${id}`, {
         method: "DELETE",
@@ -200,14 +234,32 @@ export default function PendingTasksPage() {
     }
   };
 
-  const filteredTasks = tasks.filter(t => 
-    t.title.toLowerCase().includes(q.toLowerCase()) || 
-    t.description?.toLowerCase().includes(q.toLowerCase()) ||
-    t.batch?.batchCode.toLowerCase().includes(q.toLowerCase())
-  );
+  const filteredTasks = tasks.filter(t => {
+    const matchesSearch = t.title.toLowerCase().includes(q.toLowerCase()) || 
+      t.description?.toLowerCase().includes(q.toLowerCase()) ||
+      t.batch?.batchCode.toLowerCase().includes(q.toLowerCase());
+    
+    const matchesFilter = filter === "ALL" || 
+      (filter === "PENDING" && t.status === "PENDING") || 
+      (filter === "COMPLETED" && t.status === "COMPLETED");
+      
+    return matchesSearch && matchesFilter;
+  });
 
   const pendingCount = tasks.filter(t => t.status === "PENDING").length;
   const overdueCount = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status === "PENDING").length;
+
+  const handleEditTask = (task: Task) => {
+    if (task.type === "PRODUCTION") {
+      showToast("Production tasks cannot be edited directly here.", "err");
+      return;
+    }
+    setEditingTask({
+      ...task,
+      dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ""
+    });
+    setEditOpen(true);
+  };
 
   return (
     <motion.div 
@@ -321,9 +373,24 @@ export default function PendingTasksPage() {
             </div>
             
             <div className="flex gap-2 p-1 bg-foreground/[0.03] rounded-xl border border-foreground/5">
-              <button className="px-4 py-1.5 rounded-lg bg-background text-[10px] font-bold uppercase tracking-widest text-foreground shadow-sm">All</button>
-              <button className="px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-foreground/40 hover:text-foreground transition-colors">Pending</button>
-              <button className="px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-foreground/40 hover:text-foreground transition-colors">Completed</button>
+              <button 
+                onClick={() => setFilter("ALL")}
+                className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${filter === "ALL" ? "bg-background text-foreground shadow-sm" : "text-foreground/40 hover:text-foreground"}`}
+              >
+                All
+              </button>
+              <button 
+                onClick={() => setFilter("PENDING")}
+                className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${filter === "PENDING" ? "bg-background text-foreground shadow-sm" : "text-foreground/40 hover:text-foreground"}`}
+              >
+                Pending
+              </button>
+              <button 
+                onClick={() => setFilter("COMPLETED")}
+                className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${filter === "COMPLETED" ? "bg-background text-foreground shadow-sm" : "text-foreground/40 hover:text-foreground"}`}
+              >
+                Completed
+              </button>
             </div>
           </div>
 
@@ -350,7 +417,8 @@ export default function PendingTasksPage() {
                     layout
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className={`group relative glass-card p-3 lg:p-4 rounded-[1.2rem] border transition-all duration-500 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                    onClick={() => handleEditTask(task)}
+                    className={`group relative glass-card p-3 lg:p-4 rounded-[1.2rem] border transition-all duration-500 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer ${
                       task.status === "COMPLETED" 
                         ? "bg-foreground/[0.01] border-foreground/5 opacity-60" 
                         : "bg-background/40 border-foreground/[0.05] hover:border-foreground/15 hover:shadow-xl hover:-translate-y-0.5"
@@ -358,7 +426,10 @@ export default function PendingTasksPage() {
                   >
                     <div className="flex items-start gap-4 flex-1">
                       <button 
-                        onClick={() => updateTaskStatus(task.id, task.status === "PENDING" ? "COMPLETED" : "PENDING")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateTaskStatus(task.id, task.status === "PENDING" ? "COMPLETED" : "PENDING");
+                        }}
                         disabled={task.type === "PRODUCTION"}
                         className={`mt-1 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
                           task.status === "COMPLETED" 
@@ -411,7 +482,10 @@ export default function PendingTasksPage() {
                       <div className="flex items-center gap-1">
                         {task.type === "MANUAL" && (
                           <button 
-                            onClick={() => deleteTask(task.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteTask(task.id);
+                            }}
                             className="p-2.5 rounded-xl hover:bg-rose-500/10 text-foreground/20 hover:text-rose-500 transition-all active:scale-90"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -446,7 +520,7 @@ export default function PendingTasksPage() {
                   <p className="text-[12px] text-foreground/40 mt-1 font-medium font-inter">Commit a new operational directive to the system.</p>
                 </div>
                 <button onClick={() => setNewOpen(false)} className="p-2 rounded-full hover:bg-foreground/5 text-foreground/40 transition-colors">
-                  <Plus className="w-6 h-6 rotate-45" />
+                  <X className="w-6 h-6" />
                 </button>
               </div>
 
@@ -512,6 +586,107 @@ export default function PendingTasksPage() {
                   className="flex-[1.5] py-4 rounded-2xl bg-foreground text-background text-[10px] font-bold uppercase tracking-[0.3em] hover:opacity-90 transition-all shadow-2xl shadow-foreground/20"
                 >
                   Log Directive
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Task Overlay */}
+      <AnimatePresence>
+        {editOpen && editingTask && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 lg:p-6 bg-background/80 backdrop-blur-md">
+            <motion.div 
+               initial={{ opacity: 0, scale: 0.95, y: 20 }}
+               animate={{ opacity: 1, scale: 1, y: 0 }}
+               exit={{ opacity: 0, scale: 0.95, y: 20 }}
+               className="w-full max-w-lg glass-card rounded-[2.5rem] border border-foreground/10 shadow-3xl p-8 lg:p-10 space-y-8"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground uppercase">Update Directive</h2>
+                  <p className="text-[12px] text-foreground/40 mt-1 font-medium font-inter">Modify the operational parameters of this node.</p>
+                </div>
+                <button onClick={() => { setEditOpen(false); setEditingTask(null); }} className="p-2 rounded-full hover:bg-foreground/5 text-foreground/40 transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-[0.3em] text-foreground/40 ml-1">Task Title *</label>
+                  <input
+                    value={editingTask.title}
+                    onChange={(e) => setEditingTask({...editingTask, title: e.target.value})}
+                    placeholder="Enter objective title..."
+                    className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:border-foreground/10 transition-all font-medium"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-[0.3em] text-foreground/40 ml-1">Priority</label>
+                    <select
+                      value={editingTask.priority}
+                      onChange={(e) => setEditingTask({...editingTask, priority: e.target.value as any})}
+                      className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-3.5 text-sm focus:outline-none shadow-sm appearance-none font-medium text-foreground/80"
+                    >
+                      <option value="LOW">Low Velocity</option>
+                      <option value="MEDIUM">Medium Velocity</option>
+                      <option value="HIGH">High Velocity</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-[0.3em] text-foreground/40 ml-1">Deadline</label>
+                    <div className="relative">
+                      <Calendar className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-foreground/20" />
+                      <input
+                        type="date"
+                        value={editingTask.dueDate || ""}
+                        onChange={(e) => setEditingTask({...editingTask, dueDate: e.target.value})}
+                        className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:outline-none font-medium text-foreground/80"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-[0.3em] text-foreground/40 ml-1">Status</label>
+                    <select
+                      value={editingTask.status}
+                      onChange={(e) => setEditingTask({...editingTask, status: e.target.value})}
+                      className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-3.5 text-sm focus:outline-none shadow-sm appearance-none font-medium text-foreground/80"
+                    >
+                      <option value="PENDING">Active (Pending)</option>
+                      <option value="COMPLETED">Decommissioned (Completed)</option>
+                    </select>
+                  </div>
+
+                <div className="space-y-2">
+                   <label className="text-[10px] font-bold uppercase tracking-[0.3em] text-foreground/40 ml-1">Context / Details</label>
+                   <textarea
+                    value={editingTask.description || ""}
+                    onChange={(e) => setEditingTask({...editingTask, description: e.target.value})}
+                    placeholder="Provide depth for this mission objective..."
+                    rows={4}
+                    className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:border-foreground/10 transition-all font-medium resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={() => { setEditOpen(false); setEditingTask(null); }}
+                  className="flex-1 py-4 rounded-2xl bg-foreground/5 text-foreground/60 text-[10px] font-bold uppercase tracking-widest hover:bg-foreground/10 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={updateTask}
+                  className="flex-[1.5] py-4 rounded-2xl bg-foreground text-background text-[10px] font-bold uppercase tracking-[0.3em] hover:opacity-90 transition-all shadow-2xl shadow-foreground/20"
+                >
+                  Update Node
                 </button>
               </div>
             </motion.div>

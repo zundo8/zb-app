@@ -395,7 +395,6 @@ export default function DeliveryAddressScreen() {
             {fieldError('state') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('state')}</Typography>}
           </View>
           </View>
-          </View>
         )}
       </ScrollView>
 
