@@ -34,14 +34,18 @@ export default function StorefrontNav() {
     };
   }, []);
 
-    const isChatPage = pathname === "/chat";
+  const isChatPage = pathname === "/chat";
+  const isHomePage = pathname === "/";
+  const isPolicyPage = pathname?.startsWith("/policies");
+  
+  const shouldHide = hidden || isChatPage || isHomePage || isPolicyPage;
   
   return (
     <div
       className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] max-w-[340px] z-50 transition-all duration-700 pointer-events-none"
       style={{ 
-        transform: (hidden || isChatPage) ? "translate(-50%, 140%)" : "translate(-50%, 0)", 
-        opacity: (hidden || isChatPage) ? 0 : 1,
+        transform: shouldHide ? "translate(-50%, 140%)" : "translate(-50%, 0)", 
+        opacity: shouldHide ? 0 : 1,
       }}
     >
       <nav
