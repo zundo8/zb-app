@@ -353,41 +353,67 @@ export default function ProfileScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This will permanently delete your Zica Bella account and all associated data. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Are you sure?',
-              'Your order history, saved addresses, and profile will be permanently removed.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete My Account',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      // Note: For Shopify, account deletion usually requires backend intervention or manual request
-                      // Clear local data and session
-                      await AsyncStorage.clear();
-                      signOut();
-                      Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
-                    } catch (e) {
-                      Alert.alert('Error', 'Could not delete account. Please contact support@zicabella.com');
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        'Account Deletion Request',
+        'Please tell us why you wish to delete your account. This request will be sent to our support team for manual processing.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Submit Request',
+            onPress: async (reason) => {
+              if (!reason?.trim()) {
+                Alert.alert('Error', 'Please provide a reason for deletion.');
+                return;
+              }
+              submitDeletionRequest(reason);
+            }
+          }
+        ],
+        'plain-text'
+      );
+    } else {
+      Alert.alert(
+        'Account Deletion Request',
+        'To delete your account, please submit a high-priority support ticket or email us at support@zicabella.com with your reason for leaving.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Support', onPress: () => navigation.navigate('Support') }
+        ]
+      );
+    }
+  };
+
+  const submitDeletionRequest = async (reason: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${config.appUrl}/api/support/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: user?.id,
+          guestName: user?.name,
+          guestEmail: user?.email,
+          subject: 'ACCOUNT DELETION REQUEST',
+          content: `User requested account deletion. \n\nReason: ${reason}`,
+          priority: 'HIGH'
+        })
+      });
+
+      if (res.ok) {
+        haptics.success();
+        Alert.alert(
+          'Request Submitted',
+          'Your deletion request has been sent. An admin will review and process it manually. We will contact you via email once completed.'
+        );
+      } else {
+        throw new Error('Failed to submit request');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not submit request. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const MenuItem = ({ icon, title, subtitle, onPress, destructive, badge, type, value, onToggle }: any) => {
@@ -683,7 +709,7 @@ export default function ProfileScreen() {
                 <MenuItem icon="headset-outline" title="Customer Support" onPress={() => navigation.navigate('Support')} />
                 <MenuItem icon="refresh-outline" title="Refund Policy" onPress={() => navigatePolicy('refund-policy', 'Refund Policy')} />
                 <MenuItem icon="bus-outline" title="Shipping Policy" onPress={() => navigatePolicy('shipping-policy', 'Shipping Policy')} />
-                <MenuItem icon="trash-outline" title="Delete Account" destructive onPress={handleDeleteAccount} />
+                <MenuItem icon="trash-outline" title="Request Account Deletion" destructive onPress={handleDeleteAccount} />
               </BlurView>
             </View>
 
