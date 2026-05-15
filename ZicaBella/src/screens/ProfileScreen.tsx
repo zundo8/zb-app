@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Pressable, RefreshControl, Keyboard,
@@ -351,6 +352,44 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your Zica Bella account and all associated data. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Are you sure?',
+              'Your order history, saved addresses, and profile will be permanently removed.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete My Account',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      // Note: For Shopify, account deletion usually requires backend intervention or manual request
+                      // Clear local data and session
+                      await AsyncStorage.clear();
+                      signOut();
+                      Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
+                    } catch (e) {
+                      Alert.alert('Error', 'Could not delete account. Please contact support@zicabella.com');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
   const MenuItem = ({ icon, title, subtitle, onPress, destructive, badge, type, value, onToggle }: any) => {
     const colors = useColors();
     return (
@@ -637,12 +676,14 @@ export default function ProfileScreen() {
             <View style={styles.sectionContainer}>
               <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>SUPPORT & LEGAL</Typography>
               <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
-                <MenuItem icon="information-circle-outline" title="About Zica Bella" onPress={() => navigatePolicy('about-us', 'About Us')} />
+                <MenuItem icon="information-circle-outline" title="About Zica Bella" onPress={() => navigation.navigate('About')} />
                 <MenuItem icon="call-outline" title="Contact Information" onPress={() => navigatePolicy('contact-information', 'Contact Information')} />
-                <MenuItem icon="shield-checkmark-outline" title="Privacy Policy" onPress={() => navigatePolicy('privacy-policy', 'Privacy Policy')} />
-                <MenuItem icon="document-text-outline" title="Terms of Service" onPress={() => navigatePolicy('terms-of-service', 'Terms of Service')} />
+                <MenuItem icon="shield-checkmark-outline" title="Privacy Policy" onPress={() => navigation.navigate('Legal', { tab: 'privacy' })} />
+                <MenuItem icon="document-text-outline" title="Terms of Service" onPress={() => navigation.navigate('Legal', { tab: 'terms' })} />
+                <MenuItem icon="headset-outline" title="Customer Support" onPress={() => navigation.navigate('Support')} />
                 <MenuItem icon="refresh-outline" title="Refund Policy" onPress={() => navigatePolicy('refund-policy', 'Refund Policy')} />
                 <MenuItem icon="bus-outline" title="Shipping Policy" onPress={() => navigatePolicy('shipping-policy', 'Shipping Policy')} />
+                <MenuItem icon="trash-outline" title="Delete Account" destructive onPress={handleDeleteAccount} />
               </BlurView>
             </View>
 

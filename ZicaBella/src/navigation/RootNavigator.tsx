@@ -21,6 +21,9 @@ import ProductDetailScreen from '../screens/ProductDetailScreen';
 import PolicyScreen from '../screens/PolicyScreen';
 import FAQScreen from '../screens/FAQScreen';
 import StoreCreditHistoryScreen from '../screens/StoreCreditHistoryScreen';
+import LegalScreen from '../screens/legal/LegalScreen';
+import AboutScreen from '../screens/AboutScreen';
+import SupportScreen from '../screens/SupportScreen';
 import { withErrorBoundary } from '../components/ErrorBoundary';
 import { RootStackParamList } from './types';
 import { navigationRef } from './navigationUtils';
@@ -177,6 +180,39 @@ export const RootNavigator = () => {
           <Stack.Screen name="ProductDetail" component={SafeProductDetail} />
           <Stack.Screen name="Policy" component={PolicyScreen as any} />
           <Stack.Screen name="FAQ" component={FAQScreen as any} />
+          <Stack.Screen 
+            name="Legal" 
+            component={LegalScreen} 
+            options={{ 
+              headerShown: true, 
+              title: 'Legal', 
+              headerStyle: { backgroundColor: '#000' }, 
+              headerTintColor: '#fff',
+              headerTitleStyle: { fontWeight: '700' }
+            }} 
+          />
+          <Stack.Screen 
+            name="About" 
+            component={AboutScreen} 
+            options={{ 
+              headerShown: true, 
+              title: 'About', 
+              headerStyle: { backgroundColor: '#000' }, 
+              headerTintColor: '#fff',
+              headerTitleStyle: { fontWeight: '700' }
+            }} 
+          />
+          <Stack.Screen 
+            name="Support" 
+            component={SupportScreen} 
+            options={{ 
+              headerShown: true, 
+              title: 'Support', 
+              headerStyle: { backgroundColor: '#000' }, 
+              headerTintColor: '#fff',
+              headerTitleStyle: { fontWeight: '700' }
+            }} 
+          />
         </Stack.Navigator>
 
         {/* ── GLOBAL UI OVERLAYS ── */}

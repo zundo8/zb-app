@@ -946,3 +946,28 @@ model Address {
 
   @@index([customerId])
 }
+
+model SupportTicket {
+  id          String           @id @default(cuid())
+  customerId  String?
+  guestName   String?
+  guestEmail  String?
+  subject     String
+  status      String           @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  priority    String           @default("MEDIUM")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  messages    SupportMessage[]
+}
+
+model SupportMessage {
+  id         String        @id @default(cuid())
+  ticketId   String
+  senderType String        @default("USER") // USER, AGENT
+  senderId   String?       // Customer ID or Admin ID
+  senderName String?
+  content    String
+  createdAt  DateTime      @default(now())
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+

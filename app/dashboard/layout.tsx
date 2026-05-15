@@ -67,6 +67,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const coreNav = [
     { name: "Overview", href: "/dashboard", icon: BarChart3 },
+    { name: "Support", href: "/dashboard/support", icon: MessageCircle },
     { name: "Orders", href: "/dashboard/orders", icon: ShoppingBag },
     { name: "Mobile Orders", href: "/dashboard/mobile-orders", icon: Smartphone },
     { name: "Customers", href: "/dashboard/customers", icon: Users },

@@ -56,4 +56,7 @@ export type RootStackParamList = {
   Collaborations: undefined;
   Wishlist: undefined;
   StoreCreditHistory: undefined;
+  Legal: { tab: 'privacy' | 'terms' };
+  About: undefined;
+  Support: undefined;
 };
