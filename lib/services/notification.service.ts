@@ -8,7 +8,7 @@ const expo = new Expo();
 // ── APNs Direct Delivery ───────────────────────────────────────────────────
 const APNS_KEY_ID = process.env.APNS_KEY_ID || '';
 const APNS_TEAM_ID = process.env.APNS_TEAM_ID || '';
-const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID || 'com.zicabella.app';
+const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID || 'com.zicabella.ios';
 const APNS_PRODUCTION = process.env.APNS_PRODUCTION === 'true';
 const APNS_HOST = APNS_PRODUCTION
   ? 'https://api.push.apple.com'
@@ -91,15 +91,15 @@ export const NotificationService = {
     const deliveryPromises = devices.map(async (device) => {
       let deviceSuccess = false;
 
-      // 1. Try APNs Direct (Fastest for iOS)
+      // 1. Direct APNs (Primary for iOS)
       if (device.apnsToken) {
-        const ok = await sendViaApns(device.apnsToken, title, body, data);
-        if (ok) deviceSuccess = true;
+        deviceSuccess = await sendViaApns(device.apnsToken, title, body, data);
       }
 
-      // 2. Try Expo/FCM (Fallback)
-      if (device.fcmToken) {
+      // 2. Fallback or Android (Expo)
+      if (!deviceSuccess && device.fcmToken) {
         if (Expo.isExpoPushToken(device.fcmToken)) {
+          // Only use Expo for non-iOS or as absolute last resort
           const messages: ExpoPushMessage[] = [{
             to: device.fcmToken,
             sound: 'default',
@@ -113,10 +113,9 @@ export const NotificationService = {
             const ticket = await expo.sendPushNotificationsAsync(messages);
             if (ticket[0].status === 'ok') deviceSuccess = true;
           } catch {}
-        } else if (/^[a-f0-9]{64}$/i.test(device.fcmToken)) {
-          // It's a native token stored in fcmToken field
-          const ok = await sendViaApns(device.fcmToken, title, body, data);
-          if (ok) deviceSuccess = true;
+        } else if (device.platform === 'ios' || /^[a-f0-9]{64}$/i.test(device.fcmToken)) {
+          // If it's a native token stored in fcmToken field, use APNs
+          deviceSuccess = await sendViaApns(device.fcmToken, title, body, data);
         }
       }
 

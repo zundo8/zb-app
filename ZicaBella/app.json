@@ -19,8 +19,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.zicabella.app",
-      "appleTeamId": "NZDV3AFAEG",
+      "bundleIdentifier": "com.zicabella.ios",
+      "appleTeamId": "94765P9PT9",
       "buildNumber": "1",
       "deploymentTarget": "16.0",
       "infoPlist": {
@@ -77,7 +77,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "your-eas-project-id"
+        "projectId": ""
       },
       "appStoreMetadata": {
         "subtitle": "Fashion. Redefined.",

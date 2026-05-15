@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
 import prisma from '@/lib/db';
+import { allocateFailedOrderNumber } from '@/lib/order-utils';
 
 const corsJsonHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -107,11 +108,12 @@ export async function POST(req: Request) {
         const shop = await prisma.shop.findFirst();
         if (shop) {
           const customer = await resolveMobileCustomer(shop.id, orderData, userAuth);
+          const failedOrderNumber = await allocateFailedOrderNumber();
           await prisma.order.create({
             data: {
               shopId: shop.id,
               customerId: customer.id,
-              shopifyOrderId: `#PENDING_${order.id}`,
+              shopifyOrderId: `#${failedOrderNumber}`,
               razorpayOrderId: order.id,
               totalPrice: amountRupees,
               subtotalPrice: orderData.subtotal || amountRupees,

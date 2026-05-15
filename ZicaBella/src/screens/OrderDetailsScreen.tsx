@@ -67,24 +67,12 @@ export default function OrderDetailsScreen() {
       { step: 'delivered', label: 'Delivered' },
     ];
   }, [order]);
-
   const timelineByStep = useMemo(() => {
     const tl = Array.isArray(order?.statusTimeline) ? order.statusTimeline : [];
     const m = new Map<string, string | null>();
     tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
     return m;
   }, [order]);
-
-  if (!orderId) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <Typography color={colors.text}>Order ID is missing.</Typography>
-        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={{ marginTop: 20 }}>
-          <Typography color={colors.iosBlue}>Go Back</Typography>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   const fetchOrderDetails = useCallback(async (isPolling = false) => {
     if (!orderId) return;
@@ -143,6 +131,31 @@ export default function OrderDetailsScreen() {
       setTrackingError(e?.message || 'Failed to fetch tracking');
     }
   }, [order]);
+
+  const isReturnWindowOpen = useMemo(() => {
+    const isDelivered = (order?.deliveryStatus || '').toLowerCase() === 'delivered';
+    if (!isDelivered || !order?.updatedAt) return false;
+    // Find the 'delivered' step in timeline
+    const deliveredAt = timelineByStep.get('delivered');
+    if (!deliveredAt) return false;
+    
+    const deliveredDate = new Date(deliveredAt);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - deliveredDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 7;
+  }, [order, timelineByStep]);
+
+  if (!orderId) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Typography color={colors.text}>Order ID is missing.</Typography>
+        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={{ marginTop: 20 }}>
+          <Typography color={colors.iosBlue}>Go Back</Typography>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const contactSupport = () => {
     haptics.buttonTap();
@@ -208,19 +221,6 @@ export default function OrderDetailsScreen() {
   const orderNumber = order.orderNumber || order.id?.slice(0, 8);
   const statusColor = isCancelled ? '#FF3B30' : isDelivered ? '#34C759' : '#007AFF';
 
-  // ─── Return Window Logic ──────────────────────────────────────────
-  const isReturnWindowOpen = useMemo(() => {
-    if (!isDelivered || !order.updatedAt) return false;
-    // Find the 'delivered' step in timeline
-    const deliveredAt = timelineByStep.get('delivered');
-    if (!deliveredAt) return false;
-    
-    const deliveredDate = new Date(deliveredAt);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - deliveredDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7;
-  }, [isDelivered, order, timelineByStep]);
 
   const handleReturn = () => {
     haptics.buttonTap();

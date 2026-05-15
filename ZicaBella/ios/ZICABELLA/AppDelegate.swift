@@ -1,6 +1,8 @@
 internal import Expo
+internal import ExpoNotifications
 import React
 import ReactAppDependencyProvider
+import UserNotifications
 
 @main
 class AppDelegate: ExpoAppDelegate {
@@ -19,6 +21,7 @@ class AppDelegate: ExpoAppDelegate {
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
+    UNUserNotificationCenter.current().delegate = NotificationCenterManager.shared
 
 #if os(iOS) || os(tvOS)
     window = UIWindow(frame: UIScreen.main.bounds)

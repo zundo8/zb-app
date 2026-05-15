@@ -38,7 +38,6 @@ export async function registerForPushNotifications(): Promise<{
           allowBadge: true,
           allowSound: true,
           allowDisplayInCarPlay: true,
-          allowCriticalAlerts: true,
         },
       });
       finalStatus = status;
@@ -91,10 +90,23 @@ export async function postPushTokenToBackend(
   userId: string
 ): Promise<boolean> {
   try {
+    const primaryToken = tokens.deviceToken || tokens.expoToken;
+    const tokenType = tokens.deviceToken ? 'apns' : 'expo';
+
+    if (!primaryToken) {
+      return false;
+    }
+
     const payload = {
       userId,
       expoToken: tokens.expoToken,
+      expoPushToken: tokens.expoToken,
       deviceToken: tokens.deviceToken,
+      apnsToken: tokens.deviceToken,
+      pushToken: primaryToken,
+      token: primaryToken,
+      tokenType,
+      pushProvider: tokenType,
       platform: Platform.OS,
       appVersion: Constants.expoConfig?.version || '1.0.0',
     };
@@ -106,7 +118,7 @@ export async function postPushTokenToBackend(
       body: JSON.stringify({
         ...payload,
         deviceId: `ios_${userId}`,
-        fcmToken: tokens.deviceToken || tokens.expoToken, // Backend uses fcmToken as primary field
+        fcmToken: primaryToken, // Backward-compatible legacy field name.
       }),
     });
 
@@ -114,7 +126,7 @@ export async function postPushTokenToBackend(
     fetch(`${config.appUrl}/api/push-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, token: tokens.deviceToken || tokens.expoToken }),
+      body: JSON.stringify(payload),
     }).catch(() => {});
 
     return response.ok;

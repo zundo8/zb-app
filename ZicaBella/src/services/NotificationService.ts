@@ -86,29 +86,27 @@ export class NotificationService {
       }
 
       // ── 3. Get push token and register with backend ─────────────────
-      // Try Expo push token first, fall back to native APNs device token
+      // Use native APNs as the primary iOS token. Expo token remains a fallback.
       try {
         let pushToken: string | undefined;
-        const projectId = getExpoProjectId();
 
-        // Attempt Expo push token (requires EAS projectId + Expo account)
-        if (projectId && projectId !== 'your-eas-project-id') {
-          try {
-            const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-            pushToken = tokenData?.data;
-          } catch (_expoErr) {
-            // Will fall through to native APNs token
-          }
-        }
-
-        // Fallback: native APNs device token (works without EAS)
-        if (!pushToken && Platform.OS === 'ios') {
+        if (Platform.OS === 'ios') {
           try {
             const nativeToken = await Notifications.getDevicePushTokenAsync();
             pushToken = typeof nativeToken?.data === 'string'
               ? nativeToken.data
               : JSON.stringify(nativeToken?.data);
           } catch (_nativeErr) {
+            // Will fall through to Expo token when available.
+          }
+        }
+
+        const projectId = getExpoProjectId();
+        if (!pushToken && projectId && projectId !== 'your-eas-project-id') {
+          try {
+            const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+            pushToken = tokenData?.data;
+          } catch (_expoErr) {
             // Non-fatal
           }
         }
@@ -189,6 +187,7 @@ export class NotificationService {
     try {
       // Use userId if available, otherwise fallback to device-only registration
       const deviceId = userId ? `dev_${Platform.OS}_${userId}` : `guest_${Platform.OS}_${Constants.sessionId || Date.now()}`;
+      const tokenType = token.startsWith('ExponentPushToken') ? 'expo' : Platform.OS === 'ios' ? 'apns' : 'fcm';
 
       // Register with the existing detailed endpoint
       const response = await fetch(`${config.appUrl}/api/notifications/register-device`, {
@@ -197,8 +196,14 @@ export class NotificationService {
         body: JSON.stringify({
           userId,
           deviceId,
-          fcmToken: token,        // backend accepts both Expo and FCM tokens
-          expoPushToken: token,   // explicit Expo token field
+          fcmToken: token,        // Backward-compatible legacy field name.
+          expoPushToken: tokenType === 'expo' ? token : undefined,
+          apnsToken: tokenType === 'apns' ? token : undefined,
+          deviceToken: tokenType === 'apns' ? token : undefined,
+          pushToken: token,
+          token,
+          tokenType,
+          pushProvider: tokenType,
           platform: Platform.OS,
           appVersion: Constants.expoConfig?.version || '1.0.0',
         }),
@@ -209,7 +214,15 @@ export class NotificationService {
         await fetch(`${config.appUrl}/api/push-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, token }),
+          body: JSON.stringify({
+            userId,
+            token,
+            apnsToken: tokenType === 'apns' ? token : undefined,
+            expoPushToken: tokenType === 'expo' ? token : undefined,
+            tokenType,
+            pushProvider: tokenType,
+            platform: Platform.OS,
+          }),
         }).catch(() => {});
       }
 
