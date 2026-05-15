@@ -19,6 +19,8 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { ticketId, status, priority } = body;
 
+    console.log('[Support API] PATCH Request:', { ticketId, status, priority });
+
     if (!ticketId) {
       return NextResponse.json({ error: 'Ticket ID is required' }, { status: 400, headers: corsHeaders });
     }
@@ -34,6 +36,7 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ ticket }, { headers: corsHeaders });
   } catch (error: any) {
+    console.error('[Support API] PATCH Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
   }
 }
@@ -43,9 +46,10 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const customerId = url.searchParams.get('customerId');
     const status = url.searchParams.get('status');
+    const ticketId = url.searchParams.get('ticketId');
 
-    // If customerId is provided, return only their tickets
     const where: any = {};
+    if (ticketId) where.id = ticketId;
     if (customerId) where.customerId = customerId;
     if (status) where.status = status;
 

@@ -79,9 +79,13 @@ export default function TicketDetailPage() {
 
       if (res.ok) {
         setTicket({ ...ticket, status });
+      } else {
+        const err = await res.json();
+        alert('Failed to update status: ' + (err.error || 'Unknown error'));
       }
-    } catch (error) {
-      console.error('Failed to update status');
+    } catch (error: any) {
+      console.error('Failed to update status:', error);
+      alert('Error updating status: ' + error.message);
     }
   };
 
