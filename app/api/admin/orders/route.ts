@@ -16,134 +16,22 @@ export async function GET(req: Request) {
     const search = searchParams.get('search');
     const sync = searchParams.get('sync') === 'true';
 
-    // To make it "live", we sync the most recent orders from Shopify on the first page load
-    // or if explicitly requested.
-    if (offset === 0 || sync) {
-      try {
-        let shop = await prisma.shop.findFirst();
-        
-        // Ensure shop record exists for sync to work
-        if (!shop) {
-          const domain = process.env.SHOPIFY_STORE_DOMAIN || '8tiahf-bk.myshopify.com';
-          const token = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
-          if (token) {
-            console.log('[Admin Orders] Creating missing shop record for sync:', domain);
-            shop = await prisma.shop.create({
-              data: { domain, accessToken: token }
-            });
-          } else {
-             console.warn('[Admin Orders] CANNOT SYNC: No Shop record and NO Shopify token in env.');
-          }
-        }
-
-        if (shop && shop.accessToken && !shop.accessToken.includes('placeholder')) {
-          console.log('[Admin Orders] Triggering live sync from Shopify (Top 50)...');
-          const shopifyOrders = await fetchAllOrders(50);
-          console.log(`[Admin Orders] Sync success. Found ${shopifyOrders.length} orders.`);
-          
-          if (shopifyOrders.length > 0) {
-            for (const o of shopifyOrders) {
-               const customerId = o.customer ? String(o.customer.id) : 'anonymous';
-               let dbCustomer;
-               if (o.customer) {
-                 dbCustomer = await prisma.customer.upsert({
-                   where: { shopifyId: customerId },
-                   create: {
-                     shopId: shop.id,
-                     shopifyId: customerId,
-                     email: o.customer.email,
-                     name: `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim(),
-                     phone: o.customer.phone,
-                   },
-                   update: {
-                     email: o.customer.email,
-                     name: `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim(),
-                     phone: o.customer.phone,
-                   },
-                 });
-               } else {
-                 dbCustomer = await prisma.customer.upsert({
-                   where: { shopifyId: 'anonymous' },
-                   create: { shopId: shop.id, shopifyId: 'anonymous', name: 'Anonymous' },
-                   update: {},
-                 });
-               }
-
-               const lowerTags = (o.tags || '').toLowerCase();
-               const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp') || lowerTags.includes('mobile-app');
-               
-               await prisma.order.upsert({
-                 where: { shopifyOrderId: String(o.id) },
-                 create: {
-                   shopId: shop.id,
-                   shopifyOrderId: String(o.id),
-                   customerId: dbCustomer.id,
-                   status: isMobileAppOrder ? 'approved' : 'active',
-                   totalPrice: parseFloat(o.total_price || '0'),
-                   paymentStatus: o.financial_status || 'pending',
-                   fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
-                   shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
-                   createdAt: new Date(o.created_at),
-                   tags: o.tags || "",
-                 },
-                 update: {
-                   paymentStatus: o.financial_status || 'pending',
-                   fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
-                   totalPrice: parseFloat(o.total_price || '0'),
-                   tags: o.tags || "",
-                 }
-               });
-            }
-          }
-        } else {
-           console.warn('[Admin Orders] Skipping sync: Shop token is invalid or missing.');
-        }
-      } catch (syncErr: any) {
-        console.error('[Admin Orders] Live sync exception:', syncErr.message);
-      }
-    }
+    // Removed automatic live sync on every request to avoid "heavy load" and timeout issues.
+    // Syncing is now handled manually via the 'Sync Shopify' button in the dashboard.
 
     const conditions: any[] = [];
     
-    // SIMPLIFIED FILTERING LOGIC
-    if (platform === 'web') {
-      conditions.push({
-        AND: [
-          { NOT: { tags: { contains: 'mobile-app', mode: 'insensitive' } } },
-          { NOT: { tags: { contains: 'AppOrder', mode: 'insensitive' } } },
-          { NOT: { orderType: 'MOBILE_APP' } }
-        ]
-      });
-    } else if (platform === 'mobile') {
-      conditions.push({
-        AND: [
-          {
-            OR: [
-              { tags: { contains: 'mobile-app', mode: 'insensitive' } },
-              { tags: { contains: 'AppOrder', mode: 'insensitive' } },
-              { orderType: 'MOBILE_APP' }
-            ]
-          },
-          { status: 'approved' }
-        ]
-      });
-    } else {
-      // Platform ANY: Just exclude mobile orders that are NOT approved
-      conditions.push({
-        NOT: {
-          AND: [
-            {
-              OR: [
-                { tags: { contains: 'mobile-app', mode: 'insensitive' } },
-                { tags: { contains: 'AppOrder', mode: 'insensitive' } },
-                { orderType: 'MOBILE_APP' }
-              ]
-            },
-            { status: { not: 'approved' } }
-          ]
-        }
-      });
-    }
+    // Filter for Shopify orders only:
+    // This includes orders synced from Shopify (numeric IDs) or orders with regular Shopify tags.
+    // It specifically excludes pending/failed mobile orders (ZBPF / ZB prefixes) that haven't been synced.
+    conditions.push({
+      NOT: [
+        { shopifyOrderId: { startsWith: 'ZBPF' } },
+        { shopifyOrderId: { startsWith: '#ZBPF' } },
+        { shopifyOrderId: { startsWith: 'ZB71' } },
+        { shopifyOrderId: { startsWith: '#ZB71' } },
+      ]
+    });
 
     if (status && status !== 'any') {
       conditions.push({ status });

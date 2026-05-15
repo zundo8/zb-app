@@ -104,10 +104,11 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("any");
   const [paymentFilter, setPaymentFilter] = useState("any");
   const [fulfillmentFilter, setFulfillmentFilter] = useState("any");
-  const [platformFilter, setPlatformFilter] = useState("any");
   const [tab, setTab] = useState<'all' | 'unfulfilled' | 'unpaid' | 'open'>('all');
   const [toast, setToast] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const LIMIT = 50;
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -120,19 +121,24 @@ export default function OrdersPage() {
       if (tab === 'unpaid') finalPayment = 'pending';
       if (tab === 'open') finalStatus = 'active';
 
-      const url = `/api/admin/orders?limit=100&status=${finalStatus}&paymentStatus=${finalPayment}&fulfillmentStatus=${finalFulfillment}&platform=${platformFilter}&search=${search}`;
+      const offset = (page - 1) * LIMIT;
+      const url = `/api/admin/orders?limit=${LIMIT}&offset=${offset}&status=${finalStatus}&paymentStatus=${finalPayment}&fulfillmentStatus=${finalFulfillment}&search=${search}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
         setOrders(data.orders);
-        setTotal(data.total || data.orders.length);
+        setTotal(data.total || 0);
       }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, paymentFilter, fulfillmentFilter, platformFilter, search, tab]);
+  }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab]);
 
   useEffect(() => {
     const timer = setTimeout(fetchOrders, 300);
@@ -259,11 +265,6 @@ export default function OrdersPage() {
         
         <div className="xl:col-span-8 flex flex-wrap items-center justify-end gap-4">
           {[
-            { value: platformFilter, onChange: setPlatformFilter, options: [
-              { label: 'Platform: All', value: 'any' },
-              { label: 'Platform: Web', value: 'web' },
-              { label: 'Platform: App (Approved)', value: 'mobile' }
-            ]},
             { value: statusFilter, onChange: setStatusFilter, options: [
               { label: 'Process: All', value: 'any' },
               { label: 'Approved', value: 'approved' },
@@ -417,6 +418,35 @@ export default function OrdersPage() {
           })}
         </AnimatePresence>
       </div>
+
+      {/* Pagination Controls */}
+      {total > LIMIT && (
+        <div className="flex items-center justify-between gap-4 pt-10 border-t border-foreground/5">
+          <p className="text-[10px] font-bold text-foreground/20 uppercase tracking-[0.2em]">
+            Showing <span className="text-foreground/40">{(page - 1) * LIMIT + 1}</span> to <span className="text-foreground/40">{Math.min(page * LIMIT, total)}</span> of <span className="text-foreground/40">{total}</span> Transactions
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1 || loading}
+              className="px-6 py-3 bg-foreground/5 hover:bg-foreground/10 disabled:opacity-30 border border-foreground/10 rounded-xl text-[10px] font-bold uppercase tracking-widest text-foreground transition-all"
+            >
+              Previous
+            </button>
+            <div className="px-5 py-3 rounded-xl bg-foreground text-background text-[10px] font-black tracking-widest min-w-[40px] text-center">
+              {page}
+            </div>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page * LIMIT >= total || loading}
+              className="px-8 py-3 bg-foreground/5 hover:bg-foreground/10 disabled:opacity-30 border border-foreground/10 rounded-xl text-[10px] font-bold uppercase tracking-widest text-foreground transition-all flex items-center gap-3"
+            >
+              Next
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
