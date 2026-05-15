@@ -76,68 +76,81 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname]);
 
   const coreNav = [
-    { name: "Overview", href: "/dashboard", icon: BarChart3 },
-    { name: "Support", href: "/dashboard/support", icon: MessageCircle },
-    { name: "Orders", href: "/dashboard/orders", icon: ShoppingBag },
-    { name: "Mobile Orders", href: "/dashboard/mobile-orders", icon: Smartphone },
-    { name: "Customers", href: "/dashboard/customers", icon: Users },
-    { name: "Products", href: "/dashboard/products", icon: Layers2 },
+    { name: "Overview", href: "/dashboard", icon: BarChart3, module: 'DASHBOARD_HOME' },
+    { name: "Support", href: "/dashboard/support", icon: MessageCircle, module: 'SUPPORT' },
+    { name: "Orders", href: "/dashboard/orders", icon: ShoppingBag, module: 'ORDERS' },
+    { name: "Mobile Orders", href: "/dashboard/mobile-orders", icon: Smartphone, module: 'MOBILE_ORDERS' },
+    { name: "Customers", href: "/dashboard/customers", icon: Users, module: 'CUSTOMERS' },
+    { name: "Products", href: "/dashboard/products", icon: Layers2, module: 'PRODUCTS' },
     { name: "Guide", href: "/dashboard/guide", icon: FileText },
   ];
 
   const operationalNav = [
-    { name: "Collections", href: "/dashboard/collections", icon: Package },
-    { name: "Inventory", href: "/dashboard/inventory", icon: BoxSelect },
-    { name: "Scanner", href: "/dashboard/inventory/scanner", icon: ScanLine },
-    { name: "Scanner Records", href: "/dashboard/scanner-records", icon: FileText },
-    { name: "Returns", href: "/dashboard/returns", icon: Undo2 },
-    { name: "Exchanges", href: "/dashboard/exchanges", icon: ArrowLeftRight },
-    { name: "Logistics", href: "/dashboard/logistics", icon: Truck },
+    { name: "Collections", href: "/dashboard/collections", icon: Package, module: 'PRODUCTS' },
+    { name: "Inventory", href: "/dashboard/inventory", icon: BoxSelect, module: 'INVENTORY' },
+    { name: "Scanner", href: "/dashboard/inventory/scanner", icon: ScanLine, module: 'INVENTORY' },
+    { name: "Scanner Records", href: "/dashboard/scanner-records", icon: FileText, module: 'INVENTORY' },
+    { name: "Returns", href: "/dashboard/returns", icon: Undo2, module: 'RETURNS_EXCHANGES' },
+    { name: "Exchanges", href: "/dashboard/exchanges", icon: ArrowLeftRight, module: 'RETURNS_EXCHANGES' },
+    { name: "Logistics", href: "/dashboard/logistics", icon: Truck, module: 'LOGISTICS' },
   ];
 
   const aestheticNav = [
-    { name: "Storefront", href: "/dashboard/storefront", icon: Monitor },
-    { name: "Chat Management", href: "/dashboard/community/chat", icon: MessageSquare },
-    { name: "Community", href: "/dashboard/community", icon: Users },
-    { name: "Blogs", href: "/dashboard/blogs", icon: Newspaper },
-    { name: "Policies", href: "/dashboard/policies", icon: FileText },
+    { name: "Storefront", href: "/dashboard/storefront", icon: Monitor, module: 'STOREFRONT' },
+    { name: "Chat Management", href: "/dashboard/community/chat", icon: MessageSquare, module: 'COMMUNITY' },
+    { name: "Community", href: "/dashboard/community", icon: Users, module: 'COMMUNITY' },
+    { name: "Blogs", href: "/dashboard/blogs", icon: Newspaper, module: 'COMMUNITY' },
+    { name: "Policies", href: "/dashboard/policies", icon: FileText, module: 'STOREFRONT' },
   ];
 
   const integrationNav = [
-    { name: "App Integration", href: "/dashboard/app-integration", icon: Smartphone },
-    { name: "Live Carts", href: "/dashboard/live-carts", icon: ShoppingCart },
-    { name: "App Login Logs", href: "/dashboard/app-logins", icon: History },
-    { name: "Razorpay", href: "/dashboard/payments/razorpay", icon: CreditCard },
+    { name: "App Integration", href: "/dashboard/app-integration", icon: Smartphone, module: 'INTEGRATIONS' },
+    { name: "Live Carts", href: "/dashboard/live-carts", icon: ShoppingCart, module: 'INTEGRATIONS' },
+    { name: "App Login Logs", href: "/dashboard/app-logins", icon: History, module: 'INTEGRATIONS' },
+    { name: "Razorpay", href: "/dashboard/payments/razorpay", icon: CreditCard, module: 'INTEGRATIONS' },
   ];
 
   const intelligenceNav = [
-    { name: "Zica AI", href: "/dashboard/ai", icon: Sparkles },
+    { name: "Zica AI", href: "/dashboard/ai", icon: Sparkles, module: 'AI_SERVICES' },
   ];
 
   const manufacturingNav = [
-    { name: "Pending Tasks", href: "/dashboard/manufacturing/tasks", icon: ClipboardList },
-    { name: "Production Tracker", href: "/dashboard/manufacturing/production", icon: TrendingUp },
-    { name: "Fabric Inventory", href: "/dashboard/manufacturing/fabric", icon: Layers2 },
-    { name: "Fabric Movement", href: "/dashboard/manufacturing/movement", icon: ArrowDownUp },
-    { name: "Manufacturing Vendors", href: "/dashboard/manufacturing/vendors", icon: Building2 },
-    { name: "Cost Ledger", href: "/dashboard/manufacturing/costs", icon: Coins },
+    { name: "Pending Tasks", href: "/dashboard/manufacturing/tasks", icon: ClipboardList, module: 'MANUFACTURING' },
+    { name: "Production Tracker", href: "/dashboard/manufacturing/production", icon: TrendingUp, module: 'MANUFACTURING' },
+    { name: "Fabric Inventory", href: "/dashboard/manufacturing/fabric", icon: Layers2, module: 'MANUFACTURING' },
+    { name: "Fabric Movement", href: "/dashboard/manufacturing/movement", icon: ArrowDownUp, module: 'MANUFACTURING' },
+    { name: "Manufacturing Vendors", href: "/dashboard/manufacturing/vendors", icon: Building2, module: 'MANUFACTURING' },
+    { name: "Cost Ledger", href: "/dashboard/manufacturing/costs", icon: Coins, module: 'MANUFACTURING' },
   ];
 
   const marketingNav = [
-    { name: "Omnichannel Analytics", href: "/dashboard/marketing/analytics", icon: BarChart3 },
-    { name: "Wishlist Management", href: "/dashboard/wishlist", icon: Heart },
-    { name: "Push Notifications", href: "/dashboard/notifications", icon: Bell },
-    { name: "Discounts", href: "/dashboard/marketing/discounts", icon: Tag },
-    { name: "WhatsApp Hub", href: "/dashboard/marketing/whatsapp", icon: MessageCircle },
-    { name: "Email Center", href: "/dashboard/marketing/email", icon: Mail },
-    { name: "SMS Campaigns", href: "/dashboard/marketing/sms", icon: MessageSquare },
+    { name: "Omnichannel Analytics", href: "/dashboard/marketing/analytics", icon: BarChart3, module: 'MARKETING' },
+    { name: "Wishlist Management", href: "/dashboard/wishlist", icon: Heart, module: 'MARKETING' },
+    { name: "Push Notifications", href: "/dashboard/notifications", icon: Bell, module: 'MARKETING' },
+    { name: "Discounts", href: "/dashboard/marketing/discounts", icon: Tag, module: 'MARKETING' },
+    { name: "WhatsApp Hub", href: "/dashboard/marketing/whatsapp", icon: MessageCircle, module: 'MARKETING' },
+    { name: "Email Center", href: "/dashboard/marketing/email", icon: Mail, module: 'MARKETING' },
+    { name: "SMS Campaigns", href: "/dashboard/marketing/sms", icon: MessageSquare, module: 'MARKETING' },
   ];
 
   const financialNav = [
-    { name: "Payments", href: "/dashboard/payments", icon: CreditCard },
-    { name: "Store Credits", href: "/dashboard/payments/store-credits", icon: Wallet },
-    { name: "Refunds", href: "/dashboard/payments/refunds", icon: ArrowLeftRight },
+    { name: "Payments", href: "/dashboard/payments", icon: CreditCard, module: 'FINANCIAL' },
+    { name: "Store Credits", href: "/dashboard/payments/store-credits", icon: Wallet, module: 'FINANCIAL' },
+    { name: "Refunds", href: "/dashboard/payments/refunds", icon: ArrowLeftRight, module: 'FINANCIAL' },
   ];
+
+  const userPermissions = (session?.user as any)?.permissions || [];
+  const userRole = (session?.user as any)?.role;
+
+  const hasPermission = useCallback((moduleName: string) => {
+    if (userRole === 'SUPER_ADMIN') return true;
+    const perm = userPermissions.find((p: any) => p.module === moduleName);
+    return perm?.canView;
+  }, [userRole, userPermissions]);
+
+  const filterNav = (navItems: any[]) => {
+    return navItems.filter(item => !item.module || hasPermission(item.module));
+  };
 
   const isSuperAdmin = (session?.user as any)?.role === 'SUPER_ADMIN';
 
@@ -276,7 +289,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div>
               <SectionLabel>Core Services</SectionLabel>
               <div className="space-y-0.5">
-                {coreNav.map((item) => (
+                {filterNav(coreNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>
@@ -285,7 +298,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div>
               <SectionLabel>Logistics</SectionLabel>
               <div className="space-y-0.5">
-                {operationalNav.map((item) => (
+                {filterNav(operationalNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>
@@ -294,7 +307,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div>
               <SectionLabel>Experience</SectionLabel>
               <div className="space-y-0.5">
-                {aestheticNav.map((item) => (
+                {filterNav(aestheticNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>
@@ -303,7 +316,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div>
               <SectionLabel>Financial</SectionLabel>
               <div className="space-y-0.5">
-                {financialNav.map((item) => (
+                {filterNav(financialNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>
@@ -312,7 +325,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div>
               <SectionLabel>Integration</SectionLabel>
               <div className="space-y-0.5">
-                {integrationNav.map((item) => (
+                {filterNav(integrationNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>
@@ -326,7 +339,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
               </div>
               <div className="space-y-0.5">
-                {intelligenceNav.map((item) => (
+                {filterNav(intelligenceNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>
@@ -339,7 +352,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
               </div>
               <div className="space-y-0.5">
-                {marketingNav.map((item) => (
+                {filterNav(marketingNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>
@@ -353,7 +366,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
               </div>
               <div className="space-y-0.5">
-                {manufacturingNav.map((item) => (
+                {filterNav(manufacturingNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>

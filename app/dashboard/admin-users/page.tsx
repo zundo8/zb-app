@@ -28,18 +28,21 @@ import { toast } from 'sonner';
 
 const MODULES = [
   { id: 'DASHBOARD_HOME', label: 'Dashboard Home' },
+  { id: 'SUPPORT', label: 'Support' },
   { id: 'ORDERS', label: 'Orders' },
+  { id: 'MOBILE_ORDERS', label: 'Mobile Orders' },
+  { id: 'CUSTOMERS', label: 'Customers' },
   { id: 'PRODUCTS', label: 'Products' },
   { id: 'INVENTORY', label: 'Inventory' },
-  { id: 'CUSTOMERS', label: 'Customers' },
-  { id: 'MANUFACTURING', label: 'Manufacturing' },
-  { id: 'PRODUCTION_TRACKER', label: 'Production Tracker' },
-  { id: 'FINANCIAL', label: 'Financial' },
-  { id: 'COST_LEDGER', label: 'Cost Ledger' },
+  { id: 'LOGISTICS', label: 'Logistics' },
+  { id: 'RETURNS_EXCHANGES', label: 'Returns & Exchanges' },
+  { id: 'STOREFRONT', label: 'Storefront' },
+  { id: 'COMMUNITY', label: 'Community' },
   { id: 'MARKETING', label: 'Marketing' },
-  { id: 'VENDORS', label: 'Vendors' },
-  { id: 'RETURNS', label: 'Returns' },
-  { id: 'ANALYTICS', label: 'Analytics' },
+  { id: 'MANUFACTURING', label: 'Manufacturing' },
+  { id: 'FINANCIAL', label: 'Financial' },
+  { id: 'INTEGRATIONS', label: 'Integrations' },
+  { id: 'AI_SERVICES', label: 'AI Services' },
   { id: 'SETTINGS', label: 'Settings' },
   { id: 'ADMIN_USERS', label: 'Admin Users' },
   { id: 'AUDIT_LOG', label: 'Audit Log' },
@@ -527,31 +530,42 @@ export default function AdminUsersPage() {
                               </thead>
                               <tbody>
                                 {formData.permissions.map((p, idx) => (
-                                  <tr key={p.module} className="border-b border-foreground/[0.03] last:border-0">
-                                    <td className="px-6 py-3 text-[13px] font-medium">{MODULES.find(m => m.id === p.module)?.label}</td>
-                                    <td className="px-6 py-3 text-center">
-                                      <input 
-                                        type="checkbox" 
-                                        checked={p.canView}
-                                        onChange={() => handleTogglePermission(idx, 'canView')}
-                                        className="w-4 h-4 rounded border-foreground/20 accent-foreground"
-                                      />
+                                  <tr key={p.module} className="border-b border-foreground/[0.03] last:border-0 hover:bg-foreground/[0.01] transition-colors">
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col">
+                                        <span className="text-[13px] font-semibold text-foreground">{MODULES.find(m => m.id === p.module)?.label}</span>
+                                        <span className="text-[9px] text-foreground/30 uppercase tracking-widest font-bold">{p.module.replace('_', ' ')}</span>
+                                      </div>
                                     </td>
-                                    <td className="px-6 py-3 text-center">
-                                      <input 
-                                        type="checkbox" 
-                                        checked={p.canEdit}
-                                        onChange={() => handleTogglePermission(idx, 'canEdit')}
-                                        className="w-4 h-4 rounded border-foreground/20 accent-foreground"
-                                      />
+                                    <td className="px-6 py-4 text-center">
+                                      <div className="flex justify-center">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={p.canView}
+                                          onChange={() => handleTogglePermission(idx, 'canView')}
+                                          className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
+                                        />
+                                      </div>
                                     </td>
-                                    <td className="px-6 py-3 text-center">
-                                      <input 
-                                        type="checkbox" 
-                                        checked={p.canDelete}
-                                        onChange={() => handleTogglePermission(idx, 'canDelete')}
-                                        className="w-4 h-4 rounded border-foreground/20 accent-foreground"
-                                      />
+                                    <td className="px-6 py-4 text-center">
+                                      <div className="flex justify-center">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={p.canEdit}
+                                          onChange={() => handleTogglePermission(idx, 'canEdit')}
+                                          className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                      <div className="flex justify-center">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={p.canDelete}
+                                          onChange={() => handleTogglePermission(idx, 'canDelete')}
+                                          className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
+                                        />
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}

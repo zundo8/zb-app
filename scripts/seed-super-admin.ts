@@ -62,7 +62,7 @@ async function main() {
         passwordHash: hashedPassword,
         role: 'SUPER_ADMIN',
         isActive: true,
-        needsPasswordChange: false, // User explicitly specified these credentials
+        needsPasswordChange: false,
       },
       create: {
         email: email.toLowerCase().trim(),
@@ -74,17 +74,17 @@ async function main() {
       }
     });
 
-    console.log(`✅ Super Admin ${superAdmin.email} processed (Updated/Created).`);
+    console.log(`✅ Super Admin ${superAdmin.email} processed.`);
 
-    // Grant all permissions
+    // Updated module list matching the expanded enum
     const modules = [
-      'DASHBOARD_HOME', 'ORDERS', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS',
-      'MANUFACTURING', 'PRODUCTION_TRACKER', 'FINANCIAL', 'COST_LEDGER',
-      'MARKETING', 'VENDORS', 'RETURNS', 'ANALYTICS', 'SETTINGS',
-      'ADMIN_USERS', 'AUDIT_LOG'
+      'DASHBOARD_HOME', 'SUPPORT', 'ORDERS', 'MOBILE_ORDERS', 'CUSTOMERS',
+      'PRODUCTS', 'INVENTORY', 'LOGISTICS', 'RETURNS_EXCHANGES', 'STOREFRONT',
+      'COMMUNITY', 'MARKETING', 'MANUFACTURING', 'FINANCIAL', 'INTEGRATIONS',
+      'AI_SERVICES', 'SETTINGS', 'ADMIN_USERS', 'AUDIT_LOG'
     ];
 
-    console.log('🚀 Granting full permissions...');
+    console.log('🚀 Granting full permissions for all modules...');
 
     for (const moduleName of modules) {
       await prisma.permission.upsert({
@@ -111,29 +111,24 @@ async function main() {
 
     console.log('✅ Full permissions granted.');
     
-    // Also update legacy Admin table if it exists to avoid confusion
+    // Consistency check with legacy Admin table
     try {
       const legacyAdmin = await (prisma as any).admin.findUnique({
         where: { username: 'admin' }
       });
       if (legacyAdmin) {
-        console.log('🔄 Updating legacy Admin table for consistency...');
         await (prisma as any).admin.update({
           where: { username: 'admin' },
-          data: { password: hashedPassword } // Using same hash for both
+          data: { password: hashedPassword }
         });
-        console.log('✅ Legacy Admin table updated.');
+        console.log('✅ Legacy Admin table synchronized.');
       }
-    } catch (e) {
-      console.log('ℹ Legacy Admin table update skipped (may not exist or different schema).');
-    }
+    } catch (e) {}
 
   } catch (err) {
     console.error('❌ Failed:', err);
     throw err;
   } finally {
-    // @ts-ignore
-    if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
   }
 }
