@@ -76,6 +76,9 @@
       "expo-secure-store"
     ],
     "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      },
       "appStoreMetadata": {
         "subtitle": "Fashion. Redefined.",
         "description": "Zica Bella is your destination for curated contemporary fashion. Discover the latest collections across women's and men's categories, styled for everyday elegance and effortless confidence. Browse thousands of pieces — from essentials to statement looks — with a seamless shopping experience designed for the way you live. Add items to your bag in seconds, check out with Apple Pay or your saved card, and choose from standard, express, or same-day delivery. Track every order in real time with live status updates and courier tracking, right inside the app. Need to make a change? Initiate a return or exchange in just a few taps — no calls, no hassle. Your order history, returns, and exchanges are all in one place, always in sync. Zica Bella brings the full power of a world-class fashion platform to your iPhone. New arrivals added weekly. Free returns on all orders. Download and discover fashion, redefined.",

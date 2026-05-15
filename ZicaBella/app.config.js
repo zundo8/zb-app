@@ -3,6 +3,9 @@ export default ({ config }) => {
     ...config,
     extra: {
       ...(config.extra || {}),
+      eas: {
+        ...(config.extra?.eas || {}),
+      },
       razorpayKeyId: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID,
     },
   };

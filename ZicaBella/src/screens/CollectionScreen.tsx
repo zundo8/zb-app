@@ -110,10 +110,8 @@ export default function CollectionScreen() {
 
         if (currentY < 150) {
           setIsCompact(false);
-        } else if (diff > 15) {
+        } else {
           setIsCompact(true);
-        } else if (diff < -15) {
-          setIsCompact(false);
         }
 
         if (Math.abs(diff) > 15) {
@@ -258,13 +256,13 @@ export default function CollectionScreen() {
 
       {/* ── Sticky Advanced Filter ── */}
       <Animated.View 
+        pointerEvents={isCompact ? 'box-none' : 'none'}
         style={[
           styles.stickyFilterSection, 
           { 
             top: insets.top + 48,
             opacity: stickyFilterOpacity,
             transform: [{ translateY: stickyFilterTranslateY }],
-            pointerEvents: isCompact ? 'auto' : 'none' // Only catch touches when visible
           }
         ]}
       >
@@ -299,7 +297,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    zIndex: 90,
+    zIndex: 1000,
     paddingVertical: 8,
     alignItems: 'center',
   },

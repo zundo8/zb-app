@@ -16,14 +16,8 @@ import { config } from '../constants/config';
 import { haptics } from '../utils/haptics';
 import { getExpoProjectId } from '../utils/notifications';
 
-// Configure how notifications should be handled when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// NOTE: setNotificationHandler is called once in index.ts (module-level, before
+// any component renders). Do NOT duplicate it here — it causes race conditions.
 
 // Module-level refs to avoid registering listeners more than once
 let _foregroundSub: Notifications.Subscription | null = null;
@@ -91,19 +85,37 @@ export class NotificationService {
         });
       }
 
-      // ── 3. Get Expo Push Token and register with backend ─────────────
+      // ── 3. Get push token and register with backend ─────────────────
+      // Try Expo push token first, fall back to native APNs device token
       try {
+        let pushToken: string | undefined;
         const projectId = getExpoProjectId();
 
-        if (!projectId) {
-          return false;
+        // Attempt Expo push token (requires EAS projectId + Expo account)
+        if (projectId && projectId !== 'your-eas-project-id') {
+          try {
+            const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+            pushToken = tokenData?.data;
+          } catch (_expoErr) {
+            // Will fall through to native APNs token
+          }
         }
 
-        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+        // Fallback: native APNs device token (works without EAS)
+        if (!pushToken && Platform.OS === 'ios') {
+          try {
+            const nativeToken = await Notifications.getDevicePushTokenAsync();
+            pushToken = typeof nativeToken?.data === 'string'
+              ? nativeToken.data
+              : JSON.stringify(nativeToken?.data);
+          } catch (_nativeErr) {
+            // Non-fatal
+          }
+        }
 
-        if (tokenData?.data) {
-          useNotificationStore.getState().setPushToken(tokenData.data);
-          await this.registerDevice(tokenData.data);
+        if (pushToken) {
+          useNotificationStore.getState().setPushToken(pushToken);
+          await this.registerDevice(pushToken);
         }
       } catch (_tokenErr) {
         // Non-fatal — app still works, just won't receive remote pushes
@@ -177,6 +189,8 @@ export class NotificationService {
     try {
       // Use userId if available, otherwise fallback to device-only registration
       const deviceId = userId ? `dev_${Platform.OS}_${userId}` : `guest_${Platform.OS}_${Constants.sessionId || Date.now()}`;
+
+      // Register with the existing detailed endpoint
       const response = await fetch(`${config.appUrl}/api/notifications/register-device`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -189,6 +203,15 @@ export class NotificationService {
           appVersion: Constants.expoConfig?.version || '1.0.0',
         }),
       });
+
+      // Also register with the simplified push-token endpoint
+      if (userId) {
+        await fetch(`${config.appUrl}/api/push-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, token }),
+        }).catch(() => {});
+      }
 
       if (!response.ok) {
         // Registration failed — non-fatal, will retry on next launch

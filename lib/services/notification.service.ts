@@ -1,30 +1,129 @@
-import admin from 'firebase-admin';
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+import jwt from 'jsonwebtoken';
 import db from '../db';
 
-// Initialize Firebase Admin SDK if not already initialized
-if (!admin.apps.length) {
+// ── Expo Push SDK (primary delivery path) ──────────────────────────────────
+const expo = new Expo();
+
+// ── APNs Direct Delivery (fallback for native device tokens) ───────────────
+// Configuration from environment variables:
+//   APNS_KEY_ID        - Apple Key ID (e.g. M9MGSZGU45)
+//   APNS_TEAM_ID       - Apple Team ID (e.g. NZDV3AFAEG)
+//   APNS_KEY_BASE64    - Base64-encoded .p8 private key
+//   APNS_BUNDLE_ID     - iOS bundle identifier (e.g. com.zicabella.app)
+//   APNS_PRODUCTION    - "true" for production, anything else for sandbox
+
+const APNS_KEY_ID = process.env.APNS_KEY_ID || '';
+const APNS_TEAM_ID = process.env.APNS_TEAM_ID || '';
+const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID || 'com.zicabella.app';
+const APNS_PRODUCTION = process.env.APNS_PRODUCTION === 'true';
+const APNS_HOST = APNS_PRODUCTION
+  ? 'https://api.push.apple.com'
+  : 'https://api.sandbox.push.apple.com';
+
+/**
+ * Decode the .p8 key from base64 environment variable.
+ * Returns the PEM string or null if not configured.
+ */
+function getApnsPrivateKey(): string | null {
+  const b64 = process.env.APNS_KEY_BASE64;
+  if (!b64) return null;
   try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    });
-  } catch (error) {
-    console.error('Firebase admin initialization error', error);
+    return Buffer.from(b64, 'base64').toString('utf-8');
+  } catch {
+    console.error('[APNs] Failed to decode APNS_KEY_BASE64');
+    return null;
   }
 }
 
-// Initialize Expo SDK
-const expo = new Expo();
+// Cache the JWT for ~55 minutes (APNs tokens are valid for 60 minutes)
+let _apnsJwt: string | null = null;
+let _apnsJwtExpiry = 0;
+
+/**
+ * Generate (or return cached) APNs authentication JWT using the .p8 key.
+ */
+function getApnsJwt(): string | null {
+  const now = Math.floor(Date.now() / 1000);
+  if (_apnsJwt && now < _apnsJwtExpiry) return _apnsJwt;
+
+  const privateKey = getApnsPrivateKey();
+  if (!privateKey || !APNS_KEY_ID || !APNS_TEAM_ID) return null;
+
+  _apnsJwt = jwt.sign({}, privateKey, {
+    algorithm: 'ES256',
+    keyid: APNS_KEY_ID,
+    issuer: APNS_TEAM_ID,
+    header: { alg: 'ES256', kid: APNS_KEY_ID },
+    expiresIn: '55m',
+  });
+  _apnsJwtExpiry = now + 55 * 60;
+  return _apnsJwt;
+}
+
+/**
+ * Send a single notification directly to APNs using HTTP/2.
+ * Returns true on success, false on failure.
+ */
+async function sendViaApns(
+  deviceToken: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<boolean> {
+  const token = getApnsJwt();
+  if (!token) {
+    console.error('[APNs] Cannot send — APNs key not configured.');
+    return false;
+  }
+
+  const apnsPayload = {
+    aps: {
+      alert: { title, body },
+      sound: 'default',
+      badge: 1,
+      'content-available': 1,
+      'mutable-content': 1,
+    },
+    ...(data || {}),
+  };
+
+  try {
+    const response = await fetch(`${APNS_HOST}/3/device/${deviceToken}`, {
+      method: 'POST',
+      headers: {
+        'authorization': `bearer ${token}`,
+        'apns-topic': APNS_BUNDLE_ID,
+        'apns-push-type': 'alert',
+        'apns-priority': '10',
+        'apns-expiration': '0',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(apnsPayload),
+    });
+
+    if (response.ok) return true;
+
+    const errorBody = await response.text();
+    console.error(`[APNs] Send failed (${response.status}):`, errorBody);
+    return false;
+  } catch (err) {
+    console.error('[APNs] Network error:', err);
+    return false;
+  }
+}
 
 export const NotificationService = {
   /**
    * Registers or updates a device token for a user
    */
-  async registerDeviceToken(data: { userId?: string; deviceId: string; fcmToken: string; platform?: string; appVersion?: string }) {
+  async registerDeviceToken(data: {
+    userId?: string;
+    deviceId: string;
+    fcmToken: string;
+    platform?: string;
+    appVersion?: string;
+  }) {
     const finalUserId = data.userId || `GUEST_${data.deviceId}`;
     return db.deviceToken.upsert({
       where: {
@@ -38,7 +137,7 @@ export const NotificationService = {
         platform: data.platform || 'ios',
         appVersion: data.appVersion,
         isActive: true,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       },
       create: {
         userId: finalUserId,
@@ -64,9 +163,14 @@ export const NotificationService = {
   },
 
   /**
-   * Sends a notification to a specific user
+   * Sends a notification to a specific user (all their active devices)
    */
-  async sendToUser(userId: string, title: string, body: string, data?: Record<string, string>) {
+  async sendToUser(
+    userId: string,
+    title: string,
+    body: string,
+    data?: Record<string, string>
+  ) {
     const devices = await db.deviceToken.findMany({
       where: { userId, isActive: true },
     });
@@ -75,40 +179,55 @@ export const NotificationService = {
       return { success: false, reason: 'No active devices found.' };
     }
 
-    const tokens = devices.map(d => d.fcmToken);
+    const tokens = devices.map((d) => d.fcmToken);
     return this.sendToTokens(tokens, title, body, data);
   },
 
   /**
-   * Send notification to an array of tokens (handles both FCM and Expo)
+   * Send notifications to an array of tokens.
+   *
+   * Routing logic:
+   *   - ExponentPushToken[...] → Expo push service (which handles APNs relay)
+   *   - 64-char hex string     → Direct APNs via .p8 key
+   *   - Everything else        → Expo push service (best-effort)
    */
-  async sendToTokens(tokens: string[], title: string, body: string, data?: Record<string, string>) {
-    if (tokens.length === 0) return { success: true, successCount: 0, failureCount: 0 };
+  async sendToTokens(
+    tokens: string[],
+    title: string,
+    body: string,
+    data?: Record<string, string>
+  ) {
+    if (tokens.length === 0)
+      return { success: true, successCount: 0, failureCount: 0 };
 
     const expoTokens: string[] = [];
-    const fcmTokens: string[] = [];
+    const apnsTokens: string[] = [];
 
-    tokens.forEach(token => {
+    tokens.forEach((token) => {
       if (Expo.isExpoPushToken(token)) {
         expoTokens.push(token);
+      } else if (/^[a-f0-9]{64}$/i.test(token)) {
+        // Native APNs device token (64 hex chars)
+        apnsTokens.push(token);
       } else {
-        fcmTokens.push(token);
+        // Unknown format — try via Expo
+        expoTokens.push(token);
       }
     });
 
     let successCount = 0;
     let failureCount = 0;
 
-    // --- Process Expo Tokens ---
+    // ── Expo Push Service ────────────────────────────────────────────────
     if (expoTokens.length > 0) {
-      const messages: ExpoPushMessage[] = expoTokens.map(token => ({
+      const messages: ExpoPushMessage[] = expoTokens.map((token) => ({
         to: token,
-        sound: 'default',
+        sound: 'default' as const,
         title,
         body,
         data: data as any,
         badge: 1,
-        priority: 'high',
+        priority: 'high' as const,
         channelId: 'default',
         mutableContent: true,
         categoryIdentifier: 'default',
@@ -123,75 +242,47 @@ export const NotificationService = {
               successCount++;
             } else {
               failureCount++;
-              console.error(`Expo send error: ${ticket.details?.error}`);
+              console.error(`[Expo] Send error: ${ticket.details?.error}`);
               if (ticket.details?.error === 'DeviceNotRegistered') {
-                // Cleanup stale token
-                db.deviceToken.updateMany({
-                  where: { fcmToken: chunk[idx].to as string },
-                  data: { isActive: false }
-                }).catch(() => {});
+                db.deviceToken
+                  .updateMany({
+                    where: { fcmToken: chunk[idx].to as string },
+                    data: { isActive: false },
+                  })
+                  .catch(() => {});
               }
             }
           });
         } catch (error) {
-          console.error('Expo chunk send error:', error);
+          console.error('[Expo] Chunk send error:', error);
           failureCount += chunk.length;
         }
       });
-      
+
       await Promise.all(chunkPromises);
     }
 
-    // --- Process FCM Tokens ---
-    if (fcmTokens.length > 0) {
-      // Firebase limits to 500 tokens per multicast
-      for (let i = 0; i < fcmTokens.length; i += 500) {
-        const chunk = fcmTokens.slice(i, i + 500);
-        const message: admin.messaging.MulticastMessage = {
-          notification: { title, body, imageUrl: (data as any)?.imageUrl || undefined },
-          data: data as any,
-          tokens: chunk,
-          android: { priority: 'high' },
-          apns: {
-            payload: {
-              aps: { 
-                sound: 'default', 
-                badge: 1, 
-                'content-available': 1, 
-                mutableContent: true,
-                category: 'default'
-              }
-            },
-            headers: { 'apns-priority': '10' }
-          },
-        };
-
-        try {
-          const response = await admin.messaging().sendEachForMulticast(message);
-          successCount += response.successCount;
-          failureCount += response.failureCount;
-
-          // Cleanup stale FCM tokens
-          const tokensToRemove: string[] = [];
-          response.responses.forEach((res, idx) => {
-            if (!res.success && (res.error?.code === 'messaging/invalid-registration-token' || res.error?.code === 'messaging/registration-token-not-registered')) {
-              tokensToRemove.push(chunk[idx]);
-            }
-          });
-
-          if (tokensToRemove.length > 0) {
-            await db.deviceToken.updateMany({
-              where: { fcmToken: { in: tokensToRemove } },
-              data: { isActive: false }
-            }).catch(() => {});
-          }
-        } catch (err) {
-          console.error('FCM multicast error:', err);
-          failureCount += chunk.length;
+    // ── Direct APNs ──────────────────────────────────────────────────────
+    if (apnsTokens.length > 0) {
+      const apnsPromises = apnsTokens.map(async (token) => {
+        const ok = await sendViaApns(token, title, body, data);
+        if (ok) {
+          successCount++;
+        } else {
+          failureCount++;
+          // Deactivate tokens that fail
+          db.deviceToken
+            .updateMany({
+              where: { fcmToken: token },
+              data: { isActive: false },
+            })
+            .catch(() => {});
         }
-      }
+      });
+
+      await Promise.all(apnsPromises);
     }
 
     return { success: true, successCount, failureCount };
-  }
+  },
 };
