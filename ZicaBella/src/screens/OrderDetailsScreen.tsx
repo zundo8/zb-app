@@ -247,7 +247,7 @@ export default function OrderDetailsScreen() {
             <Typography size={17} weight="800" color={colors.text}>
               {isCancelled 
                 ? 'Order Cancelled' 
-                : (order.status === 'payment_pending' || (order.status || '').toLowerCase() === 'pending')
+                : (['payment_failed', 'payment_pending', 'failed', 'pending'].includes((order.status || '').toLowerCase()))
                   ? 'Payment Failed'
                   : isDelivered 
                     ? 'Delivered' 
@@ -263,8 +263,10 @@ export default function OrderDetailsScreen() {
         {!isCancelled && (
           <View style={styles.stepperBox}>
             {steps.map((s, idx) => {
+              const isPaymentFailed = ['payment_failed', 'failed'].includes((order.status || '').toLowerCase());
               const completedAt = timelineByStep.get(s.step);
-              const isCompleted = !!completedAt;
+              // Only show 'Order Placed' as completed if payment didn't fail
+              const isCompleted = !!completedAt && !(isPaymentFailed && s.step === 'order_placed');
               return (
                 <View key={s.step} style={styles.stepItem}>
                   <View style={styles.stepIndicator}>
@@ -409,8 +411,10 @@ export default function OrderDetailsScreen() {
             </View>
           ) : (
             <>
-              {((order.paymentMethod === 'COD' && (order.status || '').toLowerCase() === 'awaiting_approval') || 
-               ((order.status || '').toLowerCase() === 'payment_pending' || (order.status || '').toLowerCase() === 'pending')) && !isDelivered ? (
+              {(
+                (order.paymentMethod === 'COD' && (order.status || '').toLowerCase() === 'awaiting_approval') || 
+                ((order.status || '').toLowerCase() === 'payment_pending' || (order.status || '').toLowerCase() === 'pending')
+              ) && !isDelivered && !['payment_failed', 'failed'].includes((order.status || '').toLowerCase()) ? (
                 <TouchableOpacity onPress={handleCancelOrder} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
                   <BlurView 
                     intensity={isDark ? 30 : 60} 

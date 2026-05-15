@@ -29,6 +29,8 @@ import {
   CornerDownRight,
   Zap,
   Globe,
+  Smartphone,
+  CheckCircle2,
   ArrowRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -220,23 +222,37 @@ export default function OrderDetailPage() {
 
       {/* Minimal Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-foreground/5 pb-10">
-        <div className="flex items-center gap-6">
-          <button onClick={() => router.back()} className="w-10 h-10 rounded-xl bg-foreground/5 border border-foreground/10 flex items-center justify-center hover:bg-foreground/10 transition-all">
-            <ArrowLeft className="w-4 h-4 text-foreground/40" />
-          </button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground uppercase tracking-tighter">
-                ORDER #{order.shopifyOrderId.replace('#', '') || order.id.slice(-8).toUpperCase()}
-              </h1>
-              <StatusBadge status={order.status} />
+        <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <button onClick={() => window.history.back()} className="w-10 h-10 island-blur rounded-xl flex items-center justify-center hover:bg-foreground hover:text-background transition-all">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-black tracking-tighter uppercase italic">Order #{order.orderNumber || order.id.slice(-6).toUpperCase()}</h1>
+                <div className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${order.status === 'cancelled' || order.status === 'payment_failed' ? 'bg-rose-500/10 text-rose-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                  {order.status}
+                </div>
+                {order.orderType === 'MOBILE_APP' && (
+                  <div className="px-4 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-indigo-500/20 shadow-sm">
+                    <Smartphone className="w-3 h-3" />
+                    Mobile Ecosystem Signal
+                  </div>
+                )}
+              </div>
             </div>
-            <p className="text-[11px] text-foreground/20 font-bold uppercase tracking-widest mt-1.5 flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5" />
-              {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })} at {new Date(order.createdAt).toLocaleTimeString()}
-            </p>
+            <div className="flex items-center gap-6 px-4">
+              <p className="text-[11px] text-foreground/40 font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                {new Date(order.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+              {order.shopifyOrderId && !order.shopifyOrderId.startsWith('#') && (
+                <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                   <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Shopify Synced: {order.shopifyOrderId}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
         <div className="flex items-center gap-3">
           <button onClick={() => fetchOrder(true)} className="p-3 bg-foreground/5 hover:bg-foreground/10 border border-foreground/5 rounded-xl transition-all">
