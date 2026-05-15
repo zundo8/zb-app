@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import OptimizedImage from './OptimizedImage';
 import { useColors } from '../constants/colors';
 import { formatPrice } from '../utils/formatPrice';
@@ -43,7 +44,7 @@ const CartItem = React.memo(({ item, onUpdateQuantity, onRemove, onPress }: Prop
       <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.contentRow}>
         {/* Product Image */}
         <View style={[styles.imageContainer, { backgroundColor: colors.background }]}>
-          <Image source={{ uri: resolveImageUrl(item.image) || undefined }} style={styles.image} contentFit="cover" />
+          <Image source={resolveImageUrl(item.image) ? { uri: resolveImageUrl(item.image) as string } : ''} style={styles.image} contentFit="cover" />
         </View>
 
         {/* Details */}

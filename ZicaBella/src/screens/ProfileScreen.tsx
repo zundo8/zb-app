@@ -284,8 +284,8 @@ export default function ProfileScreen() {
               });
 
               if (res.ok) {
-                setProfileImage(null);
-                updateUser({ image: null });
+                setProfileImage(undefined);
+                updateUser({ image: undefined });
                 haptics.success();
                 Alert.alert('Success', 'Profile photo removed');
               } else {
@@ -361,7 +361,7 @@ export default function ProfileScreen() {
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Submit Request',
-            onPress: async (reason) => {
+            onPress: async (reason?: string) => {
               if (!reason?.trim()) {
                 Alert.alert('Error', 'Please provide a reason for deletion.');
                 return;

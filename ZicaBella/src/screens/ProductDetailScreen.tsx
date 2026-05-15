@@ -68,7 +68,7 @@ const ImageViewerModal = ({ visible, images, activeIndex, onClose }: any) => {
           {images.map((img: any, idx: number) => (
             <View key={idx} style={styles.viewerItem}>
               <Image 
-                source={resolveImageUrl(img) || undefined} 
+                source={resolveImageUrl(img) || ''} 
                 style={styles.viewerImage} 
                 contentFit="contain" 
                 transition={400} 
@@ -98,7 +98,7 @@ const CuratedItem = React.memo(({ product, onPress, onQuickAdd, colors }: { prod
       <View style={styles.curatedCard}>
         <View style={{ flex: 1 }}>
           <Image 
-            source={{ uri: resolveImageUrl(featuredImage) || undefined }} 
+            source={resolveImageUrl(featuredImage) ? { uri: resolveImageUrl(featuredImage) as string } : ''} 
             style={StyleSheet.absoluteFill} 
             contentFit="cover" 
             cachePolicy="memory-disk"
@@ -339,6 +339,8 @@ export default function ProductDetailScreen() {
     }
   };
 
+  const images = product ? (product.images.length > 0 ? product.images : [product.featuredImage]) : [];
+
   const renderHeroItem = useCallback(({ item, index }: any) => (
     <TouchableOpacity 
       activeOpacity={0.9} 
@@ -371,7 +373,6 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const images = product.images.length > 0 ? product.images : [product.featuredImage];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -428,7 +429,6 @@ export default function ProductDetailScreen() {
               autoPlay={false}
               onConfigurePanGesture={(panGesture: any) => panGesture.activeOffsetX([-10, 10])}
               windowSize={3}
-              removeClippedSubviews={true}
            />
         </View>
 
@@ -464,7 +464,6 @@ export default function ProductDetailScreen() {
                 <OptimizedImage source={String(images[index])} style={StyleSheet.absoluteFill} shopifyWidth={200} />
               </TouchableOpacity>
             )}
-            removeClippedSubviews={true}
           />
         </View>
 

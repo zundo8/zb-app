@@ -160,7 +160,7 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
               activeOpacity={product.handle ? 0.6 : 1}
               onPress={handleNavigateToProduct}
             >
-              <Image source={{ uri: image || undefined }} style={[styles.previewImage, { backgroundColor: colors.surface }]} contentFit="cover" />
+              <Image source={image ? { uri: image } : ''} style={[styles.previewImage, { backgroundColor: colors.surface }]} contentFit="cover" />
               <View style={styles.textInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Text style={[styles.productTitle, { color: colors.text, flex: 1 }]} numberOfLines={1}>{product.title}</Text>
