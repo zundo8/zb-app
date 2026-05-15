@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { fetchAllOrders } from '@/lib/shopify-admin';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    await requirePermission('ORDERS', 'view');
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
@@ -112,7 +114,6 @@ export async function GET(req: Request) {
       hasMore: total > offset + limit
     });
   } catch (error: any) {
-    console.error('[Admin Orders API] Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return handleAuthError(error);
   }
 }

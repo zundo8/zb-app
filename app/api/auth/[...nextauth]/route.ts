@@ -5,6 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/db";
 import { AuthOptions } from "next-auth";
 import { searchCustomerByPhone, fetchOrdersByCustomerId } from "@/lib/shopify-admin";
+import bcrypt from "bcryptjs";
 
 // Shopify Storefront API customer access token
 async function shopifyCustomerLogin(email: string, password: string) {
@@ -299,6 +300,71 @@ export const authOptions: AuthOptions = {
         }
       },
     }),
+    CredentialsProvider({
+      id: "admin-login",
+      name: "Admin Login",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        try {
+          if (!credentials?.email || !credentials?.password) return null;
+
+          const email = credentials.email.toLowerCase().trim();
+          const user = await prisma.user.findUnique({
+            where: { email },
+          });
+
+          if (!user || !user.isActive) return null;
+
+          // Check if locked
+          if (user.lockUntil && user.lockUntil > new Date()) {
+            throw new Error(`Account locked until ${user.lockUntil.toLocaleTimeString()}`);
+          }
+
+          const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
+
+          if (!isValid) {
+            const newAttempts = user.failedLoginAttempts + 1;
+            let lockUntil = user.lockUntil;
+            if (newAttempts >= 5) {
+              lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+            }
+
+            await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                failedLoginAttempts: newAttempts,
+                lockUntil: lockUntil,
+              },
+            });
+            return null;
+          }
+
+          // Reset on success
+          if (user.failedLoginAttempts > 0 || user.lockUntil) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                failedLoginAttempts: 0,
+                lockUntil: null,
+              },
+            });
+          }
+
+          return {
+            id: user.id,
+            name: user.name || "Admin",
+            email: user.email,
+            role: user.role,
+          };
+        } catch (error: any) {
+          console.error("[AUTH] Admin authorize error:", error);
+          throw new Error(error.message || "Invalid credentials");
+        }
+      },
+    }),
   ],
   callbacks: {
     async signIn({ user, account }) {
@@ -337,28 +403,59 @@ export const authOptions: AuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.role = (user as any).role || "CUSTOMER";
+        token.permissions = (user as any).permissions;
+        token.loginTime = Math.floor(Date.now() / 1000);
       }
+
+      // Absolute 8-hour limit for admins
+      if (token.role === "ADMIN" || token.role === "SUPER_ADMIN") {
+        const eightHoursInSeconds = 8 * 60 * 60;
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (token.loginTime && (currentTime - (token.loginTime as number)) > eightHoursInSeconds) {
+          return null as any; // Invalidates the token
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (session?.user) {
         try {
           const userId = (session.user as any).id || token.sub || token.id;
-          
+          const role = token.role;
+
+          if (role === "ADMIN" || role === "SUPER_ADMIN") {
+            const adminUser = await prisma.user.findUnique({
+              where: { id: userId as string },
+              include: { permissions: true },
+            });
+            if (adminUser && adminUser.isActive) {
+              (session.user as any).id = adminUser.id;
+              (session.user as any).role = adminUser.role;
+              (session.user as any).permissions = adminUser.permissions;
+              (session.user as any).needsPasswordChange = adminUser.needsPasswordChange;
+            } else {
+              // Invalidate session if user not found or inactive
+              return null as any;
+            }
+            return session;
+          }
+
           if (userId) {
             const customer = await prisma.customer.findFirst({
-              where: { 
+              where: {
                 OR: [
                   { id: userId as string },
                   { shopifyId: userId as string },
                   ...(session.user.email ? [{ email: session.user.email }] : []),
-                ]
+                ],
               },
               include: {
                 communityMember: true,
-              }
+              },
             });
-            
+
             if (customer) {
               (session as any).customer = customer;
               (session.user as any).id = customer.id;
@@ -378,6 +475,18 @@ export const authOptions: AuthOptions = {
   },
   session: {
     strategy: "jwt",
+    maxAge: 30 * 60, // 30 minutes idle timeout
+  },
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "strict",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
   secret: process.env.NEXTAUTH_SECRET || "fallback_secret_for_local_development",
 };

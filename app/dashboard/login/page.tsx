@@ -2,13 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Eye, EyeOff, Lock } from 'lucide-react';
+import { Eye, EyeOff, Lock, Loader2, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
+import { signIn, useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 
 export default function DashboardLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [username, setUsername] = useState('admin');
+  const { data: session, status } = useSession();
+  
+  const [email, setEmail] = useState('admin@zicabella.com');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,94 +20,111 @@ export default function DashboardLoginPage() {
 
   const from = searchParams.get('from') || '/dashboard';
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      router.push(from);
+    }
+  }, [status, session, router, from]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) return;
+    if (!email || !password) return;
+    
     setLoading(true);
     setError('');
 
-    // Safety timeout: if redirect takes too long, let the user try again
-    const timeout = setTimeout(() => {
-      if (loading) {
-        setLoading(false);
-        setError('Login successful, but redirect is taking too long. Please refresh.');
-      }
-    }, 5000);
-
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+      // Use NextAuth signIn with the admin-login provider
+      const result = await signIn('admin-login', {
+        email: email.trim(),
+        password: password.trim(),
+        redirect: false,
+        callbackUrl: from,
       });
-      const data = await res.json();
 
-      if (res.ok && data.success) {
-        clearTimeout(timeout);
-        // Smoother SPA redirect
-        router.push(from);
-        router.refresh(); // Ensure the layout/middleware picks up the new cookie
-      } else {
-        clearTimeout(timeout);
-        setError(data.error || 'Invalid credentials. Please try again.');
+      if (result?.error) {
+        setError(result.error || 'Invalid credentials. Please try again.');
+        toast.error(result.error || 'Login failed');
         setLoading(false);
+      } else {
+        toast.success('Authentication successful');
+        router.push(from);
+        router.refresh();
       }
-    } catch {
-      clearTimeout(timeout);
-      setError('Network error. Please try again.');
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('An unexpected error occurred. Please try again.');
       setLoading(false);
     }
   };
 
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-foreground dark:bg-[#0A0A0A]">
+        <Loader2 className="w-8 h-8 animate-spin text-background dark:text-foreground/20" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center font-sans bg-foreground dark:bg-[#0A0A0A] relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,0,0,0.03),transparent_70%)] dark:bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.02),transparent_70%)] pointer-events-none" />
-      <div className="relative w-full max-w-[340px] mx-4 rounded-[2rem] p-10 flex flex-col gap-8 bg-foreground dark:bg-[#0A0A0A] border border-background/5 dark:border-foreground/10 shadow-2xl shadow-black/5 dark:shadow-foreground/5 relative overflow-hidden">
-         {/* Logo */}
-        <div className="flex flex-col items-center gap-2">
-          <div className="relative w-12 h-12 bg-background/[0.03] dark:bg-foreground/5 rounded-2xl flex items-center justify-center border border-background/5 dark:border-foreground/10 shadow-inner">
-            <Image src="/zica-bella-logo_8.png" alt="Logo" fill className="object-contain p-2 opacity-80 dark:invert" />
+      
+      <div className="relative w-full max-w-[380px] mx-4 rounded-[2.5rem] p-12 flex flex-col gap-10 bg-foreground dark:bg-[#0A0A0A] border border-background/5 dark:border-foreground/10 shadow-2xl shadow-black/20 dark:shadow-foreground/5 overflow-hidden">
+         {/* Logo and Title */}
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-16 h-16 bg-background/[0.03] dark:bg-foreground/5 rounded-[1.5rem] flex items-center justify-center border border-background/5 dark:border-foreground/10 shadow-inner group">
+            <Image 
+              src="/zb-logo-220px.png" 
+              alt="Logo" 
+              width={40} 
+              height={40} 
+              className="object-contain opacity-80 group-hover:scale-110 transition-transform duration-500 dark:brightness-200" 
+            />
           </div>
-          <div className="text-center mt-2">
-            <h1 className="text-[16px] font-black text-slate-900 dark:text-foreground tracking-tighter lowercase leading-none">infrastructure</h1>
-            <p className="text-[8px] uppercase tracking-[0.5em] text-slate-400 dark:text-foreground/20 font-black mt-2">Authorization Portal</p>
+          <div className="text-center space-y-1">
+            <h1 className="text-[20px] font-black text-slate-900 dark:text-foreground tracking-tighter lowercase leading-none">infrastructure</h1>
+            <p className="text-[9px] uppercase tracking-[0.5em] text-slate-400 dark:text-foreground/20 font-black">Authorization Portal</p>
           </div>
         </div>
 
         {/* Form */}
-         <form onSubmit={handleLogin} className="flex flex-col gap-6">
-          <div className="space-y-4">
-            {/* Username */}
-            <div className="space-y-2">
-              <label className="text-[8px] uppercase tracking-[0.4em] text-slate-400 dark:text-foreground/30 font-bold ml-1">Identity</label>
-              <div className="relative flex items-center">
+         <form onSubmit={handleLogin} className="flex flex-col gap-8">
+          <div className="space-y-5">
+            {/* Email */}
+            <div className="space-y-2.5">
+              <label className="text-[9px] uppercase tracking-[0.4em] text-slate-400 dark:text-foreground/30 font-bold ml-1">Admin Identity</label>
+              <div className="relative">
                 <input
-                  type="text"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="Username"
-                  className="w-full px-5 py-3 rounded-xl bg-slate-50 dark:bg-foreground/[0.02] border border-background/5 dark:border-foreground/10 text-slate-900 dark:text-foreground text-[11px] font-bold tracking-wide placeholder:text-slate-300 dark:placeholder:text-foreground/10 focus:outline-none focus:border-slate-200 dark:focus:border-foreground/20 transition-all"
-                  autoComplete="username"
+                  required
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="admin@zicabella.com"
+                  className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-foreground/[0.02] border border-background/5 dark:border-foreground/10 text-slate-900 dark:text-foreground text-[12px] font-bold tracking-wide placeholder:text-slate-300 dark:placeholder:text-foreground/10 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-foreground/10 transition-all"
+                  autoComplete="email"
                 />
               </div>
             </div>
 
             {/* Password */}
-            <div className="space-y-2">
-              <label className="text-[8px] uppercase tracking-[0.4em] text-slate-400 dark:text-foreground/30 font-bold ml-1">Access Key</label>
-              <div className="relative flex items-center">
+            <div className="space-y-2.5">
+              <label className="text-[9px] uppercase tracking-[0.4em] text-slate-400 dark:text-foreground/30 font-bold ml-1">Access Key</label>
+              <div className="relative">
                 <input
+                  required
                   type={show ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="Password"
-                  className="w-full px-5 py-3 rounded-xl bg-slate-50 dark:bg-foreground/[0.02] border border-background/5 dark:border-foreground/10 text-slate-900 dark:text-foreground text-[11px] font-bold tracking-[0.2em] placeholder:text-slate-300 dark:placeholder:text-foreground/10 focus:outline-none focus:border-slate-200 dark:focus:border-foreground/20 transition-all placeholder:tracking-normal"
+                  placeholder="••••••••"
+                  className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-foreground/[0.02] border border-background/5 dark:border-foreground/10 text-slate-900 dark:text-foreground text-[12px] font-bold tracking-[0.2em] placeholder:text-slate-300 dark:placeholder:text-foreground/10 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-foreground/10 transition-all placeholder:tracking-normal"
                   autoComplete="current-password"
                 />
                  <button
                   type="button"
                   onClick={() => setShow(v => !v)}
-                  className="absolute right-4 p-1 text-slate-400 dark:text-foreground/30 hover:text-slate-900 dark:hover:text-foreground transition-colors"
+                  className="absolute right-5 top-1/2 -translate-y-1/2 p-1 text-slate-400 dark:text-foreground/30 hover:text-slate-900 dark:hover:text-foreground transition-colors"
                 >
                   {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -111,22 +132,41 @@ export default function DashboardLoginPage() {
             </div>
 
             {error && (
-              <p className="text-[9px] text-rose-500 font-bold uppercase tracking-widest text-center mt-2">{error}</p>
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl"
+              >
+                <p className="text-[10px] text-rose-500 font-bold uppercase tracking-widest text-center">{error}</p>
+              </motion.div>
             )}
           </div>
 
            <button
             type="submit"
-            disabled={loading || !password || !username}
-            className="w-full py-4 rounded-xl bg-slate-900 dark:bg-foreground text-foreground dark:text-background text-[10px] font-black uppercase tracking-[0.3em] transition-all hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98] mt-4 shadow-xl shadow-black/10 dark:shadow-foreground/5"
+            disabled={loading || !password || !email}
+            className="w-full py-5 rounded-2xl bg-slate-900 dark:bg-foreground text-foreground dark:text-background text-[11px] font-black uppercase tracking-[0.4em] transition-all hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98] shadow-2xl shadow-black/20 dark:shadow-foreground/10 flex items-center justify-center gap-3"
           >
-            {loading ? 'Validating...' : 'Authenticate'}
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Validating...
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="w-4 h-4" />
+                Authenticate
+              </>
+            )}
           </button>
         </form>
 
-         <div className="flex flex-col items-center gap-4">
-            <div className="h-[1px] w-12 bg-background/5 dark:bg-foreground/10" />
-            <p className="text-[8px] text-slate-300 dark:text-foreground/20 uppercase tracking-[0.6em] font-bold">Secure Tunnel Active</p>
+         <div className="flex flex-col items-center gap-5">
+            <div className="h-[1px] w-16 bg-background/5 dark:bg-foreground/10" />
+            <div className="flex items-center gap-2 text-[9px] text-slate-300 dark:text-foreground/20 uppercase tracking-[0.6em] font-bold">
+              <Lock className="w-3 h-3" />
+              Secure Tunnel Active
+            </div>
          </div>
       </div>
     </div>

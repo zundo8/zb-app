@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { fetchAllCustomers } from '@/lib/shopify-admin';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    await requirePermission('CUSTOMERS', 'view');
     const url = new URL(req.url);
     const format = url.searchParams.get('format');
     const search = url.searchParams.get('search')?.trim().toLowerCase();
@@ -173,11 +175,6 @@ export async function GET(req: Request) {
       hasMore: offset + paginated.length < total,
     }, { status: 200 });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Admin Customers API Error:', error);
-    return NextResponse.json(
-      { customers: [], total: 0, error: 'Failed to load customers' },
-      { status: 500 },
-    );
+    return handleAuthError(error);
   }
 }

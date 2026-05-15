@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import {
   BarChart3,
   Package,
@@ -47,8 +48,10 @@ import ThemeToggle from "@/components/ThemeToggle";
 import ZicaAI from "@/components/ZicaAI";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const navScrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
   useRealtimeSync();
@@ -57,6 +60,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [pathname]);
+
+  // Mandatory password change check
+  useEffect(() => {
+    if (session?.user && (session.user as any).needsPasswordChange && pathname !== '/dashboard/change-password') {
+      router.push('/dashboard/change-password');
+    }
+  }, [session, pathname, router]);
 
   // Scroll the active link into view on mount and when pathname changes
   useEffect(() => {
@@ -128,6 +138,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Store Credits", href: "/dashboard/payments/store-credits", icon: Wallet },
     { name: "Refunds", href: "/dashboard/payments/refunds", icon: ArrowLeftRight },
   ];
+
+  const isSuperAdmin = (session?.user as any)?.role === 'SUPER_ADMIN';
+
+  const systemNav = isSuperAdmin ? [
+    { name: "Admin Users", href: "/dashboard/admin-users", icon: Users },
+    { name: "Audit Log", href: "/dashboard/audit-log", icon: History },
+  ] : [];
 
   const isActive = useCallback(
     (href: string) =>
@@ -341,6 +358,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 ))}
               </div>
             </div>
+
+            {isSuperAdmin && (
+              <div>
+                <SectionLabel>System Management</SectionLabel>
+                <div className="space-y-0.5">
+                  {systemNav.map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Settings — always visible at bottom */}

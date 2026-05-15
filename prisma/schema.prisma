@@ -971,3 +971,75 @@ model SupportMessage {
   ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+}
+
+model User {
+  id                  String       @id @default(cuid())
+  email               String       @unique
+  passwordHash        String
+  name                String?
+  role                Role         @default(ADMIN)
+  isActive            Boolean      @default(true)
+  needsPasswordChange Boolean      @default(false)
+  failedLoginAttempts Int          @default(0)
+  lockUntil           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  createdBy           String?
+  creator             User?        @relation("UserCreator", fields: [createdBy], references: [id])
+  createdUsers        User[]       @relation("UserCreator")
+  permissions         Permission[]
+  auditLogs           AuditLog[]
+}
+
+enum Module {
+  DASHBOARD_HOME
+  ORDERS
+  PRODUCTS
+  INVENTORY
+  CUSTOMERS
+  MANUFACTURING
+  PRODUCTION_TRACKER
+  FINANCIAL
+  COST_LEDGER
+  MARKETING
+  VENDORS
+  RETURNS
+  ANALYTICS
+  SETTINGS
+  ADMIN_USERS
+  AUDIT_LOG
+}
+
+model Permission {
+  id        String   @id @default(cuid())
+  userId    String
+  module    Module
+  canView   Boolean  @default(false)
+  canEdit   Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, module])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  module    String?
+  targetId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([timestamp])
+}
+
