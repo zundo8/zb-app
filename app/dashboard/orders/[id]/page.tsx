@@ -69,6 +69,7 @@ interface OrderDetail {
   billingAddress: string | null;
   note: string | null;
   tags: string | null;
+  orderType: string | null;
   createdAt: string;
   customer: {
     id: string;
@@ -111,7 +112,8 @@ export default function OrderDetailPage() {
     status: '',
     paymentStatus: '',
     fulfillmentStatus: '',
-    deliveryStatus: ''
+    deliveryStatus: '',
+    paymentMethod: ''
   });
 
   const fetchOrder = useCallback(async (isRefresh = false) => {
@@ -141,7 +143,8 @@ export default function OrderDetailPage() {
         status: order.status,
         paymentStatus: order.paymentStatus,
         fulfillmentStatus: order.fulfillmentStatus,
-        deliveryStatus: order.deliveryStatus || 'pending'
+        deliveryStatus: order.deliveryStatus || 'pending',
+        paymentMethod: order.paymentMethod || 'PREPAID'
       });
     }
   }, [order]);
@@ -312,7 +315,7 @@ export default function OrderDetailPage() {
           )}
 
           {/* Metrics Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
               { 
                 label: "Financial", 
@@ -336,14 +339,21 @@ export default function OrderDetailPage() {
                 options: ['awaiting', 'manifested', 'in transit', 'out for delivery', 'delivered']
               },
               { 
+                label: "Method", 
+                key: 'paymentMethod', 
+                value: isEditing ? editValues.paymentMethod : (order.tags?.includes('store-credit-used') ? 'STORE CREDIT' : (order.paymentMethod || 'PREPAID')), 
+                icon: Zap,
+                options: ['PREPAID', 'COD', 'STORE CREDIT']
+              },
+              { 
                 label: "Process", 
                 key: 'status', 
                 value: isEditing ? editValues.status : order.status, 
                 icon: Activity,
-                options: ['awaiting_approval', 'approved', 'cancelled']
+                options: ['awaiting_approval', 'approved', 'cancelled', 'payment_failed']
               },
             ].map((s, i) => (
-              <div key={i} className={`p-6 rounded-[24px] border transition-all ${isEditing ? 'bg-foreground/5 border-foreground/10' : 'bg-foreground/[0.02] border-foreground/5'} space-y-3`}>
+              <div key={i} className={`p-5 rounded-[24px] border transition-all ${isEditing ? 'bg-foreground/5 border-foreground/10' : 'bg-foreground/[0.02] border-foreground/5'} space-y-3`}>
                 <div className="flex justify-between items-center text-[9px] font-bold text-foreground/20 uppercase tracking-widest">
                   {s.label}
                   <s.icon className={`w-3.5 h-3.5 ${isEditing ? 'text-foreground/40' : 'opacity-20'}`} />
