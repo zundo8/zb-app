@@ -58,8 +58,8 @@ export default function SupportDetailScreen() {
 
   useEffect(() => {
     fetchMessages();
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchMessages, 30000);
+    // Poll for updates every 3 seconds for "instant" feel
+    const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
   }, [fetchMessages]);
 
@@ -67,6 +67,17 @@ export default function SupportDetailScreen() {
     if (!newMessage.trim() || isSending) return;
 
     const content = newMessage.trim();
+    
+    // Optimistic update
+    const optimisticMessage = {
+      id: `temp-${Date.now()}`,
+      content,
+      senderType: 'USER',
+      senderName: user?.name || 'You',
+      createdAt: new Date().toISOString()
+    };
+    
+    setMessages(prev => [...prev, optimisticMessage]);
     setNewMessage('');
     setIsSending(true);
     haptics.buttonTap();
@@ -84,11 +95,14 @@ export default function SupportDetailScreen() {
         })
       });
 
-      if (res.ok) {
-        fetchMessages();
-      } else {
-        setNewMessage(content); // Restore message on failure
+      if (!res.ok) {
+        // Rollback optimistic update on error
+        setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+        setNewMessage(content); 
         throw new Error('Failed to send message');
+      } else {
+        // Refresh to get the real ID and sync
+        fetchMessages();
       }
     } catch (error) {
       console.error('[SupportDetail] Send Error:', error);

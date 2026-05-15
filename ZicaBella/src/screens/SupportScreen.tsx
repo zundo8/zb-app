@@ -54,7 +54,19 @@ export default function SupportScreen() {
 
   useEffect(() => {
     fetchTickets();
-  }, [fetchTickets]);
+    // Refresh when screen is focused
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchTickets();
+    });
+    
+    // Background polling every 10s
+    const interval = setInterval(fetchTickets, 10000);
+    
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [fetchTickets, navigation]);
 
   const onRefresh = () => {
     setRefreshing(true);

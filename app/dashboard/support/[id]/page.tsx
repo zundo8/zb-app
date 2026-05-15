@@ -30,7 +30,7 @@ export default function TicketDetailPage() {
 
   useEffect(() => {
     fetchTicket();
-    const interval = setInterval(fetchTicket, 10000); // Polling for user replies
+    const interval = setInterval(fetchTicket, 3000); // Snappy polling for live chat
     return () => clearInterval(interval);
   }, [params.id]);
 
@@ -68,10 +68,18 @@ export default function TicketDetailPage() {
 
   const updateStatus = async (status: string) => {
     try {
-      // Create a small API or just a patch here if we had one. 
-      // For now, let's assume we can update via /api/support/tickets with PATCH
-      // But since I didn't write PATCH yet, I'll just show the UI for now or implement it.
-      // Let's implement PATCH in the ticket route for status updates.
+      const res = await fetch('/api/support/tickets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: ticket.id,
+          status
+        })
+      });
+
+      if (res.ok) {
+        setTicket({ ...ticket, status });
+      }
     } catch (error) {
       console.error('Failed to update status');
     }

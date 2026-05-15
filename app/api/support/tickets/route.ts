@@ -6,12 +6,36 @@ export const dynamic = 'force-dynamic';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    const { ticketId, status, priority } = body;
+
+    if (!ticketId) {
+      return NextResponse.json({ error: 'Ticket ID is required' }, { status: 400, headers: corsHeaders });
+    }
+
+    const ticket = await prisma.supportTicket.update({
+      where: { id: ticketId },
+      data: {
+        ...(status && { status }),
+        ...(priority && { priority }),
+        updatedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({ ticket }, { headers: corsHeaders });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
+  }
 }
 
 export async function GET(req: Request) {
