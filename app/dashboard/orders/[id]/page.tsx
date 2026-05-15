@@ -301,21 +301,21 @@ export default function OrderDetailPage() {
               { 
                 label: "Financial", 
                 key: 'paymentStatus', 
-                value: isEditing ? editValues.paymentStatus : (order.status === 'cancelled' ? 'cancelled' : order.paymentStatus), 
+                value: isEditing ? editValues.paymentStatus : (order.status === 'cancelled' ? 'cancelled' : (order.paymentStatus === 'failed' || order.status === 'payment_failed' ? 'failed' : order.paymentStatus)), 
                 icon: CreditCard,
                 options: ['pending', 'paid', 'failed', 'refunded']
               },
               { 
                 label: "Inventory", 
                 key: 'fulfillmentStatus', 
-                value: isEditing ? editValues.fulfillmentStatus : (order.status === 'cancelled' ? 'cancelled' : order.fulfillmentStatus), 
+                value: isEditing ? editValues.fulfillmentStatus : (order.status === 'cancelled' ? 'cancelled' : (order.paymentStatus === 'failed' || order.status === 'payment_failed' ? 'failed' : order.fulfillmentStatus)), 
                 icon: Box,
                 options: ['unfulfilled', 'fulfilled', 'cancelled']
               },
               { 
                 label: "Logistics", 
                 key: 'deliveryStatus', 
-                value: isEditing ? editValues.deliveryStatus : (order.status === 'cancelled' ? 'cancelled' : (order.deliveryStatus || 'awaiting')), 
+                value: isEditing ? editValues.deliveryStatus : (order.status === 'cancelled' ? 'cancelled' : (order.paymentStatus === 'failed' || order.status === 'payment_failed' ? 'failed' : (order.deliveryStatus || 'awaiting'))), 
                 icon: Truck,
                 options: ['awaiting', 'manifested', 'in transit', 'out for delivery', 'delivered']
               },
