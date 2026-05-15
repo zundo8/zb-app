@@ -101,7 +101,7 @@ export default function OrderHistoryScreen() {
       const deliveredAt = timeline.find((t: any) => t.step === 'delivered')?.completedAt;
       
       const isCancelled = status.includes('cancel');
-      const isFailed = status === 'payment_pending' || status === 'pending';
+      const isFailed = status.includes('failed') || status === 'payment_pending' || status === 'pending';
       const isDelivered = !!deliveredAt;
       if (activeTab === 'HISTORY') return true;
       return !isCancelled && !isDelivered && !isFailed;
@@ -113,7 +113,7 @@ export default function OrderHistoryScreen() {
     const deliveryStatus = (order.deliveryStatus || '').toLowerCase();
     
     if (s.includes('cancel')) return { color: '#FF3B30', bg: 'rgba(255,59,48,0.06)', label: 'Cancelled', icon: 'close-circle' as const };
-    if (s === 'payment_pending' || s === 'pending') return { color: '#FF3B30', bg: 'rgba(255,59,48,0.06)', label: 'Payment Failed', icon: 'alert-circle' as const };
+    if (s.includes('failed') || s === 'payment_pending' || s === 'pending') return { color: '#FF3B30', bg: 'rgba(255,59,48,0.06)', label: 'Payment Failed', icon: 'alert-circle' as const };
     if (s === 'awaiting_approval') return { color: '#FF9F0A', bg: 'rgba(255,159,10,0.06)', label: 'Awaiting Approval', icon: 'time' as const };
     
     if (deliveryStatus === 'delivered') return { color: '#34C759', bg: 'rgba(52,199,89,0.06)', label: 'Delivered', icon: 'checkmark-circle' as const };

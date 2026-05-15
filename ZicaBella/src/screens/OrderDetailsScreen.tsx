@@ -247,7 +247,7 @@ export default function OrderDetailsScreen() {
             <Typography size={17} weight="800" color={colors.text}>
               {isCancelled 
                 ? 'Order Cancelled' 
-                : (['payment_failed', 'payment_pending', 'failed', 'pending'].includes((order.status || '').toLowerCase()))
+                : (['payment_failed', 'payment_pending', 'failed', 'pending'].includes((order.status || '').toLowerCase()) || (order.status || '').toLowerCase().includes('failed'))
                   ? 'Payment Failed'
                   : isDelivered 
                     ? 'Delivered' 
@@ -263,7 +263,8 @@ export default function OrderDetailsScreen() {
         {!isCancelled && (
           <View style={styles.stepperBox}>
             {steps.map((s, idx) => {
-              const isPaymentFailed = ['payment_failed', 'failed'].includes((order.status || '').toLowerCase());
+              const sStatus = (order.status || '').toLowerCase();
+              const isPaymentFailed = sStatus.includes('failed') || sStatus === 'payment_pending' || sStatus === 'pending';
               const completedAt = timelineByStep.get(s.step);
               // Only show 'Order Placed' as completed if payment didn't fail
               const isCompleted = !!completedAt && !(isPaymentFailed && s.step === 'order_placed');
