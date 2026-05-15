@@ -9,7 +9,6 @@ import * as Notifications from 'expo-notifications';
 import RootNavigator from './src/navigation/RootNavigator';
 import { ConsentModal } from './src/components/ConsentModal';
 import { useThemeStore } from './src/store/themeStore';
-import { suppressProductionLogs } from './src/utils/logger';
 import { useFonts } from 'expo-font';
 import { getColors } from './src/constants/colors';
 import { NotificationService } from './src/services/NotificationService';
@@ -42,10 +41,11 @@ function App() {
   const notificationResponseRef = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
-    suppressProductionLogs();
     if (fontsLoaded) {
       // Hydrate cache and then hide splash
-      cacheService.hydrate().finally(() => {
+      cacheService.hydrate().then(() => {
+        SplashScreen.hideAsync().catch(() => {});
+      }).catch(() => {
         SplashScreen.hideAsync().catch(() => {});
       });
       

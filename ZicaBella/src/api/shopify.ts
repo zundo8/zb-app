@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore';
 
 const API_BASE = `${config.appUrl}/api/app`;
 
-const inflightRequests = new Map<string, Promise<any>>();
+const inflightRequests: Record<string, Promise<any>> = {};
 
 export async function apiFetch<T>(
   endpoint: string,
@@ -30,8 +30,8 @@ export async function apiFetch<T>(
   const isGet = !options?.method || options.method.toUpperCase() === 'GET';
   const cacheKey = `${url}_${options?.body ? JSON.stringify(options.body) : ''}`;
 
-  if (isGet && inflightRequests.has(cacheKey)) {
-    return inflightRequests.get(cacheKey);
+  if (isGet && inflightRequests[cacheKey]) {
+    return inflightRequests[cacheKey];
   }
 
   const fetchPromise = (async () => {
@@ -85,14 +85,15 @@ export async function apiFetch<T>(
       throw err;
     } finally {
       if (isGet) {
-        // Clean up inflight map after a short delay to prevent race conditions but still deduplicate simultaneous calls
-        setTimeout(() => inflightRequests.delete(cacheKey), 500);
+        setTimeout(() => {
+          delete inflightRequests[cacheKey];
+        }, 500);
       }
     }
   })();
 
   if (isGet) {
-    inflightRequests.set(cacheKey, fetchPromise);
+    inflightRequests[cacheKey] = fetchPromise;
   }
 
   return fetchPromise;
