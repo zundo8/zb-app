@@ -23,10 +23,17 @@ type FeaturedLook = {
   styleDescription?: string | null;
 };
 
+const LOAD_IMAGES = [
+  require('../assets/load-image-1.jpg'),
+  require('../assets/load-image-2.jpg'),
+  require('../assets/load-image-3.jpg'),
+  require('../assets/load-image-4.jpg'),
+];
+
 const DEFAULT_LOOKS: FeaturedLook[] = [
-  { id: '1', imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000', name: 'DUSKYN' },
-  { id: '2', imageUrl: 'https://images.unsplash.com/photo-1539109132314-dc477555d656?q=80&w=1000', name: 'MEGHAN' },
-  { id: '3', imageUrl: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?q=80&w=1000', name: 'ARAV' },
+  { id: '1', imageUrl: LOAD_IMAGES[0], name: 'ZICA BELLA' },
+  { id: '2', imageUrl: LOAD_IMAGES[1], name: 'STREETWEAR' },
+  { id: '3', imageUrl: LOAD_IMAGES[2], name: 'LUXURY' },
 ];
 
 function openInstagramLink(raw: string): void {
@@ -105,13 +112,14 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
                 accessibilityHint={hasIg ? 'Opens this look on Instagram' : undefined}
               >
                 <Image
-                  source={{ uri: look.imageUrl }}
+                  source={typeof look.imageUrl === 'string' ? { uri: look.imageUrl } : look.imageUrl}
                   style={styles.image}
                   contentFit="cover"
                   transition={200}
                   priority="high"
                   cachePolicy="memory-disk"
                   recyclingKey={look.id}
+                  placeholder={LOAD_IMAGES[parseInt(look.id) % 4] || LOAD_IMAGES[0]}
                 />
                 <View style={styles.labelContainer}>
                   <BlurView

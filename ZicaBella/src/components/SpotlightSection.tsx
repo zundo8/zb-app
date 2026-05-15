@@ -108,11 +108,14 @@ export default function SpotlightSection({
                   style={styles.image}
                   contentFit="cover"
                   transition={500}
+                  placeholder={require('../assets/load-image-4.jpg')}
                 />
               ) : (
-                <View style={styles.emptyImage}>
-                  <Typography size={5} color={colors.textExtraLight} weight="700" style={{ letterSpacing: 2 }}>ZB</Typography>
-                </View>
+                <Image 
+                  source={require('../assets/load-image-4.jpg')} 
+                  style={styles.image}
+                  contentFit="cover"
+                />
               )}
             </View>
             <View style={styles.itemInfo}>

@@ -181,6 +181,7 @@ function AnimatedCard({ item, index, scrollX, onPress }: any) {
           style={styles.image}
           contentFit="cover"
           transition={500}
+          placeholder={require('../assets/load-image-2.jpg')}
         />
         <Animated.View style={[styles.depthOverlay, overlayStyle]} />
         

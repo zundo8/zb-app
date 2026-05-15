@@ -243,7 +243,12 @@ export default function HomeScreen() {
                 </View>
               ) : (
                 <View style={styles.blueprintSection}>
-                   <Image source={{ uri: settings?.blueprint?.image || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000" }} style={styles.blueprintImage} contentFit="cover" />
+                   <Image 
+                    source={settings?.blueprint?.image ? { uri: settings.blueprint.image } : require('../assets/load-image-4.jpg')} 
+                    style={styles.blueprintImage} 
+                    contentFit="cover" 
+                    placeholder={require('../assets/load-image-4.jpg')}
+                  />
                    <View style={styles.blueprintOverlay}>
                      <Typography size={22} weight="600" color="#fff" style={styles.blueprintOverlayTitle}>
                        {(settings?.blueprint?.title || 'THE BLUEPRINT').toUpperCase()}

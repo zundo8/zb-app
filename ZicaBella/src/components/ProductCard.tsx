@@ -134,6 +134,7 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
                       cachePolicy="memory-disk"
                       transition={200}
                       recyclingKey={String(img || '')}
+                      placeholder={require('../assets/load-image-1.jpg')}
                     />
                   ) : (
                     <View style={[styles.image, { backgroundColor: isDark ? '#111' : '#f9f9f9' }]} />
@@ -151,11 +152,16 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
               cachePolicy="memory-disk"
               transition={200}
               recyclingKey={String(images[0])}
+              placeholder={require('../assets/load-image-1.jpg')}
             />
           </TouchableOpacity>
         ) : (
           <View style={[styles.image, styles.placeholderContainer, { backgroundColor: isDark ? '#1a1a1a' : '#f0f0f0' }]}>
-            <Ionicons name="image-outline" size={32} color={colors.textExtraLight} style={{ opacity: 0.2 }} />
+            <Image 
+              source={require('../assets/load-image-1.jpg')} 
+              style={styles.image}
+              contentFit="cover"
+            />
           </View>
         )}
         {!isSoldOut && <View pointerEvents="none" style={styles.imageOverlay} />}

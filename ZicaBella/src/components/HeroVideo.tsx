@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { Image } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
@@ -65,7 +66,13 @@ export default function HeroVideo({
 
   if (!safeSource) {
     return (
-      <View style={[styles.container, { height: customHeight || height, borderRadius: borderRadius || 0, backgroundColor: colors.surface }]} />
+      <View style={[styles.container, { height: customHeight || height, borderRadius: borderRadius || 0, backgroundColor: colors.surface }]}>
+        <Image 
+          source={require('../assets/load-image-4.jpg')} 
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
+      </View>
     );
   }
 

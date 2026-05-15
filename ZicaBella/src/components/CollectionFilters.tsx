@@ -141,7 +141,8 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     alignItems: 'center',
-    zIndex: 100,
+    zIndex: 2000,
+    elevation: 2000,
     marginBottom: 4,
     marginTop: 4,
   },
@@ -205,7 +206,8 @@ const styles = StyleSheet.create({
     top: 54,
     width: '100%',
     alignItems: 'center',
-    zIndex: 999,
+    zIndex: 2001,
+    elevation: 2001,
   },
   dropdownContainer: {
     width: 220,

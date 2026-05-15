@@ -210,7 +210,7 @@ export default function CollectionScreen() {
         keyExtractor={(_, index) => `row-${index}`}
         renderItem={renderRow}
         ListHeaderComponent={
-          <>
+          <View style={{ zIndex: 1000, elevation: 1000 }}>
             <View style={{ paddingTop: insets.top + 60, paddingBottom: 8 }}>
               <CollectionHeaderCarousel currentHandle={handle} collections={allCollections as any[]} />
             </View>
@@ -232,7 +232,7 @@ export default function CollectionScreen() {
             <Typography size={7} weight="300" color={colors.textExtraLight} style={styles.count}>
               {(products || []).length} PRODUCTS
             </Typography>
-          </>
+          </View>
         }
         ListFooterComponent={
           <View style={styles.footerContainer}>
@@ -291,13 +291,14 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   inlineFilterContainer: {
     paddingVertical: 8,
-    zIndex: 1,
+    zIndex: 10,
+    elevation: 10, // For Android support
   },
   stickyFilterSection: {
     position: 'absolute',
     left: 0,
     right: 0,
-    zIndex: 1000,
+    zIndex: 3000,
     paddingVertical: 8,
     alignItems: 'center',
   },

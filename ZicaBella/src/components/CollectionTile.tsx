@@ -25,9 +25,14 @@ export default function CollectionTile({ collection }: Props) {
           style={styles.image}
           contentFit="cover"
           transition={300}
+          placeholder={require('../assets/load-image-2.jpg')}
         />
       ) : (
-        <View style={[styles.image, { backgroundColor: colors.surface }]} />
+        <Image 
+          source={require('../assets/load-image-2.jpg')} 
+          style={styles.image}
+          contentFit="cover"
+        />
       )}
       <View style={styles.overlay}>
         <Text style={styles.title} numberOfLines={2}>
