@@ -10,6 +10,7 @@ import { useThemeStore } from '../../store/themeStore';
 import { Typography } from '../../components/Typography';
 import { haptics } from '../../utils/haptics';
 import { serviceApi, apiGet } from '../../api/shopify';
+import { StorefrontAPI } from '../../api/storefrontClient';
 import { config } from '../../constants/config';
 import { formatPrice } from '../../utils/formatPrice';
 import { ServiceStackParamList } from '../../navigation/types';
@@ -57,9 +58,9 @@ export default function ExchangeWizardScreen() {
     setSelectedId(itemId);
     setLoadingOptions(true);
     try {
-      // Fetch available variants for this product
-      const res: any = await apiGet(`/products/${handle}`);
-      setProductData(res.product);
+      // Fetch available variants for this product via cached storefront proxy
+      const data: any = await StorefrontAPI.fetch(`/products/${handle}`, {}, `/products/${handle}`);
+      setProductData(data); // StorefrontAPI returns the product object directly
       setStep('OPTIONS');
     } catch (e) {
       console.error('Fetch Product Error:', e);

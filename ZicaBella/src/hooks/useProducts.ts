@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { apiGet } from '../api/shopify';
+import { StorefrontAPI } from '../api/storefrontClient';
 import { ENDPOINTS } from '../api/queries';
 import {
   FlatProduct,
@@ -197,6 +198,62 @@ function extractCollections(payload: any): FlatCollection[] {
     .filter((collection: FlatCollection | null): collection is FlatCollection => Boolean(collection?.id));
 }
 
+export function useHomepage() {
+  const [data, setData] = useState<{ products: FlatProduct[], collections: FlatCollection[], accessories: FlatProduct[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  const fetchHome = useCallback(async (isRefresh = false) => {
+    const cacheKey = 'homepage_payload';
+    try {
+      if (!isRefresh) {
+        const cached = await getCacheService().get<any>(cacheKey);
+        if (cached && isMounted.current) {
+          setData(cached);
+          setLoading(false);
+        }
+      }
+
+      const response = await StorefrontAPI.fetch<any>('/homepage');
+      
+      if (!isMounted.current) return;
+
+      const normalizedData = {
+        collections: extractCollections(response?.collections || []),
+        accessories: extractProducts(response?.accessories || []),
+        products: extractProducts(response?.products || [])
+      };
+
+      setData(normalizedData);
+      await getCacheService().set(cacheKey, normalizedData, 15);
+    } catch (err: any) {
+      if (!isMounted.current) return;
+      if (!data) {
+        setData({
+          products: fallbackProducts.slice(0, 24),
+          collections: fallbackCollections,
+          accessories: fallbackProducts.slice(0, 15)
+        });
+        setError('Showing bundled products while the catalog reconnects.');
+      }
+    } finally {
+      if (isMounted.current) setLoading(false);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    fetchHome();
+  }, [fetchHome]);
+
+  return { data, loading, error, refetch: () => fetchHome(true) };
+}
+
 export function useProducts(count = 24) {
   const [products, setProducts] = useState<FlatProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -220,12 +277,12 @@ export function useProducts(count = 24) {
         }
       }
 
-      const data = await apiGet<{ products: FlatProduct[] }>(
-        ENDPOINTS.products,
-        { 
-          limit: String(Math.max(count, 50)),
-          fields: LIST_FIELDS
-        }
+      // Route through unified storefront client to /collections/all/products
+      // with fallback to legacy app endpoint
+      const data = await StorefrontAPI.fetch<{ products: FlatProduct[] }>(
+        '/collections/all/products',
+        { limit: String(Math.max(count, 50)) },
+        ENDPOINTS.products
       );
 
       if (!isMounted.current) return;
@@ -286,9 +343,10 @@ export function useProductByHandle(handle: string) {
           setLoading(false);
         }
 
-        const data = await apiGet<{ product: FlatProduct | null }>(
-          ENDPOINTS.productByHandle(handle),
-          { fields: FULL_FIELDS }
+        const data = await StorefrontAPI.fetch<{ product: FlatProduct | null }>(
+          `/products/${handle}`,
+          {},
+          ENDPOINTS.productByHandle(handle)
         );
 
         if (cancelled) return;
@@ -372,13 +430,13 @@ export function useSearchProducts() {
         setLoading(false);
       }
 
-      const data = await apiGet<{ products: FlatProduct[] }>(
-        ENDPOINTS.search,
+      const data = await StorefrontAPI.fetch<{ products: FlatProduct[] }>(
+        '/search',
         { 
           q: query, 
-          limit: '48',
-          fields: LIST_FIELDS 
-        }
+          limit: '48'
+        },
+        ENDPOINTS.search
       );
 
       if (!isMounted.current) return;
@@ -441,9 +499,10 @@ export function useCollections(count = 20, location?: 'header' | 'page' | 'menu'
 
       const params: any = { limit: String(count) };
       if (location) params.location = location;
-      const data = await apiGet<{ collections: FlatCollection[] }>(
-        ENDPOINTS.collections,
-        params
+      const data = await StorefrontAPI.fetch<{ collections: FlatCollection[] }>(
+        '/collections',
+        params,
+        ENDPOINTS.collections
       );
 
       if (!isMounted.current) return;
@@ -502,7 +561,7 @@ export function useCollectionByHandle(handle: string) {
       
       // If handle is 'all', we fetch all products instead of a specific collection
       if (handle === 'all') {
-        const data = await apiGet<any>(ENDPOINTS.products, { limit: '80', fields: LIST_FIELDS });
+        const data = await StorefrontAPI.fetch<any>('/collections/all/products', { limit: '80' }, ENDPOINTS.products);
         
         if (!isMounted.current) return;
 
@@ -523,9 +582,10 @@ export function useCollectionByHandle(handle: string) {
         return;
       }
 
-      const data = await apiGet<any>(
-        ENDPOINTS.collectionByHandle(handle),
-        { limit: '50', fields: LIST_FIELDS }
+      const data = await StorefrontAPI.fetch<any>(
+        `/collections/${handle}/products`,
+        { limit: '50' },
+        ENDPOINTS.collectionByHandle(handle)
       );
 
       if (!isMounted.current) return;

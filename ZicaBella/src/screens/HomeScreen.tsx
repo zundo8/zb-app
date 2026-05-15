@@ -19,7 +19,9 @@ import HeroVideo from '../components/HeroVideo';
 import GlassHeader from '../components/GlassHeader';
 import QuickAddModal from '../components/QuickAddModal';
 import RingCarouselSection from '../components/RingCarouselSection';
-import { useProducts, useCollections, useCollectionByHandle } from '../hooks/useProducts';
+import { useProducts, useCollections, useCollectionByHandle, useHomepage } from '../hooks/useProducts';
+import { StorefrontAPI } from '../api/storefrontClient';
+import { ENDPOINTS } from '../api/queries';
 import { FlatProduct } from '../api/types';
 import MenuDrawer from '../components/MenuDrawer';
 import SpotlightSection from '../components/SpotlightSection';
@@ -54,9 +56,12 @@ const HomeScreen = React.memo(() => {
   const latestCurationTitle = settings?.latestCuration?.title || 'LATEST CURATION';
   const latestCurationSubtitle = settings?.latestCuration?.subtitle || 'SEASON DROP';
 
-  const { products, loading, error, refetch } = useProducts(24);
-  const { collections, refetch: refetchCollections } = useCollections(20, 'page');
-  const { products: accessories } = useCollectionByHandle(ringHandle);
+  const { data: homeData, loading: homeLoading, error: homeError, refetch: refetchHome } = useHomepage();
+  const products = homeData?.products || [];
+  const collections = homeData?.collections || [];
+  const accessories = homeData?.accessories || [];
+  const loading = homeLoading;
+  const error = homeError;
   
   const [refreshing, setRefreshing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
@@ -72,12 +77,10 @@ const HomeScreen = React.memo(() => {
       // Cache warm-up: Prefetch top 2 collections silently
       if (collections && collections.length > 0) {
         const topHandles = collections.slice(0, 2).map(c => c.handle);
-        const { apiGet } = require('../api/shopify');
-        const { ENDPOINTS } = require('../api/queries');
         
         topHandles.forEach(handle => {
-          // Fire and forget; the apiFetch deduplication and cacheService inside hooks will handle the rest
-          apiGet(ENDPOINTS.collectionByHandle(handle), { limit: '50', fields: 'id,title,handle,priceRange,featuredImage' }).catch(() => {});
+          // Fire and forget; the StorefrontAPI deduplication and cacheService inside hooks will handle the rest
+          StorefrontAPI.fetch(`/collections/${handle}/products`, { limit: '50' }, ENDPOINTS.collectionByHandle(handle)).catch(() => {});
         });
       }
     });
@@ -86,9 +89,9 @@ const HomeScreen = React.memo(() => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetch(), refetchCollections()]);
+    await refetchHome();
     setRefreshing(false);
-  }, [refetch, refetchCollections]);
+  }, [refetchHome]);
 
   const scrollY = useSharedValue(0);
   const lastScrollY = useRef(0);
