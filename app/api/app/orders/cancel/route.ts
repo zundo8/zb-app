@@ -53,6 +53,9 @@ export async function POST(req: Request) {
       where: { id: orderId },
       data: {
         status: 'cancelled',
+        paymentStatus: order.paymentStatus === 'paid' ? 'paid' : 'cancelled',
+        fulfillmentStatus: 'cancelled',
+        deliveryStatus: 'cancelled',
         note: order.note ? `${order.note}\nCancelled by user. Reason: ${reason || 'Not provided'}` : `Cancelled by user. Reason: ${reason || 'Not provided'}`,
         updatedAt: new Date(),
       }

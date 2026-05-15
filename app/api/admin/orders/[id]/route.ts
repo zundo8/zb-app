@@ -40,6 +40,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       select: { status: true, deliveryStatus: true, customerId: true }
     });
 
+    // Auto-cancel sub-statuses if status is set to cancelled
+    if (body.status === 'cancelled') {
+      body.paymentStatus = oldOrder?.paymentStatus === 'paid' ? 'paid' : 'cancelled';
+      body.fulfillmentStatus = 'cancelled';
+      body.deliveryStatus = 'cancelled';
+    }
+
     const updated = await prisma.order.update({
       where: { id },
       data: body,
