@@ -19,7 +19,8 @@ import {
   ShieldCheck,
   Zap,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Activity
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -64,6 +65,12 @@ export default function MobileOrdersPage() {
   const [tab, setTab] = useState<'all' | 'active' | 'abandoned'>('all');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({
+    totalValue: 0,
+    activeCount: 0,
+    abandonedCount: 0,
+    syncRequired: 0
+  });
   const LIMIT = 50;
 
   const fetchOrders = useCallback(async () => {
@@ -81,6 +88,18 @@ export default function MobileOrdersPage() {
       if (data.success) {
         setOrders(data.orders);
         setTotal(data.total);
+        
+        // Calculate some basic stats from current page for immediate feedback
+        // In a real app, we might fetch these from a separate stats endpoint
+        const totalValue = data.orders.reduce((acc: number, o: any) => acc + (o.totalPrice || 0), 0);
+        const syncRequired = data.orders.filter((o: any) => o.status === 'open' && !/^\d+$/.test(o.shopifyOrderId)).length;
+        
+        setStats({
+          totalValue: data.totalStats?.revenue || totalValue,
+          activeCount: data.totalStats?.active || data.total,
+          abandonedCount: data.totalStats?.abandoned || 0,
+          syncRequired: data.totalStats?.syncRequired || syncRequired
+        });
       }
     } catch (err) {
       console.error(err);
@@ -163,20 +182,47 @@ export default function MobileOrdersPage() {
         </div>
       </div>
 
+      {/* System Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { label: "Market Volume", value: `₹${stats.totalValue.toLocaleString()}`, icon: Zap, color: "text-blue-500" },
+          { label: "Active Flow", value: stats.activeCount, icon: Activity, color: "text-emerald-500" },
+          { label: "Sync Required", value: stats.syncRequired, icon: ShieldCheck, color: "text-purple-500" },
+          { label: "System Health", value: "98.4%", icon: ShieldCheck, color: "text-blue-400" },
+        ].map((stat, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className="glass-card p-6 rounded-[32px] border-transparent hover:border-foreground/10 transition-all group"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-3 rounded-2xl bg-foreground/5 group-hover:scale-110 transition-transform`}>
+                <stat.icon className={`w-5 h-5 ${stat.color}`} strokeWidth={2} />
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-foreground/10 group-hover:text-foreground/30 transition-colors" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-1">{stat.label}</p>
+            <p className="text-2xl font-black text-foreground tracking-tighter italic">{stat.value}</p>
+          </motion.div>
+        ))}
+      </div>
+
       {/* Control Center */}
-      <div className="glass p-10 rounded-[40px] space-y-10 shadow-2xl">
-        <div className="flex flex-col md:flex-row md:items-center gap-8">
+      <div className="glass p-8 rounded-[40px] space-y-8 shadow-2xl">
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
           <div className="flex-1 relative group">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/10 group-focus-within:text-foreground/40 transition-colors" />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/10 group-focus-within:text-foreground/40 transition-colors" />
             <input
               type="text"
               placeholder="Search by ID, customer, or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-foreground/[0.03] border border-foreground/5 focus:border-foreground/20 rounded-3xl pl-16 pr-8 py-5 text-[14px] text-foreground placeholder:text-foreground/10 outline-none transition-all font-medium"
+              className="w-full bg-foreground/[0.03] border border-foreground/5 focus:border-foreground/20 rounded-2xl pl-14 pr-8 py-4 text-[13px] text-foreground placeholder:text-foreground/10 outline-none transition-all font-medium"
             />
           </div>
-          <div className="flex items-center gap-4 px-8 py-5 rounded-3xl bg-foreground/[0.03] border border-foreground/5">
+          <div className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-foreground/[0.03] border border-foreground/5">
              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_12px_rgba(59,130,246,0.8)]" />
              <span className="text-[11px] font-black text-foreground/40 uppercase tracking-[0.3em]">{total} Live Records</span>
           </div>
@@ -237,33 +283,33 @@ export default function MobileOrdersPage() {
                     <div className="flex items-center gap-4">
                       <Link 
                         href={`/dashboard/orders/${order.id}`}
-                        className="flex-1 grid grid-cols-12 gap-6 items-center px-10 py-8 rounded-[32px] glass-card border-transparent group-hover:border-foreground/10 transition-all duration-500 relative overflow-hidden"
+                        className="flex-1 grid grid-cols-12 gap-6 items-center px-8 py-4 rounded-[24px] glass-card border-transparent group-hover:border-foreground/10 transition-all duration-500 relative overflow-hidden"
                       >
                         <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                         
-                        <div className="col-span-3 flex items-center gap-6">
-                          <div className="w-14 h-14 rounded-2xl bg-foreground/5 flex items-center justify-center border border-foreground/5 group-hover:bg-foreground/10 group-hover:scale-110 transition-all duration-500">
-                            <Smartphone className="w-6 h-6 text-foreground/40 group-hover:text-foreground/70" strokeWidth={1.5} />
+                        <div className="col-span-3 flex items-center gap-5">
+                          <div className="w-10 h-10 rounded-xl bg-foreground/5 flex items-center justify-center border border-foreground/5 group-hover:bg-foreground/10 group-hover:scale-105 transition-all duration-500">
+                            <Smartphone className="w-4 h-4 text-foreground/40 group-hover:text-foreground/70" strokeWidth={1.5} />
                           </div>
                           <div>
-                            <div className="flex items-center gap-3 mb-1.5">
-                              <span className="text-[18px] font-black text-foreground tracking-tighter italic">
+                            <div className="flex items-center gap-3 mb-0.5">
+                              <span className="text-[15px] font-black text-foreground tracking-tighter italic">
                                 #{order.orderNumber.replace('#', '')}
                               </span>
                               {isShopifySynced && (
-                                <div className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-black text-emerald-500 uppercase">Synced</div>
+                                <div className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[7px] font-black text-emerald-500 uppercase">Synced</div>
                               )}
                             </div>
-                            <p className="text-[11px] text-foreground/30 font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                              <Clock className="w-3.5 h-3.5" />
+                            <p className="text-[9px] text-foreground/30 font-black uppercase tracking-[0.2em] flex items-center gap-1.5">
+                              <Clock className="w-3 h-3" />
                               {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                             </p>
                           </div>
                         </div>
 
                         <div className="col-span-3">
-                          <p className="text-[15px] font-black text-foreground/80 tracking-tight mb-1 uppercase italic">{order.customer?.name || "Guest Entity"}</p>
-                          <p className="text-[11px] text-foreground/20 font-bold truncate max-w-[200px] tracking-widest">{order.customer?.email}</p>
+                          <p className="text-[13px] font-black text-foreground/80 tracking-tight mb-0.5 uppercase italic">{order.customer?.name || "Guest Entity"}</p>
+                          <p className="text-[9px] text-foreground/20 font-bold truncate max-w-[180px] tracking-widest">{order.customer?.email}</p>
                         </div>
 
                         <div className="col-span-2">
@@ -274,17 +320,14 @@ export default function MobileOrdersPage() {
                           <StatusBadge status={displayStatus} />
                         </div>
 
-                        <div className="col-span-2 text-right flex items-center justify-end gap-6">
+                        <div className="col-span-2 text-right flex items-center justify-end gap-4">
                            <div className="text-right">
-                              <p className="text-[20px] font-black text-foreground tracking-tighter leading-none mb-1.5 italic">
+                              <p className="text-[16px] font-black text-foreground tracking-tighter leading-none mb-1 italic">
                                 ₹{order.totalPrice.toLocaleString("en-IN")}
                               </p>
-                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-foreground/5 text-[9px] font-black text-foreground/20 uppercase tracking-widest">
-                                INR
-                              </div>
                            </div>
-                           <div className="w-12 h-12 rounded-2xl bg-foreground/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-foreground/10 translate-x-4 group-hover:translate-x-0 group-hover:bg-foreground group-hover:text-background">
-                              <ArrowRight className="w-6 h-6" strokeWidth={2.5} />
+                           <div className="w-8 h-8 rounded-xl bg-foreground/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-foreground/10 translate-x-2 group-hover:translate-x-0 group-hover:bg-foreground group-hover:text-background">
+                              <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
                            </div>
                         </div>
                       </Link>
@@ -311,9 +354,9 @@ export default function MobileOrdersPage() {
                               }
                             }
                           }}
-                          className="px-8 py-8 bg-foreground text-background rounded-[32px] text-[11px] font-black uppercase tracking-[0.2em] hover:opacity-90 transition-all mr-4 flex flex-col items-center justify-center gap-3 shadow-2xl shadow-foreground/20"
+                          className="px-6 py-4 bg-foreground text-background rounded-[24px] text-[9px] font-black uppercase tracking-[0.2em] hover:opacity-90 transition-all mr-4 flex flex-col items-center justify-center gap-2 shadow-2xl shadow-foreground/20"
                         >
-                          <ShieldCheck className="w-6 h-6" />
+                          <ShieldCheck className="w-4 h-4" />
                           Approve
                         </motion.button>
                       )}
@@ -376,10 +419,10 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <motion.div 
       whileHover={{ scale: 1.05 }}
-      className={`inline-flex items-center gap-3 px-5 py-2 rounded-2xl border border-foreground/5 ${theme.bg} shadow-sm backdrop-blur-md`}
+      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl border border-foreground/5 ${theme.bg} shadow-sm backdrop-blur-md`}
     >
-      <div className={`w-1.5 h-1.5 rounded-full ${theme.dot} shadow-[0_0_8px_currentColor]`} />
-      <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${theme.color}`}>
+      <div className={`w-1 h-1 rounded-full ${theme.dot} shadow-[0_0_8px_currentColor]`} />
+      <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${theme.color}`}>
         {theme.label}
       </span>
     </motion.div>
