@@ -24,10 +24,10 @@ type FeaturedLook = {
 };
 
 const LOAD_IMAGES = [
-  require('../assets/load-image-1.jpg'),
-  require('../assets/load-image-2.jpg'),
-  require('../assets/load-image-3.jpg'),
-  require('../assets/load-image-4.jpg'),
+  require('../../assets/load-image-1.jpg'),
+  require('../../assets/load-image-2.jpg'),
+  require('../../assets/load-image-3.jpg'),
+  require('../../assets/load-image-4.jpg'),
 ];
 
 const DEFAULT_LOOKS: FeaturedLook[] = [

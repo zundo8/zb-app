@@ -108,11 +108,11 @@ export default function SpotlightSection({
                   style={styles.image}
                   contentFit="cover"
                   transition={500}
-                  placeholder={require('../assets/load-image-4.jpg')}
+                  placeholder={require('../../assets/load-image-4.jpg')}
                 />
               ) : (
                 <Image 
-                  source={require('../assets/load-image-4.jpg')} 
+                  source={require('../../assets/load-image-4.jpg')} 
                   style={styles.image}
                   contentFit="cover"
                 />

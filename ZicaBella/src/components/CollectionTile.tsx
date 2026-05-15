@@ -25,11 +25,11 @@ export default function CollectionTile({ collection }: Props) {
           style={styles.image}
           contentFit="cover"
           transition={300}
-          placeholder={require('../assets/load-image-2.jpg')}
+          placeholder={require('../../assets/load-image-2.jpg')}
         />
       ) : (
         <Image 
-          source={require('../assets/load-image-2.jpg')} 
+          source={require('../../assets/load-image-2.jpg')} 
           style={styles.image}
           contentFit="cover"
         />

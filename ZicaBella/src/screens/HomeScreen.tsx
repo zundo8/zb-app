@@ -244,10 +244,10 @@ export default function HomeScreen() {
               ) : (
                 <View style={styles.blueprintSection}>
                    <Image 
-                    source={settings?.blueprint?.image ? { uri: settings.blueprint.image } : require('../assets/load-image-4.jpg')} 
+                    source={settings?.blueprint?.image ? { uri: settings.blueprint.image } : require('../../assets/load-image-4.jpg')} 
                     style={styles.blueprintImage} 
                     contentFit="cover" 
-                    placeholder={require('../assets/load-image-4.jpg')}
+                    placeholder={require('../../assets/load-image-4.jpg')}
                   />
                    <View style={styles.blueprintOverlay}>
                      <Typography size={22} weight="600" color="#fff" style={styles.blueprintOverlayTitle}>

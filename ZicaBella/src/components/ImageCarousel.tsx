@@ -75,7 +75,7 @@ const MediaItem = ({
         style={StyleSheet.absoluteFill}
         contentFit="cover"
         transition={300}
-        placeholder={require('../assets/load-image-3.jpg')}
+        placeholder={require('../../assets/load-image-3.jpg')}
       />
     </TouchableOpacity>
   );
@@ -302,7 +302,7 @@ export default function ImageCarousel({
                   source={{ uri: item.image?.url || (item as any).url || (item as any).src }} 
                   style={styles.thumbnailImage}
                   contentFit="cover"
-                  placeholder={require('../assets/load-image-3.jpg')}
+                  placeholder={require('../../assets/load-image-3.jpg')}
                 />
                 {activeIndex !== index && <View style={[styles.thumbnailOverlay, { backgroundColor: colors.overlay }]} />}
               </TouchableOpacity>

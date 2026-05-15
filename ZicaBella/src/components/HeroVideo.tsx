@@ -68,7 +68,7 @@ export default function HeroVideo({
     return (
       <View style={[styles.container, { height: customHeight || height, borderRadius: borderRadius || 0, backgroundColor: colors.surface }]}>
         <Image 
-          source={require('../assets/load-image-4.jpg')} 
+          source={require('../../assets/load-image-4.jpg')} 
           style={StyleSheet.absoluteFill}
           contentFit="cover"
         />
