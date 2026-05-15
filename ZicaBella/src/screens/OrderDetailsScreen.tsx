@@ -270,13 +270,16 @@ export default function OrderDetailsScreen() {
               return (
                 <View key={s.step} style={styles.stepItem}>
                   <View style={styles.stepIndicator}>
-                    <View style={[styles.stepDot, { backgroundColor: isCompleted ? colors.foreground : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={[styles.stepDot, { backgroundColor: isCompleted ? colors.foreground : (isPaymentFailed && s.step === 'order_placed' ? '#FF3B30' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)')) }]}>
                       {isCompleted && <Ionicons name="checkmark" size={10} color={colors.background} />}
+                      {(isPaymentFailed && s.step === 'order_placed') && <Ionicons name="close" size={10} color="#FFFFFF" />}
                     </View>
                     {idx < steps.length - 1 && <View style={[styles.stepLine, { backgroundColor: isCompleted && timelineByStep.get(steps[idx+1].step) ? colors.foreground : colors.borderExtraLight }]} />}
                   </View>
                   <View style={styles.stepContent}>
-                    <Typography size={11} weight={isCompleted ? "700" : "500"} color={isCompleted ? colors.text : colors.textExtraLight}>{s.label.toUpperCase()}</Typography>
+                    <Typography size={11} weight={(isCompleted || (isPaymentFailed && s.step === 'order_placed')) ? "700" : "500"} color={isCompleted ? colors.text : (isPaymentFailed && s.step === 'order_placed' ? '#FF3B30' : colors.textExtraLight)}>
+                      {(isPaymentFailed && s.step === 'order_placed' ? 'ORDER FAILED' : s.label.toUpperCase())}
+                    </Typography>
                     {completedAt && <Typography size={9} color={colors.textMuted} style={{ marginTop: 2 }}>{new Date(completedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</Typography>}
                   </View>
                 </View>
