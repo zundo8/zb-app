@@ -111,7 +111,7 @@ export default function AuditLogPage() {
                     className="border-b border-foreground/[0.03] hover:bg-foreground/[0.01] transition-colors"
                   >
                     <td className="px-8 py-4 whitespace-nowrap text-foreground/60">
-                      {new Date(log.createdAt).toLocaleString()}
+                      {new Date(log.timestamp).toLocaleString()}
                     </td>
                     <td className="px-8 py-4">
                       <div className="flex items-center gap-2">

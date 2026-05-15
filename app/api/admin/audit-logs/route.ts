@@ -19,7 +19,7 @@ export async function GET(req: Request) {
           select: { name: true, email: true, role: true }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { timestamp: 'desc' }
     });
 
     const total = await prisma.auditLog.count();
