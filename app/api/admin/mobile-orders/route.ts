@@ -9,8 +9,8 @@ export async function GET(req: Request) {
     const limit = parseInt(url.searchParams.get('limit') || '50');
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
+    const active = url.searchParams.get('active') === 'true';
     const abandoned = url.searchParams.get('abandoned') === 'true';
-    console.log('[Admin] Fetching mobile orders, abandoned:', abandoned, 'limit:', limit, 'offset:', offset);
 
     // Base filters for all mobile orders
     const mobileIdentityFilters = [
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
         { paymentStatus: { notIn: ['paid', 'authorized', 'success', 'PAID', 'SUCCESS'] } },
         { paymentMethod: { notIn: ['COD', 'cod'] } }
       ];
-    } else {
+    } else if (active) {
       // Active = (Paid OR COD) AND NOT approved
       where.AND = [
         { status: { not: 'approved' } },
@@ -45,6 +45,7 @@ export async function GET(req: Request) {
         }
       ];
     }
+    // If neither active nor abandoned is specified, it returns ALL mobile orders
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({

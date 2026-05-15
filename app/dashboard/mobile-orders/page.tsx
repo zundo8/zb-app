@@ -58,49 +58,45 @@ const STATUS_THEME: Record<string, { label: string; bg: string; dot: string }> =
 export default function MobileOrdersPage() {
   const [orders, setOrders] = useState<MobileOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<'active' | 'abandoned'>('active');
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+  const [tab, setTab] = useState<'all' | 'active' | 'abandoned'>('all');
+  const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const LIMIT = 50;
 
-  const fetchOrders = useCallback(async (isLoadMore = false) => {
-    if (isLoadMore) setLoadingMore(true);
-    else {
-      setLoading(true);
-      setOffset(0);
-    }
-
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
     try {
-      const currentOffset = isLoadMore ? offset + 50 : 0;
-      const res = await fetch(`/api/admin/mobile-orders?limit=50&offset=${currentOffset}${tab === 'abandoned' ? '&abandoned=true' : ''}${search ? `&search=${search}` : ''}`);
+      const offset = (page - 1) * LIMIT;
+      let url = `/api/admin/mobile-orders?limit=${LIMIT}&offset=${offset}&search=${search}`;
+      if (tab !== 'all') {
+        url += `&${tab === 'abandoned' ? 'abandoned=true' : 'active=true'}`;
+      }
+      
+      const res = await fetch(url);
       const data = await res.json();
       
       if (data.success) {
-        if (isLoadMore) {
-          setOrders(prev => [...prev, ...data.orders]);
-        } else {
-          setOrders(data.orders);
-        }
-        setHasMore(data.hasMore);
+        setOrders(data.orders);
         setTotal(data.total);
-        if (isLoadMore) setOffset(currentOffset);
       }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
-  }, [tab, search, offset]);
+  }, [tab, search, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tab, search]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchOrders();
-    }, search ? 500 : 0);
+    }, 300);
     return () => clearTimeout(timer);
-  }, [tab, search]);
+  }, [fetchOrders]);
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-10 pb-32 pt-4">
@@ -121,18 +117,19 @@ export default function MobileOrdersPage() {
 
         <div className="flex items-center gap-3">
           <div className="flex bg-foreground/5 p-1 rounded-xl border border-foreground/5">
-            <button 
-              onClick={() => { setTab('active'); setOrders([]); }}
-              className={`px-6 py-2 rounded-lg text-[11px] font-semibold transition-all ${tab === 'active' ? 'bg-foreground text-background shadow-sm' : 'text-foreground/40 hover:text-foreground'}`}
-            >
-              Active
-            </button>
-            <button 
-              onClick={() => { setTab('abandoned'); setOrders([]); }}
-              className={`px-6 py-2 rounded-lg text-[11px] font-semibold transition-all ${tab === 'abandoned' ? 'bg-foreground text-background shadow-sm' : 'text-foreground/40 hover:text-foreground'}`}
-            >
-              Abandoned
-            </button>
+            {[
+              { id: 'all', label: 'All Signal' },
+              { id: 'active', label: 'Active' },
+              { id: 'abandoned', label: 'Abandoned' }
+            ].map((t) => (
+              <button 
+                key={t.id}
+                onClick={() => setTab(t.id as any)}
+                className={`px-6 py-2 rounded-lg text-[11px] font-semibold transition-all ${tab === t.id ? 'bg-foreground text-background shadow-sm' : 'text-foreground/40 hover:text-foreground'}`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
           <button onClick={() => fetchOrders()} className="p-3 bg-foreground/5 hover:bg-foreground/10 rounded-xl border border-foreground/5 transition-all">
             <RefreshCw className={`w-4 h-4 text-foreground/40 ${loading ? "animate-spin" : ""}`} />
@@ -191,7 +188,8 @@ export default function MobileOrdersPage() {
             </motion.div>
           ) : (
             orders.map((order, i) => {
-              const isPendingSync = order.status === 'open' || !/^\d+$/.test(order.shopifyOrderId || '');
+              const isShopifySynced = /^\d+$/.test(order.shopifyOrderId || '');
+              const displayStatus = order.status === 'open' && !isShopifySynced ? 'awaiting_approval' : order.status;
               
               return (
                 <motion.div
@@ -226,7 +224,7 @@ export default function MobileOrdersPage() {
                       </div>
 
                       <div className="col-span-2">
-                        <StatusBadge status={isPendingSync ? 'awaiting_approval' : order.status} type="fulfillment" />
+                        <StatusBadge status={displayStatus} type="fulfillment" />
                       </div>
 
                       <div className="col-span-2 text-right">
@@ -234,7 +232,7 @@ export default function MobileOrdersPage() {
                       </div>
                     </Link>
 
-                    {isPendingSync && tab === 'active' && (
+                    {displayStatus === 'awaiting_approval' && tab !== 'abandoned' && (
                       <button
                         onClick={async (e) => {
                           e.preventDefault();
@@ -268,25 +266,31 @@ export default function MobileOrdersPage() {
         </AnimatePresence>
       </div>
 
-      {hasMore && (
-        <div className="flex justify-center pt-10">
-          <button 
-            onClick={() => fetchOrders(true)}
-            disabled={loadingMore}
-            className="px-12 py-3 bg-foreground/[0.03] hover:bg-foreground hover:text-background border border-foreground/5 rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] transition-all flex items-center gap-3 disabled:opacity-50"
-          >
-            {loadingMore ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Expanding Records...
-              </>
-            ) : (
-              <>
-                <Zap className="w-4 h-4" />
-                Load More Protocols
-              </>
-            )}
-          </button>
+      {/* Pagination Controls */}
+      {total > LIMIT && (
+        <div className="flex items-center justify-between gap-4 pt-10 border-t border-foreground/5">
+          <p className="text-[10px] font-bold text-foreground/20 uppercase tracking-[0.2em]">
+            Node <span className="text-foreground/40">{(page - 1) * LIMIT + 1}</span> to <span className="text-foreground/40">{Math.min(page * LIMIT, total)}</span> of <span className="text-foreground/40">{total}</span> Signals
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1 || loading}
+              className="px-6 py-3 bg-foreground/5 hover:bg-foreground/10 disabled:opacity-30 border border-foreground/10 rounded-xl text-[10px] font-bold uppercase tracking-widest text-foreground transition-all"
+            >
+              Previous
+            </button>
+            <div className="px-5 py-3 rounded-xl bg-foreground text-background text-[10px] font-black tracking-widest min-w-[40px] text-center">
+              {page}
+            </div>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page * LIMIT >= total || loading}
+              className="px-8 py-3 bg-foreground/5 hover:bg-foreground/10 disabled:opacity-30 border border-foreground/10 rounded-xl text-[10px] font-bold uppercase tracking-widest text-foreground transition-all flex items-center gap-3"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -82,8 +82,7 @@ function statusTimeline(order: any) {
 
   return [
     { step: 'order_placed', completedAt: createdAt },
-    { step: 'awaiting_approval', completedAt: isAwaiting ? createdAt : null },
-    { step: 'approved', completedAt: isApproved ? updatedAt : null },
+    { step: 'confirmed', completedAt: isApproved ? updatedAt : null },
     { step: 'shipped', completedAt: isShipped ? updatedAt : null },
     { step: 'out_for_delivery', completedAt: isOutForDelivery ? updatedAt : null },
     { step: 'delivered', completedAt: isDelivered ? updatedAt : null },

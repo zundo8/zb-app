@@ -35,10 +35,41 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const { id } = params;
     const body = await req.json();
 
+    const oldOrder = await prisma.order.findUnique({
+      where: { id },
+      select: { status: true, deliveryStatus: true, customerId: true }
+    });
+
     const updated = await prisma.order.update({
       where: { id },
       data: body,
     });
+
+    // Send push notification if status changed
+    if (oldOrder && updated.customerId) {
+      const statusChanged = body.status && body.status !== oldOrder.status;
+      const deliveryChanged = body.deliveryStatus && body.deliveryStatus !== oldOrder.deliveryStatus;
+
+      if (statusChanged || deliveryChanged) {
+        try {
+          const { NotificationService } = await import('@/lib/services/notification.service');
+          let message = 'Your order status has been updated';
+          if (deliveryChanged && updated.deliveryStatus === 'delivered') message = 'Your order has been delivered!';
+          else if (deliveryChanged && updated.deliveryStatus === 'out_for_delivery') message = 'Your order is out for delivery!';
+          else if (statusChanged && updated.status === 'approved') message = 'Your order has been approved and is being processed';
+
+          await NotificationService.sendToUser(
+            updated.customerId,
+            'Zica Bella Order Update',
+            message,
+            { orderId: updated.id, status: updated.status, deliveryStatus: updated.deliveryStatus }
+          );
+          console.log(`[Admin Order PATCH] Push notification sent to user ${updated.customerId}`);
+        } catch (pushErr) {
+          console.error('[Admin Order PATCH] Push notification failed:', pushErr);
+        }
+      }
+    }
 
     return NextResponse.json({ success: true, order: updated });
   } catch (error: any) {

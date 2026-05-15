@@ -103,6 +103,14 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [delhiveryLoading, setDelhiveryLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editValues, setEditValues] = useState({
+    status: '',
+    paymentStatus: '',
+    fulfillmentStatus: '',
+    deliveryStatus: ''
+  });
 
   const fetchOrder = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -124,6 +132,38 @@ export default function OrderDetailPage() {
   useEffect(() => {
     if (id) fetchOrder();
   }, [id, fetchOrder]);
+
+  useEffect(() => {
+    if (order) {
+      setEditValues({
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        fulfillmentStatus: order.fulfillmentStatus,
+        deliveryStatus: order.deliveryStatus || 'pending'
+      });
+    }
+  }, [order]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editValues)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast("Protocol Updated");
+        setIsEditing(false);
+        fetchOrder(true);
+      }
+    } catch (err) {
+      setToast("Update Failed");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleAction = async (action: string) => {
     setDelhiveryLoading(true);
@@ -202,10 +242,38 @@ export default function OrderDetailPage() {
           <button onClick={() => fetchOrder(true)} className="p-3 bg-foreground/5 hover:bg-foreground/10 border border-foreground/5 rounded-xl transition-all">
              <RefreshCw className={`w-4 h-4 text-foreground/40 ${refreshing ? "animate-spin" : ""}`} />
           </button>
-          <button className="flex items-center gap-2.5 px-6 py-2.5 bg-foreground text-background rounded-xl text-[11px] font-bold uppercase tracking-widest hover:opacity-90 transition-all">
-            <Printer className="w-4 h-4" />
-            Invoice
-          </button>
+          
+          {isEditing ? (
+            <>
+              <button 
+                onClick={() => setIsEditing(false)}
+                className="px-6 py-2.5 bg-foreground/5 text-foreground/40 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-foreground/10 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2.5 px-8 py-2.5 bg-foreground text-background rounded-xl text-[11px] font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-xl shadow-foreground/10 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                Save Changes
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="px-8 py-2.5 bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 rounded-xl text-[11px] font-bold uppercase tracking-widest text-foreground/60 transition-all"
+              >
+                Edit Order
+              </button>
+              <button className="flex items-center gap-2.5 px-6 py-2.5 bg-foreground text-background rounded-xl text-[11px] font-bold uppercase tracking-widest hover:opacity-90 transition-all">
+                <Printer className="w-4 h-4" />
+                Invoice
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -230,17 +298,54 @@ export default function OrderDetailPage() {
           {/* Metrics Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Financial", value: order.paymentStatus, icon: CreditCard },
-              { label: "Inventory", value: order.fulfillmentStatus, icon: Box },
-              { label: "Logistics", value: (order.status === 'cancelled' || order.status === 'payment_failed') ? 'Terminated' : (order.deliveryStatus || 'Awaiting'), icon: Truck },
-              { label: "Network", value: order.shopifyOrderId.startsWith('ZB71') ? 'Native App' : 'Web Store', icon: Activity },
+              { 
+                label: "Financial", 
+                key: 'paymentStatus', 
+                value: isEditing ? editValues.paymentStatus : order.paymentStatus, 
+                icon: CreditCard,
+                options: ['pending', 'paid', 'failed', 'refunded']
+              },
+              { 
+                label: "Inventory", 
+                key: 'fulfillmentStatus', 
+                value: isEditing ? editValues.fulfillmentStatus : order.fulfillmentStatus, 
+                icon: Box,
+                options: ['unfulfilled', 'fulfilled', 'cancelled']
+              },
+              { 
+                label: "Logistics", 
+                key: 'deliveryStatus', 
+                value: isEditing ? editValues.deliveryStatus : (order.deliveryStatus || 'awaiting'), 
+                icon: Truck,
+                options: ['awaiting', 'manifested', 'in transit', 'out for delivery', 'delivered']
+              },
+              { 
+                label: "Process", 
+                key: 'status', 
+                value: isEditing ? editValues.status : order.status, 
+                icon: Activity,
+                options: ['awaiting_approval', 'approved', 'cancelled']
+              },
             ].map((s, i) => (
-              <div key={i} className="p-6 rounded-[24px] bg-foreground/[0.02] border border-foreground/5 space-y-3">
+              <div key={i} className={`p-6 rounded-[24px] border transition-all ${isEditing ? 'bg-foreground/5 border-foreground/10' : 'bg-foreground/[0.02] border-foreground/5'} space-y-3`}>
                 <div className="flex justify-between items-center text-[9px] font-bold text-foreground/20 uppercase tracking-widest">
                   {s.label}
-                  <s.icon className="w-3.5 h-3.5 opacity-20" />
+                  <s.icon className={`w-3.5 h-3.5 ${isEditing ? 'text-foreground/40' : 'opacity-20'}`} />
                 </div>
-                <StatusBadge status={s.value} />
+                
+                {isEditing && s.key !== 'network' ? (
+                  <select
+                    value={s.value}
+                    onChange={(e) => setEditValues(prev => ({ ...prev, [s.key]: e.target.value }))}
+                    className="w-full bg-transparent text-[11px] font-bold text-foreground outline-none uppercase tracking-widest cursor-pointer"
+                  >
+                    {s.options?.map(opt => (
+                      <option key={opt} value={opt} className="bg-[#0A0A0A] text-foreground">{opt.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <StatusBadge status={s.value} />
+                )}
               </div>
             ))}
           </div>
