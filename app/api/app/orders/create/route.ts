@@ -155,7 +155,7 @@ export async function POST(req: Request) {
     // 2. COD -> awaiting_approval (Requires manual review)
     // 3. Unpaid Prepaid -> payment_pending (Abandoned/Failed flow)
     const initialStatus = paymentStatus === 'paid' 
-      ? 'OPEN' 
+      ? 'approved' 
       : paymentMethod === 'COD' 
         ? 'awaiting_approval' 
         : 'payment_pending';

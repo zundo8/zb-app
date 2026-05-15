@@ -176,7 +176,7 @@ export async function POST(req: Request) {
             paymentCapturedAt: now,
             shopifyOrderId: shopifyOrderId,
             tags: tags,
-            status: 'OPEN', // Auto-approved upon payment
+            status: 'approved', // Auto-approved upon payment
           }
         });
         

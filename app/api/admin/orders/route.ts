@@ -21,16 +21,26 @@ export async function GET(req: Request) {
 
     const conditions: any[] = [];
     
-    // Filter for Shopify orders only:
-    // This includes orders synced from Shopify (numeric IDs) or orders with regular Shopify tags.
-    // It specifically excludes pending/failed mobile orders (ZBPF / ZB prefixes) that haven't been synced.
+    // ─── STRICT ORDER SEPARATION ───
+    // The main Orders page should ONLY show orders that are either:
+    // 1. Native Shopify orders (synced or direct)
+    // 2. Mobile orders that have been APPROVED and SYNCED to Shopify (numeric shopifyOrderId)
+    // It must EXCLUDE any mobile order that is still in pending/awaiting_approval status (starting with # or ZB)
     conditions.push({
-      NOT: [
-        { shopifyOrderId: { startsWith: 'ZBPF' } },
-        { shopifyOrderId: { startsWith: '#ZBPF' } },
-        { shopifyOrderId: { startsWith: 'ZB71' } },
-        { shopifyOrderId: { startsWith: '#ZB71' } },
-      ]
+      NOT: {
+        AND: [
+          { orderType: 'MOBILE_APP' },
+          { 
+            OR: [
+              { shopifyOrderId: { startsWith: 'ZB' } },
+              { shopifyOrderId: { startsWith: '#ZB' } },
+              { shopifyOrderId: { contains: '#' } },
+              { status: 'awaiting_approval' },
+              { status: 'payment_pending' }
+            ]
+          }
+        ]
+      }
     });
 
     if (status && status !== 'any') {
