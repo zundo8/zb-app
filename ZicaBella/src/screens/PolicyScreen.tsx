@@ -87,7 +87,7 @@ export default function PolicyScreen() {
 
   const handleOpenWeb = () => {
     haptics.buttonTap();
-    const fallbackUrl = url || `https://www.zicabella.com/policies/${handle}`;
+    const fallbackUrl = url || `https://app.zicabella.com/policies/${handle}`;
     navigation.navigate('Policy', { url: fallbackUrl, title });
   };
 

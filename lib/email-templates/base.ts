@@ -43,9 +43,9 @@ export function baseTemplate(content: string, preheader: string = '') {
     <div class="footer">
       <p>© ${new Date().getFullYear()} Zica Bella. All rights reserved.</p>
       <p>
-        <a href="https://zicabella.com">Website</a> &nbsp;·&nbsp;
-        <a href="https://zicabella.com/privacy">Privacy Policy</a> &nbsp;·&nbsp;
-        <a href="https://zicabella.com/contact">Contact Us</a>
+        <a href="https://app.zicabella.com">Website</a> &nbsp;·&nbsp;
+        <a href="https://app.zicabella.com/policies/privacy-policy">Privacy Policy</a> &nbsp;·&nbsp;
+        <a href="https://app.zicabella.com/policies/contact-information">Contact Us</a>
       </p>
       <p style="margin-top: 8px;">Zica Bella, New Delhi, India</p>
       <p><a href="{{unsubscribe_link}}">Unsubscribe</a></p>

@@ -1,7 +1,6 @@
 import NextImage from "next/image";
 import { Instagram, Youtube, Music2, Disc } from "lucide-react";
 import prisma from "@/lib/db";
-import { fetchPolicies } from "@/lib/shopify-admin";
 
 export default async function StorefrontFooter() {
   let shop = null;
@@ -10,7 +9,10 @@ export default async function StorefrontFooter() {
   try {
     const [shopData, policiesData] = await Promise.all([
       prisma.shop.findFirst().catch(() => null),
-      fetchPolicies().catch(() => []),
+      prisma.policy.findMany({ 
+        select: { handle: true, title: true },
+        orderBy: { title: 'asc' }
+      }).catch(() => []),
     ]);
     shop = shopData;
     policies = policiesData as any[];
@@ -79,9 +81,7 @@ export default async function StorefrontFooter() {
             {policies.map((policy: any, i: number) => (
               <span key={policy.handle} className="flex items-center gap-3">
                 <a
-                  href={`https://8tiahf-bk.myshopify.com/policies/${policy.handle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={`/policies/${policy.handle}`}
                   className="text-[6px] font-medium uppercase tracking-[0.25em] text-foreground/40 hover:text-foreground/70 transition-colors whitespace-nowrap"
                 >
                   {policy.title}
@@ -93,6 +93,7 @@ export default async function StorefrontFooter() {
             ))}
           </div>
         )}
+
 
         <p className="text-[6px] font-extralight uppercase tracking-[0.3em] text-muted-foreground/20">
           © 2026 ZICA BELLA · LUXURY STREETWEAR
