@@ -61,8 +61,10 @@ export default withAuth(
         // Allow public app APIs
         if (pathname.startsWith('/api/app/')) return true;
 
-        // Require token for everything else in the matcher
-        return !!token && (token.role === "ADMIN" || token.role === "SUPER_ADMIN");
+        const role = token?.role as string;
+        const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
+
+        return !!token && isAdmin;
       },
     },
     pages: {

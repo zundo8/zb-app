@@ -48,9 +48,12 @@ export default function DashboardLoginPage() {
         toast.error(result.error || 'Login failed');
         setLoading(false);
       } else {
-        toast.success('Authentication successful');
-        router.push(from);
-        router.refresh();
+        toast.success('Authentication successful. Redirecting...');
+        setLoading(true); // Keep loading state
+        // Use window.location for a hard redirect to ensure cookies are sent to middleware
+        setTimeout(() => {
+          window.location.href = from;
+        }, 1000);
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -139,6 +142,12 @@ export default function DashboardLoginPage() {
               >
                 <p className="text-[10px] text-rose-500 font-bold uppercase tracking-widest text-center">{error}</p>
               </motion.div>
+            )}
+
+            {loading && !error && (
+              <p className="text-[9px] text-foreground/40 font-bold uppercase tracking-widest text-center animate-pulse">
+                Establishing Secure Session...
+              </p>
             )}
           </div>
 

@@ -353,11 +353,21 @@ export const authOptions: AuthOptions = {
             });
           }
 
+          const permissions = await prisma.permission.findMany({
+            where: { userId: user.id }
+          });
+
           return {
             id: user.id,
             name: user.name || "Admin",
             email: user.email,
             role: user.role,
+            permissions: permissions.map(p => ({
+              module: p.module,
+              canView: p.canView,
+              canEdit: p.canEdit,
+              canDelete: p.canDelete,
+            }))
           };
         } catch (error: any) {
           console.error("[AUTH] Admin authorize error:", error);
@@ -406,6 +416,7 @@ export const authOptions: AuthOptions = {
         token.role = (user as any).role || "CUSTOMER";
         token.permissions = (user as any).permissions;
         token.loginTime = Math.floor(Date.now() / 1000);
+        token.needsPasswordChange = (user as any).needsPasswordChange;
       }
 
       // Absolute 8-hour limit for admins
@@ -420,52 +431,11 @@ export const authOptions: AuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (session?.user) {
-        try {
-          const userId = (session.user as any).id || token.sub || token.id;
-          const role = token.role;
-
-          if (role === "ADMIN" || role === "SUPER_ADMIN") {
-            const adminUser = await prisma.user.findUnique({
-              where: { id: userId as string },
-              include: { permissions: true },
-            });
-            if (adminUser && adminUser.isActive) {
-              (session.user as any).id = adminUser.id;
-              (session.user as any).role = adminUser.role;
-              (session.user as any).permissions = adminUser.permissions;
-              (session.user as any).needsPasswordChange = adminUser.needsPasswordChange;
-            } else {
-              // Invalidate session if user not found or inactive
-              return null as any;
-            }
-            return session;
-          }
-
-          if (userId) {
-            const customer = await prisma.customer.findFirst({
-              where: {
-                OR: [
-                  { id: userId as string },
-                  { shopifyId: userId as string },
-                  ...(session.user.email ? [{ email: session.user.email }] : []),
-                ],
-              },
-              include: {
-                communityMember: true,
-              },
-            });
-
-            if (customer) {
-              (session as any).customer = customer;
-              (session.user as any).id = customer.id;
-              (session.user as any).phone = customer.phone;
-              (session as any).customerId = customer.id;
-            }
-          }
-        } catch (error) {
-          console.error("[AUTH] Session callback error:", error);
-        }
+      if (token && session.user) {
+        (session.user as any).id = token.id;
+        (session.user as any).role = token.role;
+        (session.user as any).permissions = token.permissions;
+        (session.user as any).needsPasswordChange = token.needsPasswordChange;
       }
       return session;
     },
@@ -477,18 +447,8 @@ export const authOptions: AuthOptions = {
     strategy: "jwt",
     maxAge: 30 * 60, // 30 minutes idle timeout
   },
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "strict",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-  },
-  secret: process.env.NEXTAUTH_SECRET || "fallback_secret_for_local_development",
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
 };
 
 const handler = NextAuth(authOptions);
