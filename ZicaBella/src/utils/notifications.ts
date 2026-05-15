@@ -135,3 +135,26 @@ export async function postPushTokenToBackend(
     return false;
   }
 }
+
+/**
+ * High-level initialization function for push notifications.
+ * Typically called after a user places their first order to ensure
+ * they are opted-in for status updates.
+ */
+export async function initPushNotifications() {
+  try {
+    const tokens = await registerForPushNotifications();
+    if (!tokens) return;
+
+    // Get current userId from auth store
+    // Using lazy require to avoid circular dependency
+    const { useAuthStore } = require('../store/authStore');
+    const user = useAuthStore.getState().user;
+
+    if (user?.id) {
+      await postPushTokenToBackend(tokens, user.id);
+    }
+  } catch (err) {
+    console.warn('[Notifications] Initialization failed:', err);
+  }
+}
