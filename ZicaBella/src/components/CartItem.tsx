@@ -74,7 +74,6 @@ const CartItem = React.memo(({ item, onUpdateQuantity, onRemove, onPress }: Prop
   );
 });
 
-export default CartItem;
 
 const styles = StyleSheet.create({
   container: {
