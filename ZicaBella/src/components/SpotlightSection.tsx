@@ -8,6 +8,7 @@ import { useAdminSettings } from '../hooks/useAdminFeatures';
 import { Typography } from './Typography';
 import { useThemeStore } from '../store/themeStore';
 import HeroVideo from './HeroVideo';
+import OptimizedImage from './OptimizedImage';
 
 const { width } = Dimensions.get('window');
 const GRID_PADDING = 12;
@@ -21,7 +22,7 @@ interface Props {
   media?: string;
 }
 
-export default function SpotlightSection({ 
+const SpotlightSection = React.memo(({ 
   title,
   subtitle,
   collectionHandle,
@@ -103,18 +104,15 @@ export default function SpotlightSection({
               }
             ]}>
               {product ? (
-                <Image 
-                  source={{ uri: product.featuredImage }} 
+                <OptimizedImage 
+                  source={product.featuredImage} 
                   style={styles.image}
-                  contentFit="cover"
-                  transition={500}
-                  placeholder={require('../../assets/load-image-4.jpg')}
+                  shopifyWidth={400}
                 />
               ) : (
-                <Image 
+                <OptimizedImage 
                   source={require('../../assets/load-image-4.jpg')} 
                   style={styles.image}
-                  contentFit="cover"
                 />
               )}
             </View>
@@ -131,7 +129,9 @@ export default function SpotlightSection({
       </View>
     </View>
   );
-}
+});
+
+export default SpotlightSection;
 
 const styles = StyleSheet.create({
   container: {

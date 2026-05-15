@@ -203,43 +203,53 @@ export function useProducts(count = 24) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchProducts = useCallback(async (isRefresh = false) => {
-    const cacheKey = `products_list_${count}`;
-    
-    try {
-      if (!isRefresh) {
-        // Stale-while-revalidate: Serve from cache immediately
-        const cached = await cacheService.get<FlatProduct[]>(cacheKey);
-        if (cached && cached.length > 0) {
-          setProducts(cached.slice(0, count));
+    let cancelled = false;
+
+    (async () => {
+      const cacheKey = `products_list_${count}`;
+      
+      try {
+        if (!isRefresh) {
+          const cached = await cacheService.get<FlatProduct[]>(cacheKey);
+          if (cached && cached.length > 0 && !cancelled) {
+            setProducts(cached.slice(0, count));
+            setLoading(false);
+          }
+        }
+
+        const data = await apiGet<{ products: FlatProduct[] }>(
+          ENDPOINTS.products,
+          { 
+            limit: String(Math.max(count, 50)),
+            fields: LIST_FIELDS
+          }
+        );
+
+        if (cancelled) return;
+
+        const normalizedProducts = extractProducts(data);
+
+        if (normalizedProducts.length > 0) {
+          setProducts(normalizedProducts);
+          await cacheService.set(cacheKey, normalizedProducts, 5);
+          return;
+        }
+
+        throw new Error('Empty product response');
+      } catch (err: any) {
+        if (cancelled) return;
+        if (products.length === 0) {
+          setProducts(fallbackProducts.slice(0, count));
+          setError('Showing bundled products while the catalog reconnects.');
+        }
+      } finally {
+        if (!cancelled) {
           setLoading(false);
         }
       }
+    })();
 
-      const data = await apiGet<{ products: FlatProduct[] }>(
-        ENDPOINTS.products,
-        { 
-          limit: String(Math.max(count, 50)),
-          fields: LIST_FIELDS
-        }
-      );
-      const normalizedProducts = extractProducts(data);
-
-      if (normalizedProducts.length > 0) {
-        setProducts(normalizedProducts);
-        await cacheService.set(cacheKey, normalizedProducts, 5); // 5 min TTL
-        return;
-      }
-
-      throw new Error('Empty product response');
-    } catch (err: any) {
-      if (products.length === 0) {
-        setProducts(fallbackProducts.slice(0, count));
-        setError('Showing bundled products while the catalog reconnects.');
-      }
-    } finally {
-      setLoading(false);
-    }
+    return () => { cancelled = true; };
   }, [count, products.length]);
 
   useEffect(() => {
@@ -346,50 +356,61 @@ export function useSearchProducts() {
     }
     const normalizedQuery = query.trim().toLowerCase();
     const cacheKey = `search_${normalizedQuery}`;
+    let cancelled = false;
 
-    try {
-      setLoading(true);
-      
-      const cached = await cacheService.get<FlatProduct[]>(cacheKey);
-      if (cached) {
-        setResults(cached);
-        setLoading(false);
-      }
-
-      const data = await apiGet<{ products: FlatProduct[] }>(
-        ENDPOINTS.search,
-        { 
-          q: query, 
-          limit: '48',
-          fields: LIST_FIELDS 
+    (async () => {
+      try {
+        setLoading(true);
+        
+        const cached = await cacheService.get<FlatProduct[]>(cacheKey);
+        if (cached && !cancelled) {
+          setResults(cached);
+          setLoading(false);
         }
-      );
-      const normalizedProducts = extractProducts(data);
 
-      if (normalizedProducts.length > 0) {
-        const sorted = [...normalizedProducts].sort(
-          (a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery)
+        const data = await apiGet<{ products: FlatProduct[] }>(
+          ENDPOINTS.search,
+          { 
+            q: query, 
+            limit: '48',
+            fields: LIST_FIELDS 
+          }
         );
-        setResults(sorted);
-        await cacheService.set(cacheKey, sorted, 5);
-        return;
+
+        if (cancelled) return;
+
+        const normalizedProducts = extractProducts(data);
+
+        if (normalizedProducts.length > 0) {
+          const sorted = [...normalizedProducts].sort(
+            (a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery)
+          );
+          setResults(sorted);
+          await cacheService.set(cacheKey, sorted, 5);
+          return;
+        }
+
+        throw new Error('Search unavailable');
+      } catch (err) {
+        if (cancelled) return;
+        const source = fallbackProducts;
+        const filtered = source
+          .filter((product) =>
+            product.title.toLowerCase().includes(normalizedQuery)
+            || product.handle.toLowerCase().includes(normalizedQuery)
+            || product.productType.toLowerCase().includes(normalizedQuery)
+          )
+          .sort((a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery));
+
+        setResults(filtered);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
+    })();
 
-      throw new Error('Search unavailable');
-    } catch (err) {
-      const source = fallbackProducts;
-      const filtered = source
-        .filter((product) =>
-          product.title.toLowerCase().includes(normalizedQuery)
-          || product.handle.toLowerCase().includes(normalizedQuery)
-          || product.productType.toLowerCase().includes(normalizedQuery)
-        )
-        .sort((a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery));
-
-      setResults(filtered);
-    } finally {
-      setLoading(false);
-    }
+    return () => { cancelled = true; };
   }, []);
 
   return { results, loading, search };
@@ -401,37 +422,49 @@ export function useCollections(count = 20, location?: 'header' | 'page' | 'menu'
 
   const fetchCollections = useCallback(async (isRefresh = false) => {
     const cacheKey = `collections_${count}_${location || 'default'}`;
-    try {
-      if (!isRefresh) {
-        const cached = await cacheService.get<FlatCollection[]>(cacheKey);
-        if (cached) {
-          setCollections(cached);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (!isRefresh) {
+          const cached = await cacheService.get<FlatCollection[]>(cacheKey);
+          if (cached && !cancelled) {
+            setCollections(cached);
+            setLoading(false);
+          }
+        }
+
+        const params: any = { limit: String(count) };
+        if (location) params.location = location;
+        const data = await apiGet<{ collections: FlatCollection[] }>(
+          ENDPOINTS.collections,
+          params
+        );
+
+        if (cancelled) return;
+
+        const normalizedCollections = extractCollections(data);
+
+        if (normalizedCollections.length > 0) {
+          setCollections(normalizedCollections);
+          await cacheService.set(cacheKey, normalizedCollections, 10);
+          return;
+        }
+
+        throw new Error('Empty collection response');
+      } catch (err) {
+        if (cancelled) return;
+        if (collections.length === 0) {
+          setCollections(fallbackCollections);
+        }
+      } finally {
+        if (!cancelled) {
           setLoading(false);
         }
       }
+    })();
 
-      const params: any = { limit: String(count) };
-      if (location) params.location = location;
-      const data = await apiGet<{ collections: FlatCollection[] }>(
-        ENDPOINTS.collections,
-        params
-      );
-      const normalizedCollections = extractCollections(data);
-
-      if (normalizedCollections.length > 0) {
-        setCollections(normalizedCollections);
-        await cacheService.set(cacheKey, normalizedCollections, 10); // 10 min TTL
-        return;
-      }
-
-      throw new Error('Empty collection response');
-    } catch (err) {
-      if (collections.length === 0) {
-        setCollections(fallbackCollections);
-      }
-    } finally {
-      setLoading(false);
-    }
+    return () => { cancelled = true; };
   }, [count, location, collections.length]);
 
   useEffect(() => {
@@ -448,59 +481,74 @@ export function useCollectionByHandle(handle: string) {
 
   const fetchCollection = useCallback(async (isRefresh = false) => {
     const cacheKey = `collection_products_${handle}`;
-    try {
-      if (!isRefresh) {
-        const cached = await cacheService.get<{ collection: FlatCollection | null, products: FlatProduct[] }>(cacheKey);
-        if (cached) {
-          setCollection(cached.collection);
-          setProducts(cached.products);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (!isRefresh) {
+          const cached = await cacheService.get<{ collection: FlatCollection | null, products: FlatProduct[] }>(cacheKey);
+          if (cached && !cancelled) {
+            setCollection(cached.collection);
+            setProducts(cached.products);
+            setLoading(false);
+          }
+        }
+        
+        // If handle is 'all', we fetch all products instead of a specific collection
+        if (handle === 'all') {
+          const data = await apiGet<any>(ENDPOINTS.products, { limit: '80', fields: LIST_FIELDS });
+          
+          if (cancelled) return;
+
+          const normalizedProducts = extractProducts(data);
+          
+          if (normalizedProducts.length > 0) {
+            const allCollection = {
+              id: 'all',
+              title: 'All Products',
+              handle: 'all',
+              description: 'Explore the entire Zica Bella archive.',
+              image: normalizedProducts[0]?.featuredImage || null
+            };
+            setCollection(allCollection);
+            setProducts(normalizedProducts);
+            await cacheService.set(cacheKey, { collection: allCollection, products: normalizedProducts }, 5);
+          }
+          return;
+        }
+
+        const data = await apiGet<any>(
+          ENDPOINTS.collectionByHandle(handle),
+          { limit: '50', fields: LIST_FIELDS }
+        );
+
+        if (cancelled) return;
+
+        const normalizedCollection = normalizeCollection(data?.collection || data?.data?.collection || data) || null;
+        const normalizedProducts = extractProducts(data);
+
+        if (normalizedCollection || normalizedProducts.length > 0) {
+          setCollection(normalizedCollection);
+          setProducts(normalizedProducts);
+          await cacheService.set(cacheKey, { collection: normalizedCollection, products: normalizedProducts }, 5);
+          return;
+        }
+
+        throw new Error('Collection unavailable');
+      } catch (err) {
+        if (cancelled) return;
+        if (products.length === 0) {
+          setCollection(fallbackCollections.find((c) => c.handle === handle) || null);
+          setProducts(handle === 'accessories' ? fallbackProducts : []);
+        }
+      } finally {
+        if (!cancelled) {
           setLoading(false);
         }
       }
-      
-      // If handle is 'all', we fetch all products instead of a specific collection
-      if (handle === 'all') {
-        const data = await apiGet<any>(ENDPOINTS.products, { limit: '80', fields: LIST_FIELDS });
-        const normalizedProducts = extractProducts(data);
-        
-        if (normalizedProducts.length > 0) {
-          const allCollection = {
-            id: 'all',
-            title: 'All Products',
-            handle: 'all',
-            description: 'Explore the entire Zica Bella archive.',
-            image: normalizedProducts[0]?.featuredImage || null
-          };
-          setCollection(allCollection);
-          setProducts(normalizedProducts);
-          await cacheService.set(cacheKey, { collection: allCollection, products: normalizedProducts }, 5);
-        }
-        return;
-      }
+    })();
 
-      const data = await apiGet<any>(
-        ENDPOINTS.collectionByHandle(handle),
-        { limit: '50', fields: LIST_FIELDS }
-      );
-      const normalizedCollection = normalizeCollection(data?.collection || data?.data?.collection || data) || null;
-      const normalizedProducts = extractProducts(data);
-
-      if (normalizedCollection || normalizedProducts.length > 0) {
-        setCollection(normalizedCollection);
-        setProducts(normalizedProducts);
-        await cacheService.set(cacheKey, { collection: normalizedCollection, products: normalizedProducts }, 5);
-        return;
-      }
-
-      throw new Error('Collection unavailable');
-    } catch (err) {
-      if (products.length === 0) {
-        setCollection(fallbackCollections.find((c) => c.handle === handle) || null);
-        setProducts(handle === 'accessories' ? fallbackProducts : []);
-      }
-    } finally {
-      setLoading(false);
-    }
+    return () => { cancelled = true; };
   }, [handle, products.length]);
 
   useEffect(() => {

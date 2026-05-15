@@ -4,7 +4,7 @@ import {
   Dimensions, Pressable, Alert
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Image } from 'expo-image';
+import OptimizedImage from './OptimizedImage';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useCartStore } from '../store/cartStore';
@@ -27,7 +27,7 @@ interface Props {
 
 import { resolveImageUrl } from '../utils/imageUtils';
 
-export default function QuickAddModal({ visible, product, initialSize, onClose }: Props) {
+const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Props) => {
   const { addItem } = useCartStore();
   const setCartOpen = useUIStore(s => s.setCartOpen);
   const colors = useColors();
@@ -434,3 +434,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
 });
+});
+
+export default QuickAddModal;

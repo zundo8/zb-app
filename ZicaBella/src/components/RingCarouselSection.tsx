@@ -7,6 +7,7 @@ import { FlatProduct } from '../api/types';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { Typography } from './Typography';
+import OptimizedImage from './OptimizedImage';
 
 interface Props {
   title?: string;
@@ -14,7 +15,7 @@ interface Props {
   products: FlatProduct[];
 }
 
-export default function RingCarouselSection({ title = "ACCESSORIES", handle = "accessories", products }: Props) {
+const RingCarouselSection = React.memo(({ title = "ACCESSORIES", handle = "accessories", products }: Props) => {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
@@ -61,11 +62,10 @@ export default function RingCarouselSection({ title = "ACCESSORIES", handle = "a
               activeOpacity={0.8}
             >
               <View style={[styles.imageWrapper, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
-                <Image 
-                  source={{ uri: item.featuredImage || undefined }} 
+                <OptimizedImage 
+                  source={item.featuredImage} 
                   style={styles.image}
-                  contentFit="cover"
-                  transition={300}
+                  shopifyWidth={400}
                 />
               </View>
             </TouchableOpacity>
@@ -142,3 +142,5 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 });
+
+export default RingCarouselSection;

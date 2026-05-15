@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
+import OptimizedImage from './OptimizedImage';
 import { useColors } from '../constants/colors';
 import { formatPrice } from '../utils/formatPrice';
 import QuantityControl from './QuantityControl';
@@ -27,7 +27,7 @@ interface Props {
 
 import { resolveImageUrl } from '../utils/imageUtils';
 
-export default function CartItem({ item, onUpdateQuantity, onRemove, onPress }: Props) {
+const CartItem = React.memo(({ item, onUpdateQuantity, onRemove, onPress }: Props) => {
   const colors = useColors();
 
   return (
@@ -117,3 +117,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
 });
+});
+
+export default CartItem;
