@@ -10,7 +10,7 @@ import {
   Product,
 } from '../api/types';
 import { fallbackCollections, fallbackProducts } from '../constants/fallbackCatalog';
-import { cacheService } from '../services/cacheService';
+import { getCacheService } from '../services/cacheService';
 
 const LIST_FIELDS = 'id,title,handle,priceRange,featuredImage';
 const FULL_FIELDS = 'id,title,handle,description,descriptionHtml,availableForSale,featuredImage,images,priceRange,variants,media,details,care,sizeChart,productVideo';
@@ -213,7 +213,7 @@ export function useProducts(count = 24) {
     
     try {
       if (!isRefresh) {
-        const cached = await cacheService.get<FlatProduct[]>(cacheKey);
+        const cached = await getCacheService().get<FlatProduct[]>(cacheKey);
         if (cached && cached.length > 0 && isMounted.current) {
           setProducts(cached.slice(0, count));
           setLoading(false);
@@ -234,7 +234,7 @@ export function useProducts(count = 24) {
 
       if (normalizedProducts.length > 0) {
         setProducts(normalizedProducts);
-        await cacheService.set(cacheKey, normalizedProducts, 5);
+        await getCacheService().set(cacheKey, normalizedProducts, 5);
         return;
       }
 
@@ -279,7 +279,7 @@ export function useProductByHandle(handle: string) {
       const cacheKey = `product_detail_${handle}`;
       try {
         // Try cache first for instant display
-        const cached = await cacheService.get<FlatProduct>(cacheKey);
+        const cached = await getCacheService().get<FlatProduct>(cacheKey);
         if (cached && !cancelled) {
           setProduct(cached);
           hasDataRef.current = true;
@@ -298,7 +298,7 @@ export function useProductByHandle(handle: string) {
         if (normalizedProduct) {
           setProduct(normalizedProduct);
           hasDataRef.current = true;
-          await cacheService.set(cacheKey, normalizedProduct, 10);
+          await getCacheService().set(cacheKey, normalizedProduct, 10);
           return;
         }
 
@@ -366,7 +366,7 @@ export function useSearchProducts() {
     try {
       setLoading(true);
       
-      const cached = await cacheService.get<FlatProduct[]>(cacheKey);
+      const cached = await getCacheService().get<FlatProduct[]>(cacheKey);
       if (cached && isMounted.current) {
         setResults(cached);
         setLoading(false);
@@ -390,7 +390,7 @@ export function useSearchProducts() {
           (a, b) => relevancyScore(b, normalizedQuery) - relevancyScore(a, normalizedQuery)
         );
         setResults(sorted);
-        await cacheService.set(cacheKey, sorted, 5);
+        await getCacheService().set(cacheKey, sorted, 5);
         return;
       }
 
@@ -432,7 +432,7 @@ export function useCollections(count = 20, location?: 'header' | 'page' | 'menu'
 
     try {
       if (!isRefresh) {
-        const cached = await cacheService.get<FlatCollection[]>(cacheKey);
+        const cached = await getCacheService().get<FlatCollection[]>(cacheKey);
         if (cached && !isMounted.current) {
           setCollections(cached);
           setLoading(false);
@@ -452,7 +452,7 @@ export function useCollections(count = 20, location?: 'header' | 'page' | 'menu'
 
       if (normalizedCollections.length > 0) {
         setCollections(normalizedCollections);
-        await cacheService.set(cacheKey, normalizedCollections, 10);
+        await getCacheService().set(cacheKey, normalizedCollections, 10);
         return;
       }
 
@@ -492,7 +492,7 @@ export function useCollectionByHandle(handle: string) {
 
     try {
       if (!isRefresh) {
-        const cached = await cacheService.get<{ collection: FlatCollection | null, products: FlatProduct[] }>(cacheKey);
+        const cached = await getCacheService().get<{ collection: FlatCollection | null, products: FlatProduct[] }>(cacheKey);
         if (cached && isMounted.current) {
           setCollection(cached.collection);
           setProducts(cached.products);
@@ -518,7 +518,7 @@ export function useCollectionByHandle(handle: string) {
           };
           setCollection(allCollection);
           setProducts(normalizedProducts);
-          await cacheService.set(cacheKey, { collection: allCollection, products: normalizedProducts }, 5);
+          await getCacheService().set(cacheKey, { collection: allCollection, products: normalizedProducts }, 5);
         }
         return;
       }
@@ -536,7 +536,7 @@ export function useCollectionByHandle(handle: string) {
       if (normalizedCollection || normalizedProducts.length > 0) {
         setCollection(normalizedCollection);
         setProducts(normalizedProducts);
-        await cacheService.set(cacheKey, { collection: normalizedCollection, products: normalizedProducts }, 5);
+        await getCacheService().set(cacheKey, { collection: normalizedCollection, products: normalizedProducts }, 5);
         return;
       }
 

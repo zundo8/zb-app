@@ -16,7 +16,7 @@ import { InAppNotificationBanner } from './src/components/InAppNotificationBanne
 import { registerForPushNotifications, postPushTokenToBackend } from './src/utils/notifications';
 import { useAuthStore } from './src/store/authStore';
 import { useNotificationStore } from './src/store/notificationStore';
-import { cacheService } from './src/services/cacheService';
+import { getCacheService } from './src/services/cacheService';
 
 
 // Sentry initialization is disabled during local development to prevent Expo Go native module crashes.
@@ -24,9 +24,13 @@ import { cacheService } from './src/services/cacheService';
 
 
 // Keep the splash screen visible while we fetch resources if needed
-SplashScreen.preventAutoHideAsync().catch(() => {});
+// SplashScreen.preventAutoHideAsync() moved inside App function
 
 function App() {
+  useEffect(() => {
+    SplashScreen.preventAutoHideAsync().catch(() => {});
+  }, []);
+
   const [fontsLoaded] = useFonts({
     'Rocaston': require('./assets/fonts/Rocaston.ttf'),
   });
@@ -43,7 +47,7 @@ function App() {
   useEffect(() => {
     if (fontsLoaded) {
       // Hydrate cache and then hide splash
-      cacheService.hydrate().then(() => {
+      getCacheService().hydrate().then(() => {
         SplashScreen.hideAsync().catch(() => {});
       }).catch(() => {
         SplashScreen.hideAsync().catch(() => {});

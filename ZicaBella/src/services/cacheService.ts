@@ -6,7 +6,7 @@ interface CacheItem<T> {
 }
 
 class CacheService {
-  private memoryCache = new Map<string, CacheItem<any>>();
+  private memoryCache: Record<string, CacheItem<any>> = {};
   private static instance: CacheService;
 
   private constructor() {}
@@ -33,7 +33,7 @@ class CacheService {
           try {
             const item: CacheItem<any> = JSON.parse(value);
             if (item.expiry > now) {
-              this.memoryCache.set(key, item);
+              this.memoryCache[key] = item;
             } else {
               // Cleanup expired items
               AsyncStorage.removeItem(key);
@@ -56,7 +56,7 @@ class CacheService {
     const item: CacheItem<T> = { value, expiry };
     const cacheKey = `zb_cache_${key}`;
 
-    this.memoryCache.set(cacheKey, item);
+    this.memoryCache[cacheKey] = item;
 
     try {
       await AsyncStorage.setItem(cacheKey, JSON.stringify(item));
@@ -73,12 +73,12 @@ class CacheService {
     const now = Date.now();
 
     // Try memory cache first
-    const memoryItem = this.memoryCache.get(cacheKey);
+    const memoryItem = this.memoryCache[cacheKey];
     if (memoryItem) {
       if (memoryItem.expiry > now) {
         return memoryItem.value;
       }
-      this.memoryCache.delete(cacheKey);
+      delete this.memoryCache[cacheKey];
     }
 
     // Try persistent cache
@@ -88,7 +88,7 @@ class CacheService {
         const item: CacheItem<T> = JSON.parse(raw);
         if (item.expiry > now) {
           // Re-populate memory cache
-          this.memoryCache.set(cacheKey, item);
+          this.memoryCache[cacheKey] = item;
           return item.value;
         }
         await AsyncStorage.removeItem(cacheKey);
@@ -106,10 +106,10 @@ class CacheService {
   async invalidate(key?: string) {
     if (key) {
       const cacheKey = `zb_cache_${key}`;
-      this.memoryCache.delete(cacheKey);
+      delete this.memoryCache[cacheKey];
       await AsyncStorage.removeItem(cacheKey);
     } else {
-      this.memoryCache.clear();
+      this.memoryCache = {};
       const keys = await AsyncStorage.getAllKeys();
       const cacheKeys = keys.filter(k => k.startsWith('zb_cache_'));
       await AsyncStorage.multiRemove(cacheKeys);
@@ -117,4 +117,11 @@ class CacheService {
   }
 }
 
-export const cacheService = CacheService.getInstance();
+let _cacheInstance: CacheService | null = null;
+
+export const getCacheService = (): CacheService => {
+  if (!_cacheInstance) {
+    _cacheInstance = CacheService.getInstance();
+  }
+  return _cacheInstance;
+};

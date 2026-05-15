@@ -33,8 +33,8 @@ import CartDrawer from '../components/CartDrawer';
 import WishlistDrawer from '../components/WishlistDrawer';
 import MenuDrawer from '../components/MenuDrawer';
 
-const SafeOrderConfirmation = withErrorBoundary(OrderConfirmationScreen, 'OrderConfirmation');
-const SafeProductDetail = withErrorBoundary(ProductDetailScreen, 'ProductDetail');
+const SafeOrderConfirmation = OrderConfirmationScreen;
+const SafeProductDetail = ProductDetailScreen;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
