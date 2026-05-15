@@ -6,9 +6,6 @@ import { config } from '../constants/config';
 
 /**
  * Resolve the EAS project ID from Constants.
- * The SDK looks in Constants.expoConfig.extra.eas.projectId first,
- * then falls back to Constants.easConfig.projectId (set automatically
- * in EAS builds).
  */
 export function getExpoProjectId(): string | undefined {
   return (
@@ -18,31 +15,19 @@ export function getExpoProjectId(): string | undefined {
 }
 
 /**
- * Register for push notifications and return a push token string.
- *
- * Strategy:
- * 1. Verify we're on a physical device
- * 2. Request notification permissions (iOS: alert + sound + badge)
- * 3. Try to get an Expo push token (requires EAS projectId)
- * 4. If Expo token fails, fall back to the native APNs device token
- *
- * Returns an object with the token string and its type, or undefined if all fail.
+ * Register for push notifications and return BOTH Expo and Native tokens.
  */
 export async function registerForPushNotifications(): Promise<{
-  token: string;
-  type: 'expo' | 'native';
+  expoToken?: string;
+  deviceToken?: string;
 } | undefined> {
-  // Push notifications only work on physical devices
-  if (!Device.isDevice) {
-    console.warn('[Notifications] Push notifications require a physical device.');
+  if (!Device.isDevice || Platform.OS === 'web') {
+    console.warn('[Notifications] Push notifications require a physical iOS device.');
     return undefined;
   }
 
-  // Skip on web
-  if (Platform.OS === 'web') return undefined;
-
   try {
-    // 1. Check / request permissions
+    // 1. Request permissions
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -52,6 +37,8 @@ export async function registerForPushNotifications(): Promise<{
           allowAlert: true,
           allowBadge: true,
           allowSound: true,
+          allowDisplayInCarPlay: true,
+          allowCriticalAlerts: true,
         },
       });
       finalStatus = status;
@@ -62,39 +49,34 @@ export async function registerForPushNotifications(): Promise<{
       return undefined;
     }
 
-    // 2. Try Expo push token first (requires EAS projectId + Expo account)
+    let expoToken: string | undefined;
+    let deviceToken: string | undefined;
+
+    // 2. Get Expo Push Token
     const projectId = getExpoProjectId();
     if (projectId && projectId !== 'your-eas-project-id') {
       try {
-        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-        if (tokenData?.data) {
-          console.log('[Notifications] Expo push token:', tokenData.data);
-          return { token: tokenData.data, type: 'expo' };
-        }
-      } catch (expoErr) {
-        console.warn('[Notifications] Expo token failed, falling back to native APNs:', expoErr);
+        const expoData = await Notifications.getExpoPushTokenAsync({ projectId });
+        expoToken = expoData?.data;
+      } catch (err) {
+        console.warn('[Notifications] Expo token fetch failed:', err);
       }
     }
 
-    // 3. Fallback: get the native APNs device token directly
-    // This works without EAS projectId and can be delivered via our backend's direct APNs path
+    // 3. Get Native Device Token (The direct address for APNs)
     if (Platform.OS === 'ios') {
       try {
-        const nativeToken = await Notifications.getDevicePushTokenAsync();
-        if (nativeToken?.data) {
-          const tokenStr = typeof nativeToken.data === 'string'
-            ? nativeToken.data
-            : JSON.stringify(nativeToken.data);
-          console.log('[Notifications] Native APNs device token:', tokenStr);
-          return { token: tokenStr, type: 'native' };
-        }
-      } catch (nativeErr) {
-        console.warn('[Notifications] Native APNs token failed:', nativeErr);
+        const nativeData = await Notifications.getDevicePushTokenAsync();
+        deviceToken = typeof nativeData.data === 'string' 
+          ? nativeData.data 
+          : JSON.stringify(nativeData.data);
+      } catch (err) {
+        console.warn('[Notifications] Native token fetch failed:', err);
       }
     }
 
-    console.warn('[Notifications] Could not obtain any push token.');
-    return undefined;
+    console.log('[Notifications] Registration successful:', { expoToken, deviceToken });
+    return { expoToken, deviceToken };
   } catch (err) {
     console.warn('[Notifications] Error during registration:', err);
     return undefined;
@@ -102,45 +84,42 @@ export async function registerForPushNotifications(): Promise<{
 }
 
 /**
- * POST the push token to the backend so the admin dashboard can send
- * targeted notifications to this user/device.
- *
- * Sends to both endpoints:
- * - /api/push-token (simplified)
- * - /api/notifications/register-device (detailed, with platform & device info)
+ * Send tokens to the backend.
  */
 export async function postPushTokenToBackend(
-  token: string,
-  userId: string,
-  tokenType: 'expo' | 'native' = 'expo'
+  tokens: { expoToken?: string; deviceToken?: string },
+  userId: string
 ): Promise<boolean> {
   try {
-    // Simplified endpoint
-    const res1 = fetch(`${config.appUrl}/api/push-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, token }),
-    }).catch(() => null);
+    const payload = {
+      userId,
+      expoToken: tokens.expoToken,
+      deviceToken: tokens.deviceToken,
+      platform: Platform.OS,
+      appVersion: Constants.expoConfig?.version || '1.0.0',
+    };
 
-    // Detailed endpoint with device metadata
-    const deviceId = `${tokenType}_${Platform.OS}_${userId}`;
-    const res2 = fetch(`${config.appUrl}/api/notifications/register-device`, {
+    // Use the primary registration endpoint
+    const response = await fetch(`${config.appUrl}/api/notifications/register-device`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId,
-        deviceId,
-        fcmToken: token,
-        expoPushToken: tokenType === 'expo' ? token : undefined,
-        platform: Platform.OS,
-        appVersion: Constants.expoConfig?.version || '1.0.0',
+        ...payload,
+        deviceId: `ios_${userId}`,
+        fcmToken: tokens.deviceToken || tokens.expoToken, // Backend uses fcmToken as primary field
       }),
-    }).catch(() => null);
+    });
 
-    const [r1, r2] = await Promise.all([res1, res2]);
-    return (r1?.ok || r2?.ok) ?? false;
+    // Also notify the simplified endpoint
+    fetch(`${config.appUrl}/api/push-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, token: tokens.deviceToken || tokens.expoToken }),
+    }).catch(() => {});
+
+    return response.ok;
   } catch (err) {
-    console.warn('[Notifications] Failed to register token with backend:', err);
+    console.warn('[Notifications] Failed to sync tokens with backend:', err);
     return false;
   }
 }

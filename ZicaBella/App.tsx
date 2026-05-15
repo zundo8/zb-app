@@ -52,12 +52,15 @@ function App() {
     if (!fontsLoaded) return;
 
     (async () => {
-      const result = await registerForPushNotifications();
-      if (result) {
-        useNotificationStore.getState().setPushToken(result.token);
-        // If user is logged in, associate token with their userId
-        if (userId) {
-          postPushTokenToBackend(result.token, userId, result.type);
+      const tokens = await registerForPushNotifications();
+      if (tokens) {
+        const primaryToken = tokens.deviceToken || tokens.expoToken;
+        if (primaryToken) {
+          useNotificationStore.getState().setPushToken(primaryToken);
+          // If user is logged in, associate tokens with their userId
+          if (userId) {
+            postPushTokenToBackend(tokens, userId);
+          }
         }
       }
     })();
