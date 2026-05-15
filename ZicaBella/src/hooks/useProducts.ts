@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiGet } from '../api/shopify';
 import { ENDPOINTS } from '../api/queries';
 import {

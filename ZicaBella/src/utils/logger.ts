@@ -16,13 +16,19 @@ const noop = () => {};
  * that can be read by third-party crash reporters or device log aggregators.
  */
 export function suppressProductionLogs(): void {
-  if (__DEV__) return; // Keep logs in development
+  if (__DEV__) return; 
 
-  // Suppress all console methods in production
-  console.log = noop;
-  console.info = noop;
-  console.warn = noop;
-  console.error = noop;
-  console.debug = noop;
-  console.trace = noop;
+  const methods = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const;
+  
+  methods.forEach(method => {
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(console, method);
+      if (descriptor && (descriptor.configurable === false || descriptor.writable === false)) {
+        return;
+      }
+      (console as any)[method] = noop;
+    } catch (e) {
+      // Silently fail if console is locked
+    }
+  });
 }

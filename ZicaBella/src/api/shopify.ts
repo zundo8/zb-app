@@ -16,9 +16,14 @@ export async function apiFetch<T>(
 
   // Append query params
   if (options?.params) {
-    const searchParams = new URLSearchParams(options.params);
-    const sortedParams = Array.from(searchParams.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-    url += `?${new URLSearchParams(sortedParams).toString()}`;
+    const params = options.params;
+    const queryString = Object.keys(params)
+      .sort()
+      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+      .join('&');
+    if (queryString) {
+      url += `?${queryString}`;
+    }
   }
 
   // Deduplication logic for GET requests

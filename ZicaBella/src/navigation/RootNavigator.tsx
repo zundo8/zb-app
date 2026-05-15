@@ -65,7 +65,7 @@ const linking = {
   },
 };
 
-export const RootNavigator = () => {
+const RootNavigator = () => {
   const { 
     isCartOpen, setCartOpen, 
     isWishlistOpen, setWishlistOpen,
