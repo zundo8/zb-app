@@ -165,8 +165,12 @@ export default function OrderReviewScreen() {
 
     // Strict Address Validation
     const addr = shippingAddress;
+    const emailToValidate = addr?.email || user?.email;
+    const isEmailValid = emailToValidate && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToValidate);
+
     const isAddrComplete = !!(
       (addr?.name || user?.name) && 
+      isEmailValid &&
       (addr?.phone || user?.phone) && 
       (addr?.line1 || addr?.street) && 
       addr?.city && 
@@ -389,6 +393,7 @@ export default function OrderReviewScreen() {
           </View>
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
              <Typography size={12} weight="600" color={colors.text}>{shippingAddress?.name || user?.name}</Typography>
+             <Typography size={9} weight="600" color={colors.textExtraLight} style={{ marginTop: 2 }}>{shippingAddress?.email || user?.email}</Typography>
              <Typography size={10} color={colors.textSecondary} style={{ marginTop: 6, lineHeight: 16 }}>
                 {shippingAddress?.street || shippingAddress?.line1}{'\n'}
                 {shippingAddress?.city}, {shippingAddress?.state} {shippingAddress?.zip || shippingAddress?.pincode}

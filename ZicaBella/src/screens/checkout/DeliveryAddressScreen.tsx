@@ -28,6 +28,7 @@ export default function DeliveryAddressScreen() {
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [address, setAddress] = useState({
     name: shippingAddress?.name || user?.name || '',
+    email: shippingAddress?.email || user?.email || '',
     phone: shippingAddress?.phone || user?.phone || '',
     line1: shippingAddress?.line1 || shippingAddress?.street || '',
     line2: shippingAddress?.line2 || '',
@@ -78,7 +79,8 @@ export default function DeliveryAddressScreen() {
 
   const isValid = useMemo(
     () =>
-      !!(address.name && address.phone && address.line1 && address.city && address.pincode && address.state),
+      !!(address.name && address.email && address.phone && address.line1 && address.city && address.pincode && address.state) && 
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email),
     [address]
   );
 
@@ -98,6 +100,7 @@ export default function DeliveryAddressScreen() {
           const a = json.addresses[0];
           const normalized = {
             name: a.name || user?.name || '',
+            email: a.email || user?.email || '',
             phone: a.phone || user?.phone || '',
             line1: a.address1 || '',
             line2: a.address2 || '',
@@ -132,6 +135,7 @@ export default function DeliveryAddressScreen() {
     if (!String(address[field] || '').trim()) return 'Required';
     if (field === 'pincode' && String(address.pincode).trim().length !== 6) return 'Invalid pincode';
     if (field === 'phone' && String(address.phone).replace(/\D/g, '').length < 10) return 'Invalid phone';
+    if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(address.email))) return 'Invalid email';
     return null;
   };
 
@@ -171,7 +175,7 @@ export default function DeliveryAddressScreen() {
                   {shippingAddress.line2 ? `, ${shippingAddress.line2}` : ''}
                   {`\n${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.pincode}`}
                 </Typography>
-                <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 6 }}>{shippingAddress.phone}</Typography>
+                <Typography size={9} color={colors.textExtraLight} style={{ marginTop: 6 }}>{shippingAddress.email} · {shippingAddress.phone}</Typography>
               </View>
               <TouchableOpacity onPress={() => { haptics.buttonTap(); setIsEditing(true); }} activeOpacity={0.7}>
                 <Typography size={8} weight="700" color={colors.foreground} style={{ letterSpacing: 2 }}>CHANGE</Typography>
@@ -209,6 +213,7 @@ export default function DeliveryAddressScreen() {
                       haptics.buttonTap();
                       const normalized = {
                         name: a.name || user?.name || '',
+                        email: a.email || user?.email || '',
                         phone: a.phone || user?.phone || '',
                         line1: a.address1 || '',
                         line2: a.address2 || '',
@@ -246,6 +251,7 @@ export default function DeliveryAddressScreen() {
                 haptics.buttonTap(); 
                 setAddress({
                   name: user?.name || '',
+                  email: user?.email || '',
                   phone: user?.phone || '',
                   line1: '',
                   line2: '',
@@ -278,6 +284,22 @@ export default function DeliveryAddressScreen() {
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
             {fieldError('name') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('name')}</Typography>}
+          </View>
+
+          <View style={styles.field}>
+            <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>EMAIL ADDRESS</Typography>
+            <TextInput
+              value={address.email}
+              onChangeText={(v) => setAddress({...address, email: v.toLowerCase().trim()})}
+              placeholder="charlotte@example.com"
+              placeholderTextColor={colors.textExtraLight}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              autoComplete="email"
+              autoCapitalize="none"
+              style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+            />
+            {fieldError('email') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('email')}</Typography>}
           </View>
 
           <View style={styles.field}>
@@ -372,7 +394,8 @@ export default function DeliveryAddressScreen() {
             />
             {fieldError('state') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('state')}</Typography>}
           </View>
-        </View>
+          </View>
+          </View>
         )}
       </ScrollView>
 
@@ -399,6 +422,7 @@ export default function DeliveryAddressScreen() {
           
           const normalized = {
             name: address.name,
+            email: address.email,
             phone: address.phone,
             line1: address.line1,
             line2: address.line2,
