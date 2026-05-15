@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Animated, Alert, Modal, Pressable
+  View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Animated, Alert, Modal, Pressable, InteractionManager
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
+import OptimizedImage from '../components/OptimizedImage';
 import Carousel from 'react-native-reanimated-carousel';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -202,21 +203,26 @@ export default function ProductDetailScreen() {
   const { addProduct: recordVisit, recentProducts } = useRecentStore();
 
   const player = useVideoPlayer(product?.productVideo ?? null, (player) => {
-    player.loop = true;
+    player.loop = false;
     player.muted = true;
-    player.play();
   });
 
   const isFocused = useNavigation().isFocused();
 
+  const isAppActive = useUIStore(s => s.isAppActive);
+
   useEffect(() => {
     if (!player) return;
-    if (!isFocused) {
+    if (!isFocused || !isAppActive) {
       player.pause();
     } else {
-      player.play();
+      // Small delay to ensure smooth transition
+      const task = InteractionManager.runAfterInteractions(() => {
+        player.play();
+      });
+      return () => task.cancel();
     }
-  }, [isFocused, player]);
+  }, [isFocused, isAppActive, player]);
 
   useEffect(() => {
     if (player) {
@@ -226,13 +232,15 @@ export default function ProductDetailScreen() {
 
   const options = useMemo(() => {
     if (!product) return { sizes: [], colors: [] };
-    const sizes = new Set<string>();
+    const sizesSet = new Set<string>();
+    const colorsSet = new Set<string>();
     product.variants.forEach(v => {
-      if (v.size) sizes.add(v.size);
+      if (v.size) sizesSet.add(v.size);
+      if (v.color) colorsSet.add(v.color);
     });
     return { 
-      sizes: Array.from(sizes), 
-      colors: ['BLACK', 'CREAM', 'SLATE'] 
+      sizes: Array.from(sizesSet).sort(), 
+      colors: Array.from(colorsSet).sort() 
     };
   }, [product]);
 
@@ -255,7 +263,11 @@ export default function ProductDetailScreen() {
   const handleAddToCart = () => {
     if (!product) return;
     if (!requireSize()) return;
-    const variant = product.variants.find(v => v.size === selectedSize) || product.variants[0];
+    const variant = product.variants.find(v => 
+      (v.size === selectedSize || !v.size) && 
+      (v.color === selectedColor || !v.color)
+    ) || product.variants.find(v => v.size === selectedSize) || product.variants[0];
+    
     addItem({
       productId: product.id,
       variantId: variant.id,
@@ -274,13 +286,18 @@ export default function ProductDetailScreen() {
     if (!product) return;
     if (!requireSize()) return;
     
-    const variant = product.variants.find(v => v.size === selectedSize) || product.variants[0];
+    const variant = product.variants.find(v => 
+      (v.size === selectedSize || !v.size) && 
+      (v.color === selectedColor || !v.color)
+    ) || product.variants.find(v => v.size === selectedSize) || product.variants[0];
+    
     setBuyNowItem({
       id: `${product.id}_${variant.id}_${selectedSize || 'one-size'}`,
       productId: product.id,
       variantId: variant.id,
       title: product.title,
       size: selectedSize,
+      color: selectedColor,
       handle: product.handle,
       price: variant.price,
       image: product.featuredImage,
@@ -322,23 +339,29 @@ export default function ProductDetailScreen() {
     }
   };
 
-  const renderHeroItem = ({ item, index }: any) => (
+  const renderHeroItem = useCallback(({ item, index }: any) => (
     <TouchableOpacity 
       activeOpacity={0.9} 
       onPress={() => { haptics.buttonTap(); setViewerVisible(true); }}
       style={styles.heroContainer}
     >
-      <Image 
-        source={resolveImageUrl(item) || undefined} 
+      <OptimizedImage 
+        source={String(item)} 
         style={styles.heroImage} 
-        contentFit="cover"
-        transition={600}
+        shopifyWidth={800}
       />
       <View style={styles.zoomPulse}>
         <Ionicons name="expand-outline" size={12} color="#FFF" />
       </View>
+      
+      {/* Background preloading of adjacent image */}
+      {index === activeImageIndex && images[index + 1] && (
+        <View style={{ width: 0, height: 0, opacity: 0 }}>
+          <OptimizedImage source={String(images[index + 1])} shopifyWidth={800} />
+        </View>
+      )}
     </TouchableOpacity>
-  );
+  ), [activeImageIndex, images]);
 
   if (loading || !product) {
     return (
@@ -405,6 +428,7 @@ export default function ProductDetailScreen() {
               autoPlay={false}
               onConfigurePanGesture={(panGesture: any) => panGesture.activeOffsetX([-10, 10])}
               windowSize={3}
+              removeClippedSubviews={true}
            />
         </View>
 
@@ -437,9 +461,10 @@ export default function ProductDetailScreen() {
                   { width: 110 }
                 ]}
               >
-                <Image source={resolveImageUrl(images[index]) || undefined} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <OptimizedImage source={String(images[index])} style={StyleSheet.absoluteFill} shopifyWidth={200} />
               </TouchableOpacity>
             )}
+            removeClippedSubviews={true}
           />
         </View>
 
@@ -483,7 +508,7 @@ export default function ProductDetailScreen() {
               </View>
                <View style={styles.sizeGrid}>
                 {options.sizes.map(s => {
-                  const variant = product.variants.find(v => v.size === s);
+                  const variant = product.variants.find(v => v.size === s && (v.color === selectedColor || !selectedColor));
                   const isOutOfStock = variant?.quantityAvailable === 0;
                   return (
                     <TouchableOpacity 
@@ -514,6 +539,42 @@ export default function ProductDetailScreen() {
                 })}
               </View>
            </View>
+
+           {/* COLOR SELECTOR */}
+           {options.colors.length > 1 && (
+             <View style={styles.selectorSection}>
+                <View style={styles.selectorHeader}>
+                  <Typography size={6.5} weight="600" color={colors.textExtraLight} style={styles.selectorLabel}>
+                    SELECT COLOR
+                  </Typography>
+                </View>
+                <View style={styles.sizeGrid}>
+                  {options.colors.map(c => (
+                    <TouchableOpacity 
+                      key={c} 
+                      onPress={() => { haptics.buttonTap(); setSelectedColor(c); }}
+                      style={[
+                        styles.sizeOption, 
+                        { 
+                          borderColor: (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'), 
+                          backgroundColor: selectedColor === c ? colors.text : 'transparent',
+                          width: 'auto',
+                          paddingHorizontal: 16
+                        }
+                      ]}
+                    >
+                      <Typography 
+                        size={8.5} 
+                        weight="500" 
+                        color={selectedColor === c ? colors.background : colors.textSecondary}
+                      >
+                        {c.toUpperCase()}
+                      </Typography>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+             </View>
+           )}
 
            {/* PRIMARY ACTIONS */}
            <View style={styles.inlineActions}>

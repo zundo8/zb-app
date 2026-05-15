@@ -119,7 +119,7 @@ const MessageBubble = memo(({ item }: { item: Message }) => {
 
 // ─── Main Screen ─────────────────────────────────
 
-export default function ChatScreen() {
+const ChatScreen = memo(() => {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -336,7 +336,9 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
     </View>
   );
-}
+});
+
+export default ChatScreen;
 
 // ─── Styles ──────────────────────────────────────
 

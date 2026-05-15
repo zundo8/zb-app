@@ -6,6 +6,8 @@ import { useAuthStore } from '../store/authStore';
 
 const API_BASE = `${config.appUrl}/api/app`;
 
+const inflightRequests = new Map<string, Promise<any>>();
+
 export async function apiFetch<T>(
   endpoint: string,
   options?: { method?: string; body?: any; params?: Record<string, string>; timeoutMs?: number }
@@ -15,57 +17,80 @@ export async function apiFetch<T>(
   // Append query params
   if (options?.params) {
     const searchParams = new URLSearchParams(options.params);
-    url += `?${searchParams.toString()}`;
+    const sortedParams = Array.from(searchParams.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    url += `?${new URLSearchParams(sortedParams).toString()}`;
   }
 
-  const token = useAuthStore.getState().token;
+  // Deduplication logic for GET requests
+  const isGet = !options?.method || options.method.toUpperCase() === 'GET';
+  const cacheKey = `${url}_${options?.body ? JSON.stringify(options.body) : ''}`;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 15000);
-
-  const fetchOptions: RequestInit = {
-    method: options?.method || 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    signal: controller.signal,
-  };
-
-  if (options?.body) {
-    fetchOptions.body = JSON.stringify(options.body);
+  if (isGet && inflightRequests.has(cacheKey)) {
+    return inflightRequests.get(cacheKey);
   }
 
-  try {
-    const response = await fetch(url, fetchOptions);
-    clearTimeout(timeout);
+  const fetchPromise = (async () => {
+    const token = useAuthStore.getState().token;
 
-    // Handle 401 — token expired or invalid
-    if (response.status === 401) {
-      useAuthStore.getState().logout();
-      throw new Error('Session expired. Please log in again.');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 15000);
+
+    const fetchOptions: RequestInit = {
+      method: options?.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      signal: controller.signal,
+    };
+
+    if (options?.body) {
+      fetchOptions.body = JSON.stringify(options.body);
     }
 
-    // Guard against non-JSON responses (e.g. HTML error pages)
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      throw new Error(`Something went wrong. Please try again.`);
-    }
+    try {
+      const response = await fetch(url, fetchOptions);
+      clearTimeout(timeout);
 
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(errorJson.error || 'Something went wrong. Please try again.');
-    }
+      // Handle 401 — token expired or invalid
+      if (response.status === 401) {
+        useAuthStore.getState().logout();
+        throw new Error('Session expired. Please log in again.');
+      }
 
-    return (await response.json()) as T;
-  } catch (err: any) {
-    clearTimeout(timeout);
-    if (err.name === 'AbortError') {
-      throw new Error('Request timed out. Please check your connection.');
+      // Guard against non-JSON responses (e.g. HTML error pages)
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Something went wrong. Please try again.`);
+      }
+
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(errorJson.error || 'Something went wrong. Please try again.');
+      }
+
+      const result = await response.json();
+      return result as T;
+    } catch (err: any) {
+      clearTimeout(timeout);
+      if (err.name === 'AbortError') {
+        throw new Error('Request timed out. Please check your connection.');
+      }
+      throw err;
+    } finally {
+      if (isGet) {
+        // Clean up inflight map after a short delay to prevent race conditions but still deduplicate simultaneous calls
+        setTimeout(() => inflightRequests.delete(cacheKey), 500);
+      }
     }
-    throw err;
+  })();
+
+  if (isGet) {
+    inflightRequests.set(cacheKey, fetchPromise);
   }
+
+  return fetchPromise;
 }
 
 // Convenience helpers

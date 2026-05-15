@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { StatusBar, StyleSheet } from 'react-native';
+import { StatusBar, StyleSheet, AppState, InteractionManager } from 'react-native';
+import { useUIStore } from './src/store/uiStore';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
@@ -16,6 +17,8 @@ import { InAppNotificationBanner } from './src/components/InAppNotificationBanne
 import { registerForPushNotifications, postPushTokenToBackend } from './src/utils/notifications';
 import { useAuthStore } from './src/store/authStore';
 import { useNotificationStore } from './src/store/notificationStore';
+import { cacheService } from './src/services/cacheService';
+
 
 // Sentry initialization is disabled during local development to prevent Expo Go native module crashes.
 // It will be enabled in the final EAS build.
@@ -41,8 +44,15 @@ function App() {
   useEffect(() => {
     suppressProductionLogs();
     if (fontsLoaded) {
-      SplashScreen.hideAsync().catch(() => {});
-      NotificationService.initialize();
+      // Hydrate cache and then hide splash
+      cacheService.hydrate().finally(() => {
+        SplashScreen.hideAsync().catch(() => {});
+      });
+      
+      // Defer non-critical services
+      InteractionManager.runAfterInteractions(() => {
+        NotificationService.initialize();
+      });
     }
   }, [fontsLoaded]);
 
@@ -51,19 +61,22 @@ function App() {
   useEffect(() => {
     if (!fontsLoaded) return;
 
-    (async () => {
-      const tokens = await registerForPushNotifications();
-      if (tokens) {
-        const primaryToken = tokens.deviceToken || tokens.expoToken;
-        if (primaryToken) {
-          useNotificationStore.getState().setPushToken(primaryToken);
-          // If user is logged in, associate tokens with their userId
-          if (userId) {
-            postPushTokenToBackend(tokens, userId);
+    // Defer push registration to avoid blocking start-up
+    const task = InteractionManager.runAfterInteractions(() => {
+      (async () => {
+        const tokens = await registerForPushNotifications();
+        if (tokens) {
+          const primaryToken = tokens.deviceToken || tokens.expoToken;
+          if (primaryToken) {
+            useNotificationStore.getState().setPushToken(primaryToken);
+            if (userId) {
+              postPushTokenToBackend(tokens, userId);
+            }
           }
         }
-      }
-    })();
+      })();
+    });
+    return () => task.cancel();
   }, [fontsLoaded, userId]);
 
   // ── Notification listeners ───────────────────────────────────────────────
@@ -111,6 +124,17 @@ function App() {
     return () => {
       notificationReceivedRef.current?.remove();
       notificationResponseRef.current?.remove();
+    };
+  }, []);
+
+  // ── AppState listener ──────────────────────────────────────────────────
+  useEffect(() => {
+    const setAppActive = useUIStore.getState().setAppActive;
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      setAppActive(nextAppState === 'active');
+    });
+    return () => {
+      subscription.remove();
     };
   }, []);
 

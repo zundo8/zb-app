@@ -13,6 +13,7 @@ import { Typography } from './Typography';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 import { resolveImageUrl, resolveImageArray } from '../utils/imageUtils';
+import OptimizedImage from './OptimizedImage';
 
 interface Props {
   product: FlatProduct;
@@ -127,14 +128,10 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
                   style={{ width: currentCardWidth, height: '100%' }}
                 >
                   {shouldRenderImage ? (
-                    <Image
-                      source={{ uri: String(img || '') }}
+                    <OptimizedImage
+                      source={String(img || '')}
                       style={styles.image}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                      transition={200}
-                      recyclingKey={String(img || '')}
-                      placeholder={require('../../assets/load-image-1.jpg')}
+                      shopifyWidth={400}
                     />
                   ) : (
                     <View style={[styles.image, { backgroundColor: isDark ? '#111' : '#f9f9f9' }]} />
@@ -145,22 +142,17 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
           </ScrollView>
         ) : images[0] ? (
           <TouchableOpacity onPress={handlePress} activeOpacity={0.95} style={StyleSheet.absoluteFill}>
-            <Image
-              source={{ uri: String(images[0]) }}
+            <OptimizedImage
+              source={String(images[0])}
               style={styles.image}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={200}
-              recyclingKey={String(images[0])}
-              placeholder={require('../../assets/load-image-1.jpg')}
+              shopifyWidth={400}
             />
           </TouchableOpacity>
         ) : (
           <View style={[styles.image, styles.placeholderContainer, { backgroundColor: isDark ? '#1a1a1a' : '#f0f0f0' }]}>
-            <Image 
+            <OptimizedImage 
               source={require('../../assets/load-image-1.jpg')} 
               style={styles.image}
-              contentFit="cover"
             />
           </View>
         )}

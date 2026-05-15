@@ -21,7 +21,7 @@ import { withErrorBoundary } from '../components/ErrorBoundary';
 
 const { width } = Dimensions.get('window');
 
-function SearchScreen() {
+const SearchScreen = React.memo(() => {
   const flatListRef = useRef<FlatList>(null);
   const searchInputRef = useRef<TextInput>(null);
   useScrollToTop(flatListRef);
@@ -64,7 +64,7 @@ function SearchScreen() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       search(text);
-    }, 300);
+    }, 400);
   }, [search]);
 
   const onRefresh = useCallback(async () => {
@@ -258,15 +258,16 @@ function SearchScreen() {
         }
         onScroll={onScroll}
         scrollEventThrottle={16}
-        removeClippedSubviews={false}
-        initialNumToRender={6}
+        removeClippedSubviews={true}
+        initialNumToRender={8}
         maxToRenderPerBatch={4}
-        windowSize={5}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
         extraData={results}
       />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

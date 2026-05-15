@@ -1,18 +1,18 @@
 import React, { useRef, useEffect } from 'react';
 import { 
   View, StyleSheet, TouchableOpacity, 
-  Dimensions, ScrollView, Animated as RNAnimated
+  Dimensions, Platform
 } from 'react-native';
-import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
+import Carousel from 'react-native-reanimated-carousel';
 import { useNavigation } from '@react-navigation/native';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { Typography } from './Typography';
 
 const { width } = Dimensions.get('window');
-const ITEM_WIDTH = width * 0.82;
-const ITEM_MARGIN = 12;
+const ITEM_WIDTH = width * 0.55;
+const ITEM_HEIGHT = 44;
 
 interface Collection {
   id: string;
@@ -31,90 +31,135 @@ export default function CollectionHeaderCarousel({ currentHandle, collections }:
   const colors = useColors();
   const theme = useThemeStore(state => state.theme);
   const isDark = theme === 'dark';
-  const scrollRef = useRef<ScrollView>(null);
+  const carouselRef = useRef<any>(null);
+
+  const activeIndex = collections.findIndex(c => c.handle === currentHandle);
 
   useEffect(() => {
-    const activeIndex = collections.findIndex(c => c.handle === currentHandle);
-    if (activeIndex !== -1 && scrollRef.current) {
-      // Approximate width of a pill is 100-150px
-      const scrollX = activeIndex * 120; 
-      setTimeout(() => {
-        scrollRef.current?.scrollTo({ x: scrollX - width/2 + 60, animated: true });
-      }, 300);
+    if (activeIndex !== -1 && carouselRef.current) {
+      carouselRef.current?.scrollTo({ index: activeIndex, animated: true });
     }
-  }, [currentHandle, collections]);
+  }, [activeIndex]);
+
+  const renderItem = ({ item }: { item: Collection }) => {
+    const isActive = item.handle === currentHandle;
+
+    return (
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => {
+          if (!isActive) {
+            navigation.navigate('Collection', { handle: item.handle, title: item.title });
+          }
+        }}
+        style={styles.itemWrapper}
+      >
+        <View style={[
+          styles.pillContainer,
+          { 
+            borderColor: isActive 
+              ? (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.15)') 
+              : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)')
+          }
+        ]}>
+          <BlurView 
+            intensity={isActive ? (isDark ? 50 : 70) : (isDark ? 15 : 25)} 
+            tint={isDark ? 'dark' : 'light'} 
+            style={[
+              styles.blur,
+              { 
+                backgroundColor: isActive 
+                  ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.4)') 
+                  : 'transparent'
+              }
+            ]}
+          >
+            <Typography 
+              size={8.5} 
+              weight={isActive ? "700" : "500"} 
+              color={colors.text} 
+              style={[
+                styles.pillText,
+                { opacity: isActive ? 1 : 0.5 }
+              ]}
+              numberOfLines={1}
+            >
+              {item.title.toUpperCase()}
+            </Typography>
+          </BlurView>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  if (!collections || collections.length === 0) return null;
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {collections.map((col) => {
-          const isActive = col.handle === currentHandle;
-          return (
-            <TouchableOpacity
-              key={col.handle}
-              activeOpacity={0.7}
-              onPress={() => {
-                if (!isActive) {
-                  navigation.navigate('Collection', { handle: col.handle, title: col.title });
-                }
-              }}
-              style={[
-                styles.pill,
-                { 
-                  backgroundColor: isActive ? colors.text : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'),
-                  borderColor: isActive ? colors.text : colors.borderLight,
-                },
-                isActive && styles.activePill
-              ]}
-            >
-              <Typography 
-                size={7} 
-                weight={isActive ? "700" : "400"} 
-                color={isActive ? colors.background : colors.text} 
-                style={styles.pillText}
-              >
-                {col.title.toUpperCase()}
-              </Typography>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      <Carousel
+        ref={carouselRef}
+        width={ITEM_WIDTH}
+        height={ITEM_HEIGHT}
+        data={collections}
+        renderItem={renderItem}
+        defaultIndex={activeIndex !== -1 ? activeIndex : 0}
+        style={styles.carousel}
+        loop={false}
+        autoPlay={false}
+        mode="parallax"
+        modeConfig={{
+          parallaxScrollingScale: 0.88,
+          parallaxScrollingOffset: 45,
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    height: ITEM_HEIGHT,
+    justifyContent: 'center',
     marginVertical: 8,
   },
-  scrollContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-    flexDirection: 'row',
+  carousel: {
+    width: width,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 18,
-    borderWidth: 1,
-    minWidth: 60,
-    alignItems: 'center',
+  itemWrapper: {
+    width: '100%',
+    height: ITEM_HEIGHT,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  pillContainer: {
+    height: 40,
+    width: '100%',
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 2,
+      }
+    })
+  },
+  blur: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
   pillText: {
-    letterSpacing: 1.8,
-  },
-  activePill: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    letterSpacing: 3,
+    fontSize: 9,
   },
 });

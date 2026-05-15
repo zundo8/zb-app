@@ -32,7 +32,7 @@ import StorefrontFooter from '../components/StorefrontFooter';
 
 const { width } = Dimensions.get('window');
 
-export default function HomeScreen() {
+const HomeScreen = React.memo(() => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const colors = useColors();
@@ -57,8 +57,8 @@ export default function HomeScreen() {
   const { products, loading, error, refetch } = useProducts(24);
   const { collections, refetch: refetchCollections } = useCollections(20, 'page');
   const { products: accessories } = useCollectionByHandle(ringHandle);
+  
   const [refreshing, setRefreshing] = useState(false);
-
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -68,9 +68,21 @@ export default function HomeScreen() {
     // Delay rendering heavy sections below the fold to avoid locking the UI thread and overheating on launch
     const task = InteractionManager.runAfterInteractions(() => {
       setRenderBelowFold(true);
+      
+      // Cache warm-up: Prefetch top 2 collections silently
+      if (collections && collections.length > 0) {
+        const topHandles = collections.slice(0, 2).map(c => c.handle);
+        const { apiGet } = require('../api/shopify');
+        const { ENDPOINTS } = require('../api/queries');
+        
+        topHandles.forEach(handle => {
+          // Fire and forget; the apiFetch deduplication and cacheService inside hooks will handle the rest
+          apiGet(ENDPOINTS.collectionByHandle(handle), { limit: '50', fields: 'id,title,handle,priceRange,featuredImage' }).catch(() => {});
+        });
+      }
     });
     return () => task.cancel();
-  }, []);
+  }, [collections]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -297,7 +309,9 @@ export default function HomeScreen() {
       />
     </View>
   );
-}
+});
+
+export default HomeScreen;
 
 const styles = StyleSheet.create({
   container: {

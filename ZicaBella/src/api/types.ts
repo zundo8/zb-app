@@ -136,6 +136,7 @@ export interface FlatVariant {
   price: string;
   compareAtPrice: string | null;
   size: string | null;
+  color: string | null;
 }
 
 export interface FlatCollection {
@@ -204,6 +205,7 @@ export function flattenProduct(product: Product): FlatProduct {
       price: v.price.amount,
       compareAtPrice: v.compareAtPrice?.amount || null,
       size: v.selectedOptions.find(o => o.name.toLowerCase() === 'size')?.value || null,
+      color: v.selectedOptions.find(o => o.name.toLowerCase() === 'color' || o.name.toLowerCase() === 'colour')?.value || null,
     })),
     isSoldOut,
     isOnSale,

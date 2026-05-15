@@ -20,6 +20,8 @@ const { width } = Dimensions.get('window');
 
 // Logic to group products into layout rows for high-performance virtualization
 function groupIntoRows(products: FlatProduct[], viewMode: string) {
+  if (!products.length) return [];
+  
   const rows: any[] = [];
   if (viewMode === 'large') {
     return products.map(p => ({ type: 'large', products: [p] }));
@@ -32,28 +34,20 @@ function groupIntoRows(products: FlatProduct[], viewMode: string) {
     return rows;
   }
 
-  // Standard 'grid' mode with the 5th-item-large rule
+  // Standard 'grid' mode with a recurring pattern (pair, pair, large)
   let i = 0;
   while (i < products.length) {
-    if (i + 1 < products.length) {
-      rows.push({ type: 'pair', products: [products[i], products[i+1]] });
-      i += 2;
-    } else {
-      rows.push({ type: 'pair', products: [products[i]] });
-      i += 1;
-      continue;
-    }
-
+    // Row 1: Pair
     if (i < products.length) {
-      if (i + 1 < products.length) {
-        rows.push({ type: 'pair', products: [products[i], products[i+1]] });
-        i += 2;
-      } else {
-        rows.push({ type: 'pair', products: [products[i]] });
-        i += 1;
-      }
+      rows.push({ type: 'pair', products: products.slice(i, i + 2) });
+      i += 2;
     }
-
+    // Row 2: Pair
+    if (i < products.length) {
+      rows.push({ type: 'pair', products: products.slice(i, i + 2) });
+      i += 2;
+    }
+    // Row 3: Large (featured)
     if (i < products.length) {
       rows.push({ type: 'large', products: [products[i]] });
       i += 1;
@@ -78,7 +72,9 @@ export default function CollectionScreen() {
   const [sortBy, setSortBy] = useState('featured');
   const [viewMode, setViewMode] = useState<'grid' | 'grid4' | 'large'>('grid');
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [isSizeOpen, setIsSizeOpen] = useState(false);
+  const [isColorOpen, setIsColorOpen] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [isCompact, setIsCompact] = useState(false);
@@ -103,7 +99,7 @@ export default function CollectionScreen() {
   const onScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
     { 
-      useNativeDriver: false, // Need false to access scrollY for logic if needed, but let's try to keep it purely animated
+      useNativeDriver: false,
       listener: (event: any) => {
         const currentY = event.nativeEvent.contentOffset.y;
         const diff = currentY - lastScrollY.current;
@@ -122,6 +118,7 @@ export default function CollectionScreen() {
             if (!isVisible) setTabBarVisible(true);
           }
           if (Math.abs(diff) > 20 && isSizeOpen) setIsSizeOpen(false);
+          if (Math.abs(diff) > 20 && isColorOpen) setIsColorOpen(false);
           lastScrollY.current = currentY;
         }
       }
@@ -134,18 +131,34 @@ export default function CollectionScreen() {
     if (selectedSize) {
       list = list.filter(p => p?.variants?.some(v => v.size === selectedSize));
     }
+    if (selectedColor) {
+      list = list.filter(p => p?.variants?.some(v => v.color === selectedColor));
+    }
     if (sortBy === 'newest') list.sort((a, b) => (b.id || '').localeCompare(a.id || ''));
     else if (sortBy === 'price-asc') list.sort((a, b) => parseFloat(a.price || '0') - parseFloat(b.price || '0'));
     else if (sortBy === 'price-desc') list.sort((a, b) => parseFloat(b.price || '0') - parseFloat(a.price || '0'));
     
     return groupIntoRows(list, viewMode);
-  }, [products, selectedSize, sortBy, viewMode]);
+  }, [products, selectedSize, selectedColor, sortBy, viewMode]);
 
   const allSizes = useMemo(() => {
     if (!products || !Array.isArray(products)) return [];
     return Array.from(new Set(
       products.flatMap(p => p?.variants?.map(v => v.size).filter(s => s && s !== 'Default Title') || [])
     )).sort();
+  }, [products]);
+
+  const allColors = useMemo(() => {
+    if (!products || !Array.isArray(products)) return [];
+    const colorsSet = new Set<string>();
+    products.forEach(p => {
+      p.variants.forEach(v => {
+        if (v.color) {
+          colorsSet.add(v.color);
+        }
+      });
+    });
+    return Array.from(colorsSet).sort();
   }, [products]);
 
   const toggleView = useCallback(() => {
@@ -219,6 +232,9 @@ export default function CollectionScreen() {
                 allSizes={allSizes as string[]}
                 selectedSize={selectedSize}
                 onSelectSize={setSelectedSize}
+                allColors={allColors}
+                selectedColor={selectedColor}
+                onSelectColor={setSelectedColor}
                 sortBy={sortBy}
                 onSelectSort={setSortBy}
                 viewMode={viewMode}
@@ -226,6 +242,8 @@ export default function CollectionScreen() {
                 isTabBarVisible={true}
                 isSizeOpen={isSizeOpen}
                 setIsSizeOpen={setIsSizeOpen}
+                isColorOpen={isColorOpen}
+                setIsColorOpen={setIsColorOpen}
                 compact={false}
               />
             </View>
@@ -248,7 +266,8 @@ export default function CollectionScreen() {
         initialNumToRender={6}
         maxToRenderPerBatch={4}
         windowSize={5}
-        removeClippedSubviews={Platform.OS === 'android'}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews={true}
       />
 
       {/* ── Fixed Header ── */}
@@ -270,6 +289,9 @@ export default function CollectionScreen() {
           allSizes={allSizes as string[]}
           selectedSize={selectedSize}
           onSelectSize={setSelectedSize}
+          allColors={allColors}
+          selectedColor={selectedColor}
+          onSelectColor={setSelectedColor}
           sortBy={sortBy}
           onSelectSort={setSortBy}
           viewMode={viewMode}
@@ -277,6 +299,8 @@ export default function CollectionScreen() {
           isTabBarVisible={true}
           isSizeOpen={isSizeOpen}
           setIsSizeOpen={setIsSizeOpen}
+          isColorOpen={isColorOpen}
+          setIsColorOpen={setIsColorOpen}
           compact={true} // Always compact when sticky for cleaner look
         />
       </Animated.View>

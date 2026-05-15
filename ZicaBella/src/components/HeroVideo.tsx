@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
+import { useUIStore } from '../store/uiStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -55,14 +56,16 @@ export default function HeroVideo({
     };
   }, []);
 
+  const isAppActive = useUIStore(s => s.isAppActive);
+
   React.useEffect(() => {
     if (!player) return;
-    if (!isFocused) {
+    if (!isFocused || !isAppActive) {
       player.pause();
     } else {
       player.play();
     }
-  }, [isFocused, player]);
+  }, [isFocused, isAppActive, player]);
 
   if (!safeSource) {
     return (
