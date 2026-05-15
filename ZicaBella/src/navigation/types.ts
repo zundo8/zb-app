@@ -59,4 +59,5 @@ export type RootStackParamList = {
   Legal: { tab: 'privacy' | 'terms' };
   About: undefined;
   Support: undefined;
+  SupportDetail: { ticketId: string; subject: string };
 };

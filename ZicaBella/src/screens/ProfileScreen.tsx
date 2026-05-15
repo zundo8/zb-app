@@ -678,8 +678,8 @@ export default function ProfileScreen() {
               <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
                 <MenuItem icon="information-circle-outline" title="About Zica Bella" onPress={() => navigation.navigate('About')} />
                 <MenuItem icon="call-outline" title="Contact Information" onPress={() => navigatePolicy('contact-information', 'Contact Information')} />
-                <MenuItem icon="shield-checkmark-outline" title="Privacy Policy" onPress={() => navigation.navigate('Legal', { tab: 'privacy' })} />
-                <MenuItem icon="document-text-outline" title="Terms of Service" onPress={() => navigation.navigate('Legal', { tab: 'terms' })} />
+                <MenuItem icon="shield-checkmark-outline" title="Privacy Policy" onPress={() => navigatePolicy('privacy-policy', 'Privacy Policy')} />
+                <MenuItem icon="document-text-outline" title="Terms of Service" onPress={() => navigatePolicy('terms-of-service', 'Terms of Service')} />
                 <MenuItem icon="headset-outline" title="Customer Support" onPress={() => navigation.navigate('Support')} />
                 <MenuItem icon="refresh-outline" title="Refund Policy" onPress={() => navigatePolicy('refund-policy', 'Refund Policy')} />
                 <MenuItem icon="bus-outline" title="Shipping Policy" onPress={() => navigatePolicy('shipping-policy', 'Shipping Policy')} />

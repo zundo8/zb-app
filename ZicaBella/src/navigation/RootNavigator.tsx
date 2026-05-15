@@ -24,6 +24,7 @@ import StoreCreditHistoryScreen from '../screens/StoreCreditHistoryScreen';
 import LegalScreen from '../screens/legal/LegalScreen';
 import AboutScreen from '../screens/AboutScreen';
 import SupportScreen from '../screens/SupportScreen';
+import SupportDetailScreen from '../screens/SupportDetailScreen';
 import { withErrorBoundary } from '../components/ErrorBoundary';
 import { RootStackParamList } from './types';
 import { navigationRef } from './navigationUtils';
@@ -213,6 +214,7 @@ export const RootNavigator = () => {
               headerTitleStyle: { fontWeight: '700' }
             }} 
           />
+          <Stack.Screen name="SupportDetail" component={SupportDetailScreen} />
         </Stack.Navigator>
 
         {/* ── GLOBAL UI OVERLAYS ── */}

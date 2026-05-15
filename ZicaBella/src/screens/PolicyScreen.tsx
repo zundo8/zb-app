@@ -195,16 +195,17 @@ export default function PolicyScreen() {
             tagsStyles={{
               body: {
                 color: colors.text,
-                fontSize: 15,
-                lineHeight: 24,
+                fontSize: 14,
+                lineHeight: 22,
                 fontFamily: Platform.OS === 'ios' ? 'System' : 'serif',
               },
-              h1: { fontSize: 24, fontWeight: '700', marginBottom: 16, marginTop: 24, color: colors.text },
-              h2: { fontSize: 20, fontWeight: '700', marginBottom: 14, marginTop: 20, color: colors.text },
-              h3: { fontSize: 18, fontWeight: '600', marginBottom: 12, marginTop: 18, color: colors.text },
-              p: { marginBottom: 16, color: colors.textSecondary },
+              h1: { fontSize: 24, fontWeight: '700', marginBottom: 16, marginTop: 24, color: colors.text, letterSpacing: -0.5 },
+              h2: { fontSize: 18, fontWeight: '700', marginBottom: 12, marginTop: 20, color: colors.text, letterSpacing: -0.3 },
+              h3: { fontSize: 16, fontWeight: '600', marginBottom: 10, marginTop: 16, color: colors.text },
+              p: { marginBottom: 16, color: colors.textSecondary, opacity: 0.9 },
               li: { marginBottom: 8, color: colors.textSecondary },
               strong: { fontWeight: '700', color: colors.text },
+              div: { color: colors.textSecondary },
             }}
           />
         ) : (
