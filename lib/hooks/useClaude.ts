@@ -104,6 +104,7 @@ export function useClaude(options: UseClaudeOptions = {}) {
             conversationHistory,
             pageContext,
             contextData: contextData ? JSON.stringify(contextData).slice(0, 4000) : undefined,
+            overrideKey: localStorage.getItem("zica-ai-override-key") || undefined,
           }),
         });
 
@@ -151,7 +152,11 @@ export function useClaude(options: UseClaudeOptions = {}) {
   const runBriefing = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/admin/claude/briefing", { method: "POST" });
+    const res = await fetch("/api/admin/claude/briefing", { 
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ overrideKey: localStorage.getItem("zica-ai-override-key") || undefined })
+    });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
 

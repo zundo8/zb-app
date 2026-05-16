@@ -36,13 +36,28 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { message, conversationHistory = [], sessionId, pageContext, contextData } = body as {
+    const { message, conversationHistory = [], sessionId, pageContext, contextData, overrideKey } = body as {
       message: string;
       conversationHistory: ClaudeMessage[];
       sessionId?: string;
       pageContext?: string;
       contextData?: string;
+      overrideKey?: string;
     };
+
+    const activeApiKey = overrideKey || CLAUDE_API_KEY;
+
+    if (!activeApiKey) {
+      console.error("[ZicaAI Admin] Configuration Error: No API key found.");
+      return NextResponse.json(
+        { 
+          error: "Claude API key not configured.", 
+          details: "Set CLAUDE_API_KEY in environment or provide an override key in the dashboard settings.",
+          type: "config_error" 
+        },
+        { status: 500 }
+      );
+    }
 
     if (!message?.trim()) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -115,7 +130,7 @@ export async function POST(req: Request) {
         userMessage: "", 
         tools: ZICA_TOOLS,
         conversationHistory: currentHistory,
-        apiKey: CLAUDE_API_KEY,
+        apiKey: activeApiKey,
       });
 
       if (response.stop_reason === "tool_use") {
