@@ -314,8 +314,15 @@ export async function PATCH(req: Request) {
 
     console.log(`[Settings API] Saved settings for ${updatedShop.domain}`);
     
-    // Invalidate storefront homepage cache
+    // Invalidate storefront homepage cache and potential collection caches
     revalidateTag('homepage');
+    if (data.spotlightCollection) {
+      revalidateTag(`collection-products-${data.spotlightCollection}`);
+    }
+    // Also revalidate the old collection if it changed
+    if (shop.spotlightCollection && shop.spotlightCollection !== data.spotlightCollection) {
+      revalidateTag(`collection-products-${shop.spotlightCollection}`);
+    }
 
     return NextResponse.json({ success: true, shopDomain: updatedShop.domain });
   } catch (e: any) {

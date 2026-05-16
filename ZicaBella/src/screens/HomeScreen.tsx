@@ -60,6 +60,7 @@ const HomeScreen = React.memo(() => {
   const products = homeData?.products || [];
   const collections = homeData?.collections || [];
   const accessories = homeData?.accessories || [];
+  const spotlightProducts = homeData?.spotlight || [];
   const loading = homeLoading;
   const error = homeError;
   
@@ -282,6 +283,7 @@ const HomeScreen = React.memo(() => {
                 subtitle={settings?.spotlight?.subtitle}
                 media={settings?.spotlight?.media}
                 refreshing={homeLoading}
+                fallbackProducts={spotlightProducts}
               />
 
               {/* ═══ PRODUCT GRID 3 ═══ */}

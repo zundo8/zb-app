@@ -21,6 +21,7 @@ interface Props {
   collectionHandle?: string;
   media?: string;
   refreshing?: boolean;
+  fallbackProducts?: any[];
 }
 
 const SpotlightSection = React.memo(({ 
@@ -28,7 +29,8 @@ const SpotlightSection = React.memo(({
   subtitle,
   collectionHandle,
   media,
-  refreshing
+  refreshing,
+  fallbackProducts
 }: Props) => {
   const navigation = useNavigation<any>();
   const colors = useColors();
@@ -41,7 +43,10 @@ const SpotlightSection = React.memo(({
   const resolvedCollectionHandle = collectionHandle || settings?.spotlight?.collection || "all";
   const resolvedMedia = media || settings?.media?.featured;
 
-  const { products, loading, refetch } = useCollectionByHandle(resolvedCollectionHandle);
+  const { products: hookProducts, loading, refetch } = useCollectionByHandle(resolvedCollectionHandle);
+
+  // Use hook products if available, otherwise use fallback from homepage data
+  const products = (hookProducts && hookProducts.length > 0) ? hookProducts : (fallbackProducts || []);
 
   useEffect(() => {
     if (refreshing) {
