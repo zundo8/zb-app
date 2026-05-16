@@ -51,11 +51,21 @@ export async function POST(req: Request) {
       usage: test.usage 
     });
   } catch (error: any) {
+    console.error("[ZicaAI Health] Error:", error);
+    
+    let userFriendlyMsg = error.message;
+    if (error.status === 404 || error.name === "NotFoundError") {
+      userFriendlyMsg = `Model not found or access denied. Your API key might not have access to the latest Claude models yet. Tried multiple fallbacks but all failed. Error: ${error.message}`;
+    } else if (error.status === 401) {
+      userFriendlyMsg = "Invalid API key. Please check your Anthropic API key in Settings.";
+    }
+
     return NextResponse.json({ 
       status: "error", 
-      message: error.message,
-      code: "API_FAILURE" 
-    }, { status: 500 });
+      message: userFriendlyMsg,
+      code: "API_FAILURE",
+      details: error.message
+    }, { status: error.status || 500 });
   }
 }
 

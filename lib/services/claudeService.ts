@@ -153,10 +153,12 @@ export const ZICA_TOOLS: any[] = [
 import Anthropic from "@anthropic-ai/sdk";
 
 const MODELS = [
+  "claude-3-5-sonnet-latest",
   "claude-3-5-sonnet-20241022", 
   "claude-3-5-sonnet-20240620", 
   "claude-3-sonnet-20240229",
-  "claude-3-haiku-20240307"
+  "claude-3-haiku-20240307",
+  "claude-3-opus-20240229"
 ];
 
 export async function callClaude({
@@ -180,7 +182,7 @@ export async function callClaude({
     apiKey: apiKey,
   });
 
-  const historyLimit = 15; // Increased history limit
+  const historyLimit = 20; 
   const recentHistory = conversationHistory.slice(-historyLimit);
   
   const messages = userMessage
@@ -190,7 +192,7 @@ export async function callClaude({
   try {
     const response = await anthropic.messages.create({
       model: currentModel,
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: systemPrompt,
       messages: messages as Anthropic.MessageParam[],
       tools: tools.length > 0 ? tools.map(t => {
@@ -203,15 +205,12 @@ export async function callClaude({
   } catch (error: any) {
     console.error(`[ZicaAI] Claude API error with model ${currentModel}:`, error);
 
-    // Fallback logic for not found or overloaded models
-    const shouldRetry = (
-      (error.status === 404 && error.error?.type === "not_found_error") || 
-      (error.status === 529) || // Overloaded
-      (error.status === 429)    // Rate limit
-    );
+    // Capture various 404/Not Found or Overloaded conditions
+    const isNotFound = error.status === 404 || error.name === "NotFoundError" || (error.error?.type === "not_found_error");
+    const isOverloaded = error.status === 529 || error.status === 429 || error.name === "RateLimitError";
 
-    if (shouldRetry && modelIndex < MODELS.length - 1) {
-       console.warn(`[ZicaAI] Model ${currentModel} failed (${error.status}). Retrying with ${MODELS[modelIndex + 1]}...`);
+    if ((isNotFound || isOverloaded) && modelIndex < MODELS.length - 1) {
+       console.warn(`[ZicaAI] Model ${currentModel} failed (Status: ${error.status}). Retrying with ${MODELS[modelIndex + 1]}...`);
        return callClaude({ 
          systemPrompt, 
          userMessage, 

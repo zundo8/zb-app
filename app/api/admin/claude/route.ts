@@ -205,9 +205,21 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error("[ZicaAI] Route error:", error);
+    
+    let userFriendlyMsg = error.message;
+    if (error.status === 404 || error.name === "NotFoundError") {
+      userFriendlyMsg = "Model not found. Your API key might not have access to the latest Claude models yet.";
+    } else if (error.status === 401) {
+      userFriendlyMsg = "Invalid API key. Please check your settings.";
+    }
+
     return NextResponse.json(
-      { error: error.message || "Internal server error", type: "server_error" },
-      { status: 500 }
+      { 
+        error: userFriendlyMsg, 
+        details: error.message,
+        type: "server_error" 
+      },
+      { status: error.status || 500 }
     );
   }
 }
