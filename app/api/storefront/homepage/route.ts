@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCachedStorefrontData, withStorefrontProxyConfig } from '@/lib/storefront-proxy';
-import { getShopSettings } from '@/lib/db';
-import { fetchCollections, fetchCollectionProducts, fetchSearch, fetchProducts } from '@/lib/storefront-graphql';
+import { fetchCollections, fetchCollectionProducts, fetchProducts } from '@/lib/storefront-graphql';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,25 +10,20 @@ export async function GET(req: Request) {
       'homepage',
       async () => {
         // Parallel fetch for homepage data
-        const shop = await getShopSettings();
-        const spotlightHandle = shop?.spotlightCollection || 'all';
-
-        const [collections, accessories, productsResp, spotlightResp] = await Promise.all([
+        const [collections, accessories, productsResp] = await Promise.all([
           fetchCollections(),
           fetchCollectionProducts('accessories', 15),
-          fetchProducts(24),
-          fetchCollectionProducts(spotlightHandle, 6)
+          fetchProducts(24)
         ]);
 
         return {
           collections,
           accessories: accessories?.products?.edges?.map((e: any) => e.node) || [],
-          products: productsResp || [],
-          spotlight: spotlightResp?.products?.edges?.map((e: any) => e.node) || []
+          products: productsResp || []
         };
       },
       900, // 15 minutes
-      ['homepage']
+      ['homepage', 'products', 'collections']
     );
 
     return NextResponse.json({

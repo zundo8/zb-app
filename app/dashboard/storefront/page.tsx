@@ -273,7 +273,7 @@ export default function StorefrontSettingsPage() {
       .then(r => r.json())
       .then(data => data.products && setAllProducts(data.products));
 
-    fetch('/api/shopify/collections?location=all')
+    fetch('/api/shopify/collections')
       .then(r => r.json())
       .then(data => Array.isArray(data) && setAllCollections(data));
   }, []);

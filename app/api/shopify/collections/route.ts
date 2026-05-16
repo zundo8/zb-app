@@ -6,15 +6,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const location = (searchParams.get('location') as 'header' | 'page' | 'menu' | 'all') || 'page';
+    const location = (searchParams.get('location') as 'header' | 'page' | 'menu') || 'page';
     
-    let collections;
-    if (location === 'all') {
-      const { fetchCollections } = await import('@/lib/shopify-admin');
-      collections = await fetchCollections();
-    } else {
-      collections = await fetchEnabledCollections(location);
-    }
+    const collections = await fetchEnabledCollections(location);
     return NextResponse.json(collections, {
       headers: {
         'Cache-Control': 'no-store, max-age=0, must-revalidate',
