@@ -32,6 +32,14 @@ export async function GET(req: Request) {
     const phone = url.searchParams.get('phone');
     const all = url.searchParams.get('all') === 'true';
     const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    const countOnly = url.searchParams.get('count') === 'true';
+
+    if (countOnly) {
+      const customers = await fetchAllCustomers(1);
+      return NextResponse.json({ total: customers.length }, {
+        headers: { 'Access-Control-Allow-Origin': '*' },
+      });
+    }
 
     // Fetch single customer by phone
     if (phone) {

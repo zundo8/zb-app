@@ -89,10 +89,6 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
-		<string>processing</string>
-		<string>fetch</string>
-		<string>location</string>
-		<string>nearby-interaction</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>

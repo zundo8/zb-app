@@ -27,7 +27,8 @@ const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_K
 export async function POST(req: Request) {
   try {
     if (!CLAUDE_API_KEY) {
-      return NextResponse.json({ error: "Service unavailable" }, { status: 500 });
+      console.error("[ZicaAI Mobile] Configuration Error: No API key found in process.env.");
+      return NextResponse.json({ error: "Service unavailable (Config Error)" }, { status: 500 });
     }
 
     const body = await req.json();
@@ -98,33 +99,10 @@ export async function POST(req: Request) {
           
           systemPrompt += `\n\nIf the customer asks "Where is my order?" or "Track my order", refer to these orders. Use get_shipment_details(order_id) for real-time tracking if they ask about a specific one.`;
         }
-        
-        // Load recent chat knowledge base for this user
-        const previousChats = await prisma.aIChatMessage.findMany({
-          where: { session: { userId: userContext.id } },
-          orderBy: { createdAt: "desc" },
-          take: 10
-        });
-        
-        if (previousChats.length > 0) {
-           systemPrompt += `\n\nPast interactions with this user (for context and learning):\n${previousChats.reverse().map(c => `${c.role}: ${c.content}`).join("\n")}`;
-        }
       } catch (err) {
         console.error("[ZicaAI Mobile] Failed to fetch context:", err);
       }
     }
-
-    // Knowledge base from other interactions
-    try {
-        const globalChats = await prisma.aIChatMessage.findMany({
-          where: { role: "user" },
-          orderBy: { createdAt: "desc" },
-          take: 5
-        });
-        if (globalChats.length > 0) {
-          systemPrompt += `\n\nRecent queries from all users (Use this to understand app usage trends and learn):\n${globalChats.map(c => `- ${c.content}`).join("\n")}`;
-        }
-    } catch(e) {}
 
     if (orderIdContext) {
       systemPrompt += `\n\nThe customer is currently viewing order ID: ${orderIdContext}. Focus on this order if they ask general questions.`;

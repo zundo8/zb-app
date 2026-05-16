@@ -26,8 +26,8 @@ export const useCommunityStore = create<CommunityState>()(
         const { lastFetched, loading } = get();
         const now = Date.now();
         
-        // Cache for 5 minutes (increased from 2 for better persistence UX)
-        if (!force && lastFetched && (now - lastFetched < 300000) && get().looks.length > 0) {
+        // Cache for 1 minute (reduced from 5 for better live sync experience)
+        if (!force && lastFetched && (now - lastFetched < 60000) && get().looks.length > 0) {
           return;
         }
 
@@ -37,7 +37,7 @@ export const useCommunityStore = create<CommunityState>()(
         try {
           // Parallel fetch for speed
           const [looksRes, updatesRes] = await Promise.all([
-            fetchWithTimeout(`${config.appUrl}/api/featured-users?isTopFeatured=true&t=${now}`, {}, 8000),
+            fetchWithTimeout(`${config.appUrl}/api/featured-users?t=${now}`, {}, 8000),
             fetchWithTimeout(`${config.appUrl}/api/community/updates?t=${now}`, {}, 8000)
           ]);
 

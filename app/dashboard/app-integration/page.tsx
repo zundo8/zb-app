@@ -257,32 +257,22 @@ export default function AppIntegrationPage() {
   const testEndpoints = useCallback(async () => {
     setTesting(true);
     
-    // Helper to test a single endpoint
+    // Helper to test a single endpoint - using count=true for efficiency where possible
     const testOne = async (ep: EndpointStatus) => {
       const start = Date.now();
       try {
-        const res = await fetch(ep.path);
+        const path = ep.path.includes('?') ? `${ep.path}&count=true` : `${ep.path}?count=true`;
+        const res = await fetch(path);
         const elapsed = Date.now() - start;
         let count: number | undefined;
         let errorMessage: string | undefined;
 
         try {
           const data = await res.json();
-          if (data.products) count = data.products.length;
-          else if (data.collections) count = data.collections.length;
-          else if (data.customers) count = data.customers.length;
-          else if (data.config) count = Object.keys(data.config).length;
-          else if (data.returns) count = data.returns.length;
-          else if (data.exchanges) count = data.exchanges.length;
-          else if (data.total !== undefined) count = data.total;
-          else if (data.orders) count = data.orders.length;
-          else if (data.items) count = data.items.length;
-          
+          count = data.total || data.dataCount || (data.products ? data.products.length : undefined) || (data.collections ? data.collections.length : undefined);
           if (data.error) errorMessage = data.error;
         } catch { /* non-json response */ }
 
-        // Treat 400/401/404 as 'ok' (connected but logically rejected) for the registry
-        // Only 5xx or fetch failures are true 'errors'
         const isOk = res.status < 500;
 
         return { 
@@ -297,9 +287,7 @@ export default function AppIntegrationPage() {
       }
     };
 
-    // Stagger calls in small batches to avoid Shopify 429 rate limits
-    // Group 1: Non-Shopify endpoints (DB-only, fast)
-    // Group 2: Shopify-dependent endpoints (staggered)
+    // Stagger calls to avoid Shopify rate limits
     const dbEndpoints = endpoints.filter(ep => 
       ['Cart', 'Orders', 'Profile', 'Returns', 'Exchanges', 'Public Settings', 'Wishlist', 'App Config'].includes(ep.name)
     );
@@ -307,16 +295,12 @@ export default function AppIntegrationPage() {
       ['Products', 'Collections', 'Search', 'Customers'].includes(ep.name)
     );
 
-    // Test DB endpoints in parallel (they don't hit Shopify rate limits)
     const dbResults = await Promise.all(dbEndpoints.map(testOne));
-    
-    // Test Shopify endpoints with a 100ms stagger for speed
     const shopifyResults = await Promise.all(shopifyEndpoints.map(async (ep, index) => {
       await new Promise(r => setTimeout(r, index * 100));
       return testOne(ep);
     }));
 
-    // Merge results back in original order
     const allResults = endpoints.map(ep => {
       return dbResults.find(r => r.name === ep.name) || 
              shopifyResults.find(r => r.name === ep.name) || 
@@ -330,31 +314,28 @@ export default function AppIntegrationPage() {
   const fetchSyncStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      // Parallelize all sync stats fetches for maximum speed
-      const [productsData, collectionsData, customers, orders, returns, exchanges] = await Promise.all([
-        fetch('/api/app/products?limit=100').then(r => r.json()).catch(() => ({ products: [], total: 0 })),
-        fetch('/api/app/collections?all=true').then(r => r.json()).catch(() => ({ collections: [] })),
-        fetch('/api/admin/customers?limit=1').then(r => r.json()).catch(() => ({ total: 0 })),
-        fetch('/api/app/orders?count=true').then(r => r.json()).catch(() => ({ total: 0 })),
-        fetch('/api/admin/returns').then(r => r.json()).catch(() => ({ summary: { total: 0 } })),
-        fetch('/api/admin/exchanges').then(r => r.json()).catch(() => ({ summary: { total: 0 } })),
-      ]);
-
-      setSyncStats({
-        productsCount: productsData.total || productsData.products?.length || 0,
-        collectionsCount: collectionsData.collections?.length || 0,
-        customersCount: customers.total || 0,
-        ordersCount: orders.total || 0,
-        returnsCount: returns.summary?.total || 0,
-        exchangesCount: exchanges.summary?.total || 0,
-        lastChecked: new Date().toLocaleTimeString(),
-      });
-
-      if (collectionsData.collections) {
-        setAllCollections(collectionsData.collections);
+      // Use the new centralized sync-stats API for maximum speed
+      const res = await fetch('/api/admin/sync-stats');
+      const data = await res.json();
+      
+      if (data.success && data.stats) {
+        setSyncStats({
+          productsCount: data.stats.productsCount,
+          collectionsCount: 0, // Will fetch separately
+          customersCount: data.stats.customersCount,
+          ordersCount: data.stats.ordersCount,
+          returnsCount: data.stats.returnsCount,
+          exchangesCount: data.stats.exchangesCount,
+          lastChecked: new Date().toLocaleTimeString(),
+        });
       }
-      if (productsData.products) {
-        setAllProducts(productsData.products);
+
+      // Fetch collections separately as they are relatively small and needed for the UI
+      const collRes = await fetch('/api/app/collections?all=true');
+      const collData = await collRes.json();
+      if (collData.collections) {
+        setAllCollections(collData.collections);
+        setSyncStats(prev => prev ? { ...prev, collectionsCount: collData.collections.length } : null);
       }
     } catch (err) {
       console.error('Error fetching sync stats:', err);

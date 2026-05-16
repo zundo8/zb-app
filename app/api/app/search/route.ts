@@ -16,6 +16,13 @@ export async function GET(req: Request) {
     }
 
     const products = await searchProducts(query, limit);
+
+    if (url.searchParams.get('count') === 'true') {
+      return NextResponse.json({ total: products.length }, {
+        headers: { 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
     const flat = await Promise.all(products.map(flattenProduct));
 
     return NextResponse.json({ products: flat }, {

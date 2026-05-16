@@ -24,8 +24,13 @@ const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_K
 export async function POST(req: Request) {
   try {
     if (!CLAUDE_API_KEY) {
+      console.error("[ZicaAI Admin] Configuration Error: No API key found in process.env.");
       return NextResponse.json(
-        { error: "Claude API key not configured. Set CLAUDE_API_KEY or ANTHROPIC_API_KEY in your .env.local.", type: "config_error" },
+        { 
+          error: "Claude API key not configured.", 
+          details: "Set CLAUDE_API_KEY or ANTHROPIC_API_KEY in your environment variables.",
+          type: "config_error" 
+        },
         { status: 500 }
       );
     }
