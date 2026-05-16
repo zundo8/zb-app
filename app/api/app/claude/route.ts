@@ -22,12 +22,25 @@ import prisma from "@/lib/db";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || "";
+/** Resolve Claude API key: database → env */
+async function resolveApiKey(): Promise<string> {
+  try {
+    const shop = await prisma.shop.findFirst({
+      select: { claudeApiKey: true },
+    });
+    if (shop?.claudeApiKey) return shop.claudeApiKey;
+  } catch (e) {
+    console.warn("[ZicaAI Mobile] Could not read DB key:", e);
+  }
+  return process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || "";
+}
 
 export async function POST(req: Request) {
   try {
+    const CLAUDE_API_KEY = await resolveApiKey();
+    
     if (!CLAUDE_API_KEY) {
-      console.error("[ZicaAI Mobile] Configuration Error: No API key found in process.env.");
+      console.error("[ZicaAI Mobile] Configuration Error: No API key found.");
       return NextResponse.json({ error: "Service unavailable (Config Error)" }, { status: 500 });
     }
 

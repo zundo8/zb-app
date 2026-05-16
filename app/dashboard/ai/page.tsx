@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, Send, Loader2, Bot, User, Zap, Activity, AlertCircle,
@@ -112,31 +113,14 @@ export default function AICommandCenterPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [health, setHealth] = useState<{ status: "loading" | "ok" | "error"; message?: string } | null>(null);
   const [allActions, setAllActions] = useState<ToolAction[]>([]);
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [tempApiKey, setTempApiKey] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const saveApiKey = () => {
-    if (tempApiKey.startsWith("sk-ant-api")) {
-      localStorage.setItem("zica-ai-override-key", tempApiKey);
-      setShowConfigModal(false);
-      window.location.reload();
-    } else {
-      alert("Invalid key format. Should start with sk-ant-api");
-    }
-  };
-
-  // Check AI Health on load
+  // Check AI Health on load (key resolved server-side from DB → env)
   useEffect(() => {
     async function checkHealth() {
       setHealth({ status: "loading" });
       try {
-        const overrideKey = localStorage.getItem("zica-ai-override-key");
-        const res = await fetch("/api/admin/claude/health", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ overrideKey })
-        });
+        const res = await fetch("/api/admin/claude/health");
         const data = await res.json();
         if (data.status === "ok") {
           setHealth({ status: "ok" });
@@ -209,11 +193,11 @@ export default function AICommandCenterPage() {
           </div>
         </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowConfigModal(true)}
+            <Link href="/dashboard/settings"
               className="p-2 rounded-xl bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/40 hover:text-foreground/80 transition-all"
             >
               <Settings2 className="w-4 h-4" />
-            </button>
+            </Link>
             <button onClick={runBriefing} disabled={isLoading}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-500/10 to-indigo-500/10 border border-violet-500/20 text-foreground rounded-xl text-[9px] font-bold uppercase tracking-[0.15em] hover:from-violet-500/20 hover:to-indigo-500/20 transition-all active:scale-95 disabled:opacity-50"
             >

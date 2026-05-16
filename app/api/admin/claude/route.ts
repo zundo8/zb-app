@@ -19,22 +19,26 @@ import prisma from "@/lib/db";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || "";
+/** Resolve Claude API key: override → database → env */
+async function resolveApiKey(overrideKey?: string): Promise<string> {
+  if (overrideKey) return overrideKey;
+
+  // Try database first
+  try {
+    const shop = await prisma.shop.findFirst({
+      select: { claudeApiKey: true },
+    });
+    if (shop?.claudeApiKey) return shop.claudeApiKey;
+  } catch (e) {
+    console.warn("[ZicaAI] Could not read DB key:", e);
+  }
+
+  // Fallback to env vars
+  return process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || "";
+}
 
 export async function POST(req: Request) {
   try {
-    if (!CLAUDE_API_KEY) {
-      console.error("[ZicaAI Admin] Configuration Error: No API key found in process.env.");
-      return NextResponse.json(
-        { 
-          error: "Claude API key not configured.", 
-          details: "Set CLAUDE_API_KEY or ANTHROPIC_API_KEY in your environment variables.",
-          type: "config_error" 
-        },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const { message, conversationHistory = [], sessionId, pageContext, contextData, overrideKey } = body as {
       message: string;
@@ -45,7 +49,7 @@ export async function POST(req: Request) {
       overrideKey?: string;
     };
 
-    const activeApiKey = overrideKey || CLAUDE_API_KEY;
+    const activeApiKey = await resolveApiKey(overrideKey);
 
     if (!activeApiKey) {
       console.error("[ZicaAI Admin] Configuration Error: No API key found.");

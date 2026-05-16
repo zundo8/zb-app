@@ -1,25 +1,47 @@
 import { NextResponse } from "next/server";
 import { callClaude } from "@/lib/services/claudeService";
+import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+/** Resolve Claude API key: override → database → env */
+async function resolveApiKey(overrideKey?: string): Promise<string> {
+  if (overrideKey) return overrideKey;
+
+  try {
+    const shop = await prisma.shop.findFirst({
+      select: { claudeApiKey: true },
+    });
+    if (shop?.claudeApiKey) return shop.claudeApiKey;
+  } catch (e) {
+    console.warn("[ZicaAI Health] Could not read DB key:", e);
+  }
+
+  return process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || "";
+}
+
 export async function POST(req: Request) {
-  const body = await req.json();
-  const apiKey = body.overrideKey || process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
+  let overrideKey: string | undefined;
+  try {
+    const body = await req.json();
+    overrideKey = body.overrideKey;
+  } catch { /* empty body is OK */ }
+
+  const apiKey = await resolveApiKey(overrideKey);
   
   if (!apiKey) {
     return NextResponse.json({ 
       status: "error", 
-      message: "API Key missing. Please set CLAUDE_API_KEY or provide an override in the dashboard.",
+      message: "No API key configured. Go to Settings → Zica AI to add your Claude API key.",
       code: "MISSING_KEY" 
     });
   }
 
   try {
     const test = await callClaude({
-      systemPrompt: "Respond with 'OK'",
+      systemPrompt: "Respond with OK",
       userMessage: "Health check",
-      apiKey: apiKey,
+      apiKey,
       tools: []
     });
 
@@ -38,21 +60,21 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  const apiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
+  const apiKey = await resolveApiKey();
   
   if (!apiKey) {
     return NextResponse.json({ 
       status: "error", 
-      message: "Server-side API Key missing.",
+      message: "No API key configured. Go to Settings → Zica AI to add your Claude API key.",
       code: "MISSING_KEY" 
     });
   }
 
   try {
     const test = await callClaude({
-      systemPrompt: "Respond with 'OK'",
+      systemPrompt: "Respond with OK",
       userMessage: "Health check",
-      apiKey: apiKey,
+      apiKey,
       tools: []
     });
 

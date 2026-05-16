@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Store, Truck, CreditCard, Save, CheckCircle, AlertCircle, RefreshCw,
-  Eye, EyeOff, Shield, Webhook, Key, Lock, Loader2, Fingerprint, Zap
+  Eye, EyeOff, Shield, Webhook, Key, Lock, Loader2, Fingerprint, Zap, Sparkles, ExternalLink
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -28,6 +28,7 @@ interface SettingsData {
   twilioAccountSid: string;
   twilioAuthToken: string;
   twilioPhoneNumber: string;
+  claudeApiKey: string;
   [key: string]: any;
 }
 
@@ -124,6 +125,8 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [claudeTestStatus, setClaudeTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [claudeTestMsg, setClaudeTestMsg] = useState('');
 
   useEffect(() => {
     fetch('/api/admin/settings')
@@ -145,7 +148,7 @@ export default function AdminSettingsPage() {
         'shiprocketEmail', 'shiprocketPassword', 'shiprocketToken', 'webhookSecret',
         'whatsappPhoneId', 'whatsappToken', 'firebaseProjectId', 'firebaseClientEmail',
         'firebasePrivateKey', 'sendgridApiKey', 'twilioAccountSid', 'twilioAuthToken', 'twilioPhoneNumber',
-        'ringCarouselItems'
+        'ringCarouselItems', 'claudeApiKey'
     ];
 
     const partialUpdate: any = { shopId: settings.id };
@@ -301,6 +304,67 @@ export default function AdminSettingsPage() {
            <SettingsRow label="Accessory Collection" icon={Store} description="Shopify collection handle for the homepage carousel (default: accessories)">
               <InputField value={settings.ringCarouselItems === "[]" ? "" : settings.ringCarouselItems || ""} onChange={set('ringCarouselItems')} placeholder="accessories" />
            </SettingsRow>
+        </SettingsGroup>
+
+        {/* Zica AI · Claude */}
+        <SettingsGroup title="Zica AI · Claude Integration" icon={Sparkles}>
+           <SettingsRow label="Claude API Key" icon={Key} description="Anthropic API key (sk-ant-api...)">
+              <InputField value={settings.claudeApiKey!} onChange={set('claudeApiKey')} placeholder="sk-ant-api03-..." secret />
+           </SettingsRow>
+           <div className="px-10 py-6 border-t border-foreground/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    const key = settings.claudeApiKey;
+                    if (!key) { setClaudeTestMsg('Enter an API key first.'); setClaudeTestStatus('error'); return; }
+                    setClaudeTestStatus('testing');
+                    setClaudeTestMsg('');
+                    try {
+                      const res = await fetch('/api/admin/claude/health', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ overrideKey: key })
+                      });
+                      const data = await res.json();
+                      if (data.status === 'ok') {
+                        setClaudeTestStatus('ok');
+                        setClaudeTestMsg(`Connected · Model: ${data.model}`);
+                      } else {
+                        setClaudeTestStatus('error');
+                        setClaudeTestMsg(data.message || 'Connection failed');
+                      }
+                    } catch {
+                      setClaudeTestStatus('error');
+                      setClaudeTestMsg('Network error — could not reach health endpoint.');
+                    }
+                  }}
+                  disabled={claudeTestStatus === 'testing'}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-[0.2em] transition-all active:scale-95 ${
+                    claudeTestStatus === 'ok'
+                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                      : claudeTestStatus === 'error'
+                      ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                      : 'bg-foreground/5 text-foreground/60 border border-foreground/10 hover:bg-foreground/10'
+                  }`}
+                >
+                  {claudeTestStatus === 'testing' ? <RefreshCw className="w-3 h-3 animate-spin" /> : 
+                   claudeTestStatus === 'ok' ? <CheckCircle className="w-3 h-3" /> : 
+                   claudeTestStatus === 'error' ? <AlertCircle className="w-3 h-3" /> : 
+                   <Zap className="w-3 h-3" />}
+                  {claudeTestStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                </button>
+                {claudeTestMsg && (
+                  <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                    claudeTestStatus === 'ok' ? 'text-emerald-500' : 'text-rose-400'
+                  }`}>{claudeTestMsg}</span>
+                )}
+              </div>
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/40 hover:text-foreground/70 transition-colors"
+              >
+                Get API Key <ExternalLink className="w-3 h-3" />
+              </a>
+           </div>
         </SettingsGroup>
 
       </div>
