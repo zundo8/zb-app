@@ -36,9 +36,10 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { message, conversationHistory = [], pageContext, contextData } = body as {
+    const { message, conversationHistory = [], sessionId, pageContext, contextData } = body as {
       message: string;
       conversationHistory: ClaudeMessage[];
+      sessionId?: string;
       pageContext?: string;
       contextData?: string;
     };
@@ -46,6 +47,26 @@ export async function POST(req: Request) {
     if (!message?.trim()) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
+
+    // ─── Session Management ───
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      const newSession = await prisma.aIChatSession.create({
+        data: {
+          title: message.slice(0, 50) + (message.length > 50 ? "..." : ""),
+        },
+      });
+      currentSessionId = newSession.id;
+    }
+
+    // Save user message
+    await prisma.aIChatMessage.create({
+      data: {
+        sessionId: currentSessionId,
+        role: "user",
+        content: message,
+      },
+    });
 
     // Build context-aware system prompt
     let systemPrompt = ZICA_SYSTEM_PROMPT;
@@ -74,7 +95,6 @@ export async function POST(req: Request) {
 - In-transit shipments: ${inTransitShipments}
 - RTO (Return to Origin): ${rtoShipments}`;
     } catch (err) {
-      // Non-fatal — proceed without context
       console.error("[ZicaAI] Failed to inject payment/logistics context:", err);
     }
 
@@ -92,17 +112,15 @@ export async function POST(req: Request) {
 
       const response = await callClaude({
         systemPrompt,
-        userMessage: "", // Already in history
+        userMessage: "", 
         tools: ZICA_TOOLS,
         conversationHistory: currentHistory,
         apiKey: CLAUDE_API_KEY,
       });
 
       if (response.stop_reason === "tool_use") {
-        // Add Claude's response to history
         currentHistory.push({ role: "assistant" as const, content: response.content });
 
-        // Execute each tool call
         const toolResults: ClaudeContentBlock[] = [];
 
         for (const block of response.content) {
@@ -126,7 +144,6 @@ export async function POST(req: Request) {
           }
         }
 
-        // Feed tool results back
         currentHistory.push({ role: "user" as const, content: toolResults });
         continue;
       }
@@ -137,22 +154,31 @@ export async function POST(req: Request) {
         .map((b) => b.text)
         .join("\n");
 
-      currentHistory.push({ role: "assistant" as const, content: textContent });
+      // Save assistant response to DB
+      await prisma.aIChatMessage.create({
+        data: {
+          sessionId: currentSessionId,
+          role: "assistant",
+          content: textContent,
+        },
+      });
 
       return NextResponse.json({
         response: textContent,
         conversationHistory: currentHistory,
         toolActions,
         toolsUsed: toolActions.length,
+        sessionId: currentSessionId,
         usage: response.usage,
       });
     }
 
     return NextResponse.json({
-      response: "Reached maximum processing iterations. Please try a more specific request.",
+      response: "Reached maximum processing iterations.",
       conversationHistory: currentHistory,
       toolActions,
       toolsUsed: toolActions.length,
+      sessionId: currentSessionId,
     });
   } catch (error: any) {
     console.error("[ZicaAI] Route error:", error);

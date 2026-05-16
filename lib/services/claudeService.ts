@@ -151,20 +151,25 @@ export const ZICA_TOOLS: any[] = [
 
 // ─── API Caller ──────────────────────────────────
 
+const MODELS = ["claude-3-5-sonnet-20240620", "claude-3-sonnet-20240229"];
+
 export async function callClaude({
   systemPrompt,
   userMessage,
   tools = [],
   conversationHistory = [],
   apiKey,
+  modelIndex = 0,
 }: {
   systemPrompt: string;
   userMessage: string;
   tools?: any[];
   conversationHistory?: ClaudeMessage[];
   apiKey: string;
+  modelIndex?: number;
 }): Promise<ClaudeResponse> {
-  // Limit history to last 10 messages for cost efficiency
+  const currentModel = MODELS[modelIndex] || MODELS[0];
+  
   const historyLimit = 10;
   const recentHistory = conversationHistory.slice(-historyLimit);
   
@@ -172,18 +177,16 @@ export async function callClaude({
     ? [...recentHistory, { role: "user" as const, content: userMessage }]
     : [...recentHistory];
 
-  // Prepare payload with compatibility fallback
   const payload: any = {
-    model: MODEL,
+    model: currentModel,
     max_tokens: 1500,
-    system: systemPrompt, // Simple string for maximum compatibility
+    system: systemPrompt,
     messages,
   };
 
-  // Only add tools if provided and supported
   if (tools && tools.length > 0) {
     payload.tools = tools.map((t: any) => {
-      const { cache_control, ...tool } = t; // Remove any leftover cache_control if present
+      const { cache_control, ...tool } = t;
       return tool;
     });
   }
@@ -207,15 +210,23 @@ export async function callClaude({
       parsedError = { error: { message: errorBody } };
     }
 
-    const message = parsedError.error?.message || `Claude API error ${response.status}`;
+    const errorType = parsedError.error?.type;
+    const errorMessage = parsedError.error?.message || `Claude API error ${response.status}`;
     
-    // Specifically handle "not_found" for models by falling back to a guaranteed one
-    if (parsedError.error?.type === "not_found_error" && MODEL !== "claude-3-sonnet-20240229") {
-       console.warn(`[ZicaAI] Model ${MODEL} not found. Falling back to claude-3-sonnet-20240229`);
-       return callClaude({ systemPrompt, userMessage, tools, conversationHistory, apiKey: apiKey.replace("claude-3-sonnet-20240229", "") }); // This is a hacky way to force recursion with a different model if I wanted, but let's just throw for now to be safe.
+    // Fallback logic if model is not found
+    if (errorType === "not_found_error" && modelIndex < MODELS.length - 1) {
+       console.warn(`[ZicaAI] Model ${currentModel} not found. Retrying with ${MODELS[modelIndex + 1]}...`);
+       return callClaude({ 
+         systemPrompt, 
+         userMessage, 
+         tools, 
+         conversationHistory, 
+         apiKey, 
+         modelIndex: modelIndex + 1 
+       });
     }
 
-    throw new Error(message);
+    throw new Error(errorMessage);
   }
 
   return response.json();
