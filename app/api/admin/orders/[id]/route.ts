@@ -45,6 +45,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       body.paymentStatus = oldOrder?.paymentStatus === 'paid' ? 'paid' : 'cancelled';
       body.fulfillmentStatus = 'cancelled';
       body.deliveryStatus = 'cancelled';
+      
+      const order = await prisma.order.findUnique({ where: { id } });
+      if (order && order.shopifyOrderId && !order.shopifyOrderId.startsWith('#') && !order.shopifyOrderId.startsWith('app_pending_')) {
+        try {
+          const { cancelOrder } = await import('@/lib/shopify-admin');
+          await cancelOrder(order.shopifyOrderId);
+        } catch (shopifyErr) {
+          console.error('[Admin Order PATCH] Failed to cancel order in Shopify:', shopifyErr);
+        }
+      }
     }
 
     const updated = await prisma.order.update({

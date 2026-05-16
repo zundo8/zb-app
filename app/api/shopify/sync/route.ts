@@ -185,7 +185,11 @@ export async function POST() {
           const currentStatus = o.status || 'active';
           
           // Orders from Shopify are considered "approved" if they are mobile app orders
-          const finalStatus = isMobileAppOrder ? 'approved' : 'active';
+          let finalStatus = isMobileAppOrder ? 'approved' : 'active';
+          
+          if (o.cancelled_at) {
+            finalStatus = 'cancelled';
+          }
 
           const order = await prisma.order.upsert({
             where: { shopifyOrderId: String(o.id) },
@@ -223,8 +227,17 @@ export async function POST() {
             },
           });
 
+          // Delete old line items that do not match Shopify's IDs
+          const shopifyItemIds = o.line_items.map((item: any) => String(item.id));
+          await prisma.orderItem.deleteMany({
+            where: {
+              orderId: order.id,
+              shopifyLineItemId: { notIn: shopifyItemIds }
+            }
+          });
+
           // Line items in parallel for this order
-          await Promise.all(o.line_items.map(async (item) => {
+          await Promise.all(o.line_items.map(async (item: any) => {
             const shopifyProductId = item.product_id ? String(item.product_id) : null;
             let dbProductId = null;
             if (shopifyProductId) {
