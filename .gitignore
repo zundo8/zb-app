@@ -42,11 +42,12 @@ prisma/dev.db
 .env
 .env.local
 
-# ZicaBella Native Builds
+
+# ZicaBella Native Builds (Keep these commented out to allow Xcode Cloud to see the project files)
+# /ZicaBella/ios/
+# /ZicaBella/android/
 /ZicaBella/node_modules/
 /ZicaBella/build_manual/
-/ZicaBella/ios/
-/ZicaBella/android/
 /ZicaBella/.expo/
 tsc_output*.txt
 *.p8

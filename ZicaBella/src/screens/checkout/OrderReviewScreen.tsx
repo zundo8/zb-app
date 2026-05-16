@@ -349,7 +349,12 @@ export default function OrderReviewScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} style={[styles.back, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity 
+          onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')} 
+          style={[styles.back, { backgroundColor: colors.surface }]}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
@@ -389,7 +394,13 @@ export default function OrderReviewScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>DELIVERY</Typography>
-            <TouchableOpacity onPress={() => navigation.navigate('DeliveryAddress')}><Typography size={7} weight="600" color={colors.foreground}>EDIT</Typography></TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('DeliveryAddress')}
+              accessibilityLabel="Edit shipping address"
+              accessibilityRole="button"
+            >
+              <Typography size={7} weight="600" color={colors.foreground}>EDIT</Typography>
+            </TouchableOpacity>
           </View>
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
              <Typography size={12} weight="600" color={colors.text}>{shippingAddress?.name || user?.name}</Typography>
@@ -482,6 +493,9 @@ export default function OrderReviewScreen() {
               ]}
               onPress={() => { haptics.buttonTap(); setUseStoreCredits(!useStoreCredits); }}
               activeOpacity={0.8}
+              accessibilityLabel={`Use store credits. Available: ${formatPrice(availableCredits)}`}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: useStoreCredits }}
             >
               <View style={[styles.iconBox, { backgroundColor: useStoreCredits ? colors.success : colors.background }]}>
                 <Ionicons name="wallet-outline" size={18} color={useStoreCredits ? colors.background : colors.textMuted} />
@@ -508,6 +522,9 @@ export default function OrderReviewScreen() {
               ]}
               onPress={() => { haptics.buttonTap(); setSelectedPaymentMethod('razorpay'); }}
               activeOpacity={0.8}
+              accessibilityLabel="Pay now with Razorpay"
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selectedPaymentMethod === 'razorpay' }}
             >
               <View style={[styles.iconBox, { backgroundColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.background }]}>
                 <Ionicons name="flash-outline" size={18} color={selectedPaymentMethod === 'razorpay' ? colors.background : colors.textMuted} />
@@ -528,6 +545,9 @@ export default function OrderReviewScreen() {
               ]}
               onPress={() => { haptics.buttonTap(); setSelectedPaymentMethod('cod'); }}
               activeOpacity={0.8}
+              accessibilityLabel="Pay with Cash on Delivery"
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selectedPaymentMethod === 'cod' }}
             >
               <View style={[styles.iconBox, { backgroundColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.background }]}>
                 <Ionicons name="cash-outline" size={18} color={selectedPaymentMethod === 'cod' ? colors.background : colors.textMuted} />

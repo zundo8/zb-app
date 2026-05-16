@@ -118,6 +118,8 @@ const SearchScreen = React.memo(() => {
             <TouchableOpacity 
               onPress={() => { setQuery(''); search(''); }} 
               style={styles.clearButton}
+              accessibilityLabel="Clear search"
+              accessibilityRole="button"
             >
               <Typography size={7} color={colors.textExtraLight} weight="600" style={styles.clearText}>CLEAR</Typography>
             </TouchableOpacity>
@@ -144,6 +146,8 @@ const SearchScreen = React.memo(() => {
               key={c.id}
               style={[styles.collectionRow, { borderBottomColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }]}
               onPress={() => navigation.navigate('Collection', { handle: c.handle, title: c.title })}
+              accessibilityLabel={`View collection ${c.title}`}
+              accessibilityRole="link"
             >
               <Typography size={12} color={colors.textSecondary} weight="300" style={styles.collectionTitle}>{String(c.title || '').toUpperCase()}</Typography>
               <Ionicons name="chevron-forward" size={14} color={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
@@ -190,6 +194,8 @@ const SearchScreen = React.memo(() => {
                     borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
                   }]}
                   onPress={() => handleSearch(term)}
+                  accessibilityLabel={`Search for ${term}`}
+                  accessibilityRole="button"
                 >
                   <BlurView intensity={12} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                   <Typography size={8} color={colors.textSecondary} weight="300" style={styles.trendingText}>{String(term || '').toUpperCase()}</Typography>

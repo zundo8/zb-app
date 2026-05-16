@@ -92,6 +92,8 @@ export const InAppNotificationBanner = () => {
         activeOpacity={0.9} 
         onPress={handlePress}
         style={[styles.banner, { borderColor: colors.borderLight }]}
+        accessibilityLabel={`Notification: ${notification.title}. ${notification.body}`}
+        accessibilityRole="button"
       >
         <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         

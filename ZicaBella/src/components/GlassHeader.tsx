@@ -58,6 +58,8 @@ export default function GlassHeader({
           }
         }}
         activeOpacity={0.7}
+        accessibilityLabel={showBack ? "Go back" : "Open menu"}
+        accessibilityRole="button"
       >
         <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <View style={styles.iconCircle}>
@@ -85,6 +87,8 @@ export default function GlassHeader({
             }
           }}
           activeOpacity={0.8}
+          accessibilityLabel="Go to home"
+          accessibilityRole="button"
         >
           <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <Typography rocaston size={10} color={colors.text} style={styles.titleText}>
@@ -97,7 +101,12 @@ export default function GlassHeader({
       <View style={[styles.islandBase, styles.rightIsland, { borderColor: colors.borderLight }]}>
         <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <View style={styles.rightActions}>
-          <TouchableOpacity style={styles.actionBtn} onPress={toggleTheme}>
+          <TouchableOpacity 
+            style={styles.actionBtn} 
+            onPress={toggleTheme}
+            accessibilityLabel={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+            accessibilityRole="button"
+          >
             <Ionicons 
               name={isDark ? "sunny-outline" : "moon-outline"} 
               size={15} 
@@ -108,6 +117,8 @@ export default function GlassHeader({
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => setWishlistOpen(true)}
+            accessibilityLabel="View wishlist"
+            accessibilityRole="button"
           >
             <Ionicons 
               name={isWishlisted ? "bookmark" : "bookmark-outline"} 
@@ -119,6 +130,8 @@ export default function GlassHeader({
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => setCartOpen(true)}
+            accessibilityLabel="View shopping bag"
+            accessibilityRole="button"
           >
             <Ionicons 
               name="bag-outline" 

@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, TextInput, ScrollView,
   Dimensions, ActivityIndicator, Platform, KeyboardAvoidingView, Animated,
-  Image, FlatList,
+  FlatList,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -350,7 +351,7 @@ export default function RazorpayPaymentScreen() {
                         return (
                           <TouchableOpacity key={app.package_name} style={[s.glassCard, { borderColor: isSelected ? colors.foreground : colors.borderLight }]} onPress={() => { haptics.buttonTap(); setSelectedUPIApp(app.package_name); }}>
                              <View style={s.glassIconContainer}>
-                               <Image source={{ uri: app.app_icon || UPI_LOGOS[app.package_name] }} style={s.glassIcon} />
+                               <Image source={{ uri: app.app_icon || UPI_LOGOS[app.package_name] }} style={s.glassIcon} contentFit="contain" />
                              </View>
                              <Typography size={9} weight="800" color={colors.text} style={{ marginTop: 10 }}>{app.app_name.toUpperCase()}</Typography>
                              {isSelected && <View style={[s.selectedDot, { backgroundColor: colors.foreground }]} />}
@@ -399,7 +400,7 @@ export default function RazorpayPaymentScreen() {
                 {TOP_BANKS.map(bank => (
                   <TouchableOpacity key={bank.code} style={[s.glassCard, { borderColor: selectedBank === bank.code ? colors.foreground : colors.borderLight }]} onPress={() => { haptics.buttonTap(); setSelectedBank(bank.code); }}>
                     <View style={s.glassIconContainer}>
-                      <Image source={{ uri: bank.icon }} style={s.glassIcon} />
+                      <Image source={{ uri: bank.icon }} style={s.glassIcon} contentFit="contain" />
                     </View>
                     <Typography size={8} weight="700" color={colors.text} style={{ marginTop: 8 }}>{bank.name.toUpperCase()}</Typography>
                     {selectedBank === bank.code && <View style={[s.selectedDot, { backgroundColor: colors.foreground }]} />}
@@ -422,7 +423,7 @@ export default function RazorpayPaymentScreen() {
                   {filteredWallets.map(wallet => (
                     <TouchableOpacity key={wallet.id} style={[s.glassCard, { borderColor: selectedWallet === wallet.id ? colors.foreground : colors.borderLight }]} onPress={() => { haptics.buttonTap(); setSelectedWallet(wallet.id); }}>
                       <View style={s.glassIconContainer}>
-                        <Image source={{ uri: wallet.icon }} style={s.glassIcon} />
+                        <Image source={{ uri: wallet.icon }} style={s.glassIcon} contentFit="contain" />
                       </View>
                       <Typography size={9} weight="800" color={colors.text} style={{ marginTop: 8 }}>{wallet.name.toUpperCase()}</Typography>
                       {selectedWallet === wallet.id && <View style={[s.selectedDot, { backgroundColor: colors.foreground }]} />}
@@ -466,7 +467,7 @@ const s = StyleSheet.create({
   methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   glassCard: { width: (SW - 64) / 3, height: 105, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.02)', borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   glassIconContainer: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  glassIcon: { width: 30, height: 30, resizeMode: 'contain' },
+  glassIcon: { width: 30, height: 30 },
   selectedDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4 },
   glassInputContainer: { height: 60, borderRadius: 20, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18 },
   glassInput: { flex: 1, height: '100%', fontSize: 16, fontWeight: '700', marginLeft: 12 },

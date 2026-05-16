@@ -138,7 +138,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
       />
       <View style={[styles.tabContent, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
         {state.routes
-          .filter((route: any) => route.name !== 'ShopTab') // ShopTab is nav-only, not shown in bar
+          .filter((route: any) => route.name !== 'OrdersTab') // Orders accessible via Profile, Shop is now primary
           .map((route: any, index: number) => {
           // Recalculate the real index for the route
           const realIndex = state.routes.findIndex((r: any) => r.key === route.key);
@@ -210,17 +210,7 @@ export const TabNavigator = () => {
         name="ShopTab"
         component={ShopStack}
         options={{
-          tabBarLabel: 'Shop',
           tabBarIcon: ({ color }) => <Ionicons name="bag-outline" size={20} color={color} />,
-          tabBarButton: () => null, // Hides from tab bar; accessible via nav only
-        }}
-      />
-      <Tab.Screen
-        name="SearchTab"
-        component={SearchStack}
-        options={{
-          tabBarLabel: 'Search',
-          tabBarIcon: ({ color }) => <Ionicons name="search-outline" size={20} color={color} />,
         }}
       />
       <Tab.Screen
@@ -234,11 +224,20 @@ export const TabNavigator = () => {
         }}
       />
       <Tab.Screen
+        name="SearchTab"
+        component={SearchStack}
+        options={{
+          tabBarLabel: 'Search',
+          tabBarIcon: ({ color }) => <Ionicons name="search-outline" size={20} color={color} />,
+        }}
+      />
+      <Tab.Screen
         name="OrdersTab"
         component={OrdersStack}
         options={{
           tabBarLabel: 'Orders',
           tabBarIcon: ({ color }) => <Ionicons name="receipt-outline" size={20} color={color} />,
+          tabBarButton: () => null,
         }}
       />
       <Tab.Screen

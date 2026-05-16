@@ -68,7 +68,7 @@ const ImageViewerModal = ({ visible, images, activeIndex, onClose }: any) => {
           {images.map((img: any, idx: number) => (
             <View key={idx} style={styles.viewerItem}>
               <Image 
-                source={resolveImageUrl(img) || ''} 
+                source={resolveImageUrl(img) || undefined} 
                 style={styles.viewerImage} 
                 contentFit="contain" 
                 transition={400} 
@@ -98,7 +98,7 @@ const CuratedItem = React.memo(({ product, onPress, onQuickAdd, colors }: { prod
       <View style={styles.curatedCard}>
         <View style={{ flex: 1 }}>
           <Image 
-            source={resolveImageUrl(featuredImage) ? { uri: resolveImageUrl(featuredImage) as string } : ''} 
+            source={resolveImageUrl(featuredImage) ? { uri: resolveImageUrl(featuredImage) as string } : undefined} 
             style={StyleSheet.absoluteFill} 
             contentFit="cover" 
             cachePolicy="memory-disk"

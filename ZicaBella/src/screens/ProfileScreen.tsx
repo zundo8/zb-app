@@ -510,6 +510,8 @@ export default function ProfileScreen() {
                     ].filter(Boolean) as any
                   );
                 }}
+                accessibilityLabel="Edit profile photo"
+                accessibilityRole="button"
               >
                 <BlurView intensity={isDark ? 20 : 60} tint={theme} style={[styles.avatarGlass, { borderColor: colors.borderLight }]}>
                   {profileImage ? (
@@ -536,28 +538,48 @@ export default function ProfileScreen() {
             </View>
 
             <View style={[styles.statsRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderExtraLight }]}>
-              <TouchableOpacity style={styles.statItem} onPress={() => goRoot('OrderHistory')}>
+              <TouchableOpacity 
+                style={styles.statItem} 
+                onPress={() => goRoot('OrderHistory')}
+                accessibilityLabel={`${orderCount} orders`}
+                accessibilityRole="button"
+              >
                 <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
                   {String(orderCount).padStart(2, '0')}
                 </Typography>
                 <Typography size={6.5} color={colors.textExtraLight} weight="600">ORDERS</Typography>
               </TouchableOpacity>
               <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
-              <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Wishlist')}>
+              <TouchableOpacity 
+                style={styles.statItem} 
+                onPress={() => navigation.navigate('Wishlist')}
+                accessibilityLabel={`${wishlist.length} items in wishlist`}
+                accessibilityRole="button"
+              >
                 <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
                    {String(wishlist.length).padStart(2, '0')}
                 </Typography>
                 <Typography size={6.5} color={colors.textExtraLight} weight="600">WISHLIST</Typography>
               </TouchableOpacity>
               <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
-              <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('ServiceFlow', { screen: 'ServiceHistory' })}>
+              <TouchableOpacity 
+                style={styles.statItem} 
+                onPress={() => navigation.navigate('ServiceFlow', { screen: 'ServiceHistory' })}
+                accessibilityLabel={`${serviceCount} service requests`}
+                accessibilityRole="button"
+              >
                  <Typography heading size={16} color={colors.text} style={{ letterSpacing: 2 }}>
                    {String(serviceCount).padStart(2, '0')}
                  </Typography>
                  <Typography size={6.5} color={colors.textExtraLight} weight="600">SERVICES</Typography>
               </TouchableOpacity>
               <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
-              <TouchableOpacity style={styles.statItem} onPress={() => { haptics.buttonTap(); navigation.navigate('StoreCreditHistory'); }}>
+              <TouchableOpacity 
+                style={styles.statItem} 
+                onPress={() => { haptics.buttonTap(); navigation.navigate('StoreCreditHistory'); }}
+                accessibilityLabel={`${storeCredits} store credits`}
+                accessibilityRole="button"
+              >
                 <Typography heading size={16} color={storeCredits > 0 ? colors.success : colors.text} style={{ letterSpacing: 1 }}>
                   {storeCredits > 0 ? `₹${storeCredits}` : '—'}
                 </Typography>
@@ -717,6 +739,8 @@ export default function ProfileScreen() {
               style={[styles.logoutBtn, { borderColor: colors.error + '40' }]} 
               onPress={handleLogout}
               activeOpacity={0.7}
+              accessibilityLabel="Sign out"
+              accessibilityRole="button"
             >
               <Ionicons name="log-out-outline" size={16} color={colors.error} />
               <Typography weight="500" size={11} color={colors.error}>SIGN OUT</Typography>

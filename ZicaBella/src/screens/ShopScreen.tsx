@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import { useColors } from '../constants/colors';
 import { useCollections, useProducts } from '../hooks/useProducts';
@@ -28,12 +28,27 @@ export default function ShopScreen() {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const { collections, loading, refetch } = useCollections(30, 'page');
-  const { products: latestProducts } = useProducts(1);
+  const { products: latestProducts } = useProducts(24);
   const setMenuOpen = useUIStore(s => s.setMenuOpen);
+  const [heroImage, setHeroImage] = React.useState<string | undefined>(undefined);
 
   const onRefresh = React.useCallback(async () => {
     await refetch();
   }, [refetch]);
+
+  const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setTabBarVisible(true);
+      
+      // Pick a random image from latest products each time we enter
+      if (latestProducts.length > 0) {
+        const randomIndex = Math.floor(Math.random() * latestProducts.length);
+        setHeroImage(latestProducts[randomIndex].featuredImage);
+      }
+    }, [setTabBarVisible, latestProducts])
+  );
 
   const renderCategoryTile = (item: any, isFullWidth = false) => (
     <TouchableOpacity
@@ -97,7 +112,7 @@ export default function ShopScreen() {
           id: 'all',
           handle: 'all',
           title: 'All Products',
-          image: latestProducts[0]?.featuredImage || 'https://app.zicabella.com/all-products-hero.jpg'
+          image: heroImage || latestProducts[0]?.featuredImage || 'https://app.zicabella.com/all-products-hero.jpg'
         }, true)}
 
         {loading && collections.length === 0 ? (

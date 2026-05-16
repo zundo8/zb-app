@@ -83,54 +83,6 @@ function App() {
     return () => task.cancel();
   }, [fontsLoaded, userId]);
 
-  // ── Notification listeners ───────────────────────────────────────────────
-  useEffect(() => {
-    // Foreground: notification received while app is open
-    notificationReceivedRef.current?.remove();
-    notificationReceivedRef.current = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        const { title, body, data } = notification.request.content;
-        const id = String(notification.request.identifier || Date.now()).trim();
-        useNotificationStore.getState().addNotification({
-          id,
-          title: title || 'Zica Bella',
-          body: body || '',
-          date: new Date().toISOString(),
-          isRead: false,
-          data: (data as Record<string, string>) || {},
-        });
-        // Sync badge count
-        const unread = useNotificationStore.getState().unreadCount();
-        Notifications.setBadgeCountAsync(unread).catch(() => {});
-      }
-    );
-
-    // Response: user tapped on a notification
-    notificationResponseRef.current?.remove();
-    notificationResponseRef.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const { data } = response.notification.request.content;
-        const notifData = data as Record<string, string> | undefined;
-
-        // Navigate to order detail if orderId is present
-        if (notifData?.orderId) {
-          NotificationService.handleDeepLink({
-            ...notifData,
-            type: notifData.type || 'order',
-            orderId: notifData.orderId,
-          });
-        } else if (notifData) {
-          NotificationService.handleDeepLink(notifData);
-        }
-      }
-    );
-
-    return () => {
-      notificationReceivedRef.current?.remove();
-      notificationResponseRef.current?.remove();
-    };
-  }, []);
-
   // ── AppState listener ──────────────────────────────────────────────────
   useEffect(() => {
     const setAppActive = useUIStore.getState().setAppActive;
@@ -149,7 +101,7 @@ function App() {
       <SafeAreaProvider>
         <StatusBar 
           barStyle={isDark ? "light-content" : "dark-content"} 
-          backgroundColor={colors.background}
+          backgroundColor="transparent"
           translucent 
         />
         <InAppNotificationBanner />

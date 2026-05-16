@@ -41,10 +41,16 @@ const CartItem = React.memo(({ item, onUpdateQuantity, onRemove, onPress }: Prop
         },
       ]}
     >
-      <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.contentRow}>
+      <TouchableOpacity 
+        onPress={onPress} 
+        activeOpacity={0.9} 
+        style={styles.contentRow}
+        accessibilityLabel={`View ${item.title}`}
+        accessibilityRole="button"
+      >
         {/* Product Image */}
         <View style={[styles.imageContainer, { backgroundColor: colors.background }]}>
-          <Image source={resolveImageUrl(item.image) ? { uri: resolveImageUrl(item.image) as string } : ''} style={styles.image} contentFit="cover" />
+          <Image source={resolveImageUrl(item.image) ? { uri: resolveImageUrl(item.image) as string } : undefined} style={styles.image} contentFit="cover" />
         </View>
 
         {/* Details */}

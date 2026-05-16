@@ -126,6 +126,8 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
                   activeOpacity={0.85} 
                   onPress={handlePress}
                   style={{ width: currentCardWidth, height: '100%' }}
+                  accessibilityLabel={`View details for ${product.title}`}
+                  accessibilityRole="button"
                 >
                   {shouldRenderImage ? (
                     <OptimizedImage
@@ -141,7 +143,13 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
             })}
           </ScrollView>
         ) : images[0] ? (
-          <TouchableOpacity onPress={handlePress} activeOpacity={0.95} style={StyleSheet.absoluteFill}>
+          <TouchableOpacity 
+            onPress={handlePress} 
+            activeOpacity={0.95} 
+            style={StyleSheet.absoluteFill}
+            accessibilityLabel={`View details for ${product.title}`}
+            accessibilityRole="button"
+          >
             <OptimizedImage
               source={String(images[0])}
               style={styles.image}
@@ -187,7 +195,14 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
             </View>
           </View>
           {!isSoldOut && onQuickAdd && (
-            <TouchableOpacity onPress={handleQuickAdd} style={styles.quickAddBtn} activeOpacity={0.7} disabled={isLoading}>
+            <TouchableOpacity 
+              onPress={handleQuickAdd} 
+              style={styles.quickAddBtn} 
+              activeOpacity={0.7} 
+              disabled={isLoading}
+              accessibilityLabel={`Add ${product.title} to bag`}
+              accessibilityRole="button"
+            >
               {isLoading ? <ActivityIndicator size="small" color={colors.textSecondary} /> : <Ionicons name="add" size={14} color={colors.text} />}
             </TouchableOpacity>
           )}

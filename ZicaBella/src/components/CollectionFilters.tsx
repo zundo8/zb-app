@@ -58,6 +58,8 @@ export default function CollectionFilters({
               const next = sorts[(sorts.indexOf(sortBy) + 1) % sorts.length];
               onSelectSort(next);
             }}
+            accessibilityLabel={`Sort by: ${sortBy.replace('-', ' ')}`}
+            accessibilityRole="button"
           >
             <Ionicons name="swap-vertical" size={16} color={colors.text} />
             {!compact && (
@@ -76,6 +78,9 @@ export default function CollectionFilters({
               setIsColorOpen(!isColorOpen);
               setIsSizeOpen(false);
             }}
+            accessibilityLabel={`Filter by color${selectedColor ? ': ' + selectedColor : ''}`}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: isColorOpen }}
           >
             <View style={styles.iconWrapper}>
               <Ionicons name="color-palette-outline" size={16} color={colors.text} />
@@ -97,6 +102,9 @@ export default function CollectionFilters({
               setIsSizeOpen(!isSizeOpen);
               setIsColorOpen(false);
             }}
+            accessibilityLabel={`Filter by size${selectedSize ? ': ' + selectedSize : ''}`}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: isSizeOpen }}
           >
             <View style={styles.iconWrapper}>
               <Ionicons name="resize-outline" size={16} color={colors.text} />
@@ -112,7 +120,12 @@ export default function CollectionFilters({
           <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
           {/* View Toggle */}
-          <TouchableOpacity style={styles.viewToggle} onPress={onToggleView}>
+          <TouchableOpacity 
+            style={styles.viewToggle} 
+            onPress={onToggleView}
+            accessibilityLabel={`Switch layout view. Current: ${viewMode}`}
+            accessibilityRole="button"
+          >
             <Ionicons 
               name={
                 viewMode === 'grid' ? 'grid-outline' : 

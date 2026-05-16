@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity, 
   Dimensions, Pressable, Alert
 } from 'react-native';
+import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import OptimizedImage from './OptimizedImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -159,8 +160,10 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
               style={styles.productInfo} 
               activeOpacity={product.handle ? 0.6 : 1}
               onPress={handleNavigateToProduct}
+              accessibilityLabel={`View full details for ${product.title}`}
+              accessibilityRole="link"
             >
-              <Image source={image ? { uri: image } : ''} style={[styles.previewImage, { backgroundColor: colors.surface }]} contentFit="cover" />
+              <Image source={image ? { uri: image } : undefined} style={[styles.previewImage, { backgroundColor: colors.surface }]} contentFit="cover" />
               <View style={styles.textInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Text style={[styles.productTitle, { color: colors.text, flex: 1 }]} numberOfLines={1}>{product.title}</Text>
@@ -168,7 +171,12 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
                 <Text style={[styles.productPrice, { color: colors.textExtraLight }]}>{formatPrice(price)}</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity 
+              onPress={onClose} 
+              style={styles.closeBtn}
+              accessibilityLabel="Close"
+              accessibilityRole="button"
+            >
               <Ionicons name="close" size={20} color={colors.text} style={{ opacity: 0.3 }} />
             </TouchableOpacity>
           </View>
@@ -180,7 +188,11 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
                 <Text style={[styles.sectionLabel, { color: sizeError ? '#FF3B30' : colors.textExtraLight }]}>
                   {sizeError ? 'PLEASE SELECT A SIZE' : 'SELECT SIZE'}
                 </Text>
-                <TouchableOpacity onPress={() => { haptics.buttonTap(); setSizeChartVisible(true); }}>
+                <TouchableOpacity 
+                  onPress={() => { haptics.buttonTap(); setSizeChartVisible(true); }}
+                  accessibilityLabel="View size guide"
+                  accessibilityRole="button"
+                >
                   <Text style={[styles.guideLink, { color: colors.textSecondary }]}>GUIDE</Text>
                 </TouchableOpacity>
               </View>
@@ -200,6 +212,9 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
                         { borderColor: sizeError ? 'rgba(255,59,48,0.3)' : colors.borderLight },
                         isActive && { backgroundColor: '#000', borderColor: '#000' }
                       ]}
+                      accessibilityLabel={`Select size ${size}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isActive }}
                     >
                       <Text style={[
                         styles.sizeBoxText,
@@ -232,6 +247,8 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
             <TouchableOpacity 
               onPress={handleWishlistToggle} 
               style={[styles.wishlistBtn, { borderColor: colors.borderLight }]}
+              accessibilityLabel={isWishlisted(product.id) ? "Remove from wishlist" : "Add to wishlist"}
+              accessibilityRole="button"
             >
               <Ionicons 
                 name={isWishlisted(product.id) ? "bookmark" : "bookmark-outline"} 
@@ -249,6 +266,8 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
                 (needsSize && !selectedSize) && styles.addBtnNeedsSize
               ]}
               activeOpacity={0.8}
+              accessibilityLabel={added ? "Item added to bag" : (needsSize && !selectedSize ? "Select a size before adding to bag" : "Add to bag")}
+              accessibilityRole="button"
             >
               {added ? (
                 <Text style={styles.addBtnText}>Added to Bag</Text>

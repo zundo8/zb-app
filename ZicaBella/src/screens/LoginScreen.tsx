@@ -258,6 +258,8 @@ export default function LoginScreen() {
               <TouchableOpacity 
                 style={styles.flagPicker} 
                 onPress={() => { haptics.buttonTap(); setShowPicker(true); }}
+                accessibilityLabel={`Select country code. Current: ${country.name} ${country.code}`}
+                accessibilityRole="button"
               >
                 <Typography size={22}>{country.flag}</Typography>
                 <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} style={{ marginLeft: 2 }} />
@@ -281,6 +283,8 @@ export default function LoginScreen() {
               style={styles.primaryButton}
               onPress={handleContinuePhone}
               disabled={loading}
+              accessibilityLabel="Continue"
+              accessibilityRole="button"
             >
               <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               {loading ? <ActivityIndicator color={colors.text} /> : (
@@ -316,6 +320,8 @@ export default function LoginScreen() {
               style={styles.primaryButton}
               onPress={handleContinueName}
               disabled={loading}
+              accessibilityLabel="Create account"
+              accessibilityRole="button"
             >
               <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               {loading ? <ActivityIndicator color={colors.text} /> : (
@@ -323,7 +329,12 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.backLink}>
+            <TouchableOpacity 
+              onPress={() => setStep('PHONE')} 
+              style={styles.backLink}
+              accessibilityLabel="Go back to phone entry"
+              accessibilityRole="button"
+            >
               <Typography size={12} weight="600" color={colors.textExtraLight}>Back to Phone</Typography>
             </TouchableOpacity>
           </View>
@@ -361,6 +372,8 @@ export default function LoginScreen() {
               style={styles.primaryButton}
               onPress={() => handleLogin()}
               disabled={loading}
+              accessibilityLabel="Verify OTP"
+              accessibilityRole="button"
             >
               <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               {loading ? <ActivityIndicator color={colors.text} /> : (
@@ -403,7 +416,12 @@ export default function LoginScreen() {
                   <View style={[styles.dividerLine, { backgroundColor: colors.textExtraLight, opacity: 0.1 }]} />
                 </View>
 
-                <TouchableOpacity style={[styles.appleButton, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]} onPress={handleAppleSignIn}>
+                <TouchableOpacity 
+                  style={[styles.appleButton, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]} 
+                  onPress={handleAppleSignIn}
+                  accessibilityLabel="Continue with Apple"
+                  accessibilityRole="button"
+                >
                   <Ionicons name="logo-apple" size={20} color={colors.text} />
                   <Typography weight="700" size={12} color={colors.text} style={{ marginLeft: 12 }}>Continue with Apple</Typography>
                 </TouchableOpacity>
