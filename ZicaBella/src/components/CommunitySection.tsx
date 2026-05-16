@@ -89,7 +89,7 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.list}
-        snapToInterval={width * 0.72 + 16}
+        snapToInterval={width * 0.82 + 16}
         decelerationRate="fast"
         scrollEventThrottle={16}
       >
@@ -164,9 +164,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   list: {
-    paddingHorizontal: 12,
-    paddingRight: 24,
-    gap: 12,
+    paddingHorizontal: width * 0.09,
+    gap: 16,
   },
   item: {
     width: width * 0.82,
