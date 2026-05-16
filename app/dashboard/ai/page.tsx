@@ -111,6 +111,8 @@ export default function AICommandCenterPage() {
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [health, setHealth] = useState<{ status: "loading" | "ok" | "error"; message?: string } | null>(null);
+  const [allActions, setAllActions] = useState<ToolAction[]>([]);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Check AI Health on load
   useEffect(() => {
