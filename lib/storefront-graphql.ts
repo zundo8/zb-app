@@ -10,7 +10,7 @@ export const STOREFRONT_QUERIES = {
             handle
             title
             image { url }
-            productsCount: products(first: 0) { totalCount }
+            products(first: 1) { totalCount }
           }
         }
       }
@@ -107,30 +107,56 @@ export const STOREFRONT_QUERIES = {
 };
 
 export async function fetchProducts(limit: number = 24) {
-  const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.products, { first: limit });
-  return data.products?.edges.map((e: any) => e.node) || [];
+  try {
+    const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.products, { first: limit });
+    return data?.products?.edges?.map((e: any) => e.node) || [];
+  } catch (err) {
+    console.error('fetchProducts error:', err);
+    return [];
+  }
 }
 
 export async function fetchCollections() {
-
-  const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.collections, { first: 50 });
-  return data.collections.edges.map((e: any) => ({
-    ...e.node,
-    productsCount: e.node.productsCount?.totalCount || 0
-  }));
+  try {
+    const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.collections, { first: 50 });
+    if (!data?.collections?.edges) return [];
+    
+    return data.collections.edges.map((e: any) => ({
+      ...e.node,
+      productsCount: e.node.products?.totalCount || 0
+    }));
+  } catch (err) {
+    console.error('fetchCollections error:', err);
+    return [];
+  }
 }
 
 export async function fetchCollectionProducts(handle: string, limit: number = 20, cursor?: string) {
-  const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.collectionProducts, { handle, first: limit, cursor });
-  return data.collection?.products || { edges: [] };
+  try {
+    const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.collectionProducts, { handle, first: limit, cursor });
+    return data?.collection?.products || { edges: [] };
+  } catch (err) {
+    console.error('fetchCollectionProducts error:', err);
+    return { edges: [] };
+  }
 }
 
 export async function fetchProductDetail(handle: string) {
-  const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.productByHandle, { handle });
-  return data.product;
+  try {
+    const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.productByHandle, { handle });
+    return data?.product || null;
+  } catch (err) {
+    console.error('fetchProductDetail error:', err);
+    return null;
+  }
 }
 
 export async function fetchSearch(query: string, limit: number = 20) {
-  const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.search, { query, first: limit });
-  return data.search?.edges.map((e: any) => e.node) || [];
+  try {
+    const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.search, { query, first: limit });
+    return data?.search?.edges?.map((e: any) => e.node) || [];
+  } catch (err) {
+    console.error('fetchSearch error:', err);
+    return [];
+  }
 }

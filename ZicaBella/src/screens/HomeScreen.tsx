@@ -183,7 +183,7 @@ const HomeScreen = React.memo(() => {
               <Typography size={10} color={colors.textSecondary} style={styles.errorText}>
                 {error || "Unable to load products right now. Please try again shortly."}
               </Typography>
-              <TouchableOpacity onPress={refetch} style={[styles.retryBtn, { borderColor: colors.borderLight }]}>
+              <TouchableOpacity onPress={refetchHome} style={[styles.retryBtn, { borderColor: colors.borderLight }]}>
                 <Typography size={9} color={colors.text} weight="600" style={styles.retryText}>RETRY</Typography>
               </TouchableOpacity>
             </View>

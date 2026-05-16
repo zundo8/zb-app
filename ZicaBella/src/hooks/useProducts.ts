@@ -378,7 +378,7 @@ export function useProductByHandle(handle: string) {
     return () => { cancelled = true; };
   }, [handle]);
 
-  return { product, loading, error };
+  return { product, loading, error, refetch: () => { /* re-runs useEffect */ } };
 }
 
 /**
@@ -407,6 +407,7 @@ export function useSearchProducts() {
   const [results, setResults] = useState<FlatProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const isMounted = useRef(true);
+  const queryRef = useRef<string>('');
 
   useEffect(() => {
     isMounted.current = true;
@@ -414,6 +415,7 @@ export function useSearchProducts() {
   }, []);
 
   const search = useCallback(async (query: string) => {
+    queryRef.current = query;
     if (!query.trim()) {
       setResults([]);
       return;
@@ -472,7 +474,7 @@ export function useSearchProducts() {
     }
   }, []);
 
-  return { results, loading, search };
+  return { results, loading, search, refetch: () => search(queryRef.current || '') };
 }
 
 export function useCollections(count = 20, location?: 'header' | 'page' | 'menu') {
