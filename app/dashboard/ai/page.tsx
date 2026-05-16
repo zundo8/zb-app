@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, Send, Loader2, Bot, User, Zap, Activity, AlertCircle,
   Copy, Check, ClipboardList, TrendingUp, DollarSign, Building2,
-  ShoppingCart, Undo2, RotateCcw, Sunrise, Moon, Package, RefreshCw, Key, Settings2
+  ShoppingCart, Undo2, RotateCcw, Sunrise, Settings2
 } from "lucide-react";
 import { useClaude, type ToolAction } from "@/lib/hooks/useClaude";
 
@@ -367,53 +367,6 @@ export default function AICommandCenterPage() {
           </div>
         </div>
       </div>
-
-      {/* Config Modal */}
-      <AnimatePresence>
-        {showConfigModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md glass-card rounded-2xl border border-foreground/10 p-6 space-y-6 shadow-2xl"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
-                  <Key className="w-5 h-5 text-violet-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-foreground">AI Configuration</h3>
-                  <p className="text-[10px] font-medium text-foreground/40 uppercase tracking-wider">Claude API Setup</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[9px] font-bold text-foreground/50 uppercase tracking-widest ml-1">Anthropic API Key</label>
-                  <input type="password" value={tempApiKey} onChange={(e) => setTempApiKey(e.target.value)}
-                    placeholder="sk-ant-api..."
-                    className="w-full bg-foreground/[0.04] border border-foreground/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500/30 transition-all"
-                  />
-                  <p className="text-[9px] text-foreground/30 leading-relaxed px-1">
-                    This key is stored locally in your browser to override the server-side configuration. Use this for testing if your server environment variables are not yet active.
-                  </p>
-                </div>
-                
-                <div className="flex gap-2 pt-2">
-                  <button onClick={() => setShowConfigModal(false)} className="flex-1 px-4 py-3 bg-foreground/5 text-foreground/60 rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-foreground/10 transition-all">Cancel</button>
-                  <button onClick={saveApiKey} className="flex-1 px-4 py-3 bg-foreground text-background rounded-xl text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-all">Save Config</button>
-                </div>
-
-                {localStorage.getItem("zica-ai-override-key") && (
-                  <button onClick={() => { localStorage.removeItem("zica-ai-override-key"); window.location.reload(); }}
-                    className="w-full text-[9px] text-rose-400 font-bold uppercase tracking-widest hover:text-rose-500 transition-colors pt-2"
-                  >
-                    Clear Override Key
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }
