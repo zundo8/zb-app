@@ -27,7 +27,7 @@ export interface ToolAction {
 
 interface ConversationEntry {
   role: "user" | "assistant";
-  content: string;
+  content: string | any[];
 }
 
 interface UseClaudeOptions {

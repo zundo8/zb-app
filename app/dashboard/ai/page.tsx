@@ -193,6 +193,12 @@ export default function AICommandCenterPage() {
           </div>
         </div>
           <div className="flex items-center gap-2">
+            <Link href="/dashboard/ai/webhooks"
+              className="p-2 rounded-xl bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/40 hover:text-foreground/80 transition-all group relative"
+            >
+              <Zap className="w-4 h-4 group-hover:text-violet-400 transition-colors" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-violet-500 rounded-full border-2 border-background animate-pulse" />
+            </Link>
             <Link href="/dashboard/settings"
               className="p-2 rounded-xl bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/40 hover:text-foreground/80 transition-all"
             >

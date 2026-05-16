@@ -140,12 +140,15 @@ export async function POST(req: Request) {
       });
 
       if (response.stop_reason === "tool_use") {
-        currentHistory.push({ role: "assistant" as const, content: response.content });
+        currentHistory.push({ role: "assistant" as const, content: response.content as ClaudeContentBlock[] });
         const toolResults: ClaudeContentBlock[] = [];
 
         for (const block of response.content) {
           if (block.type === "tool_use" && block.name && block.id) {
             const result = await executeClaudeTool(block.name, block.input || {});
+            
+            const parsedResult = JSON.parse(result);
+            const isError = parsedResult.error !== undefined;
             
             toolActions.push({ tool: block.name, input: block.input });
 
@@ -153,6 +156,7 @@ export async function POST(req: Request) {
               type: "tool_result",
               tool_use_id: block.id,
               content: result,
+              is_error: isError,
             });
           }
         }

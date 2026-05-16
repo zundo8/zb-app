@@ -29,6 +29,7 @@ interface SettingsData {
   twilioAuthToken: string;
   twilioPhoneNumber: string;
   claudeApiKey: string;
+  claudeWebhookSecret: string;
   [key: string]: any;
 }
 
@@ -148,7 +149,7 @@ export default function AdminSettingsPage() {
         'shiprocketEmail', 'shiprocketPassword', 'shiprocketToken', 'webhookSecret',
         'whatsappPhoneId', 'whatsappToken', 'firebaseProjectId', 'firebaseClientEmail',
         'firebasePrivateKey', 'sendgridApiKey', 'twilioAccountSid', 'twilioAuthToken', 'twilioPhoneNumber',
-        'ringCarouselItems', 'claudeApiKey'
+        'ringCarouselItems', 'claudeApiKey', 'claudeWebhookSecret'
     ];
 
     const partialUpdate: any = { shopId: settings.id };
@@ -310,6 +311,9 @@ export default function AdminSettingsPage() {
         <SettingsGroup title="Zica AI · Claude Integration" icon={Sparkles}>
            <SettingsRow label="Claude API Key" icon={Key} description="Anthropic API key (sk-ant-api...)">
               <InputField value={settings.claudeApiKey!} onChange={set('claudeApiKey')} placeholder="sk-ant-api03-..." secret />
+           </SettingsRow>
+           <SettingsRow label="Webhook Signing Secret" icon={Lock} description="Used to verify Claude Platform webhooks">
+              <InputField value={settings.claudeWebhookSecret!} onChange={set('claudeWebhookSecret')} placeholder="whsec_..." secret />
            </SettingsRow>
            <div className="px-10 py-6 border-t border-foreground/5 flex items-center justify-between">
               <div className="flex items-center gap-3">

@@ -210,6 +210,7 @@ export async function GET(req: Request) {
       ringCarouselItems: s.ringCarouselItems || '[]',
       footerLogo3dUrl: s.footerLogo3dUrl || 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
       claudeApiKey: s.claudeApiKey || '',
+      claudeWebhookSecret: s.claudeWebhookSecret || '',
     });
   } catch (e: any) {
     console.error('[Settings API GET Error]:', e);
@@ -285,7 +286,7 @@ export async function PATCH(req: Request) {
       'flipbookImage', 'flipbookVideo', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
       'communityMinOrders', 'communityAgeRestricted', 'communityWhatsAppEnabled',
       'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems',
-      'footerLogo3dUrl', 'claudeApiKey'
+      'footerLogo3dUrl', 'claudeApiKey', 'claudeWebhookSecret'
     ] as const;
 
     const booleanKeys = [

@@ -90,6 +90,7 @@ model Shop {
   footerLogo3dUrl          String?    @default("https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb")
   spotlightMedia           String?
   claudeApiKey             String?
+  claudeWebhookSecret      String?
   customers                Customer[]
   orders                   Order[]
   products                 Product[]
@@ -949,32 +950,27 @@ model Address {
 }
 
 model SupportTicket {
-  id          String           @id @default(cuid())
-  customerId  String?
-  guestName   String?
-  guestEmail  String?
-  subject     String
-  status      String           @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
-  priority    String           @default("MEDIUM")
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  messages    SupportMessage[]
+  id         String           @id @default(cuid())
+  customerId String?
+  guestName  String?
+  guestEmail String?
+  subject    String
+  status     String           @default("OPEN")
+  priority   String           @default("MEDIUM")
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  messages   SupportMessage[]
 }
 
 model SupportMessage {
   id         String        @id @default(cuid())
   ticketId   String
-  senderType String        @default("USER") // USER, AGENT
-  senderId   String?       // Customer ID or Admin ID
+  senderType String        @default("USER")
+  senderId   String?
   senderName String?
   content    String
   createdAt  DateTime      @default(now())
   ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-}
-
-enum Role {
-  SUPER_ADMIN
-  ADMIN
 }
 
 model User {
@@ -984,48 +980,26 @@ model User {
   name                String?
   role                Role         @default(ADMIN)
   isActive            Boolean      @default(true)
-  needsPasswordChange Boolean      @default(false)
-  failedLoginAttempts Int          @default(0)
-  lockUntil           DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
   createdBy           String?
+  failedLoginAttempts Int          @default(0)
+  lockUntil           DateTime?
+  needsPasswordChange Boolean      @default(false)
+  auditLogs           AuditLog[]
+  permissions         Permission[]
   creator             User?        @relation("UserCreator", fields: [createdBy], references: [id])
   createdUsers        User[]       @relation("UserCreator")
-  permissions         Permission[]
-  auditLogs           AuditLog[]
-}
-
-enum Module {
-  DASHBOARD_HOME
-  SUPPORT
-  ORDERS
-  MOBILE_ORDERS
-  CUSTOMERS
-  PRODUCTS
-  INVENTORY
-  LOGISTICS
-  RETURNS_EXCHANGES
-  STOREFRONT
-  COMMUNITY
-  MARKETING
-  MANUFACTURING
-  FINANCIAL
-  INTEGRATIONS
-  AI_SERVICES
-  SETTINGS
-  ADMIN_USERS
-  AUDIT_LOG
 }
 
 model Permission {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   userId    String
   module    Module
-  canView   Boolean  @default(false)
-  canEdit   Boolean  @default(false)
-  canDelete Boolean  @default(false)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canView   Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, module])
 }
@@ -1040,7 +1014,7 @@ model AuditLog {
   ipAddress String?
   userAgent String?
   timestamp DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([action])
@@ -1067,4 +1041,31 @@ model AIChatMessage {
   session   AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum Module {
+  DASHBOARD_HOME
+  SUPPORT
+  ORDERS
+  MOBILE_ORDERS
+  CUSTOMERS
+  PRODUCTS
+  INVENTORY
+  LOGISTICS
+  RETURNS_EXCHANGES
+  STOREFRONT
+  COMMUNITY
+  MARKETING
+  MANUFACTURING
+  FINANCIAL
+  INTEGRATIONS
+  AI_SERVICES
+  SETTINGS
+  ADMIN_USERS
+  AUDIT_LOG
 }

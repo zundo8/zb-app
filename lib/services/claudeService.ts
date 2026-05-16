@@ -4,7 +4,8 @@
 // and context management for operations.
 // ──────────────────────────────────────────────────
 
-import { ClaudeMessage, ClaudeResponse } from "./claudeService.types";
+import { ClaudeMessage, ClaudeResponse, ClaudeContentBlock } from "./claudeService.types";
+export type { ClaudeMessage, ClaudeResponse, ClaudeContentBlock };
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
@@ -149,9 +150,14 @@ export const ZICA_TOOLS: any[] = [
   },
 ];
 
-// ─── API Caller ──────────────────────────────────
+import Anthropic from "@anthropic-ai/sdk";
 
-const MODELS = ["claude-3-5-sonnet-20240620", "claude-3-sonnet-20240229"];
+const MODELS = [
+  "claude-3-5-sonnet-20241022", 
+  "claude-3-5-sonnet-20240620", 
+  "claude-3-sonnet-20240229",
+  "claude-3-haiku-20240307"
+];
 
 export async function callClaude({
   systemPrompt,
@@ -170,52 +176,42 @@ export async function callClaude({
 }): Promise<ClaudeResponse> {
   const currentModel = MODELS[modelIndex] || MODELS[0];
   
-  const historyLimit = 10;
+  const anthropic = new Anthropic({
+    apiKey: apiKey,
+  });
+
+  const historyLimit = 15; // Increased history limit
   const recentHistory = conversationHistory.slice(-historyLimit);
   
   const messages = userMessage
     ? [...recentHistory, { role: "user" as const, content: userMessage }]
     : [...recentHistory];
 
-  const payload: any = {
-    model: currentModel,
-    max_tokens: 1500,
-    system: systemPrompt,
-    messages,
-  };
-
-  if (tools && tools.length > 0) {
-    payload.tools = tools.map((t: any) => {
-      const { cache_control, ...tool } = t;
-      return tool;
+  try {
+    const response = await anthropic.messages.create({
+      model: currentModel,
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: messages as Anthropic.MessageParam[],
+      tools: tools.length > 0 ? tools.map(t => {
+        const { cache_control, ...tool } = t;
+        return tool;
+      }) : undefined,
     });
-  }
 
-  const response = await fetch(CLAUDE_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify(payload),
-  });
+    return response as unknown as ClaudeResponse;
+  } catch (error: any) {
+    console.error(`[ZicaAI] Claude API error with model ${currentModel}:`, error);
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    let parsedError;
-    try {
-      parsedError = JSON.parse(errorBody);
-    } catch {
-      parsedError = { error: { message: errorBody } };
-    }
+    // Fallback logic for not found or overloaded models
+    const shouldRetry = (
+      (error.status === 404 && error.error?.type === "not_found_error") || 
+      (error.status === 529) || // Overloaded
+      (error.status === 429)    // Rate limit
+    );
 
-    const errorType = parsedError.error?.type;
-    const errorMessage = parsedError.error?.message || `Claude API error ${response.status}`;
-    
-    // Fallback logic if model is not found
-    if (errorType === "not_found_error" && modelIndex < MODELS.length - 1) {
-       console.warn(`[ZicaAI] Model ${currentModel} not found. Retrying with ${MODELS[modelIndex + 1]}...`);
+    if (shouldRetry && modelIndex < MODELS.length - 1) {
+       console.warn(`[ZicaAI] Model ${currentModel} failed (${error.status}). Retrying with ${MODELS[modelIndex + 1]}...`);
        return callClaude({ 
          systemPrompt, 
          userMessage, 
@@ -225,9 +221,7 @@ export async function callClaude({
          modelIndex: modelIndex + 1 
        });
     }
-
-    throw new Error(errorMessage);
+    
+    throw error;
   }
-
-  return response.json();
 }

@@ -138,7 +138,7 @@ export async function POST(req: Request) {
       });
 
       if (response.stop_reason === "tool_use") {
-        currentHistory.push({ role: "assistant" as const, content: response.content });
+        currentHistory.push({ role: "assistant" as const, content: response.content as ClaudeContentBlock[] });
 
         const toolResults: ClaudeContentBlock[] = [];
 
@@ -148,10 +148,13 @@ export async function POST(req: Request) {
 
             const result = await executeClaudeTool(block.name, block.input || {});
 
+            const parsedResult = JSON.parse(result);
+            const isError = parsedResult.error !== undefined;
+
             toolActions.push({
               tool: block.name,
               input: block.input,
-              result: JSON.parse(result),
+              result: parsedResult,
               timestamp: new Date().toISOString(),
             });
 
@@ -159,6 +162,7 @@ export async function POST(req: Request) {
               type: "tool_result",
               tool_use_id: block.id,
               content: result,
+              is_error: isError,
             });
           }
         }
