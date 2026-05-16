@@ -1,5 +1,4 @@
 export const BACKEND_BASE_URL = 'https://app.zicabella.com';
-export const ADMIN_API_BASE_URL = 'https://app.zicabella.com/api/storefront';
 
 /** Razorpay create-order/verify must hit a host the phone can reach. localhost/127.0.0.1 fails on device. */
 export function getPaymentApiBaseUrl(): string {

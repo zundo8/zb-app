@@ -380,11 +380,8 @@ export default function StorefrontSettingsPage() {
           <SettingsRow label="Footer Video" icon={Monitor} description="Footer video background">
              <MediaPicker value={settings.footerVideo!} onChange={set('footerVideo')} label="Footer Video" type="video" />
           </SettingsRow>
-          <SettingsRow label="Featured Media Image" icon={ImageIcon} description="Main image for spotlight section">
+          <SettingsRow label="Featured Media" icon={ImageIcon} description="Image above Spotlight section">
              <MediaPicker value={settings.featuredMediaImage!} onChange={set('featuredMediaImage')} label="Featured Media Image" type="image" />
-          </SettingsRow>
-          <SettingsRow label="Featured Media Video" icon={Video} description="Cinematic background for spotlight section">
-             <MediaPicker value={settings.featuredMedia!} onChange={set('featuredMedia')} label="Featured Media Video" type="video" />
           </SettingsRow>
           <SettingsRow label="Featured Media Title" description="Main overlay text">
              <InputField value={settings.blueprintTitle!} onChange={set('blueprintTitle')} placeholder="e.g. The Blueprint" />

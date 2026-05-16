@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { fetchCollections } from "@/lib/shopify-admin";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = 'force-dynamic';
 
@@ -65,18 +65,10 @@ export async function POST(req: NextRequest) {
 
     console.log("[Admin Collections] Successfully updated shop:", shop.id);
 
-    // Force revalidation of storefront pages and API cache
+    // Force revalidation of storefront pages
     revalidatePath("/");
     revalidatePath("/collections/[handle]", "page");
     revalidatePath("/api/shopify/collections");
-    
-    // Cache layer invalidation
-    revalidateTag('collections');
-    revalidateTag('homepage');
-    // Also revalidate specific collections that were updated
-    [...new Set([...header, ...page, ...menu])].forEach(handle => {
-      revalidateTag(`collection-products-${handle}`);
-    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

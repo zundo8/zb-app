@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
@@ -20,17 +20,13 @@ interface Props {
   subtitle?: string;
   collectionHandle?: string;
   media?: string;
-  refreshing?: boolean;
-  fallbackProducts?: any[];
 }
 
 const SpotlightSection = React.memo(({ 
   title,
   subtitle,
   collectionHandle,
-  media,
-  refreshing,
-  fallbackProducts
+  media
 }: Props) => {
   const navigation = useNavigation<any>();
   const colors = useColors();
@@ -40,19 +36,10 @@ const SpotlightSection = React.memo(({
 
   const resolvedTitle = title || settings?.spotlight?.title || "AUTHENTIC STREETWEAR";
   const resolvedSubtitle = subtitle || settings?.spotlight?.subtitle || "Luxury Indian streetwear for modern men. Redefining bold everyday style.";
-  const resolvedCollectionHandle = collectionHandle || settings?.spotlight?.collection || "all";
+  const resolvedCollectionHandle = collectionHandle || settings?.spotlight?.collection || "tshirts";
   const resolvedMedia = media || settings?.media?.featured;
 
-  const { products: hookProducts, loading, refetch } = useCollectionByHandle(resolvedCollectionHandle);
-
-  // Use hook products if available, otherwise use fallback from homepage data
-  const products = (hookProducts && hookProducts.length > 0) ? hookProducts : (fallbackProducts || []);
-
-  useEffect(() => {
-    if (refreshing) {
-      refetch();
-    }
-  }, [refreshing, refetch]);
+  const { products, loading } = useCollectionByHandle(resolvedCollectionHandle);
 
   if (loading && products.length === 0) {
     return (

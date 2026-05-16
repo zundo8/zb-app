@@ -19,9 +19,7 @@ import HeroVideo from '../components/HeroVideo';
 import GlassHeader from '../components/GlassHeader';
 import QuickAddModal from '../components/QuickAddModal';
 import RingCarouselSection from '../components/RingCarouselSection';
-import { useProducts, useCollections, useCollectionByHandle, useHomepage } from '../hooks/useProducts';
-import { StorefrontAPI } from '../api/storefrontClient';
-import { ENDPOINTS } from '../api/queries';
+import { useProducts, useCollections, useCollectionByHandle } from '../hooks/useProducts';
 import { FlatProduct } from '../api/types';
 import MenuDrawer from '../components/MenuDrawer';
 import SpotlightSection from '../components/SpotlightSection';
@@ -56,13 +54,9 @@ const HomeScreen = React.memo(() => {
   const latestCurationTitle = settings?.latestCuration?.title || 'LATEST CURATION';
   const latestCurationSubtitle = settings?.latestCuration?.subtitle || 'SEASON DROP';
 
-  const { data: homeData, loading: homeLoading, error: homeError, refetch: refetchHome } = useHomepage();
-  const products = homeData?.products || [];
-  const collections = homeData?.collections || [];
-  const accessories = homeData?.accessories || [];
-  const spotlightProducts = homeData?.spotlight || [];
-  const loading = homeLoading;
-  const error = homeError;
+  const { products, loading, error, refetch } = useProducts(24);
+  const { collections, refetch: refetchCollections } = useCollections(20, 'page');
+  const { products: accessories } = useCollectionByHandle(ringHandle);
   
   const [refreshing, setRefreshing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
@@ -78,10 +72,12 @@ const HomeScreen = React.memo(() => {
       // Cache warm-up: Prefetch top 2 collections silently
       if (collections && collections.length > 0) {
         const topHandles = collections.slice(0, 2).map(c => c.handle);
+        const { apiGet } = require('../api/shopify');
+        const { ENDPOINTS } = require('../api/queries');
         
         topHandles.forEach(handle => {
-          // Fire and forget; the StorefrontAPI deduplication and cacheService inside hooks will handle the rest
-          StorefrontAPI.fetch(`/collections/${handle}/products`, { limit: '50' }, ENDPOINTS.collectionByHandle(handle)).catch(() => {});
+          // Fire and forget; the apiFetch deduplication and cacheService inside hooks will handle the rest
+          apiGet(ENDPOINTS.collectionByHandle(handle), { limit: '50', fields: 'id,title,handle,priceRange,featuredImage' }).catch(() => {});
         });
       }
     });
@@ -90,9 +86,9 @@ const HomeScreen = React.memo(() => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refetchHome();
+    await Promise.all([refetch(), refetchCollections()]);
     setRefreshing(false);
-  }, [refetchHome]);
+  }, [refetch, refetchCollections]);
 
   const scrollY = useSharedValue(0);
   const lastScrollY = useRef(0);
@@ -184,7 +180,7 @@ const HomeScreen = React.memo(() => {
               <Typography size={10} color={colors.textSecondary} style={styles.errorText}>
                 {error || "Unable to load products right now. Please try again shortly."}
               </Typography>
-              <TouchableOpacity onPress={refetchHome} style={[styles.retryBtn, { borderColor: colors.borderLight }]}>
+              <TouchableOpacity onPress={refetch} style={[styles.retryBtn, { borderColor: colors.borderLight }]}>
                 <Typography size={9} color={colors.text} weight="600" style={styles.retryText}>RETRY</Typography>
               </TouchableOpacity>
             </View>
@@ -282,8 +278,6 @@ const HomeScreen = React.memo(() => {
                 title={settings?.spotlight?.title || "AUTHENTIC STREETWEAR"} 
                 subtitle={settings?.spotlight?.subtitle}
                 media={settings?.spotlight?.media}
-                refreshing={homeLoading}
-                fallbackProducts={spotlightProducts}
               />
 
               {/* ═══ PRODUCT GRID 3 ═══ */}
