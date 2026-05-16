@@ -28,14 +28,14 @@
 	<array>
 		<dict>
 			<key>CFBundleURLSchemes</key>
-				<array>
-					<string>zicabella</string>
-					<string>com.zicabella.ios</string>
-				</array>
+			<array>
+				<string>zicabella</string>
+				<string>com.zicabella.ios</string>
+			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>6</string>
+	<string>8</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>upi</string>
@@ -78,10 +78,10 @@
 	<string>Allow $(PRODUCT_NAME) to access your microphone</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your device motion</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Zica Bella accesses your photo library to let you upload a profile photo.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Zica Bella may save images to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Zica Bella accesses your photo library to let you upload a profile photo.</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Zica Bella uses analytics to improve your shopping experience. No data is sold or shared with advertisers.</string>
 	<key>RCTNewArchEnabled</key>

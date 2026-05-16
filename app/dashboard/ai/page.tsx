@@ -49,21 +49,144 @@ const TOOL_LABELS: Record<string, { label: string; icon: string }> = {
 
 // ─── Markdown formatter ──────────────────────────
 
-function fmt(text: string) {
-  return text.split("\n").map((line, i) => {
-    let f = line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>');
-    if (f.trim().startsWith("- ") || f.trim().startsWith("• ")) {
-      f = `<span class="inline-block w-1.5 h-1.5 rounded-full bg-violet-400/40 mr-2 shrink-0 relative top-[-1px]"></span>${f.replace(/^[\s]*[-•]\s*/, "")}`;
-      return `<div class="flex items-start gap-0 ml-1 mb-1">${f}</div>`;
+function fmt(text: string): string {
+  const lines = text.split("\n");
+  const result: string[] = [];
+  let inCodeBlock = false;
+  let codeBlockLines: string[] = [];
+  let inTable = false;
+  let tableRows: string[][] = [];
+  let tableHeader: string[] | null = null;
+
+  function flushTable() {
+    if (tableRows.length === 0) return;
+    let html = `<table class="w-full text-[12px] border border-foreground/10 rounded-lg overflow-hidden my-3"><thead class="bg-foreground/[0.05]"><tr>`;
+    if (tableHeader) {
+      for (const cell of tableHeader) {
+        html += `<th class="px-3 py-2 text-left font-bold text-foreground/70 uppercase tracking-wider text-[10px] border-b border-foreground/10">${inlineFmt(cell.trim())}</th>`;
+      }
     }
-    if (/^\d+\.\s/.test(f.trim())) {
-      const n = f.trim().match(/^(\d+)\.\s/)?.[1];
-      f = f.replace(/^\s*\d+\.\s*/, "");
-      return `<div class="flex items-start gap-2 ml-1 mb-1"><span class="text-violet-400/60 font-mono text-[11px] font-bold min-w-[20px]">${n}.</span><span>${f}</span></div>`;
+    html += `</tr></thead><tbody>`;
+    for (const row of tableRows) {
+      html += `<tr class="border-b border-foreground/[0.05] hover:bg-foreground/[0.02]">`;
+      for (const cell of row) {
+        html += `<td class="px-3 py-2 text-foreground/70">${inlineFmt(cell.trim())}</td>`;
+      }
+      html += `</tr>`;
     }
-    if (f.trim() === "") return `<div class="h-2.5"></div>`;
-    return `<div class="mb-1">${f}</div>`;
-  }).join("");
+    html += `</tbody></table>`;
+    result.push(html);
+    tableRows = [];
+    tableHeader = null;
+    inTable = false;
+  }
+
+  function inlineFmt(s: string): string {
+    return s
+      .replace(/`([^`]+)`/g, '<code class="bg-foreground/[0.08] text-foreground/90 px-1.5 py-0.5 rounded text-[11px] font-mono">$1</code>')
+      .replace(/\*\*\*(.*?)\*\*\*/g, '<strong class="text-foreground font-bold"><em>$1</em></strong>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-violet-400 underline underline-offset-2 hover:text-violet-300" target="_blank" rel="noopener">$1</a>');
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Code block fence
+    if (line.trim().startsWith("```")) {
+      if (inCodeBlock) {
+        result.push(`<pre class="bg-foreground/[0.04] border border-foreground/[0.06] rounded-xl p-4 my-3 overflow-x-auto"><code class="text-[12px] font-mono text-foreground/80 leading-relaxed">${codeBlockLines.join("\n")}</code></pre>`);
+        codeBlockLines = [];
+        inCodeBlock = false;
+      } else {
+        if (inTable) flushTable();
+        inCodeBlock = true;
+      }
+      continue;
+    }
+    if (inCodeBlock) {
+      codeBlockLines.push(line.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+      continue;
+    }
+
+    // Table rows (pipe-delimited)
+    if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+      const cells = line.split("|").slice(1, -1);
+      // Check if this is a separator row (e.g. |---|---|)
+      if (cells.every(c => /^[\s:-]+$/.test(c))) {
+        continue; // skip separator
+      }
+      if (!inTable) {
+        inTable = true;
+        tableHeader = cells;
+      } else {
+        tableRows.push(cells);
+      }
+      continue;
+    } else if (inTable) {
+      flushTable();
+    }
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim()) || /^\*\*\*+$/.test(line.trim())) {
+      result.push(`<hr class="border-foreground/[0.08] my-4" />`);
+      continue;
+    }
+
+    // Headings
+    if (line.trim().startsWith("#### ")) {
+      result.push(`<h4 class="text-[13px] font-bold text-foreground/90 mt-4 mb-1.5 tracking-tight">${inlineFmt(line.trim().slice(5))}</h4>`);
+      continue;
+    }
+    if (line.trim().startsWith("### ")) {
+      result.push(`<h3 class="text-[14px] font-bold text-foreground mt-4 mb-2 tracking-tight">${inlineFmt(line.trim().slice(4))}</h3>`);
+      continue;
+    }
+    if (line.trim().startsWith("## ")) {
+      result.push(`<h2 class="text-[15px] font-bold text-foreground mt-5 mb-2 tracking-tight">${inlineFmt(line.trim().slice(3))}</h2>`);
+      continue;
+    }
+    if (line.trim().startsWith("# ")) {
+      result.push(`<h1 class="text-base font-bold text-foreground mt-5 mb-2 tracking-tight">${inlineFmt(line.trim().slice(2))}</h1>`);
+      continue;
+    }
+
+    // Blockquote
+    if (line.trim().startsWith("> ")) {
+      result.push(`<blockquote class="border-l-2 border-violet-400/30 pl-3 my-2 text-foreground/60 italic">${inlineFmt(line.trim().slice(2))}</blockquote>`);
+      continue;
+    }
+
+    // Bullet list item
+    if (line.trim().startsWith("- ") || line.trim().startsWith("• ")) {
+      const content = line.replace(/^[\s]*[-•]\s*/, "");
+      result.push(`<div class="flex items-start gap-2 ml-1 mb-1"><span class="inline-block w-1.5 h-1.5 rounded-full bg-violet-400/40 mt-[7px] shrink-0"></span><span>${inlineFmt(content)}</span></div>`);
+      continue;
+    }
+
+    // Numbered list item
+    if (/^\d+\.\s/.test(line.trim())) {
+      const n = line.trim().match(/^(\d+)\.\s/)?.[1];
+      const content = line.replace(/^\s*\d+\.\s*/, "");
+      result.push(`<div class="flex items-start gap-2 ml-1 mb-1"><span class="text-violet-400/60 font-mono text-[11px] font-bold min-w-[20px] mt-[2px]">${n}.</span><span>${inlineFmt(content)}</span></div>`);
+      continue;
+    }
+
+    // Empty line
+    if (line.trim() === "") {
+      result.push(`<div class="h-2.5"></div>`);
+      continue;
+    }
+
+    // Default paragraph
+    result.push(`<div class="mb-1">${inlineFmt(line)}</div>`);
+  }
+
+  // Flush any remaining table
+  if (inTable) flushTable();
+
+  return result.join("");
 }
 
 // ─── Action Log Sidebar ──────────────────────────
@@ -351,7 +474,7 @@ export default function AICommandCenterPage() {
               </button>
             </div>
             <div className="flex items-center justify-between mt-2.5 px-1">
-              <span className="text-[8px] font-bold text-foreground/15 uppercase tracking-[0.3em]">Powered by Claude · Sonnet 4</span>
+              <span className="text-[8px] font-bold text-foreground/15 uppercase tracking-[0.3em]">Powered by Claude · Opus 4</span>
               <span className="text-[8px] font-bold text-foreground/15 uppercase tracking-[0.3em]">
                 {messages.filter((m) => m.role === "user").length} messages
               </span>

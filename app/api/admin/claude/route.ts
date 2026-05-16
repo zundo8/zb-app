@@ -40,13 +40,15 @@ async function resolveApiKey(overrideKey?: string): Promise<string> {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { message, conversationHistory = [], sessionId, pageContext, contextData, overrideKey } = body as {
+    const { message, conversationHistory = [], sessionId, pageContext, contextData, overrideKey, imageBase64, imageMimeType } = body as {
       message: string;
       conversationHistory: ClaudeMessage[];
       sessionId?: string;
       pageContext?: string;
       contextData?: string;
       overrideKey?: string;
+      imageBase64?: string;
+      imageMimeType?: string;
     };
 
     const activeApiKey = await resolveApiKey(overrideKey);
@@ -63,7 +65,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!message?.trim()) {
+    if (!message?.trim() && !imageBase64) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
@@ -123,8 +125,18 @@ export async function POST(req: Request) {
     const MAX_ITERATIONS = 10;
     const toolActions: { tool: string; input: any; result: any; timestamp: string }[] = [];
 
-    // First iteration: send the user message
-    currentHistory.push({ role: "user" as const, content: message });
+    // First iteration: send the user message (with optional image)
+    const userText = message || "Analyze this image";
+    let userContent: string | ClaudeContentBlock[];
+    if (imageBase64) {
+      userContent = [
+        { type: "image", source: { type: "base64", media_type: imageMimeType || "image/jpeg", data: imageBase64 } },
+        { type: "text", text: userText },
+      ] as ClaudeContentBlock[];
+    } else {
+      userContent = userText;
+    }
+    currentHistory.push({ role: "user" as const, content: userContent });
 
     while (iterations < MAX_ITERATIONS) {
       iterations++;

@@ -50,10 +50,12 @@ export async function POST(req: Request) {
       conversationHistory = [], 
       userContext, 
       orderIdContext,
-      sessionId
+      sessionId,
+      imageBase64,
+      imageMimeType
     } = body;
 
-    if (!message?.trim()) {
+    if (!message?.trim() && !imageBase64) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
@@ -62,7 +64,7 @@ export async function POST(req: Request) {
       const session = await prisma.aIChatSession.create({
         data: {
           userId: userContext?.id || null,
-          title: message.substring(0, 50),
+          title: (message || "Image analysis").substring(0, 50),
         }
       });
       currentSessionId = session.id;
@@ -72,7 +74,7 @@ export async function POST(req: Request) {
       data: {
         sessionId: currentSessionId,
         role: "user",
-        content: message
+        content: message || "Analyze this image"
       }
     });
 
@@ -126,7 +128,19 @@ export async function POST(req: Request) {
     const MAX_ITERATIONS = 10;
     const toolActions: any[] = [];
 
-    currentHistory.push({ role: "user" as const, content: message });
+    // Build user content — supports image + text multi-part messages
+    const userText = message || "Analyze this image";
+    let userContent: string | ClaudeContentBlock[];
+    if (imageBase64) {
+      userContent = [
+        { type: "image", source: { type: "base64", media_type: imageMimeType || "image/jpeg", data: imageBase64 } },
+        { type: "text", text: userText },
+      ] as ClaudeContentBlock[];
+    } else {
+      userContent = userText;
+    }
+
+    currentHistory.push({ role: "user" as const, content: userContent });
 
     while (iterations < MAX_ITERATIONS) {
       iterations++;

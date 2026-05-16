@@ -7,6 +7,12 @@ const config = getDefaultConfig(__dirname);
 const extraAssetExts = ['woff', 'woff2', 'ttf', 'otf', 'glb', 'gltf'];
 config.resolver.assetExts = [...new Set([...config.resolver.assetExts, ...extraAssetExts])];
 
+// Polyfill Node built-in standard library 'punycode' with the userland npm package
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  punycode: require.resolve('punycode'),
+};
+
 // ─── Next.js Coexistence ────────────────────────────────────────────────
 // The parent directory contains a Next.js app (app.zicabella.com).
 // Prevent Metro from trying to bundle Next.js-specific files.

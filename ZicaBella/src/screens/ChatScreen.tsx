@@ -12,6 +12,8 @@ import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing, FadeInDown, FadeInUp,
 } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import Markdown from 'react-native-markdown-display';
 import { useColors } from '../constants/colors';
 import { useUIStore } from '../store/uiStore';
 import GlassHeader from '../components/GlassHeader';
@@ -38,9 +40,9 @@ interface Message {
 // ─── Quick prompts ───────────────────────────────
 
 const QUICK_PROMPTS = [
+  { label: 'Style tips', icon: 'sparkles-outline' },
   { label: 'Size guide', icon: 'shirt-outline' },
   { label: 'Track my order', icon: 'location-outline' },
-  { label: 'Return policy', icon: 'refresh-outline' },
   { label: 'Trending now', icon: 'flame-outline' },
 ];
 
@@ -55,14 +57,28 @@ async function callClaudeAPI(
   message: string,
   history: { role: string; content: string }[],
   userContext?: any,
-  sessionId?: string | null
+  sessionId?: string | null,
+  imageBase64?: string | null,
+  imageMimeType?: string | null
 ): Promise<{ response: string; conversationHistory: any[]; toolsUsed: number; sessionId?: string }> {
   const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
+
+  const payload: any = {
+    message,
+    conversationHistory: history,
+    userContext,
+    sessionId,
+  };
+
+  if (imageBase64) {
+    payload.imageBase64 = imageBase64;
+    payload.imageMimeType = imageMimeType || 'image/jpeg';
+  }
 
   const res = await fetch(`${APP_URL}/api/app/claude`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, conversationHistory: history, userContext, sessionId }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -87,11 +103,136 @@ async function callClaudeAPI(
   return res.json();
 }
 
+// ─── Markdown Styles ─────────────────────────────
+
+function buildMarkdownStyles(colors: any) {
+  return StyleSheet.create({
+    body: {
+      color: colors.text,
+      fontSize: 13,
+      lineHeight: 20,
+      letterSpacing: -0.2,
+    },
+    heading1: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: '700',
+      marginBottom: 8,
+      marginTop: 4,
+    },
+    heading2: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '700',
+      marginBottom: 6,
+      marginTop: 4,
+    },
+    heading3: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '700',
+      marginBottom: 4,
+      marginTop: 2,
+    },
+    strong: {
+      fontWeight: '700',
+      color: colors.text,
+    },
+    em: {
+      fontStyle: 'italic',
+    },
+    bullet_list: {
+      marginVertical: 4,
+    },
+    ordered_list: {
+      marginVertical: 4,
+    },
+    list_item: {
+      flexDirection: 'row',
+      marginVertical: 2,
+    },
+    bullet_list_icon: {
+      color: colors.textMuted,
+      fontSize: 13,
+      marginRight: 6,
+    },
+    ordered_list_icon: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: '600',
+      marginRight: 6,
+    },
+    table: {
+      borderWidth: 1,
+      borderColor: 'rgba(150,150,150,0.15)',
+      borderRadius: 8,
+      marginVertical: 8,
+    },
+    thead: {
+      backgroundColor: 'rgba(150,150,150,0.08)',
+    },
+    th: {
+      padding: 8,
+      fontWeight: '700',
+      fontSize: 11,
+      color: colors.text,
+    },
+    td: {
+      padding: 8,
+      fontSize: 11,
+      color: colors.text,
+      borderTopWidth: 1,
+      borderColor: 'rgba(150,150,150,0.1)',
+    },
+    code_inline: {
+      backgroundColor: 'rgba(150,150,150,0.1)',
+      color: colors.text,
+      fontSize: 12,
+      borderRadius: 4,
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    fence: {
+      backgroundColor: 'rgba(150,150,150,0.08)',
+      borderRadius: 8,
+      padding: 12,
+      marginVertical: 8,
+    },
+    code_block: {
+      color: colors.text,
+      fontSize: 12,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    blockquote: {
+      borderLeftWidth: 3,
+      borderLeftColor: 'rgba(150,150,150,0.2)',
+      paddingLeft: 12,
+      marginVertical: 6,
+      opacity: 0.85,
+    },
+    hr: {
+      backgroundColor: 'rgba(150,150,150,0.15)',
+      height: 1,
+      marginVertical: 12,
+    },
+    paragraph: {
+      marginVertical: 2,
+    },
+    link: {
+      color: colors.info || '#007AFF',
+      textDecorationLine: 'underline',
+    },
+  });
+}
+
 // ─── Message Bubble ──────────────────────────────
 
 const MessageBubble = memo(({ item }: { item: Message }) => {
   const isUser = item.isUser;
   const colors = useColors();
+  const mdStyles = buildMarkdownStyles(colors);
+
   return (
     <Animated.View
       entering={FadeInDown.duration(400).springify().damping(20)}
@@ -111,14 +252,20 @@ const MessageBubble = memo(({ item }: { item: Message }) => {
             transition={300}
           />
         )}
-        <Typography 
-            size={13} 
-            weight={isUser ? "500" : "400"} 
-            color={isUser ? colors.background : colors.text}
-            style={{ lineHeight: 20, letterSpacing: -0.2 }}
-        >
-          {item.content}
-        </Typography>
+        {isUser ? (
+          <Typography 
+              size={13} 
+              weight={"500"} 
+              color={colors.background}
+              style={{ lineHeight: 20, letterSpacing: -0.2 }}
+          >
+            {item.content}
+          </Typography>
+        ) : (
+          <Markdown style={mdStyles}>
+            {item.content}
+          </Markdown>
+        )}
         <View style={msgStyles.metaRow}>
           {item.toolsUsed ? (
             <Typography size={6} weight="800" color={isUser ? colors.background : colors.info} style={{ letterSpacing: 1, opacity: 0.8 }}>
@@ -145,6 +292,7 @@ const ChatScreen = memo(() => {
   const [conversationHistory, setConversationHistory] = useState<any[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
   const user = useAuthStore(s => s.user);
   const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
   const flatListRef = useRef<FlatList>(null);
@@ -190,25 +338,31 @@ const ChatScreen = memo(() => {
   );
 
   const handleSend = useCallback(async (text?: string) => {
-    if (!input.trim() && !text) {
+    if (!input.trim() && !text && !pendingImage) {
       setHistoryVisible(true);
       return;
     }
     const content = (text ?? input).trim();
-    if (!content || isTyping) return;
+    if ((!content && !pendingImage) || isTyping) return;
 
     setInput('');
     haptics.buttonTap();
 
+    const displayContent = content || 'Analyze this image';
     const userMsg: Message = {
       id: Date.now().toString(),
-      content,
+      content: displayContent,
       isUser: true,
       createdAt: new Date(),
+      image: pendingImage?.uri,
     };
 
     setMessages(prev => [...prev, userMsg]);
     setIsTyping(true);
+
+    // Capture and clear pending image before the async call
+    const imageToSend = pendingImage;
+    setPendingImage(null);
 
     try {
       const userContext = user ? {
@@ -218,7 +372,14 @@ const ChatScreen = memo(() => {
         phone: user.phone
       } : undefined;
 
-      const data = await callClaudeAPI(content, conversationHistory, userContext, currentSessionId);
+      const data = await callClaudeAPI(
+        content,
+        conversationHistory,
+        userContext,
+        currentSessionId,
+        imageToSend?.base64 || null,
+        imageToSend?.mimeType || null
+      );
       
       if (data.sessionId && !currentSessionId) {
         setCurrentSessionId(data.sessionId);
@@ -247,7 +408,7 @@ const ChatScreen = memo(() => {
     } finally {
       setIsTyping(false);
     }
-  }, [input, isTyping, conversationHistory, currentSessionId]);
+  }, [input, isTyping, conversationHistory, currentSessionId, pendingImage]);
 
   const handlePickImage = async () => {
     haptics.buttonTap();
@@ -281,17 +442,29 @@ const ChatScreen = memo(() => {
     );
   };
 
-  const processImageResult = (result: ImagePicker.ImagePickerResult) => {
+  const processImageResult = async (result: ImagePicker.ImagePickerResult) => {
     if (!result.canceled && result.assets[0]) {
-      const imgMsg: Message = {
-          id: Date.now().toString(),
-          content: "Shared an image.",
-          isUser: true,
-          createdAt: new Date(),
-          image: result.assets[0].uri
-      };
-      setMessages(prev => [...prev, imgMsg]);
-      haptics.success();
+      const asset = result.assets[0];
+      try {
+        // Read the image file and encode as base64 using the new File API
+        const file = new FileSystem.File(asset.uri);
+        const base64Data = await file.base64();
+        
+        // Detect MIME type from the URI extension
+        const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpeg';
+        const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+        const mimeType = mimeMap[ext] || 'image/jpeg';
+
+        setPendingImage({
+          uri: asset.uri,
+          base64: base64Data,
+          mimeType,
+        });
+        haptics.success();
+      } catch (err) {
+        console.error('Failed to encode image:', err);
+        Alert.alert('Error', 'Could not process the selected image.');
+      }
     }
   };
 
@@ -302,7 +475,7 @@ const ChatScreen = memo(() => {
           ZICA AI
         </Typography>
         <Typography weight="400" size={10} color={colors.textMuted} style={styles.onboardingSubtitle}>
-          {isAdmin ? 'OPERATIONS INTELLIGENCE ENGINE' : 'YOUR ARCHIVAL STYLE CONCIERGE'}
+          {isAdmin ? 'OPERATIONS INTELLIGENCE ENGINE' : 'YOUR PERSONAL STYLE CONCIERGE'}
         </Typography>
         <View style={styles.statusDot}>
           <View style={styles.dotGreen} />
@@ -371,6 +544,19 @@ const ChatScreen = memo(() => {
           </View>
         </View>
 
+        {/* Pending image preview */}
+        {pendingImage && (
+          <View style={[styles.pendingImageBar, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>
+            <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
+            <Typography size={10} weight="500" color={colors.textMuted} style={{ flex: 1, marginLeft: 10 }}>
+              Image ready to send
+            </Typography>
+            <TouchableOpacity onPress={() => setPendingImage(null)} style={styles.pendingImageRemove}>
+              <Ionicons name="close-circle" size={22} color={colors.textExtraLight} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>
           <View style={styles.attachRow}>
@@ -394,13 +580,13 @@ const ChatScreen = memo(() => {
               onPress={() => handleSend()}
               disabled={isTyping}
               style={[styles.sendButton, {
-                backgroundColor: input.trim() && !isTyping ? colors.foreground : 'transparent',
+                backgroundColor: (input.trim() || pendingImage) && !isTyping ? colors.foreground : 'transparent',
               }]}
             >
               <Ionicons 
-                name={input.trim() ? "arrow-up" : "time-outline"} 
+                name={(input.trim() || pendingImage) ? "arrow-up" : "time-outline"} 
                 size={18} 
-                color={input.trim() ? colors.background : colors.textExtraLight} 
+                color={(input.trim() || pendingImage) ? colors.background : colors.textExtraLight} 
               />
             </TouchableOpacity>
           </View>
@@ -424,7 +610,7 @@ const msgStyles = StyleSheet.create({
   row: { marginBottom: 16, flexDirection: 'row' },
   rowRight: { justifyContent: 'flex-end' },
   bubble: { 
-    maxWidth: width * 0.75, 
+    maxWidth: width * 0.78, 
     paddingHorizontal: 16, 
     paddingVertical: 12, 
     borderRadius: 24,
@@ -489,5 +675,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 2,
   },
+  pendingImageBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  pendingImageThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  pendingImageRemove: {
+    padding: 4,
+  },
 });
-
