@@ -14,7 +14,9 @@ import Animated, {
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import Markdown from 'react-native-markdown-display';
+import { BlurView } from 'expo-blur';
 import { useColors } from '../constants/colors';
+import { useThemeStore } from '../store/themeStore';
 import { useUIStore } from '../store/uiStore';
 import GlassHeader from '../components/GlassHeader';
 import { Typography } from '../components/Typography';
@@ -286,6 +288,8 @@ const MessageBubble = memo(({ item }: { item: Message }) => {
 const ChatScreen = memo(() => {
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -546,7 +550,14 @@ const ChatScreen = memo(() => {
 
         {/* Pending image preview */}
         {pendingImage && (
-          <View style={[styles.pendingImageBar, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>
+          <View style={[
+            styles.pendingImageBar, 
+            { 
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+              overflow: 'hidden',
+            }
+          ]}>
+            <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
             <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
             <Typography size={10} weight="500" color={colors.textMuted} style={{ flex: 1, marginLeft: 10 }}>
               Image ready to send
@@ -558,12 +569,19 @@ const ChatScreen = memo(() => {
         )}
 
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-          <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>
-          <View style={styles.attachRow}>
-            <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
-              <Ionicons name="camera-outline" size={20} color={colors.textExtraLight} />
-            </TouchableOpacity>
-          </View>
+          <View style={[
+            styles.inputPill, 
+            { 
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.08)',
+            }
+          ]}>
+            <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            
+            <View style={styles.attachRow}>
+              <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
+                <Ionicons name="camera-outline" size={20} color={colors.textExtraLight} />
+              </TouchableOpacity>
+            </View>
 
             <TextInput
               value={input}
@@ -649,7 +667,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   typingRow: { paddingHorizontal: 24, paddingBottom: 16, flexDirection: 'row', alignItems: 'center' },
-  inputBarWrapper: { paddingHorizontal: 16, paddingTop: 10 },
+  inputBarWrapper: { 
+    paddingHorizontal: 16, 
+    paddingTop: 10,
+    backgroundColor: 'transparent',
+  },
   inputPill: {
     flexDirection: 'row', 
     alignItems: 'center',
@@ -657,6 +679,12 @@ const styles = StyleSheet.create({
     padding: 4, 
     borderWidth: 1,
     minHeight: 52,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   attachRow: { flexDirection: 'row', paddingLeft: 8 },
   attachBtn: { padding: 6 },
@@ -684,6 +712,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   pendingImageThumb: {
     width: 44,
