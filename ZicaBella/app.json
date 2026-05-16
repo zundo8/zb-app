@@ -20,8 +20,8 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.zicabella.ios",
-      "appleTeamId": "94765P9PT9",
-      "buildNumber": "1",
+      "appleTeamId": "NZDV3AFAEG",
+      "buildNumber": "4",
       "deploymentTarget": "16.0",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Verify your identity to access your profile",
@@ -63,7 +63,6 @@
           "mode": "production"
         }
       ],
-
       [
         "expo-build-properties",
         {
@@ -77,7 +76,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "9ddd4bff-8a1b-460e-8427-72c6ccc1a284"
       },
       "appStoreMetadata": {
         "subtitle": "Fashion. Redefined.",
@@ -86,6 +85,7 @@
         "category": "Shopping",
         "ageRating": "4+"
       }
-    }
+    },
+    "owner": "zica-bella-organization"
   }
 }
