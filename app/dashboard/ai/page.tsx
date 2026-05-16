@@ -110,8 +110,26 @@ function ActionLogPanel({ actions }: { actions: ToolAction[] }) {
 export default function AICommandCenterPage() {
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [allActions, setAllActions] = useState<ToolAction[]>([]);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [health, setHealth] = useState<{ status: "loading" | "ok" | "error"; message?: string } | null>(null);
+
+  // Check AI Health on load
+  useEffect(() => {
+    async function checkHealth() {
+      setHealth({ status: "loading" });
+      try {
+        const res = await fetch("/api/admin/claude/health");
+        const data = await res.json();
+        if (data.status === "ok") {
+          setHealth({ status: "ok" });
+        } else {
+          setHealth({ status: "error", message: data.message });
+        }
+      } catch {
+        setHealth({ status: "error", message: "Failed to reach health endpoint." });
+      }
+    }
+    checkHealth();
+  }, []);
 
   const { messages, isLoading, sendMessage, clearChat, runBriefing, scrollRef } = useClaude({
     storageKey: "command-center",
@@ -155,9 +173,19 @@ export default function AICommandCenterPage() {
           </div>
           <div className="min-w-0">
             <h1 className="text-lg lg:text-xl font-bold text-foreground tracking-tight leading-none uppercase">AI Command Center</h1>
-            <div className="flex items-center gap-2 mt-0.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <p className="text-[9px] text-foreground/40 font-bold uppercase tracking-[0.2em]">Zica AI · Online</p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className={`w-1.5 h-1.5 rounded-full ${health?.status === "ok" ? "bg-emerald-500" : health?.status === "error" ? "bg-rose-500" : "bg-amber-500"} animate-pulse`} />
+              <p className="text-[9px] text-foreground/40 font-bold uppercase tracking-[0.2em]">
+                {health?.status === "ok" ? "Zica AI · Online" : health?.status === "error" ? "Zica AI · Configuration Error" : "Checking System..."}
+              </p>
+              {health?.status === "error" && (
+                <div className="group relative">
+                  <AlertCircle className="w-2.5 h-2.5 text-rose-500 cursor-help" />
+                  <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-background border border-rose-500/20 rounded-lg text-[8px] font-medium text-rose-400 shadow-xl z-50">
+                    {health.message}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
