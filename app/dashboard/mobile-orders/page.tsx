@@ -317,7 +317,7 @@ export default function MobileOrdersPage() {
                         </div>
 
                         <div className="col-span-2">
-                          <StatusBadge status={displayStatus} />
+                          <StatusBadge status={order.status === 'cancelled' ? 'cancelled' : (order.deliveryStatus || 'pending')} />
                         </div>
 
                         <div className="col-span-2 text-right flex items-center justify-end gap-4">

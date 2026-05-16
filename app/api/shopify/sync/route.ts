@@ -189,6 +189,8 @@ export async function POST() {
           
           if (o.cancelled_at) {
             finalStatus = 'cancelled';
+            deliveryStatus = 'cancelled';
+            o.fulfillment_status = 'cancelled';
           }
 
           const order = await prisma.order.upsert({

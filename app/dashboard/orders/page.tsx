@@ -396,7 +396,7 @@ export default function OrdersPage() {
                   </div>
 
                   <div className="col-span-2">
-                    <StatusBadge status={order.deliveryStatus || order.fulfillmentStatus || 'unfulfilled'} />
+                    <StatusBadge status={order.status === 'cancelled' ? 'cancelled' : (order.deliveryStatus || order.fulfillmentStatus || 'unfulfilled')} />
                   </div>
 
                   <div className="col-span-2 text-right flex items-center justify-end gap-6">
