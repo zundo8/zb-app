@@ -34,22 +34,40 @@ export async function POST(req: Request) {
     const { 
       message, 
       conversationHistory = [], 
-      userContext, // { name, email, phone, id }
-      orderIdContext // If user is looking at a specific order
+      userContext, 
+      orderIdContext,
+      sessionId
     } = body;
 
     if (!message?.trim()) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    // 1. Build personalized system prompt
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      const session = await prisma.aIChatSession.create({
+        data: {
+          userId: userContext?.id || null,
+          title: message.substring(0, 50),
+        }
+      });
+      currentSessionId = session.id;
+    }
+
+    await prisma.aIChatMessage.create({
+      data: {
+        sessionId: currentSessionId,
+        role: "user",
+        content: message
+      }
+    });
+
     let systemPrompt = ZICA_SYSTEM_PROMPT;
     
     if (userContext?.name) {
       systemPrompt += `\n\nYou are talking to the customer "${userContext.name}".`;
     }
     
-    // 2. Fetch recent orders for this user to provide context
     if (userContext?.id || userContext?.email || userContext?.phone) {
       try {
         const recentOrders = await prisma.order.findMany({
@@ -80,17 +98,38 @@ export async function POST(req: Request) {
           
           systemPrompt += `\n\nIf the customer asks "Where is my order?" or "Track my order", refer to these orders. Use get_shipment_details(order_id) for real-time tracking if they ask about a specific one.`;
         }
+        
+        // Load recent chat knowledge base for this user
+        const previousChats = await prisma.aIChatMessage.findMany({
+          where: { session: { userId: userContext.id } },
+          orderBy: { createdAt: "desc" },
+          take: 10
+        });
+        
+        if (previousChats.length > 0) {
+           systemPrompt += `\n\nPast interactions with this user (for context and learning):\n${previousChats.reverse().map(c => `${c.role}: ${c.content}`).join("\n")}`;
+        }
       } catch (err) {
-        console.error("[ZicaAI Mobile] Failed to fetch order context:", err);
+        console.error("[ZicaAI Mobile] Failed to fetch context:", err);
       }
     }
 
-    // 3. Inject specific order context if provided
+    // Knowledge base from other interactions
+    try {
+        const globalChats = await prisma.aIChatMessage.findMany({
+          where: { role: "user" },
+          orderBy: { createdAt: "desc" },
+          take: 5
+        });
+        if (globalChats.length > 0) {
+          systemPrompt += `\n\nRecent queries from all users (Use this to understand app usage trends and learn):\n${globalChats.map(c => `- ${c.content}`).join("\n")}`;
+        }
+    } catch(e) {}
+
     if (orderIdContext) {
       systemPrompt += `\n\nThe customer is currently viewing order ID: ${orderIdContext}. Focus on this order if they ask general questions.`;
     }
 
-    // ─── Agentic Loop ───
     let currentHistory: ClaudeMessage[] = [...conversationHistory];
     let iterations = 0;
     const MAX_ITERATIONS = 10;
@@ -115,8 +154,6 @@ export async function POST(req: Request) {
 
         for (const block of response.content) {
           if (block.type === "tool_use" && block.name && block.id) {
-            // Security: Limit tools for customers if needed
-            // For now, we allow all but you might want to restrict some
             const result = await executeClaudeTool(block.name, block.input || {});
             
             toolActions.push({ tool: block.name, input: block.input });
@@ -140,16 +177,31 @@ export async function POST(req: Request) {
 
       currentHistory.push({ role: "assistant" as const, content: textContent });
 
+      await prisma.aIChatMessage.create({
+        data: {
+          sessionId: currentSessionId,
+          role: "assistant",
+          content: textContent
+        }
+      });
+
       return NextResponse.json({
         response: textContent,
         conversationHistory: currentHistory,
         toolsUsed: toolActions.length,
+        sessionId: currentSessionId
       });
     }
 
+    const fallbackResponse = "I'm having trouble processing that right now. How else can I help?";
+    await prisma.aIChatMessage.create({
+      data: { sessionId: currentSessionId, role: "assistant", content: fallbackResponse }
+    });
+
     return NextResponse.json({
-      response: "I'm having trouble processing that right now. How else can I help?",
+      response: fallbackResponse,
       conversationHistory: currentHistory,
+      sessionId: currentSessionId
     });
   } catch (error: any) {
     console.error("[ZicaAI Mobile] Route error:", error);

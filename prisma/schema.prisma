@@ -1046,3 +1046,24 @@ model AuditLog {
   @@index([timestamp])
 }
 
+model AIChatSession {
+  id        String          @id @default(cuid())
+  userId    String?
+  title     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  messages  AIChatMessage[]
+
+  @@index([userId])
+}
+
+model AIChatMessage {
+  id        String        @id @default(cuid())
+  sessionId String
+  role      String
+  content   String
+  createdAt DateTime      @default(now())
+  session   AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}

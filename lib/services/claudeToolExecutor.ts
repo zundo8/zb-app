@@ -72,6 +72,8 @@ export async function executeClaudeTool(
         return await getShipmentDetails(toolInput.order_id);
       case "get_ai_action_log":
         return await getAIActionLog(toolInput.limit);
+      case "get_app_user_chats":
+        return await getAppUserChats(toolInput.limit);
       default:
         return JSON.stringify({ error: `Unknown tool: ${toolName}` });
     }
@@ -597,6 +599,29 @@ async function getAIActionLog(limit?: number): Promise<string> {
       entityId: l.entityId,
       details: l.details,
       timestamp: l.createdAt,
+    }))
+  );
+}
+
+// ─── App User Chats (NEW) ────────────────────────
+async function getAppUserChats(limit?: number): Promise<string> {
+  const chats = await prisma.aIChatMessage.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit || 20,
+    include: {
+      session: {
+        select: { userId: true, title: true }
+      }
+    }
+  });
+
+  return JSON.stringify(
+    chats.map((c: any) => ({
+      role: c.role,
+      content: c.content,
+      userId: c.session?.userId || "Guest",
+      title: c.session?.title,
+      timestamp: c.createdAt
     }))
   );
 }

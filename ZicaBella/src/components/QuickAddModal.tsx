@@ -43,9 +43,20 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
   const [sizeError, setSizeError] = useState(false);
   const [sizeChartVisible, setSizeChartVisible] = useState(false);
 
-  const sizes = product?.variants
+  const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', 'ONE SIZE'];
+  const sortSizes = (a: string, b: string) => {
+    const idxA = sizeOrder.indexOf(a.toUpperCase());
+    const idxB = sizeOrder.indexOf(b.toUpperCase());
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  };
+
+  const sizes = (product?.variants
     ?.map((v) => ({ size: v.size ?? "One Size", variantId: String(v.id) }))
-    .filter((v, i, a) => a.findIndex((x) => x.size === v.size) === i) || [];
+    .filter((v, i, a) => a.findIndex((x) => x.size === v.size) === i) || [])
+    .sort((a, b) => sortSizes(a.size, b.size));
 
   const price = product?.price || 0;
   const image = resolveImageUrl(product?.featuredImage);
@@ -106,6 +117,16 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
   };
 
   const handleAdd = () => {
+    // Strictly require login for adding to bag
+    if (!isAuthenticated) {
+      haptics.buttonTap();
+      Alert.alert('Sign In Required', 'Please sign in to add products to your bag.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => { onClose(); navigation.navigate('Auth'); } }
+      ]);
+      return;
+    }
+
     // Strictly require size selection when product has variants
     if (needsSize && !selectedSize) {
       setSizeError(true);

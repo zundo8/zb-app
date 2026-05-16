@@ -238,8 +238,19 @@ export default function ProductDetailScreen() {
       if (v.size) sizesSet.add(v.size);
       if (v.color) colorsSet.add(v.color);
     });
+
+    const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', 'ONE SIZE'];
+    const sortSizes = (a: string, b: string) => {
+      const idxA = sizeOrder.indexOf(a.toUpperCase());
+      const idxB = sizeOrder.indexOf(b.toUpperCase());
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    };
+
     return { 
-      sizes: Array.from(sizesSet).sort(), 
+      sizes: Array.from(sizesSet).sort(sortSizes), 
       colors: Array.from(colorsSet).sort() 
     };
   }, [product]);
@@ -263,6 +274,16 @@ export default function ProductDetailScreen() {
   const handleAddToCart = () => {
     if (!product) return;
     if (!requireSize()) return;
+
+    if (!isAuthenticated) {
+      haptics.buttonTap();
+      Alert.alert('Sign In Required', 'Please sign in to add products to your bag and access your cart.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => navigation.navigate('Auth') }
+      ]);
+      return;
+    }
+
     const variant = product.variants.find(v => 
       (v.size === selectedSize || !v.size) && 
       (v.color === selectedColor || !v.color)

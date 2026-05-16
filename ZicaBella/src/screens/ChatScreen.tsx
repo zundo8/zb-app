@@ -18,6 +18,7 @@ import GlassHeader from '../components/GlassHeader';
 import { Typography } from '../components/Typography';
 import { haptics } from '../utils/haptics';
 import { useAuthStore } from '../store/authStore';
+import { ChatHistoryModal } from './ChatHistoryModal';
 
 const { width } = Dimensions.get('window');
 
@@ -52,14 +53,15 @@ const ADMIN_QUICK_PROMPTS = [
 async function callClaudeAPI(
   message: string,
   history: { role: string; content: string }[],
-  userContext?: any
-): Promise<{ response: string; conversationHistory: any[]; toolsUsed: number }> {
+  userContext?: any,
+  sessionId?: string | null
+): Promise<{ response: string; conversationHistory: any[]; toolsUsed: number; sessionId?: string }> {
   const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
 
   const res = await fetch(`${APP_URL}/api/app/claude`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, conversationHistory: history, userContext }),
+    body: JSON.stringify({ message, conversationHistory: history, userContext, sessionId }),
   });
 
   if (!res.ok) {
@@ -126,11 +128,41 @@ const ChatScreen = memo(() => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<any[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [historyVisible, setHistoryVisible] = useState(false);
   const user = useAuthStore(s => s.user);
   const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
   const flatListRef = useRef<FlatList>(null);
 
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
+
+  const loadSession = async (sessionId: string) => {
+    try {
+      const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
+      const res = await fetch(`${APP_URL}/api/app/claude/history/${sessionId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const loadedMessages: Message[] = data.messages.map((m: any) => ({
+          id: m.id,
+          content: m.content,
+          isUser: m.role === 'user',
+          createdAt: new Date(m.createdAt),
+        }));
+        setMessages(loadedMessages);
+        
+        // Also map to Claude format history
+        const claudeHistory = data.messages.map((m: any) => ({
+          role: m.role,
+          content: m.content
+        }));
+        setConversationHistory(claudeHistory);
+        setCurrentSessionId(sessionId);
+        setHistoryVisible(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -143,6 +175,10 @@ const ChatScreen = memo(() => {
   );
 
   const handleSend = useCallback(async (text?: string) => {
+    if (!input.trim() && !text) {
+      setHistoryVisible(true);
+      return;
+    }
     const content = (text ?? input).trim();
     if (!content || isTyping) return;
 
@@ -167,7 +203,11 @@ const ChatScreen = memo(() => {
         phone: user.phone
       } : undefined;
 
-      const data = await callClaudeAPI(content, conversationHistory, userContext);
+      const data = await callClaudeAPI(content, conversationHistory, userContext, currentSessionId);
+      
+      if (data.sessionId && !currentSessionId) {
+        setCurrentSessionId(data.sessionId);
+      }
 
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -192,26 +232,42 @@ const ChatScreen = memo(() => {
     } finally {
       setIsTyping(false);
     }
-  }, [input, isTyping, conversationHistory]);
+  }, [input, isTyping, conversationHistory, currentSessionId]);
 
-  const handlePickImage = async (mode: 'camera' | 'library') => {
+  const handlePickImage = async () => {
     haptics.buttonTap();
-    const permission = mode === 'camera' 
-      ? await ImagePicker.requestCameraPermissionsAsync() 
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    Alert.alert(
+      "Upload Media",
+      "Choose a source",
+      [
+        {
+          text: "Camera",
+          onPress: async () => {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) return Alert.alert('Permission denied', 'Camera access is required.');
+            const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true });
+            processImageResult(result);
+          }
+        },
+        {
+          text: "Photo Library",
+          onPress: async () => {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) return Alert.alert('Permission denied', 'Library access is required.');
+            const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true });
+            processImageResult(result);
+          }
+        },
+        {
+          text: "Cancel",
+          style: "cancel"
+        }
+      ]
+    );
+  };
 
-    if (!permission.granted) {
-      Alert.alert('Permission denied', `Access to ${mode === 'camera' ? 'camera' : 'library'} is required.`);
-      return;
-    }
-
-    const result = mode === 'camera'
-      ? await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true })
-      : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true });
-
+  const processImageResult = (result: ImagePicker.ImagePickerResult) => {
     if (!result.canceled && result.assets[0]) {
-      // In a real app, upload result.assets[0].uri to storage and get URL
-      // For now, we simulate sending an image message
       const imgMsg: Message = {
           id: Date.now().toString(),
           content: "Shared an image.",
@@ -303,11 +359,8 @@ const ChatScreen = memo(() => {
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={[styles.inputPill, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}>
           <View style={styles.attachRow}>
-            <TouchableOpacity style={styles.attachBtn} onPress={() => handlePickImage('camera')}>
+            <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
               <Ionicons name="camera-outline" size={20} color={colors.textExtraLight} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.attachBtn} onPress={() => handlePickImage('library')}>
-              <Ionicons name="image-outline" size={20} color={colors.textExtraLight} />
             </TouchableOpacity>
           </View>
 
@@ -324,16 +377,26 @@ const ChatScreen = memo(() => {
 
             <TouchableOpacity
               onPress={() => handleSend()}
-              disabled={!input.trim() || isTyping}
+              disabled={isTyping}
               style={[styles.sendButton, {
-                backgroundColor: input.trim() && !isTyping ? colors.foreground : 'rgba(150,150,150,0.05)',
+                backgroundColor: input.trim() && !isTyping ? colors.foreground : 'transparent',
               }]}
             >
-              <Ionicons name="arrow-up" size={16} color={input.trim() ? colors.background : colors.textExtraLight} />
+              <Ionicons 
+                name={input.trim() ? "arrow-up" : "time-outline"} 
+                size={18} 
+                color={input.trim() ? colors.background : colors.textExtraLight} 
+              />
             </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <ChatHistoryModal 
+        visible={historyVisible} 
+        onClose={() => setHistoryVisible(false)} 
+        onSelectSession={loadSession} 
+      />
     </View>
   );
 });

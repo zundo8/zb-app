@@ -346,6 +346,17 @@ export const ZICA_TOOLS: ClaudeTool[] = [
       },
     },
   },
+  // ─── App User Chats ────────
+  {
+    name: "get_app_user_chats",
+    description: "Fetch recent chat history of Zica AI with app users. Use this to understand what customers are asking and how the AI is performing as a knowledge base.",
+    input_schema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Number of recent chat messages to fetch. Default 20." },
+      },
+    },
+  },
 ];
 
 // ─── Call Claude API (server-side only) ──────────

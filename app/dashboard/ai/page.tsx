@@ -20,6 +20,7 @@ const QUICK_COMMANDS = [
   { label: "Vendor Directory", prompt: "List all manufacturing vendors grouped by category with contact info.", icon: Building2, color: "from-indigo-500/20 to-blue-500/20", text: "text-indigo-400" },
   { label: "Cost Analysis", prompt: "Show manufacturing cost breakdown — total expenses and per-batch costs. Flag anomalies.", icon: DollarSign, color: "from-lime-500/20 to-green-500/20", text: "text-lime-400" },
   { label: "Returns & Exchanges", prompt: "Show all pending returns and exchanges. Suggest next actions.", icon: Undo2, color: "from-sky-500/20 to-blue-500/20", text: "text-sky-400" },
+  { label: "User Chats", prompt: "Show recent chats between Zica AI and app users.", icon: Sparkles, color: "from-indigo-500/20 to-blue-500/20", text: "text-indigo-400" },
 ];
 
 // ─── Tool label map ──────────────────────────────
@@ -42,6 +43,7 @@ const TOOL_LABELS: Record<string, { label: string; icon: string }> = {
   generate_daily_briefing: { label: "Briefing generated", icon: "☀️" },
   send_push_notification: { label: "Push notification sent", icon: "🔔" },
   get_ai_action_log: { label: "Action log fetched", icon: "📜" },
+  get_app_user_chats: { label: "User chats fetched", icon: "💬" },
 };
 
 // ─── Markdown formatter ──────────────────────────

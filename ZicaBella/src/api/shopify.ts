@@ -61,6 +61,27 @@ export async function apiFetch<T>(
       // Handle 401 — token expired or invalid
       if (response.status === 401) {
         useAuthStore.getState().logout();
+        
+        // If it was a GET request (presumably public data), retry once without token
+        const reqMethod = fetchOptions.method || 'GET';
+        if (reqMethod === 'GET') {
+          const retryHeaders = { ...fetchOptions.headers } as Record<string, string>;
+          delete retryHeaders['Authorization'];
+          delete retryHeaders['authorization'];
+          
+          const retryRes = await fetch(url, {
+            method: reqMethod,
+            headers: retryHeaders,
+          });
+          
+          if (retryRes.ok) {
+            const contentType = retryRes.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+              return await retryRes.json();
+            }
+          }
+        }
+        
         throw new Error('Session expired. Please log in again.');
       }
 

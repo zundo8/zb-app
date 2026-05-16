@@ -66,7 +66,10 @@ const HomeScreen = React.memo(() => {
 
   React.useEffect(() => {
     // Delay rendering heavy sections below the fold to avoid locking the UI thread and overheating on launch
+    let isCancelled = false;
+    
     const task = InteractionManager.runAfterInteractions(() => {
+      if (isCancelled) return;
       setRenderBelowFold(true);
       
       // Cache warm-up: Prefetch top 2 collections silently
@@ -76,12 +79,21 @@ const HomeScreen = React.memo(() => {
         const { ENDPOINTS } = require('../api/queries');
         
         topHandles.forEach(handle => {
-          // Fire and forget; the apiFetch deduplication and cacheService inside hooks will handle the rest
           apiGet(ENDPOINTS.collectionByHandle(handle), { limit: '50', fields: 'id,title,handle,priceRange,featuredImage' }).catch(() => {});
         });
       }
     });
-    return () => task.cancel();
+
+    // Safety fallback: Ensure below-fold content renders after 1.5s regardless of interactions
+    const safetyTimer = setTimeout(() => {
+      if (!isCancelled) setRenderBelowFold(true);
+    }, 1500);
+
+    return () => {
+      isCancelled = true;
+      task.cancel();
+      clearTimeout(safetyTimer);
+    };
   }, [collections]);
 
   const onRefresh = useCallback(async () => {
@@ -175,7 +187,7 @@ const HomeScreen = React.memo(() => {
             </View>
           )}
 
-          {!loading && (products.length === 0 || error) && (
+          {!loading && products.length === 0 && (
             <View style={styles.errorContainer}>
               <Typography size={10} color={colors.textSecondary} style={styles.errorText}>
                 {error || "Unable to load products right now. Please try again shortly."}
