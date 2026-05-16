@@ -281,6 +281,7 @@ const HomeScreen = React.memo(() => {
                 title={settings?.spotlight?.title || "AUTHENTIC STREETWEAR"} 
                 subtitle={settings?.spotlight?.subtitle}
                 media={settings?.spotlight?.media}
+                refreshing={homeLoading}
               />
 
               {/* ═══ PRODUCT GRID 3 ═══ */}

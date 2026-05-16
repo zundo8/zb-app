@@ -134,10 +134,10 @@ export async function fetchCollections() {
 export async function fetchCollectionProducts(handle: string, limit: number = 20, cursor?: string) {
   try {
     const data = await shopifyStorefrontFetch<any>(STOREFRONT_QUERIES.collectionProducts, { handle, first: limit, cursor });
-    return data?.collection?.products || { edges: [] };
+    return data?.collection || { products: { edges: [] } };
   } catch (err) {
     console.error('fetchCollectionProducts error:', err);
-    return { edges: [] };
+    return { products: { edges: [] } };
   }
 }
 

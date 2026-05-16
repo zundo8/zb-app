@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
         return {
           collections,
-          accessories: accessories?.edges?.map((e: any) => e.node) || [],
+          accessories: accessories?.products?.edges?.map((e: any) => e.node) || [],
           products: productsResp || []
         };
       },

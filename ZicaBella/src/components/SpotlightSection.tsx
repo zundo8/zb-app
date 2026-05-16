@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
@@ -20,13 +20,15 @@ interface Props {
   subtitle?: string;
   collectionHandle?: string;
   media?: string;
+  refreshing?: boolean;
 }
 
 const SpotlightSection = React.memo(({ 
   title,
   subtitle,
   collectionHandle,
-  media
+  media,
+  refreshing
 }: Props) => {
   const navigation = useNavigation<any>();
   const colors = useColors();
@@ -36,10 +38,16 @@ const SpotlightSection = React.memo(({
 
   const resolvedTitle = title || settings?.spotlight?.title || "AUTHENTIC STREETWEAR";
   const resolvedSubtitle = subtitle || settings?.spotlight?.subtitle || "Luxury Indian streetwear for modern men. Redefining bold everyday style.";
-  const resolvedCollectionHandle = collectionHandle || settings?.spotlight?.collection || "tshirts";
+  const resolvedCollectionHandle = collectionHandle || settings?.spotlight?.collection || "all";
   const resolvedMedia = media || settings?.media?.featured;
 
-  const { products, loading } = useCollectionByHandle(resolvedCollectionHandle);
+  const { products, loading, refetch } = useCollectionByHandle(resolvedCollectionHandle);
+
+  useEffect(() => {
+    if (refreshing) {
+      refetch();
+    }
+  }, [refreshing, refetch]);
 
   if (loading && products.length === 0) {
     return (
