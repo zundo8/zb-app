@@ -19,6 +19,7 @@ import { Typography } from '../components/Typography';
 import { haptics } from '../utils/haptics';
 import { useAuthStore } from '../store/authStore';
 import { ChatHistoryModal } from './ChatHistoryModal';
+import { sendZicaAIMessage, ChatMessage as ZicaAIChatMessage } from '../services/zicaAI';
 
 const { width } = Dimensions.get('window');
 
@@ -65,8 +66,22 @@ async function callClaudeAPI(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Network error' }));
-    throw new Error(err.error || `Server error ${res.status}`);
+    // Fallback: try the standalone /api/zica-ai endpoint
+    const zicaMessages: ZicaAIChatMessage[] = [
+      ...history.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
+      { role: 'user' as const, content: message },
+    ];
+    try {
+      const fallbackReply = await sendZicaAIMessage(zicaMessages);
+      return {
+        response: fallbackReply,
+        conversationHistory: [...history, { role: 'user', content: message }, { role: 'assistant', content: fallbackReply }],
+        toolsUsed: 0,
+      };
+    } catch {
+      const err = await res.json().catch(() => ({ error: 'Network error' }));
+      throw new Error(err.error || `Server error ${res.status}`);
+    }
   }
 
   return res.json();

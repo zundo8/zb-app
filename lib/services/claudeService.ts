@@ -10,7 +10,7 @@ export type { ClaudeMessage, ClaudeResponse, ClaudeContentBlock };
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
 // Use a stable, high-performance model
-const MODEL = "claude-3-5-sonnet-20241022"; 
+const MODEL = "claude-sonnet-4-6"; 
 
 export interface ClaudeTool {
   name: string;
@@ -153,12 +153,7 @@ export const ZICA_TOOLS: any[] = [
 import Anthropic from "@anthropic-ai/sdk";
 
 const MODELS = [
-  "claude-3-5-sonnet-latest",
-  "claude-3-5-sonnet-20241022", 
-  "claude-3-5-sonnet-20240620", 
-  "claude-3-sonnet-20240229",
-  "claude-3-haiku-20240307",
-  "claude-3-opus-20240229"
+  "claude-sonnet-4-6",
 ];
 
 export async function callClaude({
