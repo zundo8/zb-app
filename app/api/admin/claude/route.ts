@@ -15,6 +15,7 @@ import {
 } from "@/lib/services/claudeService";
 import { executeClaudeTool } from "@/lib/services/claudeToolExecutor";
 import prisma from "@/lib/db";
+import { getAISettings } from "@/lib/ai-settings-util";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -90,7 +91,16 @@ export async function POST(req: Request) {
     });
 
     // Build context-aware system prompt
+    const aiSettings = getAISettings();
     let systemPrompt = ZICA_SYSTEM_PROMPT;
+    
+    if (aiSettings.trainingRules && aiSettings.trainingRules.length > 0) {
+      systemPrompt += `\n\nADDITIONAL DYNAMIC KNOWLEDGE & MEMORY:\nYou have been trained with the following additional custom operational instructions and knowledge. You MUST follow them strictly:\n`;
+      aiSettings.trainingRules.forEach((rule: any) => {
+        systemPrompt += `- ${rule.prompt}\n`;
+      });
+    }
+
     if (pageContext) {
       systemPrompt += `\n\nThe admin is currently viewing the "${pageContext}" page.`;
     }

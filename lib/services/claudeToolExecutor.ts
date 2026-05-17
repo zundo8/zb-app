@@ -34,7 +34,7 @@ export async function executeClaudeTool(
 
     // Defense-in-depth: Secure access from non-admins
     const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
-    if (userContext && !isAdmin) {
+    if (!isAdmin) {
       const allowedUserTools = ["get_shipment_details", "get_payment_details", "get_orders_summary"];
       if (!allowedUserTools.includes(toolName)) {
         return JSON.stringify({ error: `Access Denied: The tool '${toolName}' is restricted to Zica Bella Administrators.` });
@@ -435,12 +435,17 @@ async function getOrdersSummary(limit?: number, status?: string, userContext?: a
   if (status) whereClause.deliveryStatus = status;
 
   // Restrict orders to only the specific user's orders if not admin
-  if (userContext && !isAdmin) {
+  if (!isAdmin) {
     const userOrFilters = [
-      userContext.id ? { customerId: userContext.id } : null,
-      userContext.email ? { customer: { email: userContext.email } } : null,
-      userContext.phone ? { customer: { phone: userContext.phone } } : null,
+      userContext?.id ? { customerId: userContext.id } : null,
+      userContext?.email ? { customer: { email: userContext.email } } : null,
+      userContext?.phone ? { customer: { phone: userContext.phone } } : null,
     ].filter(Boolean);
+
+    if (userOrFilters.length === 0) {
+      // Guest or unauthenticated client has zero orders!
+      return JSON.stringify([]);
+    }
 
     whereClause.AND = [
       { OR: userOrFilters },
@@ -789,13 +794,14 @@ async function getPaymentDetails(orderId: string, userContext?: any): Promise<st
 
   if (!order) return JSON.stringify({ error: `Order ${orderId} not found` });
 
-  // Security check: If not admin and userContext is provided, check if it belongs to the user
+  // Security check: Enforce ownership or admin access
   const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
-  if (userContext && !isAdmin) {
-    const isOwner = 
+  if (!isAdmin) {
+    const isOwner = userContext && (
       order.customerId === userContext.id || 
       (userContext.email && order.customer?.email === userContext.email) ||
-      (userContext.phone && order.customer?.phone === userContext.phone);
+      (userContext.phone && order.customer?.phone === userContext.phone)
+    );
     if (!isOwner) {
       return JSON.stringify({ error: "Access Denied: You do not have permission to view this order's payment details." });
     }
@@ -833,11 +839,12 @@ async function getShipmentDetails(orderId: string, userContext?: any): Promise<s
   if (!order) return JSON.stringify({ error: `Order ${orderId} not found` });
 
   const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
-  if (userContext && !isAdmin) {
-    const isOwner = 
+  if (!isAdmin) {
+    const isOwner = userContext && (
       order.customerId === userContext.id || 
       (userContext.email && order.customer?.email === userContext.email) ||
-      (userContext.phone && order.customer?.phone === userContext.phone);
+      (userContext.phone && order.customer?.phone === userContext.phone)
+    );
     if (!isOwner) {
       return JSON.stringify({ error: "Access Denied: You do not have permission to view this order's shipment details." });
     }
