@@ -39,7 +39,8 @@ import {
   Tag,
   History,
   Heart,
-  Wallet
+  Wallet,
+  Bot
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -111,7 +112,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   const intelligenceNav = [
-    { name: "Zica AI", href: "/dashboard/ai", icon: Sparkles, module: 'AI_SERVICES' },
+    { name: "Zica AI Hub", href: "/dashboard/ai", icon: Sparkles, module: 'AI_SERVICES' },
+    { name: "Zica AI - Admin", href: "/dashboard/ai/admin", icon: Settings, module: 'AI_SERVICES' },
+    { name: "Zica AI - User", href: "/dashboard/ai/user", icon: Bot, module: 'AI_SERVICES' },
   ];
 
   const manufacturingNav = [

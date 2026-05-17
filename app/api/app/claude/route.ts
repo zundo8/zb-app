@@ -18,6 +18,7 @@ import {
 } from "@/lib/services/claudeService";
 import { executeClaudeTool } from "@/lib/services/claudeToolExecutor";
 import prisma from "@/lib/db";
+import { getAISettings } from "@/lib/ai-settings-util";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -78,14 +79,20 @@ export async function POST(req: Request) {
       }
     });
 
-    let systemPrompt = ZICA_SYSTEM_PROMPT;
-    
+    const aiSettings = getAISettings();
     const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
+    const settings = isAdmin ? aiSettings.admin : aiSettings.user;
+
+    let systemPrompt = ZICA_SYSTEM_PROMPT;
 
     if (!isAdmin) {
       systemPrompt += `\n\nCRITICAL SECURITY INSTRUCTION: You are speaking to a customer. Under NO circumstances should you reveal any internal store financials, total sales, other customers' data, full order histories of the store, or backend operational details. If asked, politely decline and state that you are a fashion assistant.`;
     } else {
       systemPrompt += `\n\nYou are speaking to a Zica Bella Administrator. You have full access to operations, financial data, and production tools.`;
+    }
+
+    if (settings.allowedPages && settings.allowedPages.length > 0) {
+      systemPrompt += `\n\nCRITICAL CONTEXT - ALLOWED NAVIGATION PAGES: You are only allowed to refer to, recommend, or direct the user to the following pages or sections: ${settings.allowedPages.join(", ")}. Do NOT mention, suggest, or try to navigate the user to any other sections outside of this list.`;
     }
     
     if (userContext?.name) {
@@ -190,15 +197,7 @@ export async function POST(req: Request) {
 
     currentHistory.push({ role: "user" as const, content: userContent });
 
-    const adminTools = [
-      "get_dashboard_summary", "generate_daily_briefing", "get_production_batches",
-      "advance_production_stage", "get_pending_tasks", "create_task", "get_fabric_inventory",
-      "get_low_stock_products", "get_orders_summary", "send_push_notification", "send_email_notification"
-    ];
-    
-    const availableTools = isAdmin 
-      ? ZICA_TOOLS 
-      : ZICA_TOOLS.filter(t => !adminTools.includes(t.name));
+    const availableTools = ZICA_TOOLS.filter(t => settings.enabledTools.includes(t.name));
 
     while (iterations < MAX_ITERATIONS) {
       iterations++;
@@ -217,7 +216,7 @@ export async function POST(req: Request) {
 
         for (const block of response.content) {
           if (block.type === "tool_use" && block.name && block.id) {
-            const result = await executeClaudeTool(block.name, block.input || {});
+            const result = await executeClaudeTool(block.name, block.input || {}, userContext);
             
             const parsedResult = JSON.parse(result);
             const isError = parsedResult.error !== undefined;

@@ -25,11 +25,21 @@ const ACTOR = "Zica AI";
  */
 export async function executeClaudeTool(
   toolName: string,
-  toolInput: Record<string, any>
+  toolInput: Record<string, any>,
+  userContext?: any
 ): Promise<string> {
   try {
     // Log every tool call for audit trail
     await logAIAction(toolName, toolInput);
+
+    // Defense-in-depth: Secure access from non-admins
+    const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
+    if (userContext && !isAdmin) {
+      const allowedUserTools = ["get_shipment_details", "get_payment_details", "get_orders_summary"];
+      if (!allowedUserTools.includes(toolName)) {
+        return JSON.stringify({ error: `Access Denied: The tool '${toolName}' is restricted to Zica Bella Administrators.` });
+      }
+    }
 
     switch (toolName) {
       case "get_dashboard_summary":
@@ -49,7 +59,7 @@ export async function executeClaudeTool(
       case "get_vendors":
         return await getVendors(toolInput.category);
       case "get_orders_summary":
-        return await getOrdersSummary(toolInput.limit, toolInput.status);
+        return await getOrdersSummary(toolInput.limit, toolInput.status, userContext);
       case "update_order_status":
         return await updateOrderStatus(toolInput);
       case "get_returns_exchanges":
@@ -67,9 +77,9 @@ export async function executeClaudeTool(
       case "send_email_notification":
         return await sendEmailNotification(toolInput);
       case "get_payment_details":
-        return await getPaymentDetails(toolInput.order_id);
+        return await getPaymentDetails(toolInput.order_id, userContext);
       case "get_shipment_details":
-        return await getShipmentDetails(toolInput.order_id);
+        return await getShipmentDetails(toolInput.order_id, userContext);
       case "get_ai_action_log":
         return await getAIActionLog(toolInput.limit);
       case "get_app_user_chats":
@@ -419,10 +429,23 @@ async function createReorderRequest(input: Record<string, any>): Promise<string>
 
 // ─── Orders ──────────────────────────────────────
 
-async function getOrdersSummary(limit?: number, status?: string): Promise<string> {
+async function getOrdersSummary(limit?: number, status?: string, userContext?: any): Promise<string> {
+  const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
+  const whereClause: any = {};
+  if (status) whereClause.deliveryStatus = status;
+
+  // Restrict orders to only the specific user's orders if not admin
+  if (userContext && !isAdmin) {
+    whereClause.OR = [
+      userContext.id ? { customerId: userContext.id } : null,
+      userContext.email ? { customer: { email: userContext.email } } : null,
+      userContext.phone ? { customer: { phone: userContext.phone } } : null,
+    ].filter(Boolean);
+  }
+
   const orders = await prisma.order.findMany({
     take: limit || 10,
-    where: status ? { deliveryStatus: status } : {},
+    where: whereClause,
     orderBy: { createdAt: "desc" },
     include: {
       customer: { select: { name: true, email: true, phone: true } },
@@ -729,13 +752,15 @@ async function sendEmailNotification(input: Record<string, any>): Promise<string
 
 // ─── Payment Details (NEW) ────────────────────────
 
-async function getPaymentDetails(orderId: string): Promise<string> {
+async function getPaymentDetails(orderId: string, userContext?: any): Promise<string> {
   if (!orderId) return JSON.stringify({ error: "order_id is required" });
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: {
       id: true,
+      customerId: true,
+      customer: { select: { email: true, phone: true } },
       shopifyOrderId: true,
       paymentStatus: true,
       paymentMethod: true,
@@ -749,6 +774,18 @@ async function getPaymentDetails(orderId: string): Promise<string> {
   });
 
   if (!order) return JSON.stringify({ error: `Order ${orderId} not found` });
+
+  // Security check: If not admin and userContext is provided, check if it belongs to the user
+  const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
+  if (userContext && !isAdmin) {
+    const isOwner = 
+      order.customerId === userContext.id || 
+      (userContext.email && order.customer?.email === userContext.email) ||
+      (userContext.phone && order.customer?.phone === userContext.phone);
+    if (!isOwner) {
+      return JSON.stringify({ error: "Access Denied: You do not have permission to view this order's payment details." });
+    }
+  }
 
   return JSON.stringify({
     order_id: order.id,
@@ -766,8 +803,31 @@ async function getPaymentDetails(orderId: string): Promise<string> {
 
 // ─── Shipment Details (NEW) ───────────────────────
 
-async function getShipmentDetails(orderId: string): Promise<string> {
+async function getShipmentDetails(orderId: string, userContext?: any): Promise<string> {
   if (!orderId) return JSON.stringify({ error: "order_id is required" });
+
+  // Check if order exists and belongs to the user
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      customerId: true,
+      customer: { select: { email: true, phone: true } },
+    }
+  });
+
+  if (!order) return JSON.stringify({ error: `Order ${orderId} not found` });
+
+  const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
+  if (userContext && !isAdmin) {
+    const isOwner = 
+      order.customerId === userContext.id || 
+      (userContext.email && order.customer?.email === userContext.email) ||
+      (userContext.phone && order.customer?.phone === userContext.phone);
+    if (!isOwner) {
+      return JSON.stringify({ error: "Access Denied: You do not have permission to view this order's shipment details." });
+    }
+  }
 
   const shipments = await prisma.shipment.findMany({
     where: { orderId },
