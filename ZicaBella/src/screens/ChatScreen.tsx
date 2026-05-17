@@ -265,84 +265,214 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
       const isProduct = href.startsWith('zica://products/');
       const isCollection = href.startsWith('zica://collections/');
 
+      const formatSlug = (slug: string) => {
+        return slug
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      };
+
       if (isCartAdd) {
+        const handle = href.replace('zica://cart/add/', '');
+        const name = formatSlug(handle);
         return (
-          <TouchableOpacity
+          <View
             key={node.key}
-            onPress={() => onLinkPress(href)}
             style={{
-              backgroundColor: '#000',
-              borderRadius: 20,
-              paddingVertical: 8,
-              paddingHorizontal: 16,
-              alignSelf: 'flex-start',
-              marginVertical: 6,
-              flexDirection: 'row',
-              alignItems: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2,
+              backgroundColor: colors.theme === 'dark' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.04)',
+              borderColor: 'rgba(99, 102, 241, 0.25)',
+              borderWidth: 1.5,
+              borderRadius: 16,
+              padding: 14,
+              marginVertical: 8,
+              width: '100%',
             }}
           >
-            <Ionicons name="bag-add-outline" size={14} color="#FFF" style={{ marginRight: 6 }} />
-            <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-              ADD TO BAG 🛍️
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(99, 102, 241, 0.1)', paddingBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="sparkles" size={12} color="#818CF8" style={{ marginRight: 6 }} />
+                <Text style={{ color: '#818CF8', fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                  AI Cart System
+                </Text>
+              </View>
+              <Text style={{ color: colors.textMuted || 'rgba(150,150,150,0.6)', fontSize: 8, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', backgroundColor: 'rgba(150,150,150,0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                Identified
+              </Text>
+            </View>
+
+            {/* Description */}
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '600', opacity: 0.8, marginBottom: 12, lineHeight: 15 }}>
+              Zica AI has catalogued <Text style={{ color: '#818CF8', fontWeight: '800' }}>{name}</Text>. Select a direct system command below to continue:
             </Text>
-          </TouchableOpacity>
+
+            {/* Command List */}
+            <View>
+              {[
+                { label: '🛒 ADD TO BAG NOW', link: href },
+                { label: '💬 Style this item for an occasion', link: `zica://prompt/Suggest%20an%20occasion%20or%20style%20pairing%20for%20the%20${name}` },
+                { label: '📏 Ask about fabric & sizing options', link: `zica://prompt/What%20are%20the%20sizes%20and%20fabric%20materials%20used%20for%20the%20${name}%3F` }
+              ].map((cmd, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => onLinkPress(cmd.link)}
+                  style={{
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                    borderColor: 'rgba(99, 102, 241, 0.15)',
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    paddingVertical: 9,
+                    paddingHorizontal: 12,
+                    marginBottom: 6,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Ionicons name="terminal-outline" size={12} color="#818CF8" style={{ marginRight: 8 }} />
+                  <Text style={{ color: colors.text, fontSize: 10.5, fontWeight: '600', opacity: 0.9, flex: 1 }}>
+                    {cmd.label}
+                  </Text>
+                  <Ionicons name="chevron-forward-outline" size={11} color="#818CF8" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         );
       }
 
       if (isProduct) {
+        const handle = href.replace('zica://products/', '');
+        const name = formatSlug(handle);
         return (
-          <TouchableOpacity
+          <View
             key={node.key}
-            onPress={() => onLinkPress(href)}
             style={{
-              backgroundColor: 'rgba(150,150,150,0.1)',
-              borderColor: 'rgba(150,150,150,0.2)',
-              borderWidth: 1,
-              borderRadius: 20,
-              paddingVertical: 8,
-              paddingHorizontal: 16,
-              alignSelf: 'flex-start',
-              marginVertical: 6,
-              flexDirection: 'row',
-              alignItems: 'center',
+              backgroundColor: colors.theme === 'dark' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.04)',
+              borderColor: 'rgba(99, 102, 241, 0.25)',
+              borderWidth: 1.5,
+              borderRadius: 16,
+              padding: 14,
+              marginVertical: 8,
+              width: '100%',
             }}
           >
-            <Ionicons name="eye-outline" size={14} color={colors.text} style={{ marginRight: 6 }} />
-            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-              VIEW DETAILS
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(99, 102, 241, 0.1)', paddingBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="sparkles" size={12} color="#818CF8" style={{ marginRight: 6 }} />
+                <Text style={{ color: '#818CF8', fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                  Product Analyzer
+                </Text>
+              </View>
+              <Text style={{ color: colors.textMuted || 'rgba(150,150,150,0.6)', fontSize: 8, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', backgroundColor: 'rgba(150,150,150,0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                Matched
+              </Text>
+            </View>
+
+            {/* Description */}
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '600', opacity: 0.8, marginBottom: 12, lineHeight: 15 }}>
+              Matched <Text style={{ color: '#818CF8', fontWeight: '800' }}>{name}</Text> in catalog. Ask Zica AI or execute a direct command:
             </Text>
-          </TouchableOpacity>
+
+            {/* Command List */}
+            <View>
+              {[
+                { label: '👁️ VIEW PRODUCT DETAILS PAGE', link: href },
+                { label: '📦 Check live store inventory availability', link: `zica://prompt/Is%20${name}%20available%20in%20all%20sizes%3F` },
+                { label: '🎨 Suggest alternative colors & styling', link: `zica://prompt/What%20other%20shades%20and%20stylings%20exist%20for%20${name}%3F` }
+              ].map((cmd, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => onLinkPress(cmd.link)}
+                  style={{
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                    borderColor: 'rgba(99, 102, 241, 0.15)',
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    paddingVertical: 9,
+                    paddingHorizontal: 12,
+                    marginBottom: 6,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Ionicons name="terminal-outline" size={12} color="#818CF8" style={{ marginRight: 8 }} />
+                  <Text style={{ color: colors.text, fontSize: 10.5, fontWeight: '600', opacity: 0.9, flex: 1 }}>
+                    {cmd.label}
+                  </Text>
+                  <Ionicons name="chevron-forward-outline" size={11} color="#818CF8" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         );
       }
 
       if (isCollection) {
+        const handle = href.replace('zica://collections/', '');
+        const name = formatSlug(handle);
         return (
-          <TouchableOpacity
+          <View
             key={node.key}
-            onPress={() => onLinkPress(href)}
             style={{
-              backgroundColor: 'rgba(150,150,150,0.1)',
-              borderColor: 'rgba(150,150,150,0.2)',
-              borderWidth: 1,
-              borderRadius: 20,
-              paddingVertical: 8,
-              paddingHorizontal: 16,
-              alignSelf: 'flex-start',
-              marginVertical: 6,
-              flexDirection: 'row',
-              alignItems: 'center',
+              backgroundColor: colors.theme === 'dark' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.04)',
+              borderColor: 'rgba(99, 102, 241, 0.25)',
+              borderWidth: 1.5,
+              borderRadius: 16,
+              padding: 14,
+              marginVertical: 8,
+              width: '100%',
             }}
           >
-            <Ionicons name="grid-outline" size={14} color={colors.text} style={{ marginRight: 6 }} />
-            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-              VIEW COLLECTION
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(99, 102, 241, 0.1)', paddingBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="sparkles" size={12} color="#818CF8" style={{ marginRight: 6 }} />
+                <Text style={{ color: '#818CF8', fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                  Collection Cluster
+                </Text>
+              </View>
+              <Text style={{ color: colors.textMuted || 'rgba(150,150,150,0.6)', fontSize: 8, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', backgroundColor: 'rgba(150,150,150,0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                Indexed
+              </Text>
+            </View>
+
+            {/* Description */}
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '600', opacity: 0.8, marginBottom: 12, lineHeight: 15 }}>
+              Cluster <Text style={{ color: '#818CF8', fontWeight: '800' }}>{name}</Text> matched. Prompt Zica AI or issue a collection command:
             </Text>
-          </TouchableOpacity>
+
+            {/* Command List */}
+            <View>
+              {[
+                { label: '🔲 BROWSE FULL COLLECTION', link: href },
+                { label: '✨ Explain the curation theme & concept', link: `zica://prompt/What%20is%20the%20aesthetic%20inspiration%20behind%20the%20${name}%20collection%3F` },
+                { label: '🔥 What are the best-selling styles here?', link: `zica://prompt/What%20are%20the%20hottest%20styles%20in%20the%20${name}%20collection%3F` }
+              ].map((cmd, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => onLinkPress(cmd.link)}
+                  style={{
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                    borderColor: 'rgba(99, 102, 241, 0.15)',
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    paddingVertical: 9,
+                    paddingHorizontal: 12,
+                    marginBottom: 6,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Ionicons name="terminal-outline" size={12} color="#818CF8" style={{ marginRight: 8 }} />
+                  <Text style={{ color: colors.text, fontSize: 10.5, fontWeight: '600', opacity: 0.9, flex: 1 }}>
+                    {cmd.label}
+                  </Text>
+                  <Ionicons name="chevron-forward-outline" size={11} color="#818CF8" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         );
       }
 
@@ -429,93 +559,6 @@ const ChatScreen = memo(() => {
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [fetchingProduct, setFetchingProduct] = useState(false);
 
-  const handleLinkPress = useCallback((url: string) => {
-    let targetUrl = url;
-    if (url.includes('zica://')) {
-      targetUrl = 'zica://' + url.split('zica://')[1];
-    }
-
-    if (targetUrl.startsWith('zica://products/')) {
-      const handle = targetUrl.replace('zica://products/', '');
-      haptics.buttonTap();
-      navigation.navigate('ProductDetail', { handle });
-      return false;
-    }
-    
-    if (targetUrl.startsWith('zica://collections/')) {
-      const handle = targetUrl.replace('zica://collections/', '');
-      haptics.buttonTap();
-      navigation.navigate('Collection', { handle });
-      return false;
-    }
-    
-    if (targetUrl.startsWith('zica://cart/add/')) {
-      const handle = targetUrl.replace('zica://cart/add/', '');
-      haptics.buttonTap();
-      setFetchingProduct(true);
-      
-      apiGet<{ product: FlatProduct | null }>('/products/' + handle)
-        .then(data => {
-          if (data && data.product) {
-            setSelectedProduct(data.product);
-            setQuickAddVisible(true);
-          } else {
-            Alert.alert('Error', 'Product details not found');
-          }
-        })
-        .catch((err) => {
-          Alert.alert('Error', err.message || 'Network request failed');
-        })
-        .finally(() => {
-          setFetchingProduct(false);
-        });
-      return false;
-    }
-
-    Linking.openURL(url).catch(() => {});
-    return false;
-  }, [navigation]);
-
-  const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
-
-  const loadSession = async (sessionId: string) => {
-    try {
-      const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
-      const res = await fetch(`${APP_URL}/api/app/claude/history/${sessionId}`);
-      if (res.ok) {
-        const data = await res.json();
-        const loadedMessages: Message[] = data.messages.map((m: any) => ({
-          id: m.id,
-          content: m.content,
-          isUser: m.role === 'user',
-          createdAt: new Date(m.createdAt),
-        }));
-        setMessages(loadedMessages);
-        
-        // Also map to Claude format history
-        const claudeHistory = data.messages.map((m: any) => ({
-          role: m.role,
-          content: m.content
-        }));
-        setConversationHistory(claudeHistory);
-        setCurrentSessionId(sessionId);
-        setHistoryVisible(false);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      setTabBarVisible(false);
-      // Optional: hide on focus, but we want it hidden as long as we are here
-      return () => {
-        setTabBarVisible(true);
-      };
-    }, [setTabBarVisible])
-  );
-
   const handleSend = useCallback(async (text?: string) => {
     if (!input.trim() && !text && !pendingImage) {
       setHistoryVisible(true);
@@ -588,6 +631,60 @@ const ChatScreen = memo(() => {
       setIsTyping(false);
     }
   }, [input, isTyping, conversationHistory, currentSessionId, pendingImage]);
+
+  const handleLinkPress = useCallback((url: string) => {
+    let targetUrl = url;
+    if (url.includes('zica://')) {
+      targetUrl = 'zica://' + url.split('zica://')[1];
+    }
+
+    if (targetUrl.startsWith('zica://prompt/')) {
+      const promptText = decodeURIComponent(targetUrl.replace('zica://prompt/', ''));
+      haptics.buttonTap();
+      handleSend(promptText);
+      return false;
+    }
+
+    if (targetUrl.startsWith('zica://products/')) {
+      const handle = targetUrl.replace('zica://products/', '');
+      haptics.buttonTap();
+      navigation.navigate('ProductDetail', { handle });
+      return false;
+    }
+    
+    if (targetUrl.startsWith('zica://collections/')) {
+      const handle = targetUrl.replace('zica://collections/', '');
+      haptics.buttonTap();
+      navigation.navigate('Collection', { handle });
+      return false;
+    }
+    
+    if (targetUrl.startsWith('zica://cart/add/')) {
+      const handle = targetUrl.replace('zica://cart/add/', '');
+      haptics.buttonTap();
+      setFetchingProduct(true);
+      
+      apiGet<{ product: FlatProduct | null }>('/products/' + handle)
+        .then(data => {
+          if (data && data.product) {
+            setSelectedProduct(data.product);
+            setQuickAddVisible(true);
+          } else {
+            Alert.alert('Error', 'Product details not found');
+          }
+        })
+        .catch((err) => {
+          Alert.alert('Error', err.message || 'Network request failed');
+        })
+        .finally(() => {
+          setFetchingProduct(false);
+        });
+      return false;
+    }
+
+    Linking.openURL(url).catch(() => {});
+    return false;
+  }, [navigation, handleSend]);
 
   const handlePickImage = async () => {
     haptics.buttonTap();
