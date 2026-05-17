@@ -23,8 +23,11 @@ import { getAISettings } from "@/lib/ai-settings-util";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Resolve Claude API key: database → env */
+/** Resolve Claude API key: dedicated user-side env keys first → database → generic env keys */
 async function resolveApiKey(): Promise<string> {
+  const userKey = process.env.EXPO_PUBLIC_CLAUDE_API_KEY || process.env.CLAUDE_USER_API_KEY || process.env.CLAUDE_API_KEY_USER;
+  if (userKey) return userKey;
+
   try {
     const shop = await prisma.shop.findFirst({
       select: { claudeApiKey: true },
