@@ -525,7 +525,7 @@ const ChatScreen = memo(() => {
                 data={messages}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => <MessageBubble item={item} />}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: insets.top + 70 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 130, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 removeClippedSubviews={true}
@@ -548,27 +548,29 @@ const ChatScreen = memo(() => {
           </View>
         </View>
 
-        {/* Pending image preview */}
-        {pendingImage && (
-          <View style={[
-            styles.pendingImageBar, 
-            { 
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
-              overflow: 'hidden',
-            }
-          ]}>
-            <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
-            <Typography size={10} weight="500" color={colors.textMuted} style={{ flex: 1, marginLeft: 10 }}>
-              Image ready to send
-            </Typography>
-            <TouchableOpacity onPress={() => setPendingImage(null)} style={styles.pendingImageRemove}>
-              <Ionicons name="close-circle" size={22} color={colors.textExtraLight} />
-            </TouchableOpacity>
-          </View>
-        )}
-
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          {/* Pending image preview inside the absolute container to prevent overlap */}
+          {pendingImage && (
+            <View style={[
+              styles.pendingImageBar, 
+              { 
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+                overflow: 'hidden',
+                marginHorizontal: 0,
+                marginBottom: 8,
+              }
+            ]}>
+              <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
+              <Typography size={10} weight="500" color={colors.textMuted} style={{ flex: 1, marginLeft: 10 }}>
+                Image ready to send
+              </Typography>
+              <TouchableOpacity onPress={() => setPendingImage(null)} style={styles.pendingImageRemove}>
+                <Ionicons name="close-circle" size={22} color={colors.textExtraLight} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={[
             styles.inputPill, 
             { 
@@ -666,8 +668,12 @@ const styles = StyleSheet.create({
     gap: 8,
     borderWidth: 1,
   },
-  typingRow: { paddingHorizontal: 24, paddingBottom: 16, flexDirection: 'row', alignItems: 'center' },
+  typingRow: { paddingHorizontal: 24, paddingBottom: 92, flexDirection: 'row', alignItems: 'center' },
   inputBarWrapper: { 
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 16, 
     paddingTop: 10,
     backgroundColor: 'transparent',
@@ -706,7 +712,7 @@ const styles = StyleSheet.create({
   pendingImageBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
+    marginHorizontal: 0,
     marginBottom: 4,
     paddingHorizontal: 10,
     paddingVertical: 8,
