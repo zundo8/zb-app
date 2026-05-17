@@ -119,6 +119,41 @@ export async function POST(req: Request) {
       }
     }
 
+    // --- INJECT PRODUCT KNOWLEDGE ---
+    try {
+      const allProducts = await prisma.product.findMany({
+        select: { title: true, price: true, handle: true, featuredImage: true },
+        take: 50 // Limit to avoid prompt bloat, though usually small
+      });
+
+      const shop = await prisma.shop.findFirst({
+        select: { 
+          spotlightCollection: true, 
+          kineticMeshTitle: true, 
+          ringCarouselTitle: true,
+          archiveTitle: true,
+        }
+      });
+
+      if (allProducts.length > 0) {
+        systemPrompt += `\n\nZica Bella Product Catalog:\n`;
+        systemPrompt += `You have full access to our products. When a user asks for recommendations, shopping, or style advice, refer to these products.\n`;
+        systemPrompt += `CRITICAL: You MUST use Markdown image syntax to display products and collections beautifully! Example: ![Product Name](image_url)\n`;
+        systemPrompt += `Note: To optimize images for mobile, append '&width=600' (if url has '?') or '?width=600' to the image URLs.\n\n`;
+        systemPrompt += allProducts.map(p => 
+          `- ${p.title}: ₹${p.price || 'N/A'}. Link: https://zicabella.com/products/${p.handle || ''}. Image: ${p.featuredImage || ''}`
+        ).join("\n");
+
+        systemPrompt += `\n\nZica Bella Collections:\n`;
+        systemPrompt += `- ${shop?.spotlightCollection || 'Spotlight / T-Shirts'}\n`;
+        systemPrompt += `- ${shop?.kineticMeshTitle || 'Archive Edition'}\n`;
+        systemPrompt += `- ${shop?.ringCarouselTitle || 'Rings Collection'}\n`;
+        systemPrompt += `Recommend collections by grouping products that fit these themes.\n`;
+      }
+    } catch (err) {
+      console.error("[ZicaAI Mobile] Failed to fetch products for catalog context:", err);
+    }
+
     if (orderIdContext) {
       systemPrompt += `\n\nThe customer is currently viewing order ID: ${orderIdContext}. Focus on this order if they ask general questions.`;
     }
