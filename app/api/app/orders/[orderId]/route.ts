@@ -49,9 +49,11 @@ function paymentMethodFromOrder(order: any): 'COD' | 'PREPAID' {
   return 'PREPAID';
 }
 
-function paymentStatusFromOrder(order: any): 'pending' | 'paid' {
+function paymentStatusFromOrder(order: any): 'pending' | 'paid' | 'failed' {
   const ps = String(order.paymentStatus || '').toLowerCase();
-  return ps === 'paid' ? 'paid' : 'pending';
+  if (ps === 'paid') return 'paid';
+  if (ps === 'failed') return 'failed';
+  return 'pending';
 }
 
 function trackingFromOrder(order: any) {

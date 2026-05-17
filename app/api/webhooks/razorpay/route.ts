@@ -90,7 +90,7 @@ export async function POST(req: Request) {
 
       await prisma.order.updateMany({
         where: { razorpayOrderId },
-        data: { paymentStatus: 'failed' },
+        data: { paymentStatus: 'failed', status: 'FAILED' },
       });
     } else if (eventType === 'refund.processed' || eventType === 'refund.created' || eventType === 'refund.failed') {
       const refund = data.refund.entity;

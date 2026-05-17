@@ -103,8 +103,12 @@ export default function OrderHistoryScreen() {
       const isCancelled = status.includes('cancel');
       const isFailed = status.includes('failed') || status === 'payment_pending' || status === 'pending';
       const isDelivered = !!deliveredAt;
+      
+      // Exclude failed or payment failed orders under any tab completely
+      if (isFailed) return false;
+      
       if (activeTab === 'HISTORY') return true;
-      return !isCancelled && !isDelivered && !isFailed;
+      return !isCancelled && !isDelivered;
     });
   }, [orders, activeTab]);
 
@@ -229,10 +233,17 @@ export default function OrderHistoryScreen() {
     const active = orders.filter(o => {
       const ds = (o.deliveryStatus || '').toLowerCase();
       const s = (o.status || '').toLowerCase();
-      const isFailed = s === 'payment_pending' || s === 'pending';
+      const isFailed = s.includes('failed') || s === 'payment_pending' || s === 'pending';
       return ds !== 'delivered' && !s.includes('cancel') && !isFailed;
     }).length;
-    return { ACTIVE: active, HISTORY: orders.length };
+    
+    const history = orders.filter(o => {
+      const s = (o.status || '').toLowerCase();
+      const isFailed = s.includes('failed') || s === 'payment_pending' || s === 'pending';
+      return !isFailed;
+    }).length;
+    
+    return { ACTIVE: active, HISTORY: history };
   }, [orders]);
 
   return (

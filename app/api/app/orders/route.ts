@@ -97,7 +97,19 @@ export async function GET(req: Request) {
           { tags: { contains: 'AppOrder' } }
         ]
       } : (orderId ? { id: orderId } : { 
-        customerId: { in: customerIds }
+        customerId: { in: customerIds },
+        AND: [
+          {
+            status: {
+              notIn: ['failed', 'FAILED']
+            }
+          },
+          {
+            paymentStatus: {
+              notIn: ['failed', 'FAILED']
+            }
+          }
+        ]
       }),
       include: {
         items: {

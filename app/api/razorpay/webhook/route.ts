@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         const payment = event.payload.payment.entity;
         await prisma.order.updateMany({
           where: { razorpayOrderId: payment.order_id },
-          data: { paymentStatus: 'FAILED' },
+          data: { paymentStatus: 'FAILED', status: 'FAILED' },
         });
         break;
       }
