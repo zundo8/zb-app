@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-3-5-sonnet-latest";
+const MODEL = "claude-sonnet-4-6";
 
 export async function POST(req: Request) {
   try {

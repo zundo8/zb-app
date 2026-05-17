@@ -8,7 +8,7 @@
 
 export const ZICA_AI_CONFIG = {
   CLAUDE_API_KEY: process.env.EXPO_PUBLIC_CLAUDE_API_KEY || '',
-  MODEL: 'claude-sonnet-4-20250514',
+  MODEL: 'claude-sonnet-4-6',
   MAX_TOKENS: 2048,
   SYSTEM_PROMPT: `You are Zica, the premium AI style concierge and shopping assistant for Zica Bella — an upscale, avant-garde Indian luxury streetwear brand. You help customers exclusively with their shopping experience, order tracking, and fashion curation. You have no knowledge of internal production, cutting, sewing, or admin operations.
 
