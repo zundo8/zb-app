@@ -28,7 +28,7 @@ import { sendZicaAIMessage, ChatMessage as ZicaAIChatMessage } from '../services
 import { apiGet } from '../api/shopify';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
-
+import { callClaudeStream } from '../api/claude';
 
 const { width } = Dimensions.get('window');
 
@@ -57,58 +57,6 @@ const ADMIN_QUICK_PROMPTS = [
   { label: "Today's briefing", icon: 'sunny-outline' },
   { label: 'Low stock alert', icon: 'alert-circle-outline' },
 ];
-
-// ─── Claude API call ─────────────────────────────
-
-async function callClaudeAPI(
-  message: string,
-  history: { role: string; content: string }[],
-  userContext?: any,
-  sessionId?: string | null,
-  imageBase64?: string | null,
-  imageMimeType?: string | null
-): Promise<{ response: string; conversationHistory: any[]; toolsUsed: number; sessionId?: string }> {
-  const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
-
-  const payload: any = {
-    message,
-    conversationHistory: history,
-    userContext,
-    sessionId,
-  };
-
-  if (imageBase64) {
-    payload.imageBase64 = imageBase64;
-    payload.imageMimeType = imageMimeType || 'image/jpeg';
-  }
-
-  const res = await fetch(`${APP_URL}/api/app/claude`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    // Fallback: try the standalone /api/zica-ai endpoint
-    const zicaMessages: ZicaAIChatMessage[] = [
-      ...history.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
-      { role: 'user' as const, content: message },
-    ];
-    try {
-      const fallbackReply = await sendZicaAIMessage(zicaMessages);
-      return {
-        response: fallbackReply,
-        conversationHistory: [...history, { role: 'user', content: message }, { role: 'assistant', content: fallbackReply }],
-        toolsUsed: 0,
-      };
-    } catch {
-      const err = await res.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(err.error || `Server error ${res.status}`);
-    }
-  }
-
-  return res.json();
-}
 
 // ─── Markdown Styles ─────────────────────────────
 
@@ -242,7 +190,14 @@ function buildMarkdownStyles(colors: any) {
 const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress: (url: string) => boolean }) => {
   const isUser = item.isUser;
   const colors = useColors();
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
   const mdStyles = buildMarkdownStyles(colors);
+
+  // Don't render empty AI message bubble during initial load before streaming starts
+  if (!isUser && !item.content) {
+    return null;
+  }
 
   const rules = {
     image: (node: any) => {
@@ -284,8 +239,14 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
     >
       <View style={[
         msgStyles.bubble,
-        isUser ? { backgroundColor: colors.foreground } : { backgroundColor: colors.surface },
-        isUser ? msgStyles.userBubble : msgStyles.aiBubble,
+        isUser 
+          ? { backgroundColor: colors.foreground, borderBottomRightRadius: 4 } 
+          : { 
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)', 
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+              borderWidth: 1,
+              borderBottomLeftRadius: 4 
+            },
         item.isError && msgStyles.errorBubble,
       ]}>
         {item.image && (
@@ -343,10 +304,24 @@ const ChatScreen = memo(() => {
   const user = useAuthStore(s => s.user);
   const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
   const flatListRef = useRef<FlatList>(null);
+  const [abortController, setAbortController] = useState<(() => void) | null>(null);
 
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [fetchingProduct, setFetchingProduct] = useState(false);
+
+  // Auto-scroll list when keyboard pops up on iOS
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => {
+      showSubscription.remove();
+      if (abortController) {
+        abortController();
+      }
+    };
+  }, [abortController]);
 
   const handleSend = useCallback(async (text?: string) => {
     if (!input.trim() && !text && !pendingImage) {
@@ -368,58 +343,108 @@ const ChatScreen = memo(() => {
       image: pendingImage?.uri,
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    // Placeholder for AI streaming response
+    const aiMsgId = (Date.now() + 1).toString();
+    const newAiMsg: Message = {
+      id: aiMsgId,
+      content: '',
+      isUser: false,
+      createdAt: new Date(),
+      toolsUsed: 0,
+    };
+
+    setMessages(prev => [...prev, userMsg, newAiMsg]);
     setIsTyping(true);
 
     // Capture and clear pending image before the async call
     const imageToSend = pendingImage;
     setPendingImage(null);
 
-    try {
-      const userContext = user ? {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone
-      } : undefined;
+    // Cancel any previous active streaming API call
+    if (abortController) {
+      abortController();
+    }
 
-      const data = await callClaudeAPI(
-        content,
-        conversationHistory,
-        userContext,
-        currentSessionId,
-        imageToSend?.base64 || null,
-        imageToSend?.mimeType || null
-      );
-      
-      if (data.sessionId && !currentSessionId) {
-        setCurrentSessionId(data.sessionId);
+    try {
+      // Build user content — supports standard image + text structure for Anthropic API
+      let currentMsgContent: any = displayContent;
+      if (imageToSend) {
+        currentMsgContent = [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: imageToSend.mimeType || 'image/jpeg',
+              data: imageToSend.base64,
+            },
+          },
+          {
+            type: 'text',
+            text: displayContent,
+          },
+        ];
       }
 
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        content: data.response,
-        isUser: false,
-        createdAt: new Date(),
-        toolsUsed: data.toolsUsed || 0,
-      };
+      // Include the last 10 messages of conversation history in the messages array for context continuity
+      const messagesToSend = [
+        ...conversationHistory.slice(-10).map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })),
+        {
+          role: 'user' as const,
+          content: currentMsgContent,
+        },
+      ];
 
-      setMessages(prev => [...prev, aiMsg]);
-      setConversationHistory(data.conversationHistory || []);
-      haptics.success();
+      // Invoke client-side Claude streaming call using direct key
+      const abort = callClaudeStream({
+        messages: messagesToSend,
+        onToken: (token) => {
+          setIsTyping(false); // Typing indicator disappears immediately once tokens begin streaming
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === aiMsgId
+                ? { ...msg, content: msg.content + token }
+                : msg
+            )
+          );
+          flatListRef.current?.scrollToEnd({ animated: true });
+        },
+        onError: (err) => {
+          setIsTyping(false);
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === aiMsgId
+                ? { ...msg, content: '⚠️ Something went wrong. Please try again.', isError: true }
+                : msg
+            )
+          );
+          flatListRef.current?.scrollToEnd({ animated: true });
+        },
+        onComplete: (fullText) => {
+          setIsTyping(false);
+          setConversationHistory(prev => [
+            ...prev,
+            { role: 'user', content: displayContent },
+            { role: 'assistant', content: fullText }
+          ]);
+          haptics.success();
+        },
+      });
+
+      setAbortController(() => abort);
     } catch (err: any) {
-      const errMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        content: `⚠️ ${err.message || 'Could not reach Zica AI. Please try again.'}`,
-        isUser: false,
-        createdAt: new Date(),
-        isError: true,
-      };
-      setMessages(prev => [...prev, errMsg]);
-    } finally {
       setIsTyping(false);
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === aiMsgId
+            ? { ...msg, content: '⚠️ Something went wrong. Please try again.', isError: true }
+            : msg
+        )
+      );
     }
-  }, [input, isTyping, conversationHistory, currentSessionId, pendingImage]);
+  }, [input, isTyping, conversationHistory, pendingImage, abortController]);
 
   const handleLinkPress = useCallback((url: string) => {
     let targetUrl = url;
@@ -524,7 +549,6 @@ const ChatScreen = memo(() => {
   useFocusEffect(
     useCallback(() => {
       setTabBarVisible(false);
-      // Optional: hide on focus, but we want it hidden as long as we are here
       return () => {
         setTabBarVisible(true);
       };
@@ -567,11 +591,9 @@ const ChatScreen = memo(() => {
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
       try {
-        // Read the image file and encode as base64 using the new File API
         const file = new FileSystem.File(asset.uri);
         const base64Data = await file.base64();
         
-        // Detect MIME type from the URI extension
         const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpeg';
         const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
         const mimeType = mimeMap[ext] || 'image/jpeg';
@@ -630,7 +652,7 @@ const ChatScreen = memo(() => {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <View style={{ flex: 1 }}>
           <View style={{ flex: 1 }}>
@@ -645,7 +667,7 @@ const ChatScreen = memo(() => {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                removeClippedSubviews={true}
+                removeClippedSubviews={false}
                 initialNumToRender={6}
                 maxToRenderPerBatch={4}
                 updateCellsBatchingPeriod={50}
@@ -655,18 +677,34 @@ const ChatScreen = memo(() => {
             )}
 
             {isTyping && (
-              <View style={styles.typingRow}>
-                <ActivityIndicator size="small" color={colors.textExtraLight} style={{ marginRight: 8 }} />
-                <Typography size={8} weight="700" color={colors.textExtraLight} style={{ letterSpacing: 1 }}>
-                  ZICA AI IS THINKING...
-                </Typography>
-              </View>
+              <Animated.View
+                entering={FadeInDown.duration(300)}
+                style={[msgStyles.row, { paddingHorizontal: 20, paddingBottom: 16 }]}
+              >
+                <View style={[
+                  msgStyles.bubble,
+                  { 
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)', 
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                    borderWidth: 1,
+                    borderBottomLeftRadius: 4,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                  }
+                ]}>
+                  <ActivityIndicator size="small" color={colors.textExtraLight} style={{ marginRight: 8 }} />
+                  <Typography size={12} weight="600" color={colors.textMuted} style={{ letterSpacing: -0.1 }}>
+                    Zica is thinking...
+                  </Typography>
+                </View>
+              </Animated.View>
             )}
           </View>
         </View>
 
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-          {/* Pending image preview inside the absolute container to prevent overlap */}
           {pendingImage && (
             <View style={[
               styles.pendingImageBar, 
@@ -710,7 +748,7 @@ const ChatScreen = memo(() => {
               style={[styles.input, { color: colors.text }]}
               multiline
               maxLength={1000}
-              editable={!isTyping}
+              editable={true}
             />
 
             <TouchableOpacity

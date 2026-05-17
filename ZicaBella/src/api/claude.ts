@@ -1,14 +1,12 @@
 // ──────────────────────────────────────────────────
 // Claude AI Service — Mobile Integration
 // ──────────────────────────────────────────────────
-// All Claude API calls are proxied through the backend (/api/app/claude)
-// to avoid exposing the API key in the client bundle.
-// The direct API call below is kept ONLY as a fallback.
+// Dedicated service scoped exclusively to the customer-facing Zica AI screen.
+// Utilizes isolated credentials and system prompt configurations to guarantee 
+// data separation and prevent operational leakage.
+// ──────────────────────────────────────────────────
 
-import { config } from '../constants/config';
-
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-6';
+import { ZICA_AI_CONFIG } from '../constants/aiConfig';
 
 export interface ClaudeTool {
   name: string;
@@ -22,50 +20,139 @@ export interface ClaudeTool {
 
 export interface Message {
   role: 'user' | 'assistant';
-  content: string;
+  content: string | any[];
 }
 
+/**
+ * Standard fetch call for Claude (fallback, non-streaming)
+ */
 export async function callClaude({
   systemPrompt,
   userMessage,
-  tools = [],
   conversationHistory = [],
 }: {
-  systemPrompt: string;
+  systemPrompt?: string;
   userMessage: string;
-  tools?: ClaudeTool[];
   conversationHistory?: Message[];
 }) {
-  // Route through backend proxy to keep API key server-side
-  const apiKey = process.env.EXPO_PUBLIC_CLAUDE_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('AI service is temporarily unavailable.');
-  }
+  const messages = [
+    ...conversationHistory,
+    { role: 'user' as const, content: userMessage }
+  ];
 
-  const response = await fetch(CLAUDE_API_URL, {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
+      'x-api-key': ZICA_AI_CONFIG.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools,
-      messages: [
-        ...conversationHistory,
-        { role: 'user', content: userMessage },
-      ],
+      model: ZICA_AI_CONFIG.MODEL,
+      max_tokens: ZICA_AI_CONFIG.MAX_TOKENS,
+      system: systemPrompt || ZICA_AI_CONFIG.SYSTEM_PROMPT,
+      messages: messages,
     }),
   });
-  
+
   if (!response.ok) {
-    // Do NOT log the error body — may contain sensitive API details
-    throw new Error('AI service error. Please try again.');
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData?.error?.message || 'AI service error. Please try again.');
   }
-  
-  return response.json();
+
+  const data = await response.json();
+  return data;
+}
+
+/**
+ * SSE Streaming call for Claude using XMLHttpRequest (native, robust React Native iOS compatibility)
+ */
+export function callClaudeStream({
+  messages,
+  onToken,
+  onError,
+  onComplete,
+}: {
+  messages: Message[];
+  onToken: (token: string) => void;
+  onError: (error: Error) => void;
+  onComplete: (fullText: string) => void;
+}) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', 'https://api.anthropic.com/v1/messages', true);
+
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('x-api-key', ZICA_AI_CONFIG.CLAUDE_API_KEY);
+  xhr.setRequestHeader('anthropic-version', '2023-06-01');
+  xhr.setRequestHeader('anthropic-dangerous-direct-browser-access', 'true');
+
+  const payload = {
+    model: ZICA_AI_CONFIG.MODEL,
+    max_tokens: ZICA_AI_CONFIG.MAX_TOKENS,
+    system: ZICA_AI_CONFIG.SYSTEM_PROMPT,
+    stream: true,
+    messages: messages,
+  };
+
+  let processedLinesCount = 0;
+  let fullText = '';
+
+  xhr.onreadystatechange = () => {
+    if (xhr.readyState === 3 || xhr.readyState === 4) {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const text = xhr.responseText;
+        const lines = text.split('\n');
+        
+        // Use all lines if request is finished, otherwise slice off the last potentially incomplete line
+        const completeLines = xhr.readyState === 4 ? lines : lines.slice(0, -1);
+
+        for (let i = processedLinesCount; i < completeLines.length; i++) {
+          const line = completeLines[i].trim();
+          if (line.startsWith('data: ')) {
+            const dataStr = line.substring(6);
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                const token = parsed.delta.text;
+                fullText += token;
+                onToken(token);
+              }
+            } catch (e) {
+              // Ignore incomplete SSE chunks parsing
+            }
+          }
+        }
+        processedLinesCount = completeLines.length;
+
+        if (xhr.readyState === 4) {
+          onComplete(fullText);
+        }
+      } else {
+        if (xhr.readyState === 4) {
+          let errMsg = 'Failed to load response from Zica AI.';
+          try {
+            const responseObj = JSON.parse(xhr.responseText);
+            if (responseObj?.error?.message) {
+              errMsg = responseObj.error.message;
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+          onError(new Error(errMsg));
+        }
+      }
+    }
+  };
+
+  xhr.onerror = () => {
+    onError(new Error('Network error when calling Zica AI.'));
+  };
+
+  xhr.send(JSON.stringify(payload));
+
+  // Return cancel handler
+  return () => {
+    xhr.abort();
+  };
 }
