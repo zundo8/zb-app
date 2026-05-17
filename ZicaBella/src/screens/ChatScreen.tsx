@@ -25,6 +25,7 @@ import { haptics } from '../utils/haptics';
 import { useAuthStore } from '../store/authStore';
 import { ChatHistoryModal } from './ChatHistoryModal';
 import { sendZicaAIMessage, ChatMessage as ZicaAIChatMessage } from '../services/zicaAI';
+import { apiGet } from '../api/shopify';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
 
@@ -239,6 +240,124 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
   const colors = useColors();
   const mdStyles = buildMarkdownStyles(colors);
 
+  const rules = {
+    image: (node: any) => {
+      const { src } = node.attributes;
+      return (
+        <Image
+          key={node.key}
+          source={{ uri: src }}
+          style={{
+            width: '100%',
+            height: 220,
+            borderRadius: 16,
+            marginVertical: 10,
+            backgroundColor: 'rgba(150,150,150,0.1)'
+          }}
+          contentFit="cover"
+          transition={250}
+        />
+      );
+    },
+    link: (node: any, children: any, parent: any, styles: any) => {
+      const { href } = node.attributes;
+      const isCartAdd = href.startsWith('zica://cart/add/');
+      const isProduct = href.startsWith('zica://products/');
+      const isCollection = href.startsWith('zica://collections/');
+
+      if (isCartAdd) {
+        return (
+          <TouchableOpacity
+            key={node.key}
+            onPress={() => onLinkPress(href)}
+            style={{
+              backgroundColor: '#000',
+              borderRadius: 20,
+              paddingVertical: 8,
+              paddingHorizontal: 16,
+              alignSelf: 'flex-start',
+              marginVertical: 6,
+              flexDirection: 'row',
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <Ionicons name="bag-add-outline" size={14} color="#FFF" style={{ marginRight: 6 }} />
+            <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+              ADD TO BAG 🛍️
+            </Text>
+          </TouchableOpacity>
+        );
+      }
+
+      if (isProduct) {
+        return (
+          <TouchableOpacity
+            key={node.key}
+            onPress={() => onLinkPress(href)}
+            style={{
+              backgroundColor: 'rgba(150,150,150,0.1)',
+              borderColor: 'rgba(150,150,150,0.2)',
+              borderWidth: 1,
+              borderRadius: 20,
+              paddingVertical: 8,
+              paddingHorizontal: 16,
+              alignSelf: 'flex-start',
+              marginVertical: 6,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+          >
+            <Ionicons name="eye-outline" size={14} color={colors.text} style={{ marginRight: 6 }} />
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+              VIEW DETAILS
+            </Text>
+          </TouchableOpacity>
+        );
+      }
+
+      if (isCollection) {
+        return (
+          <TouchableOpacity
+            key={node.key}
+            onPress={() => onLinkPress(href)}
+            style={{
+              backgroundColor: 'rgba(150,150,150,0.1)',
+              borderColor: 'rgba(150,150,150,0.2)',
+              borderWidth: 1,
+              borderRadius: 20,
+              paddingVertical: 8,
+              paddingHorizontal: 16,
+              alignSelf: 'flex-start',
+              marginVertical: 6,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+          >
+            <Ionicons name="grid-outline" size={14} color={colors.text} style={{ marginRight: 6 }} />
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+              VIEW COLLECTION
+            </Text>
+          </TouchableOpacity>
+        );
+      }
+
+      return (
+        <Text
+          key={node.key}
+          style={styles.link}
+          onPress={() => onLinkPress(href)}
+        >
+          {children}
+        </Text>
+      );
+    }
+  };
+
   return (
     <Animated.View
       entering={FadeInDown.duration(400).springify().damping(20)}
@@ -268,7 +387,7 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
             {item.content}
           </Typography>
         ) : (
-          <Markdown style={mdStyles} onLinkPress={onLinkPress}>
+          <Markdown style={mdStyles} rules={rules} onLinkPress={onLinkPress}>
             {item.content}
           </Markdown>
         )}
@@ -335,19 +454,17 @@ const ChatScreen = memo(() => {
       haptics.buttonTap();
       setFetchingProduct(true);
       
-      const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
-      fetch(`${APP_URL}/api/app/products/${handle}`)
-        .then(res => res.json())
+      apiGet<{ product: FlatProduct | null }>('/products/' + handle)
         .then(data => {
-          if (data.product) {
+          if (data && data.product) {
             setSelectedProduct(data.product);
             setQuickAddVisible(true);
           } else {
             Alert.alert('Error', 'Product details not found');
           }
         })
-        .catch(() => {
-          Alert.alert('Error', 'Network request failed');
+        .catch((err) => {
+          Alert.alert('Error', err.message || 'Network request failed');
         })
         .finally(() => {
           setFetchingProduct(false);
