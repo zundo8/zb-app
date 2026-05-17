@@ -21,11 +21,39 @@ export interface ZicaAISettings {
   trainingRules?: TrainingRule[];
 }
 
+const DEFAULT_RULES: TrainingRule[] = [
+  {
+    id: "rule_default_1",
+    prompt: "When the user asks to track their order, only show confirmed, pending approval, delivered, and returns or exchange orders. Do not show cancelled or payment failed orders.",
+    createdAt: "2026-05-17T00:00:00.000Z"
+  },
+  {
+    id: "rule_default_2",
+    prompt: "Under no circumstances should regular app users access dashboard metrics, manufacturing cost ledger, internal sales, other users' chats, or admin-only data.",
+    createdAt: "2026-05-17T00:00:00.000Z"
+  },
+  {
+    id: "rule_default_3",
+    prompt: "All order tracking and payment searches must strictly be filtered to the authenticated customer's own data to protect user privacy.",
+    createdAt: "2026-05-17T00:00:00.000Z"
+  },
+  {
+    id: "rule_default_4",
+    prompt: "If a user asks about payment status, only show payment status as paid, pending, or failed based strictly on their own data.",
+    createdAt: "2026-05-17T00:00:00.000Z"
+  }
+];
+
 export function getAISettings(): ZicaAISettings {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const data = fs.readFileSync(SETTINGS_FILE, "utf-8");
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (!parsed.trainingRules || parsed.trainingRules.length === 0) {
+        parsed.trainingRules = [...DEFAULT_RULES];
+        saveAISettings(parsed);
+      }
+      return parsed;
     }
   } catch (err) {
     console.error("[ai-settings] Failed to read settings:", err);
@@ -49,7 +77,7 @@ export function getAISettings(): ZicaAISettings {
       allowedPages: ["shop", "collections", "cart", "orders", "profile", "support"],
       restrictToOwnData: true
     },
-    trainingRules: []
+    trainingRules: [...DEFAULT_RULES]
   };
 }
 

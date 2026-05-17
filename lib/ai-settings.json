@@ -49,5 +49,27 @@
       "support"
     ],
     "restrictToOwnData": true
-  }
+  },
+  "trainingRules": [
+    {
+      "id": "rule_default_1",
+      "prompt": "When the user asks to track their order, only show confirmed, pending approval, delivered, and returns or exchange orders. Do not show cancelled or payment failed orders.",
+      "createdAt": "2026-05-17T00:00:00.000Z"
+    },
+    {
+      "id": "rule_default_2",
+      "prompt": "Under no circumstances should regular app users access dashboard metrics, manufacturing cost ledger, internal sales, other users' chats, or admin-only data.",
+      "createdAt": "2026-05-17T00:00:00.000Z"
+    },
+    {
+      "id": "rule_default_3",
+      "prompt": "All order tracking and payment searches must strictly be filtered to the authenticated customer's own data to protect user privacy.",
+      "createdAt": "2026-05-17T00:00:00.000Z"
+    },
+    {
+      "id": "rule_default_4",
+      "prompt": "If a user asks about payment status, only show payment status as paid, pending, or failed based strictly on their own data.",
+      "createdAt": "2026-05-17T00:00:00.000Z"
+    }
+  ]
 }
