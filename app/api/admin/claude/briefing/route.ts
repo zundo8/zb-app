@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import {
   callClaude,
-  ZICA_SYSTEM_PROMPT,
+  ZICA_ADMIN_PROMPT,
   ZICA_TOOLS,
 } from "@/lib/services/claudeService";
 import { executeClaudeTool } from "@/lib/services/claudeToolExecutor";
@@ -32,7 +32,7 @@ export async function POST() {
     while (iterations < 6) {
       iterations++;
       const response = await callClaude({
-        systemPrompt: ZICA_SYSTEM_PROMPT,
+        systemPrompt: ZICA_ADMIN_PROMPT,
         userMessage: "",
         tools: ZICA_TOOLS,
         conversationHistory: history,

@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import {
   callClaude,
-  ZICA_SYSTEM_PROMPT,
+  ZICA_ADMIN_PROMPT,
   ZICA_TOOLS,
 } from "@/lib/services/claudeService";
 import { executeClaudeTool } from "@/lib/services/claudeToolExecutor";
@@ -42,7 +42,7 @@ async function runWorkflow(workflowId: string) {
   while (iterations < 8) {
     iterations++;
     const response = await callClaude({
-      systemPrompt: ZICA_SYSTEM_PROMPT + "\n\nYou are running in AUTOMATED mode as a scheduled workflow. Take actions directly — do not ask for confirmation.",
+      systemPrompt: ZICA_ADMIN_PROMPT + "\n\nYou are running in AUTOMATED mode as a scheduled workflow. Take actions directly — do not ask for confirmation.",
       userMessage: "",
       tools: ZICA_TOOLS,
       conversationHistory: history,

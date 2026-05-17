@@ -1,21 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { getAppAuthFromRequest } from "@/lib/appAuth";
+import { ZICA_USER_PROMPT, ZICA_ADMIN_PROMPT } from "@/lib/services/claudeService";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const SYSTEM_PROMPT = `You are Zica AI, a personal fashion stylist for Zica Bella — a premium fashion brand.
-You help customers with:
-- Outfit recommendations and styling advice tailored to their style and occasion
-- Size guidance based on their measurements and body type
-- Product discovery (e.g. "show me something for a beach wedding")
-- Fabric care instructions and material information
-- General fashion tips and trend advice
 
-Keep responses warm, concise, and fashion-forward. Use friendly, conversational language.
-If asked about order status or account details, let the user know they can check the Orders tab.
-Never invent product names, SKUs, or prices.`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,7 +29,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { messages, systemPrompt } = body;
+    const { messages } = body;
+    const auth = getAppAuthFromRequest(req);
+    const isAdmin = auth?.email?.endsWith('@zicabella.com') || false;
+    const secureSystemPrompt = isAdmin ? ZICA_ADMIN_PROMPT : ZICA_USER_PROMPT;
 
     // Sanitize messages — ensure all content is text-only for server-side processing
     const sanitizedMessages = messages.map((msg: any) => ({
@@ -52,13 +47,13 @@ export async function POST(req: NextRequest) {
           : String(msg.content || "Hello"),
     }));
 
-    // Use the model from env or default to claude-sonnet-4-6
-    const model = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
+    // Use the model from env or default to claude-3-5-sonnet-latest
+    const model = process.env.CLAUDE_MODEL || "claude-3-5-sonnet-latest";
 
     const response = await client.messages.create({
       model,
       max_tokens: 1024,
-      system: systemPrompt || SYSTEM_PROMPT,
+      system: secureSystemPrompt,
       messages: sanitizedMessages,
     });
 

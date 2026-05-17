@@ -186,21 +186,137 @@ function buildMarkdownStyles(colors: any) {
   });
 }
 
+// ─── Order Tracker Card ──────────────────────────
+
+const OrderTrackerCard = memo(({ order, navigation }: { order: any; navigation: any }) => {
+  const colors = useColors();
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
+
+  const getActiveStep = () => {
+    const ds = String(order.deliveryStatus || '').toLowerCase();
+    const os = String(order.status || '').toLowerCase();
+    
+    if (ds === 'delivered' || os === 'delivered') return 4;
+    if (ds === 'out_for_delivery') return 3;
+    if (ds === 'shipped' || os === 'shipped') return 2;
+    if (order.paymentStatus === 'paid' || os === 'approved' || os === 'processing') return 1;
+    return 0; // order_placed
+  };
+
+  const activeStep = getActiveStep();
+  const steps = ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered'];
+
+  return (
+    <View style={[
+      styles.orderCard,
+      {
+        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.5)',
+        borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+      }
+    ]}>
+      <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+      
+      <View style={styles.orderCardHeader}>
+        <View>
+          <Typography size={11} weight="700" color={colors.text}>
+            Order #{order.orderNumber}
+          </Typography>
+          <Typography size={8} weight="500" color={colors.textMuted}>
+            {new Date(order.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+          </Typography>
+        </View>
+        <View style={[
+          styles.badge, 
+          { backgroundColor: activeStep === 4 ? '#34C75920' : '#FF950020' }
+        ]}>
+          <Typography size={8} weight="700" color={activeStep === 4 ? '#34C759' : '#FF9500'}>
+            {(order.deliveryStatus || order.status || 'Processing').toUpperCase()}
+          </Typography>
+        </View>
+      </View>
+
+      {/* Visual Stepper */}
+      <View style={styles.stepperContainer}>
+        <View style={[
+          styles.stepperLineBackground,
+          { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }
+        ]} />
+        <View style={[
+          styles.stepperLineBackground,
+          { 
+            backgroundColor: colors.foreground,
+            width: `${(activeStep / (steps.length - 1)) * 80}%`,
+          }
+        ]} />
+
+        {steps.map((step, idx) => {
+          const isCompleted = idx <= activeStep;
+          const isActive = idx === activeStep;
+          
+          return (
+            <View key={idx} style={styles.stepWrapper}>
+              <View style={[
+                styles.stepDot,
+                {
+                  backgroundColor: isCompleted ? colors.foreground : (isDark ? '#2c2c2c' : '#e0e0e0'),
+                  borderColor: isActive ? colors.text : 'transparent',
+                  borderWidth: isActive ? 1.5 : 0,
+                }
+              ]}>
+                {isCompleted && (
+                  <Ionicons name="checkmark" size={8} color={colors.background} />
+                )}
+              </View>
+              <Typography 
+                size={7} 
+                weight={isActive ? "700" : "500"} 
+                color={isActive ? colors.text : colors.textExtraLight}
+                style={styles.stepLabel}
+                numberOfLines={1}
+              >
+                {step}
+              </Typography>
+            </View>
+          );
+        })}
+      </View>
+
+      <TouchableOpacity
+        style={[styles.trackButton, { backgroundColor: colors.foreground }]}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('OrderDetails', { orderId: order.id })}
+      >
+        <Typography size={9} weight="700" color={colors.background}>
+          VIEW ORDER TRACKING DETAILS
+        </Typography>
+        <Ionicons name="arrow-forward" size={10} color={colors.background} style={{ marginLeft: 4 }} />
+      </TouchableOpacity>
+    </View>
+  );
+});
+
 // ─── Message Bubble ──────────────────────────────
 
-const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress: (url: string) => boolean }) => {
+const MessageBubble = memo(({ 
+  item, 
+  onLinkPress, 
+  userOrders = [], 
+  navigation 
+}: { 
+  item: Message; 
+  onLinkPress: (url: string) => boolean; 
+  userOrders?: any[]; 
+  navigation: any;
+}) => {
   const isUser = item.isUser;
   const colors = useColors();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
-  const mdStyles = buildMarkdownStyles(colors);
 
-  // Don't render empty AI message bubble during initial load before streaming starts
-  if (!isUser && !item.content) {
-    return null;
-  }
+  const mdStyles = React.useMemo(() => buildMarkdownStyles(colors), [colors]);
 
-  const rules = {
+  const rules = React.useMemo(() => ({
     image: (node: any) => {
       const { src, alt } = node.attributes;
       return (
@@ -238,19 +354,65 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
         </Text>
       );
     }
-  };
+  }), [colors, onLinkPress]);
+
+  // Find matching order in user's loaded orders list
+  const matchingOrder = React.useMemo(() => {
+    if (item.isUser || userOrders.length === 0) return null;
+    
+    for (const order of userOrders) {
+      const orderNum = String(order.orderNumber).toLowerCase();
+      const cleanNum = orderNum.replace(/\D/g, ''); 
+      
+      if (
+        item.content.toLowerCase().includes(orderNum) || 
+        (cleanNum.length >= 4 && item.content.includes(cleanNum))
+      ) {
+        return order;
+      }
+    }
+    
+    if (
+      (item.content.toLowerCase().includes('order status') || 
+       item.content.toLowerCase().includes('track') || 
+       item.content.toLowerCase().includes('where is my order')) && 
+      userOrders.length === 1
+    ) {
+      return userOrders[0];
+    }
+    
+    return null;
+  }, [item.isUser, item.content, userOrders]);
+
+  // Don't render empty AI message bubble during initial load before streaming starts
+  if (!isUser && !item.content) {
+    return null;
+  }
 
   return (
     <View style={[msgStyles.row, isUser && msgStyles.rowRight]}>
       <View style={[
         msgStyles.bubble,
         isUser 
-          ? { backgroundColor: colors.foreground, borderBottomRightRadius: 4 } 
+          ? { 
+              backgroundColor: colors.foreground, 
+              borderBottomRightRadius: 4,
+              shadowColor: colors.foreground,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.12,
+              shadowRadius: 8,
+              elevation: 3,
+            } 
           : { 
-              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)', 
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.45)', 
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
               borderWidth: 1,
-              borderBottomLeftRadius: 4 
+              borderBottomLeftRadius: 4,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: isDark ? 0.05 : 0.02,
+              shadowRadius: 6,
+              elevation: 1,
             },
         item.isError && msgStyles.errorBubble,
       ]}>
@@ -287,6 +449,11 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
             </Markdown>
           )
         )}
+
+        {matchingOrder && (
+          <OrderTrackerCard order={matchingOrder} navigation={navigation} />
+        )}
+
         <View style={msgStyles.metaRow}>
           {item.toolsUsed ? (
             <Typography size={6} weight="800" color={isUser ? colors.background : colors.info} style={{ letterSpacing: 1, opacity: 0.8 }}>
@@ -327,16 +494,61 @@ const ChatScreen = memo(() => {
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [fetchingProduct, setFetchingProduct] = useState(false);
   const [catalogContext, setCatalogContext] = useState<string>('');
+  
+  // State for user orders
+  const [userOrders, setUserOrders] = useState<any[]>([]);
 
-  // Throttled scroll to bottom for smooth streaming performance
+  // Refs for performance optimizations (avoid recreating handleSend callback on every keystroke)
+  const inputRef = useRef(input);
+  const isTypingRef = useRef(isTyping);
+  const conversationHistoryRef = useRef(conversationHistory);
+  const pendingImageRef = useRef(pendingImage);
+  const abortControllerRef = useRef(abortController);
+  const catalogContextRef = useRef(catalogContext);
+
+  useEffect(() => { inputRef.current = input; }, [input]);
+  useEffect(() => { isTypingRef.current = isTyping; }, [isTyping]);
+  useEffect(() => { conversationHistoryRef.current = conversationHistory; }, [conversationHistory]);
+  useEffect(() => { pendingImageRef.current = pendingImage; }, [pendingImage]);
+  useEffect(() => { abortControllerRef.current = abortController; }, [abortController]);
+  useEffect(() => { catalogContextRef.current = catalogContext; }, [catalogContext]);
+
+  // Throttled scroll to bottom with intelligent scroll-up detection (fixes scroll lock)
+  const isNearBottom = useRef(true);
   const lastScrollTime = useRef(0);
+  
   const scrollToEndThrottled = useCallback((animated = true) => {
+    if (!isNearBottom.current) return;
+    
     const now = Date.now();
     if (now - lastScrollTime.current > 150) {
       flatListRef.current?.scrollToEnd({ animated });
       lastScrollTime.current = now;
     }
   }, []);
+
+  const handleScroll = useCallback((event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    // Check if user is within 100 pixels of the bottom
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    isNearBottom.current = distanceFromBottom < 100;
+  }, []);
+
+  // Fetch active customer orders for the tracking status cards
+  useEffect(() => {
+    if (user) {
+      apiGet<any>('/orders', { 
+        customerId: user.id || '',
+        phone: user.phone || '',
+        email: user.email || '',
+      })
+        .then(res => {
+          const ordersList = res.orders || res || [];
+          setUserOrders(ordersList);
+        })
+        .catch(err => console.error('[Zica AI] Failed to fetch customer orders:', err));
+    }
+  }, [user]);
 
   // Fetch catalog to train Zica AI
   useEffect(() => {
@@ -428,11 +640,8 @@ const ChatScreen = memo(() => {
       if (products.length > 0) {
         ctx += `--- PRODUCTS ---\n`;
         products.forEach(p => {
-          ctx += `- Name: ${p.title} (Handle: ${p.handle})\n`;
-          ctx += `  Price: ₹${p.price}\n`;
-          if (p.featuredImage) ctx += `  Image: ${p.featuredImage}\n`;
-          const sizes = p.sizes.filter(Boolean).join(', ');
-          if (sizes) ctx += `  Available Sizes: ${sizes}\n`;
+          const sizes = p.sizes.filter(Boolean).join('/');
+          ctx += `- ${p.title} | Price: ₹${p.price} | Handle: ${p.handle} | Image: ${p.featuredImage}${sizes ? ` | Sizes: ${sizes}` : ''}\n`;
         });
       }
 
@@ -459,16 +668,27 @@ const ChatScreen = memo(() => {
   }, [abortController]);
 
   const handleSend = useCallback(async (text?: string) => {
-    if (!input.trim() && !text && !pendingImage) {
+    const currentInput = inputRef.current;
+    const currentIsTyping = isTypingRef.current;
+    const currentHistory = conversationHistoryRef.current;
+    const currentPendingImage = pendingImageRef.current;
+    const currentAbortController = abortControllerRef.current;
+    const currentCatalogContext = catalogContextRef.current;
+
+    if (!currentInput.trim() && !text && !currentPendingImage) {
       setHistoryVisible(true);
       return;
     }
-    const content = (text ?? input).trim();
-    if ((!content && !pendingImage) || isTyping) return;
+    const content = (text ?? currentInput).trim();
+    if ((!content && !currentPendingImage) || currentIsTyping) return;
 
     setInput('');
+    inputRef.current = '';
     Keyboard.dismiss();
     haptics.buttonTap();
+
+    // Reset scroll lock since the user explicitly sent a message
+    isNearBottom.current = true;
 
     const displayContent = content || 'Analyze this image';
     const userMsg: Message = {
@@ -476,7 +696,7 @@ const ChatScreen = memo(() => {
       content: displayContent,
       isUser: true,
       createdAt: new Date(),
-      image: pendingImage?.uri,
+      image: currentPendingImage?.uri,
     };
 
     // Placeholder for AI streaming response
@@ -492,14 +712,16 @@ const ChatScreen = memo(() => {
 
     setMessages(prev => [...prev, userMsg, newAiMsg]);
     setIsTyping(true);
+    isTypingRef.current = true;
 
     // Capture and clear pending image before the async call
-    const imageToSend = pendingImage;
+    const imageToSend = currentPendingImage;
     setPendingImage(null);
+    pendingImageRef.current = null;
 
     // Cancel any previous active streaming API call
-    if (abortController) {
-      abortController();
+    if (currentAbortController) {
+      currentAbortController();
     }
 
     try {
@@ -524,7 +746,7 @@ const ChatScreen = memo(() => {
 
       // Include the last 10 messages of conversation history in the messages array for context continuity
       const messagesToSend = [
-        ...conversationHistory.slice(-10).map(msg => ({
+        ...currentHistory.slice(-10).map(msg => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
         })),
@@ -537,9 +759,10 @@ const ChatScreen = memo(() => {
       // Invoke client-side Claude streaming call using direct key
       const abort = callClaudeStream({
         messages: messagesToSend,
-        systemPrompt: ZICA_AI_CONFIG.SYSTEM_PROMPT + catalogContext,
+        systemPrompt: ZICA_AI_CONFIG.SYSTEM_PROMPT + currentCatalogContext,
         onToken: (token) => {
           setIsTyping(false); // Typing indicator disappears immediately once tokens begin streaming
+          isTypingRef.current = false;
           setMessages(prev =>
             prev.map(msg =>
               msg.id === aiMsgId
@@ -552,6 +775,7 @@ const ChatScreen = memo(() => {
         onError: (err) => {
           console.error('[Zica AI] Stream error:', err.message);
           setIsTyping(false);
+          isTypingRef.current = false;
           setMessages(prev =>
             prev.map(msg =>
               msg.id === aiMsgId
@@ -563,6 +787,7 @@ const ChatScreen = memo(() => {
         },
         onComplete: (fullText) => {
           setIsTyping(false);
+          isTypingRef.current = false;
           setMessages(prev =>
             prev.map(msg =>
               msg.id === aiMsgId
@@ -580,8 +805,10 @@ const ChatScreen = memo(() => {
       });
 
       setAbortController(() => abort);
+      abortControllerRef.current = abort;
     } catch (err: any) {
       setIsTyping(false);
+      isTypingRef.current = false;
       setMessages(prev =>
         prev.map(msg =>
           msg.id === aiMsgId
@@ -590,7 +817,7 @@ const ChatScreen = memo(() => {
         )
       );
     }
-  }, [input, isTyping, conversationHistory, pendingImage, abortController]);
+  }, []);
 
   const handleLinkPress = useCallback((url: string) => {
     let targetUrl = url;
@@ -609,6 +836,11 @@ const ChatScreen = memo(() => {
       const handle = url.split('/cart/add/')[1]?.split('?')[0]?.split('#')[0];
       if (handle) {
         targetUrl = 'zica://cart/add/' + handle;
+      }
+    } else if (url.includes('/orders/')) {
+      const orderId = url.split('/orders/')[1]?.split('?')[0]?.split('#')[0];
+      if (orderId) {
+        targetUrl = 'zica://orders/' + orderId;
       }
     } else if (url.includes('zica://')) {
       targetUrl = 'zica://' + url.split('zica://')[1];
@@ -632,6 +864,13 @@ const ChatScreen = memo(() => {
       const handle = targetUrl.replace('zica://collections/', '');
       haptics.buttonTap();
       navigation.navigate('Collection', { handle });
+      return false;
+    }
+
+    if (targetUrl.startsWith('zica://orders/')) {
+      const orderId = targetUrl.replace('zica://orders/', '');
+      haptics.buttonTap();
+      navigation.navigate('OrderDetails', { orderId });
       return false;
     }
     
@@ -808,7 +1047,14 @@ const ChatScreen = memo(() => {
                 ref={flatListRef}
                 data={messages}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => <MessageBubble item={item} onLinkPress={handleLinkPress} />}
+                renderItem={({ item }) => (
+                  <MessageBubble 
+                    item={item} 
+                    onLinkPress={handleLinkPress} 
+                    userOrders={userOrders}
+                    navigation={navigation}
+                  />
+                )}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
@@ -817,38 +1063,41 @@ const ChatScreen = memo(() => {
                 maxToRenderPerBatch={4}
                 updateCellsBatchingPeriod={50}
                 windowSize={5}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
                 onContentSizeChange={() => {
-                  if (messages.length > 0 && messages[messages.length - 1].isUser) {
+                  if (messages.length > 0 && isNearBottom.current) {
                     flatListRef.current?.scrollToEnd({ animated: true });
                   }
                 }}
+                ListFooterComponent={
+                  isTyping ? (
+                    <Animated.View
+                      entering={FadeInDown.duration(300)}
+                      style={[msgStyles.row, { paddingHorizontal: 0, paddingBottom: 12, paddingTop: 6 }]}
+                    >
+                      <View style={[
+                        msgStyles.bubble,
+                        { 
+                          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.45)', 
+                          borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
+                          borderWidth: 1,
+                          borderBottomLeftRadius: 4,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingHorizontal: 16,
+                          paddingVertical: 12,
+                        }
+                      ]}>
+                        <ActivityIndicator size="small" color={colors.textExtraLight} style={{ marginRight: 8 }} />
+                        <Typography size={12} weight="600" color={colors.textMuted} style={{ letterSpacing: -0.1 }}>
+                          Zica is thinking...
+                        </Typography>
+                      </View>
+                    </Animated.View>
+                  ) : null
+                }
               />
-            )}
-
-            {isTyping && (
-              <Animated.View
-                entering={FadeInDown.duration(300)}
-                style={[msgStyles.row, { paddingHorizontal: 20, paddingBottom: 16 }]}
-              >
-                <View style={[
-                  msgStyles.bubble,
-                  { 
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)', 
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
-                    borderWidth: 1,
-                    borderBottomLeftRadius: 4,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                  }
-                ]}>
-                  <ActivityIndicator size="small" color={colors.textExtraLight} style={{ marginRight: 8 }} />
-                  <Typography size={12} weight="600" color={colors.textMuted} style={{ letterSpacing: -0.1 }}>
-                    Zica is thinking...
-                  </Typography>
-                </View>
-              </Animated.View>
             )}
           </View>
         </Pressable>
@@ -879,6 +1128,7 @@ const ChatScreen = memo(() => {
             styles.inputPill, 
             { 
               borderColor: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.08)',
+              backgroundColor: isDark ? 'rgba(25, 25, 25, 0.65)' : 'rgba(255, 255, 255, 0.72)',
             }
           ]}>
             <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
@@ -1052,5 +1302,64 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
+  },
+  orderCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  orderCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    position: 'relative',
+    marginTop: 8,
+    marginBottom: 12,
+    width: '100%',
+  },
+  stepperLineBackground: {
+    position: 'absolute',
+    top: 9, 
+    left: '10%',
+    right: '10%',
+    height: 2,
+    zIndex: 0,
+  },
+  stepWrapper: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  stepDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  stepLabel: {
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  trackButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginTop: 4,
   },
 });

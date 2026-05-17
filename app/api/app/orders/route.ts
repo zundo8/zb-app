@@ -106,7 +106,7 @@ export async function GET(req: Request) {
           },
           {
             paymentStatus: {
-              notIn: ['failed', 'FAILED']
+              in: ['paid', 'partially_paid', 'refunded', 'partially_refunded', 'PAID', 'PARTIALLY_PAID', 'REFUNDED', 'PARTIALLY_REFUNDED']
             }
           }
         ]

@@ -18,6 +18,7 @@ import { Typography } from '../components/Typography';
 import { OrderSkeleton } from '../components/OrderSkeleton';
 
 import { resolveImageUrl } from '../utils/imageUtils';
+import { getOrderStatusLabel, getOrderStatusProgressStep } from '../utils/orderStatus';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 type OrderTab = 'ACTIVE' | 'HISTORY';
@@ -96,16 +97,21 @@ export default function OrderHistoryScreen() {
 
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
-      const status = (o.status || '').toLowerCase();
+      const getVal = (v: any) => String(v || '').toLowerCase();
+      const finStatus = getVal(o.financialStatus || o.financial_status || o.paymentStatus || o.payment_status);
+      const mainStatus = getVal(o.status || o.rawStatus);
+      
+      const isPaymentUnsuccessful = 
+        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
+        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(mainStatus);
+        
+      if (isPaymentUnsuccessful) return false;
+      
       const timeline = Array.isArray(o.statusTimeline) ? o.statusTimeline : [];
       const deliveredAt = timeline.find((t: any) => t.step === 'delivered')?.completedAt;
       
-      const isCancelled = status.includes('cancel');
-      const isFailed = status.includes('failed') || status === 'payment_pending' || status === 'pending';
+      const isCancelled = mainStatus.includes('cancel');
       const isDelivered = !!deliveredAt;
-      
-      // Exclude failed or payment failed orders under any tab completely
-      if (isFailed) return false;
       
       if (activeTab === 'HISTORY') return true;
       return !isCancelled && !isDelivered;
@@ -113,24 +119,57 @@ export default function OrderHistoryScreen() {
   }, [orders, activeTab]);
 
   const getStatusConfig = (order: any) => {
-    const s = (order.status || '').toLowerCase();
-    const deliveryStatus = (order.deliveryStatus || '').toLowerCase();
+    const label = getOrderStatusLabel(order.deliveryStatus || order.status);
     
-    if (s.includes('cancel')) return { color: '#FF3B30', bg: 'rgba(255,59,48,0.06)', label: 'Cancelled', icon: 'close-circle' as const };
-    if (s.includes('failed') || s === 'payment_pending' || s === 'pending') return { color: '#FF3B30', bg: 'rgba(255,59,48,0.06)', label: 'Payment Failed', icon: 'alert-circle' as const };
-    if (s === 'awaiting_approval') return { color: '#FF9F0A', bg: 'rgba(255,159,10,0.06)', label: 'Awaiting Approval', icon: 'time' as const };
-    
-    if (deliveryStatus === 'delivered') return { color: '#34C759', bg: 'rgba(52,199,89,0.06)', label: 'Delivered', icon: 'checkmark-circle' as const };
-    if (deliveryStatus === 'out_for_delivery') return { color: '#FF9500', bg: 'rgba(255,149,0,0.06)', label: 'Out for Delivery', icon: 'bicycle' as const };
-    
-    const timeline = Array.isArray(order.statusTimeline) ? order.statusTimeline : [];
-    const isShipped = timeline.some((t: any) => t.step === 'shipped' && t.completedAt);
-    const isConfirmed = timeline.some((t: any) => (t.step === 'confirmed' || t.step === 'approved') && t.completedAt);
+    switch (label) {
+      case 'Cancelled':
+        return { color: '#FF3B30', bg: 'rgba(255,59,48,0.06)', label: 'Cancelled', icon: 'close-circle' as const };
+      case 'Return / Exchange Requested':
+        return { color: '#FF9F0A', bg: 'rgba(255,159,10,0.06)', label: 'Return / Exchange Requested', icon: 'swap-horizontal' as const };
+      case 'Delivered':
+        return { color: '#34C759', bg: 'rgba(52,199,89,0.06)', label: 'Delivered', icon: 'checkmark-circle' as const };
+      case 'Shipped / Out for Delivery':
+        return { color: '#AF52DE', bg: 'rgba(175,82,222,0.06)', label: 'Shipped / Out for Delivery', icon: 'airplane' as const };
+      case 'Ready for Dispatch':
+        return { color: '#FF9500', bg: 'rgba(255,149,0,0.06)', label: 'Ready for Dispatch', icon: 'gift' as const };
+      case 'Order Placed':
+        return { color: '#007AFF', bg: 'rgba(0,122,255,0.06)', label: 'Order Placed', icon: 'checkmark-done' as const };
+      case 'Processing':
+      default:
+        return { color: colors.textSecondary, bg: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', label: 'Processing', icon: 'hourglass-outline' as const };
+    }
+  };
 
-    if (isShipped) return { color: '#AF52DE', bg: 'rgba(175,82,222,0.06)', label: 'Shipped', icon: 'airplane' as const };
-    if (isConfirmed) return { color: '#007AFF', bg: 'rgba(0,122,255,0.06)', label: 'Confirmed', icon: 'checkmark-done' as const };
+  const renderProgressBar = (order: any) => {
+    const step = getOrderStatusProgressStep(order.deliveryStatus || order.status);
+    if (step === -1) {
+      return null;
+    }
+    const stages = ['Placed', 'Processing', 'Ready', 'Shipped', 'Delivered'];
     
-    return { color: colors.textSecondary, bg: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', label: 'Processing', icon: 'hourglass-outline' as const };
+    return (
+      <View style={{ marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }}>
+        <View style={{ height: 3, borderRadius: 1.5, position: 'relative', top: 4, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}>
+          <View style={{ height: 3, borderRadius: 1.5, backgroundColor: colors.iosBlue, width: (((step / 4) * 100) + '%') as any }} />
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'relative', top: -3 }}>
+          {stages.map((stage, idx) => {
+            const isCompleted = idx <= step;
+            const isCurrent = idx === step;
+            return (
+              <View key={stage} style={{ alignItems: 'center', width: 50 }}>
+                <View style={[{ width: 10, height: 10, borderRadius: 5, justifyContent: 'center', alignItems: 'center', backgroundColor: isCompleted ? colors.iosBlue : (isDark ? '#1C1C1E' : '#E5E5EA') }, isCurrent && { borderColor: '#FFFFFF', borderWidth: 1.5 }]}>
+                  {isCompleted && idx < step && <Ionicons name="checkmark" size={6} color="#FFFFFF" />}
+                </View>
+                <Typography size={8} weight={isCurrent ? "700" : "500"} color={isCurrent ? colors.text : colors.textMuted} style={{ marginTop: 4, textAlign: 'center' }}>
+                  {stage}
+                </Typography>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
   };
 
   const renderOrder = ({ item: order }: { item: any }) => {
@@ -140,6 +179,10 @@ export default function OrderHistoryScreen() {
     const totalPrice = formatPrice(order.totalPrice || order.total || 0);
     const isSingle = items.length === 1;
     
+    const estimatedDelivery = order.timeline?.estimatedDelivery || order.estimatedDelivery || order.shipments?.[0]?.estimatedDelivery;
+    const formattedDelivery = estimatedDelivery ? new Date(estimatedDelivery).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+    const trackingNumber = order.trackingNumber || order.shipments?.[0]?.trackingNumber;
+
     return (
       <TouchableOpacity
         activeOpacity={0.9}
@@ -163,12 +206,6 @@ export default function OrderHistoryScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
               <View style={[styles.statusDot, { backgroundColor: color }]} />
               <Typography size={14} weight="700" color={colors.text}>{label}</Typography>
-              {['confirmed', 'approved', 'placed', 'processing', 'shipped', 'delivered', 'rto', 'delivered_pending'].includes((order.status || '').toLowerCase()) && (
-                <View style={[styles.emailBadge, { backgroundColor: isDark ? 'rgba(201,169,110,0.1)' : 'rgba(201,169,110,0.06)' }]}>
-                  <Ionicons name="mail" size={9} color="#C9A96E" />
-                  <Typography size={8} weight="700" color="#C9A96E" style={{ marginLeft: 2, letterSpacing: 0.5 }}>EMAIL SENT</Typography>
-                </View>
-              )}
             </View>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -206,7 +243,7 @@ export default function OrderHistoryScreen() {
                         backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
                         borderColor: isDark ? '#000' : '#FFF',
                         borderWidth: 2,
-                        transform: [{ rotate: `${(idx - 1) * 2}deg` }]
+                        transform: [{ rotate: ((idx - 1) * 2) + 'deg' }]
                       }
                     ]}
                   >
@@ -226,7 +263,20 @@ export default function OrderHistoryScreen() {
             </View>
           )}
           
-          <View style={styles.cardFooter}>
+          <View style={{ marginTop: 12, gap: 4 }}>
+            <Typography size={11} color={colors.textSecondary}>
+              {formattedDelivery ? 'Estimated delivery: ' + formattedDelivery : "Estimated delivery date will be updated soon."}
+            </Typography>
+            {trackingNumber && (
+              <Typography size={11} color={colors.textSecondary} style={{ fontWeight: '600' }}>
+                Track your order: {trackingNumber}
+              </Typography>
+            )}
+          </View>
+
+          {renderProgressBar(order)}
+          
+          <View style={[styles.cardFooter, { marginTop: 16 }]}>
              <Typography size={10} weight="800" color={colors.iosBlue} style={{ letterSpacing: 0.5 }}>VIEW ORDER DETAILS</Typography>
              <Ionicons name="chevron-forward" size={12} color={colors.iosBlue} />
           </View>
@@ -236,17 +286,29 @@ export default function OrderHistoryScreen() {
   };
 
   const orderCounts = useMemo(() => {
+    const getVal = (v: any) => String(v || '').toLowerCase();
+    
     const active = orders.filter(o => {
-      const ds = (o.deliveryStatus || '').toLowerCase();
-      const s = (o.status || '').toLowerCase();
-      const isFailed = s.includes('failed') || s === 'payment_pending' || s === 'pending';
-      return ds !== 'delivered' && !s.includes('cancel') && !isFailed;
+      const finStatus = getVal(o.financialStatus || o.financial_status || o.paymentStatus || o.payment_status);
+      const s = getVal(o.status || o.rawStatus);
+      const isPaymentUnsuccessful = 
+        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
+        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(s);
+      
+      if (isPaymentUnsuccessful) return false;
+      
+      const ds = getVal(o.deliveryStatus);
+      return ds !== 'delivered' && !s.includes('cancel');
     }).length;
     
     const history = orders.filter(o => {
-      const s = (o.status || '').toLowerCase();
-      const isFailed = s.includes('failed') || s === 'payment_pending' || s === 'pending';
-      return !isFailed;
+      const finStatus = getVal(o.financialStatus || o.financial_status || o.paymentStatus || o.payment_status);
+      const s = getVal(o.status || o.rawStatus);
+      const isPaymentUnsuccessful = 
+        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
+        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(s);
+      
+      return !isPaymentUnsuccessful;
     }).length;
     
     return { ACTIVE: active, HISTORY: history };

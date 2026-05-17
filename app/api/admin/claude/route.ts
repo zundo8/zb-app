@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import {
   callClaude,
-  ZICA_SYSTEM_PROMPT,
+  ZICA_ADMIN_PROMPT,
   ZICA_TOOLS,
   type ClaudeMessage,
   type ClaudeContentBlock,
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
 
     // Build context-aware system prompt
     const aiSettings = getAISettings();
-    let systemPrompt = ZICA_SYSTEM_PROMPT;
+    let systemPrompt = ZICA_ADMIN_PROMPT;
     
     if (aiSettings.trainingRules && aiSettings.trainingRules.length > 0) {
       systemPrompt += `\n\nADDITIONAL DYNAMIC KNOWLEDGE & MEMORY:\nYou have been trained with the following additional custom operational instructions and knowledge. You MUST follow them strictly:\n`;

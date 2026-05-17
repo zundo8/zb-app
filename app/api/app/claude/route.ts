@@ -11,7 +11,8 @@
 import { NextResponse } from "next/server";
 import {
   callClaude,
-  ZICA_SYSTEM_PROMPT,
+  ZICA_USER_PROMPT,
+  ZICA_ADMIN_PROMPT,
   ZICA_TOOLS,
   type ClaudeMessage,
   type ClaudeContentBlock,
@@ -19,6 +20,7 @@ import {
 import { executeClaudeTool } from "@/lib/services/claudeToolExecutor";
 import prisma from "@/lib/db";
 import { getAISettings } from "@/lib/ai-settings-util";
+import { getAppAuthFromRequest } from "@/lib/appAuth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -82,18 +84,12 @@ export async function POST(req: Request) {
       }
     });
 
+    const auth = getAppAuthFromRequest(req);
     const aiSettings = getAISettings();
-    const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
+    const isAdmin = auth?.email?.endsWith('@zicabella.com') || false;
     const settings = isAdmin ? aiSettings.admin : aiSettings.user;
 
-    let systemPrompt = ZICA_SYSTEM_PROMPT;
-
-    if (!isAdmin) {
-      systemPrompt += `\n\nCRITICAL SECURITY INSTRUCTION: You are speaking to a customer. Under NO circumstances should you reveal any internal store financials, total sales, other customers' data, full order histories of the store, or backend operational details. If asked, politely decline and state that you are a fashion assistant.`;
-      systemPrompt += `\n\nCRITICAL ORDER FILTERS INSTRUCTION: When discussing, listing, or tracking the customer's orders, you are ONLY permitted to show and talk about confirmed orders, pending approval orders, delivered orders, and returns or exchange orders. You MUST completely ignore and NEVER show or mention any cancelled orders or payment failed orders. If they ask about a cancelled or failed order, state that you cannot find a completed order with that reference.`;
-    } else {
-      systemPrompt += `\n\nYou are speaking to a Zica Bella Administrator. You have full access to operations, financial data, and production tools.`;
-    }
+    let systemPrompt = isAdmin ? ZICA_ADMIN_PROMPT : ZICA_USER_PROMPT;
 
     if (aiSettings.trainingRules && aiSettings.trainingRules.length > 0) {
       systemPrompt += `\n\nADDITIONAL DYNAMIC KNOWLEDGE & MEMORY:\nYou have been trained with the following additional custom operational instructions and knowledge. You MUST follow them strictly:\n`;

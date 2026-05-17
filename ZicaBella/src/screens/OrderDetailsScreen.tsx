@@ -21,6 +21,7 @@ import { useUIStore } from '../store/uiStore';
 import { Image } from 'expo-image';
 import { trackOrder } from '../services/shipmentService';
 
+import { getOrderStatusLabel } from '../utils/orderStatus';
 import { resolveImageUrl } from '../utils/imageUtils';
 
 export default function OrderDetailsScreen() {
