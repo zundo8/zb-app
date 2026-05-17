@@ -160,9 +160,15 @@ export default function OrderHistoryScreen() {
             <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginBottom: 4 }}>
               #{orderNumber} • {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }).toUpperCase()}
             </Typography>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
               <View style={[styles.statusDot, { backgroundColor: color }]} />
               <Typography size={14} weight="700" color={colors.text}>{label}</Typography>
+              {['confirmed', 'approved', 'placed', 'processing', 'shipped', 'delivered', 'rto', 'delivered_pending'].includes((order.status || '').toLowerCase()) && (
+                <View style={[styles.emailBadge, { backgroundColor: isDark ? 'rgba(201,169,110,0.1)' : 'rgba(201,169,110,0.06)' }]}>
+                  <Ionicons name="mail" size={9} color="#C9A96E" />
+                  <Typography size={8} weight="700" color="#C9A96E" style={{ marginLeft: 2, letterSpacing: 0.5 }}>EMAIL SENT</Typography>
+                </View>
+              )}
             </View>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -331,6 +337,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
+  emailBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2.5, borderRadius: 6, marginLeft: 4 },
   contentSection: { gap: 16 },
   singleItemRow: { flexDirection: 'row', alignItems: 'center' },
   largeThumb: { width: 64, height: 64, borderRadius: 16, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },

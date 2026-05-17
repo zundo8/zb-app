@@ -65,6 +65,12 @@ export default function OrderConfirmationScreen() {
           </>
         )}
 
+        <View style={[styles.emailNotice, { backgroundColor: isDark ? 'rgba(201,169,110,0.06)' : 'rgba(201,169,110,0.03)', borderColor: 'rgba(201,169,110,0.15)' }]}>
+          <Typography size={10} color="#C9A96E" weight="600" style={{ letterSpacing: 0.5, textAlign: 'center' }}>
+            ✉ A confirmation email has been sent to your registered email address.
+          </Typography>
+        </View>
+
         {!!estimatedDelivery && (
           <Typography size={10} color={colors.textMuted} style={[styles.note, { marginTop: 14 }]}>
             Estimated delivery: {estimatedDelivery}
@@ -107,6 +113,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, width: 40, marginBottom: 32 },
   message: { textAlign: 'center', lineHeight: 22, opacity: 0.8, marginBottom: 24, letterSpacing: 0.5 },
   pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, marginTop: 8 },
+  emailNotice: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: 1, marginTop: 24, width: '100%', alignItems: 'center', justifyContent: 'center' },
   note: { textAlign: 'center', lineHeight: 18, opacity: 0.8, letterSpacing: 0.5 },
   actions: { width: '100%', gap: 16, marginTop: 32 },
   primaryButton: { width: '100%', paddingVertical: 24, borderRadius: 24, alignItems: 'center' },

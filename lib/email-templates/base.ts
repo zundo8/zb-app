@@ -55,3 +55,82 @@ export function baseTemplate(content: string, preheader: string = '') {
 </html>
   `;
 }
+
+/**
+ * Zica Bella Premium Black & Gold Theme Layout for Zoho Mail Integration
+ */
+export function baseEmailLayout(content: string, previewText?: string): string {
+  const currentYear = new Date().getFullYear();
+  const previewSpan = previewText 
+    ? `<span style="display:none; max-height:0px; max-width:0px; opacity:0; overflow:hidden; mso-hide:all; font-size:0px; line-height:0px;">${previewText}</span>` 
+    : '';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zica Bella</title>
+  <style>
+    @media only screen and (max-width: 600px) {
+      .container {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 0px !important;
+      }
+      .content {
+        padding: 20px !important;
+      }
+      .cta-button {
+        display: block !important;
+        width: auto !important;
+        text-align: center !important;
+      }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 40px 0; background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: #1a1a1a;">
+  ${previewSpan}
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #000000; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <!-- Main Content Area (White background, max-width 600px) -->
+        <table border="0" cellpadding="0" cellspacing="0" width="600" class="container" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-collapse: collapse;">
+          
+          <!-- Header (Pure Black matching Zica Bella black aesthetic with Gold logo text) -->
+          <tr>
+            <td align="center" style="padding: 40px 20px; background-color: #000000; border-bottom: 3px solid #C9A96E;">
+              <h1 style="margin: 0; font-family: Georgia, 'Times New Roman', Times, serif; font-size: 32px; font-weight: 300; letter-spacing: 5px; color: #C9A96E; text-transform: uppercase;">
+                ZICA BELLA
+              </h1>
+            </td>
+          </tr>
+          
+          <!-- Content Body (White Content Area) -->
+          <tr>
+            <td class="content" style="padding: 40px; color: #1a1a1a; font-size: 15px; line-height: 1.8;">
+              ${content}
+            </td>
+          </tr>
+
+          <!-- Footer (Pure Black matching Zica Bella black aesthetic with Gold accents) -->
+          <tr>
+            <td align="center" style="padding: 30px 40px; background-color: #000000; color: #888888; font-size: 12px; line-height: 1.6; border-top: 1px solid #1a1a1a;">
+              <p style="margin: 0 0 8px 0; color: #C9A96E; font-weight: bold; font-family: Georgia, serif;">
+                © Zica Bella
+              </p>
+              <p style="margin: 0 0 16px 0; color: #a0a0a0;">
+                developer@zicabella.com | Faridabad, Haryana
+              </p>
+              <p style="margin: 0; font-size: 11px; color: #666666;">
+                To unsubscribe from order updates, reply with 'unsubscribe'
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}

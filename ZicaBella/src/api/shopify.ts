@@ -30,8 +30,9 @@ export async function apiFetch<T>(
   const isGet = !options?.method || options.method.toUpperCase() === 'GET';
   const cacheKey = `${url}_${options?.body ? JSON.stringify(options.body) : ''}`;
 
-  if (isGet && inflightRequests[cacheKey]) {
-    return inflightRequests[cacheKey];
+  const inflight = inflightRequests[cacheKey];
+  if (isGet && inflight !== undefined) {
+    return inflight;
   }
 
   const fetchPromise = (async () => {

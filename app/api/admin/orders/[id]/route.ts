@@ -85,6 +85,57 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         } catch (pushErr) {
           console.error('[Admin Order PATCH] Push notification failed:', pushErr);
         }
+
+        // Module 3: Automatic Order Email Webhook Trigger (Non-blocking / Fire-and-forget)
+        try {
+          const localApiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com'}/api/orders/status-update`;
+          const apiSecret = process.env.INTERNAL_API_SECRET || 'ZB_INTERNAL_SECRET_987654321';
+          
+          prisma.order.findUnique({
+            where: { id: updated.id },
+            include: {
+              customer: true,
+              items: true,
+              shipments: { orderBy: { createdAt: 'desc' } }
+            }
+          }).then((fullOrder) => {
+            if (fullOrder && fullOrder.customer && fullOrder.customer.email) {
+              const latestShipment = fullOrder.shipments?.[0];
+              const resolvedStatus = statusChanged ? fullOrder.status : fullOrder.deliveryStatus;
+              
+              const payload = {
+                orderId: fullOrder.id,
+                newStatus: resolvedStatus,
+                customerEmail: fullOrder.customer.email,
+                customerName: fullOrder.customer.name || 'Valued Customer',
+                items: fullOrder.items.map((i: any) => ({
+                  name: i.title,
+                  size: i.sku?.split('-')?.pop() || 'M',
+                  quantity: i.quantity,
+                  price: i.price,
+                })),
+                total: fullOrder.totalPrice,
+                currency: fullOrder.currency || 'INR',
+                trackingNumber: latestShipment?.trackingNumber || undefined,
+                courier: latestShipment?.courier || undefined,
+              };
+
+              fetch(localApiUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-secret': apiSecret,
+                },
+                body: JSON.stringify(payload),
+              })
+              .then(res => res.json())
+              .then(resData => console.log('[Admin Order Status Trigger] Email status webhook success:', resData))
+              .catch(err => console.error('[Admin Order Status Trigger] Email status webhook fetch error:', err));
+            }
+          }).catch(err => console.error('[Admin Order Status Trigger] Error loading full order for email:', err));
+        } catch (emailErr) {
+          console.error('[Admin Order Status Trigger] Background email trigger failed:', emailErr);
+        }
       }
     }
 

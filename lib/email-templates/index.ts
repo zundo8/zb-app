@@ -373,3 +373,8 @@ export function vendorOnboardingTemplate(data: {
 
   return baseTemplate(content, `Welcome to Zica Bella Vendor Network`);
 }
+
+export * from './orderPlaced';
+export * from './orderShipped';
+export * from './orderDelivered';
+

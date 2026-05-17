@@ -328,14 +328,87 @@ const ChatScreen = memo(() => {
   const [fetchingProduct, setFetchingProduct] = useState(false);
   const [catalogContext, setCatalogContext] = useState<string>('');
 
+  // Throttled scroll to bottom for smooth streaming performance
+  const lastScrollTime = useRef(0);
+  const scrollToEndThrottled = useCallback((animated = true) => {
+    const now = Date.now();
+    if (now - lastScrollTime.current > 150) {
+      flatListRef.current?.scrollToEnd({ animated });
+      lastScrollTime.current = now;
+    }
+  }, []);
+
   // Fetch catalog to train Zica AI
   useEffect(() => {
     Promise.all([
-      apiGet<{ products: FlatProduct[] }>('/products', { limit: '50' }).catch(() => null),
-      apiGet<{ collections: any[] }>('/collections').catch(() => null)
+      apiGet<any>('/products', { limit: '50' }).catch(() => null),
+      apiGet<any>('/collections').catch(() => null)
     ]).then(([productsRes, collectionsRes]) => {
-      const products = productsRes?.products || [];
-      const collections = collectionsRes?.collections || [];
+      const extractCatalogProducts = (payload: any): any[] => {
+        if (!payload) return [];
+        const candidates = payload.products || payload.data?.products || payload.items || payload.data?.items || payload;
+        const raw = Array.isArray(candidates) ? candidates : (Array.isArray(candidates?.edges) ? candidates.edges : []);
+        return raw.map((item: any) => {
+          const node = item?.node || item;
+          if (!node) return null;
+          
+          let price = node.price;
+          if (!price && node.variants) {
+            const vars = Array.isArray(node.variants) ? node.variants : (Array.isArray(node.variants?.edges) ? node.variants.edges : []);
+            const firstVar = vars[0]?.node || vars[0];
+            price = firstVar?.price?.amount || firstVar?.price;
+          }
+          if (!price && node.priceRange?.minVariantPrice) {
+            price = node.priceRange.minVariantPrice.amount;
+          }
+
+          let featuredImage = node.featuredImage;
+          if (typeof featuredImage === 'object') {
+            featuredImage = featuredImage?.url || featuredImage?.src;
+          }
+          if (!featuredImage && node.images) {
+            const imgs = Array.isArray(node.images) ? node.images : (Array.isArray(node.images?.edges) ? node.images.edges : []);
+            const firstImg = imgs[0]?.node || imgs[0];
+            featuredImage = typeof firstImg === 'string' ? firstImg : (firstImg?.url || firstImg?.src);
+          }
+
+          const sizesSet = new Set<string>();
+          if (node.variants) {
+            const vars = Array.isArray(node.variants) ? node.variants : (Array.isArray(node.variants?.edges) ? node.variants.edges : []);
+            vars.forEach((v: any) => {
+              const vNode = v?.node || v;
+              if (!vNode) return;
+              const size = vNode.size || vNode.selectedOptions?.find((opt: any) => String(opt?.name || '').toLowerCase() === 'size')?.value;
+              if (size) sizesSet.add(size);
+            });
+          }
+
+          return {
+            title: node.title || '',
+            handle: node.handle || '',
+            price: price || '0',
+            featuredImage: featuredImage || '',
+            sizes: Array.from(sizesSet),
+          };
+        }).filter((p: any) => p && p.title && p.handle);
+      };
+
+      const extractCatalogCollections = (payload: any): any[] => {
+        if (!payload) return [];
+        const candidates = payload.collections || payload.data?.collections || payload.items || payload;
+        const raw = Array.isArray(candidates) ? candidates : (Array.isArray(candidates?.edges) ? candidates.edges : []);
+        return raw.map((item: any) => {
+          const node = item?.node || item;
+          if (!node) return null;
+          return {
+            title: node.title || '',
+            handle: node.handle || '',
+          };
+        }).filter((c: any) => c && c.title && c.handle);
+      };
+
+      const products = extractCatalogProducts(productsRes);
+      const collections = extractCatalogCollections(collectionsRes);
       
       let ctx = `\n\n=== APP CATALOG KNOWLEDGE ===\n`;
       ctx += `You have knowledge of the following products and collections currently available in the Zica Bella app.\n`;
@@ -358,7 +431,7 @@ const ChatScreen = memo(() => {
           ctx += `- Name: ${p.title} (Handle: ${p.handle})\n`;
           ctx += `  Price: ₹${p.price}\n`;
           if (p.featuredImage) ctx += `  Image: ${p.featuredImage}\n`;
-          const sizes = Array.from(new Set(p.variants?.map(v => v.size).filter(Boolean))).join(', ');
+          const sizes = p.sizes.filter(Boolean).join(', ');
           if (sizes) ctx += `  Available Sizes: ${sizes}\n`;
         });
       }
@@ -474,7 +547,7 @@ const ChatScreen = memo(() => {
                 : msg
             )
           );
-          flatListRef.current?.scrollToEnd({ animated: true });
+          scrollToEndThrottled(true);
         },
         onError: (err) => {
           console.error('[Zica AI] Stream error:', err.message);
@@ -744,7 +817,11 @@ const ChatScreen = memo(() => {
                 maxToRenderPerBatch={4}
                 updateCellsBatchingPeriod={50}
                 windowSize={5}
-                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                onContentSizeChange={() => {
+                  if (messages.length > 0 && messages[messages.length - 1].isUser) {
+                    flatListRef.current?.scrollToEnd({ animated: true });
+                  }
+                }}
               />
             )}
 

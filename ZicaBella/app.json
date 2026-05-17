@@ -20,8 +20,8 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.zicabella.ios",
-      "appleTeamId": "NZDV3AFAEG",
-      "buildNumber": "6",
+      "appleTeamId": "94765P9PT9",
+      "buildNumber": "8",
       "deploymentTarget": "16.0",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Verify your identity to access your profile",

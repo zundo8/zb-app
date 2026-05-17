@@ -94,7 +94,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const sOrder = await createOrder(shopifyOrderData);
     
     // Update local order with real Shopify ID and status
-    await prisma.order.update({
+    const updatedOrder = await prisma.order.update({
       where: { id },
       data: {
         shopifyOrderId: sOrder.id.toString(),
@@ -102,6 +102,43 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         tags: `AppOrder, MobileApp, ${order.paymentMethod === 'COD' ? 'COD' : 'Prepaid'}, Approved`
       }
     });
+
+    // Module 3: Automatic Order Approved Email Webhook Trigger (Non-blocking / Fire-and-forget)
+    try {
+      const localApiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com'}/api/orders/status-update`;
+      const apiSecret = process.env.INTERNAL_API_SECRET || 'ZB_INTERNAL_SECRET_987654321';
+      
+      if (order.customer && order.customer.email) {
+        const payload = {
+          orderId: updatedOrder.id,
+          newStatus: 'approved',
+          customerEmail: order.customer.email,
+          customerName: order.customer.name || 'Valued Customer',
+          items: order.items.map((i: any) => ({
+            name: i.title,
+            size: i.sku?.split('-')?.pop() || 'M',
+            quantity: i.quantity,
+            price: i.price,
+          })),
+          total: order.totalPrice,
+          currency: order.currency || 'INR',
+        };
+
+        fetch(localApiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-secret': apiSecret,
+          },
+          body: JSON.stringify(payload),
+        })
+        .then(res => res.json())
+        .then(resData => console.log('[Admin Order Approve Status Trigger] Email status webhook success:', resData))
+        .catch(err => console.error('[Admin Order Approve Status Trigger] Email status webhook fetch error:', err));
+      }
+    } catch (emailErr) {
+      console.error('[Admin Order Approve Status Trigger] Background email trigger failed:', emailErr);
+    }
 
     return NextResponse.json({ 
       success: true, 
