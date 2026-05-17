@@ -321,6 +321,7 @@ const ChatScreen = memo(() => {
   const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
   const flatListRef = useRef<FlatList>(null);
   const [abortController, setAbortController] = useState<(() => void) | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
@@ -369,10 +370,15 @@ const ChatScreen = memo(() => {
   // Auto-scroll list when keyboard pops up on iOS
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
       flatListRef.current?.scrollToEnd({ animated: true });
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
     });
     return () => {
       showSubscription.remove();
+      hideSubscription.remove();
       if (abortController) {
         abortController();
       }
@@ -719,7 +725,6 @@ const ChatScreen = memo(() => {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} android_disableSound={true}>
           <View style={{ flex: 1 }}>
@@ -739,7 +744,7 @@ const ChatScreen = memo(() => {
                 maxToRenderPerBatch={4}
                 updateCellsBatchingPeriod={50}
                 windowSize={5}
-                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
               />
             )}
 
@@ -771,7 +776,7 @@ const ChatScreen = memo(() => {
           </View>
         </Pressable>
 
-        <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={[styles.inputBarWrapper, { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 12) }]}>
           {pendingImage && (
             <View style={[
               styles.pendingImageBar, 
