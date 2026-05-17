@@ -11,6 +11,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing, FadeInDown, FadeInUp,
+  withRepeat, FadeIn, ZoomIn,
 } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -48,15 +49,15 @@ interface Message {
 // ─── Quick prompts ───────────────────────────────
 
 const QUICK_PROMPTS = [
-  { label: 'Style tips', icon: 'sparkles-outline' },
-  { label: 'Size guide', icon: 'shirt-outline' },
-  { label: 'Track my order', icon: 'location-outline' },
-  { label: 'Trending now', icon: 'flame-outline' },
+  { label: 'Style tips', icon: 'sparkles-outline', desc: 'Get customized recommendation for your personal outfit look.' },
+  { label: 'Size guide', icon: 'shirt-outline', desc: 'Find your perfect size fit for items in Zica Bella catalogue.' },
+  { label: 'Track my order', icon: 'location-outline', desc: 'Check the real-time shipping status and delivery updates.' },
+  { label: 'Trending now', icon: 'flame-outline', desc: 'Browse the latest highly in-demand collections and lookbook.' },
 ];
 
 const ADMIN_QUICK_PROMPTS = [
-  { label: "Today's briefing", icon: 'sunny-outline' },
-  { label: 'Low stock alert', icon: 'alert-circle-outline' },
+  { label: "Today's briefing", icon: 'sunny-outline', desc: 'Fetch key metrics, sales timeline status, and active users.' },
+  { label: 'Low stock alert', icon: 'alert-circle-outline', desc: 'Analyze products running low in inventory catalog.' },
 ];
 
 // ─── Markdown Styles ─────────────────────────────
@@ -404,15 +405,11 @@ const MessageBubble = memo(({
               elevation: 3,
             } 
           : { 
-              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.45)', 
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
-              borderWidth: 1,
-              borderBottomLeftRadius: 4,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: isDark ? 0.05 : 0.02,
-              shadowRadius: 6,
-              elevation: 1,
+              backgroundColor: 'transparent', 
+              borderColor: 'transparent',
+              borderWidth: 0,
+              paddingHorizontal: 0,
+              paddingVertical: 4,
             },
         item.isError && msgStyles.errorBubble,
       ]}>
@@ -486,6 +483,28 @@ const ChatScreen = memo(() => {
   const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
   const user = useAuthStore(s => s.user);
   const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
+
+  // Siri/ChatGPT style pulsing glowing AI orb variables
+  const pulseScale = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0.18);
+
+  useEffect(() => {
+    pulseScale.value = withRepeat(
+      withTiming(1.35, { duration: 2200, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+    pulseOpacity.value = withRepeat(
+      withTiming(0.45, { duration: 2200, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, []);
+
+  const pulsingGlowStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity: pulseOpacity.value,
+  })); 
   const flatListRef = useRef<FlatList>(null);
   const [abortController, setAbortController] = useState<(() => void) | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -998,31 +1017,67 @@ const ChatScreen = memo(() => {
 
   const renderOnboarding = () => (
     <View style={styles.onboarding}>
-      <Animated.View entering={FadeInUp.delay(200).duration(800)} style={{ alignItems: 'center' }}>
-        <Typography heading weight="700" size={36} color={colors.text} style={styles.onboardingTitle}>
-          ZICA AI
+      {/* Siri/ChatGPT Pulsing AI Liquid Orb */}
+      <View style={styles.orbContainer}>
+        <Animated.View 
+          style={[
+            styles.glowOuter,
+            { shadowColor: colors.info || '#007AFF' },
+            pulsingGlowStyle
+          ]}
+        />
+        <Animated.View 
+          entering={ZoomIn.delay(200).duration(800)}
+          style={[
+            styles.orbCore,
+            { 
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)', 
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.05)',
+            }
+          ]}
+        >
+          <BlurView intensity={35} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+          <Ionicons name="sparkles" size={28} color={colors.text} />
+        </Animated.View>
+      </View>
+
+      <Animated.View entering={FadeInUp.delay(300).duration(800)} style={{ alignItems: 'center', width: '100%', paddingHorizontal: 20 }}>
+        <Typography heading weight="800" size={26} color={colors.text} style={styles.onboardingGreeting}>
+          How can I help you today?
         </Typography>
-        <Typography weight="400" size={10} color={colors.textMuted} style={styles.onboardingSubtitle}>
-          {isAdmin ? 'OPERATIONS INTELLIGENCE ENGINE' : 'YOUR PERSONAL STYLE CONCIERGE'}
+        <Typography weight="500" size={11} color={colors.textMuted} style={styles.onboardingSubtitleChatGPT}>
+          {isAdmin ? 'System console online. Query active shopify inventory.' : 'Ask Zica to design style fits, track active orders, or browse collections.'}
         </Typography>
-        <View style={styles.statusDot}>
-          <View style={styles.dotGreen} />
-          <Typography weight="800" size={7} color={colors.textExtraLight} style={{ letterSpacing: 2 }}>
-            ONLINE
-          </Typography>
-        </View>
       </Animated.View>
 
-      <View style={styles.promptGrid}>
+      <View style={styles.promptList}>
         {(isAdmin ? ADMIN_QUICK_PROMPTS : QUICK_PROMPTS).map((item, idx) => (
-          <Animated.View key={idx} entering={FadeInDown.delay(400 + idx * 100).duration(600)}>
+          <Animated.View key={idx} entering={FadeInDown.delay(500 + idx * 100).duration(600)} style={{ width: '100%' }}>
             <TouchableOpacity
-              style={[styles.promptCard, { backgroundColor: colors.surface, borderColor: 'rgba(150,150,150,0.1)' }]}
-              activeOpacity={0.7}
+              style={[
+                styles.promptCardChatGPT, 
+                { 
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.65)', 
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                }
+              ]}
+              activeOpacity={0.75}
               onPress={() => handleSend(item.label)}
             >
-              <Ionicons name={item.icon as any} size={14} color={colors.textMuted} />
-              <Typography size={9} weight="600" color={colors.text}>{item.label.toUpperCase()}</Typography>
+              <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+              
+              <View style={[styles.promptIconWrapper, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.04)' }]}>
+                <Ionicons name={item.icon as any} size={15} color={colors.text} />
+              </View>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Typography size={11} weight="700" color={colors.text}>
+                  {item.label}
+                </Typography>
+                <Typography size={8.5} weight="500" color={colors.textMuted} style={{ marginTop: 2 }} numberOfLines={2}>
+                  {item.desc}
+                </Typography>
+              </View>
+              <Ionicons name="arrow-forward-outline" size={12} color={colors.textExtraLight} />
             </TouchableOpacity>
           </Animated.View>
         ))}
@@ -1067,7 +1122,7 @@ const ChatScreen = memo(() => {
                 scrollEventThrottle={16}
                 onContentSizeChange={() => {
                   if (messages.length > 0 && isNearBottom.current) {
-                    flatListRef.current?.scrollToEnd({ animated: true });
+                    flatListRef.current?.scrollToEnd({ animated: false });
                   }
                 }}
                 ListFooterComponent={
@@ -1361,5 +1416,73 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     marginTop: 4,
+  },
+  orbContainer: {
+    width: 100,
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    position: 'relative',
+  },
+  glowOuter: {
+    position: 'absolute',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#007AFF',
+    opacity: 0.15,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 28,
+    elevation: 8,
+  },
+  orbCore: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  onboardingGreeting: {
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  onboardingSubtitleChatGPT: {
+    textAlign: 'center',
+    marginBottom: 32,
+    opacity: 0.5,
+    lineHeight: 18,
+    maxWidth: 280,
+  },
+  promptList: {
+    width: '100%',
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  promptCardChatGPT: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  promptIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
 });
