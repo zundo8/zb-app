@@ -436,11 +436,25 @@ async function getOrdersSummary(limit?: number, status?: string, userContext?: a
 
   // Restrict orders to only the specific user's orders if not admin
   if (userContext && !isAdmin) {
-    whereClause.OR = [
+    const userOrFilters = [
       userContext.id ? { customerId: userContext.id } : null,
       userContext.email ? { customer: { email: userContext.email } } : null,
       userContext.phone ? { customer: { phone: userContext.phone } } : null,
     ].filter(Boolean);
+
+    whereClause.AND = [
+      { OR: userOrFilters },
+      {
+        status: {
+          notIn: ['cancelled', 'CANCELLED', 'failed', 'FAILED']
+        }
+      },
+      {
+        paymentStatus: {
+          notIn: ['failed', 'FAILED', 'cancelled', 'CANCELLED']
+        }
+      }
+    ];
   }
 
   const orders = await prisma.order.findMany({

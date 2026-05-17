@@ -9,9 +9,16 @@ export interface AISettings {
   restrictToOwnData?: boolean;
 }
 
+export interface TrainingRule {
+  id: string;
+  prompt: string;
+  createdAt: string;
+}
+
 export interface ZicaAISettings {
   admin: AISettings;
   user: AISettings;
+  trainingRules?: TrainingRule[];
 }
 
 export function getAISettings(): ZicaAISettings {
@@ -41,7 +48,8 @@ export function getAISettings(): ZicaAISettings {
       enabledTools: ["get_shipment_details", "get_payment_details", "get_orders_summary"],
       allowedPages: ["shop", "collections", "cart", "orders", "profile", "support"],
       restrictToOwnData: true
-    }
+    },
+    trainingRules: []
   };
 }
 
