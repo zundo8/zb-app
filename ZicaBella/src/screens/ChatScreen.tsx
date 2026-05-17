@@ -28,6 +28,7 @@ import { apiGet } from '../api/shopify';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
 import { callClaudeStream } from '../api/claude';
+import { ZICA_AI_CONFIG } from '../constants/aiConfig';
 
 const { width } = Dimensions.get('window');
 
@@ -313,7 +314,7 @@ const ChatScreen = memo(() => {
   // Fetch catalog to train Zica AI
   useEffect(() => {
     Promise.all([
-      apiGet<{ products: FlatProduct[] }>('/products?limit=50').catch(() => null),
+      apiGet<{ products: FlatProduct[] }>('/products', { limit: '50' }).catch(() => null),
       apiGet<{ collections: any[] }>('/collections').catch(() => null)
     ]).then(([productsRes, collectionsRes]) => {
       const products = productsRes?.products || [];
