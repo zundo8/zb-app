@@ -318,7 +318,7 @@ export default function ProductDetailScreen() {
       variantId: variant.id,
       title: product.title,
       size: selectedSize,
-      color: selectedColor,
+      // color: selectedColor,
       handle: product.handle,
       price: variant.price,
       image: product.featuredImage,

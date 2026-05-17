@@ -79,6 +79,7 @@ export const fallbackProducts: FlatProduct[] = ringItems.map((item) => ({
       price: item.price,
       compareAtPrice: null,
       size: 'OS',
+      color: 'Silver',
     },
   ],
   isSoldOut: false,

@@ -374,7 +374,7 @@ export default function DeliveryAddressScreen() {
                 placeholder="New Delhi"
                 placeholderTextColor={colors.textExtraLight}
                 textContentType="addressCity"
-                autoComplete="address-level2"
+                autoComplete="address-line2"
                 style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
               />
               {fieldError('city') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('city')}</Typography>}
@@ -389,7 +389,7 @@ export default function DeliveryAddressScreen() {
               placeholder="Delhi"
               placeholderTextColor={colors.textExtraLight}
               textContentType="addressState"
-              autoComplete="address-level1"
+              autoComplete="address-line1"
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
             {fieldError('state') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('state')}</Typography>}

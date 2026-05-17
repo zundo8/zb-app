@@ -253,7 +253,7 @@ export default function OrderDetailsScreen() {
                     ? 'Delivered' 
                     : (order.deliveryStatus || order.status || 'Processing').replace(/_/g, ' ')}
             </Typography>
-            <Typography size={11} weight="600" color={colors.textMuted} style={{ marginTop: 6, fontFeatures: ['tnum'] }}>
+            <Typography size={11} weight="600" color={colors.textMuted} style={{ marginTop: 6 }}>
               {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
             </Typography>
           </View>
@@ -375,10 +375,10 @@ export default function OrderDetailsScreen() {
             <Typography size={12} weight="800" color="#34C759">FREE</Typography>
           </View>
           <View style={[styles.totalRow, { borderTopColor: colors.borderExtraLight, marginTop: 16, paddingTop: 16 }]}>
-            <Typography size={15} weight="900" color={colors.text}>
-              {order.paymentStatus === 'paid' ? 'TOTAL PAID' : 'TOTAL AMOUNT'}
+            <Typography size={15} weight="800" color={colors.text}>
+              TOTAL
             </Typography>
-            <Typography size={20} weight="900" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
+            <Typography size={20} weight="800" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
           </View>
         </View>
 

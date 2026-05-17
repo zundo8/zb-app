@@ -135,6 +135,11 @@ target 'ZICABELLA' do
         config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ""
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = podfile_properties['ios.deploymentTarget'] || '16.0'
+        
+        # Patch for fmt library consteval errors on C++20 / Xcode 15+
+        if target.name == 'fmt'
+          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+        end
       end
     end
 

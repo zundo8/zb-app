@@ -210,7 +210,7 @@ export const TabNavigator = () => {
         name="ShopTab"
         component={ShopStack}
         options={{
-          tabBarIcon: ({ color }) => <Ionicons name="bag-outline" size={20} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="grid-outline" size={20} color={color} />,
         }}
       />
       <Tab.Screen

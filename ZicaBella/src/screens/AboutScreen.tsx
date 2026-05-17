@@ -69,7 +69,7 @@ export default function AboutScreen() {
               ZICA{"\n"}BELLA
             </Typography>
             <View style={[styles.badge, { backgroundColor: colors.foreground }]}>
-              <Typography size={7} weight="900" color={colors.background} style={{ letterSpacing: 2 }}>ARCHIVAL VISION</Typography>
+              <Typography size={7} weight="800" color={colors.background} style={{ letterSpacing: 2 }}>ARCHIVAL VISION</Typography>
             </View>
           </View>
         </View>

@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore';
 
 const API_BASE = `${config.appUrl}/api/app`;
 
-const inflightRequests: Record<string, Promise<any>> = {};
+const inflightRequests: Record<string, Promise<any> | undefined> = {};
 
 export async function apiFetch<T>(
   endpoint: string,
