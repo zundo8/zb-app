@@ -67,12 +67,27 @@ const ImageViewerModal = ({ visible, images, activeIndex, onClose }: any) => {
         >
           {images.map((img: any, idx: number) => (
             <View key={idx} style={styles.viewerItem}>
-              <Image 
-                source={resolveImageUrl(img) || undefined} 
-                style={styles.viewerImage} 
-                contentFit="contain" 
-                transition={400} 
-              />
+              <ScrollView
+                maximumZoomScale={4}
+                minimumZoomScale={1}
+                bouncesZoom={true}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{
+                  flexGrow: 1,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  width: SCREEN_W,
+                  height: SCREEN_H,
+                }}
+              >
+                <Image 
+                  source={resolveImageUrl(img) || undefined} 
+                  style={styles.viewerImage} 
+                  contentFit="contain" 
+                  transition={400} 
+                />
+              </ScrollView>
             </View>
           ))}
         </ScrollView>
