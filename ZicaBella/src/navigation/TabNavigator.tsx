@@ -109,7 +109,11 @@ function OrdersStack() {
 // ───────────────────────────────────────────────────────────────────
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
-  const isTabBarVisible = useUIStore(s => s.isTabBarVisible);
+  const isTabBarVisibleGlobal = useUIStore(s => s.isTabBarVisible);
+  // Hide tab bar automatically when ChatTab is active to prevent visual overlap
+  const currentRouteName = state.routes[state.index]?.name;
+  const isTabBarVisible = isTabBarVisibleGlobal && currentRouteName !== 'ChatTab';
+
   const colors = useColors();
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';

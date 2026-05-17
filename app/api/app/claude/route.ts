@@ -80,6 +80,14 @@ export async function POST(req: Request) {
 
     let systemPrompt = ZICA_SYSTEM_PROMPT;
     
+    const isAdmin = userContext?.email?.endsWith('@zicabella.com') || false;
+
+    if (!isAdmin) {
+      systemPrompt += `\n\nCRITICAL SECURITY INSTRUCTION: You are speaking to a customer. Under NO circumstances should you reveal any internal store financials, total sales, other customers' data, full order histories of the store, or backend operational details. If asked, politely decline and state that you are a fashion assistant.`;
+    } else {
+      systemPrompt += `\n\nYou are speaking to a Zica Bella Administrator. You have full access to operations, financial data, and production tools.`;
+    }
+    
     if (userContext?.name) {
       systemPrompt += `\n\nYou are talking to the customer "${userContext.name}".`;
     }
@@ -140,15 +148,20 @@ export async function POST(req: Request) {
         systemPrompt += `You have full access to our products. When a user asks for recommendations, shopping, or style advice, refer to these products.\n`;
         systemPrompt += `CRITICAL: You MUST use Markdown image syntax to display products and collections beautifully! Example: ![Product Name](image_url)\n`;
         systemPrompt += `Note: To optimize images for mobile, append '&width=600' (if url has '?') or '?width=600' to the image URLs.\n\n`;
+        systemPrompt += `CRITICAL NAVIGATION & ACTION INSTRUCTIONS for mobile app:\n`;
+        systemPrompt += `- ALWAYS link products using this exact scheme: [View Product](zica://products/handle)\n`;
+        systemPrompt += `- ALWAYS link collections using this exact scheme: [View Collection](zica://collections/handle)\n`;
+        systemPrompt += `- Under every product recommendation, ALWAYS offer a direct action to add to cart like this: [Add to Bag 🛍️](zica://cart/add/handle). Make sure to present this action clearly so the user can add the item directly from the chat screen!\n\n`;
+        
         systemPrompt += allProducts.map(p => 
-          `- ${p.title}: ₹${p.price || 'N/A'}. Link: https://zicabella.com/products/${p.handle || ''}. Image: ${p.featuredImage || ''}`
+          `- ${p.title}: ₹${p.price || 'N/A'}. View Link: zica://products/${p.handle || ''}. Add to Bag Link: zica://cart/add/${p.handle || ''}. Image: ${p.featuredImage || ''}`
         ).join("\n");
 
         systemPrompt += `\n\nZica Bella Collections:\n`;
-        systemPrompt += `- ${shop?.spotlightCollection || 'Spotlight / T-Shirts'}\n`;
-        systemPrompt += `- ${shop?.kineticMeshTitle || 'Archive Edition'}\n`;
-        systemPrompt += `- ${shop?.ringCarouselTitle || 'Rings Collection'}\n`;
-        systemPrompt += `Recommend collections by grouping products that fit these themes.\n`;
+        systemPrompt += `- Spotlight / T-Shirts: zica://collections/${shop?.spotlightCollection || 't-shirts'}\n`;
+        systemPrompt += `- Archive Edition: zica://collections/${shop?.kineticMeshTitle || 'archive'}\n`;
+        systemPrompt += `- Rings Collection: zica://collections/${shop?.ringCarouselTitle || 'rings'}\n`;
+        systemPrompt += `Recommend collections by grouping products that fit these themes. Always use the zica://collections/handle scheme to link them.\n`;
       }
     } catch (err) {
       console.error("[ZicaAI Mobile] Failed to fetch products for catalog context:", err);
@@ -177,13 +190,23 @@ export async function POST(req: Request) {
 
     currentHistory.push({ role: "user" as const, content: userContent });
 
+    const adminTools = [
+      "get_dashboard_summary", "generate_daily_briefing", "get_production_batches",
+      "advance_production_stage", "get_pending_tasks", "create_task", "get_fabric_inventory",
+      "get_low_stock_products", "get_orders_summary", "send_push_notification", "send_email_notification"
+    ];
+    
+    const availableTools = isAdmin 
+      ? ZICA_TOOLS 
+      : ZICA_TOOLS.filter(t => !adminTools.includes(t.name));
+
     while (iterations < MAX_ITERATIONS) {
       iterations++;
 
       const response = await callClaude({
         systemPrompt,
         userMessage: "", 
-        tools: ZICA_TOOLS,
+        tools: availableTools,
         conversationHistory: currentHistory,
         apiKey: CLAUDE_API_KEY,
       });

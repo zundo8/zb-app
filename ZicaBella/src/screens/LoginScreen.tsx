@@ -159,31 +159,40 @@ export default function LoginScreen() {
   };
 
   const handleOTPChange = (val: string, index: number) => {
-    if (val.length > 1) {
-      const digits = val.slice(0, 6).split('');
+    // Strip non-digit characters for robust copy-paste and SMS autofill support
+    const cleanedVal = val.replace(/\D/g, '');
+
+    if (cleanedVal.length > 1) {
+      const digits = cleanedVal.slice(0, 6).split('');
       const newOtp = [...otp];
+      
+      // If user pastes 6 digits, fill from start. Else fill from current index.
+      const startIndex = digits.length === 6 ? 0 : index;
+      
       digits.forEach((d, i) => {
-        if (index + i < 6) newOtp[index + i] = d;
+        if (startIndex + i < 6) newOtp[startIndex + i] = d;
       });
       setOtp(newOtp);
-      const nextIdx = Math.min(index + digits.length, 5);
+      
+      const nextIdx = Math.min(startIndex + digits.length, 5);
       otpInputs.current[nextIdx]?.focus();
       
-      if (newOtp.every(d => d !== '')) {
+      // Only auto-submit if exactly 6 digits are present
+      if (newOtp.every(d => d !== '') && newOtp.join('').length === 6) {
         handleLogin(newOtp.join(''));
       }
       return;
     }
 
     const newOtp = [...otp];
-    newOtp[index] = val;
+    newOtp[index] = cleanedVal ? cleanedVal[0] : '';
     setOtp(newOtp);
 
-    if (val && index < 5) {
+    if (cleanedVal && index < 5) {
       otpInputs.current[index + 1]?.focus();
     }
     
-    if (newOtp.every(d => d !== '') && index === 5) {
+    if (newOtp.every(d => d !== '') && index === 5 && cleanedVal) {
         handleLogin(newOtp.join(''));
     }
   };
@@ -196,7 +205,8 @@ export default function LoginScreen() {
 
   const handleLogin = async (codeOverride?: string) => {
     const finalOtp = codeOverride || otp.join('');
-    if (finalOtp.length < 6) {
+    // Ensure we send exactly 6 digits
+    if (finalOtp.length < 6 || !/^\d{6}$/.test(finalOtp)) {
       setErrors({ otp: 'Enter 6-digit OTP' });
       haptics.error();
       return;
@@ -226,6 +236,32 @@ export default function LoginScreen() {
       
       login(json.user, json.token);
       haptics.success();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+      haptics.error();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setLoading(true);
+    try {
+      let cleaned = phone.replace(/\D/g, '');
+      const countryDigits = country.code.replace(/\D/g, '');
+      if (cleaned.startsWith(countryDigits) && cleaned.length > 10) {
+        cleaned = cleaned.slice(countryDigits.length);
+      }
+      const fullPhone = country.code + cleaned;
+      
+      await sendOTP(fullPhone);
+      
+      // Clear current OTP
+      setOtp(['', '', '', '', '', '']);
+      setErrors({ otp: '' });
+      otpInputs.current[0]?.focus();
+      haptics.success();
+      Alert.alert('OTP Sent', 'A new code has been sent to your phone.');
     } catch (e: any) {
       Alert.alert('Error', e.message);
       haptics.error();
@@ -381,9 +417,15 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.backLink}>
-              <Typography size={12} weight="600" color={colors.textExtraLight}>Edit Phone Number</Typography>
-            </TouchableOpacity>
+            <View style={styles.otpActionRow}>
+              <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.backLink}>
+                <Typography size={12} weight="600" color={colors.textExtraLight}>Edit Phone</Typography>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleResendOTP} style={styles.backLink} disabled={loading}>
+                <Typography size={12} weight="600" color={colors.textExtraLight}>Resend OTP</Typography>
+              </TouchableOpacity>
+            </View>
           </View>
         );
     }
@@ -569,6 +611,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 0.5,
     borderColor: 'rgba(150,150,150,0.1)',
+  },
+  otpActionRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    marginTop: 8 
   },
   backLink: { alignSelf: 'center', marginTop: 16, padding: 8 },
   dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },

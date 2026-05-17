@@ -3,10 +3,11 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
   Dimensions, Keyboard, Alert, Pressable, Image as RNImage,
+  Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing, FadeInDown, FadeInUp,
@@ -24,6 +25,9 @@ import { haptics } from '../utils/haptics';
 import { useAuthStore } from '../store/authStore';
 import { ChatHistoryModal } from './ChatHistoryModal';
 import { sendZicaAIMessage, ChatMessage as ZicaAIChatMessage } from '../services/zicaAI';
+import QuickAddModal from '../components/QuickAddModal';
+import { FlatProduct } from '../api/types';
+
 
 const { width } = Dimensions.get('window');
 
@@ -230,7 +234,7 @@ function buildMarkdownStyles(colors: any) {
 
 // ─── Message Bubble ──────────────────────────────
 
-const MessageBubble = memo(({ item }: { item: Message }) => {
+const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress: (url: string) => boolean }) => {
   const isUser = item.isUser;
   const colors = useColors();
   const mdStyles = buildMarkdownStyles(colors);
@@ -264,7 +268,7 @@ const MessageBubble = memo(({ item }: { item: Message }) => {
             {item.content}
           </Typography>
         ) : (
-          <Markdown style={mdStyles}>
+          <Markdown style={mdStyles} onLinkPress={onLinkPress}>
             {item.content}
           </Markdown>
         )}
@@ -290,6 +294,7 @@ const ChatScreen = memo(() => {
   const colors = useColors();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
+  const navigation = useNavigation<any>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -300,6 +305,59 @@ const ChatScreen = memo(() => {
   const user = useAuthStore(s => s.user);
   const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
   const flatListRef = useRef<FlatList>(null);
+
+  const [quickAddVisible, setQuickAddVisible] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
+  const [fetchingProduct, setFetchingProduct] = useState(false);
+
+  const handleLinkPress = useCallback((url: string) => {
+    let targetUrl = url;
+    if (url.includes('zica://')) {
+      targetUrl = 'zica://' + url.split('zica://')[1];
+    }
+
+    if (targetUrl.startsWith('zica://products/')) {
+      const handle = targetUrl.replace('zica://products/', '');
+      haptics.buttonTap();
+      navigation.navigate('ProductDetail', { handle });
+      return false;
+    }
+    
+    if (targetUrl.startsWith('zica://collections/')) {
+      const handle = targetUrl.replace('zica://collections/', '');
+      haptics.buttonTap();
+      navigation.navigate('Collection', { handle });
+      return false;
+    }
+    
+    if (targetUrl.startsWith('zica://cart/add/')) {
+      const handle = targetUrl.replace('zica://cart/add/', '');
+      haptics.buttonTap();
+      setFetchingProduct(true);
+      
+      const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
+      fetch(`${APP_URL}/api/app/products/${handle}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.product) {
+            setSelectedProduct(data.product);
+            setQuickAddVisible(true);
+          } else {
+            Alert.alert('Error', 'Product details not found');
+          }
+        })
+        .catch(() => {
+          Alert.alert('Error', 'Network request failed');
+        })
+        .finally(() => {
+          setFetchingProduct(false);
+        });
+      return false;
+    }
+
+    Linking.openURL(url).catch(() => {});
+    return false;
+  }, [navigation]);
 
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
 
@@ -524,8 +582,8 @@ const ChatScreen = memo(() => {
                 ref={flatListRef}
                 data={messages}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => <MessageBubble item={item} />}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 130, paddingTop: insets.top + 70 }}
+                renderItem={({ item }) => <MessageBubble item={item} onLinkPress={handleLinkPress} />}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 removeClippedSubviews={true}
@@ -618,6 +676,19 @@ const ChatScreen = memo(() => {
         onClose={() => setHistoryVisible(false)} 
         onSelectSession={loadSession} 
       />
+
+      <QuickAddModal
+        visible={quickAddVisible}
+        product={selectedProduct}
+        onClose={() => setQuickAddVisible(false)}
+      />
+
+      {fetchingProduct && (
+        <View style={styles.loadingOverlay}>
+          <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <ActivityIndicator size="large" color={colors.text} />
+        </View>
+      )}
     </View>
   );
 });
@@ -670,10 +741,6 @@ const styles = StyleSheet.create({
   },
   typingRow: { paddingHorizontal: 24, paddingBottom: 92, flexDirection: 'row', alignItems: 'center' },
   inputBarWrapper: { 
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 16, 
     paddingTop: 10,
     backgroundColor: 'transparent',
@@ -733,5 +800,11 @@ const styles = StyleSheet.create({
   },
   pendingImageRemove: {
     padding: 4,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
   },
 });
