@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ZICA_AI_CONFIG = {
-  CLAUDE_API_KEY: 'k-ant-api03-60UkxU0vt9jnC8_pshEaaaI4x7tuJmpoOf5uLe-uL7AiR9wG6XXZ8MrAzKokU_DEK1-eOWuIezJaph2gFM7f-A-L5acvAAA',
+  CLAUDE_API_KEY: process.env.EXPO_PUBLIC_CLAUDE_API_KEY || 'k-ant-api03-60UkxU0vt9jnC8_pshEaaaI4x7tuJmpoOf5uLe-uL7AiR9wG6XXZ8MrAzKokU_DEK1-eOWuIezJaph2gFM7f-A-L5acvAAA',
   MODEL: 'claude-sonnet-4-20250514',
   MAX_TOKENS: 1024,
   SYSTEM_PROMPT: `You are Zica, the AI shopping and order assistant for Zica Bella — a premium fashion e-commerce brand. You help customers with their shopping experience exclusively. You have no knowledge of internal production, manufacturing, or admin operations.
