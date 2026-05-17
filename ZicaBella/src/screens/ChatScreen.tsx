@@ -42,6 +42,7 @@ interface Message {
   toolsUsed?: number;
   isError?: boolean;
   image?: string;
+  isStreaming?: boolean;
 }
 
 // ─── Quick prompts ───────────────────────────────
@@ -201,21 +202,28 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
 
   const rules = {
     image: (node: any) => {
-      const { src } = node.attributes;
+      const { src, alt } = node.attributes;
       return (
-        <Image
-          key={node.key}
-          source={{ uri: src }}
-          style={{
-            width: '100%',
-            height: 220,
-            borderRadius: 16,
-            marginVertical: 10,
-            backgroundColor: 'rgba(150,150,150,0.1)'
-          }}
-          contentFit="cover"
-          transition={250}
-        />
+        <View key={node.key} style={{ marginVertical: 6, alignItems: 'flex-start' }}>
+          <Image
+            source={{ uri: src }}
+            style={{
+              width: 140,
+              height: 140,
+              borderRadius: 12,
+              backgroundColor: 'rgba(150,150,150,0.1)',
+              borderWidth: 1,
+              borderColor: 'rgba(150,150,150,0.15)',
+            }}
+            contentFit="cover"
+            transition={200}
+          />
+          {alt ? (
+            <Typography size={9} weight="600" color={colors.textMuted} style={{ marginTop: 4, width: 140 }} numberOfLines={2}>
+              {alt}
+            </Typography>
+          ) : null}
+        </View>
       );
     },
     link: (node: any, children: any, parent: any, styles: any) => {
@@ -233,10 +241,7 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
   };
 
   return (
-    <Animated.View
-      entering={FadeInDown.duration(400).springify().damping(20)}
-      style={[msgStyles.row, isUser && msgStyles.rowRight]}
-    >
+    <View style={[msgStyles.row, isUser && msgStyles.rowRight]}>
       <View style={[
         msgStyles.bubble,
         isUser 
@@ -267,9 +272,20 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
             {item.content}
           </Typography>
         ) : (
-          <Markdown style={mdStyles} rules={rules} onLinkPress={onLinkPress}>
-            {item.content}
-          </Markdown>
+          item.isStreaming ? (
+            <Typography 
+                size={13} 
+                weight={"500"} 
+                color={colors.text}
+                style={{ lineHeight: 20, letterSpacing: -0.2 }}
+            >
+              {item.content}
+            </Typography>
+          ) : (
+            <Markdown style={mdStyles} rules={rules} onLinkPress={onLinkPress}>
+              {item.content}
+            </Markdown>
+          )
         )}
         <View style={msgStyles.metaRow}>
           {item.toolsUsed ? (
@@ -282,7 +298,7 @@ const MessageBubble = memo(({ item, onLinkPress }: { item: Message; onLinkPress:
           </Typography>
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 });
 
@@ -392,6 +408,7 @@ const ChatScreen = memo(() => {
       isUser: false,
       createdAt: new Date(),
       toolsUsed: 0,
+      isStreaming: true,
     };
 
     setMessages(prev => [...prev, userMsg, newAiMsg]);
@@ -447,7 +464,7 @@ const ChatScreen = memo(() => {
           setMessages(prev =>
             prev.map(msg =>
               msg.id === aiMsgId
-                ? { ...msg, content: msg.content + token }
+                ? { ...msg, content: msg.content + token, isStreaming: true }
                 : msg
             )
           );
@@ -459,7 +476,7 @@ const ChatScreen = memo(() => {
           setMessages(prev =>
             prev.map(msg =>
               msg.id === aiMsgId
-                ? { ...msg, content: `⚠️ ${err.message || 'Something went wrong. Please try again.'}`, isError: true }
+                ? { ...msg, content: `⚠️ ${err.message || 'Something went wrong. Please try again.'}`, isError: true, isStreaming: false }
                 : msg
             )
           );
@@ -467,6 +484,13 @@ const ChatScreen = memo(() => {
         },
         onComplete: (fullText) => {
           setIsTyping(false);
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === aiMsgId
+                ? { ...msg, content: fullText, isStreaming: false }
+                : msg
+            )
+          );
           setConversationHistory(prev => [
             ...prev,
             { role: 'user', content: displayContent },
@@ -482,7 +506,7 @@ const ChatScreen = memo(() => {
       setMessages(prev =>
         prev.map(msg =>
           msg.id === aiMsgId
-            ? { ...msg, content: '⚠️ Something went wrong. Please try again.', isError: true }
+            ? { ...msg, content: '⚠️ Something went wrong. Please try again.', isError: true, isStreaming: false }
             : msg
         )
       );
