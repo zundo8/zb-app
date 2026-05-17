@@ -24,7 +24,6 @@ import { Typography } from '../components/Typography';
 import { haptics } from '../utils/haptics';
 import { useAuthStore } from '../store/authStore';
 import { ChatHistoryModal } from './ChatHistoryModal';
-import { sendZicaAIMessage, ChatMessage as ZicaAIChatMessage } from '../services/zicaAI';
 import { apiGet } from '../api/shopify';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
@@ -309,6 +308,46 @@ const ChatScreen = memo(() => {
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [fetchingProduct, setFetchingProduct] = useState(false);
+  const [catalogContext, setCatalogContext] = useState<string>('');
+
+  // Fetch catalog to train Zica AI
+  useEffect(() => {
+    Promise.all([
+      apiGet<{ products: FlatProduct[] }>('/products?limit=50').catch(() => null),
+      apiGet<{ collections: any[] }>('/collections').catch(() => null)
+    ]).then(([productsRes, collectionsRes]) => {
+      const products = productsRes?.products || [];
+      const collections = collectionsRes?.collections || [];
+      
+      let ctx = `\n\n=== APP CATALOG KNOWLEDGE ===\n`;
+      ctx += `You have knowledge of the following products and collections currently available in the Zica Bella app.\n`;
+      ctx += `CRITICAL INSTRUCTION: DO NOT provide any external Shopify links (e.g. myshopify.com). If you recommend a product or collection, ONLY use the custom app deep link scheme format:\n`;
+      ctx += `- Product Link Format: [Product Name](zica://products/product-handle)\n`;
+      ctx += `- Collection Link Format: [Collection Name](zica://collections/collection-handle)\n`;
+      ctx += `You MUST include the product image in your response using markdown when recommending a product: ![Product Name](image_url)\n\n`;
+
+      if (collections.length > 0) {
+        ctx += `--- COLLECTIONS ---\n`;
+        collections.forEach(c => {
+          ctx += `- ${c.title} (Handle: ${c.handle})\n`;
+        });
+        ctx += `\n`;
+      }
+
+      if (products.length > 0) {
+        ctx += `--- PRODUCTS ---\n`;
+        products.forEach(p => {
+          ctx += `- Name: ${p.title} (Handle: ${p.handle})\n`;
+          ctx += `  Price: ₹${p.price}\n`;
+          if (p.featuredImage) ctx += `  Image: ${p.featuredImage}\n`;
+          const sizes = Array.from(new Set(p.variants?.map(v => v.size).filter(Boolean))).join(', ');
+          if (sizes) ctx += `  Available Sizes: ${sizes}\n`;
+        });
+      }
+
+      setCatalogContext(ctx);
+    });
+  }, []);
 
   // Auto-scroll list when keyboard pops up on iOS
   useEffect(() => {
@@ -332,6 +371,7 @@ const ChatScreen = memo(() => {
     if ((!content && !pendingImage) || isTyping) return;
 
     setInput('');
+    Keyboard.dismiss();
     haptics.buttonTap();
 
     const displayContent = content || 'Analyze this image';
@@ -400,6 +440,7 @@ const ChatScreen = memo(() => {
       // Invoke client-side Claude streaming call using direct key
       const abort = callClaudeStream({
         messages: messagesToSend,
+        systemPrompt: ZICA_AI_CONFIG.SYSTEM_PROMPT + catalogContext,
         onToken: (token) => {
           setIsTyping(false); // Typing indicator disappears immediately once tokens begin streaming
           setMessages(prev =>
@@ -412,11 +453,12 @@ const ChatScreen = memo(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         },
         onError: (err) => {
+          console.error('[Zica AI] Stream error:', err.message);
           setIsTyping(false);
           setMessages(prev =>
             prev.map(msg =>
               msg.id === aiMsgId
-                ? { ...msg, content: '⚠️ Something went wrong. Please try again.', isError: true }
+                ? { ...msg, content: `⚠️ ${err.message || 'Something went wrong. Please try again.'}`, isError: true }
                 : msg
             )
           );
@@ -664,7 +706,7 @@ const ChatScreen = memo(() => {
                 data={messages}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => <MessageBubble item={item} onLinkPress={handleLinkPress} />}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 removeClippedSubviews={false}
@@ -838,6 +880,10 @@ const styles = StyleSheet.create({
   },
   typingRow: { paddingHorizontal: 24, paddingBottom: 92, flexDirection: 'row', alignItems: 'center' },
   inputBarWrapper: { 
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 16, 
     paddingTop: 10,
     backgroundColor: 'transparent',
