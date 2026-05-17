@@ -686,6 +686,46 @@ const ChatScreen = memo(() => {
     return false;
   }, [navigation, handleSend]);
 
+  const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
+
+  const loadSession = async (sessionId: string) => {
+    try {
+      const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
+      const res = await fetch(`${APP_URL}/api/app/claude/history/${sessionId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const loadedMessages: Message[] = data.messages.map((m: any) => ({
+          id: m.id,
+          content: m.content,
+          isUser: m.role === 'user',
+          createdAt: new Date(m.createdAt),
+        }));
+        setMessages(loadedMessages);
+        
+        // Also map to Claude format history
+        const claudeHistory = data.messages.map((m: any) => ({
+          role: m.role,
+          content: m.content
+        }));
+        setConversationHistory(claudeHistory);
+        setCurrentSessionId(sessionId);
+        setHistoryVisible(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      setTabBarVisible(false);
+      // Optional: hide on focus, but we want it hidden as long as we are here
+      return () => {
+        setTabBarVisible(true);
+      };
+    }, [setTabBarVisible])
+  );
+
   const handlePickImage = async () => {
     haptics.buttonTap();
     Alert.alert(
