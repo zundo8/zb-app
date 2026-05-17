@@ -10,7 +10,7 @@ export type { ClaudeMessage, ClaudeResponse, ClaudeContentBlock };
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
 // Use the most capable model available
-const MODEL = "claude-3-5-sonnet-latest"; 
+const MODEL = "claude-sonnet-4-20250514"; 
 
 export interface ClaudeTool {
   name: string;

@@ -9,6 +9,6 @@ export const anthropic = new Anthropic({
 });
 
 export const CLAUDE_MODELS = {
-  FAST: 'claude-3-5-sonnet-latest',
-  POWERFUL: 'claude-3-5-sonnet-latest',
+  FAST: 'claude-sonnet-4-20250514',
+  POWERFUL: 'claude-sonnet-4-20250514',
 };

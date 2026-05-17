@@ -535,6 +535,10 @@ const ChatScreen = memo(() => {
   // Throttled scroll to bottom with intelligent scroll-up detection (fixes scroll lock)
   const isNearBottom = useRef(true);
   const lastScrollTime = useRef(0);
+
+  // Streaming token batching — accumulates tokens and flushes at 80ms intervals
+  const tokenBuffer = useRef('');
+  const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const scrollToEndThrottled = useCallback((animated = true) => {
     if (!isNearBottom.current) return;
@@ -776,23 +780,36 @@ const ChatScreen = memo(() => {
       ];
 
       // Invoke client-side Claude streaming call using direct key
+      // Start the batched token flush interval (80ms = ~12fps, smooth and light)
+      tokenBuffer.current = '';
+      if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
+      flushIntervalRef.current = setInterval(() => {
+        if (tokenBuffer.current.length > 0) {
+          const chunk = tokenBuffer.current;
+          tokenBuffer.current = '';
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === aiMsgId
+                ? { ...msg, content: msg.content + chunk, isStreaming: true }
+                : msg
+            )
+          );
+          scrollToEndThrottled(false);
+        }
+      }, 80);
+
       const abort = callClaudeStream({
         messages: messagesToSend,
         systemPrompt: ZICA_AI_CONFIG.SYSTEM_PROMPT + currentCatalogContext,
         onToken: (token) => {
-          setIsTyping(false); // Typing indicator disappears immediately once tokens begin streaming
+          setIsTyping(false);
           isTypingRef.current = false;
-          setMessages(prev =>
-            prev.map(msg =>
-              msg.id === aiMsgId
-                ? { ...msg, content: msg.content + token, isStreaming: true }
-                : msg
-            )
-          );
-          scrollToEndThrottled(true);
+          tokenBuffer.current += token;
         },
         onError: (err) => {
           console.error('[Zica AI] Stream error:', err.message);
+          if (flushIntervalRef.current) { clearInterval(flushIntervalRef.current); flushIntervalRef.current = null; }
+          tokenBuffer.current = '';
           setIsTyping(false);
           isTypingRef.current = false;
           setMessages(prev =>
@@ -802,9 +819,12 @@ const ChatScreen = memo(() => {
                 : msg
             )
           );
-          flatListRef.current?.scrollToEnd({ animated: true });
+          flatListRef.current?.scrollToEnd({ animated: false });
         },
         onComplete: (fullText) => {
+          // Stop batching and flush any remaining tokens
+          if (flushIntervalRef.current) { clearInterval(flushIntervalRef.current); flushIntervalRef.current = null; }
+          tokenBuffer.current = '';
           setIsTyping(false);
           isTypingRef.current = false;
           setMessages(prev =>
@@ -1113,13 +1133,13 @@ const ChatScreen = memo(() => {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                removeClippedSubviews={false}
-                initialNumToRender={6}
-                maxToRenderPerBatch={4}
-                updateCellsBatchingPeriod={50}
-                windowSize={5}
+                removeClippedSubviews={Platform.OS === 'android'}
+                initialNumToRender={8}
+                maxToRenderPerBatch={6}
+                updateCellsBatchingPeriod={100}
+                windowSize={7}
                 onScroll={handleScroll}
-                scrollEventThrottle={16}
+                scrollEventThrottle={32}
                 onContentSizeChange={() => {
                   if (messages.length > 0 && isNearBottom.current) {
                     flatListRef.current?.scrollToEnd({ animated: false });
@@ -1128,27 +1148,13 @@ const ChatScreen = memo(() => {
                 ListFooterComponent={
                   isTyping ? (
                     <Animated.View
-                      entering={FadeInDown.duration(300)}
-                      style={[msgStyles.row, { paddingHorizontal: 0, paddingBottom: 12, paddingTop: 6 }]}
+                      entering={FadeIn.duration(300)}
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 4 }}
                     >
-                      <View style={[
-                        msgStyles.bubble,
-                        { 
-                          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.45)', 
-                          borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
-                          borderWidth: 1,
-                          borderBottomLeftRadius: 4,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          paddingHorizontal: 16,
-                          paddingVertical: 12,
-                        }
-                      ]}>
-                        <ActivityIndicator size="small" color={colors.textExtraLight} style={{ marginRight: 8 }} />
-                        <Typography size={12} weight="600" color={colors.textMuted} style={{ letterSpacing: -0.1 }}>
-                          Zica is thinking...
-                        </Typography>
-                      </View>
+                      <ActivityIndicator size="small" color={colors.textExtraLight} />
+                      <Typography size={11} weight="500" color={colors.textMuted} style={{ marginLeft: 6, opacity: 0.7 }}>
+                        Thinking…
+                      </Typography>
                     </Animated.View>
                   ) : null
                 }
