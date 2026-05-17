@@ -694,10 +694,10 @@ const ChatScreen = memo(() => {
       
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <View style={{ flex: 1 }}>
+        <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} android_disableSound={true}>
           <View style={{ flex: 1 }}>
             {messages.length === 0 ? (
               renderOnboarding()
@@ -707,7 +707,7 @@ const ChatScreen = memo(() => {
                 data={messages}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => <MessageBubble item={item} onLinkPress={handleLinkPress} />}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120, paddingTop: insets.top + 70 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 removeClippedSubviews={false}
@@ -745,7 +745,7 @@ const ChatScreen = memo(() => {
               </Animated.View>
             )}
           </View>
-        </View>
+        </Pressable>
 
         <View style={[styles.inputBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           {pendingImage && (
@@ -881,10 +881,6 @@ const styles = StyleSheet.create({
   },
   typingRow: { paddingHorizontal: 24, paddingBottom: 92, flexDirection: 'row', alignItems: 'center' },
   inputBarWrapper: { 
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 16, 
     paddingTop: 10,
     backgroundColor: 'transparent',
