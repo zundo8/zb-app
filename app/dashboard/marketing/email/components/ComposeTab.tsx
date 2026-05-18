@@ -172,9 +172,9 @@ export default function ComposeTab() {
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
       {/* Editor Panel */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#161616]">
-          <h2 className="text-base font-medium text-white">Compose</h2>
+      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-black/10 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-[#161616]">
+          <h2 className="text-base font-medium text-black dark:text-white">Compose</h2>
           <div className="flex gap-2">
             <span className="text-xs text-gray-500 mr-2 flex items-center">
               {subject.length} chars (Recommended: &lt;60)
@@ -184,11 +184,11 @@ export default function ComposeTab() {
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">From Template (Optional)</label>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From Template (Optional)</label>
             <select
               value={selectedTemplateId}
               onChange={e => handleTemplateSelect(e.target.value)}
-              className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg p-2 text-white text-sm focus:border-white/30 outline-none"
+              className="w-full bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
             >
               <option value="">-- Start from scratch --</option>
               {templates.map(t => (
@@ -198,17 +198,17 @@ export default function ComposeTab() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2">To</label>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">To</label>
             <div className="flex gap-4 mb-3">
-              <label className="flex items-center gap-2 text-sm text-gray-300">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input type="radio" checked={recipientType === 'all'} onChange={() => setRecipientType('all')} />
                 All Users ({customerCount})
               </label>
-              <label className="flex items-center gap-2 text-sm text-gray-300">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input type="radio" checked={recipientType === 'specific'} onChange={() => setRecipientType('specific')} />
                 Specific Users
               </label>
-              <label className="flex items-center gap-2 text-sm text-gray-300">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input type="radio" checked={recipientType === 'paste'} onChange={() => setRecipientType('paste')} />
                 Paste Emails
               </label>
@@ -220,7 +220,7 @@ export default function ComposeTab() {
                 value={pastedEmails}
                 onChange={e => setPastedEmails(e.target.value)}
                 placeholder="email1@example.com, email2@example.com"
-                className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-white/30 outline-none"
+                className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-3 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
               />
             )}
             
@@ -229,7 +229,7 @@ export default function ComposeTab() {
                 multiple
                 value={specificUsers}
                 onChange={e => setSpecificUsers(Array.from(e.target.selectedOptions, option => option.value))}
-                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg p-2 text-white text-sm focus:border-white/30 outline-none h-32"
+                className="w-full bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none h-32"
               >
                 {customers.map(c => (
                   <option key={c.id} value={c.email}>{c.name || c.email} ({c.email})</option>
@@ -239,24 +239,24 @@ export default function ComposeTab() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">Subject</label>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Subject</label>
             <input
               required
               value={subject}
               onChange={e => setSubject(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white text-sm focus:border-white/30 outline-none"
+              className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
               placeholder="Email subject..."
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">HTML Body</label>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">HTML Body</label>
             <textarea
               required
               rows={12}
               value={htmlBody}
               onChange={e => setHtmlBody(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm font-mono focus:border-white/30 outline-none"
+              className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-3 text-black dark:text-white text-sm font-mono focus:border-black/30 dark:focus:border-white/30 outline-none"
               placeholder="Raw HTML..."
             />
           </div>
@@ -272,14 +272,14 @@ export default function ComposeTab() {
             onChange={(newHtml) => setHtmlBody(newHtml)}
           />
 
-          <div className="border-t border-white/10 pt-4 mt-4">
-            <h3 className="text-sm font-medium text-white mb-3">Send Settings</h3>
+          <div className="border-t border-black/10 dark:border-white/10 pt-4 mt-4">
+            <h3 className="text-sm font-medium text-black dark:text-white mb-3">Send Settings</h3>
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-sm text-gray-300">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input type="radio" checked={!isScheduled} onChange={() => setIsScheduled(false)} />
                 Send Now
               </label>
-              <label className="flex items-center gap-2 text-sm text-gray-300">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input type="radio" checked={isScheduled} onChange={() => setIsScheduled(true)} />
                 Schedule for Later
               </label>
@@ -291,7 +291,7 @@ export default function ComposeTab() {
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={e => setScheduledAt(e.target.value)}
-                  className="bg-[#1a1a1a] border border-white/10 rounded-lg p-2 text-white text-sm outline-none"
+                  className="bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm outline-none"
                 />
                 <span className="text-xs text-gray-500 ml-2">(IST Timezone)</span>
               </div>
@@ -299,11 +299,11 @@ export default function ComposeTab() {
           </div>
         </div>
 
-        <div className="p-4 border-t border-white/10 bg-[#161616]">
+        <div className="p-4 border-t border-black/10 dark:border-white/10 bg-gray-50 dark:bg-[#161616]">
           <button
             disabled={isSending}
             onClick={handleSend}
-            className="w-full bg-white text-black px-6 py-3 rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-gray-200 transition"
+            className="w-full bg-black dark:bg-white text-white dark:text-black px-6 py-3 rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-black/80 dark:hover:bg-gray-200 transition shadow-md"
           >
             {isSending ? 'Processing...' : (isScheduled ? 'Schedule Email' : 'Send Email')}
           </button>
@@ -311,26 +311,26 @@ export default function ComposeTab() {
       </div>
 
       {/* Live Preview Panel */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#161616]">
-          <h2 className="text-base font-medium text-white">Live Preview</h2>
-          <div className="flex bg-black rounded-lg p-1 border border-white/10">
+      <div className="hidden lg:flex lg:w-1/2 flex-col bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-black/10 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-[#161616]">
+          <h2 className="text-base font-medium text-black dark:text-white">Live Preview</h2>
+          <div className="flex bg-gray-200 dark:bg-black rounded-lg p-1 border border-black/10 dark:border-white/10">
             <button
               onClick={() => setPreviewWidth('desktop')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition ${previewWidth === 'desktop' ? 'bg-white/20 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition ${previewWidth === 'desktop' ? 'bg-white dark:bg-white/20 text-black dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'}`}
             >
               Desktop
             </button>
             <button
               onClick={() => setPreviewWidth('mobile')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition ${previewWidth === 'mobile' ? 'bg-white/20 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition ${previewWidth === 'mobile' ? 'bg-white dark:bg-white/20 text-black dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'}`}
             >
               Mobile
             </button>
           </div>
         </div>
         
-        <div className="flex-1 overflow-auto bg-black p-4 flex justify-center">
+        <div className="flex-1 overflow-auto bg-gray-100 dark:bg-black p-4 flex justify-center">
           <div 
             className="bg-white shadow-2xl transition-all duration-300 ease-in-out flex flex-col h-full"
             style={{ width: previewWidth === 'desktop' ? '600px' : '380px', maxWidth: '100%' }}

@@ -20,22 +20,22 @@ function EmailPageContent() {
 
   return (
     <div className="flex flex-col h-full space-y-6">
-      <div className="flex items-center justify-between border-b border-white/10 pb-4">
+      <div className="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Email Center</h1>
-          <p className="text-sm text-gray-400 mt-1">Manage and send marketing or transactional emails.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-black dark:text-white font-heading">Email Center</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage and send marketing or transactional emails.</p>
         </div>
       </div>
 
-      <div className="flex space-x-1 border-b border-white/10">
+      <div className="flex space-x-1 border-b border-black/10 dark:border-white/10">
         {['compose', 'templates', 'sent'].map((tab) => (
           <button
             key={tab}
             onClick={() => setTab(tab)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize ${
               currentTab === tab
-                ? 'border-white text-white'
-                : 'border-transparent text-gray-400 hover:text-white hover:border-white/30'
+                ? 'border-black dark:border-white text-black dark:text-white'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30'
             }`}
           >
             {tab}
@@ -54,7 +54,7 @@ function EmailPageContent() {
 
 export default function EmailPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-white">Loading...</div>}>
+    <Suspense fallback={<div className="p-8 text-black dark:text-white">Loading...</div>}>
       <EmailPageContent />
     </Suspense>
   );
