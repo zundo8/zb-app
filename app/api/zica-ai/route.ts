@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppAuthFromRequest } from "@/lib/appAuth";
 import { ZICA_USER_PROMPT, ZICA_ADMIN_PROMPT } from "@/lib/services/claudeService";
-import prisma from "@/lib/prisma";
+import prisma from "@/lib/db";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,

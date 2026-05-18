@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAppAuthFromRequest } from "@/lib/appAuth";
-import prisma from "@/lib/prisma";
+import prisma from "@/lib/db";
 
 // Basic keyword extraction for intents and entities (Module 3)
 function extractIntents(text: string): string[] {
