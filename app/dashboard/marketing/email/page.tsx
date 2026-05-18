@@ -42,6 +42,7 @@ const InboxTab = () => {
   const [imapError, setImapError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [senderEmail, setSenderEmail] = useState("developer@zicabella.com");
+  const [dismissedError, setDismissedError] = useState(false);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -83,11 +84,15 @@ const InboxTab = () => {
   const fetchInbox = async () => {
     setLoading(true);
     setImapError(null);
+    setDismissedError(false);
     try {
       const res = await fetch("/api/mail/inbox");
       const data = await res.json();
       if (data.success) {
         setInboxEmails(data.emails || []);
+        if (data.isMocked) {
+          setImapError(data.error || "Failed to connect to Zoho Mail server directly.");
+        }
       } else {
         setImapError(data.error || "Failed to load Zoho inbox");
       }
@@ -185,8 +190,16 @@ const InboxTab = () => {
       </div>
 
       {/* Zoho IMAP Error Panel */}
-      {viewMode === "live" && imapError && (
-        <div className="p-6 rounded-3xl bg-amber-500/5 border border-amber-500/10 text-foreground flex flex-col md:flex-row gap-6 items-start animate-fade-in shadow-xl">
+      {viewMode === "live" && imapError && !dismissedError && (
+        <div className="p-6 rounded-3xl bg-amber-500/5 border border-amber-500/10 text-foreground flex flex-col md:flex-row gap-6 items-start animate-fade-in shadow-xl relative">
+          <button 
+            type="button"
+            onClick={() => setDismissedError(true)} 
+            className="absolute top-4 right-4 p-1 rounded-lg hover:bg-foreground/10 text-foreground/40 hover:text-foreground/80 transition-all"
+            title="Dismiss Notice"
+          >
+            <X className="w-4 h-4" />
+          </button>
           <div className="p-3.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
             <AlertCircle className="w-6 h-6" />
           </div>
@@ -194,7 +207,7 @@ const InboxTab = () => {
             <h4 className="text-sm font-bold text-amber-400 flex items-center gap-2">
               Zoho IMAP Authentication Notice
             </h4>
-            <p className="text-xs text-foreground/60 leading-relaxed max-w-3xl">
+            <p className="text-xs text-foreground/60 leading-relaxed max-w-3xl pr-6">
               The mail server returned: <code className="bg-foreground/5 px-1.5 py-0.5 rounded font-mono text-amber-500/90">{imapError}</code>. 
               This commonly indicates IMAP access is disabled for the Zoho account <strong>{senderEmail}</strong>.
             </p>
