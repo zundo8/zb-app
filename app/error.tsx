@@ -29,7 +29,13 @@ export default function Error({
           try again
         </button>
         <button
-          onClick={() => window.location.href = '/'}
+          onClick={() => {
+            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
+              window.location.href = '/dashboard';
+            } else {
+              window.location.href = '/';
+            }
+          }}
           className="px-6 py-3 border border-foreground/10 text-foreground text-[8px] font-bold uppercase tracking-[0.3em] rounded-full hover:bg-foreground/5 active:scale-95 transition-all"
         >
           return home
