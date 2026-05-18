@@ -1059,11 +1059,11 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
       <View style={[
         styles.inputPill, 
         { 
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.08)',
-          backgroundColor: isDark ? 'rgba(25, 25, 25, 0.65)' : 'rgba(255, 255, 255, 0.72)',
+          borderColor: isDark ? '#38383A' : '#D1D1D6',
+          backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
         }
       ]}>
-        <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        
         
         <View style={styles.attachRow}>
           <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
@@ -1076,7 +1076,7 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
           onChangeText={setLocalInput}
           placeholder="Message..."
           placeholderTextColor={colors.textExtraLight}
-          style={[styles.input, { color: colors.text }]}
+          style={[styles.input, { color: colors.text, fontSize: 16 }]}
           multiline
           maxLength={20000}
           editable={true}
@@ -1866,16 +1866,10 @@ const styles = StyleSheet.create({
   inputPill: {
     flexDirection: 'row', 
     alignItems: 'center',
-    borderRadius: 30,
+    borderRadius: 20,
     padding: 4, 
     borderWidth: 1,
-    minHeight: 52,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    minHeight: 40,
   },
   attachRow: { flexDirection: 'row', paddingLeft: 8 },
   attachBtn: { padding: 6 },
