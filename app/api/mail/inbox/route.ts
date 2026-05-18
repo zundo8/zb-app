@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
+import { resolvedSMTP } from '@/lib/mailer';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +32,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, emails: inboxCache.data });
     }
 
-    const user = process.env.ZOHO_SMTP_USER || 'admin@zicabella.com';
-    const password = process.env.ZOHO_SMTP_PASS || 'L6YHDRkF1zti';
+    const user = resolvedSMTP.user;
+    const password = resolvedSMTP.pass;
     const host = process.env.ZOHO_IMAP_HOST || 'imap.zoho.in';
     const port = Number(process.env.ZOHO_IMAP_PORT || '993');
 

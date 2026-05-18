@@ -14,7 +14,7 @@ const getSMTPConfig = () => {
   }
 
   // Fallbacks if still empty
-  if (!user) user = 'admin@zicabella.com';
+  if (!user) user = 'developer@zicabella.com';
   if (!pass) pass = 'L6YHDRkF1zti';
 
   const host = process.env.ZOHO_SMTP_HOST || process.env.ZOHO_MAIL_HOST || 'smtp.zoho.in';
