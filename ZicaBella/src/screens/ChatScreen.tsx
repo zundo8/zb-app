@@ -1059,8 +1059,8 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
       <View style={[
         styles.inputPill, 
         { 
-          borderColor: isDark ? '#38383A' : '#D1D1D6',
-          backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+          borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+          backgroundColor: 'transparent',
         }
       ]}>
         
