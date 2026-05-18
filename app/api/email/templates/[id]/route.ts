@@ -10,6 +10,17 @@ export async function PUT(
     const id = params.id;
     const data = await req.json();
 
+    // If setting an automation trigger, remove it from other templates first to ensure 1-to-1 mapping
+    if (data.automationTrigger) {
+      await prisma.emailTemplate.updateMany({
+        where: { 
+          automationTrigger: data.automationTrigger,
+          id: { not: id }
+        },
+        data: { automationTrigger: null }
+      });
+    }
+
     const updatedTemplate = await prisma.emailTemplate.update({
       where: { id },
       data: {
@@ -19,6 +30,7 @@ export async function PUT(
         htmlBody: data.htmlBody,
         variables: data.variables || extractVariables(data.htmlBody || ''),
         isActive: data.isActive !== undefined ? data.isActive : true,
+        automationTrigger: data.automationTrigger || null,
       },
     });
 

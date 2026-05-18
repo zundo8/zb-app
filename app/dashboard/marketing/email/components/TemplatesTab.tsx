@@ -5,6 +5,18 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import TemplatePreviewModal from './TemplatePreviewModal';
 
+const AUTOMATION_TRIGGERS = [
+  { value: '', label: 'None (Manual Send Only)' },
+  { value: 'ORDER_CONFIRMATION', label: 'Order Confirmation (Auto-send on Place)' },
+  { value: 'ORDER_CANCELLED', label: 'Order Cancelled (Auto-send on Cancel)' },
+  { value: 'PAYMENT_FAILED', label: 'Payment Failed (Auto-send on Failure)' },
+  { value: 'WELCOME', label: 'Welcome Email (Auto-send on Signup)' },
+  { value: 'ORDER_SHIPPED', label: 'Order Shipped (Auto-send on Shipped)' },
+  { value: 'ORDER_DELIVERED', label: 'Order Delivered (Auto-send on Delivery)' },
+  { value: 'RETURN_REFUND', label: 'Return & Refund (Auto-send on Refund)' },
+  { value: 'PASSWORD_RESET', label: 'Password Reset (Auto-send on Reset Request)' },
+];
+
 export default function TemplatesTab() {
   const router = useRouter();
   const [templates, setTemplates] = useState<any[]>([]);
@@ -13,8 +25,13 @@ export default function TemplatesTab() {
   
   // Create Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [form, setForm] = useState({ name: '', category: 'transactional', subject: '', htmlBody: '' });
+  const [form, setForm] = useState({ name: '', category: 'transactional', subject: '', htmlBody: '', automationTrigger: '' });
   const [isSaving, setIsSaving] = useState(false);
+
+  // Edit Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({ id: '', name: '', category: 'transactional', subject: '', htmlBody: '', automationTrigger: '' });
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -50,7 +67,7 @@ export default function TemplatesTab() {
       if (data.success) {
         toast.success('Template saved');
         setShowCreateModal(false);
-        setForm({ name: '', category: 'transactional', subject: '', htmlBody: '' });
+        setForm({ name: '', category: 'transactional', subject: '', htmlBody: '', automationTrigger: '' });
         fetchTemplates();
       } else {
         toast.error(data.error || 'Failed to save template');
@@ -59,6 +76,30 @@ export default function TemplatesTab() {
       toast.error('Failed to save template');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleUpdateTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/email/templates/${editForm.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Template updated successfully');
+        setShowEditModal(false);
+        fetchTemplates();
+      } else {
+        toast.error(data.error || 'Failed to update template');
+      }
+    } catch (error) {
+      toast.error('Failed to update template');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -93,6 +134,14 @@ export default function TemplatesTab() {
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 truncate mb-4">{t.subject}</p>
                 
+                {t.automationTrigger && (
+                  <div className="mb-4">
+                    <span className="text-[10px] bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 px-2 py-1 rounded-full font-medium inline-flex items-center gap-1 border border-emerald-200/50 dark:border-transparent">
+                      ⚡ Trigger: {t.automationTrigger}
+                    </span>
+                  </div>
+                )}
+
                 {t.variables && t.variables.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-4">
                     {t.variables.map((v: string) => (
@@ -109,7 +158,23 @@ export default function TemplatesTab() {
                   onClick={() => handleUseTemplate(t.id)}
                   className="flex-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-black dark:text-white text-sm py-2 rounded transition font-medium border border-black/[0.05] dark:border-none"
                 >
-                  Use Template
+                  Use
+                </button>
+                <button
+                  onClick={() => {
+                    setEditForm({
+                      id: t.id,
+                      name: t.name,
+                      category: t.category || 'transactional',
+                      subject: t.subject || '',
+                      htmlBody: t.htmlBody || '',
+                      automationTrigger: t.automationTrigger || ''
+                    });
+                    setShowEditModal(true);
+                  }}
+                  className="flex-1 border border-black/20 dark:border-white/20 hover:bg-black/[0.02] dark:hover:bg-white/5 text-gray-700 dark:text-white text-sm py-2 rounded transition font-medium"
+                >
+                  Edit
                 </button>
                 <button
                   onClick={() => setPreviewTemplate(t)}
@@ -152,16 +217,30 @@ export default function TemplatesTab() {
                   placeholder="e.g. Black Friday Sale"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
-                <select
-                  value={form.category}
-                  onChange={e => setForm({...form, category: e.target.value})}
-                  className="w-full bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
-                >
-                  <option value="transactional">Transactional</option>
-                  <option value="marketing">Marketing</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                  <select
+                    value={form.category}
+                    onChange={e => setForm({...form, category: e.target.value})}
+                    className="w-full bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
+                  >
+                    <option value="transactional">Transactional</option>
+                    <option value="marketing">Marketing</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Automation Trigger</label>
+                  <select
+                    value={form.automationTrigger}
+                    onChange={e => setForm({...form, automationTrigger: e.target.value})}
+                    className="w-full bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
+                  >
+                    {AUTOMATION_TRIGGERS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Subject</label>
@@ -192,6 +271,130 @@ export default function TemplatesTab() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal (Side-by-Side Premium Live Editor) */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/85 z-50 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-white dark:bg-[#0c0c0c] border border-black/15 dark:border-white/15 rounded-2xl w-full max-w-7xl h-[92vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-black/10 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-black/30">
+              <div>
+                <h2 className="text-xl font-semibold text-black dark:text-white">Edit Template</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Refine and map your automation template in real-time</p>
+              </div>
+              <button 
+                onClick={() => setShowEditModal(false)} 
+                className="text-gray-400 hover:text-black dark:hover:text-white bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 p-2 rounded-full transition"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+              {/* Left Column - Form Control (50%) */}
+              <form onSubmit={handleUpdateTemplate} className="w-full md:w-1/2 p-6 overflow-y-auto space-y-4 border-r border-black/10 dark:border-white/10">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Name</label>
+                    <input
+                      required
+                      value={editForm.name}
+                      onChange={e => setEditForm({...editForm, name: e.target.value})}
+                      className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2.5 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 focus:ring-1 focus:ring-black/20 outline-none transition"
+                      placeholder="e.g. Order Confirmation Template"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Category</label>
+                    <select
+                      value={editForm.category}
+                      onChange={e => setEditForm({...editForm, category: e.target.value})}
+                      className="w-full bg-white dark:bg-[#151515] border border-black/10 dark:border-white/10 rounded-lg p-2.5 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none transition"
+                    >
+                      <option value="transactional">Transactional</option>
+                      <option value="marketing">Marketing</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Automation Trigger</label>
+                  <select
+                    value={editForm.automationTrigger}
+                    onChange={e => setEditForm({...editForm, automationTrigger: e.target.value})}
+                    className="w-full bg-white dark:bg-[#151515] border border-black/15 dark:border-white/15 rounded-lg p-2.5 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none transition font-medium"
+                  >
+                    {AUTOMATION_TRIGGERS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-gray-400 mt-1">Mapping a trigger replaces any previously mapped template for that trigger.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Subject</label>
+                  <input
+                    required
+                    value={editForm.subject}
+                    onChange={e => setEditForm({...editForm, subject: e.target.value})}
+                    className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2.5 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 focus:ring-1 focus:ring-black/20 outline-none transition"
+                    placeholder="Subject line"
+                  />
+                </div>
+
+                <div className="flex-1 flex flex-col min-h-[350px]">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">HTML Code</label>
+                    <span className="text-[10px] text-gray-400 font-mono">Real-time Sandbox Enabled</span>
+                  </div>
+                  <textarea
+                    required
+                    value={editForm.htmlBody}
+                    onChange={e => setEditForm({...editForm, htmlBody: e.target.value})}
+                    className="w-full flex-1 bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-3 text-black dark:text-white text-xs font-mono focus:border-black/30 dark:focus:border-white/30 outline-none min-h-[350px] resize-y"
+                    placeholder="Write or paste your custom HTML template body here..."
+                  />
+                </div>
+                
+                <div className="pt-4 flex justify-end gap-3 border-t border-black/10 dark:border-white/10 sticky bottom-0 bg-white dark:bg-[#0c0c0c] z-10">
+                  <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">Cancel</button>
+                  <button disabled={isUpdating} type="submit" className="bg-black dark:bg-white text-white dark:text-black px-6 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-black/80 dark:hover:bg-gray-200 transition shadow-lg flex items-center gap-2">
+                    {isUpdating ? 'Saving Changes...' : 'Save & Map Trigger'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Right Column - Live sandboxed iframe preview (50%) */}
+              <div className="w-full md:w-1/2 bg-gray-50 dark:bg-black/45 p-6 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Live Sandbox Preview</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Active Render</span>
+                  </div>
+                </div>
+                <div className="flex-1 bg-white rounded-xl border border-black/10 dark:border-white/15 overflow-hidden shadow-sm flex">
+                  {editForm.htmlBody ? (
+                    <iframe
+                      title="Email Live Preview"
+                      sandbox="allow-same-origin"
+                      srcDoc={editForm.htmlBody}
+                      className="w-full h-full border-none bg-white"
+                    />
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
+                      <svg className="w-12 h-12 stroke-current opacity-40" fill="none" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      <span className="text-xs font-medium uppercase tracking-wider">Type HTML to start previewing</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

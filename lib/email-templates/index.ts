@@ -421,3 +421,43 @@ export function extractVariables(html: string): string[] {
   return uniqueVars;
 }
 
+export async function renderDBTemplate(
+  trigger: string,
+  variables: Record<string, any>,
+  fallbackFn: () => string
+): Promise<{ subject: string; html: string }> {
+  try {
+    const template = await prisma.emailTemplate.findFirst({
+      where: {
+        automationTrigger: trigger,
+        isActive: true,
+      },
+    });
+
+    if (!template) {
+      return {
+        subject: '',
+        html: fallbackFn(),
+      };
+    }
+
+    let subject = template.subject;
+    let html = template.htmlBody;
+
+    // Substitute standard variables in subject and html
+    Object.entries(variables).forEach(([key, val]) => {
+      const stringVal = String(val ?? '');
+      subject = subject.replaceAll(`{{${key}}}`, stringVal);
+      html = html.replaceAll(`{{${key}}}`, stringVal);
+    });
+
+    return { subject, html };
+  } catch (error) {
+    console.error(`Error rendering database template for ${trigger}:`, error);
+    return {
+      subject: '',
+      html: fallbackFn(),
+    };
+  }
+}
+

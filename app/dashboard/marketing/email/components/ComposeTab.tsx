@@ -118,6 +118,37 @@ export default function ComposeTab() {
     });
     return finalHtml;
   }, [htmlBody, variableValues]);
+  const handleProductSelected = (product: any, imageUrl: string) => {
+    // 1. Auto-fill subject if empty or generic
+    if (!subject || subject.toLowerCase().includes('scratch') || subject.toLowerCase().includes('subject')) {
+      setSubject(`Introducing our latest: ${product.title}`);
+    }
+
+    // 2. Scan variableValues and auto-fill any that match product keys
+    setVariableValues(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(key => {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.includes('title') || lowerKey.includes('name')) {
+          if (!updated[key]) updated[key] = product.title || '';
+        } else if (lowerKey.includes('price')) {
+          if (!updated[key]) {
+            const price = product.variants?.[0]?.price || '';
+            updated[key] = price ? `INR ${price}` : '';
+          }
+        } else if (lowerKey.includes('link') || lowerKey.includes('url')) {
+          if (!updated[key]) updated[key] = `https://zicabella.com/products/${product.handle || ''}`;
+        } else if (lowerKey.includes('image') || lowerKey.includes('img') || lowerKey.includes('src')) {
+          if (!updated[key]) updated[key] = imageUrl || '';
+        } else if (lowerKey.includes('desc')) {
+          if (!updated[key]) updated[key] = product.body_html?.replace(/<[^>]*>/g, '') || '';
+        }
+      });
+      return updated;
+    });
+    toast.success(`Loaded product "${product.title}" variables into Compose!`);
+  };
+
 
   const handleSend = async () => {
     if (!subject) return toast.error('Subject is required');
@@ -270,6 +301,7 @@ export default function ComposeTab() {
           <ImageManager
             htmlBody={htmlBody}
             onChange={(newHtml) => setHtmlBody(newHtml)}
+            onProductSelected={handleProductSelected}
           />
 
           <div className="border-t border-black/10 dark:border-white/10 pt-4 mt-4">

@@ -7,15 +7,15 @@ import { extractVariables } from '@/lib/email-templates';
 // Helper to seed default templates if database has none or if refreshed
 async function seedDefaultTemplates() {
   const templatesToSeed = [
-    { file: 'welcome.html', name: 'Welcome', category: 'transactional', subject: 'Welcome to Zica Bella' },
-    { file: 'order-confirmation.html', name: 'Order Confirmation', category: 'transactional', subject: 'Your order #{{orderId}} is confirmed' },
-    { file: 'order-shipped.html', name: 'Order Shipped', category: 'transactional', subject: 'Your order is on its way' },
-    { file: 'payment-failed.html', name: 'Payment Failed', category: 'transactional', subject: 'Action required — payment unsuccessful' },
-    { file: 'order-cancelled.html', name: 'Order Cancelled', category: 'transactional', subject: 'Your order has been cancelled' },
-    { file: 'order-delivered.html', name: 'Order Delivered', category: 'transactional', subject: 'Your order has arrived' },
-    { file: 'return-refund.html', name: 'Return & Refund', category: 'transactional', subject: 'Your return has been accepted' },
-    { file: 'new-drop.html', name: 'New Drop', category: 'marketing', subject: '{{collectionName}} — Members Only Drop' },
-    { file: 'password-reset.html', name: 'Password Reset', category: 'transactional', subject: 'Reset your Zica Bella password' }
+    { file: 'welcome.html', name: 'Welcome', category: 'transactional', subject: 'Welcome to Zica Bella', trigger: 'WELCOME' },
+    { file: 'order-confirmation.html', name: 'Order Confirmation', category: 'transactional', subject: 'Your order #{{orderId}} is confirmed', trigger: 'ORDER_CONFIRMATION' },
+    { file: 'order-shipped.html', name: 'Order Shipped', category: 'transactional', subject: 'Your order is on its way', trigger: 'ORDER_SHIPPED' },
+    { file: 'payment-failed.html', name: 'Payment Failed', category: 'transactional', subject: 'Action required — payment unsuccessful', trigger: 'PAYMENT_FAILED' },
+    { file: 'order-cancelled.html', name: 'Order Cancelled', category: 'transactional', subject: 'Your order has been cancelled', trigger: 'ORDER_CANCELLED' },
+    { file: 'order-delivered.html', name: 'Order Delivered', category: 'transactional', subject: 'Your order has arrived', trigger: 'ORDER_DELIVERED' },
+    { file: 'return-refund.html', name: 'Return & Refund', category: 'transactional', subject: 'Your return has been accepted', trigger: 'RETURN_REFUND' },
+    { file: 'new-drop.html', name: 'New Drop', category: 'marketing', subject: '{{collectionName}} — Members Only Drop', trigger: null },
+    { file: 'password-reset.html', name: 'Password Reset', category: 'transactional', subject: 'Reset your Zica Bella password', trigger: 'PASSWORD_RESET' }
   ];
 
   for (const t of templatesToSeed) {
@@ -35,7 +35,8 @@ async function seedDefaultTemplates() {
         htmlBody,
         variables,
         isActive: true,
-        createdBy: 'system'
+        createdBy: 'system',
+        automationTrigger: t.trigger
       }
     });
   }
@@ -66,6 +67,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
+
+    // If setting an automation trigger, remove it from other templates first to ensure 1-to-1 mapping
+    if (data.automationTrigger) {
+      await prisma.emailTemplate.updateMany({
+        where: { automationTrigger: data.automationTrigger },
+        data: { automationTrigger: null }
+      });
+    }
+
     const template = await prisma.emailTemplate.create({
       data: {
         name: data.name,
@@ -73,6 +83,7 @@ export async function POST(req: NextRequest) {
         subject: data.subject,
         htmlBody: data.htmlBody,
         variables: data.variables || extractVariables(data.htmlBody || ''),
+        automationTrigger: data.automationTrigger || null,
       },
     });
     

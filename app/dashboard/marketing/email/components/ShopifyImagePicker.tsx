@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
-export default function ShopifyImagePicker({ onSelect, onClose }: { onSelect: (url: string) => void, onClose: () => void }) {
+export default function ShopifyImagePicker({ onSelect, onClose }: { onSelect: (url: string, product?: any) => void, onClose: () => void }) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -101,7 +101,7 @@ export default function ShopifyImagePicker({ onSelect, onClose }: { onSelect: (u
                         <div key={i} className="group relative aspect-square bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl overflow-hidden shadow-sm">
                           <img src={img.src} alt="" className="w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                            <button onClick={() => onSelect(img.src)} className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded font-bold text-xs shadow-md hover:scale-105 transition-transform duration-300">
+                            <button onClick={() => onSelect(img.src, expandedProduct)} className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded font-bold text-xs shadow-md hover:scale-105 transition-transform duration-300">
                               Select
                             </button>
                           </div>

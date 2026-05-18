@@ -508,6 +508,24 @@ export function useRazorpay(): UseRazorpayReturn {
           console.error('[useRazorpay] Final Error:', err);
           setError(err.message || 'Payment failed');
           setStatus('failed');
+
+          // Trigger the automated payment failed email notification!
+          try {
+            fetch(`${apiBase}/api/app/checkout/payment-failed`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                customerEmail: opts.prefill?.email || '',
+                customerName: opts.prefill?.name || '',
+                orderId: opts.orderId || orderId || 'N/A',
+                total: opts.amount,
+                paymentMethod: method === 'upi' ? 'UPI' : method === 'card' ? 'Credit/Debit Card' : method === 'netbanking' ? 'Net Banking' : 'Wallet',
+                errorMessage: err.message || 'Payment failed',
+              }),
+            }).catch(() => {});
+          } catch (emailErr) {
+            // Ignore background trigger errors silently
+          }
         }
       }
     },

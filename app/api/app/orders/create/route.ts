@@ -404,6 +404,91 @@ export async function POST(req: Request) {
       return order;
     });
 
+    // ─── Trigger Dynamic Order Confirmation Email ───
+    if (customerEmail && (paymentStatus === 'paid' || paymentMethod === 'COD')) {
+      try {
+        const { sendMail } = await import('@/lib/mailer');
+        const { orderConfirmationTemplate, renderDBTemplate } = await import('@/lib/email-templates');
+        
+        const customerName = shippingAddress?.name || customer?.name || 'Customer';
+        const formattedItems = lineItems.map((item: any) => {
+          let size = item.size || 'N/A';
+          if (size === 'N/A' && item.name) {
+            const sizeMatch = item.name.match(/\s*-\s*(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i);
+            if (sizeMatch) size = sizeMatch[1].toUpperCase();
+          }
+          return {
+            name: item.name || item.title || 'Product',
+            size: size,
+            qty: item.quantity || 1,
+            price: `INR ${item.price || 0}`,
+          };
+        });
+
+        const itemsHtml = formattedItems
+          .map(
+            (item: any) => `
+          <div class="product-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600;">${item.name}</div>
+              <div style="font-size: 13px; color: #888888;">Size: ${item.size} × ${item.qty}</div>
+            </div>
+            <div style="font-weight: 600;">${item.price}</div>
+          </div>
+        `
+          )
+          .join('');
+
+        const emailVars = {
+          customerName,
+          orderId: created.shopifyOrderId || created.id,
+          orderDate: new Date(created.createdAt).toLocaleDateString(),
+          itemsHtml,
+          items: itemsHtml, // support both variable mappings
+          subtotal: `INR ${subtotal}`,
+          shipping: `INR ${paymentMethod === 'COD' ? 99 : 0}`,
+          total: `INR ${total}`,
+          shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : `${shippingAddress?.line1 || shippingAddress?.street || ''}, ${shippingAddress?.city || ''}, ${shippingAddress?.state || ''} - ${shippingAddress?.pincode || shippingAddress?.zip || ''}, ${shippingAddress?.country || 'India'}`,
+          orderStatusUrl: `https://zicabella.com/account/orders`,
+        };
+
+        const fallbackFn = () => orderConfirmationTemplate({
+          customerName,
+          orderId: created.shopifyOrderId || created.id,
+          orderDate: new Date(created.createdAt).toLocaleDateString(),
+          items: formattedItems,
+          subtotal: `INR ${subtotal}`,
+          shipping: `INR ${paymentMethod === 'COD' ? 99 : 0}`,
+          total: `INR ${total}`,
+          shippingAddress: emailVars.shippingAddress,
+        });
+
+        const rendered = await renderDBTemplate('ORDER_CONFIRMATION', emailVars, fallbackFn);
+
+        const emailResult = await sendMail({
+          to: customerEmail,
+          subject: rendered.subject || `Order Confirmed - ${created.shopifyOrderId || created.id}`,
+          html: rendered.html,
+        });
+
+        await prisma.emailLog.create({
+          data: {
+            recipientEmail: customerEmail,
+            recipientName: customerName,
+            subject: rendered.subject || `Order Confirmed - ${created.shopifyOrderId || created.id}`,
+            templateName: 'Order Confirmed',
+            triggerEvent: 'app/orders/create',
+            referenceId: created.id,
+            status: emailResult.messageId ? 'sent' : 'failed',
+            messageId: emailResult.messageId || null,
+            sentBy: 'system',
+          }
+        });
+      } catch (emailErr: any) {
+        console.error('[Email Trigger Error] Failed to send order confirmation email:', emailErr.message);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       orderId: created.id,

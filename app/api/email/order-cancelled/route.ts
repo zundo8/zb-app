@@ -8,7 +8,17 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     const { customerEmail, customerName, orderId, reason, refundAmount, refundTimeline } = data;
 
-    const html = orderCancelledTemplate({
+    const { renderDBTemplate, orderCancelledTemplate } = await import('@/lib/email-templates');
+
+    const emailVars = {
+      customerName,
+      orderId,
+      reason,
+      refundAmount: refundAmount || '',
+      refundTimeline: refundTimeline || '',
+    };
+
+    const fallbackFn = () => orderCancelledTemplate({
       customerName,
       orderId,
       reason,
@@ -16,10 +26,12 @@ export async function POST(req: NextRequest) {
       refundTimeline,
     });
 
+    const rendered = await renderDBTemplate('ORDER_CANCELLED', emailVars, fallbackFn);
+
     const result = await sendMail({
       to: customerEmail,
-      subject: `Order Cancelled - ${orderId}`,
-      html,
+      subject: rendered.subject || `Order Cancelled - ${orderId}`,
+      html: rendered.html,
     });
 
     await logEmail({

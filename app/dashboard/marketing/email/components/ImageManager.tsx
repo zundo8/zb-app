@@ -4,7 +4,13 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import ShopifyImagePicker from './ShopifyImagePicker';
 
-export default function ImageManager({ htmlBody, onChange }: { htmlBody: string, onChange: (newHtml: string) => void }) {
+interface ImageManagerProps {
+  htmlBody: string;
+  onChange: (newHtml: string) => void;
+  onProductSelected?: (product: any, imageUrl: string) => void;
+}
+
+export default function ImageManager({ htmlBody, onChange, onProductSelected }: ImageManagerProps) {
   const [slots, setSlots] = useState<{ src: string, alt: string, index: number, id: string }[]>([]);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
@@ -38,7 +44,7 @@ export default function ImageManager({ htmlBody, onChange }: { htmlBody: string,
     }
   }, [htmlBody, onChange]);
 
-  const handleReplaceImage = (id: string, newSrc: string) => {
+  const handleReplaceImage = (id: string, newSrc: string, product?: any) => {
     if (!newSrc) return;
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlBody, 'text/html');
@@ -46,6 +52,9 @@ export default function ImageManager({ htmlBody, onChange }: { htmlBody: string,
     if (img) {
       img.setAttribute('src', newSrc);
       onChange(doc.body.innerHTML);
+    }
+    if (product && onProductSelected) {
+      onProductSelected(product, newSrc);
     }
     setActiveSlot(null);
   };
@@ -111,7 +120,7 @@ export default function ImageManager({ htmlBody, onChange }: { htmlBody: string,
       {activeSlot !== null && (
         <ShopifyImagePicker
           onClose={() => setActiveSlot(null)}
-          onSelect={(url) => handleReplaceImage(slots[activeSlot].id, url)}
+          onSelect={(url, product) => handleReplaceImage(slots[activeSlot].id, url, product)}
         />
       )}
     </div>

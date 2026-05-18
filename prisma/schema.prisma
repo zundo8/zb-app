@@ -876,19 +876,21 @@ model EmailLog {
 }
 
 model EmailTemplate {
-  id         String       @id @default(cuid())
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  name       String
-  category   String
-  subject    String
-  htmlBody   String
-  variables  Json?
-  isActive   Boolean      @default(true)
-  createdBy  String?
-  EmailDraft EmailDraft[]
+  id                String       @id @default(cuid())
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  name              String
+  category          String
+  subject           String
+  htmlBody          String
+  variables         Json?
+  isActive          Boolean      @default(true)
+  createdBy         String?
+  automationTrigger String?
+  EmailDraft        EmailDraft[]
 
   @@index([category])
+  @@index([automationTrigger])
 }
 
 model EmailNotificationPreference {
