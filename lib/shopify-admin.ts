@@ -489,6 +489,13 @@ export interface ShopifyProduct {
     option2: string | null;
     option3: string | null;
   }[];
+  options?: {
+    id: number;
+    product_id: number;
+    name: string;
+    position: number;
+    values: string[];
+  }[];
   metafields?: ShopifyMetafield[];
 }
 
@@ -1096,15 +1103,36 @@ export async function flattenProduct(p: ShopifyProduct) {
   const metafields = p.metafields || await fetchProductMetafields(p.id.toString()).catch(() => []);
   const pWithMeta = { ...p, metafields };
 
-  const variants = (p.variants || []).map(v => ({
-    id: `gid://shopify/ProductVariant/${v.id}`,
-    title: v.title,
-    availableForSale: (v.inventory_quantity ?? 0) > 0,
-    quantityAvailable: v.inventory_quantity ?? 0,
-    price: v.price,
-    compareAtPrice: v.compare_at_price || null,
-    size: v.option1 || null,
-  }));
+  const sizeOptionIndex = p.options?.findIndex(o => o.name.toLowerCase() === 'size') ?? -1;
+  const colorOptionIndex = p.options?.findIndex(o => o.name.toLowerCase() === 'color' || o.name.toLowerCase() === 'colour') ?? -1;
+
+  const variants = (p.variants || []).map(v => {
+    let size = null;
+    let color = null;
+
+    if (sizeOptionIndex === 0) size = v.option1;
+    else if (sizeOptionIndex === 1) size = v.option2;
+    else if (sizeOptionIndex === 2) size = v.option3;
+
+    if (colorOptionIndex === 0) color = v.option1;
+    else if (colorOptionIndex === 1) color = v.option2;
+    else if (colorOptionIndex === 2) color = v.option3;
+
+    // Fallbacks if not detected by indexes
+    if (!size) size = v.option1 || null;
+    if (!color) color = v.option2 || null;
+
+    return {
+      id: `gid://shopify/ProductVariant/${v.id}`,
+      title: v.title,
+      availableForSale: (v.inventory_quantity ?? 0) > 0,
+      quantityAvailable: v.inventory_quantity ?? 0,
+      price: v.price,
+      compareAtPrice: v.compare_at_price || null,
+      size,
+      color,
+    };
+  });
 
   const price = variants[0]?.price || '0';
   const compareAtPrice = variants[0]?.compareAtPrice || null;

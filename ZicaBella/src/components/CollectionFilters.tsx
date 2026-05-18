@@ -24,6 +24,43 @@ interface Props {
   compact?: boolean;
 }
 
+const getColorHex = (colorName: string): string => {
+  const name = colorName.toLowerCase().trim();
+  const map: { [key: string]: string } = {
+    black: '#000000',
+    white: '#FFFFFF',
+    gold: '#E5A93B',
+    silver: '#C0C0C0',
+    bronze: '#CD7F32',
+    red: '#DF2C2C',
+    blue: '#2C73DF',
+    green: '#2CDF86',
+    pink: '#FFB6C1',
+    yellow: '#FFD700',
+    orange: '#FFA500',
+    purple: '#8A2BE2',
+    grey: '#808080',
+    gray: '#808080',
+    beige: '#F5F5DC',
+    brown: '#8B4513',
+    ivory: '#FFFFF0',
+    navy: '#000080',
+    cream: '#FFFDD0',
+    olive: '#808000',
+    maroon: '#800000',
+    emerald: '#50C878',
+    burgundy: '#800020',
+    tan: '#D2B48C',
+    khaki: '#F0E68C',
+    coral: '#FF7F50',
+    mustard: '#FFDB58',
+    charcoal: '#36454F',
+    nude: '#E3C1B4',
+    champagne: '#F7E7CE',
+  };
+  return map[name] || '#888888';
+};
+
 export default function CollectionFilters({
   allSizes,
   selectedSize,
@@ -48,8 +85,8 @@ export default function CollectionFilters({
 
   return (
     <View style={styles.container}>
-      <View style={[styles.pillWrapper, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-        <BlurView intensity={isDark ? 25 : 40} tint={isDark ? 'dark' : 'light'} style={styles.pill}>
+      <View style={[styles.pillWrapper, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
+        <BlurView intensity={isDark ? 30 : 45} tint={isDark ? 'dark' : 'light'} style={styles.pill}>
           {/* Sort Button */}
           <TouchableOpacity 
             style={[styles.filterBtn, compact && styles.compactBtn]} 
@@ -61,7 +98,7 @@ export default function CollectionFilters({
             accessibilityLabel={`Sort by: ${sortBy.replace('-', ' ')}`}
             accessibilityRole="button"
           >
-            <Ionicons name="swap-vertical" size={16} color={colors.text} />
+            <Ionicons name="swap-vertical" size={13} color={colors.text} />
             {!compact && (
               <Text style={[styles.filterText, { color: colors.text }]}>
                 {sortBy === 'featured' ? 'SORT' : sortBy.replace('-', ' ').toUpperCase()}
@@ -83,8 +120,11 @@ export default function CollectionFilters({
             accessibilityState={{ expanded: isColorOpen }}
           >
             <View style={styles.iconWrapper}>
-              <Ionicons name="color-palette-outline" size={16} color={colors.text} />
-              {selectedColor && <View style={[styles.activeDot, { backgroundColor: colors.iosBlue }]} />}
+              {selectedColor ? (
+                <View style={[styles.colorSwatchInPill, { backgroundColor: getColorHex(selectedColor), borderColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)' }]} />
+              ) : (
+                <Ionicons name="color-palette-outline" size={13} color={colors.text} />
+              )}
             </View>
             {!compact && (
               <Text style={[styles.filterText, { color: colors.text }]}>
@@ -107,8 +147,8 @@ export default function CollectionFilters({
             accessibilityState={{ expanded: isSizeOpen }}
           >
             <View style={styles.iconWrapper}>
-              <Ionicons name="resize-outline" size={16} color={colors.text} />
-              {selectedSize && <View style={[styles.activeDot, { backgroundColor: colors.iosBlue }]} />}
+              <Ionicons name="resize-outline" size={13} color={colors.text} />
+              {selectedSize && <View style={[styles.activeDot, { backgroundColor: colors.iosBlue || '#D4AF37' }]} />}
             </View>
             {!compact && (
               <Text style={[styles.filterText, { color: colors.text }]}>
@@ -132,7 +172,7 @@ export default function CollectionFilters({
                 viewMode === 'grid4' ? 'apps-outline' :
                 'square-outline'
               } 
-              size={16} 
+              size={13} 
               color={colors.text} 
             />
           </TouchableOpacity>
@@ -147,16 +187,17 @@ export default function CollectionFilters({
             activeOpacity={1} 
             onPress={() => setIsSizeOpen(false)} 
           />
-          <View style={[styles.dropdownContainer, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-            <BlurView intensity={isDark ? 80 : 90} tint={isDark ? 'dark' : 'light'} style={styles.dropdownInner}>
-              <ScrollView style={{ maxHeight: 250 }}>
+          <View style={[styles.dropdownContainer, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
+            <BlurView intensity={isDark ? 70 : 85} tint={isDark ? 'dark' : 'light'} style={styles.dropdownInner}>
+              <ScrollView style={{ maxHeight: 220 }}>
                 <TouchableOpacity 
                   style={styles.dropdownOption}
                   onPress={() => { onSelectSize(null); setIsSizeOpen(false); }}
                 >
-                  <Text style={[styles.dropdownOptionText, { color: colors.text, opacity: !selectedSize ? 1 : 0.6 }]}>
+                  <Text style={[styles.dropdownOptionText, { color: colors.text, opacity: !selectedSize ? 1 : 0.5 }]}>
                     ANY SIZE
                   </Text>
+                  {!selectedSize && <Ionicons name="checkmark" size={11} color={colors.text} />}
                 </TouchableOpacity>
                 {allSizes.map(size => (
                   <TouchableOpacity 
@@ -168,7 +209,7 @@ export default function CollectionFilters({
                       {size}
                     </Text>
                     {selectedSize === size && (
-                      <Ionicons name="checkmark" size={12} color={colors.text} />
+                      <Ionicons name="checkmark" size={11} color={colors.text} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -186,16 +227,20 @@ export default function CollectionFilters({
             activeOpacity={1} 
             onPress={() => setIsColorOpen(false)} 
           />
-          <View style={[styles.dropdownContainer, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-            <BlurView intensity={isDark ? 80 : 90} tint={isDark ? 'dark' : 'light'} style={styles.dropdownInner}>
-              <ScrollView style={{ maxHeight: 250 }}>
+          <View style={[styles.dropdownContainer, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
+            <BlurView intensity={isDark ? 70 : 85} tint={isDark ? 'dark' : 'light'} style={styles.dropdownInner}>
+              <ScrollView style={{ maxHeight: 220 }}>
                 <TouchableOpacity 
                   style={styles.dropdownOption}
                   onPress={() => { onSelectColor(null); setIsColorOpen(false); }}
                 >
-                  <Text style={[styles.dropdownOptionText, { color: colors.text, opacity: !selectedColor ? 1 : 0.6 }]}>
-                    ANY COLOR
-                  </Text>
+                  <View style={styles.dropdownOptionColorRow}>
+                    <View style={[styles.colorSwatchDropdown, { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.textExtraLight }]} />
+                    <Text style={[styles.dropdownOptionText, { color: colors.text, opacity: !selectedColor ? 1 : 0.5 }]}>
+                      ANY COLOR
+                    </Text>
+                  </View>
+                  {!selectedColor && <Ionicons name="checkmark" size={11} color={colors.text} />}
                 </TouchableOpacity>
                 {allColors.map(color => (
                   <TouchableOpacity 
@@ -203,11 +248,14 @@ export default function CollectionFilters({
                     style={styles.dropdownOption}
                     onPress={() => { onSelectColor(color); setIsColorOpen(false); }}
                   >
-                    <Text style={[styles.dropdownOptionText, { color: colors.text }]}>
-                      {color}
-                    </Text>
+                    <View style={styles.dropdownOptionColorRow}>
+                      <View style={[styles.colorSwatchDropdown, { backgroundColor: getColorHex(color), borderColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.12)' }]} />
+                      <Text style={[styles.dropdownOptionText, { color: colors.text }]}>
+                        {color}
+                      </Text>
+                    </View>
                     {selectedColor === color && (
-                      <Ionicons name="checkmark" size={12} color={colors.text} />
+                      <Ionicons name="checkmark" size={11} color={colors.text} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -226,99 +274,117 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 2000,
     elevation: 2000,
-    marginBottom: 8,
-    marginTop: 4,
+    marginBottom: 6,
+    marginTop: 2,
   },
   pillWrapper: {
-    borderRadius: 32,
+    borderRadius: 24,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: 0.5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    height: 36,
+    gap: 6,
+    paddingHorizontal: 10,
+    height: 30,
   },
   compactBtn: {
-    paddingHorizontal: 10,
-    width: 46,
+    paddingHorizontal: 8,
+    width: 36,
     justifyContent: 'center',
   },
   iconWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   activeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     position: 'absolute',
-    top: -2,
-    right: -4,
+    top: -1,
+    right: -3,
+  },
+  colorSwatchInPill: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 0.5,
   },
   filterText: {
-    fontSize: 10,
+    fontSize: 8.5,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   divider: {
-    width: 1,
-    height: 14,
-    opacity: 0.1,
+    width: 0.5,
+    height: 12,
+    opacity: 0.08,
   },
   viewToggle: {
-    width: 44,
+    width: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    height: 36,
+    height: 30,
   },
   dropdownOverlay: {
     position: 'absolute',
-    top: 58,
+    top: 42,
     width: '100%',
     alignItems: 'center',
     zIndex: 2001,
     elevation: 2001,
   },
   dropdownContainer: {
-    width: 240,
-    borderRadius: 28,
+    width: 200,
+    borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: 0.5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.3,
-    shadowRadius: 30,
-    elevation: 15,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
   },
   dropdownInner: {
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   dropdownOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  dropdownOptionColorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  colorSwatchDropdown: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 0.5,
   },
   dropdownOptionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
+    fontSize: 9.5,
+    fontWeight: '600',
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
 });
