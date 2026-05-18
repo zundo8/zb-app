@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Error({
   error,
@@ -9,8 +9,13 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [isDashboard, setIsDashboard] = useState(false);
+
   useEffect(() => {
     console.error('Root error boundary caught:', error);
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
+      setIsDashboard(true);
+    }
   }, [error]);
 
   return (
@@ -30,7 +35,7 @@ export default function Error({
         </button>
         <button
           onClick={() => {
-            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
+            if (isDashboard) {
               window.location.href = '/dashboard';
             } else {
               window.location.href = '/';
@@ -38,7 +43,7 @@ export default function Error({
           }}
           className="px-6 py-3 border border-foreground/10 text-foreground text-[8px] font-bold uppercase tracking-[0.3em] rounded-full hover:bg-foreground/5 active:scale-95 transition-all"
         >
-          return home
+          {isDashboard ? 'return to dashboard' : 'return home'}
         </button>
       </div>
       {process.env.NODE_ENV === 'development' && (

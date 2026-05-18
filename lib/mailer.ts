@@ -80,7 +80,7 @@ export async function sendEmail({
 }): Promise<void> {
   try {
     const fromName = process.env.ZOHO_FROM_NAME || 'Zica Bella';
-    const fromEmail = process.env.ZOHO_FROM_EMAIL || resolvedSMTP.user;
+    const fromEmail = resolvedSMTP.user;
     const fromStr = `"${fromName}" <${fromEmail}>`;
     const plainText = text || stripHtml(html);
 
@@ -114,7 +114,7 @@ export async function sendMail(options: {
   replyTo?: string;
 }) {
   const fromName = process.env.ZOHO_FROM_NAME || 'Zica Bella';
-  const fromEmail = process.env.ZOHO_FROM_EMAIL || resolvedSMTP.user;
+  const fromEmail = resolvedSMTP.user;
   const fromStr = `"${fromName}" <${fromEmail}>`;
   const plainText = options.text || stripHtml(options.html);
 

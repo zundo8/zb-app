@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
+import { sendMail } from '@/lib/mailer';
 import prisma from '@/lib/db';
 
 export async function POST(req: NextRequest) {
@@ -26,40 +26,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No recipients found' }, { status: 400 });
     }
 
-    // Prepare NodeMailer Transporter
-    const host = process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com';
-    const port = Number(process.env.EMAIL_PORT || process.env.SMTP_PORT || 587);
-    const user = process.env.EMAIL_USER || process.env.SMTP_USER;
-    const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
-    const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || `"Zica Bella" <noreply@zicabella.com>`;
-
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: user ? { user, pass } : undefined,
-    });
-
     let sentCount = 0;
     let hasError = false;
     let errorMsg = '';
 
-    // Mock send if scheduled or no auth provided
+    // Send if not scheduled
     if (scheduledAt) {
       // In a real app this would queue a job
       sentCount = finalRecipients.length;
-    } else if (!user) {
-      console.log('No SMTP credentials found. Mocking send.');
-      sentCount = finalRecipients.length;
     } else {
-      // Batch send
+      // Batch send using central verified mailer
       const BATCH_SIZE = 50;
       for (let i = 0; i < finalRecipients.length; i += BATCH_SIZE) {
         const batch = finalRecipients.slice(i, i + BATCH_SIZE);
         
         const promises = batch.map(email => 
-          transporter.sendMail({
-            from,
+          sendMail({
             to: email,
             subject,
             html: htmlBody,
@@ -71,7 +53,7 @@ export async function POST(req: NextRequest) {
         );
         
         await Promise.all(promises);
-        sentCount += batch.length; // Approximate
+        sentCount += batch.length;
         if (i + BATCH_SIZE < finalRecipients.length) {
           // Delay between batches
           await new Promise(r => setTimeout(r, 200));
