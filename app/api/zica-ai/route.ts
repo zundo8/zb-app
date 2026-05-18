@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppAuthFromRequest } from "@/lib/appAuth";
 import { ZICA_USER_PROMPT, ZICA_ADMIN_PROMPT } from "@/lib/services/claudeService";
+import prisma from "@/lib/prisma";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -32,7 +33,61 @@ export async function POST(req: NextRequest) {
     const { messages } = body;
     const auth = getAppAuthFromRequest(req);
     const isAdmin = auth?.email?.endsWith('@zicabella.com') || false;
-    const secureSystemPrompt = isAdmin ? ZICA_ADMIN_PROMPT : ZICA_USER_PROMPT;
+    // Fetch Global Insights and User Profile Context
+    let globalContext = "";
+    let userContext = "";
+    let recentHistory: any[] = [];
+
+    if (!isAdmin && auth?.userId) {
+      try {
+        const topProducts = await prisma.zicaAiGlobalInsight.findMany({
+          where: { insightType: "popular_product" },
+          orderBy: { frequency: "desc" },
+          take: 10,
+        });
+        const topTrends = await prisma.zicaAiGlobalInsight.findMany({
+          where: { insightType: "style_trend" },
+          orderBy: { frequency: "desc" },
+          take: 5,
+        });
+
+        if (topProducts.length > 0 || topTrends.length > 0) {
+          const productNames = topProducts.map(p => p.key).join(", ");
+          const trendNames = topTrends.map(t => t.key).join(", ");
+          globalContext = `\n\nCurrently trending at Zica Bella: ${productNames}.`;
+          if (trendNames) {
+            globalContext += ` Common trends include: ${trendNames}.`;
+          }
+        }
+
+        const profile = await prisma.zicaUserProfile.findUnique({
+          where: { userId: auth.userId }
+        });
+        if (profile) {
+          const categories = profile.preferredCategories.join(", ") || "various categories";
+          const sizes = profile.preferredSizes.join(", ") || "their usual size";
+          const styles = profile.styleTags.join(", ") || "various styles";
+          userContext = `\n\nThis customer prefers ${categories}, usually wears size ${sizes}, and has shown interest in ${styles}. Reference their preferences naturally without listing them explicitly.`;
+        }
+
+        const history = await prisma.zicaAiCache.findMany({
+          where: { userId: auth.userId },
+          orderBy: { timestamp: "desc" },
+          take: 10,
+        });
+        
+        if (history.length > 0) {
+          const historyText = history.reverse().map(h => `User: ${h.userMessage}\nZica: ${h.aiResponse}`).join("\n\n");
+          userContext += `\n\nRecent Conversation History:\n${historyText}`;
+        }
+      } catch (err) {
+        console.error("[Zica AI] Failed to fetch context:", err);
+      }
+    }
+
+    const secureSystemPrompt = isAdmin 
+      ? ZICA_ADMIN_PROMPT 
+      : `${ZICA_USER_PROMPT}${userContext}${globalContext}`;
 
     // Sanitize messages — ensure all content is text-only for server-side processing
     const sanitizedMessages = messages.map((msg: any) => ({

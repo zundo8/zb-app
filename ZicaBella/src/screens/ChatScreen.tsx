@@ -30,6 +30,126 @@ import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
 import { callClaudeStream } from '../api/claude';
 import { ZICA_AI_CONFIG } from '../constants/aiConfig';
+import { ScrollView } from 'react-native-gesture-handler';
+
+// ─── Types & Parsing ──────────────────────────────
+
+interface ZicaDetectedEntity {
+  type: 'product' | 'collection';
+  handle: string;
+  title: string;
+}
+
+const entityCache: Record<string, { title: string, imageUrl?: string }> = {};
+
+export function parseZicaLinks(text: string): ZicaDetectedEntity[] {
+  const entities: ZicaDetectedEntity[] = [];
+  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const title = match[1];
+    const url = match[2];
+    
+    if (url.includes('zicabella://product/') || url.includes('/products/') || url.includes('zica://products/')) {
+      const handle = url.split('/').pop()?.split('?')[0]?.split('#')[0];
+      if (handle) entities.push({ type: 'product', handle, title });
+    } else if (url.includes('zicabella://collection/') || url.includes('/collections/') || url.includes('zica://collections/')) {
+      const handle = url.split('/').pop()?.split('?')[0]?.split('#')[0];
+      if (handle) entities.push({ type: 'collection', handle, title });
+    }
+  }
+  
+  // Deduplicate by handle
+  const unique = new Map();
+  entities.forEach(e => {
+    if (!unique.has(e.handle)) unique.set(e.handle, e);
+  });
+  return Array.from(unique.values());
+}
+
+const ZicaProductThumbnail = memo(({ entity, onPress }: { entity: ZicaDetectedEntity, onPress: (url: string) => boolean }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(entityCache[entity.handle]?.imageUrl || null);
+  const [loading, setLoading] = useState(!entityCache[entity.handle]?.imageUrl);
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
+  const colors = useColors();
+  
+  useEffect(() => {
+    if (entityCache[entity.handle]?.imageUrl) return;
+    
+    let isMounted = true;
+    setLoading(true);
+    
+    const fetchThumb = async () => {
+      try {
+        if (entity.type === 'product') {
+          const res = await apiGet<{ product: any }>('/products/' + entity.handle);
+          if (res?.product && isMounted) {
+            const url = res.product.featuredImage || (res.product.images && res.product.images[0]?.src);
+            if (url) {
+              entityCache[entity.handle] = { title: entity.title, imageUrl: url };
+              setImageUrl(url);
+            }
+          }
+        } else {
+           const res = await apiGet<any>('/collections/' + entity.handle).catch(() => null);
+           if (res?.collection && isMounted) {
+             const url = res.collection.image?.url || res.collection.image?.src;
+             if (url) {
+               entityCache[entity.handle] = { title: entity.title, imageUrl: url };
+               setImageUrl(url);
+             }
+           }
+        }
+      } catch (err) {
+        // silent
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    
+    fetchThumb();
+    return () => { isMounted = false; };
+  }, [entity]);
+
+  return (
+    <TouchableOpacity 
+      style={[
+        {
+          width: 150,
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.05)',
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0,0,0,0.05)',
+          padding: 8,
+          marginRight: 8,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+        }
+      ]}
+      onPress={() => onPress(entity.type === 'product' ? `zicabella://product/${entity.handle}` : `zicabella://collection/${entity.handle}`)}
+      activeOpacity={0.7}
+    >
+      <View style={{ width: 56, height: 56, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(150,150,150,0.1)' }}>
+        {loading ? (
+           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? '#333' : '#ddd', opacity: 0.5 }]} />
+        ) : imageUrl ? (
+           <Image source={{ uri: imageUrl }} style={{ width: 56, height: 56 }} contentFit="cover" />
+        ) : (
+           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+             <Ionicons name={entity.type === 'product' ? 'shirt-outline' : 'albums-outline'} size={24} color={colors.textMuted} />
+           </View>
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Typography size={10} weight="600" color={colors.text} numberOfLines={2}>
+          {entity.title}
+        </Typography>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 const { width } = Dimensions.get('window');
 
@@ -484,6 +604,8 @@ const MessageBubble = memo(({
     return null;
   }, [item.isUser, item.content, userOrders]);
 
+  const detectedEntities = React.useMemo(() => parseZicaLinks(item.content), [item.content]);
+
   // Don't render empty AI message bubble during initial load before streaming starts
   if (!isUser && !item.content) {
     return null;
@@ -548,6 +670,16 @@ const MessageBubble = memo(({
               shouldProgressive={isLatest}
             />
           )
+        )}
+
+        {detectedEntities.length > 0 && !item.isStreaming && !isUser && (
+          <View style={{ marginTop: 12, marginLeft: -8, marginRight: -8, paddingBottom: 4 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8 }}>
+              {detectedEntities.map((ent, idx) => (
+                <ZicaProductThumbnail key={`${ent.handle}-${idx}`} entity={ent} onPress={onLinkPress} />
+              ))}
+            </ScrollView>
+          </View>
         )}
 
         {matchingOrder && (
@@ -1060,6 +1192,31 @@ const ChatScreen = memo(() => {
             { role: 'assistant', content: fullText }
           ]);
           haptics.success();
+
+          // Write to Cache
+          const detected = parseZicaLinks(fullText);
+          const detectedProducts = detected.filter(d => d.type === 'product').map(d => d.handle);
+          const detectedCollections = detected.filter(d => d.type === 'collection').map(d => d.handle);
+          const newSessionId = currentSessionId || Math.random().toString(36).substring(7);
+          if (!currentSessionId) setCurrentSessionId(newSessionId);
+
+          const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
+          fetch(`${APP_URL}/api/zica-ai/cache`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {})
+            },
+            body: JSON.stringify({
+              sessionId: newSessionId,
+              turnIndex: currentHistory.length + 1,
+              userMessage: displayContent,
+              aiResponse: fullText,
+              detectedProducts,
+              detectedCollections,
+              responseTokens: Math.round(fullText.length / 4), // estimation
+            })
+          }).catch(() => {});
         },
       });
 
@@ -1081,13 +1238,13 @@ const ChatScreen = memo(() => {
   const handleLinkPress = useCallback((url: string) => {
     let targetUrl = url;
     
-    if (url.includes('/products/')) {
-      const handle = url.split('/products/')[1]?.split('?')[0]?.split('#')[0];
+    if (url.includes('/products/') || url.includes('zicabella://product/')) {
+      const handle = url.split('/').pop()?.split('?')[0]?.split('#')[0];
       if (handle) {
         targetUrl = 'zica://products/' + handle;
       }
-    } else if (url.includes('/collections/')) {
-      const handle = url.split('/collections/')[1]?.split('?')[0]?.split('#')[0];
+    } else if (url.includes('/collections/') || url.includes('zicabella://collection/')) {
+      const handle = url.split('/').pop()?.split('?')[0]?.split('#')[0];
       if (handle) {
         targetUrl = 'zica://collections/' + handle;
       }

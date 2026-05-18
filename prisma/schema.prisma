@@ -1069,3 +1069,43 @@ enum Module {
   ADMIN_USERS
   AUDIT_LOG
 }
+
+model ZicaAiCache {
+  id                   String   @id @default(uuid())
+  userId               String
+  sessionId            String
+  turnIndex            Int
+  userMessage          String
+  aiResponse           String   @db.Text
+  detectedProducts     String[]
+  detectedCollections  String[]
+  intentTags           String[]
+  sentiment            String
+  timestamp            DateTime @default(now())
+  responseTokens       Int
+  helpfulFlag          Boolean?
+
+  @@index([userId, timestamp])
+}
+
+model ZicaAiGlobalInsight {
+  id               String   @id @default(uuid())
+  insightType      String
+  key              String
+  frequency        Int      @default(1)
+  lastSeen         DateTime @default(now())
+  sampleQueries    String[]
+  confidenceScore  Float    @default(0.0)
+
+  @@unique([insightType, key])
+}
+
+model ZicaUserProfile {
+  userId             String   @id
+  preferredCategories String[]
+  preferredSizes     String[]
+  styleTags          String[]
+  totalSessions      Int      @default(0)
+  lastActive         DateTime @default(now())
+  favouriteProducts  String[]
+}

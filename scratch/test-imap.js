@@ -2,7 +2,7 @@ const imaps = require('imap-simple');
 
 const config = {
   imap: {
-    user: 'admin@zicabella.com',
+    user: 'developer@zicabella.com',
     password: 'L6YHDRkF1zti',
     host: 'imap.zoho.in',
     port: 993,

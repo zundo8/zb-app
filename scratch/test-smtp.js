@@ -5,7 +5,7 @@ const transporter = nodemailer.createTransport({
   port: 465,
   secure: true,
   auth: {
-    user: 'admin@zicabella.com',
+    user: 'developer@zicabella.com',
     pass: 'L6YHDRkF1zti',
   },
 });
@@ -18,8 +18,8 @@ async function main() {
 
     console.log('Sending test email...');
     const info = await transporter.sendMail({
-      from: '"Zica Bella" <admin@zicabella.com>',
-      to: 'admin@zicabella.com',
+      from: '"Zica Bella" <developer@zicabella.com>',
+      to: 'developer@zicabella.com',
       subject: 'Test Email from Antigravity Scratch Script',
       text: 'This is a test email.',
       html: '<b>This is a test email.</b>',
