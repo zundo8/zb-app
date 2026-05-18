@@ -162,51 +162,36 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('[IMAP Inbox Error]:', error);
 
-    // Simulated fallbacks in case of client-side Zoho restriction/disabled state
-    const mockEmails = [
-      {
-        id: "mock-1",
-        from: "Karthik <karthik@zicabella.com>",
-        subject: "Stunning new summer campaign looks 🌸",
-        date: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-        preview: "Hey team, I absolutely love the new glassmorphic filters on the collection screen! They feel incredibly fast and responsive on iOS. Let's launch the campaign this weekend.",
-        isRead: false,
-        hasAttachment: true,
-      },
-      {
-        id: "mock-2",
-        from: "Zoho Mail Security <security@zoho.com>",
-        subject: "Zoho IMAP Connection Status: Verification Alert",
-        date: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-        preview: "Your Zoho Mail IMAP link returned a notice. Ensure that organization-level policies and App-Specific Passwords are configured properly under Control Panel.",
-        isRead: true,
-        hasAttachment: false,
-      },
-      {
-        id: "mock-3",
-        from: "Rohan (Concierge VIP) <rohan@zicabella.com>",
-        subject: "Urgent: Customer size verification request for Order #ZB-9912",
-        date: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
-        preview: "Hi Admin, the customer wants to swap their size from Large to Medium for the heavy box t-shirt. The order is currently in processing status, please update.",
-        isRead: true,
-        hasAttachment: false,
-      },
-      {
-        id: "mock-4",
-        from: "Aisha <aisha.sharma@gmail.com>",
-        subject: "Collaboration Request: Zica Bella Streetwear Launch 🚀",
-        date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-        preview: "Hello, I am a fashion creator based in Mumbai. I am obsessed with your custom streetwear collections and would love to collaborate for the upcoming drops.",
-        isRead: true,
-        hasAttachment: true,
-      }
-    ];
+    try {
+      // Query actual sent/received email logs from the DB to show as real data fallback
+      const dbLogs = await prisma.emailLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      });
 
-    return NextResponse.json({ 
-      success: true, 
-      emails: mockEmails, 
-      isMocked: true, 
-      error: error.message || 'Failed to connect or fetch emails' 
-    });
+      const formattedFallback = dbLogs.map(log => ({
+        id: log.id,
+        from: log.sentBy === 'admin-dashboard' ? `Atelier Sent <${log.recipientEmail}>` : log.recipientEmail,
+        subject: log.subject,
+        date: log.createdAt.toISOString(),
+        preview: `Recipient: ${log.recipientName || 'Customer'} | Status: ${log.status.toUpperCase()} ${log.errorMessage ? `(${log.errorMessage})` : ''}`,
+        isRead: true,
+        hasAttachment: false,
+      }));
+
+      return NextResponse.json({ 
+        success: true, 
+        emails: formattedFallback, 
+        isMocked: true, 
+        error: error.message || 'IMAP disabled. Showing database transaction logs.' 
+      });
+    } catch (dbErr: any) {
+      return NextResponse.json({ 
+        success: true, 
+        emails: [], 
+        isMocked: true, 
+        error: error.message || 'Failed to connect or fetch emails' 
+      });
+    }
   }
 }

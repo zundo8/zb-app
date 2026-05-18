@@ -47,6 +47,24 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 /**
+ * Helper to strip HTML tags and generate clean plain text fallback.
+ * Essential for improving spam score as HTML-only emails are heavily flagged by email providers.
+ */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style([\s\S]*?)<\/style>/gi, '')
+    .replace(/<script([\s\S]*?)<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
+}
+
+/**
  * Sends an email using the Zoho SMTP server
  */
 export async function sendEmail({
@@ -64,13 +82,18 @@ export async function sendEmail({
     const fromName = process.env.ZOHO_FROM_NAME || 'Zica Bella';
     const fromEmail = process.env.ZOHO_FROM_EMAIL || resolvedSMTP.user;
     const fromStr = `"${fromName}" <${fromEmail}>`;
+    const plainText = text || stripHtml(html);
 
     await transporter.sendMail({
       from: fromStr,
       to,
       subject,
       html,
-      text,
+      text: plainText,
+      headers: {
+        'X-Mailer': 'ZicaBellaMailer',
+        'X-Priority': '3', // Normal priority
+      }
     });
   } catch (error) {
     console.error('Error sending email:', error);
@@ -85,6 +108,7 @@ export async function sendMail(options: {
   to: string | string[];
   subject: string;
   html: string;
+  text?: string;
   cc?: string;
   bcc?: string;
   replyTo?: string;
@@ -92,6 +116,7 @@ export async function sendMail(options: {
   const fromName = process.env.ZOHO_FROM_NAME || 'Zica Bella';
   const fromEmail = process.env.ZOHO_FROM_EMAIL || resolvedSMTP.user;
   const fromStr = `"${fromName}" <${fromEmail}>`;
+  const plainText = options.text || stripHtml(options.html);
 
   return transporter.sendMail({
     from: fromStr,
@@ -101,5 +126,10 @@ export async function sendMail(options: {
     replyTo: options.replyTo,
     subject: options.subject,
     html: options.html,
+    text: plainText,
+    headers: {
+      'X-Mailer': 'ZicaBellaMailer',
+      'X-Priority': '3', // Normal priority
+    }
   });
 }

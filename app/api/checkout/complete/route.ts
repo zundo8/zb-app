@@ -3,6 +3,8 @@ import crypto from "crypto";
 import prisma from "@/lib/db";
 import { createOrder, createCustomer, updateCustomer } from "@/lib/shopify-admin";
 import { resolveRazorpayCredentials } from "@/lib/razorpay-credentials";
+import { sendMail } from "@/lib/mailer";
+import { orderConfirmationTemplate } from "@/lib/email-templates";
 
 export async function POST(req: Request) {
   try {
@@ -206,6 +208,62 @@ export async function POST(req: Request) {
         }
       }
     });
+
+    // Send order confirmation email to the user directly
+    try {
+      const confirmationHtml = orderConfirmationTemplate({
+        customerName: address.name || "Customer",
+        orderId: localOrder.shopifyOrderId || localOrder.id,
+        orderDate: new Date(localOrder.createdAt).toLocaleDateString(),
+        items: items.map((item: any) => ({
+          name: item.title,
+          size: item.size || 'N/A',
+          qty: item.quantity,
+          price: `INR ${item.price}`,
+        })),
+        subtotal: `INR ${subtotal}`,
+        shipping: `INR ${codFee ? 99 : 0}`,
+        total: `INR ${total}`,
+        shippingAddress: `${address.street}, ${address.city}, ${address.state} - ${address.zip}, ${address.country || 'India'}`,
+      });
+
+      const emailResult = await sendMail({
+        to: address.email,
+        subject: `Order Confirmed - ${localOrder.shopifyOrderId || localOrder.id}`,
+        html: confirmationHtml,
+      });
+
+      // Log the email in our system logs
+      await prisma.emailLog.create({
+        data: {
+          recipientEmail: address.email,
+          recipientName: address.name,
+          subject: `Order Confirmed - ${localOrder.shopifyOrderId || localOrder.id}`,
+          templateName: 'Order Confirmed',
+          triggerEvent: 'checkout/complete',
+          referenceId: localOrder.id,
+          status: emailResult.messageId ? 'sent' : 'failed',
+          messageId: emailResult.messageId || null,
+          sentBy: 'system',
+        }
+      });
+    } catch (emailErr: any) {
+      console.error("[Email Trigger Error] Failed to send order confirmation email:", emailErr.message);
+      // Don't crash checkout if email fails, but log it
+      await prisma.emailLog.create({
+        data: {
+          recipientEmail: address.email,
+          recipientName: address.name,
+          subject: `Order Confirmed - ${localOrder.shopifyOrderId || localOrder.id}`,
+          templateName: 'Order Confirmed',
+          triggerEvent: 'checkout/complete',
+          referenceId: localOrder.id,
+          status: 'failed',
+          errorMessage: emailErr.message,
+          sentBy: 'system',
+        }
+      });
+    }
 
     // Update customer name and address for next time
     await prisma.customer.update({

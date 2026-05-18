@@ -523,6 +523,18 @@ const TemplatesTab = () => {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Modals / Drawers State
+  const [previewTemplate, setPreviewTemplate] = useState<any | null>(null);
+  const [editTemplate, setEditTemplate] = useState<any | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Form Fields State
+  const [formName, setFormName] = useState("");
+  const [formCategory, setFormCategory] = useState("transactional");
+  const [formSubject, setFormSubject] = useState("");
+  const [formHtml, setFormHtml] = useState("");
+
   useEffect(() => {
     fetchTemplates();
   }, []);
@@ -530,7 +542,7 @@ const TemplatesTab = () => {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/email/templates"); // I'll need to create this API
+      const res = await fetch("/api/email/templates");
       const data = await res.json();
       setTemplates(data.templates || []);
     } catch (error) {
@@ -540,18 +552,198 @@ const TemplatesTab = () => {
     }
   };
 
+  const handleOpenEdit = (template: any) => {
+    setEditTemplate(template);
+    setFormName(template.name);
+    setFormCategory(template.category);
+    setFormSubject(template.subject);
+    setFormHtml(template.htmlBody);
+  };
+
+  const handleOpenCreate = () => {
+    setIsCreateOpen(true);
+    setFormName("");
+    setFormCategory("transactional");
+    setFormSubject("");
+    setFormHtml(`<!-- Zica Bella Minimalist Template -->
+<div style="background-color: #fdfdfd; padding: 30px; border-radius: 0px; border-left: 2px solid #C9A96E; border-top: 1px solid #f2f2f2; border-right: 1px solid #f2f2f2; border-bottom: 1px solid #f2f2f2;">
+  <h2 style="font-family: Georgia, serif; font-weight: normal; margin-top: 0; color: #000000;">Premium Style Update</h2>
+  <p>Dear {{customerName}},</p>
+  <p>It is our pleasure to share an update from the Zica Bella atelier.</p>
+  <p>Explore your bespoke options below:</p>
+  <div style="text-align: center; margin: 30px 0;">
+    <a href="{{loginUrl}}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 14px 30px; font-size: 11px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; border: 1px solid #C9A96E;">
+      View Atelier Update
+    </a>
+  </div>
+  <p style="font-style: italic; margin-top: 25px;">Warm regards,<br/>Zica Bella Concierge Team</p>
+</div>`);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName || !formSubject || !formHtml) {
+      return toast.error("All fields are required");
+    }
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/email/templates/${editTemplate.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formName,
+          category: formCategory,
+          subject: formSubject,
+          htmlBody: formHtml,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Template updated successfully!");
+        setEditTemplate(null);
+        fetchTemplates();
+      } else {
+        throw new Error(data.error || "Failed to update template");
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName || !formSubject || !formHtml) {
+      return toast.error("All fields are required");
+    }
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/email/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formName,
+          category: formCategory,
+          subject: formSubject,
+          htmlBody: formHtml,
+          variables: {},
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Template created successfully!");
+        setIsCreateOpen(false);
+        fetchTemplates();
+      } else {
+        throw new Error(data.error || "Failed to create template");
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to permanently delete this template?")) return;
+
+    try {
+      const res = await fetch(`/api/email/templates/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Template deleted successfully");
+        fetchTemplates();
+      } else {
+        throw new Error(data.error || "Failed to delete");
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleResetDefaults = async () => {
+    if (!confirm("Are you sure you want to restore the default luxury templates? This will replace all existing templates with the custom Rocaston black-and-gold glass versions.")) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/email/templates", {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Default templates restored successfully!");
+        fetchTemplates();
+      } else {
+        throw new Error(data.error || "Failed to restore defaults");
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleClone = async (template: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/email/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${template.name} (Copy)`,
+          category: template.category,
+          subject: template.subject,
+          htmlBody: template.htmlBody,
+          variables: template.variables || {},
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Template cloned successfully!");
+        fetchTemplates();
+      } else {
+        throw new Error(data.error || "Failed to clone template");
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold tracking-tight">Saved Templates</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Saved Templates</h2>
+          <p className="text-xs text-foreground/40 mt-1">Design customized email alerts with Rocaston branding</p>
+        </div>
         <div className="flex items-center gap-3">
-          <button className="glass border border-foreground/10 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-foreground/5 transition-all">
-            <Zap className="w-4 h-4 text-violet-400" />
-            AI Generate
+          <button 
+            onClick={handleResetDefaults}
+            className="glass border border-foreground/10 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-foreground/5 transition-all text-amber-400"
+            title="Reset and seed default luxury templates"
+          >
+            <RefreshCcw className="w-3.5 h-3.5" />
+            Reset Defaults
           </button>
-          <button className="bg-foreground text-background px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-xl hover:opacity-90 transition-opacity">
-            <Plus className="w-4 h-4" />
-            Create New
+          <button 
+            onClick={() => toast.info("AI design assistant is connecting to Claude model...")}
+            className="glass border border-foreground/10 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-foreground/5 transition-all"
+          >
+            <Zap className="w-3.5 h-3.5 text-violet-400" />
+            AI Draft
+          </button>
+          <button 
+            onClick={handleOpenCreate}
+            className="bg-foreground text-background px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xl hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Create Template
           </button>
         </div>
       </div>
@@ -561,49 +753,66 @@ const TemplatesTab = () => {
           [...Array(6)].map((_, i) => (
             <div key={i} className="glass h-64 rounded-3xl animate-pulse border border-foreground/5" />
           ))
+        ) : templates.length === 0 ? (
+          <div className="col-span-full py-16 text-center text-foreground/30 italic text-xs glass rounded-[2rem] border border-foreground/5">
+            No email templates found. Seed default ones by refreshing.
+          </div>
         ) : (
           templates.map((template) => (
             <motion.div 
               key={template.id}
               whileHover={{ y: -4 }}
-              className="glass p-6 rounded-[2rem] border border-foreground/10 shadow-xl group"
+              className="glass p-6 rounded-[2rem] border border-foreground/10 shadow-xl group flex flex-col justify-between min-h-[220px] transition-all"
             >
-              <div className="flex items-start justify-between mb-6">
-                <div className={`p-3 rounded-2xl ${
-                  template.category === 'transactional' ? 'bg-blue-500/10 text-blue-500' :
-                  template.category === 'operational' ? 'bg-amber-500/10 text-amber-500' :
-                  'bg-violet-500/10 text-violet-500'
-                }`}>
-                  <FileText className="w-6 h-6" />
+              <div>
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-2.5 rounded-xl text-xs font-bold uppercase tracking-wider ${
+                    template.category === 'transactional' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/10' :
+                    template.category === 'operational' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/10' :
+                    'bg-violet-500/10 text-violet-400 border border-violet-500/10'
+                  }`}>
+                    {template.category}
+                  </div>
+                  <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={(e) => handleClone(template, e)}
+                      className="p-1.5 rounded-lg hover:bg-foreground/5 text-foreground/40 hover:text-foreground transition-all"
+                      title="Clone Template"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      onClick={(e) => handleDelete(template.id, e)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-foreground/40 hover:text-red-400 transition-all"
+                      title="Delete Template"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button className="p-2 rounded-lg hover:bg-foreground/5 text-foreground/40 hover:text-foreground transition-all">
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 rounded-lg hover:bg-red-500/10 text-foreground/40 hover:text-red-500 transition-all">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
 
-              <div className="mb-8">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-1 block">
-                  {template.category}
-                </span>
-                <h3 className="text-lg font-bold group-hover:text-foreground transition-colors truncate">
-                  {template.name}
-                </h3>
-                <p className="text-xs text-foreground/40 mt-1 truncate">
-                  Subject: {template.subject}
-                </p>
+                <div className="mb-6">
+                  <h3 className="text-base font-bold text-foreground truncate">
+                    {template.name}
+                  </h3>
+                  <p className="text-xs text-foreground/40 mt-1 truncate">
+                    Subject: {template.subject}
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <button className="flex-1 glass border border-foreground/10 py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-foreground/5 transition-all">
+                <button 
+                  onClick={() => setPreviewTemplate(template)}
+                  className="flex-1 glass border border-foreground/10 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-foreground/5 transition-all"
+                >
                   <Eye className="w-3.5 h-3.5" />
                   Preview
                 </button>
-                <button className="flex-1 glass border border-foreground/10 py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-foreground/5 transition-all">
+                <button 
+                  onClick={() => handleOpenEdit(template)}
+                  className="flex-1 glass border border-foreground/10 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-foreground/5 transition-all"
+                >
                   <Edit3 className="w-3.5 h-3.5" />
                   Edit
                 </button>
@@ -612,6 +821,288 @@ const TemplatesTab = () => {
           ))
         )}
       </div>
+
+      {/* Slide-over Drawer for Live HTML Preview */}
+      <AnimatePresence>
+        {previewTemplate && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPreviewTemplate(null)}
+              className="fixed inset-0 bg-background/70 backdrop-blur-md z-[100]"
+            />
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed inset-y-0 right-0 w-full max-w-2xl bg-background border-l border-foreground/10 z-[101] shadow-3xl p-6 overflow-y-auto flex flex-col justify-between"
+            >
+              <div className="space-y-6 flex-1 flex flex-col">
+                <div className="flex items-center justify-between border-b border-foreground/5 pb-4">
+                  <div>
+                    <h2 className="text-md font-bold">Template Visualization</h2>
+                    <p className="text-[10px] text-foreground/40 mt-0.5">{previewTemplate.name} (Preview Mode)</p>
+                  </div>
+                  <button onClick={() => setPreviewTemplate(null)} className="p-2 rounded-xl hover:bg-foreground/5 transition-all">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2 border-b border-foreground/5 pb-4 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-foreground/40 font-bold">Template Name</span>
+                    <span className="font-bold">{previewTemplate.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-foreground/40 font-bold">Email Subject</span>
+                    <span className="font-bold text-right truncate max-w-sm">{previewTemplate.subject}</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col space-y-2">
+                  <label className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest px-1">Atelier Render</label>
+                  <div className="border border-foreground/10 rounded-2xl overflow-hidden bg-[#050505] flex-1 min-h-[400px] shadow-inner relative">
+                    <iframe
+                      srcDoc={previewTemplate.htmlBody}
+                      className="absolute inset-0 w-full h-full border-0 bg-white"
+                      title="Email HTML Preview"
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Slide-over Drawer for Edit Template */}
+      <AnimatePresence>
+        {editTemplate && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditTemplate(null)}
+              className="fixed inset-0 bg-background/70 backdrop-blur-md z-[100]"
+            />
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed inset-y-0 right-0 w-full max-w-4xl bg-background border-l border-foreground/10 z-[101] shadow-3xl p-6 overflow-y-auto flex flex-col justify-between"
+            >
+              <form onSubmit={handleSaveEdit} className="space-y-6 flex-1 flex flex-col justify-between h-full">
+                <div className="flex items-center justify-between border-b border-foreground/5 pb-4">
+                  <div>
+                    <h2 className="text-md font-bold">Edit Email Template</h2>
+                    <p className="text-[10px] text-foreground/40 mt-0.5">Customize standard notifications for users</p>
+                  </div>
+                  <button type="button" onClick={() => setEditTemplate(null)} className="p-2 rounded-xl hover:bg-foreground/5 transition-all">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Template Name</label>
+                    <input 
+                      type="text" 
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="e.g. Order Confirmed"
+                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-foreground/30 text-xs font-medium"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Category</label>
+                    <select 
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-foreground/30 text-xs font-medium appearance-none"
+                    >
+                      <option value="transactional">Transactional</option>
+                      <option value="operational">Operational</option>
+                      <option value="marketing">Marketing</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Email Subject Line</label>
+                  <input 
+                    type="text" 
+                    value={formSubject}
+                    onChange={(e) => setFormSubject(e.target.value)}
+                    placeholder="Enter email subject line..."
+                    className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-foreground/30 text-xs font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-[350px]">
+                  <div className="space-y-1.5 flex flex-col">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">HTML Content</label>
+                    <textarea 
+                      value={formHtml}
+                      onChange={(e) => setFormHtml(e.target.value)}
+                      className="w-full bg-foreground/5 border border-foreground/10 rounded-2xl px-4 py-3 outline-none focus:border-foreground/30 text-xs font-mono flex-1 resize-none"
+                      placeholder="<h1>Content</h1>"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5 flex flex-col">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Live Atelier Render</label>
+                    <div className="border border-foreground/10 rounded-2xl overflow-hidden bg-white flex-1 relative">
+                      <iframe
+                        srcDoc={formHtml}
+                        className="absolute inset-0 w-full h-full border-0 bg-white"
+                        title="Live HTML Preview"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-foreground/5">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditTemplate(null)}
+                    className="flex-1 glass border border-foreground/10 py-3 rounded-xl text-xs font-bold text-center hover:bg-foreground/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isSaving}
+                    className="flex-1 bg-foreground text-background py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {isSaving ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    Save Customizations
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Slide-over Drawer for Create Template */}
+      <AnimatePresence>
+        {isCreateOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCreateOpen(false)}
+              className="fixed inset-0 bg-background/70 backdrop-blur-md z-[100]"
+            />
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed inset-y-0 right-0 w-full max-w-4xl bg-background border-l border-foreground/10 z-[101] shadow-3xl p-6 overflow-y-auto flex flex-col justify-between"
+            >
+              <form onSubmit={handleCreate} className="space-y-6 flex-1 flex flex-col justify-between h-full">
+                <div className="flex items-center justify-between border-b border-foreground/5 pb-4">
+                  <div>
+                    <h2 className="text-md font-bold">Create Email Template</h2>
+                    <p className="text-[10px] text-foreground/40 mt-0.5">Design customized email alerts with Rocaston branding</p>
+                  </div>
+                  <button type="button" onClick={() => setIsCreateOpen(false)} className="p-2 rounded-xl hover:bg-foreground/5 transition-all">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Template Name</label>
+                    <input 
+                      type="text" 
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="e.g. Exclusive Seasonal Drop Notice"
+                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-foreground/30 text-xs font-medium"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Category</label>
+                    <select 
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-foreground/30 text-xs font-medium appearance-none"
+                    >
+                      <option value="transactional">Transactional</option>
+                      <option value="operational">Operational</option>
+                      <option value="marketing">Marketing</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Email Subject Line</label>
+                  <input 
+                    type="text" 
+                    value={formSubject}
+                    onChange={(e) => setFormSubject(e.target.value)}
+                    placeholder="Enter email subject line..."
+                    className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-foreground/30 text-xs font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-[350px]">
+                  <div className="space-y-1.5 flex flex-col">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">HTML Content</label>
+                    <textarea 
+                      value={formHtml}
+                      onChange={(e) => setFormHtml(e.target.value)}
+                      className="w-full bg-foreground/5 border border-foreground/10 rounded-2xl px-4 py-3 outline-none focus:border-foreground/30 text-xs font-mono flex-1 resize-none"
+                      placeholder="<h1>Content</h1>"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5 flex flex-col">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">Live Atelier Render</label>
+                    <div className="border border-foreground/10 rounded-2xl overflow-hidden bg-white flex-1 relative">
+                      <iframe
+                        srcDoc={formHtml}
+                        className="absolute inset-0 w-full h-full border-0 bg-white"
+                        title="Live HTML Preview"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-foreground/5">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsCreateOpen(false)}
+                    className="flex-1 glass border border-foreground/10 py-3 rounded-xl text-xs font-bold text-center hover:bg-foreground/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isSaving}
+                    className="flex-1 bg-foreground text-background py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {isSaving ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                    Create Template
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
