@@ -101,13 +101,22 @@ export async function GET(req: Request) {
         AND: [
           {
             status: {
-              notIn: ['failed', 'FAILED']
+              notIn: ['failed', 'FAILED', 'payment_failed']
             }
           },
           {
-            paymentStatus: {
-              in: ['paid', 'partially_paid', 'refunded', 'partially_refunded', 'PAID', 'PARTIALLY_PAID', 'REFUNDED', 'PARTIALLY_REFUNDED']
-            }
+            OR: [
+              {
+                paymentStatus: {
+                  in: ['paid', 'partially_paid', 'refunded', 'partially_refunded', 'PAID', 'PARTIALLY_PAID', 'REFUNDED', 'PARTIALLY_REFUNDED']
+                }
+              },
+              {
+                paymentMethod: {
+                  in: ['COD', 'cod', 'Cash on Delivery', 'cash_on_delivery']
+                }
+              }
+            ]
           }
         ]
       }),

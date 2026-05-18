@@ -100,10 +100,13 @@ export default function OrderHistoryScreen() {
       const getVal = (v: any) => String(v || '').toLowerCase();
       const finStatus = getVal(o.financialStatus || o.financial_status || o.paymentStatus || o.payment_status);
       const mainStatus = getVal(o.status || o.rawStatus);
+      const payMethod = getVal(o.paymentMethod || o.paymentMethod2 || o.payment_method);
+      const isCOD = ['cod', 'cash on delivery'].includes(payMethod);
       
-      const isPaymentUnsuccessful = 
-        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
-        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(mainStatus);
+      const isPaymentUnsuccessful = isCOD
+        ? ['failed', 'voided'].includes(finStatus) || ['failed', 'voided'].includes(mainStatus)
+        : ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
+          ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(mainStatus);
         
       if (isPaymentUnsuccessful) return false;
       
@@ -291,9 +294,13 @@ export default function OrderHistoryScreen() {
     const active = orders.filter(o => {
       const finStatus = getVal(o.financialStatus || o.financial_status || o.paymentStatus || o.payment_status);
       const s = getVal(o.status || o.rawStatus);
-      const isPaymentUnsuccessful = 
-        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
-        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(s);
+      const payMethod = getVal(o.paymentMethod || o.paymentMethod2 || o.payment_method);
+      const isCOD = ['cod', 'cash on delivery'].includes(payMethod);
+      
+      const isPaymentUnsuccessful = isCOD
+        ? ['failed', 'voided'].includes(finStatus) || ['failed', 'voided'].includes(s)
+        : ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
+          ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(s);
       
       if (isPaymentUnsuccessful) return false;
       
@@ -304,9 +311,13 @@ export default function OrderHistoryScreen() {
     const history = orders.filter(o => {
       const finStatus = getVal(o.financialStatus || o.financial_status || o.paymentStatus || o.payment_status);
       const s = getVal(o.status || o.rawStatus);
-      const isPaymentUnsuccessful = 
-        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
-        ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(s);
+      const payMethod = getVal(o.paymentMethod || o.paymentMethod2 || o.payment_method);
+      const isCOD = ['cod', 'cash on delivery'].includes(payMethod);
+      
+      const isPaymentUnsuccessful = isCOD
+        ? ['failed', 'voided'].includes(finStatus) || ['failed', 'voided'].includes(s)
+        : ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(finStatus) ||
+          ['failed', 'pending', 'voided', 'unpaid', 'payment_failed', 'payment_pending'].includes(s);
       
       return !isPaymentUnsuccessful;
     }).length;
