@@ -1,4 +1,8 @@
 import { baseTemplate } from './base';
+import prisma from '@/lib/db';
+import { EmailTemplate } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
 
 export function orderConfirmationTemplate(data: {
   customerName: string;
@@ -377,4 +381,43 @@ export function vendorOnboardingTemplate(data: {
 export * from './orderPlaced';
 export * from './orderShipped';
 export * from './orderDelivered';
+
+export async function getAllTemplates(): Promise<EmailTemplate[]> {
+  return prisma.emailTemplate.findMany({
+    orderBy: { createdAt: 'desc' }
+  });
+}
+
+export async function getTemplateById(id: string): Promise<EmailTemplate | null> {
+  return prisma.emailTemplate.findUnique({
+    where: { id }
+  });
+}
+
+export async function upsertTemplate(template: Partial<EmailTemplate>): Promise<EmailTemplate> {
+  if (template.id) {
+    return prisma.emailTemplate.update({
+      where: { id: template.id },
+      data: template
+    });
+  }
+  return prisma.emailTemplate.create({
+    data: {
+      name: template.name || 'New Template',
+      category: template.category || 'transactional',
+      subject: template.subject || '',
+      htmlBody: template.htmlBody || '',
+      variables: template.variables || [],
+      isActive: template.isActive ?? true,
+    }
+  });
+}
+
+export function extractVariables(html: string): string[] {
+  const regex = /\{\{([^}]+)\}\}/g;
+  const matches = html.match(regex);
+  if (!matches) return [];
+  const uniqueVars = Array.from(new Set(matches.map(m => m.slice(2, -2).trim())));
+  return uniqueVars;
+}
 

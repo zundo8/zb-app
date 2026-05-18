@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { extractVariables } from '@/lib/email-templates';
 
 export async function PUT(
   req: NextRequest,
@@ -16,7 +17,7 @@ export async function PUT(
         category: data.category,
         subject: data.subject,
         htmlBody: data.htmlBody,
-        variables: data.variables || {},
+        variables: data.variables || extractVariables(data.htmlBody || ''),
         isActive: data.isActive !== undefined ? data.isActive : true,
       },
     });
