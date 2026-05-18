@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
   Dimensions, Keyboard, Alert, Pressable, Image as RNImage,
-  Linking,
+  Linking, InteractionManager,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,77 +40,213 @@ interface ZicaDetectedEntity {
   title: string;
 }
 
-const entityCache: Record<string, { title: string, imageUrl?: string }> = {};
+const PRIORITY_COLLECTIONS = ['acid-tees'];
+const thumbnailImageUrlCache = new Map<string, string>();
+const thumbnailFetchCache = new Map<string, Promise<string | null>>();
+
+function cleanZicaHandle(rawHandle: string | undefined): string {
+  if (!rawHandle) return '';
+  try {
+    return decodeURIComponent(rawHandle);
+  } catch {
+    return rawHandle;
+  }
+}
+
+function normalizeZicaHandle(rawPath: string | undefined): string {
+  const firstSegment = String(rawPath || '')
+    .replace(/^\/+/, '')
+    .split('/')[0]
+    ?.trim()
+    .replace(/[)\].,;:!]+$/g, '');
+
+  return cleanZicaHandle(firstSegment);
+}
+
+function titleFromHandle(handle: string): string {
+  return handle
+    .split('-')
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function extractZicaLinkTarget(url: string): Pick<ZicaDetectedEntity, 'type' | 'handle'> | null {
+  const withoutQuery = String(url || '')
+    .trim()
+    .replace(/^<|>$/g, '')
+    .split('#')[0]
+    .split('?')[0]
+    .replace(/\/+$/, '');
+  const lowerUrl = withoutQuery.toLowerCase();
+
+  const markers: Array<{ type: ZicaDetectedEntity['type']; marker: string }> = [
+    { type: 'product', marker: 'zicabella://product/' },
+    { type: 'product', marker: 'zicabella://products/' },
+    { type: 'product', marker: 'zica://products/' },
+    { type: 'product', marker: '/products/' },
+    { type: 'collection', marker: 'zicabella://collection/' },
+    { type: 'collection', marker: 'zicabella://collections/' },
+    { type: 'collection', marker: 'zica://collections/' },
+    { type: 'collection', marker: '/collections/' },
+  ];
+
+  for (const { type, marker } of markers) {
+    const markerIndex = lowerUrl.indexOf(marker);
+    if (markerIndex === -1) continue;
+
+    const handle = normalizeZicaHandle(withoutQuery.slice(markerIndex + marker.length));
+    if (handle) return { type, handle };
+  }
+
+  return null;
+}
+
+function getCollectionPriority(handle: string): number {
+  return PRIORITY_COLLECTIONS.indexOf(handle);
+}
+
+function sortDetectedEntities(entities: ZicaDetectedEntity[]): ZicaDetectedEntity[] {
+  return [...entities].sort((a, b) => {
+    const aIdx = a.type === 'collection' ? getCollectionPriority(a.handle) : -1;
+    const bIdx = b.type === 'collection' ? getCollectionPriority(b.handle) : -1;
+    if (aIdx !== -1 && bIdx === -1) return -1;
+    if (bIdx !== -1 && aIdx === -1) return 1;
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    return 0;
+  });
+}
+
+function sortCollectionHandles(handles: string[]): string[] {
+  return [...handles].sort((a, b) => {
+    const aIdx = getCollectionPriority(a);
+    const bIdx = getCollectionPriority(b);
+    if (aIdx !== -1 && bIdx === -1) return -1;
+    if (bIdx !== -1 && aIdx === -1) return 1;
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    return 0;
+  });
+}
 
 export function parseZicaLinks(text: string): ZicaDetectedEntity[] {
   const entities: ZicaDetectedEntity[] = [];
-  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const seen = new Set<string>();
+
+  const addEntity = (target: Pick<ZicaDetectedEntity, 'type' | 'handle'> | null, title?: string) => {
+    if (!target?.handle) return;
+    const key = `${target.type}:${target.handle}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    entities.push({
+      ...target,
+      title: title?.trim() || titleFromHandle(target.handle),
+    });
+  };
+
+  const markdownRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
   let match;
-  while ((match = regex.exec(text)) !== null) {
-    const title = match[1];
-    const url = match[2];
-    
-    if (url.includes('zicabella://product/') || url.includes('/products/') || url.includes('zica://products/')) {
-      const handle = url.split('/').pop()?.split('?')[0]?.split('#')[0];
-      if (handle) entities.push({ type: 'product', handle, title });
-    } else if (url.includes('zicabella://collection/') || url.includes('/collections/') || url.includes('zica://collections/')) {
-      const handle = url.split('/').pop()?.split('?')[0]?.split('#')[0];
-      if (handle) entities.push({ type: 'collection', handle, title });
-    }
+  while ((match = markdownRegex.exec(text)) !== null) {
+    addEntity(extractZicaLinkTarget(match[2]), match[1]);
   }
-  
-  // Deduplicate by handle
-  const unique = new Map();
-  entities.forEach(e => {
-    if (!unique.has(e.handle)) unique.set(e.handle, e);
-  });
-  return Array.from(unique.values());
+
+  const plainUrlRegex = /(?:zicabella:\/\/(?:product|products|collection|collections)\/[^\s)\]]+|zica:\/\/(?:products|collections)\/[^\s)\]]+|https?:\/\/(?:www\.)?zicabella\.com\/(?:products|collections)\/[^\s)\]]+|\/(?:products|collections)\/[^\s)\]]+)/gi;
+  while ((match = plainUrlRegex.exec(text)) !== null) {
+    const target = extractZicaLinkTarget(match[0]);
+    addEntity(target, target?.handle ? titleFromHandle(target.handle) : undefined);
+  }
+
+  return sortDetectedEntities(entities);
 }
 
-const ZicaProductThumbnail = memo(({ entity, onPress }: { entity: ZicaDetectedEntity, onPress: (url: string) => boolean }) => {
-  const [imageUrl, setImageUrl] = useState<string | null>(entityCache[entity.handle]?.imageUrl || null);
-  const [loading, setLoading] = useState(!entityCache[entity.handle]?.imageUrl);
+function navigateToCollectionScreen(navigation: any, handle: string) {
+  const routeNames = navigation.getState?.()?.routeNames || [];
+  if (routeNames.includes('Collection')) {
+    navigation.navigate('Collection', { handle });
+    return;
+  }
+
+  const parent = navigation.getParent?.();
+  const parentRouteNames = parent?.getState?.()?.routeNames || [];
+  if (parentRouteNames.includes('Collection')) {
+    parent.navigate('Collection', { handle });
+    return;
+  }
+
+  navigation.navigate('HomeTab', {
+    screen: 'Collection',
+    params: { handle },
+  });
+}
+
+function navigateToZicaEntity(navigation: any, entity: Pick<ZicaDetectedEntity, 'type' | 'handle'>) {
+  if (!entity.handle) return;
+
+  if (entity.type === 'product') {
+    navigation.navigate('ProductDetail', { handle: entity.handle });
+    return;
+  }
+
+  navigateToCollectionScreen(navigation, entity.handle);
+}
+
+async function fetchThumbnailImage(entity: ZicaDetectedEntity): Promise<string | null> {
+  const cachedUrl = thumbnailImageUrlCache.get(entity.handle);
+  if (cachedUrl) return cachedUrl;
+
+  const fetchKey = `${entity.type}:${entity.handle}`;
+  const pendingFetch = thumbnailFetchCache.get(fetchKey);
+  if (pendingFetch) return pendingFetch;
+
+  const fetchPromise = (async () => {
+    try {
+      if (entity.type === 'product') {
+        const res = await apiGet<{ product: any }>('/products/' + entity.handle);
+        const url = res?.product?.featuredImage || (res?.product?.images && res.product.images[0]?.src);
+        if (url) {
+          thumbnailImageUrlCache.set(entity.handle, url);
+          return url;
+        }
+      } else {
+        const res = await apiGet<any>('/collections/' + entity.handle).catch(() => null);
+        const url = res?.collection?.image?.url || res?.collection?.image?.src || res?.collection?.image;
+        if (url) {
+          thumbnailImageUrlCache.set(entity.handle, url);
+          return url;
+        }
+      }
+    } catch {
+      // Keep the thumbnail fallback silent.
+    }
+
+    return null;
+  })();
+
+  thumbnailFetchCache.set(fetchKey, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    thumbnailFetchCache.delete(fetchKey);
+  }
+}
+
+const ZicaProductThumbnail = memo(({
+  entity,
+  imageUrl,
+  loading = false,
+}: {
+  entity: ZicaDetectedEntity;
+  imageUrl?: string | null;
+  loading?: boolean;
+}) => {
+  const navigation = useNavigation<any>();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
   const colors = useColors();
-  
-  useEffect(() => {
-    if (entityCache[entity.handle]?.imageUrl) return;
-    
-    let isMounted = true;
-    setLoading(true);
-    
-    const fetchThumb = async () => {
-      try {
-        if (entity.type === 'product') {
-          const res = await apiGet<{ product: any }>('/products/' + entity.handle);
-          if (res?.product && isMounted) {
-            const url = res.product.featuredImage || (res.product.images && res.product.images[0]?.src);
-            if (url) {
-              entityCache[entity.handle] = { title: entity.title, imageUrl: url };
-              setImageUrl(url);
-            }
-          }
-        } else {
-           const res = await apiGet<any>('/collections/' + entity.handle).catch(() => null);
-           if (res?.collection && isMounted) {
-             const url = res.collection.image?.url || res.collection.image?.src;
-             if (url) {
-               entityCache[entity.handle] = { title: entity.title, imageUrl: url };
-               setImageUrl(url);
-             }
-           }
-        }
-      } catch (err) {
-        // silent
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-    
-    fetchThumb();
-    return () => { isMounted = false; };
-  }, [entity]);
+
+  const handlePress = useCallback(() => {
+    haptics.buttonTap();
+    navigateToZicaEntity(navigation, entity);
+  }, [entity.handle, entity.type, navigation]);
 
   return (
     <TouchableOpacity 
@@ -128,7 +264,7 @@ const ZicaProductThumbnail = memo(({ entity, onPress }: { entity: ZicaDetectedEn
           gap: 8,
         }
       ]}
-      onPress={() => onPress(entity.type === 'product' ? `zicabella://product/${entity.handle}` : `zicabella://collection/${entity.handle}`)}
+      onPress={handlePress}
       activeOpacity={0.7}
     >
       <View style={{ width: 56, height: 56, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(150,150,150,0.1)' }}>
@@ -149,7 +285,13 @@ const ZicaProductThumbnail = memo(({ entity, onPress }: { entity: ZicaDetectedEn
       </View>
     </TouchableOpacity>
   );
-});
+}, (prev, next) => (
+  prev.entity.type === next.entity.type
+  && prev.entity.handle === next.entity.handle
+  && prev.entity.title === next.entity.title
+  && prev.imageUrl === next.imageUrl
+  && prev.loading === next.loading
+));
 
 const { width } = Dimensions.get('window');
 
@@ -435,7 +577,7 @@ function parseTextIntoChunks(text: string): MarkdownChunk[] {
     const isCode = index % 2 === 1;
     if (isCode) {
       chunks.push({
-        id: `code-${index}-${Date.now()}`,
+        id: `code-${index}`,
         type: 'code',
         content: part,
       });
@@ -445,7 +587,7 @@ function parseTextIntoChunks(text: string): MarkdownChunk[] {
         const trimmed = para.trim();
         if (trimmed) {
           chunks.push({
-            id: `md-${index}-${paraIndex}-${Date.now()}`,
+            id: `md-${index}-${paraIndex}`,
             type: 'markdown',
             content: trimmed,
           });
@@ -520,21 +662,30 @@ const MessageBubble = memo(({
   item, 
   onLinkPress, 
   userOrders = [], 
-  navigation,
   isLatest = false
 }: { 
   item: Message; 
   onLinkPress: (url: string) => boolean; 
   userOrders?: any[]; 
-  navigation: any;
   isLatest?: boolean;
 }) => {
   const isUser = item.isUser;
+  const navigation = useNavigation<any>();
   const colors = useColors();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
 
   const mdStyles = React.useMemo(() => buildMarkdownStyles(colors), [colors]);
+  const handleZicaLinkPress = useCallback((href: string) => {
+    const target = extractZicaLinkTarget(href);
+    if (target) {
+      haptics.buttonTap();
+      navigateToZicaEntity(navigation, target);
+      return false;
+    }
+
+    return onLinkPress(href);
+  }, [navigation, onLinkPress]);
 
   const rules = React.useMemo(() => ({
     image: (node: any) => {
@@ -565,16 +716,16 @@ const MessageBubble = memo(({
     link: (node: any, children: any, parent: any, styles: any) => {
       const { href } = node.attributes;
       return (
-        <Text
+        <TouchableOpacity
           key={node.key}
-          style={styles.link}
-          onPress={() => onLinkPress(href)}
+          activeOpacity={0.7}
+          onPress={() => handleZicaLinkPress(href)}
         >
-          {children}
-        </Text>
+          <Text style={styles.link}>{children}</Text>
+        </TouchableOpacity>
       );
     }
-  }), [colors, onLinkPress]);
+  }), [colors, handleZicaLinkPress]);
 
   // Find matching order in user's loaded orders list
   const matchingOrder = React.useMemo(() => {
@@ -605,6 +756,70 @@ const MessageBubble = memo(({
   }, [item.isUser, item.content, userOrders]);
 
   const detectedEntities = React.useMemo(() => parseZicaLinks(item.content), [item.content]);
+  const thumbnailEntities = React.useMemo(() => sortDetectedEntities(detectedEntities), [detectedEntities]);
+  const thumbnailEntityKey = React.useMemo(
+    () => thumbnailEntities.map(entity => `${entity.type}:${entity.handle}`).join('|'),
+    [thumbnailEntities]
+  );
+  const [thumbnailImages, setThumbnailImages] = useState<Record<string, string>>({});
+  const [loadingThumbnailHandles, setLoadingThumbnailHandles] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (item.isStreaming || isUser || thumbnailEntities.length === 0) return;
+
+    const cachedImages: Record<string, string> = {};
+    const entitiesToFetch = thumbnailEntities.filter(entity => {
+      const cachedUrl = thumbnailImageUrlCache.get(entity.handle);
+      if (cachedUrl) {
+        cachedImages[entity.handle] = cachedUrl;
+        return false;
+      }
+      return true;
+    });
+
+    if (Object.keys(cachedImages).length > 0) {
+      setThumbnailImages(prev => ({ ...prev, ...cachedImages }));
+    }
+
+    if (entitiesToFetch.length === 0) return;
+
+    let isMounted = true;
+    const loadingMap = entitiesToFetch.reduce<Record<string, boolean>>((acc, entity) => {
+      acc[entity.handle] = true;
+      return acc;
+    }, {});
+    setLoadingThumbnailHandles(prev => ({ ...prev, ...loadingMap }));
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      Promise.allSettled(entitiesToFetch.map(fetchThumbnailImage)).then((results) => {
+        if (!isMounted) return;
+
+        const resolvedImages: Record<string, string> = {};
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled' && result.value) {
+            resolvedImages[entitiesToFetch[index].handle] = result.value;
+          }
+        });
+
+        if (Object.keys(resolvedImages).length > 0) {
+          setThumbnailImages(prev => ({ ...prev, ...resolvedImages }));
+        }
+
+        setLoadingThumbnailHandles(prev => {
+          const next = { ...prev };
+          entitiesToFetch.forEach(entity => {
+            delete next[entity.handle];
+          });
+          return next;
+        });
+      });
+    });
+
+    return () => {
+      isMounted = false;
+      task.cancel?.();
+    };
+  }, [isUser, item.isStreaming, thumbnailEntities, thumbnailEntityKey]);
 
   // Don't render empty AI message bubble during initial load before streaming starts
   if (!isUser && !item.content) {
@@ -666,17 +881,22 @@ const MessageBubble = memo(({
               content={item.content} 
               mdStyles={mdStyles} 
               rules={rules} 
-              onLinkPress={onLinkPress} 
+              onLinkPress={handleZicaLinkPress} 
               shouldProgressive={isLatest}
             />
           )
         )}
 
-        {detectedEntities.length > 0 && !item.isStreaming && !isUser && (
+        {thumbnailEntities.length > 0 && !item.isStreaming && !isUser && (
           <View style={{ marginTop: 12, marginLeft: -8, marginRight: -8, paddingBottom: 4 }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8 }}>
-              {detectedEntities.map((ent, idx) => (
-                <ZicaProductThumbnail key={`${ent.handle}-${idx}`} entity={ent} onPress={onLinkPress} />
+              {thumbnailEntities.map((ent, idx) => (
+                <ZicaProductThumbnail
+                  key={`${ent.type}-${ent.handle}-${idx}`}
+                  entity={ent}
+                  imageUrl={thumbnailImages[ent.handle] || thumbnailImageUrlCache.get(ent.handle) || null}
+                  loading={Boolean(loadingThumbnailHandles[ent.handle])}
+                />
               ))}
             </ScrollView>
           </View>
@@ -699,7 +919,19 @@ const MessageBubble = memo(({
       </View>
     </View>
   );
-});
+}, (prev, next) => (
+  prev.item.id === next.item.id
+  && prev.item.content === next.item.content
+  && prev.item.isUser === next.item.isUser
+  && prev.item.isStreaming === next.item.isStreaming
+  && prev.item.isError === next.item.isError
+  && prev.item.image === next.item.image
+  && prev.item.toolsUsed === next.item.toolsUsed
+  && prev.item.createdAt.getTime() === next.item.createdAt.getTime()
+  && prev.onLinkPress === next.onLinkPress
+  && prev.userOrders === next.userOrders
+  && prev.isLatest === next.isLatest
+));
 
 // ─── Input Bar Component ─────────────────────────
 
@@ -719,10 +951,12 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(showEvent, () => {
       setKeyboardVisible(true);
     });
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
       setKeyboardVisible(false);
     });
     return () => {
@@ -846,6 +1080,7 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
           multiline
           maxLength={20000}
           editable={true}
+          keyboardAppearance={isDark ? 'dark' : 'light'}
         />
 
         <TouchableOpacity
@@ -874,41 +1109,44 @@ const ChatScreen = memo(() => {
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
   const navigation = useNavigation<any>();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessagesState] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [conversationHistory, setConversationHistory] = useState<any[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
   const user = useAuthStore(s => s.user);
   const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
 
   const flatListRef = useRef<FlatList>(null);
-  const [abortController, setAbortController] = useState<(() => void) | null>(null);
+  const abortControllerRef = useRef<(() => void) | null>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
+  const conversationHistoryRef = useRef<any[]>([]);
+  const catalogContextRef = useRef('');
 
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [fetchingProduct, setFetchingProduct] = useState(false);
-  const [catalogContext, setCatalogContext] = useState<string>('');
   
   // State for user orders
   const [userOrders, setUserOrders] = useState<any[]>([]);
 
   // Refs for performance optimizations (avoid recreating handleSend callback)
   const isTypingRef = useRef(isTyping);
-  const conversationHistoryRef = useRef(conversationHistory);
-  const abortControllerRef = useRef(abortController);
-  const catalogContextRef = useRef(catalogContext);
 
   useEffect(() => { isTypingRef.current = isTyping; }, [isTyping]);
-  useEffect(() => { conversationHistoryRef.current = conversationHistory; }, [conversationHistory]);
-  useEffect(() => { abortControllerRef.current = abortController; }, [abortController]);
-  useEffect(() => { catalogContextRef.current = catalogContext; }, [catalogContext]);
+
+  const setMessages = useCallback((updater: React.SetStateAction<Message[]>) => {
+    const nextMessages = typeof updater === 'function'
+      ? (updater as (prev: Message[]) => Message[])(messagesRef.current)
+      : updater;
+    messagesRef.current = nextMessages;
+    setMessagesState(nextMessages);
+  }, []);
 
   // Throttled scroll to bottom with intelligent scroll-up detection (fixes scroll lock)
   const isNearBottom = useRef(true);
   const lastScrollTime = useRef(0);
 
-  // Streaming token batching — accumulates tokens and flushes at 80ms intervals
+  // Streaming token batching — accumulates tokens and flushes at 100ms intervals
   const tokenBuffer = useRef('');
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
@@ -1020,8 +1258,9 @@ const ChatScreen = memo(() => {
       let ctx = `\n\n=== APP CATALOG KNOWLEDGE ===\n`;
       ctx += `You have knowledge of the following products and collections currently available in the Zica Bella app.\n`;
       ctx += `CRITICAL INSTRUCTION: DO NOT provide any external Shopify links (e.g. myshopify.com). If you recommend a product or collection, ONLY use the custom app deep link scheme format:\n`;
-      ctx += `- Product Link Format: [Product Name](zica://products/product-handle)\n`;
-      ctx += `- Collection Link Format: [Collection Name](zica://collections/collection-handle)\n`;
+      ctx += `- Product Link Format: [Product Name](zicabella://product/product-handle)\n`;
+      ctx += `- Collection Link Format: [Collection Name](zicabella://collection/collection-handle)\n`;
+      ctx += `When the user asks about tees, t-shirts, graphic tees, acid wash, printed tops, casual wear, or any related category, always lead your response by referencing the Acid Tees collection first: [Acid Tees Collection](zicabella://collection/acid-tees). Then proceed with other relevant suggestions.\n`;
       ctx += `You MUST include the product image in your response using markdown when recommending a product: ![Product Name](image_url)\n\n`;
 
       if (collections.length > 0) {
@@ -1040,18 +1279,16 @@ const ChatScreen = memo(() => {
         });
       }
 
-      setCatalogContext(ctx);
+      catalogContextRef.current = ctx;
     });
   }, []);
 
   // Cleanup abort controller on unmount
   useEffect(() => {
     return () => {
-      if (abortController) {
-        abortController();
-      }
+      abortControllerRef.current?.();
     };
-  }, [abortController]);
+  }, []);
 
   const handleSend = useCallback(async (text?: string, imageToSend?: { uri: string; base64: string; mimeType: string } | null) => {
     const currentIsTyping = isTypingRef.current;
@@ -1148,14 +1385,16 @@ const ChatScreen = memo(() => {
           );
           scrollToEndThrottled(false);
         }
-      }, 80);
+      }, 100);
 
       const abort = callClaudeStream({
         messages: messagesToSend,
         systemPrompt: ZICA_AI_CONFIG.SYSTEM_PROMPT + currentCatalogContext,
         onToken: (token) => {
-          setIsTyping(false);
-          isTypingRef.current = false;
+          if (isTypingRef.current) {
+            setIsTyping(false);
+            isTypingRef.current = false;
+          }
           tokenBuffer.current += token;
         },
         onError: (err) => {
@@ -1164,6 +1403,7 @@ const ChatScreen = memo(() => {
           tokenBuffer.current = '';
           setIsTyping(false);
           isTypingRef.current = false;
+          abortControllerRef.current = null;
           setMessages(prev =>
             prev.map(msg =>
               msg.id === aiMsgId
@@ -1179,52 +1419,56 @@ const ChatScreen = memo(() => {
           tokenBuffer.current = '';
           setIsTyping(false);
           isTypingRef.current = false;
-          setMessages(prev =>
-            prev.map(msg =>
-              msg.id === aiMsgId
-                ? { ...msg, content: fullText, isStreaming: false }
-                : msg
-            )
-          );
-          setConversationHistory(prev => [
-            ...prev,
-            { role: 'user', content: displayContent },
-            { role: 'assistant', content: fullText }
-          ]);
-          haptics.success();
+          abortControllerRef.current = null;
 
-          // Write to Cache
-          const detected = parseZicaLinks(fullText);
-          const detectedProducts = detected.filter(d => d.type === 'product').map(d => d.handle);
-          const detectedCollections = detected.filter(d => d.type === 'collection').map(d => d.handle);
-          const newSessionId = currentSessionId || Math.random().toString(36).substring(7);
-          if (!currentSessionId) setCurrentSessionId(newSessionId);
+          requestAnimationFrame(() => {
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === aiMsgId
+                  ? { ...msg, content: fullText, isStreaming: false }
+                  : msg
+              )
+            );
+            conversationHistoryRef.current = [
+              ...conversationHistoryRef.current,
+              { role: 'user', content: displayContent },
+              { role: 'assistant', content: fullText }
+            ];
+            haptics.success();
 
-          const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
-          fetch(`${APP_URL}/api/zica-ai/cache`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {})
-            },
-            body: JSON.stringify({
-              sessionId: newSessionId,
-              turnIndex: currentHistory.length + 1,
-              userMessage: displayContent,
-              aiResponse: fullText,
-              detectedProducts,
-              detectedCollections,
-              responseTokens: Math.round(fullText.length / 4), // estimation
-            })
-          }).catch(() => {});
+            // Write to Cache
+            const detected = parseZicaLinks(fullText);
+            const detectedProducts = detected.filter(d => d.type === 'product').map(d => d.handle);
+            const detectedCollections = sortCollectionHandles(detected.filter(d => d.type === 'collection').map(d => d.handle));
+            const newSessionId = currentSessionIdRef.current || Math.random().toString(36).substring(7);
+            currentSessionIdRef.current = newSessionId;
+
+            const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
+            fetch(`${APP_URL}/api/zica-ai/cache`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {})
+              },
+              body: JSON.stringify({
+                sessionId: newSessionId,
+                turnIndex: currentHistory.length + 1,
+                userMessage: displayContent,
+                aiResponse: fullText,
+                detectedProducts,
+                detectedCollections,
+                responseTokens: Math.round(fullText.length / 4), // estimation
+              })
+            }).catch(() => {});
+          });
         },
       });
 
-      setAbortController(() => abort);
       abortControllerRef.current = abort;
     } catch (err: any) {
       setIsTyping(false);
       isTypingRef.current = false;
+      abortControllerRef.current = null;
       setMessages(prev =>
         prev.map(msg =>
           msg.id === aiMsgId
@@ -1233,9 +1477,16 @@ const ChatScreen = memo(() => {
         )
       );
     }
-  }, []);
+  }, [scrollToEndThrottled, setMessages]);
 
   const handleLinkPress = useCallback((url: string) => {
+    const zicaTarget = extractZicaLinkTarget(url);
+    if (zicaTarget) {
+      haptics.buttonTap();
+      navigateToZicaEntity(navigation, zicaTarget);
+      return false;
+    }
+
     let targetUrl = url;
     
     if (url.includes('/products/') || url.includes('zicabella://product/')) {
@@ -1279,10 +1530,7 @@ const ChatScreen = memo(() => {
     if (targetUrl.startsWith('zica://collections/')) {
       const handle = targetUrl.replace('zica://collections/', '');
       haptics.buttonTap();
-      navigation.navigate('HomeTab', {
-        screen: 'Collection',
-        params: { handle },
-      });
+      navigateToCollectionScreen(navigation, handle);
       return false;
     }
 
@@ -1341,8 +1589,8 @@ const ChatScreen = memo(() => {
           role: m.role,
           content: m.content
         }));
-        setConversationHistory(claudeHistory);
-        setCurrentSessionId(sessionId);
+        conversationHistoryRef.current = claudeHistory;
+        currentSessionIdRef.current = sessionId;
         setHistoryVisible(false);
       }
     } catch (err) {
@@ -1352,10 +1600,10 @@ const ChatScreen = memo(() => {
 
   const startNewChat = useCallback(() => {
     setMessages([]);
-    setConversationHistory([]);
-    setCurrentSessionId(null);
+    conversationHistoryRef.current = [];
+    currentSessionIdRef.current = null;
     haptics.success();
-  }, []);
+  }, [setMessages]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1365,6 +1613,23 @@ const ChatScreen = memo(() => {
       };
     }, [setTabBarVisible])
   );
+
+  const keyExtractor = useCallback((item: Message) => item.id, []);
+
+  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => (
+    <MessageBubble
+      item={item}
+      onLinkPress={handleLinkPress}
+      userOrders={userOrders}
+      isLatest={index === messages.length - 1}
+    />
+  ), [handleLinkPress, messages.length, userOrders]);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (messagesRef.current.length > 0 && isNearBottom.current) {
+      scrollToEndThrottled(false);
+    }
+  }, [scrollToEndThrottled]);
 
   const renderOnboarding = () => (
     <View style={styles.onboarding}>
@@ -1432,31 +1697,19 @@ const ChatScreen = memo(() => {
               <FlatList
                 ref={flatListRef}
                 data={messages}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item, index }) => (
-                  <MessageBubble 
-                    item={item} 
-                    onLinkPress={handleLinkPress} 
-                    userOrders={userOrders}
-                    navigation={navigation}
-                    isLatest={index === messages.length - 1}
-                  />
-                )}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 110, paddingTop: insets.top + 70 }}
+                keyExtractor={keyExtractor}
+                renderItem={renderMessage}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                removeClippedSubviews={Platform.OS === 'android'}
-                initialNumToRender={8}
-                maxToRenderPerBatch={6}
+                removeClippedSubviews={true}
+                initialNumToRender={15}
+                maxToRenderPerBatch={8}
                 updateCellsBatchingPeriod={100}
-                windowSize={7}
+                windowSize={5}
                 onScroll={handleScroll}
                 scrollEventThrottle={32}
-                onContentSizeChange={() => {
-                  if (messages.length > 0 && isNearBottom.current) {
-                    scrollToEndThrottled(false);
-                  }
-                }}
+                onContentSizeChange={handleContentSizeChange}
                 ListFooterComponent={
                   isTyping ? (
                     <Animated.View
@@ -1584,10 +1837,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   inputBarWrapper: { 
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 16, 
     paddingTop: 10,
     backgroundColor: 'transparent',
