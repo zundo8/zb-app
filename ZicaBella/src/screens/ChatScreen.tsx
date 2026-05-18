@@ -49,15 +49,15 @@ interface Message {
 // ─── Quick prompts ───────────────────────────────
 
 const QUICK_PROMPTS = [
-  { label: 'Style tips', icon: 'sparkles-outline', desc: 'Get customized recommendation for your personal outfit look.' },
-  { label: 'Size guide', icon: 'shirt-outline', desc: 'Find your perfect size fit for items in Zica Bella catalogue.' },
-  { label: 'Track my order', icon: 'location-outline', desc: 'Check the real-time shipping status and delivery updates.' },
-  { label: 'Trending now', icon: 'flame-outline', desc: 'Browse the latest highly in-demand collections and lookbook.' },
+  { label: 'Style tips', icon: 'sparkles-outline' },
+  { label: 'Size guide', icon: 'shirt-outline' },
+  { label: 'Track order', icon: 'location-outline' },
+  { label: 'Trending now', icon: 'flame-outline' },
 ];
 
 const ADMIN_QUICK_PROMPTS = [
-  { label: "Today's briefing", icon: 'sunny-outline', desc: 'Fetch key metrics, sales timeline status, and active users.' },
-  { label: 'Low stock alert', icon: 'alert-circle-outline', desc: 'Analyze products running low in inventory catalog.' },
+  { label: "Today's briefing", icon: 'sunny-outline' },
+  { label: 'Low stock alert', icon: 'alert-circle-outline' },
 ];
 
 // ─── Markdown Styles ─────────────────────────────
@@ -297,18 +297,117 @@ const OrderTrackerCard = memo(({ order, navigation }: { order: any; navigation: 
   );
 });
 
+// ─── Markdown Parsing & Performance Optimization ───
+
+interface MarkdownChunk {
+  id: string;
+  type: 'code' | 'markdown';
+  content: string;
+}
+
+function parseTextIntoChunks(text: string): MarkdownChunk[] {
+  if (!text) return [];
+  
+  const chunks: MarkdownChunk[] = [];
+  const parts = text.split('```');
+  
+  parts.forEach((part, index) => {
+    const isCode = index % 2 === 1;
+    if (isCode) {
+      chunks.push({
+        id: `code-${index}-${Date.now()}`,
+        type: 'code',
+        content: part,
+      });
+    } else {
+      const paragraphs = part.split(/\n\n+/);
+      paragraphs.forEach((para, paraIndex) => {
+        const trimmed = para.trim();
+        if (trimmed) {
+          chunks.push({
+            id: `md-${index}-${paraIndex}-${Date.now()}`,
+            type: 'markdown',
+            content: trimmed,
+          });
+        }
+      });
+    }
+  });
+  
+  return chunks;
+}
+
+const ChunkedMarkdownRenderer = memo(({ 
+  content, 
+  mdStyles, 
+  rules, 
+  onLinkPress,
+  shouldProgressive = false
+}: {
+  content: string;
+  mdStyles: any;
+  rules: any;
+  onLinkPress: (url: string) => boolean;
+  shouldProgressive?: boolean;
+}) => {
+  const chunks = React.useMemo(() => parseTextIntoChunks(content), [content]);
+  const [visibleCount, setVisibleCount] = useState(shouldProgressive ? 4 : chunks.length);
+
+  useEffect(() => {
+    if (shouldProgressive && visibleCount < chunks.length) {
+      const nextCount = Math.min(chunks.length, visibleCount + 4);
+      const timer = setTimeout(() => {
+        setVisibleCount(nextCount);
+      }, 32);
+      return () => clearTimeout(timer);
+    }
+  }, [visibleCount, chunks.length, shouldProgressive]);
+
+  return (
+    <View style={{ width: '100%' }}>
+      {chunks.slice(0, visibleCount).map((chunk) => {
+        if (chunk.type === 'code') {
+          return (
+            <View key={chunk.id} style={mdStyles.fence}>
+              <Typography 
+                size={11} 
+                color={mdStyles.code_block.color} 
+                style={{ fontFamily: mdStyles.code_block.fontFamily, lineHeight: 16 }}
+              >
+                {chunk.content.trim()}
+              </Typography>
+            </View>
+          );
+        }
+        return (
+          <Markdown 
+            key={chunk.id} 
+            style={mdStyles} 
+            rules={rules} 
+            onLinkPress={onLinkPress}
+          >
+            {chunk.content}
+          </Markdown>
+        );
+      })}
+    </View>
+  );
+});
+
 // ─── Message Bubble ──────────────────────────────
 
 const MessageBubble = memo(({ 
   item, 
   onLinkPress, 
   userOrders = [], 
-  navigation 
+  navigation,
+  isLatest = false
 }: { 
   item: Message; 
   onLinkPress: (url: string) => boolean; 
   userOrders?: any[]; 
   navigation: any;
+  isLatest?: boolean;
 }) => {
   const isUser = item.isUser;
   const colors = useColors();
@@ -438,12 +537,16 @@ const MessageBubble = memo(({
                 color={colors.text}
                 style={{ lineHeight: 20, letterSpacing: -0.2 }}
             >
-              {item.content}
+              {item.content.length > 3000 ? '... ' + item.content.slice(-3000) : item.content}
             </Typography>
           ) : (
-            <Markdown style={mdStyles} rules={rules} onLinkPress={onLinkPress}>
-              {item.content}
-            </Markdown>
+            <ChunkedMarkdownRenderer 
+              content={item.content} 
+              mdStyles={mdStyles} 
+              rules={rules} 
+              onLinkPress={onLinkPress} 
+              shouldProgressive={isLatest}
+            />
           )
         )}
 
@@ -466,6 +569,171 @@ const MessageBubble = memo(({
   );
 });
 
+// ─── Input Bar Component ─────────────────────────
+
+interface InputBarProps {
+  onSend: (text: string, image?: { uri: string; base64: string; mimeType: string } | null) => void;
+  isTyping: boolean;
+}
+
+const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
+  const colors = useColors();
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
+  const insets = useSafeAreaInsets();
+  
+  const [localInput, setLocalInput] = useState('');
+  const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const handlePickImage = async () => {
+    haptics.buttonTap();
+    Alert.alert(
+      "Upload Media",
+      "Choose a source",
+      [
+        {
+          text: "Camera",
+          onPress: async () => {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) return Alert.alert('Permission denied', 'Camera access is required.');
+            const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true });
+            processImageResult(result);
+          }
+        },
+        {
+          text: "Photo Library",
+          onPress: async () => {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) return Alert.alert('Permission denied', 'Library access is required.');
+            const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true });
+            processImageResult(result);
+          }
+        },
+        {
+          text: "Cancel",
+          style: "cancel"
+        }
+      ]
+    );
+  };
+
+  const processImageResult = async (result: ImagePicker.ImagePickerResult) => {
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      try {
+        const file = new FileSystem.File(asset.uri);
+        const base64Data = await file.base64();
+        
+        const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpeg';
+        const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+        const mimeType = mimeMap[ext] || 'image/jpeg';
+
+        setPendingImage({
+          uri: asset.uri,
+          base64: base64Data,
+          mimeType,
+        });
+        haptics.success();
+      } catch (err) {
+        console.error('Failed to encode image:', err);
+        Alert.alert('Error', 'Could not process the selected image.');
+      }
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!localInput.trim() && !pendingImage) {
+      onSend('');
+      return;
+    }
+    onSend(localInput, pendingImage);
+    setLocalInput('');
+    setPendingImage(null);
+  };
+
+  const hasContent = localInput.trim() || pendingImage;
+
+  return (
+    <View style={[styles.inputBarWrapper, { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 12) }]}>
+      {pendingImage && (
+        <View style={[
+          styles.pendingImageBar, 
+          { 
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+            overflow: 'hidden',
+            marginHorizontal: 0,
+            marginBottom: 8,
+          }
+        ]}>
+          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
+          <Typography size={10} weight="500" color={colors.textMuted} style={{ flex: 1, marginLeft: 10 }}>
+            Image ready to send
+          </Typography>
+          <TouchableOpacity onPress={() => setPendingImage(null)} style={styles.pendingImageRemove}>
+            <Ionicons name="close-circle" size={22} color={colors.textExtraLight} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <View style={[
+        styles.inputPill, 
+        { 
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.08)',
+          backgroundColor: isDark ? 'rgba(25, 25, 25, 0.65)' : 'rgba(255, 255, 255, 0.72)',
+        }
+      ]}>
+        <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        
+        <View style={styles.attachRow}>
+          <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
+            <Ionicons name="camera-outline" size={20} color={colors.textExtraLight} />
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          value={localInput}
+          onChangeText={setLocalInput}
+          placeholder="Message..."
+          placeholderTextColor={colors.textExtraLight}
+          style={[styles.input, { color: colors.text }]}
+          multiline
+          maxLength={20000}
+          editable={true}
+        />
+
+        <TouchableOpacity
+          onPress={handleSubmit}
+          disabled={isTyping}
+          style={[styles.sendButton, {
+            backgroundColor: hasContent && !isTyping ? colors.foreground : 'transparent',
+          }]}
+        >
+          <Ionicons 
+            name={hasContent ? "arrow-up" : "time-outline"} 
+            size={18} 
+            color={hasContent ? colors.background : colors.textExtraLight} 
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
 // ─── Main Screen ─────────────────────────────────
 
 const ChatScreen = memo(() => {
@@ -475,39 +743,15 @@ const ChatScreen = memo(() => {
   const isDark = theme === 'dark';
   const navigation = useNavigation<any>();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<any[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
-  const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
   const user = useAuthStore(s => s.user);
   const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
 
-  // Siri/ChatGPT style pulsing glowing AI orb variables
-  const pulseScale = useSharedValue(1);
-  const pulseOpacity = useSharedValue(0.18);
-
-  useEffect(() => {
-    pulseScale.value = withRepeat(
-      withTiming(1.35, { duration: 2200, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-    pulseOpacity.value = withRepeat(
-      withTiming(0.45, { duration: 2200, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-  }, []);
-
-  const pulsingGlowStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity: pulseOpacity.value,
-  })); 
   const flatListRef = useRef<FlatList>(null);
   const [abortController, setAbortController] = useState<(() => void) | null>(null);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
@@ -517,18 +761,14 @@ const ChatScreen = memo(() => {
   // State for user orders
   const [userOrders, setUserOrders] = useState<any[]>([]);
 
-  // Refs for performance optimizations (avoid recreating handleSend callback on every keystroke)
-  const inputRef = useRef(input);
+  // Refs for performance optimizations (avoid recreating handleSend callback)
   const isTypingRef = useRef(isTyping);
   const conversationHistoryRef = useRef(conversationHistory);
-  const pendingImageRef = useRef(pendingImage);
   const abortControllerRef = useRef(abortController);
   const catalogContextRef = useRef(catalogContext);
 
-  useEffect(() => { inputRef.current = input; }, [input]);
   useEffect(() => { isTypingRef.current = isTyping; }, [isTyping]);
   useEffect(() => { conversationHistoryRef.current = conversationHistory; }, [conversationHistory]);
-  useEffect(() => { pendingImageRef.current = pendingImage; }, [pendingImage]);
   useEffect(() => { abortControllerRef.current = abortController; }, [abortController]);
   useEffect(() => { catalogContextRef.current = catalogContext; }, [catalogContext]);
 
@@ -672,42 +912,28 @@ const ChatScreen = memo(() => {
     });
   }, []);
 
-  // Auto-scroll list when keyboard pops up on iOS
+  // Cleanup abort controller on unmount
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
-      flatListRef.current?.scrollToEnd({ animated: true });
-    });
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
-    });
     return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
       if (abortController) {
         abortController();
       }
     };
   }, [abortController]);
 
-  const handleSend = useCallback(async (text?: string) => {
-    const currentInput = inputRef.current;
+  const handleSend = useCallback(async (text?: string, imageToSend?: { uri: string; base64: string; mimeType: string } | null) => {
     const currentIsTyping = isTypingRef.current;
     const currentHistory = conversationHistoryRef.current;
-    const currentPendingImage = pendingImageRef.current;
     const currentAbortController = abortControllerRef.current;
     const currentCatalogContext = catalogContextRef.current;
 
-    if (!currentInput.trim() && !text && !currentPendingImage) {
+    if (!text && !imageToSend) {
       setHistoryVisible(true);
       return;
     }
-    const content = (text ?? currentInput).trim();
-    if ((!content && !currentPendingImage) || currentIsTyping) return;
+    const content = (text ?? '').trim();
+    if ((!content && !imageToSend) || currentIsTyping) return;
 
-    setInput('');
-    inputRef.current = '';
-    Keyboard.dismiss();
     haptics.buttonTap();
 
     // Reset scroll lock since the user explicitly sent a message
@@ -719,7 +945,7 @@ const ChatScreen = memo(() => {
       content: displayContent,
       isUser: true,
       createdAt: new Date(),
-      image: currentPendingImage?.uri,
+      image: imageToSend?.uri,
     };
 
     // Placeholder for AI streaming response
@@ -736,11 +962,6 @@ const ChatScreen = memo(() => {
     setMessages(prev => [...prev, userMsg, newAiMsg]);
     setIsTyping(true);
     isTypingRef.current = true;
-
-    // Capture and clear pending image before the async call
-    const imageToSend = currentPendingImage;
-    setPendingImage(null);
-    pendingImageRef.current = null;
 
     // Cancel any previous active streaming API call
     if (currentAbortController) {
@@ -780,7 +1001,6 @@ const ChatScreen = memo(() => {
       ];
 
       // Invoke client-side Claude streaming call using direct key
-      // Start the batched token flush interval (80ms = ~12fps, smooth and light)
       tokenBuffer.current = '';
       if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
       flushIntervalRef.current = setInterval(() => {
@@ -819,7 +1039,7 @@ const ChatScreen = memo(() => {
                 : msg
             )
           );
-          flatListRef.current?.scrollToEnd({ animated: false });
+          scrollToEndThrottled(false);
         },
         onComplete: (fullText) => {
           // Stop batching and flush any remaining tokens
@@ -902,7 +1122,10 @@ const ChatScreen = memo(() => {
     if (targetUrl.startsWith('zica://collections/')) {
       const handle = targetUrl.replace('zica://collections/', '');
       haptics.buttonTap();
-      navigation.navigate('Collection', { handle });
+      navigation.navigate('HomeTab', {
+        screen: 'Collection',
+        params: { handle },
+      });
       return false;
     }
 
@@ -970,6 +1193,13 @@ const ChatScreen = memo(() => {
     }
   };
 
+  const startNewChat = useCallback(() => {
+    setMessages([]);
+    setConversationHistory([]);
+    setCurrentSessionId(null);
+    haptics.success();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       setTabBarVisible(false);
@@ -979,125 +1209,49 @@ const ChatScreen = memo(() => {
     }, [setTabBarVisible])
   );
 
-  const handlePickImage = async () => {
-    haptics.buttonTap();
-    Alert.alert(
-      "Upload Media",
-      "Choose a source",
-      [
-        {
-          text: "Camera",
-          onPress: async () => {
-            const permission = await ImagePicker.requestCameraPermissionsAsync();
-            if (!permission.granted) return Alert.alert('Permission denied', 'Camera access is required.');
-            const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true });
-            processImageResult(result);
-          }
-        },
-        {
-          text: "Photo Library",
-          onPress: async () => {
-            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!permission.granted) return Alert.alert('Permission denied', 'Library access is required.');
-            const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true });
-            processImageResult(result);
-          }
-        },
-        {
-          text: "Cancel",
-          style: "cancel"
-        }
-      ]
-    );
-  };
-
-  const processImageResult = async (result: ImagePicker.ImagePickerResult) => {
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      try {
-        const file = new FileSystem.File(asset.uri);
-        const base64Data = await file.base64();
-        
-        const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpeg';
-        const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
-        const mimeType = mimeMap[ext] || 'image/jpeg';
-
-        setPendingImage({
-          uri: asset.uri,
-          base64: base64Data,
-          mimeType,
-        });
-        haptics.success();
-      } catch (err) {
-        console.error('Failed to encode image:', err);
-        Alert.alert('Error', 'Could not process the selected image.');
-      }
-    }
-  };
-
   const renderOnboarding = () => (
     <View style={styles.onboarding}>
-      {/* Siri/ChatGPT Pulsing AI Liquid Orb */}
-      <View style={styles.orbContainer}>
-        <Animated.View 
-          style={[
-            styles.glowOuter,
-            { shadowColor: colors.info || '#007AFF' },
-            pulsingGlowStyle
-          ]}
-        />
-        <Animated.View 
-          entering={ZoomIn.delay(200).duration(800)}
-          style={[
-            styles.orbCore,
-            { 
-              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)', 
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.05)',
-            }
-          ]}
-        >
-          <BlurView intensity={35} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
-          <Ionicons name="sparkles" size={28} color={colors.text} />
-        </Animated.View>
-      </View>
-
-      <Animated.View entering={FadeInUp.delay(300).duration(800)} style={{ alignItems: 'center', width: '100%', paddingHorizontal: 20 }}>
-        <Typography heading weight="800" size={26} color={colors.text} style={styles.onboardingGreeting}>
-          How can I help you today?
+      <Animated.View 
+        entering={FadeInUp.delay(200).duration(800)} 
+        style={styles.onboardingHeader}
+      >
+        <View style={[
+          styles.minimalIconBg, 
+          { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }
+        ]}>
+          <Ionicons name="sparkles" size={24} color={colors.text} />
+        </View>
+        <Typography heading weight="700" size={24} color={colors.text} style={styles.onboardingGreeting}>
+          How can I help you?
         </Typography>
         <Typography weight="500" size={11} color={colors.textMuted} style={styles.onboardingSubtitleChatGPT}>
-          {isAdmin ? 'System console online. Query active shopify inventory.' : 'Ask Zica to design style fits, track active orders, or browse collections.'}
+          {isAdmin ? 'System console active.' : 'Ask Zica for styling advice or order updates.'}
         </Typography>
       </Animated.View>
 
-      <View style={styles.promptList}>
+      <View style={styles.promptListMinimal}>
         {(isAdmin ? ADMIN_QUICK_PROMPTS : QUICK_PROMPTS).map((item, idx) => (
-          <Animated.View key={idx} entering={FadeInDown.delay(500 + idx * 100).duration(600)} style={{ width: '100%' }}>
+          <Animated.View 
+            key={idx} 
+            entering={FadeInDown.delay(300 + idx * 80).duration(600)} 
+            style={styles.promptItemWrapper}
+          >
             <TouchableOpacity
               style={[
-                styles.promptCardChatGPT, 
+                styles.promptCapsuleMinimal, 
                 { 
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.65)', 
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.7)',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
                 }
               ]}
-              activeOpacity={0.75}
+              activeOpacity={0.7}
               onPress={() => handleSend(item.label)}
             >
               <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
-              
-              <View style={[styles.promptIconWrapper, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.04)' }]}>
-                <Ionicons name={item.icon as any} size={15} color={colors.text} />
-              </View>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Typography size={11} weight="700" color={colors.text}>
-                  {item.label}
-                </Typography>
-                <Typography size={8.5} weight="500" color={colors.textMuted} style={{ marginTop: 2 }} numberOfLines={2}>
-                  {item.desc}
-                </Typography>
-              </View>
-              <Ionicons name="arrow-forward-outline" size={12} color={colors.textExtraLight} />
+              <Ionicons name={item.icon as any} size={15} color={colors.text} style={{ marginRight: 8, opacity: 0.8 }} />
+              <Typography size={12} weight="600" color={colors.text}>
+                {item.label}
+              </Typography>
             </TouchableOpacity>
           </Animated.View>
         ))}
@@ -1122,15 +1276,16 @@ const ChatScreen = memo(() => {
                 ref={flatListRef}
                 data={messages}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
+                renderItem={({ item, index }) => (
                   <MessageBubble 
                     item={item} 
                     onLinkPress={handleLinkPress} 
                     userOrders={userOrders}
                     navigation={navigation}
+                    isLatest={index === messages.length - 1}
                   />
                 )}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 110, paddingTop: insets.top + 70 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 removeClippedSubviews={Platform.OS === 'android'}
@@ -1142,7 +1297,7 @@ const ChatScreen = memo(() => {
                 scrollEventThrottle={32}
                 onContentSizeChange={() => {
                   if (messages.length > 0 && isNearBottom.current) {
-                    flatListRef.current?.scrollToEnd({ animated: false });
+                    scrollToEndThrottled(false);
                   }
                 }}
                 ListFooterComponent={
@@ -1163,75 +1318,14 @@ const ChatScreen = memo(() => {
           </View>
         </Pressable>
 
-        <View style={[styles.inputBarWrapper, { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 12) }]}>
-          {pendingImage && (
-            <View style={[
-              styles.pendingImageBar, 
-              { 
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
-                overflow: 'hidden',
-                marginHorizontal: 0,
-                marginBottom: 8,
-              }
-            ]}>
-              <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-              <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
-              <Typography size={10} weight="500" color={colors.textMuted} style={{ flex: 1, marginLeft: 10 }}>
-                Image ready to send
-              </Typography>
-              <TouchableOpacity onPress={() => setPendingImage(null)} style={styles.pendingImageRemove}>
-                <Ionicons name="close-circle" size={22} color={colors.textExtraLight} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={[
-            styles.inputPill, 
-            { 
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.08)',
-              backgroundColor: isDark ? 'rgba(25, 25, 25, 0.65)' : 'rgba(255, 255, 255, 0.72)',
-            }
-          ]}>
-            <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            
-            <View style={styles.attachRow}>
-              <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
-                <Ionicons name="camera-outline" size={20} color={colors.textExtraLight} />
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              value={input}
-              onChangeText={setInput}
-              placeholder="Message..."
-              placeholderTextColor={colors.textExtraLight}
-              style={[styles.input, { color: colors.text }]}
-              multiline
-              maxLength={1000}
-              editable={true}
-            />
-
-            <TouchableOpacity
-              onPress={() => handleSend()}
-              disabled={isTyping}
-              style={[styles.sendButton, {
-                backgroundColor: (input.trim() || pendingImage) && !isTyping ? colors.foreground : 'transparent',
-              }]}
-            >
-              <Ionicons 
-                name={(input.trim() || pendingImage) ? "arrow-up" : "time-outline"} 
-                size={18} 
-                color={(input.trim() || pendingImage) ? colors.background : colors.textExtraLight} 
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <InputBar onSend={handleSend} isTyping={isTyping} />
       </KeyboardAvoidingView>
 
       <ChatHistoryModal 
         visible={historyVisible} 
         onClose={() => setHistoryVisible(false)} 
         onSelectSession={loadSession} 
+        onStartNewChat={startNewChat}
       />
 
       <QuickAddModal
@@ -1281,26 +1375,66 @@ const msgStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  onboarding: { flex: 1, paddingHorizontal: 32, justifyContent: 'center', alignItems: 'center' },
-  onboardingTitle: { letterSpacing: 10, marginBottom: 8 },
-  onboardingSubtitle: { letterSpacing: 3, marginBottom: 16, opacity: 0.6 },
-  statusDot: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 60 },
-  dotGreen: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#34C759' },
-  promptGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
-  promptCard: {
+  onboarding: { flex: 1, paddingHorizontal: 24, justifyContent: 'center', alignItems: 'center' },
+  minimalIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  onboardingHeader: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    marginBottom: 32,
+  },
+  onboardingGreeting: {
+    textAlign: 'center',
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  onboardingSubtitleChatGPT: {
+    textAlign: 'center',
+    opacity: 0.5,
+    lineHeight: 18,
+    maxWidth: 260,
+  },
+  promptListMinimal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    width: '100%',
+    paddingHorizontal: 16,
+  },
+  promptItemWrapper: {
+    // Sized dynamically
+  },
+  promptCapsuleMinimal: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  typingRow: { paddingHorizontal: 24, paddingBottom: 92, flexDirection: 'row', alignItems: 'center' },
   inputBarWrapper: { 
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 16, 
     paddingTop: 10,
     backgroundColor: 'transparent',
+    zIndex: 10,
   },
   inputPill: {
     flexDirection: 'row', 
@@ -1456,18 +1590,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     overflow: 'hidden',
-  },
-  onboardingGreeting: {
-    textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  onboardingSubtitleChatGPT: {
-    textAlign: 'center',
-    marginBottom: 32,
-    opacity: 0.5,
-    lineHeight: 18,
-    maxWidth: 280,
   },
   promptList: {
     width: '100%',

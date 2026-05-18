@@ -17,9 +17,10 @@ interface ChatHistoryModalProps {
   visible: boolean;
   onClose: () => void;
   onSelectSession: (sessionId: string) => void;
+  onStartNewChat: () => void;
 }
 
-export const ChatHistoryModal = ({ visible, onClose, onSelectSession }: ChatHistoryModalProps) => {
+export const ChatHistoryModal = ({ visible, onClose, onSelectSession, onStartNewChat }: ChatHistoryModalProps) => {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const user = useAuthStore(s => s.user);
@@ -74,9 +75,27 @@ export const ChatHistoryModal = ({ visible, onClose, onSelectSession }: ChatHist
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.header}>
           <Typography size={20} weight="700" color={colors.text}>Chat History</Typography>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <TouchableOpacity 
+              onPress={() => {
+                onStartNewChat();
+                onClose();
+              }} 
+              style={styles.closeBtn}
+              accessibilityLabel="Start a new chat"
+              accessibilityRole="button"
+            >
+              <Ionicons name="add" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={onClose} 
+              style={styles.closeBtn}
+              accessibilityLabel="Close modal"
+              accessibilityRole="button"
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
