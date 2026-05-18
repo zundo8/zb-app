@@ -1121,6 +1121,7 @@ const ChatScreen = memo(() => {
   const currentSessionIdRef = useRef<string | null>(null);
   const conversationHistoryRef = useRef<any[]>([]);
   const catalogContextRef = useRef('');
+  const userOrdersContextRef = useRef('');
 
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
@@ -1182,6 +1183,24 @@ const ChatScreen = memo(() => {
         .catch(err => console.error('[Zica AI] Failed to fetch customer orders:', err));
     }
   }, [user]);
+
+  // Sync user orders to Zica AI context
+  useEffect(() => {
+    if (userOrders && userOrders.length > 0) {
+      const topOrders = userOrders.slice(0, 3);
+      let ctx = `\n\n=== USER ORDERS KNOWLEDGE ===\n`;
+      ctx += `When the user asks "where is my order" or asks about their order tracking, show their latest 3 orders from the list below and ask which order they are referring to. Tell the user in details about the order, the delivery process, and shipping. DO NOT say anything about manufacturing, only delivery and shipping.\n\n`;
+      topOrders.forEach((order) => {
+        ctx += `Order #${order.orderNumber} (ID: ${order.id})\n`;
+        ctx += `- Date: ${new Date(order.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}\n`;
+        ctx += `- Status: ${order.status || 'Processing'}\n`;
+        ctx += `- Delivery Status: ${order.deliveryStatus || 'Pending'}\n\n`;
+      });
+      userOrdersContextRef.current = ctx;
+    } else {
+      userOrdersContextRef.current = '';
+    }
+  }, [userOrders]);
 
   // Fetch catalog to train Zica AI
   useEffect(() => {
@@ -1295,6 +1314,7 @@ const ChatScreen = memo(() => {
     const currentHistory = conversationHistoryRef.current;
     const currentAbortController = abortControllerRef.current;
     const currentCatalogContext = catalogContextRef.current;
+    const currentUserOrdersContext = userOrdersContextRef.current;
 
     if (!text && !imageToSend) {
       setHistoryVisible(true);
@@ -1389,7 +1409,7 @@ const ChatScreen = memo(() => {
 
       const abort = callClaudeStream({
         messages: messagesToSend,
-        systemPrompt: ZICA_AI_CONFIG.SYSTEM_PROMPT + currentCatalogContext,
+        systemPrompt: ZICA_AI_CONFIG.SYSTEM_PROMPT + currentCatalogContext + currentUserOrdersContext,
         onToken: (token) => {
           if (isTypingRef.current) {
             setIsTyping(false);
