@@ -1059,22 +1059,23 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
       <View style={[
         styles.inputPill, 
         { 
-          borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
-          backgroundColor: 'transparent',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+          backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(240, 240, 240, 0.8)',
         }
       ]}>
+        <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         
         
         <View style={styles.attachRow}>
           <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
-            <Ionicons name="camera-outline" size={20} color={colors.textExtraLight} />
+            <Ionicons name="add" size={28} color={colors.textExtraLight} />
           </TouchableOpacity>
         </View>
 
         <TextInput
           value={localInput}
           onChangeText={setLocalInput}
-          placeholder="Message..."
+          placeholder="Ask anything"
           placeholderTextColor={colors.textExtraLight}
           style={[styles.input, { color: colors.text, fontSize: 16 }]}
           multiline
@@ -1087,13 +1088,16 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
           onPress={handleSubmit}
           disabled={isTyping}
           style={[styles.sendButton, {
-            backgroundColor: hasContent && !isTyping ? colors.foreground : 'transparent',
+            backgroundColor: isDark ? '#FFFFFF' : '#000000',
+            width: 40,
+            height: 40,
+            borderRadius: 20,
           }]}
         >
           <Ionicons 
             name={hasContent ? "arrow-up" : "time-outline"} 
-            size={18} 
-            color={hasContent ? colors.background : colors.textExtraLight} 
+            size={20} 
+            color={isDark ? '#000000' : '#FFFFFF'} 
           />
         </TouchableOpacity>
       </View>
@@ -1866,10 +1870,11 @@ const styles = StyleSheet.create({
   inputPill: {
     flexDirection: 'row', 
     alignItems: 'center',
-    borderRadius: 20,
-    padding: 4, 
+    borderRadius: 30,
+    padding: 6, 
     borderWidth: 1,
-    minHeight: 40,
+    minHeight: 56,
+    overflow: 'hidden',
   },
   attachRow: { flexDirection: 'row', paddingLeft: 8 },
   attachBtn: { padding: 6 },
