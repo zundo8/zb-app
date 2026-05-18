@@ -180,7 +180,7 @@ const InboxTab = () => {
             </h4>
             <p className="text-xs text-foreground/60 leading-relaxed max-w-3xl">
               The mail server returned: <code className="bg-foreground/5 px-1.5 py-0.5 rounded font-mono text-amber-500/90">{imapError}</code>. 
-              This commonly indicates IMAP access is disabled for the Zoho account <strong>developer@zicabella.com</strong>.
+              This commonly indicates IMAP access is disabled for the Zoho account <strong>admin@zicabella.com</strong>.
             </p>
             <div className="pt-2 space-y-2 text-xs text-foreground/40 border-t border-foreground/5 mt-4">
               <p className="font-bold text-foreground/60">To enable real-time Zoho Inbox synchronization:</p>
@@ -593,7 +593,7 @@ const ComposeTab = () => {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
-  const [senderEmail, setSenderEmail] = useState("developer@zicabella.com");
+  const [senderEmail, setSenderEmail] = useState("admin@zicabella.com");
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -771,7 +771,7 @@ const SettingsTab = () => {
   const [config, setConfig] = useState<any>({
     host: "smtp.zoho.in",
     port: "465",
-    user: "developer@zicabella.com",
+    user: "admin@zicabella.com",
     senderName: "Zica Bella",
   });
   const [prefs, setPrefs] = useState<Record<string, boolean>>({

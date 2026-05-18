@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, emails: inboxCache.data });
     }
 
-    const user = process.env.ZOHO_SMTP_USER || 'developer@zicabella.com';
+    const user = process.env.ZOHO_SMTP_USER || 'admin@zicabella.com';
     const password = process.env.ZOHO_SMTP_PASS || 'L6YHDRkF1zti';
     const host = process.env.ZOHO_IMAP_HOST || 'imap.zoho.in';
     const port = Number(process.env.ZOHO_IMAP_PORT || '993');
