@@ -1709,20 +1709,22 @@ const ChatScreen = memo(() => {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} android_disableSound={true}>
-          <View style={{ flex: 1 }}>
-            {messages.length === 0 ? (
-              renderOnboarding()
-            ) : (
-              <FlatList
-                ref={flatListRef}
-                data={messages}
-                keyExtractor={keyExtractor}
-                renderItem={renderMessage}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                removeClippedSubviews={true}
+        <View style={{ flex: 1 }}>
+          {messages.length === 0 ? (
+            <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} android_disableSound={true}>
+              {renderOnboarding()}
+            </Pressable>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={keyExtractor}
+              renderItem={renderMessage}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              removeClippedSubviews={false}
                 initialNumToRender={15}
                 maxToRenderPerBatch={8}
                 updateCellsBatchingPeriod={100}
@@ -1744,9 +1746,8 @@ const ChatScreen = memo(() => {
                   ) : null
                 }
               />
-            )}
-          </View>
-        </Pressable>
+          )}
+        </View>
 
         <InputBar onSend={handleSend} isTyping={isTyping} />
       </KeyboardAvoidingView>
