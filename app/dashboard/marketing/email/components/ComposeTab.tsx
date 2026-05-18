@@ -112,10 +112,10 @@ export default function ComposeTab() {
   const substitutedHtml = useMemo(() => {
     let finalHtml = htmlBody;
     Object.entries(variableValues).forEach(([key, val]) => {
-      if (val) {
-        finalHtml = finalHtml.replaceAll(`{{${key}}}`, val);
-      }
+      finalHtml = finalHtml.replaceAll(`{{${key}}}`, val || '');
     });
+    // Strip any unresolved remaining variables
+    finalHtml = finalHtml.replace(/\{\{([^}]+)\}\}/g, '');
     return finalHtml;
   }, [htmlBody, variableValues]);
   const handleProductSelected = (product: any, imageUrl: string) => {

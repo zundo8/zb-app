@@ -451,6 +451,11 @@ export async function renderDBTemplate(
       html = html.replaceAll(`{{${key}}}`, stringVal);
     });
 
+    // Strip any unresolved remaining variables
+    const remainingRegex = /\{\{([^}]+)\}\}/g;
+    subject = subject.replace(remainingRegex, '');
+    html = html.replace(remainingRegex, '');
+
     return { subject, html };
   } catch (error) {
     console.error(`Error rendering database template for ${trigger}:`, error);
