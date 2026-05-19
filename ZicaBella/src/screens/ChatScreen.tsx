@@ -306,13 +306,13 @@ const { width } = Dimensions.get('window');
 
 // ─── Waveform & CodeBlock UI ──────────────────────
 
-const WaveformIcon = memo(() => (
+const WaveformIcon = memo(({ color = '#000000' }: { color?: string }) => (
   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-    <View style={{ width: 1.8, height: 8, backgroundColor: '#000000', borderRadius: 1 }} />
-    <View style={{ width: 1.8, height: 14, backgroundColor: '#000000', borderRadius: 1 }} />
-    <View style={{ width: 1.8, height: 11, backgroundColor: '#000000', borderRadius: 1 }} />
-    <View style={{ width: 1.8, height: 16, backgroundColor: '#000000', borderRadius: 1 }} />
-    <View style={{ width: 1.8, height: 6, backgroundColor: '#000000', borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 8, backgroundColor: color, borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 14, backgroundColor: color, borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 11, backgroundColor: color, borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 16, backgroundColor: color, borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 6, backgroundColor: color, borderRadius: 1 }} />
   </View>
 ));
 
@@ -1127,7 +1127,13 @@ const InputBar = memo(({
 
   const hasContent = localInput.trim() || pendingImage;
   const bottomOffset = keyboardVisible ? (Platform.OS === 'ios' ? keyboardHeight : 0) : 0;
-  const pillBorder = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)';
+  const pillBorder = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)';
+
+  const iconColor = isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)';
+  const textColor = isDark ? '#FFFFFF' : '#000000';
+  const placeholderColor = isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.4)';
+  const sendBg = isRecording ? '#FF3B30' : (isDark ? '#FFFFFF' : '#000000');
+  const sendIconColor = isRecording ? '#FFFFFF' : (isDark ? '#000000' : '#FFFFFF');
 
   return (
     <View style={[
@@ -1142,19 +1148,19 @@ const InputBar = memo(({
         <View style={[
           styles.pendingImageBar, 
           { 
-            borderColor: 'rgba(255, 255, 255, 0.15)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
             overflow: 'hidden',
             marginHorizontal: 0,
             marginBottom: 8,
           }
         ]}>
-          <BlurView intensity={80} tint="dark" style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} />
+          <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} />
           <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
-          <Typography size={10} weight="500" color="rgba(255, 255, 255, 0.5)" style={{ flex: 1, marginLeft: 10 }}>
+          <Typography size={10} weight="500" color={isDark ? "rgba(255, 255, 255, 0.5)" : "rgba(0, 0, 0, 0.6)"} style={{ flex: 1, marginLeft: 10 }}>
             Image ready to send
           </Typography>
           <TouchableOpacity onPress={() => setPendingImage(null)} style={styles.pendingImageRemove}>
-            <Ionicons name="close-circle" size={22} color="rgba(255, 255, 255, 0.4)" />
+            <Ionicons name="close-circle" size={22} color={isDark ? "rgba(255, 255, 255, 0.4)" : "rgba(0, 0, 0, 0.4)"} />
           </TouchableOpacity>
         </View>
       )}
@@ -1166,14 +1172,14 @@ const InputBar = memo(({
           styles.inputPill, 
           { 
             borderColor: isRecording ? '#FF3B30' : pillBorder,
-            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.03)',
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.01)',
             borderWidth: 0.5,
           }
         ]}
       >
         <View style={styles.attachRow}>
           <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage} disabled={isRecording}>
-            <Ionicons name="add" size={22} color="rgba(255, 255, 255, 0.7)" />
+            <Ionicons name="add" size={22} color={iconColor} />
           </TouchableOpacity>
         </View>
 
@@ -1181,8 +1187,8 @@ const InputBar = memo(({
           value={isRecording ? `Recording audio prompt... [${recordingDuration}s]` : localInput}
           onChangeText={setLocalInput}
           placeholder={isRecording ? "Pulsing waveform active..." : "Ask anything"}
-          placeholderTextColor="rgba(255, 255, 255, 0.3)"
-          style={[styles.input, { color: isRecording ? '#FF3B30' : '#FFFFFF', fontSize: 15, backgroundColor: 'transparent' }]}
+          placeholderTextColor={placeholderColor}
+          style={[styles.input, { color: isRecording ? '#FF3B30' : textColor, fontSize: 15, backgroundColor: 'transparent' }]}
           multiline
           maxLength={20000}
           editable={!isRecording}
@@ -1199,7 +1205,7 @@ const InputBar = memo(({
             }}
             disabled={isRecording}
           >
-            <Ionicons name="time-outline" size={22} color="rgba(255, 255, 255, 0.7)" />
+            <Ionicons name="time-outline" size={22} color={iconColor} />
           </TouchableOpacity>
         )}
 
@@ -1209,7 +1215,7 @@ const InputBar = memo(({
           style={[
             styles.waveformCircle,
             {
-              backgroundColor: isRecording ? '#FF3B30' : '#FFFFFF',
+              backgroundColor: sendBg,
               width: 38,
               height: 38,
               borderRadius: 19,
@@ -1220,11 +1226,11 @@ const InputBar = memo(({
           activeOpacity={0.8}
         >
           {hasContent ? (
-            <Ionicons name="arrow-up" size={18} color="#000000" />
+            <Ionicons name="arrow-up" size={18} color={sendIconColor} />
           ) : isRecording ? (
-            <Ionicons name="square" size={14} color="#FFFFFF" />
+            <Ionicons name="square" size={14} color={sendIconColor} />
           ) : (
-            <WaveformIcon />
+            <WaveformIcon color={sendIconColor} />
           )}
         </TouchableOpacity>
       </BlurView>
@@ -2318,11 +2324,11 @@ const styles = StyleSheet.create({
   inputPill: {
     flexDirection: 'row', 
     alignItems: 'center',
-    borderRadius: 24,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderRadius: 26,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderWidth: 0.5,
-    minHeight: 48,
+    minHeight: 52,
     overflow: 'hidden',
   },
   attachRow: { flexDirection: 'row', paddingLeft: 6 },
