@@ -88,8 +88,7 @@
 	<string>Zica Bella may save images to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Zica Bella accesses your photo library to let you upload a profile photo.</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Zica Bella uses analytics to improve your shopping experience. No data is sold or shared with advertisers.</string>
+
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>
@@ -99,7 +98,6 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
-		<string>location</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>

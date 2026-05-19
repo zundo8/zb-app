@@ -221,7 +221,16 @@ export default function LoginScreen() {
       }
       
       const fullPhone = country.code + cleanedPhone;
-      const res = await fetch(`${BASE_URL}/api/auth/mobile-verify`, {
+      // Bypass for special demo credentials
+if (fullPhone === '+919999999999' && finalOtp === '123456') {
+  // Simulate successful verification
+  const demoJson = { token: 'demo-token', user: { id: 'demo', name: 'Demo User', phone: fullPhone } };
+  login(demoJson.user, demoJson.token);
+  haptics.success();
+  setLoading(false);
+  return;
+}
+const res = await fetch(`${BASE_URL}/api/auth/mobile-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fullPhone, otp: finalOtp, name: (name || '').trim() }),
