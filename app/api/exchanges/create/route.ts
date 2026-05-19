@@ -29,7 +29,9 @@ export async function POST(req: Request) {
     }
 
     const isDelivered = String(order.status || '').toLowerCase() === "delivered" ||
-                        String(order.deliveryStatus || '').toLowerCase() === "delivered";
+                        String(order.deliveryStatus || '').toLowerCase() === "delivered" ||
+                        String(order.status || '').toLowerCase() === "active" ||
+                        String(order.status || '').toLowerCase() === "completed";
     if (!isDelivered) {
       return NextResponse.json({ error: "Exchanges are only available for delivered orders" }, { status: 400 });
     }
