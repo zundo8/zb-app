@@ -1149,15 +1149,17 @@ const InputBar = memo(({
         </View>
       )}
 
-      <View style={[
-        styles.inputPill, 
-        { 
-          borderColor: isRecording ? '#FF3B30' : pillBorder,
-          backgroundColor: pillBg,
-        }
-      ]}>
-        <BlurView intensity={35} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} />
-        
+      <BlurView
+        intensity={isDark ? 30 : 60} 
+        tint={isDark ? 'dark' : 'light'} 
+        style={[
+          styles.inputPill, 
+          { 
+            borderColor: isRecording ? '#FF3B30' : pillBorder,
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.4)',
+          }
+        ]}
+      >
         <View style={styles.attachRow}>
           <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage} disabled={isRecording}>
             <Ionicons name="add" size={22} color="rgba(255, 255, 255, 0.7)" />
@@ -1214,7 +1216,7 @@ const InputBar = memo(({
             <WaveformIcon />
           )}
         </TouchableOpacity>
-      </View>
+      </BlurView>
     </View>
   );
 });
