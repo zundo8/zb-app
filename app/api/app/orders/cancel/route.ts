@@ -71,6 +71,50 @@ export async function POST(req: Request) {
       }
     }
 
+    // 3. Automatic Order Email Webhook Trigger (Non-blocking)
+    try {
+      const localApiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com'}/api/orders/status-update`;
+      const apiSecret = process.env.INTERNAL_API_SECRET || 'ZB_INTERNAL_SECRET_987654321';
+      
+      const fullOrder = await prisma.order.findUnique({
+        where: { id: updatedOrder.id },
+        include: { items: true }
+      });
+
+      if (fullOrder && order.customer && order.customer.email) {
+        const payload = {
+          orderId: fullOrder.id,
+          newStatus: 'cancelled',
+          customerEmail: order.customer.email,
+          customerName: order.customer.name || 'Valued Customer',
+          paymentMethod: fullOrder.paymentMethod || undefined,
+          items: fullOrder.items.map((i: any) => ({
+            name: i.title,
+            size: i.sku?.split('-')?.pop() || 'M',
+            quantity: i.quantity,
+            price: i.price,
+            image: i.image || null,
+          })),
+          total: fullOrder.totalPrice,
+          currency: fullOrder.currency || 'INR',
+        };
+
+        fetch(localApiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-secret': apiSecret,
+          },
+          body: JSON.stringify(payload),
+        })
+        .then(res => res.json())
+        .then(resData => console.log('[Cancel Order] Email webhook success:', resData))
+        .catch(err => console.error('[Cancel Order] Email webhook fetch error:', err));
+      }
+    } catch (emailErr) {
+      console.error('[Cancel Order] Background email trigger failed:', emailErr);
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Order cancelled successfully',

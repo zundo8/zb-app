@@ -114,6 +114,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                   size: i.sku?.split('-')?.pop() || 'M',
                   quantity: i.quantity,
                   price: i.price,
+                  image: i.image || null,
                 })),
                 total: fullOrder.totalPrice,
                 currency: fullOrder.currency || 'INR',

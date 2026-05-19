@@ -119,6 +119,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
             size: i.sku?.split('-')?.pop() || 'M',
             quantity: i.quantity,
             price: i.price,
+            image: i.image || null,
           })),
           total: order.totalPrice,
           currency: order.currency || 'INR',

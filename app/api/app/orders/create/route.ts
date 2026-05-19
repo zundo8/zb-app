@@ -422,6 +422,7 @@ export async function POST(req: Request) {
             size: size,
             qty: item.quantity || 1,
             price: `INR ${item.price || 0}`,
+            image: item.image || item.imageUrl || null,
           };
         });
 
@@ -429,9 +430,12 @@ export async function POST(req: Request) {
           .map(
             (item: any) => `
           <div class="product-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0;">
-            <div style="flex: 1;">
-              <div style="font-weight: 600;">${item.name}</div>
-              <div style="font-size: 13px; color: #888888;">Size: ${item.size} × ${item.qty}</div>
+            <div style="flex: 1; display: flex; align-items: center; gap: 15px;">
+              ${item.image ? `<img src="${item.image}" alt="${item.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px;" />` : `<div style="width: 60px; height: 60px; background-color: #f5f5f5; border-radius: 6px;"></div>`}
+              <div>
+                <div style="font-weight: 600;">${item.name}</div>
+                <div style="font-size: 13px; color: #888888;">Size: ${item.size} × ${item.qty}</div>
+              </div>
             </div>
             <div style="font-weight: 600;">${item.price}</div>
           </div>
@@ -444,10 +448,15 @@ export async function POST(req: Request) {
           orderId: created.shopifyOrderId || created.id,
           orderDate: new Date(created.createdAt).toLocaleDateString(),
           itemsHtml,
-          items: itemsHtml, // support both variable mappings
+          items: itemsHtml,
+          products: itemsHtml,
           subtotal: `INR ${subtotal}`,
           shipping: `INR ${paymentMethod === 'COD' ? 99 : 0}`,
           total: `INR ${total}`,
+          totalPrice: `INR ${total}`,
+          amount: `INR ${total}`,
+          price: `INR ${total}`,
+          currency: 'INR',
           shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : `${shippingAddress?.line1 || shippingAddress?.street || ''}, ${shippingAddress?.city || ''}, ${shippingAddress?.state || ''} - ${shippingAddress?.pincode || shippingAddress?.zip || ''}, ${shippingAddress?.country || 'India'}`,
           orderStatusUrl: `https://zicabella.com/account/orders`,
         };
