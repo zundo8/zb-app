@@ -15,95 +15,73 @@
     @media only screen and (max-width: 600px) {
       .container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
       .pad { padding: 36px 22px !important; }
-      .hero-txt { font-size: 50px !important; }
-      .item-img { display: none !important; }
+      .hero-txt { font-size: 44px !important; }
     }
   </style>
 </head>
 <body>
 <div style="display:none; max-height:0; overflow:hidden; font-size:0; opacity:0;">Your payment didn't go through. Your cart is still saved.</div>
-<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#000; padding:48px 20px;">
+<table border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#000000" style="background:#000000; padding:48px 20px;">
   <tr><td align="center">
-    <table border="0" cellpadding="0" cellspacing="0" width="580" class="container" style="background:#0a0a0a; border-radius:2px; border:1px solid rgba(255,255,255,0.12);">
+    <table border="0" cellpadding="0" cellspacing="0" width="580" class="container" bgcolor="#0a0a0a" style="background:#0a0a0a; border-radius:2px; border:1px solid rgba(255,255,255,0.12);">
 
-      <!-- Red top stripe for error state -->
-      <tr><td style="height:3px; background:#e5e5e5; border-radius:2px 2px 0 0;"></td></tr>
+      <tr><td bgcolor="#e5e5e5" style="height:3px; background:#e5e5e5; border-radius:2px 2px 0 0; font-size:0; line-height:0;">&nbsp;</td></tr>
 
       <tr><td class="pad" style="padding:36px 48px 28px;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%">
-          <tr>
-            <td><p style="margin:0; font-family:'Rocaston',serif; font-size:11px; letter-spacing:8px; color:#fff; text-transform:uppercase; opacity:.9;">ZICA BELLA</p></td>
-            <td align="right"><p style="margin:0; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,60,60,0.8); text-transform:uppercase;">Payment Error</p></td>
-          </tr>
-        </table>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td style="color:#ffffff; font-family:'Rocaston',serif; font-size:11px; letter-spacing:8px; text-transform:uppercase;">ZICA BELLA</td>
+          <td align="right" style="color:rgba(255,60,60,0.8); font-family:'DM Mono','Courier New',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase;">Payment Error</td>
+        </tr></table>
       </td></tr>
 
-      <tr><td style="padding:0 48px;"><div style="height:1px; background:rgba(255,255,255,0.08);"></div></td></tr>
+      <tr><td style="padding:0 48px;"><table border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td bgcolor="#1a1a1a" style="height:1px; background:rgba(255,255,255,0.08); font-size:0; line-height:0;">&nbsp;</td></tr></table></td></tr>
 
-      <!-- Hero -->
       <tr><td class="pad" style="padding:52px 48px 0;">
-        <p style="margin:0 0 6px; font-family:'DM Mono',monospace; font-size:10px; font-weight:300; letter-spacing:3px; color:rgba(255,255,255,0.35); text-transform:uppercase;">Unsuccessful</p>
-        <h1 class="hero-txt" style="margin:0; font-family:'DM Serif Display',Georgia,serif; font-size:60px; font-weight:400; line-height:1.0; color:#fff; letter-spacing:-1px;">
-          Payment<br><em style="font-style:italic; color:rgba(255,255,255,0.35); font-size:42px;">didn't go<br>through.</em>
-        </h1>
+        <p style="margin:0 0 6px; font-family:'DM Mono','Courier New',monospace; font-size:10px; font-weight:300; letter-spacing:3px; color:rgba(255,255,255,0.35); text-transform:uppercase;">Unsuccessful</p>
+        <table border="0" cellpadding="0" cellspacing="0"><tr><td style="color:#ffffff; font-family:'DM Serif Display',Georgia,serif; font-size:60px; font-weight:400; line-height:1.0; letter-spacing:-1px;">
+          Payment<br><span style="font-style:italic; color:rgba(255,255,255,0.35); font-size:42px;">didn't go<br>through.</span>
+        </td></tr></table>
       </td></tr>
 
-      <!-- Body Copy -->
-      <tr><td class="pad" style="padding:36px 48px 0;">
-        <p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:12px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.55);">Dear {{customerName}},</p>
-        <p style="margin:0; font-family:'DM Mono',monospace; font-size:12px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.55);">
-          Your order #{{orderId}} wasn't processed — the payment was declined at checkout. Nothing has been charged. Your selection is still saved and waiting for you.
-        </p>
+      <tr><td class="pad" style="padding:36px 48px 0; color:rgba(255,255,255,0.55); font-family:'DM Mono','Courier New',monospace; font-size:12px; font-weight:300; line-height:1.9;">
+        Dear {{customerName}},<br><br>
+        Your order <strong style="color:rgba(255,255,255,0.8); font-weight:400;">#{{orderId}}</strong> wasn't processed — the payment was declined at checkout. Nothing has been charged. Your selection is still saved and waiting for you.
       </td></tr>
 
-      <!-- Product Card -->
       <tr><td class="pad" style="padding:32px 48px 0;">
         {{itemsHtml}}
-        <div style="text-align: right; margin-top: 15px;">
-            <p style="margin:0; font-family:'DM Mono',monospace; font-size:14px; color:rgba(255,255,255,0.8);">Total: {{totalPrice}}</p>
-        </div>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td align="right" style="color:rgba(255,255,255,0.8); font-family:'DM Mono','Courier New',monospace; font-size:13px; font-weight:400; padding-top:8px;">Total: {{totalPrice}}</td>
+        </tr></table>
       </td></tr>
 
-      <!-- Notice Box -->
       <tr><td class="pad" style="padding:24px 48px 0;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-left:2px solid rgba(200,50,50,0.6);">
-          <tr><td style="padding:14px 18px;">
-            <p style="margin:0; font-family:'DM Mono',monospace; font-size:11px; font-weight:300; line-height:1.8; color:rgba(255,255,255,0.45);">
-              If any amount was held by your bank, it will be automatically released within 3–5 business days. This is a bank-side hold, not a charge by Zica Bella.
-            </p>
-          </td></tr>
-        </table>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td bgcolor="#141414" style="background:rgba(255,255,255,0.03); border-left:2px solid rgba(200,50,50,0.6); padding:14px 18px; color:rgba(255,255,255,0.45); font-family:'DM Mono','Courier New',monospace; font-size:11px; font-weight:300; line-height:1.8;">
+            If any amount was held by your bank, it will be automatically released within 3–5 business days. This is a bank-side hold, not a charge by Zica Bella.
+          </td>
+        </tr></table>
       </td></tr>
 
-      <!-- CTA -->
       <tr><td class="pad" style="padding:36px 48px 0;">
-        <p style="margin:0 0 20px; font-family:'DM Mono',monospace; font-size:12px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.55);">
+        <p style="margin:0 0 20px; font-family:'DM Mono','Courier New',monospace; font-size:12px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.55);">
           Retry with a different payment method — UPI, card, or net banking all accepted.
         </p>
-        <a href="https://zicabella.com" style="display:inline-block; background:#fff; color:#000; text-decoration:none; padding:15px 36px; font-family:'DM Mono',monospace; font-size:10px; font-weight:400; letter-spacing:2.5px; text-transform:uppercase; border-radius:1px;">
-          Complete Purchase →
-        </a>
+        <a href="https://zicabella.com" style="display:inline-block; background:#ffffff; color:#000000; text-decoration:none; padding:15px 36px; font-family:'DM Mono','Courier New',monospace; font-size:10px; font-weight:400; letter-spacing:2.5px; text-transform:uppercase; border-radius:1px;">Complete Purchase →</a>
       </td></tr>
 
-      <!-- Closing -->
-      <tr><td class="pad" style="padding:36px 48px 48px;">
-        <p style="margin:0; font-family:'DM Mono',monospace; font-size:11px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.28);">
-          If you keep facing issues, reply to this email and our team will assist you directly. We don't want a payment error to stand between you and the piece.
-        </p>
+      <tr><td class="pad" style="padding:32px 48px 48px; color:rgba(255,255,255,0.28); font-family:'DM Mono','Courier New',monospace; font-size:11px; font-weight:300; line-height:1.9;">
+        If you keep facing issues, reply to this email and our team will assist you directly. We don't want a payment error to stand between you and the piece.
       </td></tr>
 
-      <tr><td style="padding:0 48px;"><div style="height:1px; background:rgba(255,255,255,0.06);"></div></td></tr>
+      <tr><td style="padding:0 48px;"><table border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td bgcolor="#111111" style="height:1px; background:rgba(255,255,255,0.06); font-size:0; line-height:0;">&nbsp;</td></tr></table></td></tr>
 
       <tr><td class="pad" style="padding:28px 48px 36px;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%">
-          <tr>
-            <td><p style="margin:0; font-family:'Rocaston',serif; font-size:9px; letter-spacing:5px; color:rgba(255,255,255,0.2); text-transform:uppercase;">ZICA BELLA</p></td>
-            <td align="right"><p style="margin:0; font-family:'DM Mono',monospace; font-size:9px; color:rgba(255,255,255,0.18);">India</p></td>
-          </tr>
-        </table>
-        <p style="margin:16px 0 0; font-family:'DM Mono',monospace; font-size:9px; color:rgba(255,255,255,0.12); line-height:1.7;">
-          Sent to {{customerEmail}} · Payment failure notification from Zica Bella.
-        </p>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td style="color:rgba(255,255,255,0.2); font-family:'Rocaston',serif; font-size:9px; letter-spacing:5px; text-transform:uppercase;">ZICA BELLA</td>
+          <td align="right" style="color:rgba(255,255,255,0.18); font-family:'DM Mono','Courier New',monospace; font-size:9px;">India</td>
+        </tr></table>
+        <p style="margin:16px 0 0; font-family:'DM Mono','Courier New',monospace; font-size:9px; color:rgba(255,255,255,0.12); line-height:1.7;">Sent to {{customerEmail}} · Payment failure notification from Zica Bella.</p>
       </td></tr>
 
     </table>

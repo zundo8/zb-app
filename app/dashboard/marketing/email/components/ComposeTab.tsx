@@ -116,6 +116,10 @@ export default function ComposeTab() {
     });
     // Strip any unresolved remaining variables
     finalHtml = finalHtml.replace(/\{\{([^}]+)\}\}/g, '');
+    // Ensure DOCTYPE wrapper for proper iframe rendering
+    if (finalHtml && !finalHtml.includes('<!DOCTYPE html>')) {
+      finalHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head><body style="margin:0;padding:0;background:#000;">${finalHtml}</body></html>`;
+    }
     return finalHtml;
   }, [htmlBody, variableValues]);
   const handleProductSelected = (product: any, imageUrl: string) => {
@@ -369,8 +373,9 @@ export default function ComposeTab() {
           >
             <iframe
               srcDoc={substitutedHtml}
-              className="w-full h-full border-none"
+              style={{ width: '100%', height: '640px', border: 'none', display: 'block', borderRadius: '4px' }}
               title="Live Preview"
+              sandbox="allow-same-origin"
             />
           </div>
         </div>

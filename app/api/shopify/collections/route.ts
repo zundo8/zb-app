@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchEnabledCollections } from '@/lib/shopify-admin';
+import { fetchEnabledCollections, fetchCollections } from '@/lib/shopify-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,8 +7,12 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const location = (searchParams.get('location') as 'header' | 'page' | 'menu') || 'page';
+    const all = searchParams.get('all') === 'true';
     
-    const collections = await fetchEnabledCollections(location);
+    const collections = all
+      ? await fetchCollections()
+      : await fetchEnabledCollections(location);
+
     return NextResponse.json(collections, {
       headers: {
         'Cache-Control': 'no-store, max-age=0, must-revalidate',

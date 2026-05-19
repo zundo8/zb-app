@@ -15,88 +15,69 @@
     @media only screen and (max-width: 600px) {
       .container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
       .pad { padding: 36px 22px !important; }
-      .hero-txt { font-size: 50px !important; }
-      .item-img { display: none !important; }
+      .hero-txt { font-size: 44px !important; }
     }
   </style>
 </head>
 <body>
-<div style="display:none; max-height:0; overflow:hidden; font-size:0; opacity:0;">Return Update</div>
-<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#000; padding:48px 20px;">
+<div style="display:none; max-height:0; overflow:hidden; font-size:0; opacity:0;">Your return for order {{orderId}} has been accepted.</div>
+<table border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#000000" style="background:#000000; padding:48px 20px;">
   <tr><td align="center">
-    <table border="0" cellpadding="0" cellspacing="0" width="580" class="container" style="background:#0a0a0a; border-radius:2px; border:1px solid rgba(255,255,255,0.12);">
+    <table border="0" cellpadding="0" cellspacing="0" width="580" class="container" bgcolor="#0a0a0a" style="background:#0a0a0a; border-radius:2px; border:1px solid rgba(255,255,255,0.12);">
 
-      <tr><td style="height:3px; background:#e5e5e5; border-radius:2px 2px 0 0;"></td></tr>
+      <tr><td bgcolor="#e5e5e5" style="height:3px; background:#e5e5e5; border-radius:2px 2px 0 0; font-size:0; line-height:0;">&nbsp;</td></tr>
 
       <tr><td class="pad" style="padding:36px 48px 28px;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%">
-          <tr>
-            <td><p style="margin:0; font-family:'Rocaston',serif; font-size:11px; letter-spacing:8px; color:#fff; text-transform:uppercase; opacity:.9;">ZICA BELLA</p></td>
-            <td align="right"><p style="margin:0; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.6); text-transform:uppercase;">Return & Refund</p></td>
-          </tr>
-        </table>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td style="color:#ffffff; font-family:'Rocaston',serif; font-size:11px; letter-spacing:8px; text-transform:uppercase;">ZICA BELLA</td>
+          <td align="right" style="color:rgba(255,255,255,0.6); font-family:'DM Mono','Courier New',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase;">Return &amp; Refund</td>
+        </tr></table>
       </td></tr>
 
-      <tr><td style="padding:0 48px;"><div style="height:1px; background:rgba(255,255,255,0.08);"></div></td></tr>
+      <tr><td style="padding:0 48px;"><table border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td bgcolor="#1a1a1a" style="height:1px; background:rgba(255,255,255,0.08); font-size:0; line-height:0;">&nbsp;</td></tr></table></td></tr>
 
       <tr><td class="pad" style="padding:52px 48px 0;">
-        <h1 class="hero-txt" style="margin:0; font-family:'DM Serif Display',Georgia,serif; font-size:60px; font-weight:400; line-height:1.0; color:#fff; letter-spacing:-1px;">
-          Return<br><em style="font-style:italic; color:rgba(255,255,255,0.35); font-size:42px;">update.</em>
-        </h1>
+        <table border="0" cellpadding="0" cellspacing="0"><tr><td style="color:#ffffff; font-family:'DM Serif Display',Georgia,serif; font-size:60px; font-weight:400; line-height:1.0; letter-spacing:-1px;">
+          Return<br><span style="font-style:italic; color:rgba(255,255,255,0.35); font-size:42px;">update.</span>
+        </td></tr></table>
       </td></tr>
 
-      <tr><td class="pad" style="padding:36px 48px 0;">
-        <p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:12px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.55);">Dear {{customerName}},</p>
-        <div style="font-family:'DM Mono',monospace; font-size:12px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.55);">
-          <p style="margin:0;">We have an update regarding your return for order #{{orderId}}. Your return has been accepted and processed.</p>
-        </div>
+      <tr><td class="pad" style="padding:36px 48px 0; color:rgba(255,255,255,0.55); font-family:'DM Mono','Courier New',monospace; font-size:12px; font-weight:300; line-height:1.9;">
+        Dear {{customerName}},<br><br>
+        We have an update regarding your return for order <strong style="color:rgba(255,255,255,0.8); font-weight:400;">#{{orderId}}</strong>. Your return has been accepted and processed.
       </td></tr>
 
-      
       <tr><td class="pad" style="padding:32px 48px 0;">
         {{itemsHtml}}
-        <div style="text-align: right; margin-top: 15px;">
-            <p style="margin:0; font-family:'DM Mono',monospace; font-size:14px; color:rgba(255,255,255,0.8);">Total: {{totalPrice}}</p>
-        </div>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td align="right" style="color:rgba(255,255,255,0.8); font-family:'DM Mono','Courier New',monospace; font-size:13px; font-weight:400; padding-top:8px;">Total: {{totalPrice}}</td>
+        </tr></table>
       </td></tr>
-      
 
-      
       <tr><td class="pad" style="padding:24px 48px 0;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-left:2px solid rgba(255,255,255,0.2);">
-          <tr><td style="padding:14px 18px;">
-            <p style="margin:0; font-family:'DM Mono',monospace; font-size:11px; font-weight:300; line-height:1.8; color:rgba(255,255,255,0.45);">
-              If a refund is applicable, it will reflect in your original payment method within 3-5 business days.
-            </p>
-          </td></tr>
-        </table>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td bgcolor="#141414" style="background:rgba(255,255,255,0.03); border-left:2px solid rgba(255,255,255,0.2); padding:14px 18px; color:rgba(255,255,255,0.45); font-family:'DM Mono','Courier New',monospace; font-size:11px; font-weight:300; line-height:1.8;">
+            If a refund is applicable, it will reflect in your original payment method within 3–5 business days.
+          </td>
+        </tr></table>
       </td></tr>
-      
 
-      
       <tr><td class="pad" style="padding:36px 48px 0;">
-        <a href="https://zicabella.com/account/orders" style="display:inline-block; background:#fff; color:#000; text-decoration:none; padding:15px 36px; font-family:'DM Mono',monospace; font-size:10px; font-weight:400; letter-spacing:2.5px; text-transform:uppercase; border-radius:1px;">View Return Details →</a>
-      </td></tr>
-      
-
-      <tr><td class="pad" style="padding:36px 48px 48px;">
-        <p style="margin:0; font-family:'DM Mono',monospace; font-size:11px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.28);">
-          If you have any questions about this update, reply to this email.
-        </p>
+        <a href="https://zicabella.com/account/orders" style="display:inline-block; background:#ffffff; color:#000000; text-decoration:none; padding:15px 36px; font-family:'DM Mono','Courier New',monospace; font-size:10px; font-weight:400; letter-spacing:2.5px; text-transform:uppercase; border-radius:1px;">View Return Details →</a>
       </td></tr>
 
-      <tr><td style="padding:0 48px;"><div style="height:1px; background:rgba(255,255,255,0.06);"></div></td></tr>
+      <tr><td class="pad" style="padding:32px 48px 48px; color:rgba(255,255,255,0.28); font-family:'DM Mono','Courier New',monospace; font-size:11px; font-weight:300; line-height:1.9;">
+        If you have any questions about this update, reply to this email.
+      </td></tr>
+
+      <tr><td style="padding:0 48px;"><table border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td bgcolor="#111111" style="height:1px; background:rgba(255,255,255,0.06); font-size:0; line-height:0;">&nbsp;</td></tr></table></td></tr>
 
       <tr><td class="pad" style="padding:28px 48px 36px;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%">
-          <tr>
-            <td><p style="margin:0; font-family:'Rocaston',serif; font-size:9px; letter-spacing:5px; color:rgba(255,255,255,0.2); text-transform:uppercase;">ZICA BELLA</p></td>
-            <td align="right"><p style="margin:0; font-family:'DM Mono',monospace; font-size:9px; color:rgba(255,255,255,0.18);">India</p></td>
-          </tr>
-        </table>
-        <p style="margin:16px 0 0; font-family:'DM Mono',monospace; font-size:9px; color:rgba(255,255,255,0.12); line-height:1.7;">
-          Sent to {{customerEmail}} · Notification from Zica Bella.
-        </p>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td style="color:rgba(255,255,255,0.2); font-family:'Rocaston',serif; font-size:9px; letter-spacing:5px; text-transform:uppercase;">ZICA BELLA</td>
+          <td align="right" style="color:rgba(255,255,255,0.18); font-family:'DM Mono','Courier New',monospace; font-size:9px;">India</td>
+        </tr></table>
+        <p style="margin:16px 0 0; font-family:'DM Mono','Courier New',monospace; font-size:9px; color:rgba(255,255,255,0.12); line-height:1.7;">Sent to {{customerEmail}} · Notification from Zica Bella.</p>
       </td></tr>
 
     </table>

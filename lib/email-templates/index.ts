@@ -398,7 +398,7 @@ export async function upsertTemplate(template: Partial<EmailTemplate>): Promise<
   if (template.id) {
     return prisma.emailTemplate.update({
       where: { id: template.id },
-      data: template
+      data: template as any
     });
   }
   return prisma.emailTemplate.create({
@@ -483,6 +483,11 @@ export async function renderDBTemplate(
     const remainingRegex = /\{\{([^}]+)\}\}/g;
     subject = subject.replace(remainingRegex, '');
     html = html.replace(remainingRegex, '');
+
+    // Ensure proper DOCTYPE wrapper for email client rendering
+    if (html && !html.includes('<!DOCTYPE html>')) {
+      html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head><body style="margin:0;padding:0;background:#000;">${html}</body></html>`;
+    }
 
     return { subject, html };
   } catch (error) {

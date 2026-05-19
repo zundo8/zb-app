@@ -7,6 +7,15 @@ import {
   renderDBTemplate
 } from '@/lib/email-templates';
 
+let _fetchProductById: ((id: string) => Promise<any>) | null = null;
+async function getFetchProductById() {
+  if (!_fetchProductById) {
+    const mod = await import('@/lib/shopify-admin');
+    _fetchProductById = mod.fetchProductById;
+  }
+  return _fetchProductById;
+}
+
 export interface OrderData {
   customerName: string;
   customerEmail: string;
@@ -17,6 +26,8 @@ export interface OrderData {
     quantity: number;
     price: number;
     image?: string;
+    product_id?: number | string | null;
+    variant_title?: string | null;
   }>;
   total: number;
   currency?: string;
@@ -24,23 +35,45 @@ export interface OrderData {
   paymentMethod?: string;
 }
 
-function getItemsHtml(items: OrderData['items'], currencySymbol: string) {
-  return items.map(
-    (item) => `
-        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
-          <tr>
-            <td class="item-img" width="110" style="vertical-align:top; padding:0;">
-              ${item.image ? `<img src="${item.image}" width="110" height="130" style="display:block; object-fit:cover; opacity:0.8;" alt="${item.name}" />` : `<div style="width:110px; height:130px; background:rgba(255,255,255,0.05);"></div>`}
-            </td>
-            <td style="vertical-align:top; padding:20px 20px 20px 22px; border-left:1px solid rgba(255,255,255,0.1);">
-              <p style="margin:0 0 4px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase;">Qty: ${item.quantity}</p>
-              <p style="margin:0 0 6px; font-family:'DM Serif Display',serif; font-size:17px; color:rgba(255,255,255,0.7); line-height:1.3;">${item.name}</p>
-              ${item.size ? `<p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3);">Size: ${item.size}</p>` : ''}
-              <p style="margin:0; font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.5);">${currencySymbol}${item.price}</p>
-            </td>
-          </tr>
-        </table>
-  `).join('');
+async function getItemsHtml(items: OrderData['items'], currencySymbol: string): Promise<string> {
+  const fetchProduct = await getFetchProductById();
+
+  const rows = await Promise.all(items.map(async (item) => {
+    let imageUrl = item.image || '';
+    
+    // Attempt to fetch product image from Shopify if not already set
+    if (!imageUrl) {
+      try {
+        if (item.product_id) {
+          const product = await fetchProduct(String(item.product_id));
+          imageUrl = product?.images?.[0]?.src ?? '';
+        }
+      } catch {
+        imageUrl = '';
+      }
+    }
+
+    const imgBlock = imageUrl
+      ? `<img src="${imageUrl}" width="88" height="88" alt="${item.name}" style="display:block; border-radius:1px; object-fit:cover; background:#1a1a1a;" />`
+      : `<div style="width:88px; height:88px; background:#1a1a1a; border-radius:1px;"></div>`;
+
+    const variantLine = item.variant_title || item.size || '';
+
+    return `
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:16px;">
+      <tr>
+        <td width="88" valign="top" style="padding-right:16px;">${imgBlock}</td>
+        <td valign="middle" style="color:rgba(255,255,255,0.55); font-family:'DM Mono','Courier New',monospace;">
+          <p style="margin:0 0 4px; font-size:11px; font-weight:400; color:rgba(255,255,255,0.85); letter-spacing:0.5px;">${item.name}</p>
+          <p style="margin:0 0 4px; font-size:10px; font-weight:300; color:rgba(255,255,255,0.4);">${variantLine}</p>
+          <p style="margin:0; font-size:10px; font-weight:300; color:rgba(255,255,255,0.4);">Qty: ${item.quantity} &nbsp;·&nbsp; ${currencySymbol}${item.price}</p>
+        </td>
+      </tr>
+    </table>
+    <div style="height:1px; background:rgba(255,255,255,0.05); margin-bottom:16px;"></div>`;
+  }));
+
+  return rows.join('');
 }
 
 async function sendDynamicEmail(
@@ -54,7 +87,7 @@ async function sendDynamicEmail(
   const currencySymbol = order.currency === 'USD' ? '$' : '₹';
   const currencyCode = order.currency || 'INR';
   const orderDateStr = order.orderDate || new Date().toLocaleDateString('en-IN', { dateStyle: 'long' });
-  const itemsHtml = getItemsHtml(order.items, currencySymbol);
+  const itemsHtml = await getItemsHtml(order.items, currencySymbol);
 
   const variables = {
     customerName: order.customerName,
