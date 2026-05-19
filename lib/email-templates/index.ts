@@ -421,25 +421,53 @@ export function extractVariables(html: string): string[] {
   return uniqueVars;
 }
 
+// Normalize legacy lowercase triggers to the standard UPPERCASE format used in DB
+const TRIGGER_ALIASES: Record<string, string> = {
+  'confirmation': 'ORDER_CONFIRMATION',
+  'order_confirmation': 'ORDER_CONFIRMATION',
+  'cod_confirmation': 'ORDER_CONFIRMATION',
+  'shipped': 'ORDER_SHIPPED',
+  'order_shipped': 'ORDER_SHIPPED',
+  'delivered': 'ORDER_DELIVERED',
+  'order_delivered': 'ORDER_DELIVERED',
+  'cancelled': 'ORDER_CANCELLED',
+  'order_cancelled': 'ORDER_CANCELLED',
+  'payment_failed': 'PAYMENT_FAILED',
+  'welcome': 'WELCOME',
+  'return_refund': 'RETURN_REFUND',
+  'password_reset': 'PASSWORD_RESET',
+};
+
+function normalizeTrigger(trigger: string): string {
+  const upper = trigger.toUpperCase();
+  return TRIGGER_ALIASES[trigger.toLowerCase()] || upper;
+}
+
 export async function renderDBTemplate(
   trigger: string,
   variables: Record<string, any>,
   fallbackFn: () => string
 ): Promise<{ subject: string; html: string }> {
   try {
+    const normalizedTrigger = normalizeTrigger(trigger);
+    console.log(`[renderDBTemplate] Looking up template for trigger: "${trigger}" → normalized: "${normalizedTrigger}"`);
+
     const template = await prisma.emailTemplate.findFirst({
       where: {
-        automationTrigger: trigger,
+        automationTrigger: normalizedTrigger,
         isActive: true,
       },
     });
 
     if (!template) {
+      console.warn(`[renderDBTemplate] No active DB template found for trigger "${normalizedTrigger}". Using fallback template.`);
       return {
         subject: '',
         html: fallbackFn(),
       };
     }
+
+    console.log(`[renderDBTemplate] ✓ Found DB template "${template.name}" (id: ${template.id}) for trigger "${normalizedTrigger}"`);
 
     let subject = template.subject;
     let html = template.htmlBody;
@@ -458,7 +486,7 @@ export async function renderDBTemplate(
 
     return { subject, html };
   } catch (error) {
-    console.error(`Error rendering database template for ${trigger}:`, error);
+    console.error(`[renderDBTemplate] Error rendering database template for ${trigger}:`, error);
     return {
       subject: '',
       html: fallbackFn(),

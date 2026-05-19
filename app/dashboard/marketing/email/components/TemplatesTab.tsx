@@ -103,6 +103,48 @@ export default function TemplatesTab() {
     }
   };
 
+  const handleToggleActive = async (id: string, currentActive: boolean) => {
+    try {
+      const template = templates.find(t => t.id === id);
+      if (!template) return;
+      const res = await fetch(`/api/email/templates/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...template,
+          isActive: !currentActive
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Template ${!currentActive ? 'activated' : 'deactivated'}`);
+        fetchTemplates();
+      } else {
+        toast.error(data.error || 'Failed to toggle template');
+      }
+    } catch (error) {
+      toast.error('Failed to toggle template status');
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string, name: string) => {
+    if (!confirm(`Delete template "${name}"? This action cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/email/templates/${id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Template deleted');
+        fetchTemplates();
+      } else {
+        toast.error(data.error || 'Failed to delete template');
+      }
+    } catch (error) {
+      toast.error('Failed to delete template');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -124,13 +166,28 @@ export default function TemplatesTab() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {templates.map(t => (
-            <div key={t.id} className="bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl p-5 flex flex-col justify-between shadow-sm">
+            <div key={t.id} className={`bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl p-5 flex flex-col justify-between shadow-sm transition-opacity ${t.isActive === false ? 'opacity-50' : ''}`}>
               <div>
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-base font-medium text-black dark:text-white truncate">{t.name}</h3>
-                  <span className={`text-xs px-2 py-1 rounded-full ${t.category === 'marketing' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'}`}>
-                    {t.category}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="text-base font-medium text-black dark:text-white truncate">{t.name}</h3>
+                    {t.isActive === false && (
+                      <span className="text-[9px] bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide shrink-0">Inactive</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className={`text-xs px-2 py-1 rounded-full ${t.category === 'marketing' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'}`}>
+                      {t.category}
+                    </span>
+                    {/* Active Toggle */}
+                    <button
+                      onClick={() => handleToggleActive(t.id, t.isActive !== false)}
+                      title={t.isActive !== false ? 'Deactivate template' : 'Activate template'}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${t.isActive !== false ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${t.isActive !== false ? 'translate-x-4' : ''}`} />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 truncate mb-4">{t.subject}</p>
                 
@@ -181,6 +238,13 @@ export default function TemplatesTab() {
                   className="flex-1 border border-black/20 dark:border-white/20 hover:bg-black/[0.02] dark:hover:bg-white/5 text-gray-700 dark:text-white text-sm py-2 rounded transition font-medium"
                 >
                   Preview
+                </button>
+                <button
+                  onClick={() => handleDeleteTemplate(t.id, t.name)}
+                  title="Delete template"
+                  className="px-2.5 border border-red-200 dark:border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 text-sm py-2 rounded transition font-medium"
+                >
+                  🗑
                 </button>
               </div>
             </div>
@@ -385,6 +449,17 @@ export default function TemplatesTab() {
                           .replace(/\{\{customerName\}\}/g, 'Aria')
                           .replace(/\{\{orderId\}\}/g, 'ZB-10294')
                           .replace(/\{\{totalPrice\}\}/g, '₹4,500')
+                          .replace(/\{\{total\}\}/g, '₹4,500 INR')
+                          .replace(/\{\{amount\}\}/g, '₹4,500')
+                          .replace(/\{\{customerEmail\}\}/g, 'aria@example.com')
+                          .replace(/\{\{orderDate\}\}/g, new Date().toLocaleDateString('en-IN', { dateStyle: 'long' }))
+                          .replace(/\{\{orderStatusUrl\}\}/g, 'https://zicabella.com/orders/ZB-10294')
+                          .replace(/\{\{trackingUrl\}\}/g, 'https://zicabella.com/track?id=TRACK123')
+                          .replace(/\{\{trackingNumber\}\}/g, 'TRACK123')
+                          .replace(/\{\{courier\}\}/g, 'Delhivery')
+                          .replace(/\{\{carrier\}\}/g, 'Delhivery')
+                          .replace(/\{\{reason\}\}/g, 'Requested by customer')
+                          .replace(/\{\{paymentMethod\}\}/g, 'Prepaid')
                           .replace(/\{\{itemsHtml\}\}/g, `
         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
           <tr>
@@ -401,6 +476,7 @@ export default function TemplatesTab() {
         </table>
                           `)
                           .replace(/\{\{collectionName\}\}/g, 'Midnight Mirage')
+                          .replace(/\{\{[^}]+\}\}/g, '')
                       }
                       className="w-full h-full border-none bg-white"
                     />

@@ -70,6 +70,7 @@ async function sendDynamicEmail(
     items: itemsHtml,
     products: itemsHtml,
     paymentMethod: order.paymentMethod || 'Prepaid',
+    orderStatusUrl: `https://zicabella.com/orders/${order.orderId}`,
     ...extraVars
   };
 
@@ -100,7 +101,7 @@ export async function sendOrderConfirmationEmail(order: OrderData): Promise<void
       orderDate: order.orderDate,
     });
 
-    await sendDynamicEmail('confirmation', order, fallback.subject, fallback.html, fallback.text);
+    await sendDynamicEmail('ORDER_CONFIRMATION', order, fallback.subject, fallback.html, fallback.text);
 
     console.log(`[OrderEmailService] Order confirmation email successfully sent for Order #${order.orderId}`);
   } catch (error) {
@@ -128,7 +129,7 @@ export async function sendOrderCodConfirmationEmail(order: OrderData): Promise<v
     fallback.subject = `COD Order Confirmed — #${order.orderId} | Zica Bella`;
     fallback.text = `Your Cash on Delivery order has been placed successfully.\n\n` + fallback.text;
 
-    await sendDynamicEmail('cod_confirmation', order, fallback.subject, fallback.html, fallback.text);
+    await sendDynamicEmail('ORDER_CONFIRMATION', order, fallback.subject, fallback.html, fallback.text);
 
     console.log(`[OrderEmailService] COD confirmation email successfully sent for Order #${order.orderId}`);
   } catch (error) {
@@ -157,7 +158,7 @@ export async function sendOrderShippedEmail(
       courier: order.courier,
     });
 
-    await sendDynamicEmail('shipped', order, fallback.subject, fallback.html, fallback.text, {
+    await sendDynamicEmail('ORDER_SHIPPED', order, fallback.subject, fallback.html, fallback.text, {
       trackingNumber: order.trackingNumber || 'N/A',
       courier: order.courier || 'Standard Shipping',
       carrier: order.courier || 'Standard Shipping',
@@ -187,7 +188,7 @@ export async function sendOrderDeliveredEmail(order: OrderData): Promise<void> {
       orderDate: order.orderDate,
     });
 
-    await sendDynamicEmail('delivered', order, fallback.subject, fallback.html, fallback.text);
+    await sendDynamicEmail('ORDER_DELIVERED', order, fallback.subject, fallback.html, fallback.text);
 
     console.log(`[OrderEmailService] Delivery email successfully sent for Order #${order.orderId}`);
   } catch (error) {
@@ -211,7 +212,7 @@ export async function sendOrderCancelledEmail(order: OrderData): Promise<void> {
     const fallbackSubject = `Order Cancelled — #${order.orderId} | Zica Bella`;
     const fallbackText = `Your order #${order.orderId} has been cancelled.`;
 
-    await sendDynamicEmail('cancelled', order, fallbackSubject, fallbackHtml, fallbackText, {
+    await sendDynamicEmail('ORDER_CANCELLED', order, fallbackSubject, fallbackHtml, fallbackText, {
       reason: 'Requested by customer or out of stock'
     });
 

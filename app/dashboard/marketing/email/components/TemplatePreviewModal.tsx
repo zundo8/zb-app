@@ -21,6 +21,17 @@ export default function TemplatePreviewModal({ template, onClose, onUse }: { tem
                   .replace(/\{\{customerName\}\}/g, 'Aria')
                   .replace(/\{\{orderId\}\}/g, 'ZB-10294')
                   .replace(/\{\{totalPrice\}\}/g, '₹4,500')
+                  .replace(/\{\{total\}\}/g, '₹4,500 INR')
+                  .replace(/\{\{amount\}\}/g, '₹4,500')
+                  .replace(/\{\{customerEmail\}\}/g, 'aria@example.com')
+                  .replace(/\{\{orderDate\}\}/g, new Date().toLocaleDateString('en-IN', { dateStyle: 'long' }))
+                  .replace(/\{\{orderStatusUrl\}\}/g, 'https://zicabella.com/orders/ZB-10294')
+                  .replace(/\{\{trackingUrl\}\}/g, 'https://zicabella.com/track?id=TRACK123')
+                  .replace(/\{\{trackingNumber\}\}/g, 'TRACK123')
+                  .replace(/\{\{courier\}\}/g, 'Delhivery')
+                  .replace(/\{\{carrier\}\}/g, 'Delhivery')
+                  .replace(/\{\{reason\}\}/g, 'Requested by customer')
+                  .replace(/\{\{paymentMethod\}\}/g, 'Prepaid')
                   .replace(/\{\{itemsHtml\}\}/g, `
         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
           <tr>
@@ -37,6 +48,7 @@ export default function TemplatePreviewModal({ template, onClose, onUse }: { tem
         </table>
                   `)
                   .replace(/\{\{collectionName\}\}/g, 'Midnight Mirage')
+                  .replace(/\{\{[^}]+\}\}/g, '')
               }
               className="w-full h-full border-none"
               sandbox="allow-same-origin"
