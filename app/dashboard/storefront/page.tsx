@@ -66,6 +66,8 @@ interface SettingsData {
   ringCarouselTitle: string;
   ringCarouselItems: string;
   footerLogo3dUrl: string;
+  homepageCollection: string;
+  homepageProducts: string;
 }
 
 function SettingsRow({
@@ -297,7 +299,8 @@ export default function StorefrontSettingsPage() {
         'kineticMeshTitle', 'kineticMeshProducts', 'enabledCollectionsHeader', 
         'enabledCollectionsPage', 'enabledCollectionsMenu',
         'flipbookImage', 'flipbookVideo', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
-        'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl'
+        'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl',
+        'homepageCollection', 'homepageProducts'
     ];
 
     const partialUpdate: any = { shopId: settings.id };
@@ -407,6 +410,31 @@ export default function StorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Show Text" description="Toggle hero text visibility">
              <ToggleField checked={settings.showHeroText!} onChange={set('showHeroText')} />
+          </SettingsRow>
+        </SettingsGroup>
+
+        {/* HOMEPAGE PRODUCTS CURATION */}
+        <SettingsGroup title="Homepage Products" icon={Sparkles}>
+          <div className="px-4 py-3 bg-foreground/[0.02] rounded-md border border-foreground/[0.05] flex items-center gap-3 mt-1">
+             <Info className="w-4 h-4 text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 shrink-0" />
+             <p className="text-[10px] font-medium text-foreground/70 uppercase tracking-widest">
+                Configure the main 12-product grid on your storefront and mobile app.
+             </p>
+          </div>
+          <SettingsRow label="Collection Handle" description="Shopify collection to show (e.g. tshirts)">
+             <select 
+               value={settings.homepageCollection || ''} 
+               onChange={e => set('homepageCollection')(e.target.value)}
+               className="w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground outline-none transition-colors"
+             >
+               <option value="">Newest Products (Default)</option>
+               {allCollections.map(c => (
+                 <option key={c.id} value={c.handle}>{c.title}</option>
+               ))}
+             </select>
+          </SettingsRow>
+          <SettingsRow label="Specific Products" description="Optional: Comma-separated Shopify IDs to show">
+             <InputField value={settings.homepageProducts!} onChange={set('homepageProducts')} placeholder="GID1, GID2..." />
           </SettingsRow>
         </SettingsGroup>
 

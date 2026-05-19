@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { fetchAllProducts, fetchCollectionByHandle, flattenProduct, ShopifyProduct } from '@/lib/shopify-admin';
+import { fetchAllProducts, fetchCollectionByHandle, fetchProductById, flattenProduct, ShopifyProduct } from '@/lib/shopify-admin';
+import { getShopSettings } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,22 @@ export async function GET(req: Request) {
       const result = await fetchCollectionByHandle(collectionHandle, limit);
       products = result.products;
     } else {
-      products = await fetchAllProducts(limit);
+      const shop = await getShopSettings();
+      const homepageProducts = shop?.homepageProducts;
+      const homepageCollection = shop?.homepageCollection;
+
+      if (homepageProducts && homepageProducts.trim()) {
+        const ids = homepageProducts.split(',').map((id: string) => id.trim()).filter(Boolean);
+        const fetched = await Promise.all(
+          ids.map((id: string) => fetchProductById(id).catch(() => null))
+        );
+        products = fetched.filter((p): p is ShopifyProduct => p !== null);
+      } else if (homepageCollection && homepageCollection.trim()) {
+        const result = await fetchCollectionByHandle(homepageCollection, limit);
+        products = result.products;
+      } else {
+        products = await fetchAllProducts(limit);
+      }
     }
 
     if (countOnly) {

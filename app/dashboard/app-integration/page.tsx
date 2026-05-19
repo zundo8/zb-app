@@ -7,7 +7,7 @@ import {
   ArrowRight, Activity, Server, Code, Eye, Settings, Link2, BarChart3,
   Image as ImageIcon, Undo2, ArrowLeftRight, FileText, User, Layers,
   Monitor, Heart, Palette, Navigation, MessageCircle, Shield, Clock,
-  ChevronRight, Search, Filter, Save, Info,
+  ChevronRight, Search, Filter, Save, Info, Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -693,6 +693,36 @@ export default function AppIntegrationPage() {
                             hint="Full-screen media displayed above Spotlight. Supports video (MP4) or image."
                           />
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Homepage Products Curation */}
+                    <div className="space-y-8 pt-8 border-t border-foreground/5">
+                      <SectionHeader icon={Sparkles} title="Homepage Products Curation" description="Configure the main 12-product listing grid on your mobile application." />
+                      <div className="p-4 rounded-xl bg-foreground/[0.03] border border-foreground/[0.05] flex items-start gap-3 mb-2">
+                        <Info className="w-4 h-4 text-foreground/30 mt-0.5 shrink-0" />
+                        <p className="text-[10px] text-foreground/40 leading-relaxed">
+                          Configure which collection or specific products appear as the main listing on the mobile app home screen.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <SettingsSelect 
+                          label="Collection" 
+                          value={settings.homepageCollection || ''} 
+                          onChange={v => updateSetting('homepageCollection', v)}
+                          options={[
+                            { label: 'Newest Products (Default)', value: '' },
+                            ...allCollections.map(c => ({ label: c.title, value: c.handle }))
+                          ]}
+                          hint="Shopify collection to display on homepage"
+                        />
+                        <SettingsInput 
+                          label="Specific Products" 
+                          value={settings.homepageProducts || ''} 
+                          onChange={v => updateSetting('homepageProducts', v)}
+                          placeholder="GID1, GID2..."
+                          hint="Optional: Comma-separated GIDs to show specific products"
+                        />
                       </div>
                     </div>
 

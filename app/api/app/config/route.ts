@@ -96,6 +96,10 @@ export async function GET() {
         products: safeJsonParse(shop.spotlightProducts),
         media: (shop as any).spotlightMedia || null,
       },
+      homepage: {
+        collection: shop.homepageCollection,
+        products: shop.homepageProducts,
+      },
       flipbook: {
         config: safeJsonParse(shop.flipbookConfig),
         desc: shop.flipbookDesc,

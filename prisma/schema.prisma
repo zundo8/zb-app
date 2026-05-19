@@ -91,6 +91,8 @@ model Shop {
   spotlightMedia           String?
   claudeApiKey             String?
   claudeWebhookSecret      String?
+  homepageCollection       String?    @default("")
+  homepageProducts         String?    @default("")
   customers                Customer[]
   orders                   Order[]
   products                 Product[]

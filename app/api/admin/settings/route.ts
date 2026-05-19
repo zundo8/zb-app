@@ -70,6 +70,8 @@ function envSettings() {
     spotlightSubtitle: 'Luxury Indian streetwear for modern men. Redefining bold everyday style.',
     spotlightCollection: 'tshirts',
     spotlightProducts: '',
+    homepageCollection: '',
+    homepageProducts: '',
     kineticMeshTitle: 'ARCHIVE EDITION',
     kineticMeshProducts: '',
     enabledCollectionsHeader: '[]',
@@ -209,6 +211,8 @@ export async function GET(req: Request) {
       ringCarouselTitle: s.ringCarouselTitle || 'RING COLLECTION',
       ringCarouselItems: s.ringCarouselItems || '[]',
       footerLogo3dUrl: s.footerLogo3dUrl || 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
+      homepageCollection: s.homepageCollection || '',
+      homepageProducts: s.homepageProducts || '',
       claudeApiKey: s.claudeApiKey || '',
       claudeWebhookSecret: s.claudeWebhookSecret || '',
     });
@@ -286,6 +290,7 @@ export async function PATCH(req: Request) {
       'flipbookImage', 'flipbookVideo', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
       'communityMinOrders', 'communityAgeRestricted', 'communityWhatsAppEnabled',
       'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems',
+      'homepageCollection', 'homepageProducts',
       'footerLogo3dUrl', 'claudeApiKey', 'claudeWebhookSecret'
     ] as const;
 

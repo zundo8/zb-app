@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
   Dimensions, Keyboard, Alert, Pressable, Image as RNImage,
-  Linking, InteractionManager,
+  Linking, InteractionManager, Clipboard,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import Animated, {
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import Markdown from 'react-native-markdown-display';
+import { Audio } from 'expo-av';
 import { BlurView } from 'expo-blur';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -294,6 +295,49 @@ const ZicaProductThumbnail = memo(({
 ));
 
 const { width } = Dimensions.get('window');
+
+// ─── Waveform & CodeBlock UI ──────────────────────
+
+const WaveformIcon = memo(() => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+    <View style={{ width: 1.8, height: 8, backgroundColor: '#000000', borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 14, backgroundColor: '#000000', borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 11, backgroundColor: '#000000', borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 16, backgroundColor: '#000000', borderRadius: 1 }} />
+    <View style={{ width: 1.8, height: 6, backgroundColor: '#000000', borderRadius: 1 }} />
+  </View>
+));
+
+const CodeBlock = memo(({ content, language = 'Bash' }: { content: string; language?: string }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    Clipboard.setString(content.trim());
+    setCopied(true);
+    haptics.success();
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <View style={styles.codeBlockContainer}>
+      <View style={styles.codeBlockHeader}>
+        <Typography size={10} weight="700" color="rgba(255, 255, 255, 0.4)" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+          {language}
+        </Typography>
+        <TouchableOpacity onPress={handleCopy} style={styles.copyButton} activeOpacity={0.7}>
+          <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color="rgba(255, 255, 255, 0.6)" />
+        </TouchableOpacity>
+      </View>
+      <Typography 
+        size={11} 
+        color="#E0E0E0" 
+        style={{ fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', lineHeight: 18 }}
+      >
+        {content.trim()}
+      </Typography>
+    </View>
+  );
+});
 
 // ─── Types ───────────────────────────────────────
 
@@ -629,16 +673,21 @@ const ChunkedMarkdownRenderer = memo(({
     <View style={{ width: '100%' }}>
       {chunks.slice(0, visibleCount).map((chunk) => {
         if (chunk.type === 'code') {
+          const lines = chunk.content.split('\n');
+          let language = 'Bash';
+          let cleanContent = chunk.content;
+          
+          if (lines[0] && lines[0].trim() && !lines[0].includes(' ') && lines[0].length < 15) {
+            language = lines[0].trim();
+            cleanContent = lines.slice(1).join('\n');
+          }
+
           return (
-            <View key={chunk.id} style={mdStyles.fence}>
-              <Typography 
-                size={11} 
-                color={mdStyles.code_block.color} 
-                style={{ fontFamily: mdStyles.code_block.fontFamily, lineHeight: 16 }}
-              >
-                {chunk.content.trim()}
-              </Typography>
-            </View>
+            <CodeBlock 
+              key={chunk.id} 
+              content={cleanContent} 
+              language={language} 
+            />
           );
         }
         return (
@@ -832,13 +881,12 @@ const MessageBubble = memo(({
         msgStyles.bubble,
         isUser 
           ? { 
-              backgroundColor: colors.foreground, 
-              borderBottomRightRadius: 4,
-              shadowColor: colors.foreground,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.12,
-              shadowRadius: 8,
-              elevation: 3,
+              backgroundColor: 'rgba(255, 255, 255, 0.07)', 
+              borderRadius: 20,
+              borderBottomRightRadius: 20,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              alignSelf: 'flex-end',
             } 
           : { 
               backgroundColor: 'transparent', 
@@ -846,8 +894,10 @@ const MessageBubble = memo(({
               borderWidth: 0,
               paddingHorizontal: 0,
               paddingVertical: 4,
+              width: '100%',
+              maxWidth: '100%',
             },
-        item.isError && msgStyles.errorBubble,
+        item.isError ? msgStyles.errorBubble : null,
       ]}>
         {item.image && (
           <Image 
@@ -861,7 +911,7 @@ const MessageBubble = memo(({
           <Typography 
               size={13} 
               weight={"500"} 
-              color={colors.background}
+              color="#FFFFFF"
               style={{ lineHeight: 20, letterSpacing: -0.2 }}
           >
             {item.content}
@@ -906,16 +956,13 @@ const MessageBubble = memo(({
           <OrderTrackerCard order={matchingOrder} navigation={navigation} />
         )}
 
-        <View style={msgStyles.metaRow}>
-          {item.toolsUsed ? (
-            <Typography size={6} weight="800" color={isUser ? colors.background : colors.info} style={{ letterSpacing: 1, opacity: 0.8 }}>
+        {item.toolsUsed ? (
+          <View style={[msgStyles.metaRow, { marginTop: 6 }]}>
+            <Typography size={6} weight="800" color={isUser ? "#FFFFFF" : colors.info} style={{ letterSpacing: 1, opacity: 0.8 }}>
               ⚡ {item.toolsUsed} TOOL{item.toolsUsed > 1 ? 'S' : ''}
             </Typography>
-          ) : null}
-          <Typography size={7} weight="500" color={isUser ? colors.background : colors.textExtraLight} style={[msgStyles.time, { opacity: 0.5 }]}>
-            {item.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Typography>
-        </View>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -938,9 +985,20 @@ const MessageBubble = memo(({
 interface InputBarProps {
   onSend: (text: string, image?: { uri: string; base64: string; mimeType: string } | null) => void;
   isTyping: boolean;
+  isRecording?: boolean;
+  recordingDuration?: number;
+  onStartRecording?: () => void;
+  onStopRecording?: () => void;
 }
 
-const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
+const InputBar = memo(({ 
+  onSend, 
+  isTyping,
+  isRecording = false,
+  recordingDuration = 0,
+  onStartRecording,
+  onStopRecording
+}: InputBarProps) => {
   const colors = useColors();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
@@ -1023,7 +1081,11 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
 
   const handleSubmit = () => {
     if (!localInput.trim() && !pendingImage) {
-      onSend('');
+      if (!isRecording) {
+        onStartRecording?.();
+      } else {
+        onStopRecording?.();
+      }
       return;
     }
     onSend(localInput, pendingImage);
@@ -1039,19 +1101,19 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
         <View style={[
           styles.pendingImageBar, 
           { 
-            borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+            borderColor: 'rgba(255, 255, 255, 0.15)',
             overflow: 'hidden',
             marginHorizontal: 0,
             marginBottom: 8,
           }
         ]}>
-          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
           <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
-          <Typography size={10} weight="500" color={colors.textMuted} style={{ flex: 1, marginLeft: 10 }}>
+          <Typography size={10} weight="500" color="rgba(255, 255, 255, 0.5)" style={{ flex: 1, marginLeft: 10 }}>
             Image ready to send
           </Typography>
           <TouchableOpacity onPress={() => setPendingImage(null)} style={styles.pendingImageRemove}>
-            <Ionicons name="close-circle" size={22} color={colors.textExtraLight} />
+            <Ionicons name="close-circle" size={22} color="rgba(255, 255, 255, 0.4)" />
           </TouchableOpacity>
         </View>
       )}
@@ -1059,46 +1121,65 @@ const InputBar = memo(({ onSend, isTyping }: InputBarProps) => {
       <View style={[
         styles.inputPill, 
         { 
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-          backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(240, 240, 240, 0.8)',
+          borderColor: isRecording ? '#FF3B30' : 'rgba(255, 255, 255, 0.08)',
+          backgroundColor: 'rgba(20, 20, 20, 0.85)',
         }
       ]}>
-        <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-        
+        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
         
         <View style={styles.attachRow}>
-          <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
-            <Ionicons name="add" size={28} color={colors.textExtraLight} />
+          <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage} disabled={isRecording}>
+            <Ionicons name="add" size={22} color="rgba(255, 255, 255, 0.7)" />
           </TouchableOpacity>
         </View>
 
         <TextInput
-          value={localInput}
+          value={isRecording ? `Recording audio prompt... [${recordingDuration}s]` : localInput}
           onChangeText={setLocalInput}
-          placeholder="Ask anything"
-          placeholderTextColor={colors.textExtraLight}
-          style={[styles.input, { color: colors.text, fontSize: 16 }]}
+          placeholder={isRecording ? "Pulsing waveform active..." : "Ask anything"}
+          placeholderTextColor="rgba(255, 255, 255, 0.3)"
+          style={[styles.input, { color: isRecording ? '#FF3B30' : '#FFFFFF', fontSize: 15 }]}
           multiline
           maxLength={20000}
-          editable={true}
-          keyboardAppearance={isDark ? 'dark' : 'light'}
+          editable={!isRecording}
+          keyboardAppearance="dark"
         />
+
+        <TouchableOpacity 
+          style={styles.micButton} 
+          onPress={() => {
+            if (isRecording) return;
+            haptics.buttonTap();
+            onSend('');
+          }}
+          disabled={isRecording}
+        >
+          <Ionicons name="time-outline" size={22} color="rgba(255, 255, 255, 0.7)" />
+        </TouchableOpacity>
 
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={isTyping}
-          style={[styles.sendButton, {
-            backgroundColor: isDark ? '#FFFFFF' : '#000000',
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-          }]}
+          style={[
+            styles.waveformCircle,
+            {
+              backgroundColor: isRecording ? '#FF3B30' : '#FFFFFF',
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }
+          ]}
+          activeOpacity={0.8}
         >
-          <Ionicons 
-            name={hasContent ? "arrow-up" : "time-outline"} 
-            size={20} 
-            color={isDark ? '#000000' : '#FFFFFF'} 
-          />
+          {hasContent ? (
+            <Ionicons name="arrow-up" size={18} color="#000000" />
+          ) : isRecording ? (
+            <Ionicons name="square" size={14} color="#FFFFFF" />
+          ) : (
+            <WaveformIcon />
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -1134,6 +1215,12 @@ const ChatScreen = memo(() => {
   // State for user orders
   const [userOrders, setUserOrders] = useState<any[]>([]);
 
+  // Audio prompt recording states
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingTimerRef = useRef<any>(null);
+
   // Refs for performance optimizations (avoid recreating handleSend callback)
   const isTypingRef = useRef(isTyping);
 
@@ -1150,6 +1237,7 @@ const ChatScreen = memo(() => {
   // Throttled scroll to bottom with intelligent scroll-up detection (fixes scroll lock)
   const isNearBottom = useRef(true);
   const lastScrollTime = useRef(0);
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
   // Streaming token batching — accumulates tokens and flushes at 100ms intervals
   const tokenBuffer = useRef('');
@@ -1160,7 +1248,13 @@ const ChatScreen = memo(() => {
     
     const now = Date.now();
     if (now - lastScrollTime.current > 150) {
-      flatListRef.current?.scrollToEnd({ animated });
+      requestAnimationFrame(() => {
+        try {
+          flatListRef.current?.scrollToEnd({ animated });
+        } catch (e) {
+          // ignore layout timing scroll warnings
+        }
+      });
       lastScrollTime.current = now;
     }
   }, []);
@@ -1169,8 +1263,12 @@ const ChatScreen = memo(() => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     // Check if user is within 100 pixels of the bottom
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    isNearBottom.current = distanceFromBottom < 100;
+    const nearBottom = distanceFromBottom < 100;
+    isNearBottom.current = nearBottom;
+    setShowScrollDown(!nearBottom && contentSize.height > layoutMeasurement.height);
   }, []);
+
+
 
   // Fetch active customer orders for the tracking status cards
   useEffect(() => {
@@ -1503,6 +1601,115 @@ const ChatScreen = memo(() => {
     }
   }, [scrollToEndThrottled, setMessages]);
 
+  // Start recording voice prompt
+  const startRecording = useCallback(async () => {
+    try {
+      haptics.success();
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please grant microphone access to record audio.');
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      
+      setRecording(newRecording);
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+
+    } catch (err) {
+      console.error('Failed to start recording', err);
+      Alert.alert('Microphone Error', 'Failed to initialize microphone recording.');
+    }
+  }, []);
+
+  // Stop recording and process transcription
+  const stopRecording = useCallback(async () => {
+    try {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+
+      haptics.success();
+      setIsRecording(false);
+
+      if (!recording) return;
+
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setRecording(null);
+
+      if (uri) {
+        await transcribeAndSend(uri);
+      }
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+      setIsRecording(false);
+      setRecording(null);
+    }
+  }, [recording]);
+
+  // Transcribe voice prompt and invoke Zica AI prompt response
+  const transcribeAndSend = useCallback(async (audioUri: string) => {
+    try {
+      setFetchingProduct(true);
+      
+      const formData = new FormData();
+      formData.append('file', {
+        uri: audioUri,
+        name: 'audio.m4a',
+        type: 'audio/m4a',
+      } as any);
+
+      const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
+      const response = await fetch(`${APP_URL}/api/app/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      setFetchingProduct(false);
+
+      if (data?.text) {
+        handleSend(data.text);
+      } else {
+        Alert.alert('Transcription Error', 'Could not convert audio prompt to text.');
+      }
+    } catch (err) {
+      console.error('Transcription upload failed:', err);
+      setFetchingProduct(false);
+      Alert.alert('Network Error', 'Failed to connect to speech transcription service.');
+    }
+  }, [handleSend]);
+
+  // Clean up recording timer on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleLinkPress = useCallback((url: string) => {
     const zicaTarget = extractZicaLinkTarget(url);
     if (zicaTarget) {
@@ -1751,9 +1958,32 @@ const ChatScreen = memo(() => {
                 }
               />
           )}
+          
+          {showScrollDown && (
+            <Animated.View entering={ZoomIn.duration(200)} style={styles.floatingScrollDown}>
+              <TouchableOpacity
+                onPress={() => {
+                  isNearBottom.current = true;
+                  setShowScrollDown(false);
+                  flatListRef.current?.scrollToEnd({ animated: true });
+                }}
+                activeOpacity={0.8}
+                style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
+              >
+                <Ionicons name="arrow-down" size={14} color="#FFFFFF" />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
         </View>
 
-        <InputBar onSend={handleSend} isTyping={isTyping} />
+        <InputBar 
+          onSend={handleSend} 
+          isTyping={isTyping} 
+          isRecording={isRecording}
+          recordingDuration={recordingDuration}
+          onStartRecording={startRecording}
+          onStopRecording={stopRecording}
+        />
       </KeyboardAvoidingView>
 
       <ChatHistoryModal 
@@ -1784,19 +2014,13 @@ export default ChatScreen;
 // ─── Styles ──────────────────────────────────────
 
 const msgStyles = StyleSheet.create({
-  row: { marginBottom: 16, flexDirection: 'row' },
+  row: { marginBottom: 16, flexDirection: 'row', width: '100%' },
   rowRight: { justifyContent: 'flex-end' },
   bubble: { 
-    maxWidth: width * 0.78, 
-    paddingHorizontal: 16, 
-    paddingVertical: 12, 
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.05)',
+    maxWidth: '100%', 
+    paddingHorizontal: 0, 
+    paddingVertical: 4,
   },
-  userBubble: { borderBottomRightRadius: 4 },
-  aiBubble: { borderBottomLeftRadius: 4 },
-  errorBubble: { borderColor: 'rgba(255, 59, 48, 0.2)' },
   imageContent: {
     width: width * 0.65,
     height: width * 0.85,
@@ -1804,12 +2028,59 @@ const msgStyles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: 'rgba(0,0,0,0.05)',
   },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   time: { marginLeft: 12 },
+  errorBubble: { borderColor: 'rgba(255, 59, 48, 0.2)' },
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: '#000000' },
+  codeBlockContainer: {
+    marginVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    overflow: 'hidden',
+    backgroundColor: '#141414',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  codeBlockHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  copyButton: {
+    padding: 4,
+  },
+  floatingScrollDown: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(30, 30, 30, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  waveformCircle: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  micButton: {
+    padding: 8,
+    marginRight: 4,
+  },
   onboarding: { flex: 1, paddingHorizontal: 24, justifyContent: 'center', alignItems: 'center' },
   minimalIconBg: {
     width: 52,
@@ -1884,14 +2155,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, 
     maxHeight: 100, 
     fontWeight: '500',
-  },
-  sendButton: { 
-    width: 36, 
-    height: 36, 
-    borderRadius: 18, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    marginRight: 2,
   },
   pendingImageBar: {
     flexDirection: 'row',
