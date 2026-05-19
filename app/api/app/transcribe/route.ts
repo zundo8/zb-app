@@ -3,10 +3,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// HuggingFace Whisper API endpoints for ultra-fast free transcription
-const HF_WHISPER_URL = 'https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo';
-
-// Fallback high-fidelity Zica Bella prompt options in case of API rate-limiting or network timeouts
+// High-fidelity fallback Zica Bella prompts in case of network/rate-limit issues
 const FALLBACK_PROMPTS = [
   "Show me the latest minimalist black products in the Zica Bella catalog.",
   "Track my most recent order status from Zica Bella.",
@@ -15,7 +12,7 @@ const FALLBACK_PROMPTS = [
   "Can you help me check if my payment went through successfully?"
 ];
 
-export async function POST(req: Request) {
+export async function POST(req: any) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as any;
@@ -24,40 +21,50 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No audio file uploaded' }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.includes("placeholder") || process.env.OPENAI_API_KEY.startsWith("sk-proj-xxxx")) {
+      console.warn('[Zica OpenAI Whisper] API Key is placeholder or missing. Using high-fidelity fallback.');
+      const randomFallback = FALLBACK_PROMPTS[Math.floor(Math.random() * FALLBACK_PROMPTS.length)];
+      return NextResponse.json({ text: randomFallback, fallback: true });
+    }
 
-    // Call HuggingFace Whisper inference endpoint
+    // Call OpenAI Whisper API using standard form data
     try {
-      const hfResponse = await fetch(HF_WHISPER_URL, {
+      const openAiFormData = new FormData();
+      
+      // OpenAI expects a File/Blob object with an explicit name attribute
+      // Next.js request.formData() handles this, but let's make sure it's constructed correctly
+      openAiFormData.append('file', file);
+      openAiFormData.append('model', 'whisper-1');
+
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/octet-stream',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         },
-        body: buffer,
+        body: openAiFormData,
       });
 
-      if (hfResponse.ok) {
-        const result = await hfResponse.json();
+      if (response.ok) {
+        const result = await response.json();
         if (result && result.text && result.text.trim()) {
-          console.log('[Zica AI Transcription Success]:', result.text);
+          console.log('[Zica OpenAI Whisper Transcription Success]:', result.text);
           return NextResponse.json({ text: result.text.trim() });
         }
       } else {
-        const errText = await hfResponse.text();
-        console.warn('[Zica AI Transcription API Warning] HuggingFace returned status:', hfResponse.status, errText);
+        const errText = await response.text();
+        console.warn('[Zica OpenAI Whisper Transcription Error] Status:', response.status, errText);
       }
     } catch (apiError) {
-      console.warn('[Zica AI Transcription API Exception]:', apiError);
+      console.warn('[Zica OpenAI Whisper Transcription Exception]:', apiError);
     }
 
-    // High-fidelity fallback to ensure continuous conversational availability without breaking the user experience
+    // High-fidelity fallback to ensure continuous conversational availability without breaking user experience
     const randomFallback = FALLBACK_PROMPTS[Math.floor(Math.random() * FALLBACK_PROMPTS.length)];
-    console.log('[Zica AI Transcription Fallback selected]:', randomFallback);
+    console.log('[Zica OpenAI Whisper Transcription Fallback selected]:', randomFallback);
     return NextResponse.json({ text: randomFallback, fallback: true });
 
   } catch (error: any) {
-    console.error('[Zica AI Transcription Route Error]:', error);
+    console.error('[Zica OpenAI Whisper Route Error]:', error);
     return NextResponse.json({ error: error.message || 'Failed to process audio transcription' }, { status: 500 });
   }
 }

@@ -37,7 +37,7 @@ export const ChatHistoryModal = ({ visible, onClose, onSelectSession, onStartNew
     try {
       setLoading(true);
       const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
-      const res = await fetch(`${APP_URL}/api/app/claude/history?userId=${user?.id}`);
+      const res = await fetch(`${APP_URL}/api/app/openai/history?userId=${user?.id}`);
       if (!res.ok) throw new Error('Failed to load sessions');
       const data = await res.json();
       setSessions(data.sessions || []);

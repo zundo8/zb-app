@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
   Dimensions, Keyboard, Alert, Pressable, Image as RNImage,
-  Linking, InteractionManager, Clipboard,
+  Linking, InteractionManager, Clipboard, PanResponder, AppState,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,7 +23,9 @@ import {
   RecordingPresets, 
   getRecordingPermissionsAsync, 
   requestRecordingPermissionsAsync,
-  setAudioModeAsync
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus
 } from 'expo-audio';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -36,8 +38,7 @@ import { ChatHistoryModal } from './ChatHistoryModal';
 import { apiGet } from '../api/shopify';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
-import { callClaudeStream } from '../api/claude';
-import { ZICA_AI_CONFIG } from '../constants/aiConfig';
+import { callOpenAIStream } from '../api/openai';
 import { ScrollView } from 'react-native-gesture-handler';
 
 // ─── Types & Parsing ──────────────────────────────
@@ -718,12 +719,16 @@ const MessageBubble = memo(({
   item, 
   onLinkPress, 
   userOrders = [], 
-  isLatest = false
+  isLatest = false,
+  playingMessageId = null,
+  onPlaySpeech = () => {}
 }: { 
   item: Message; 
   onLinkPress: (url: string) => boolean; 
   userOrders?: any[]; 
   isLatest?: boolean;
+  playingMessageId?: string | null;
+  onPlaySpeech?: (id: string, text: string) => void;
 }) => {
   const isUser = item.isUser;
   const navigation = useNavigation<any>();
@@ -970,6 +975,21 @@ const MessageBubble = memo(({
             </Typography>
           </View>
         ) : null}
+
+        {!isUser && !item.isStreaming && item.content && (
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4, opacity: 0.8 }}>
+            <TouchableOpacity 
+              onPress={() => onPlaySpeech(item.id, item.content)}
+              style={{ padding: 6, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)' }}
+            >
+              <Ionicons 
+                name={playingMessageId === item.id ? "volume-mute-outline" : "volume-medium-outline"} 
+                size={16} 
+                color={colors.textMuted} 
+              />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -985,6 +1005,8 @@ const MessageBubble = memo(({
   && prev.onLinkPress === next.onLinkPress
   && prev.userOrders === next.userOrders
   && prev.isLatest === next.isLatest
+  && prev.playingMessageId === next.playingMessageId
+  && prev.onPlaySpeech === next.onPlaySpeech
 ));
 
 // ─── Input Bar Component ─────────────────────────
@@ -1225,6 +1247,17 @@ const ChatScreen = memo(() => {
   // Audio prompt recording states
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
+
+  // Premium Text-to-Speech Player and states
+  const speechPlayer = useAudioPlayer();
+  const speechStatus = useAudioPlayerStatus(speechPlayer);
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!speechStatus.playing) {
+      setPlayingMessageId(null);
+    }
+  }, [speechStatus.playing]);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<any>(null);
 
@@ -1232,6 +1265,33 @@ const ChatScreen = memo(() => {
   const isTypingRef = useRef(isTyping);
 
   useEffect(() => { isTypingRef.current = isTyping; }, [isTyping]);
+
+  // Edge swipe-back gesture responder
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt, gestureState) => {
+        return evt.nativeEvent.pageX < 40;
+      },
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return evt.nativeEvent.pageX < 40 && gestureState.dx > 10 && Math.abs(gestureState.dy) < 15;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 60 && Math.abs(gestureState.dy) < 50) {
+          haptics.buttonTap();
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            const parent = navigation.getParent();
+            if (parent && parent.canGoBack()) {
+              parent.goBack();
+            } else {
+              navigation.navigate('HomeTab');
+            }
+          }
+        }
+      },
+    })
+  ).current;
 
   const setMessages = useCallback((updater: React.SetStateAction<Message[]>) => {
     const nextMessages = typeof updater === 'function'
@@ -1411,12 +1471,32 @@ const ChatScreen = memo(() => {
     });
   }, []);
 
-  // Cleanup abort controller on unmount
+  // Cleanup abort controller and handle App State changes (backgrounding) on unmount
   useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // Pause any active speech playback
+        if (speechPlayer.playing) {
+          speechPlayer.pause();
+          setPlayingMessageId(null);
+        }
+        // Stop any active recording
+        if (isRecording) {
+          try {
+            await audioRecorder.stop();
+          } catch (e) {}
+          setIsRecording(false);
+        }
+      }
+    });
+
     return () => {
+      subscription.remove();
       abortControllerRef.current?.();
+      // Safely release the player
+      speechPlayer.remove();
     };
-  }, []);
+  }, [speechPlayer, isRecording, audioRecorder]);
 
   const handleSend = useCallback(async (text?: string, imageToSend?: { uri: string; base64: string; mimeType: string } | null) => {
     const currentIsTyping = isTypingRef.current;
@@ -1498,7 +1578,7 @@ const ChatScreen = memo(() => {
         },
       ];
 
-      // Invoke client-side Claude streaming call using direct key
+      // Invoke OpenAI streaming call via secure backend proxy
       tokenBuffer.current = '';
       if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
       flushIntervalRef.current = setInterval(() => {
@@ -1516,9 +1596,10 @@ const ChatScreen = memo(() => {
         }
       }, 100);
 
-      const abort = callClaudeStream({
+      const abort = callOpenAIStream({
         messages: messagesToSend,
-        systemPrompt: ZICA_AI_CONFIG.SYSTEM_PROMPT + currentCatalogContext + currentUserOrdersContext,
+        sessionId: currentSessionIdRef.current,
+        userId: user?.id,
         onToken: (token) => {
           if (isTypingRef.current) {
             setIsTyping(false);
@@ -1542,13 +1623,17 @@ const ChatScreen = memo(() => {
           );
           scrollToEndThrottled(false);
         },
-        onComplete: (fullText) => {
+        onComplete: (fullText, resolvedSessionId) => {
           // Stop batching and flush any remaining tokens
           if (flushIntervalRef.current) { clearInterval(flushIntervalRef.current); flushIntervalRef.current = null; }
           tokenBuffer.current = '';
           setIsTyping(false);
           isTypingRef.current = false;
           abortControllerRef.current = null;
+
+          if (resolvedSessionId) {
+            currentSessionIdRef.current = resolvedSessionId;
+          }
 
           requestAnimationFrame(() => {
             setMessages(prev =>
@@ -1648,6 +1733,12 @@ const ChatScreen = memo(() => {
   const startRecording = useCallback(async () => {
     try {
       haptics.success();
+
+      // Voice Interruption: Stop active speech playback if recording is initiated
+      if (speechPlayer.playing) {
+        speechPlayer.pause();
+        setPlayingMessageId(null);
+      }
       
       const permissions = await getRecordingPermissionsAsync();
       if (!permissions.granted) {
@@ -1826,7 +1917,7 @@ const ChatScreen = memo(() => {
   const loadSession = async (sessionId: string) => {
     try {
       const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
-      const res = await fetch(`${APP_URL}/api/app/claude/history/${sessionId}`);
+      const res = await fetch(`${APP_URL}/api/app/openai/history/${sessionId}`);
       if (res.ok) {
         const data = await res.json();
         const loadedMessages: Message[] = data.messages.map((m: any) => ({
@@ -1837,12 +1928,12 @@ const ChatScreen = memo(() => {
         }));
         setMessages(loadedMessages);
         
-        // Also map to Claude format history
-        const claudeHistory = data.messages.map((m: any) => ({
+        // Also map to history ref
+        const historyData = data.messages.map((m: any) => ({
           role: m.role,
           content: m.content
         }));
-        conversationHistoryRef.current = claudeHistory;
+        conversationHistoryRef.current = historyData;
         currentSessionIdRef.current = sessionId;
         setHistoryVisible(false);
       }
@@ -1850,6 +1941,44 @@ const ChatScreen = memo(() => {
       console.error(err);
     }
   };
+
+  const handlePlaySpeech = useCallback(async (messageId: string, text: string) => {
+    try {
+      haptics.buttonTap();
+      
+      // Voice interruption: If tapping the already playing message, pause it
+      if (playingMessageId === messageId && speechPlayer.playing) {
+        speechPlayer.pause();
+        setPlayingMessageId(null);
+        return;
+      }
+
+      // Stop any active recording/playback before starting
+      if (isRecording) {
+        await audioRecorder.stop();
+        setIsRecording(false);
+      }
+      
+      // Set playing state immediately
+      setPlayingMessageId(messageId);
+
+      // Clean up text: remove markdown links, bold tags, etc. for cleaner speech
+      const cleanText = text
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // remove markdown links
+        .replace(/[\*\_~#`]/g, '') // remove formatting symbols
+        .trim();
+
+      const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://app.zicabella.com';
+      const speakUrl = `${APP_URL}/api/app/speak?text=${encodeURIComponent(cleanText)}`;
+      
+      speechPlayer.replace(speakUrl);
+      speechPlayer.play();
+    } catch (err) {
+      console.error("[TTS Play Error]", err);
+      setPlayingMessageId(null);
+      Alert.alert("Speech Error", "Could not play text-to-speech audio.");
+    }
+  }, [playingMessageId, speechPlayer, isRecording, audioRecorder]);
 
   const startNewChat = useCallback(() => {
     setMessages([]);
@@ -1875,8 +2004,10 @@ const ChatScreen = memo(() => {
       onLinkPress={handleLinkPress}
       userOrders={userOrders}
       isLatest={index === messages.length - 1}
+      playingMessageId={playingMessageId}
+      onPlaySpeech={handlePlaySpeech}
     />
-  ), [handleLinkPress, messages.length, userOrders]);
+  ), [handleLinkPress, messages.length, userOrders, playingMessageId, handlePlaySpeech]);
 
   const handleContentSizeChange = useCallback(() => {
     if (messagesRef.current.length > 0 && isNearBottom.current) {
@@ -1935,7 +2066,10 @@ const ChatScreen = memo(() => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View 
+      style={[styles.container, { backgroundColor: colors.background }]}
+      {...panResponder.panHandlers}
+    >
       <GlassHeader title="ZICA AI" showBack />
       
       <KeyboardAvoidingView

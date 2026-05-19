@@ -51,7 +51,29 @@ export default function GlassHeader({
         style={[styles.islandBase, styles.leftIsland, { borderColor: colors.borderLight }]}
         onPress={() => {
           if (showBack) {
-            navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main');
+            haptics.buttonTap();
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              const parent = navigation.getParent();
+              if (parent && parent.canGoBack()) {
+                parent.goBack();
+              } else {
+                const state = navigation.getState();
+                const routeNames = state?.routeNames || [];
+                if (routeNames.includes('ShopScreen')) {
+                  navigation.navigate('ShopScreen');
+                } else if (routeNames.includes('SearchScreen')) {
+                  navigation.navigate('SearchScreen');
+                } else if (routeNames.includes('HomeScreen')) {
+                  navigation.navigate('HomeScreen');
+                } else if (routeNames.includes('ProfileScreen')) {
+                  navigation.navigate('ProfileScreen');
+                } else {
+                  navigation.navigate('Main');
+                }
+              }
+            }
           } else {
             haptics.buttonTap();
             setMenuOpen(true);

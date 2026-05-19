@@ -197,6 +197,7 @@ export const TabNavigator = () => {
     <Tab.Navigator
       id="MainTabNavigator"
       tabBar={(props) => <CustomTabBar {...props} />}
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         lazy: true,

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Dimensions, Animated, Platform } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Dimensions, Animated, Platform, PanResponder } from 'react-native';
+import { haptics } from '../utils/haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { useColors } from '../constants/colors';
@@ -84,6 +85,43 @@ export default function CollectionScreen() {
   
   // Animation for the sticky filter appearance
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Custom edge swipe-back gesture handler
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt, gestureState) => {
+        return evt.nativeEvent.pageX < 40;
+      },
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return evt.nativeEvent.pageX < 40 && gestureState.dx > 10 && Math.abs(gestureState.dy) < 15;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 60 && Math.abs(gestureState.dy) < 50) {
+          haptics.buttonTap();
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            const parent = navigation.getParent();
+            if (parent && parent.canGoBack()) {
+              parent.goBack();
+            } else {
+              const state = navigation.getState();
+              const routeNames = state?.routeNames || [];
+              if (routeNames.includes('ShopScreen')) {
+                navigation.navigate('ShopScreen');
+              } else if (routeNames.includes('SearchScreen')) {
+                navigation.navigate('SearchScreen');
+              } else if (routeNames.includes('HomeScreen')) {
+                navigation.navigate('HomeScreen');
+              } else {
+                navigation.navigate('HomeTab');
+              }
+            }
+          }
+        }
+      },
+    })
+  ).current;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -216,7 +254,10 @@ export default function CollectionScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View 
+      style={[styles.container, { backgroundColor: colors.background }]}
+      {...panResponder.panHandlers}
+    >
       {/* ── Main List ── */}
       <FlatList
         data={productRows}
