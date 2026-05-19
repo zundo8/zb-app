@@ -108,11 +108,26 @@ function OrdersStack() {
 
 // ───────────────────────────────────────────────────────────────────
 
+function getActiveRouteName(state: any): string | null {
+  if (!state || !state.routes) return null;
+  const route = state.routes[state.index];
+  if (route.state) {
+    return getActiveRouteName(route.state);
+  }
+  return route.name || null;
+}
+
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const isTabBarVisibleGlobal = useUIStore(s => s.isTabBarVisible);
   // Hide tab bar automatically when ChatTab is active to prevent visual overlap
   const currentRouteName = state.routes[state.index]?.name;
-  const isTabBarVisible = isTabBarVisibleGlobal && currentRouteName !== 'ChatTab';
+  const leafRouteName = getActiveRouteName(state);
+  
+  const isTabBarVisible = isTabBarVisibleGlobal && 
+                          currentRouteName !== 'ChatTab' && 
+                          leafRouteName !== 'ReturnRequest' && 
+                          leafRouteName !== 'ExchangeSelectProduct' && 
+                          leafRouteName !== 'OrderDetails';
 
   const colors = useColors();
   const theme = useThemeStore(s => s.theme);

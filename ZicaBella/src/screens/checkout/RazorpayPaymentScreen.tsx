@@ -134,6 +134,7 @@ export default function RazorpayPaymentScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  const [createdOrderNumber, setCreatedOrderNumber] = useState<string | null>(null);
 
   const recordOrderOnBackend = useCallback(async (paymentId: string, rzpOrderId: string) => {
     if (orderRecordedRef.current) return;
@@ -176,6 +177,7 @@ export default function RazorpayPaymentScreen() {
           throw new Error(resJson.error || 'Failed to sync order');
         }
         setCreatedOrderId(resJson.orderId || resJson.id || null);
+        setCreatedOrderNumber(resJson.orderNumber || null);
         orderRecordedRef.current = true;
       } else {
         throw new Error('Missing order details for backend sync');
@@ -230,7 +232,7 @@ export default function RazorpayPaymentScreen() {
   const goToOrders = () => {
     nav.getParent()?.reset({
       index: 1,
-      routes: [{ name: 'Main' }, { name: 'OrderConfirmation', params: { orderId: createdOrderId || orderId, paymentMethod: 'PREPAID' } }],
+      routes: [{ name: 'Main' }, { name: 'OrderConfirmation', params: { orderId: createdOrderId || orderId, orderNumber: createdOrderNumber || undefined, paymentMethod: 'PREPAID' } }],
     });
   };
 

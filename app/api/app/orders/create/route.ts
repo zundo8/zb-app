@@ -20,32 +20,53 @@ function jsonError(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status, headers: corsHeaders });
 }
 
-function toOrderNumberFromSeq(seq: number) {
-  return `ZB${seq}`;
-}
-
 async function allocateOrderNumber(): Promise<string> {
-  // Best-effort monotonic-ish allocation without schema changes.
-  // Format: ZB71XXXX (e.g., ZB710001)
-  const count = await prisma.order.count();
-  const base = 710000;
-  // Avoid collisions by probing forward a bit.
-  for (let i = 1; i <= 100; i++) {
-    const candidate = toOrderNumberFromSeq(base + count + i);
-    // Check if any order already has this in shopifyOrderId (prefixed with #) or as a tag
-    const existing = await prisma.order.findFirst({ 
-      where: { 
-        OR: [
-          { shopifyOrderId: `#${candidate}` },
-          { tags: { contains: candidate } }
-        ]
-      }, 
-      select: { id: true } 
-    });
-    if (!existing) return candidate;
+  // Fetch the 100 most recent orders to find the highest ZB sequence number in use
+  const recentOrders = await prisma.order.findMany({
+    select: { shopifyOrderId: true, tags: true },
+    orderBy: { createdAt: 'desc' },
+    take: 100
+  });
+
+  let maxSeq = 0;
+  for (const o of recentOrders) {
+    const so = String(o.shopifyOrderId || '');
+    const m1 = so.match(/#?ZB-?(\d+)/i);
+    if (m1?.[1]) {
+      const val = parseInt(m1[1], 10);
+      if (val > maxSeq) maxSeq = val;
+    }
+    const tags = String(o.tags || '');
+    const m2 = tags.match(/zb-order-ZB-?(\d+)/i);
+    if (m2?.[1]) {
+      const val = parseInt(m2[1], 10);
+      if (val > maxSeq) maxSeq = val;
+    }
   }
-  // Fallback
-  return `ZB71${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // Base fallback if no sequence exists: start from ZB710000 + count
+  const count = await prisma.order.count();
+  const nextSeq = maxSeq > 0 ? maxSeq + 1 : (count > 0 ? 710000 + count + 1 : 710001);
+
+  // Return formatted order number in ZB000001 format (exactly 6 digits padding)
+  const candidate = `ZB${String(nextSeq).padStart(6, '0')}`;
+
+  // Quick double-check to avoid collisions
+  const existing = await prisma.order.findFirst({
+    where: {
+      OR: [
+        { shopifyOrderId: `#${candidate}` },
+        { shopifyOrderId: candidate },
+        { tags: { contains: candidate } }
+      ]
+    },
+    select: { id: true }
+  });
+
+  if (!existing) return candidate;
+
+  // Collision fallback
+  return `ZB${String(nextSeq + Math.floor(Math.random() * 100) + 1).padStart(6, '0')}`;
 }
 
 export async function POST(req: Request) {

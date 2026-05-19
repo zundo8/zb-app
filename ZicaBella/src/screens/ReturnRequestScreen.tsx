@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -32,10 +32,14 @@ export default function ReturnRequestScreen() {
   const colors = useColors();
 
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
-  useEffect(() => {
-    setTabBarVisible(false);
-    return () => setTabBarVisible(true);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setTabBarVisible(false);
+      return () => {
+        setTabBarVisible(true);
+      };
+    }, [setTabBarVisible])
+  );
 
   if (!order) {
     return (

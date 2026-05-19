@@ -60,6 +60,19 @@ export default function OrderDetailsScreen() {
 
   const steps = useMemo(() => {
     if (!order) return [];
+    const status = String(order.status || '').toLowerCase();
+    const isReturn = status.includes('return') || status.includes('exchange') || status === 'returned' || status === 'exchanged';
+    
+    if (isReturn) {
+      return [
+        { step: 'order_placed', label: 'Order Placed' },
+        { step: 'delivered', label: 'Delivered' },
+        { step: 'return_requested', label: 'Return/Exchange Requested' },
+        { step: 'pickup_approved', label: 'Pickup Manifested' },
+        { step: 'refund_completed', label: 'Refund/Exchange Completed' },
+      ];
+    }
+
     return [
       { step: 'order_placed', label: 'Order Placed' },
       { step: 'confirmed', label: 'Confirmed' },
@@ -73,6 +86,11 @@ export default function OrderDetailsScreen() {
     const m = new Map<string, string | null>();
     tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
     return m;
+  }, [order]);
+
+  const reverseShipment = useMemo(() => {
+    if (!order || !Array.isArray(order.shipments)) return null;
+    return order.shipments.find((s: any) => String(s.awb || s.trackingNumber || '').startsWith('ZBRET') || String(s.status || '').includes('pickup'));
   }, [order]);
 
   const fetchOrderDetails = useCallback(async (isPolling = false) => {
@@ -135,16 +153,16 @@ export default function OrderDetailsScreen() {
 
   const isReturnWindowOpen = useMemo(() => {
     const isDelivered = (order?.deliveryStatus || '').toLowerCase() === 'delivered';
-    if (!isDelivered || !order?.updatedAt) return false;
-    // Find the 'delivered' step in timeline
-    const deliveredAt = timelineByStep.get('delivered');
+    if (!isDelivered) return false;
+    // Find the 'delivered' step in timeline, fallback to order.updatedAt
+    const deliveredAt = timelineByStep.get('delivered') || order?.updatedAt;
     if (!deliveredAt) return false;
     
     const deliveredDate = new Date(deliveredAt);
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - deliveredDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7;
+    return diffDays <= 10;
   }, [order, timelineByStep]);
 
   if (!orderId) {
@@ -297,6 +315,24 @@ export default function OrderDetailsScreen() {
               <Typography size={13} weight="600" color={colors.text} style={{ marginTop: 2 }}>{order.courier ? `${order.courier} • ` : ''}{order.trackingNumber}</Typography>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textExtraLight} />
+          </TouchableOpacity>
+        )}
+
+        {reverseShipment && (
+          <TouchableOpacity 
+            style={[styles.trackingPill, { borderColor: '#E0A96D', borderStyle: 'dashed', borderWidth: 1.5, marginTop: 12, backgroundColor: isDark ? 'rgba(224, 169, 109, 0.05)' : 'rgba(224, 169, 109, 0.02)' }]} 
+            onPress={() => reverseShipment.trackingUrl && Linking.openURL(reverseShipment.trackingUrl)}
+          >
+            <View style={{ flex: 1 }}>
+              <Typography size={10} weight="800" color="#E0A96D" style={{ letterSpacing: 0.5 }}>RETURN PICKUP LOGISTICS</Typography>
+              <Typography size={13} weight="600" color={colors.text} style={{ marginTop: 2 }}>
+                {reverseShipment.courier ? `${reverseShipment.courier} • ` : ''}{reverseShipment.awb || reverseShipment.trackingNumber}
+              </Typography>
+              <Typography size={11} color={colors.textMuted} style={{ marginTop: 2 }}>
+                Status: {reverseShipment.status === 'pickup_pending' ? 'Awaiting Pickup Agent' : reverseShipment.status.toUpperCase()}
+              </Typography>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#E0A96D" />
           </TouchableOpacity>
         )}
 

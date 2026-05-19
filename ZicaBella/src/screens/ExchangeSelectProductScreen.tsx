@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -13,7 +13,6 @@ import { useAuthStore } from '../store/authStore';
 import { config } from '../constants/config';
 import { haptics } from '../utils/haptics';
 import { useUIStore } from '../store/uiStore';
-import { useEffect } from 'react';
 
 export default function ExchangeSelectProductScreen() {
   const insets = useSafeAreaInsets();
@@ -23,10 +22,14 @@ export default function ExchangeSelectProductScreen() {
   const colors = useColors();
 
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
-  useEffect(() => {
-    setTabBarVisible(false);
-    return () => setTabBarVisible(true);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setTabBarVisible(false);
+      return () => {
+        setTabBarVisible(true);
+      };
+    }, [setTabBarVisible])
+  );
 
   if (!order) {
     return (
@@ -45,6 +48,15 @@ export default function ExchangeSelectProductScreen() {
   // Mapping of orderItemId -> replacement productId
   const [replacements, setReplacements] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Replacement Product Selector State
+  const [showProductSelector, setShowProductSelector] = useState(false);
+  const [selectingForItemId, setSelectingForItemId] = useState<string | null>(null);
+  const [products, setProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedReplacementProduct, setSelectedReplacementProduct] = useState<any | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string>('M');
 
   const toggleSelection = (itemId: string) => {
     haptics.buttonTap();
@@ -71,13 +83,56 @@ export default function ExchangeSelectProductScreen() {
 
   const priceDifference = calculatePriceDifference();
 
-  const handleReplacementSelect = (itemId: string) => {
-    navigation.navigate('Shop', {
-      onSelectReplacement: (product: any) => {
-        setReplacements(prev => ({ ...prev, [itemId]: product }));
-        navigation.navigate('ExchangeSelectProduct', { order }); // go back
+  const handleReplacementSelect = async (itemId: string) => {
+    haptics.buttonTap();
+    setSelectingForItemId(itemId);
+    setShowProductSelector(true);
+    setSelectedReplacementProduct(null);
+
+    // Pre-select original item size as default
+    const originalItem = order.items.find((i: any) => i.id === itemId);
+    if (originalItem?.size) {
+      setSelectedSize(originalItem.size);
+    } else {
+      setSelectedSize('M');
+    }
+
+    if (products.length === 0) {
+      setLoadingProducts(true);
+      try {
+        const res = await fetch(`${config.appUrl}/api/app/products?limit=100`);
+        const data = await res.json();
+        if (res.ok && data.products) {
+          setProducts(data.products);
+        }
+      } catch (err) {
+        console.error('Failed to fetch products for replacement:', err);
+      } finally {
+        setLoadingProducts(false);
       }
-    });
+    }
+  };
+
+  const handleConfirmSelection = () => {
+    if (!selectedReplacementProduct || !selectingForItemId) return;
+    
+    const itemImage = selectedReplacementProduct.image || selectedReplacementProduct.images?.[0] || null;
+    setReplacements(prev => ({
+      ...prev,
+      [selectingForItemId]: {
+        id: selectedReplacementProduct.id,
+        title: `${selectedReplacementProduct.title} - ${selectedSize}`,
+        price: selectedReplacementProduct.price,
+        size: selectedSize,
+        image: itemImage,
+        imageUrl: itemImage,
+        images: selectedReplacementProduct.images || (itemImage ? [itemImage] : [])
+      }
+    }));
+    
+    setShowProductSelector(false);
+    setSelectingForItemId(null);
+    setSelectedReplacementProduct(null);
   };
 
   const handleSubmit = async () => {
@@ -259,6 +314,166 @@ export default function ExchangeSelectProductScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Premium Frosted Glass Fullscreen Product Selector Modal */}
+      <Modal
+        visible={showProductSelector}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowProductSelector(false);
+          setSelectingForItemId(null);
+          setSelectedReplacementProduct(null);
+        }}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)' }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderColor: colors.borderLight, paddingTop: Math.max(insets.top, 20) }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Typography size={18} weight="800" color={colors.text}>Choose Replacement</Typography>
+                <Typography size={12} color={colors.textMuted} style={{ marginTop: 2 }}>Select a product from our live collection</Typography>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowProductSelector(false);
+                  setSelectingForItemId(null);
+                  setSelectedReplacementProduct(null);
+                }}
+                style={[styles.closeIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}
+              >
+                <Ionicons name="close" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View style={[styles.searchContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.borderExtraLight }]}>
+              <Ionicons name="search-outline" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Search products..."
+                placeholderTextColor={colors.textExtraLight}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Selection details when a product is tapped */}
+            {selectedReplacementProduct && (
+              <View style={[styles.selectedDetailCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.foreground }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Image
+                    source={{ uri: selectedReplacementProduct.image || selectedReplacementProduct.images?.[0] }}
+                    style={styles.selectedDetailThumb}
+                    contentFit="cover"
+                  />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Typography size={13} weight="700" color={colors.text} numberOfLines={1}>{selectedReplacementProduct.title}</Typography>
+                    <Typography size={12} weight="800" color={colors.text} style={{ marginTop: 2 }}>{formatPrice(selectedReplacementProduct.price)}</Typography>
+                  </View>
+                </View>
+                
+                {/* Size Selector */}
+                <View style={{ marginTop: 14 }}>
+                  <Typography size={11} weight="700" color={colors.text} style={{ marginBottom: 8 }}>CHOOSE SIZE</Typography>
+                  <View style={{ flexDirection: 'row' }}>
+                    {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(sz => (
+                      <TouchableOpacity
+                        key={sz}
+                        onPress={() => {
+                          haptics.buttonTap();
+                          setSelectedSize(sz);
+                        }}
+                        style={[
+                          styles.sizeChip,
+                          {
+                            backgroundColor: selectedSize === sz ? colors.foreground : 'transparent',
+                            borderColor: selectedSize === sz ? colors.foreground : colors.borderLight,
+                          }
+                        ]}
+                      >
+                        <Typography
+                          size={11}
+                          weight={selectedSize === sz ? '800' : '600'}
+                          color={selectedSize === sz ? colors.background : colors.text}
+                        >
+                          {sz}
+                        </Typography>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Confirm Button */}
+                <TouchableOpacity
+                  onPress={handleConfirmSelection}
+                  style={[styles.confirmBtn, { backgroundColor: colors.foreground }]}
+                >
+                  <Typography size={13} weight="800" color={colors.background}>CONFIRM SELECTION</Typography>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Product Catalog List */}
+            {loadingProducts ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={colors.foreground} />
+                <Typography size={12} color={colors.textMuted} style={{ marginTop: 12 }}>Loading catalog...</Typography>
+              </View>
+            ) : (
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 40 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {products
+                  .filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map(product => {
+                    const isSelected = selectedReplacementProduct?.id === product.id;
+                    const pImage = product.image || product.images?.[0] || null;
+                    return (
+                      <TouchableOpacity
+                        key={product.id}
+                        onPress={() => {
+                          haptics.buttonTap();
+                          setSelectedReplacementProduct(product);
+                        }}
+                        style={[
+                          styles.productCard,
+                          {
+                            borderColor: isSelected ? colors.foreground : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
+                            backgroundColor: isSelected ? (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)') : 'transparent'
+                          }
+                        ]}
+                      >
+                        {pImage ? (
+                          <Image source={{ uri: pImage }} style={styles.productThumb} contentFit="cover" />
+                        ) : (
+                          <View style={[styles.productThumb, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', justifyContent: 'center', alignItems: 'center' }]}>
+                            <Ionicons name="shirt-outline" size={20} color={colors.textExtraLight} />
+                          </View>
+                        )}
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Typography size={13} weight="600" color={colors.text} numberOfLines={2}>{product.title}</Typography>
+                          <Typography size={12} weight="800" color={colors.text} style={{ marginTop: 4 }}>{formatPrice(product.price)}</Typography>
+                        </View>
+                        <View style={[styles.radioOutline, { borderColor: isSelected ? colors.foreground : colors.borderLight }]}>
+                          {isSelected && <View style={[styles.radioDot, { backgroundColor: colors.foreground }]} />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -340,5 +555,96 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    height: '88%',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 18
+  },
+  closeIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 48,
+    marginBottom: 16,
+    borderWidth: 1
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    height: '100%'
+  },
+  selectedDetailCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 18,
+    borderWidth: 1
+  },
+  selectedDetailThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 10
+  },
+  sizeChip: {
+    width: 44,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8
+  },
+  confirmBtn: {
+    height: 46,
+    borderRadius: 23,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16
+  },
+  productCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 10
+  },
+  productThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    overflow: 'hidden'
+  },
+  radioOutline: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5
   }
 });

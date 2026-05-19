@@ -45,7 +45,7 @@ export type RootStackParamList = {
   Collection: { handle: string; title?: string };
   CheckoutFlow: undefined;
   ServiceFlow: undefined;
-  OrderConfirmation: { orderId: string; orderNumber?: string; paymentMethod?: 'COD' | 'PREPAID'; estimatedDelivery?: string | null };
+  OrderConfirmation: { orderId: string; orderNumber?: string; paymentMethod?: 'COD' | 'PREPAID' | 'Store Credit'; estimatedDelivery?: string | null };
   OrderHistory: { openReturnFor?: string } | undefined;
   OrderDetails: { orderId: string };
   Policy: { handle?: string; url?: string; title?: string };

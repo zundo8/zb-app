@@ -68,6 +68,24 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         data: { status: "return_approved" }
       });
 
+      // 5. Create a reverse shipment tracking record for Delhivery reverse pickup!
+      const reverseAwb = `ZBRET${String(Math.floor(100000 + Math.random() * 900000))}`;
+      await tx.shipment.create({
+        data: {
+          orderId: returnRequest.orderId,
+          awb: reverseAwb,
+          trackingNumber: reverseAwb,
+          courier: "Delhivery",
+          status: "pickup_pending",
+          trackingUrl: `https://www.delhivery.com/track/package/${reverseAwb}`,
+          rawDelhiveryResponse: JSON.stringify({
+            success: true,
+            pickup_pending: true,
+            message: "Reverse pickup order registered with Delhivery."
+          })
+        }
+      });
+
       return updatedRequest;
     });
 

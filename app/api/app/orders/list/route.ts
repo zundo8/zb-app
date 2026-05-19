@@ -34,11 +34,17 @@ function parseShippingAddress(raw: string | null) {
 
 function orderNumberFromOrder(order: any) {
   const tags = String(order.tags || '');
-  const m = tags.match(/zb-order-(ZB[71\d-]+)/i);
-  if (m?.[1]) return m[1].toUpperCase();
+  const m = tags.match(/zb-order-(ZB-?\d+)/i);
+  if (m?.[1]) return m[1].replace('-', '').toUpperCase();
+  
   const so = String(order.shopifyOrderId || '');
-  if (so.startsWith('#ZB')) return so.replace(/^#/, '');
-  return so.replace(/^#/, '') || order.id;
+  if (so.toUpperCase().startsWith('ZB')) {
+    return so.toUpperCase();
+  }
+  if (so.toUpperCase().startsWith('#ZB')) {
+    return so.replace(/^#/, '').replace('-', '').toUpperCase();
+  }
+  return order.id;
 }
 
 function paymentMethodFromOrder(order: any): 'COD' | 'PREPAID' {
@@ -73,6 +79,21 @@ function statusTimeline(order: any) {
   const status = String(order.status || '').toLowerCase();
   const delivery = String(order.deliveryStatus || '').toLowerCase();
   const paid = String(order.paymentStatus || '').toLowerCase() === 'paid';
+  const updatedAt = new Date(order.updatedAt).toISOString();
+
+  const isReturnInitiated = status.includes('return') || status.includes('exchange') || status === 'returned' || status === 'exchanged';
+
+  if (isReturnInitiated) {
+    const isApproved = status === 'return_approved' || status === 'returned' || status === 'exchanged';
+    const isCompleted = status === 'returned' || status === 'exchanged';
+    return [
+      { step: 'order_placed', completedAt: createdAt },
+      { step: 'delivered', completedAt: createdAt },
+      { step: 'return_requested', completedAt: updatedAt },
+      { step: 'pickup_approved', completedAt: isApproved ? updatedAt : null },
+      { step: 'refund_completed', completedAt: isCompleted ? updatedAt : null },
+    ];
+  }
 
   const awaitingApprovalCompletedAt = status === 'awaiting_approval' ? createdAt : null;
   const approvedCompletedAt = status === 'approved' ? new Date(order.updatedAt).toISOString() : null;

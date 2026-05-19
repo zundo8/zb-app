@@ -44,6 +44,8 @@ export default function UPIConfirmScreen() {
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  const [createdOrderNumber, setCreatedOrderNumber] = useState<string | null>(null);
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,6 +173,9 @@ export default function UPIConfirmScreen() {
         const oJson = await oRes.json();
         if (!oRes.ok) {
           console.warn('[UPIConfirm] Order creation response:', oJson);
+        } else {
+          setCreatedOrderId(oJson.orderId || oJson.id || null);
+          setCreatedOrderNumber(oJson.orderNumber || null);
         }
       }
 
@@ -248,7 +253,8 @@ export default function UPIConfirmScreen() {
         {
           name: 'OrderConfirmation',
           params: {
-            orderId,
+            orderId: createdOrderId || orderId,
+            orderNumber: createdOrderNumber || undefined,
             paymentMethod: 'PREPAID',
             estimatedDelivery: '3-5 Business Days',
           },

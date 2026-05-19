@@ -15,7 +15,11 @@ export default function OrderConfirmationScreen() {
   const colors = useColors();
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'OrderConfirmation'>>();
-  const { orderId, orderNumber, paymentMethod, estimatedDelivery } = route.params;
+  const params = route.params || {};
+  const orderId = params.orderId || '';
+  const orderNumber = params.orderNumber || '';
+  const paymentMethod = params.paymentMethod || 'COD';
+  const estimatedDelivery = params.estimatedDelivery || '';
   const isDark = useThemeStore(s => s.theme) === 'dark';
 
   React.useEffect(() => {
@@ -37,7 +41,7 @@ export default function OrderConfirmationScreen() {
           {paymentMethod === 'COD' ? 'ORDER PLACED!' : paymentMethod === 'PREPAID' ? 'PAYMENT CONFIRMED!' : 'ORDER PLACED!'}
         </Typography>
         <Typography weight="400" size={10} color={colors.textMuted} style={styles.orderId}>
-          {orderNumber ? `ORDER: ${orderNumber}` : `ORDER ID: ${orderId.toUpperCase()}`}
+          {orderNumber ? `ORDER: ${orderNumber}` : orderId ? `ORDER ID: ${String(orderId).toUpperCase()}` : 'ORDER PLACED'}
         </Typography>
         
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
