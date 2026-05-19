@@ -1123,9 +1123,11 @@ const InputBar = memo(({
   };
 
   const hasContent = localInput.trim() || pendingImage;
+  const pillBg = isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)';
+  const pillBorder = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)';
 
   return (
-    <View style={[styles.inputBarWrapper, { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 12) }]}>
+    <View style={[styles.inputBarWrapper, { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 12), backgroundColor: 'transparent' }]}>
       {pendingImage && (
         <View style={[
           styles.pendingImageBar, 
@@ -1136,7 +1138,7 @@ const InputBar = memo(({
             marginBottom: 8,
           }
         ]}>
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={80} tint="dark" style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} />
           <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
           <Typography size={10} weight="500" color="rgba(255, 255, 255, 0.5)" style={{ flex: 1, marginLeft: 10 }}>
             Image ready to send
@@ -1150,11 +1152,11 @@ const InputBar = memo(({
       <View style={[
         styles.inputPill, 
         { 
-          borderColor: isRecording ? '#FF3B30' : 'rgba(255, 255, 255, 0.08)',
-          backgroundColor: 'rgba(255, 255, 255, 0.03)',
+          borderColor: isRecording ? '#FF3B30' : pillBorder,
+          backgroundColor: pillBg,
         }
       ]}>
-        <BlurView intensity={65} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={35} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} />
         
         <View style={styles.attachRow}>
           <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage} disabled={isRecording}>
@@ -1167,7 +1169,7 @@ const InputBar = memo(({
           onChangeText={setLocalInput}
           placeholder={isRecording ? "Pulsing waveform active..." : "Ask anything"}
           placeholderTextColor="rgba(255, 255, 255, 0.3)"
-          style={[styles.input, { color: isRecording ? '#FF3B30' : '#FFFFFF', fontSize: 15 }]}
+          style={[styles.input, { color: isRecording ? '#FF3B30' : '#FFFFFF', fontSize: 15, backgroundColor: 'transparent' }]}
           multiline
           maxLength={20000}
           editable={!isRecording}
