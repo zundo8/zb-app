@@ -28,7 +28,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized: Order does not belong to user" }, { status: 403 });
     }
 
-    if (order.status !== "delivered") {
+    const isDelivered = String(order.status || '').toLowerCase() === "delivered" ||
+                        String(order.deliveryStatus || '').toLowerCase() === "delivered";
+    if (!isDelivered) {
       return NextResponse.json({ error: "Exchanges are only available for delivered orders" }, { status: 400 });
     }
 
