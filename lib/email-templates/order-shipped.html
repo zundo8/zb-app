@@ -72,11 +72,18 @@
     
     <p>Dear Customer,</p>
     
-    <p>This is the Your order is on its way template.</p>
+    <p>Great news! Your order #{{orderId}} has been shipped and is heading to you.</p>
     
+    <div style="margin: 30px 0;">
+      {{itemsHtml}}
+    </div>
     
-
+    <div style="text-align: right; margin-bottom: 30px; font-size: 16px;">
+      <strong>Total:</strong> {{totalPrice}}
+    </div>
     
+    <p>Track your package to see the latest updates.</p>
+    <a href="{{trackingUrl}}" class="btn">Track Package</a>
     
     <div class="footer">
       <p>© 2026 Zica Bella. All rights reserved.</p>
