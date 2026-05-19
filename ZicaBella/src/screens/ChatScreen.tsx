@@ -1036,15 +1036,18 @@ const InputBar = memo(({
   const [localInput, setLocalInput] = useState('');
   const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSubscription = Keyboard.addListener(showEvent, () => {
+    const showSubscription = Keyboard.addListener(showEvent, (e) => {
       setKeyboardVisible(true);
+      setKeyboardHeight(e.endCoordinates ? e.endCoordinates.height : 0);
     });
     const hideSubscription = Keyboard.addListener(hideEvent, () => {
       setKeyboardVisible(false);
+      setKeyboardHeight(0);
     });
     return () => {
       showSubscription.remove();
@@ -1123,11 +1126,18 @@ const InputBar = memo(({
   };
 
   const hasContent = localInput.trim() || pendingImage;
-  const pillBg = isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)';
-  const pillBorder = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)';
+  const bottomOffset = keyboardVisible ? (Platform.OS === 'ios' ? keyboardHeight : 0) : 0;
+  const pillBorder = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)';
 
   return (
-    <View style={[styles.inputBarWrapper, { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 12), backgroundColor: 'transparent' }]}>
+    <View style={[
+      styles.inputBarWrapper, 
+      { 
+        bottom: bottomOffset,
+        paddingBottom: keyboardVisible ? 10 : Math.max(insets.bottom, 12),
+        backgroundColor: 'transparent'
+      }
+    ]}>
       {pendingImage && (
         <View style={[
           styles.pendingImageBar, 
@@ -1150,13 +1160,14 @@ const InputBar = memo(({
       )}
 
       <BlurView
-        intensity={isDark ? 30 : 60} 
+        intensity={isDark ? 20 : 50} 
         tint={isDark ? 'dark' : 'light'} 
         style={[
           styles.inputPill, 
           { 
             borderColor: isRecording ? '#FF3B30' : pillBorder,
-            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.4)',
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.03)',
+            borderWidth: 0.5,
           }
         ]}
       >
@@ -2137,16 +2148,16 @@ const ChatScreen = memo(() => {
             </Animated.View>
           )}
         </View>
-
-        <InputBar 
-          onSend={handleSend} 
-          isTyping={isTyping} 
-          isRecording={isRecording}
-          recordingDuration={recordingDuration}
-          onStartRecording={startRecording}
-          onStopRecording={stopRecording}
-        />
       </KeyboardAvoidingView>
+
+      <InputBar 
+        onSend={handleSend} 
+        isTyping={isTyping} 
+        isRecording={isRecording}
+        recordingDuration={recordingDuration}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
+      />
 
       <ChatHistoryModal 
         visible={historyVisible} 
@@ -2307,20 +2318,22 @@ const styles = StyleSheet.create({
   inputPill: {
     flexDirection: 'row', 
     alignItems: 'center',
-    borderRadius: 30,
-    padding: 6, 
-    borderWidth: 1,
-    minHeight: 56,
+    borderRadius: 24,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 0.5,
+    minHeight: 44,
     overflow: 'hidden',
   },
-  attachRow: { flexDirection: 'row', paddingLeft: 8 },
-  attachBtn: { padding: 6 },
+  attachRow: { flexDirection: 'row', paddingLeft: 6 },
+  attachBtn: { padding: 4 },
   input: { 
     flex: 1, 
     fontSize: 14, 
-    paddingHorizontal: 12, 
+    paddingHorizontal: 10, 
     maxHeight: 100, 
     fontWeight: '500',
+    backgroundColor: 'transparent',
   },
   pendingImageBar: {
     flexDirection: 'row',
