@@ -149,7 +149,7 @@ export default function AdminSettingsPage() {
         'shiprocketEmail', 'shiprocketPassword', 'shiprocketToken', 'webhookSecret',
         'whatsappPhoneId', 'whatsappToken', 'firebaseProjectId', 'firebaseClientEmail',
         'firebasePrivateKey', 'sendgridApiKey', 'twilioAccountSid', 'twilioAuthToken', 'twilioPhoneNumber',
-        'ringCarouselItems', 'claudeApiKey', 'claudeWebhookSecret'
+        'ringCarouselItems', 'claudeApiKey', 'claudeWebhookSecret', 'openaiApiKey', 'openaiWebhookSecret'
     ];
 
     const partialUpdate: any = { shopId: settings.id };
@@ -367,6 +367,28 @@ export default function AdminSettingsPage() {
                 className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/40 hover:text-foreground/70 transition-colors"
               >
                 Get API Key <ExternalLink className="w-3 h-3" />
+              </a>
+           </div>
+        </SettingsGroup>
+
+        {/* Zica AI · OpenAI (Mobile App Features) */}
+        <SettingsGroup title="Zica AI · OpenAI Integration" icon={Sparkles}>
+           <SettingsRow label="OpenAI API Key" icon={Key} description="OpenAI API key (sk-proj-...)">
+              <InputField value={settings.openaiApiKey!} onChange={set('openaiApiKey')} placeholder="sk-proj-..." secret />
+           </SettingsRow>
+           <SettingsRow label="Webhook Signing Secret" icon={Lock} description="Used to verify OpenAI API webhooks">
+              <InputField value={settings.openaiWebhookSecret!} onChange={set('openaiWebhookSecret')} placeholder="whsec_..." secret />
+           </SettingsRow>
+           <div className="px-10 py-6 border-t border-foreground/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                 <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">
+                    Connected to User Chat & Voice Services
+                 </span>
+              </div>
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer"
+                 className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/40 hover:text-foreground/70 transition-colors"
+              >
+                 Get OpenAI Key <ExternalLink className="w-3 h-3" />
               </a>
            </div>
         </SettingsGroup>

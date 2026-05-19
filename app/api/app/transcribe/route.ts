@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import prisma from "@/lib/db";
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -12,6 +13,18 @@ const FALLBACK_PROMPTS = [
   "Can you help me check if my payment went through successfully?"
 ];
 
+async function resolveOpenAIKey() {
+  try {
+    const shop = await prisma.shop.findFirst({
+      select: { openaiApiKey: true }
+    });
+    if (shop?.openaiApiKey) return shop.openaiApiKey;
+  } catch (err) {
+    console.error("[Zica OpenAI Whisper] Failed to fetch key from DB:", err);
+  }
+  return process.env.OPENAI_API_KEY || "";
+}
+
 export async function POST(req: any) {
   try {
     const formData = await req.formData();
@@ -21,7 +34,8 @@ export async function POST(req: any) {
       return NextResponse.json({ error: 'No audio file uploaded' }, { status: 400 });
     }
 
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.includes("placeholder") || process.env.OPENAI_API_KEY.startsWith("sk-proj-xxxx")) {
+    const activeKey = await resolveOpenAIKey();
+    if (!activeKey || activeKey.includes("placeholder") || activeKey.startsWith("sk-proj-xxxx")) {
       console.warn('[Zica OpenAI Whisper] API Key is placeholder or missing. Using high-fidelity fallback.');
       const randomFallback = FALLBACK_PROMPTS[Math.floor(Math.random() * FALLBACK_PROMPTS.length)];
       return NextResponse.json({ text: randomFallback, fallback: true });
@@ -39,7 +53,7 @@ export async function POST(req: any) {
       const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${activeKey}`,
         },
         body: openAiFormData,
       });

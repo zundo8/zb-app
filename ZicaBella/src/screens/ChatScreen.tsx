@@ -1151,10 +1151,10 @@ const InputBar = memo(({
         styles.inputPill, 
         { 
           borderColor: isRecording ? '#FF3B30' : 'rgba(255, 255, 255, 0.08)',
-          backgroundColor: 'rgba(20, 20, 20, 0.85)',
+          backgroundColor: 'rgba(255, 255, 255, 0.03)',
         }
       ]}>
-        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={65} tint="dark" style={StyleSheet.absoluteFill} />
         
         <View style={styles.attachRow}>
           <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage} disabled={isRecording}>
@@ -1174,17 +1174,19 @@ const InputBar = memo(({
           keyboardAppearance="dark"
         />
 
-        <TouchableOpacity 
-          style={styles.micButton} 
-          onPress={() => {
-            if (isRecording) return;
-            haptics.buttonTap();
-            onSend('');
-          }}
-          disabled={isRecording}
-        >
-          <Ionicons name="time-outline" size={22} color="rgba(255, 255, 255, 0.7)" />
-        </TouchableOpacity>
+        {!keyboardVisible && (
+          <TouchableOpacity 
+            style={styles.micButton} 
+            onPress={() => {
+              if (isRecording) return;
+              haptics.buttonTap();
+              onSend('');
+            }}
+            disabled={isRecording}
+          >
+            <Ionicons name="time-outline" size={22} color="rgba(255, 255, 255, 0.7)" />
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           onPress={handleSubmit}

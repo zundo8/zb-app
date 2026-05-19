@@ -215,6 +215,8 @@ export async function GET(req: Request) {
       homepageProducts: s.homepageProducts || '',
       claudeApiKey: s.claudeApiKey || '',
       claudeWebhookSecret: s.claudeWebhookSecret || '',
+      openaiApiKey: s.openaiApiKey || process.env.OPENAI_API_KEY || '',
+      openaiWebhookSecret: s.openaiWebhookSecret || process.env.OPENAI_WEBHOOK_SECRET || '',
     });
   } catch (e: any) {
     console.error('[Settings API GET Error]:', e);
@@ -291,7 +293,7 @@ export async function PATCH(req: Request) {
       'communityMinOrders', 'communityAgeRestricted', 'communityWhatsAppEnabled',
       'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems',
       'homepageCollection', 'homepageProducts',
-      'footerLogo3dUrl', 'claudeApiKey', 'claudeWebhookSecret'
+      'footerLogo3dUrl', 'claudeApiKey', 'claudeWebhookSecret', 'openaiApiKey', 'openaiWebhookSecret'
     ] as const;
 
     const booleanKeys = [

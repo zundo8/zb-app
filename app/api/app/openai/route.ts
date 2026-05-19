@@ -6,20 +6,33 @@ import OpenAI from "openai";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Isolated User-Side OpenAI client configuration
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "",
-});
+// Isolated User-Side OpenAI client resolver
+async function resolveOpenAIKey() {
+  try {
+    const shop = await prisma.shop.findFirst({
+      select: { openaiApiKey: true }
+    });
+    if (shop?.openaiApiKey) return shop.openaiApiKey;
+  } catch (err) {
+    console.error("[Zica User OpenAI] Failed to fetch key from DB:", err);
+  }
+  return process.env.OPENAI_API_KEY || "";
+}
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.includes("placeholder") || process.env.OPENAI_API_KEY.startsWith("sk-proj-xxxx")) {
-      console.error("[Zica User OpenAI] Configuration Error: Real OPENAI_API_KEY is not set.");
+    const activeKey = await resolveOpenAIKey();
+    if (!activeKey || activeKey.includes("placeholder") || activeKey.startsWith("sk-proj-xxxx")) {
+      console.error("[Zica User OpenAI] Configuration Error: Real OpenAI API Key is not set.");
       return new Response(JSON.stringify({ error: "Zica AI is temporarily offline. Please try again later." }), {
         status: 503,
         headers: { "Content-Type": "application/json" },
       });
     }
+
+    const openai = new OpenAI({
+      apiKey: activeKey,
+    });
 
     const body = await req.json().catch(() => null);
     if (!body || !body.messages || !Array.isArray(body.messages)) {
