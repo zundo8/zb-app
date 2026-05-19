@@ -429,16 +429,19 @@ export async function POST(req: Request) {
         const itemsHtml = formattedItems
           .map(
             (item: any) => `
-          <div class="product-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0;">
-            <div style="flex: 1; display: flex; align-items: center; gap: 15px;">
-              ${item.image ? `<img src="${item.image}" alt="${item.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px;" />` : `<div style="width: 60px; height: 60px; background-color: #f5f5f5; border-radius: 6px;"></div>`}
-              <div>
-                <div style="font-weight: 600;">${item.name}</div>
-                <div style="font-size: 13px; color: #888888;">Size: ${item.size} × ${item.qty}</div>
-              </div>
-            </div>
-            <div style="font-weight: 600;">${item.price}</div>
-          </div>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
+          <tr>
+            <td class="item-img" width="110" style="vertical-align:top; padding:0;">
+              ${item.image ? `<img src="${item.image}" width="110" height="130" style="display:block; object-fit:cover; opacity:0.8;" alt="${item.name}" />` : `<div style="width:110px; height:130px; background:rgba(255,255,255,0.05);"></div>`}
+            </td>
+            <td style="vertical-align:top; padding:20px 20px 20px 22px; border-left:1px solid rgba(255,255,255,0.1);">
+              <p style="margin:0 0 4px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase;">Qty: ${item.qty}</p>
+              <p style="margin:0 0 6px; font-family:'DM Serif Display',serif; font-size:17px; color:rgba(255,255,255,0.7); line-height:1.3;">${item.name}</p>
+              ${item.size !== 'N/A' ? `<p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3);">Size: ${item.size}</p>` : ''}
+              <p style="margin:0; font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.5);">${item.price}</p>
+            </td>
+          </tr>
+        </table>
         `
           )
           .join('');

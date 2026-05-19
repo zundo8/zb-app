@@ -27,17 +27,19 @@ export interface OrderData {
 function getItemsHtml(items: OrderData['items'], currencySymbol: string) {
   return items.map(
     (item) => `
-  <tr>
-    <td style="padding: 10px; border-bottom: 1px solid #eee; width: 70px;">
-      ${item.image ? `<img src="${item.image}" alt="${item.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px;" />` : `<div style="width: 60px; height: 60px; background-color: #f5f5f5; border-radius: 6px;"></div>`}
-    </td>
-    <td style="padding: 10px; border-bottom: 1px solid #eee;">
-      <strong style="display: block; margin-bottom: 4px;">${item.name}</strong>
-      ${item.size ? `<span style="font-size: 12px; color: #666;">Size: ${item.size}</span>` : ''}
-    </td>
-    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${currencySymbol}${item.price}</td>
-  </tr>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
+          <tr>
+            <td class="item-img" width="110" style="vertical-align:top; padding:0;">
+              ${item.image ? `<img src="${item.image}" width="110" height="130" style="display:block; object-fit:cover; opacity:0.8;" alt="${item.name}" />` : `<div style="width:110px; height:130px; background:rgba(255,255,255,0.05);"></div>`}
+            </td>
+            <td style="vertical-align:top; padding:20px 20px 20px 22px; border-left:1px solid rgba(255,255,255,0.1);">
+              <p style="margin:0 0 4px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase;">Qty: ${item.quantity}</p>
+              <p style="margin:0 0 6px; font-family:'DM Serif Display',serif; font-size:17px; color:rgba(255,255,255,0.7); line-height:1.3;">${item.name}</p>
+              ${item.size ? `<p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3);">Size: ${item.size}</p>` : ''}
+              <p style="margin:0; font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.5);">${currencySymbol}${item.price}</p>
+            </td>
+          </tr>
+        </table>
   `).join('');
 }
 
@@ -52,15 +54,7 @@ async function sendDynamicEmail(
   const currencySymbol = order.currency === 'USD' ? '$' : '₹';
   const currencyCode = order.currency || 'INR';
   const orderDateStr = order.orderDate || new Date().toLocaleDateString('en-IN', { dateStyle: 'long' });
-  const itemsHtml = `<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-    <tr>
-      <th style="text-align:left;padding:10px;border-bottom:2px solid #ccc; width: 70px;"></th>
-      <th style="text-align:left;padding:10px;border-bottom:2px solid #ccc;">Item</th>
-      <th style="text-align:center;padding:10px;border-bottom:2px solid #ccc;">Qty</th>
-      <th style="text-align:right;padding:10px;border-bottom:2px solid #ccc;">Price</th>
-    </tr>
-    ${getItemsHtml(order.items, currencySymbol)}
-  </table>`;
+  const itemsHtml = getItemsHtml(order.items, currencySymbol);
 
   const variables = {
     customerName: order.customerName,

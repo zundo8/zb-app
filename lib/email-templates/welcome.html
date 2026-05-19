@@ -1,87 +1,89 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap');
-  body {
-    background-color: #ffffff;
-    color: #000000;
-    font-family: 'DM Mono', monospace;
-    margin: 0;
-    padding: 0;
-  }
-  .container {
-    max-width: 600px;
-    margin: 0 auto;
-    padding: 40px 20px;
-  }
-  .header {
-    text-align: center;
-    margin-bottom: 40px;
-    border-bottom: 2px solid #000000;
-    padding-bottom: 20px;
-  }
-  .wordmark {
-    font-family: 'DM Serif Display', serif;
-    font-size: 32px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-  }
-  h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 28px;
-    font-weight: normal;
-    margin-bottom: 20px;
-  }
-  p {
-    font-size: 14px;
-    line-height: 1.6;
-    margin-bottom: 20px;
-  }
-  .footer {
-    margin-top: 60px;
-    border-top: 1px solid #eeeeee;
-    padding-top: 20px;
-    font-size: 12px;
-    text-align: center;
-    color: #888888;
-  }
-  .btn {
-    display: inline-block;
-    background-color: #000000;
-    color: #ffffff;
-    padding: 12px 24px;
-    text-decoration: none;
-    text-transform: uppercase;
-    font-size: 13px;
-    letter-spacing: 1px;
-    margin-top: 20px;
-  }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zica Bella — Welcome to Zica Bella</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400&display=swap');
+    @font-face {
+      font-family: 'Rocaston';
+      src: url('https://cdn.shopify.com/s/files/1/0955/5394/5881/files/Rocaston.ttf?v=1758543424') format('truetype');
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background-color: #000; font-family: 'DM Mono', 'Courier New', monospace; -webkit-font-smoothing: antialiased; }
+    @media only screen and (max-width: 600px) {
+      .container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
+      .pad { padding: 36px 22px !important; }
+      .hero-txt { font-size: 50px !important; }
+      .item-img { display: none !important; }
+    }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="wordmark">ROCASTON</div>
-      <div style="margin-top: 10px; font-size: 12px; letter-spacing: 1px;">ZICA BELLA</div>
-    </div>
-    
-    <h1>Welcome to Zica Bella</h1>
-    
-    <p>Dear Customer,</p>
-    
-    <p>This is the Welcome to Zica Bella template.</p>
-    
-    
+<div style="display:none; max-height:0; overflow:hidden; font-size:0; opacity:0;">Welcome to Zica Bella</div>
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#000; padding:48px 20px;">
+  <tr><td align="center">
+    <table border="0" cellpadding="0" cellspacing="0" width="580" class="container" style="background:#0a0a0a; border-radius:2px; border:1px solid rgba(255,255,255,0.12);">
 
-    
-    
-    <div class="footer">
-      <p>© 2026 Zica Bella. All rights reserved.</p>
-      <p>If you have any questions, reply to this email.</p>
-    </div>
-  </div>
+      <tr><td style="height:3px; background:#e5e5e5; border-radius:2px 2px 0 0;"></td></tr>
+
+      <tr><td class="pad" style="padding:36px 48px 28px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td><p style="margin:0; font-family:'Rocaston',serif; font-size:11px; letter-spacing:8px; color:#fff; text-transform:uppercase; opacity:.9;">ZICA BELLA</p></td>
+            <td align="right"><p style="margin:0; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.6); text-transform:uppercase;">Welcome</p></td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <tr><td style="padding:0 48px;"><div style="height:1px; background:rgba(255,255,255,0.08);"></div></td></tr>
+
+      <tr><td class="pad" style="padding:52px 48px 0;">
+        <h1 class="hero-txt" style="margin:0; font-family:'DM Serif Display',Georgia,serif; font-size:60px; font-weight:400; line-height:1.0; color:#fff; letter-spacing:-1px;">
+          Welcome to<br><em style="font-style:italic; color:rgba(255,255,255,0.35); font-size:42px;">Zica Bella.</em>
+        </h1>
+      </td></tr>
+
+      <tr><td class="pad" style="padding:36px 48px 0;">
+        <p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:12px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.55);">Dear {{customerName}},</p>
+        <div style="font-family:'DM Mono',monospace; font-size:12px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.55);">
+          <p style="margin:0 0 14px;">Welcome to the Zica Bella community! We're thrilled to have you with us.</p><p style="margin:0;">Zica Bella is more than just clothing; it's a movement. Explore our latest collections and find your unique style. Use code <strong>WELCOME10</strong> for 10% off your first order.</p>
+        </div>
+      </td></tr>
+
+      
+
+      
+
+      
+      <tr><td class="pad" style="padding:36px 48px 0;">
+        <a href="https://zicabella.com" style="display:inline-block; background:#fff; color:#000; text-decoration:none; padding:15px 36px; font-family:'DM Mono',monospace; font-size:10px; font-weight:400; letter-spacing:2.5px; text-transform:uppercase; border-radius:1px;">Start Exploring →</a>
+      </td></tr>
+      
+
+      <tr><td class="pad" style="padding:36px 48px 48px;">
+        <p style="margin:0; font-family:'DM Mono',monospace; font-size:11px; font-weight:300; line-height:1.9; color:rgba(255,255,255,0.28);">
+          If you have any questions, reply to this email.
+        </p>
+      </td></tr>
+
+      <tr><td style="padding:0 48px;"><div style="height:1px; background:rgba(255,255,255,0.06);"></div></td></tr>
+
+      <tr><td class="pad" style="padding:28px 48px 36px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td><p style="margin:0; font-family:'Rocaston',serif; font-size:9px; letter-spacing:5px; color:rgba(255,255,255,0.2); text-transform:uppercase;">ZICA BELLA</p></td>
+            <td align="right"><p style="margin:0; font-family:'DM Mono',monospace; font-size:9px; color:rgba(255,255,255,0.18);">India</p></td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0; font-family:'DM Mono',monospace; font-size:9px; color:rgba(255,255,255,0.12); line-height:1.7;">
+          Sent to {{customerEmail}} · Notification from Zica Bella.
+        </p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
 </body>
 </html>
