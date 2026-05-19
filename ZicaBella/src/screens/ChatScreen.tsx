@@ -2322,7 +2322,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderWidth: 0.5,
-    minHeight: 44,
+    minHeight: 48,
     overflow: 'hidden',
   },
   attachRow: { flexDirection: 'row', paddingLeft: 6 },
