@@ -40,6 +40,14 @@ export default function OrderDetailsScreen() {
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   // ─── All hooks MUST be declared before any early return ────────────
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
 
@@ -121,14 +129,20 @@ export default function OrderDetailsScreen() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch order');
       if (json.order) {
-        setOrder(json.order);
-        setError(null);
+        if (isMounted.current) {
+          setOrder(json.order);
+          setError(null);
+        }
       }
     } catch (e: any) {
       console.error('Fetch Order Detail Error:', e);
-      if (!isPolling) setError(e.message || 'Failed to load order details');
+      if (!isPolling && isMounted.current) {
+        setError(e.message || 'Failed to load order details');
+      }
     } finally {
-      if (!isPolling) setLoading(false);
+      if (!isPolling && isMounted.current) {
+        setLoading(false);
+      }
     }
   }, [orderId]);
 
@@ -145,9 +159,13 @@ export default function OrderDetailsScreen() {
     try {
       setTrackingError(null);
       const data = await trackOrder({ awb });
-      setTrackingLive(data);
+      if (isMounted.current) {
+        setTrackingLive(data);
+      }
     } catch (e: any) {
-      setTrackingError(e?.message || 'Failed to fetch tracking');
+      if (isMounted.current) {
+        setTrackingError(e?.message || 'Failed to fetch tracking');
+      }
     }
   }, [order]);
 

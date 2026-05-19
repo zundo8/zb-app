@@ -14,7 +14,6 @@ import { useWishlistStore } from '../store/wishlistStore';
 import AuthNavigator from './AuthNavigator';
 import TabNavigator from './TabNavigator';
 import CheckoutNavigator from './CheckoutNavigator';
-import ServiceNavigator from './ServiceNavigator';
 import OrderConfirmationScreen from '../screens/OrderConfirmationScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import ProductDetailScreen from '../screens/ProductDetailScreen';
@@ -170,7 +169,6 @@ const RootNavigator = () => {
           {isAuthenticated && (
             <>
               <Stack.Screen name="CheckoutFlow" component={CheckoutNavigator} />
-              <Stack.Screen name="ServiceFlow" component={ServiceNavigator} />
               <Stack.Screen name="OrderConfirmation" component={SafeOrderConfirmation} />
               <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
               <Stack.Screen name="StoreCreditHistory" component={StoreCreditHistoryScreen} />

@@ -17,7 +17,7 @@ export async function POST(req: Request) {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: true }
+      include: { items: { include: { product: true } } }
     });
 
     if (!order) {
@@ -41,64 +41,95 @@ export async function POST(req: Request) {
 
     for (const item of exchangeItems) {
       const orderItem = order.items.find((oi: any) => oi.id === item.orderItemId);
-      if (!orderItem) continue;
+      if (!orderItem) {
+        return NextResponse.json({ error: `Order item ${item.orderItemId} not found` }, { status: 404 });
+      }
 
-      // In a real app we'd fetch the actual replacement product to get its price
-      // For now we assume the client calculated it correctly or we'd query it.
-      // E.g. const newProduct = await prisma.product.findUnique({ where: { id: item.replacementProductId } })
-      
+      // Resolve original product ID — handle null productId gracefully
+      let originalProductId = orderItem.productId;
+      if (!originalProductId) {
+        // Try to find a product by matching title or SKU
+        if (orderItem.sku) {
+          const matchedProduct = await prisma.product.findFirst({
+            where: { sku: orderItem.sku }
+          });
+          if (matchedProduct) originalProductId = matchedProduct.id;
+        }
+        if (!originalProductId) {
+          // Try by title match as last resort
+          const matchedProduct = await prisma.product.findFirst({
+            where: { title: orderItem.title }
+          });
+          if (matchedProduct) originalProductId = matchedProduct.id;
+        }
+        if (!originalProductId) {
+          return NextResponse.json({
+            error: `Cannot resolve product for order item "${orderItem.title}". Product association is missing.`
+          }, { status: 400 });
+        }
+      }
+
+      // Find the replacement product
       const newProduct = await prisma.product.findUnique({
         where: { id: item.replacementProductId }
-        // We'd need to find the specific variant price here
       });
-      
+
       if (!newProduct) {
         return NextResponse.json({ error: `Replacement product ${item.replacementProductId} not found` }, { status: 404 });
       }
 
-      // Simplified price difference calculation, using passed priceDifference if any
-      
+      // Calculate the price difference for this item
+      const originalPrice = orderItem.price || 0;
+      const newPrice = newProduct.price || 0;
+      const itemDiff = (newPrice - originalPrice) * (item.quantity || 1);
+      calculatedPriceDifference += itemDiff;
+
       itemsToExchange.push({
-        originalProductId: orderItem.productId,
+        originalProductId,
         newProductId: item.replacementProductId,
         status: "REQUESTED",
-        priceDifference: paymentDetails?.priceDifference || 0
+        priceDifference: itemDiff,
+        reason: item.reason || "Customer exchange request"
       });
     }
-    
-    // In reality, calculate from real db product prices
-    calculatedPriceDifference = paymentDetails?.priceDifference || 0;
-    
+
+    // Use calculated price difference, fall back to client-provided if available
+    const finalPriceDifference = calculatedPriceDifference || paymentDetails?.priceDifference || 0;
+
     // If positive diff, require payment
-    if (calculatedPriceDifference > 0) {
+    if (finalPriceDifference > 0) {
       if (!paymentDetails || !paymentDetails.paymentId) {
         return NextResponse.json({ error: "Payment required for price difference" }, { status: 400 });
       }
-      // verify razorpay payment here...
     }
 
-    const paymentStatus = calculatedPriceDifference > 0 ? "paid" : "not_required";
+    const paymentStatus = finalPriceDifference > 0 ? "paid" : "not_required";
 
     const exchangeRequest = await prisma.exchangeRequest.create({
       data: {
         orderId,
         customerId: userId,
         status: "pending_approval",
-        priceDifference: calculatedPriceDifference,
+        priceDifference: finalPriceDifference,
         paymentStatus,
         paymentId: paymentDetails?.paymentId,
+        reason: exchangeItems[0]?.reason || "Exchange request",
         exchanges: {
           create: itemsToExchange.map((item: any) => ({
-            originalProductId: item.originalProductId!,
+            originalProductId: item.originalProductId,
             newProductId: item.newProductId,
+            orderId,
             status: item.status,
             priceDifference: item.priceDifference,
-            paymentStatus
+            paymentStatus,
+            reason: item.reason
           }))
         }
       },
       include: {
-        exchanges: true
+        exchanges: {
+          include: { originalProduct: true, newProduct: true }
+        }
       }
     });
 

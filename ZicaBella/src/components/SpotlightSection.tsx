@@ -41,7 +41,7 @@ const SpotlightSection = React.memo(({
 
   const { products, loading } = useCollectionByHandle(resolvedCollectionHandle);
 
-  if (loading && products.length === 0) {
+  if (loading && (!products || products.length === 0)) {
     return (
       <View style={styles.container}>
         <View style={styles.skeletonHeader} />
@@ -52,6 +52,11 @@ const SpotlightSection = React.memo(({
         </View>
       </View>
     );
+  }
+
+  // Guard: if content is empty or not ready, return null to avoid blank gap
+  if (!products || products.length === 0) {
+    return null;
   }
 
   const displayProducts = products.slice(0, 6);
@@ -121,7 +126,7 @@ const SpotlightSection = React.memo(({
                 {(product?.title || "ZICA BELLA").toUpperCase()}
               </Typography>
               <Typography size={6} weight="400" color={colors.textExtraLight}>
-                {product ? `\u20B9${product.price}` : "COMING SOON"}
+                {product ? `\u20B9${product.price}` : ""}
               </Typography>
             </View>
           </TouchableOpacity>

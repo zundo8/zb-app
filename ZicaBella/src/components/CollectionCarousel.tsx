@@ -107,7 +107,7 @@ export default function CollectionCarousel({ collections }: Props) {
         maxToRenderPerBatch={2}
         updateCellsBatchingPeriod={50}
         windowSize={3}
-        keyExtractor={(_: any, i: number) => i.toString()}
+        keyExtractor={(item: any) => item.id?.toString() ?? item.handle ?? item.title}
       />
     </View>
   );

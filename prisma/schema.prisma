@@ -331,6 +331,9 @@ model Exchange {
   paymentStatus     String?
   newOrderId        String?
   exchangeRequestId String?
+  reason            String?
+  qcStatus          String?          @default("pending")
+  qcNotes           String?
   exchangeRequest   ExchangeRequest? @relation(fields: [exchangeRequestId], references: [id])
   newProduct        Product          @relation("NewProduct", fields: [newProductId], references: [id])
   order             Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -338,18 +341,20 @@ model Exchange {
 }
 
 model ExchangeRequest {
-  id              String     @id @default(cuid())
-  orderId         String
-  customerId      String
-  status          String     @default("pending_approval")
-  priceDifference Float      @default(0)
-  paymentStatus   String     @default("not_required")
-  paymentId       String?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  reason          String?
-  exchanges       Exchange[]
-  order           Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id               String     @id @default(cuid())
+  orderId          String
+  customerId       String
+  status           String     @default("pending_approval")
+  priceDifference  Float      @default(0)
+  paymentStatus    String     @default("not_required")
+  paymentId        String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  reason           String?
+  returnRequestId  String?
+  newShopifyOrderId String?
+  exchanges        Exchange[]
+  order            Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Payment {

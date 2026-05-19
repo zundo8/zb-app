@@ -59,11 +59,11 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <View style={styles.container}>
           <View style={styles.iconContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color="rgba(255,255,255,0.3)" />
+            <Ionicons name="alert-circle-outline" size={48} color="#000000" />
           </View>
-          <Text style={styles.title}>SOMETHING WENT WRONG</Text>
+          <Text style={styles.title}>Something went wrong.</Text>
           <Text style={styles.message}>
-            An unexpected error occurred. Please try again.
+            Please restart the app.
           </Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -104,7 +104,7 @@ export function withErrorBoundary<P extends object>(
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
@@ -113,22 +113,22 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(0,0,0,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 32,
   },
   title: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 3,
+    color: '#000000',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.5,
     marginBottom: 12,
     textAlign: 'center',
   },
   message: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 12,
+    color: 'rgba(0,0,0,0.5)',
+    fontSize: 14,
     fontWeight: '400',
     lineHeight: 20,
     textAlign: 'center',
@@ -138,13 +138,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 40,
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#000000',
     minWidth: 44,
     minHeight: 44,
   },
   retryText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 2,

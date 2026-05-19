@@ -54,7 +54,7 @@ const HomeScreen = React.memo(() => {
   const latestCurationTitle = settings?.latestCuration?.title || 'LATEST CURATION';
   const latestCurationSubtitle = settings?.latestCuration?.subtitle || 'SEASON DROP';
 
-  const { products, loading, error, refetch } = useProducts(24);
+  const { products, loading, error, isError, refetch } = useProducts(24);
   const { collections, refetch: refetchCollections } = useCollections(20, 'page');
   const { products: accessories } = useCollectionByHandle(ringHandle);
   
@@ -163,13 +163,21 @@ const HomeScreen = React.memo(() => {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh} 
-            tintColor={colors.text} 
-            colors={[colors.text]}
+            tintColor={colors.textExtraLight}
           />
         }
         onScroll={scrollHandler}
         scrollEventThrottle={16}
       >
+        {isError && (
+          <View style={[styles.errorBanner, { backgroundColor: isDark ? 'rgba(255, 59, 48, 0.1)' : 'rgba(255, 59, 48, 0.05)', borderColor: colors.error + '40', borderWidth: 1 }]}>
+            <Ionicons name="warning-outline" size={16} color={colors.error} />
+            <Typography size={8} color={colors.text} weight="500" style={{ marginLeft: 8 }}>
+              Unable to load products. Pull down to refresh.
+            </Typography>
+          </View>
+        )}
+
         {/* ═══ HERO VIDEO ═══ */}
         <View style={{ position: 'relative' }}>
           <HeroVideo 
@@ -184,17 +192,6 @@ const HomeScreen = React.memo(() => {
           {loading && products.length === 0 && (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color={colors.textExtraLight} />
-            </View>
-          )}
-
-          {!loading && products.length === 0 && (
-            <View style={styles.errorContainer}>
-              <Typography size={10} color={colors.textSecondary} style={styles.errorText}>
-                {error || "Unable to load products right now. Please try again shortly."}
-              </Typography>
-              <TouchableOpacity onPress={refetch} style={[styles.retryBtn, { borderColor: colors.borderLight }]}>
-                <Typography size={9} color={colors.text} weight="600" style={styles.retryText}>RETRY</Typography>
-              </TouchableOpacity>
             </View>
           )}
 
@@ -333,6 +330,18 @@ const styles = StyleSheet.create({
     paddingVertical: 100,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 0,
+    borderRadius: 8,
   },
   errorContainer: {
     paddingVertical: 100,

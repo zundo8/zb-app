@@ -261,7 +261,7 @@ export default function CollectionScreen() {
       {/* ── Main List ── */}
       <FlatList
         data={productRows}
-        keyExtractor={(_, index) => `row-${index}`}
+        keyExtractor={(item) => item?.products?.[0]?.id?.toString() ?? item?.products?.[0]?.handle ?? item?.products?.[0]?.title ?? Math.random().toString()}
         renderItem={renderRow}
         ListHeaderComponent={
           <View style={{ zIndex: 1000, elevation: 1000 }}>

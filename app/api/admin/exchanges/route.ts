@@ -41,6 +41,9 @@ export async function GET(req: Request) {
       priceDifference: e.priceDifference,
       paymentStatus: e.paymentStatus,
       createdAt: e.createdAt,
+      reason: e.reason,
+      returnRequestId: e.returnRequestId,
+      newShopifyOrderId: e.newShopifyOrderId,
       items: e.exchanges
     }));
 
@@ -71,13 +74,10 @@ export async function POST(req: Request) {
         throw new Error(`Original order item ${item.originalLineItemId} not found`);
       }
 
-      // If item.newVariantId is a Shopify variant ID, we might need to find our internal Product ID
-      // For now, let's assume we can find it via inventory or product variant sync
-      // If item.replacementProductId was passed, use that
       let newProductId = item.newProductId;
       if (!newProductId && item.newVariantId) {
          const product = await prisma.product.findFirst({
-           where: { shopifyProductId: item.newVariantId.split('/').pop() } // basic fallback
+           where: { shopifyProductId: item.newVariantId.split('/').pop() }
          });
          newProductId = product?.id;
       }
@@ -99,6 +99,7 @@ export async function POST(req: Request) {
             create: resolvedExchanges.map((ex: any) => ({
               originalProductId: ex.originalProductId!,
               newProductId: ex.newProductId!,
+              orderId,
               status: 'REQUESTED',
               reason: ex.reason
             }))

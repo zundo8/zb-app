@@ -17,6 +17,7 @@ import { registerForPushNotifications, postPushTokenToBackend } from './src/util
 import { useAuthStore } from './src/store/authStore';
 import { useNotificationStore } from './src/store/notificationStore';
 import { getCacheService } from './src/services/cacheService';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 
 // Sentry initialization is disabled during local development to prevent Expo Go native module crashes.
@@ -98,16 +99,18 @@ function App() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <StatusBar 
-          barStyle={isDark ? "light-content" : "dark-content"} 
-          backgroundColor="transparent"
-          translucent 
-        />
-        <InAppNotificationBanner />
-        <RootNavigator />
-        <ConsentModal />
-      </SafeAreaProvider>
+      <ErrorBoundary screenName="RootApp">
+        <SafeAreaProvider>
+          <StatusBar 
+            barStyle={isDark ? "light-content" : "dark-content"} 
+            backgroundColor="transparent"
+            translucent 
+          />
+          <InAppNotificationBanner />
+          <RootNavigator />
+          <ConsentModal />
+        </SafeAreaProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

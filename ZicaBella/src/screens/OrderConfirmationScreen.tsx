@@ -100,10 +100,7 @@ export default function OrderConfirmationScreen() {
         </View>
       </ScrollView>
 
-      {/* Signature branding */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-        <Typography weight="400" size={8} color={colors.textExtraLight} style={{ letterSpacing: 4 }}>ZICA BELLA ARCHIVE</Typography>
-      </View>
+      {/* Removed signature branding as requested */}
     </View>
   );
 }

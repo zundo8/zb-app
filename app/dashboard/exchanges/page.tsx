@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Inbox, ArrowRight, X, Search, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Inbox, ArrowRight, X, Search, Plus, Eye, Package, TruckIcon, CreditCard, ArrowLeftRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type ExchangeRequest = {
@@ -15,6 +16,9 @@ type ExchangeRequest = {
   priceDifference: number;
   paymentStatus: string;
   createdAt: string;
+  reason: string | null;
+  returnRequestId: string | null;
+  newShopifyOrderId: string | null;
   items: any[];
 };
 
@@ -22,6 +26,8 @@ type Summary = {
   requested: number;
   approved: number;
   rejected: number;
+  received: number;
+  completed: number;
   total: number;
 };
 
@@ -29,6 +35,12 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   pending_approval: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Pending Approval" },
   approved: { color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20", label: "Approved" },
   rejected: { color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20", label: "Rejected" },
+  return_created: { color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20", label: "Return Created" },
+  received: { color: "text-teal-500", bg: "bg-teal-500/10", border: "border-teal-500/20", label: "Received" },
+  qc_passed: { color: "text-cyan-500", bg: "bg-cyan-500/10", border: "border-cyan-500/20", label: "QC Passed" },
+  new_order_created: { color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "New Order Created" },
+  shipped: { color: "text-violet-500", bg: "bg-violet-500/10", border: "border-violet-500/20", label: "Shipped" },
+  completed: { color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20", label: "Completed" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -42,10 +54,12 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ExchangesPage() {
+  const router = useRouter();
   const [exchanges, setExchanges] = useState<ExchangeRequest[]>([]);
-  const [summary, setSummary] = useState<Summary>({ requested: 0, approved: 0, rejected: 0, total: 0 });
+  const [summary, setSummary] = useState<Summary>({ requested: 0, approved: 0, rejected: 0, received: 0, completed: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -77,13 +91,15 @@ export default function ExchangesPage() {
         const data = await res.json();
         setExchanges(data.exchanges || []);
         
-        let pending = 0, approved = 0, rejected = 0;
+        let pending = 0, approved = 0, rejected = 0, received = 0, completed = 0;
         data.exchanges.forEach((e: any) => {
           if (e.status === "pending_approval") pending++;
-          if (e.status === "approved") approved++;
-          if (e.status === "rejected") rejected++;
+          else if (e.status === "approved" || e.status === "return_created") approved++;
+          else if (e.status === "rejected") rejected++;
+          else if (e.status === "received" || e.status === "qc_passed") received++;
+          else if (e.status === "new_order_created" || e.status === "shipped" || e.status === "completed") completed++;
         });
-        setSummary({ requested: pending, approved, rejected, total: data.total });
+        setSummary({ requested: pending, approved, rejected, received, completed, total: data.total });
       }
     } catch (err) {
       console.error(err);
@@ -163,6 +179,7 @@ export default function ExchangesPage() {
           customerId: selectedOrder.customerId,
           items: [{
             originalLineItemId: originalItem.id,
+            newProductId: replacementItem.productId,
             newVariantId: replacementItem.variantId,
             reason: "Admin manual exchange"
           }]
@@ -187,9 +204,22 @@ export default function ExchangesPage() {
     }
   };
 
+  const filteredExchanges = exchanges.filter(e => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      e.shopifyOrderId?.toLowerCase().includes(q) ||
+      e.userName?.toLowerCase().includes(q) ||
+      e.userEmail?.toLowerCase().includes(q) ||
+      e.exchangeRequestId?.toLowerCase().includes(q)
+    );
+  });
+
   const summaryCards = [
     { label: "Pending", statusKey: "pending_approval", count: summary.requested, icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { label: "Approved", statusKey: "approved", count: summary.approved, icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "In Progress", statusKey: "approved", count: summary.approved, icon: ArrowLeftRight, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "Received", statusKey: "received", count: summary.received, icon: Package, color: "text-teal-500", bg: "bg-teal-500/10" },
+    { label: "Completed", statusKey: "completed", count: summary.completed, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { label: "Rejected", statusKey: "rejected", count: summary.rejected, icon: XCircle, color: "text-rose-500", bg: "bg-rose-500/10" },
   ];
 
@@ -211,7 +241,7 @@ export default function ExchangesPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setCreateModal(true)} className="flex items-center gap-2 px-4 py-2 border border-foreground/[0.05] rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:bg-foreground/[0.02] transition-colors">
-            <ArrowRight className="w-3 h-3" />
+            <ArrowLeftRight className="w-3 h-3" />
             New Exchange
           </button>
           <button onClick={fetchExchanges} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity">
@@ -221,8 +251,8 @@ export default function ExchangesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {summaryCards.map((card, i) => {
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {summaryCards.map((card) => {
           const Icon = card.icon;
           return (
             <motion.button key={card.label} onClick={() => setStatusFilter(card.statusKey)} className={`glass-card p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98] group relative overflow-hidden ${statusFilter === card.statusKey ? "ring-1 ring-foreground/20" : ""}`}>
@@ -237,12 +267,22 @@ export default function ExchangesPage() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-3">
-        <div className="flex items-center bg-background border border-foreground/[0.05] rounded-md p-1">
-          {["all", "pending_approval", "approved", "rejected"].map((s) => (
+        <div className="flex items-center bg-background border border-foreground/[0.05] rounded-md p-1 overflow-x-auto">
+          {["all", "pending_approval", "approved", "received", "new_order_created", "completed", "rejected"].map((s) => (
             <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-[4px] text-[8px] font-medium uppercase tracking-[0.15em] transition-colors whitespace-nowrap ${statusFilter === s ? "bg-foreground text-background" : "text-foreground/50 hover:bg-foreground/[0.03]"}`}>
               {s === "all" ? "All" : STATUS_CONFIG[s]?.label || s}
             </button>
           ))}
+        </div>
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/30" />
+          <input
+            type="text"
+            placeholder="Search by order ID, customer..."
+            className="w-full bg-background border border-foreground/[0.05] rounded-md pl-10 pr-4 py-2 text-[11px] outline-none focus:border-foreground/20 transition-colors"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
@@ -253,10 +293,10 @@ export default function ExchangesPage() {
               <tr>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Order</th>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Customer</th>
-                <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Exchange Items</th>
+                <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest hidden md:table-cell">Exchange Items</th>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Payment</th>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Status</th>
-                <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest text-center">Date</th>
+                <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest text-center hidden sm:table-cell">Date</th>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
@@ -268,7 +308,7 @@ export default function ExchangesPage() {
                     <p className="text-[10px] font-medium uppercase tracking-widest text-foreground/40">Loading exchanges...</p>
                   </td>
                 </tr>
-              ) : exchanges.length === 0 ? (
+              ) : filteredExchanges.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-16 text-center">
                     <Inbox className="w-8 h-8 text-foreground/10 mx-auto mb-3" />
@@ -276,8 +316,12 @@ export default function ExchangesPage() {
                   </td>
                 </tr>
               ) : (
-                exchanges.map((req) => (
-                  <tr key={req.exchangeRequestId} className="hover:bg-foreground/[0.01] transition-all">
+                filteredExchanges.map((req) => (
+                  <tr
+                    key={req.exchangeRequestId}
+                    className="hover:bg-foreground/[0.01] transition-all cursor-pointer"
+                    onClick={() => router.push(`/dashboard/exchanges/${req.exchangeRequestId}`)}
+                  >
                     <td className="px-4 py-3">
                       <span className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId}</span>
                     </td>
@@ -285,39 +329,49 @@ export default function ExchangesPage() {
                       <div className="text-[11px] font-medium text-foreground">{req.userName}</div>
                       <div className="text-[9px] text-foreground/40 mt-0.5">{req.userEmail}</div>
                     </td>
-                    <td className="px-4 py-3 max-w-[250px] whitespace-normal">
-                      {req.items?.map((item: any, idx: number) => (
+                    <td className="px-4 py-3 max-w-[250px] whitespace-normal hidden md:table-cell">
+                      {req.items?.slice(0, 2).map((item: any, idx: number) => (
                         <div key={idx} className="flex items-center gap-2 mb-1.5 text-[10px] text-foreground/70">
                           <span className="line-through opacity-70">{item.originalProduct?.title || "Item"}</span>
-                          <ArrowRight className="w-3 h-3 text-foreground/40" />
+                          <ArrowRight className="w-3 h-3 text-foreground/40 shrink-0" />
                           <span className="font-semibold text-foreground">{item.newProduct?.title || "Replacement"}</span>
-                          {item.newOrderId && <span className="ml-1 text-[8px] bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded">New Order</span>}
                         </div>
                       ))}
+                      {req.items?.length > 2 && (
+                        <span className="text-[9px] text-foreground/40">+{req.items.length - 2} more</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-[11px] font-semibold text-foreground">
-                        {req.priceDifference !== 0 ? `₹${Math.abs(req.priceDifference).toLocaleString("en-IN")}` : "0"}
+                        {req.priceDifference !== 0 ? `₹${Math.abs(req.priceDifference).toLocaleString("en-IN")}` : "₹0"}
                       </div>
-                      <div className="text-[9px] text-foreground/40 mt-0.5 capitalize">{req.paymentStatus.replace("_", " ")}</div>
+                      <div className="text-[9px] text-foreground/40 mt-0.5 capitalize">{(req.paymentStatus || "").replace("_", " ")}</div>
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={req.status} />
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3 text-center hidden sm:table-cell">
                       <span className="text-[10px] text-foreground/50">{new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      {req.status === "pending_approval" && (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => handleAction(req.exchangeRequestId, "reject", { reason: "Admin rejected" })} disabled={actionLoading === req.exchangeRequestId} className="px-3 py-1.5 rounded-lg text-rose-500 hover:bg-rose-500/5 border border-rose-500/10 text-[8px] font-bold uppercase tracking-widest disabled:opacity-50">
-                            Reject
-                          </button>
-                          <button onClick={() => handleAction(req.exchangeRequestId, "approve")} disabled={actionLoading === req.exchangeRequestId} className="px-3 py-1.5 bg-foreground text-background rounded-lg text-[8px] font-bold uppercase tracking-widest shadow-lg disabled:opacity-50 flex items-center gap-1">
-                            {actionLoading === req.exchangeRequestId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Approve & Order"}
-                          </button>
-                        </div>
-                      )}
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => router.push(`/dashboard/exchanges/${req.exchangeRequestId}`)}
+                          className="px-2.5 py-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-foreground/[0.03] text-[8px] font-bold uppercase tracking-widest"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        {req.status === "pending_approval" && (
+                          <>
+                            <button onClick={() => handleAction(req.exchangeRequestId, "reject", { reason: "Admin rejected" })} disabled={actionLoading === req.exchangeRequestId} className="px-3 py-1.5 rounded-lg text-rose-500 hover:bg-rose-500/5 border border-rose-500/10 text-[8px] font-bold uppercase tracking-widest disabled:opacity-50">
+                              Reject
+                            </button>
+                            <button onClick={() => handleAction(req.exchangeRequestId, "approve")} disabled={actionLoading === req.exchangeRequestId} className="px-3 py-1.5 bg-foreground text-background rounded-lg text-[8px] font-bold uppercase tracking-widest shadow-lg disabled:opacity-50 flex items-center gap-1">
+                              {actionLoading === req.exchangeRequestId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Approve"}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -327,6 +381,7 @@ export default function ExchangesPage() {
         </div>
       </div>
 
+      {/* Create Exchange Modal */}
       <AnimatePresence>
         {createModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
@@ -384,7 +439,7 @@ export default function ExchangesPage() {
                       >
                          <div className="flex-1 text-left min-w-0">
                           <p className="text-[11px] font-semibold text-foreground truncate">{item.title}</p>
-                          <p className="text-[9px] text-foreground/40">₹{item.price.toLocaleString()}</p>
+                          <p className="text-[9px] text-foreground/40">₹{item.price?.toLocaleString()}</p>
                         </div>
                       </button>
                     ))}

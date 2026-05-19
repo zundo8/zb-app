@@ -74,12 +74,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Zica Bella uses the camera to let you upload a profile photo.</string>
-	<key>NSContactsUsageDescription</key>
-	<string>Allow contacts access for the refferal discounts.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Zica Bella uses Face ID for quick and secure sign-in.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Zica Bella uses your location to suggest nearby delivery options and estimate shipping times.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your microphone</string>
 	<key>NSMotionUsageDescription</key>

@@ -466,7 +466,7 @@ export default function DeliveryAddressScreen() {
           setIsEditing(false);
           navigation.navigate('OrderReview');
         }}
-        disabled={isEditing ? !isValid : false}
+        disabled={false}
       />
     </KeyboardAvoidingView>
   );

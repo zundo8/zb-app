@@ -174,7 +174,7 @@ const SearchScreen = React.memo(() => {
           }]}>
             <Ionicons name="search-outline" size={20} color={colors.textExtraLight} style={{ opacity: 0.4 }} />
           </View>
-          <Typography size={9} weight="400" color={colors.textExtraLight} style={styles.emptyTitle}>NO RESULTS FOR "{String(query || '').toUpperCase()}"</Typography>
+          <Typography size={9} weight="400" color={colors.textExtraLight} style={styles.emptyTitle}>NO PRODUCTS FOUND</Typography>
           <Typography size={7} weight="300" color={colors.textExtraLight} style={styles.emptySubtitle}>TRY A DIFFERENT TERM</Typography>
         </View>
       )}

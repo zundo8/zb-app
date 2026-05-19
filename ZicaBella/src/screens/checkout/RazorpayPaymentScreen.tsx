@@ -353,7 +353,7 @@ export default function RazorpayPaymentScreen() {
                         return (
                           <TouchableOpacity key={app.package_name} style={[s.glassCard, { borderColor: isSelected ? colors.foreground : colors.borderLight }]} onPress={() => { haptics.buttonTap(); setSelectedUPIApp(app.package_name); }}>
                              <View style={s.glassIconContainer}>
-                               <Image source={{ uri: app.app_icon || UPI_LOGOS[app.package_name] }} style={s.glassIcon} contentFit="contain" />
+                               <Image source={{ uri: UPI_LOGOS[app.package_name] || (app.app_icon ? (app.app_icon.startsWith('http') || app.app_icon.startsWith('data:') ? app.app_icon : `data:image/png;base64,${app.app_icon}`) : 'https://cdn.razorpay.com/app/bhim.png') }} style={s.glassIcon} contentFit="contain" />
                              </View>
                              <Typography size={9} weight="800" color={colors.text} style={{ marginTop: 10 }}>{app.app_name.toUpperCase()}</Typography>
                              {isSelected && <View style={[s.selectedDot, { backgroundColor: colors.foreground }]} />}

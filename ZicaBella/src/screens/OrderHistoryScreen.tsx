@@ -368,9 +368,9 @@ export default function OrderHistoryScreen() {
               <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
                 <Ionicons name="bag-outline" size={32} color={colors.textExtraLight} />
               </View>
-              <Typography size={16} weight="700" color={colors.text} style={{ marginTop: 20 }}>No {activeTab.toLowerCase()} orders</Typography>
+              <Typography size={16} weight="700" color={colors.text} style={{ marginTop: 20 }}>No orders yet</Typography>
               <Typography size={13} color={colors.textMuted} style={{ marginTop: 8, textAlign: 'center', lineHeight: 20 }}>
-                {activeTab === 'ACTIVE' ? 'You don’t have any active orders right now.' : 'Your order history is empty.'}
+                Your orders will appear here once you make a purchase
               </Typography>
               <TouchableOpacity
                 style={[styles.shopBtn, { backgroundColor: colors.foreground }]}

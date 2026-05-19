@@ -415,71 +415,67 @@ export default function OrderReviewScreen() {
 
         {/* ─── PROMO CODE ─── */}
         <View style={styles.section}>
-          <View style={[styles.promoSection, { borderColor: colors.borderLight }]}>
-            <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.promoLabel}>
-              PROMO CODE
-            </Typography>
-
-            {appliedDiscount ? (
-              <View style={[styles.promoApplied, { backgroundColor: 'rgba(52,199,89,0.08)', borderColor: 'rgba(52,199,89,0.2)' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                  <Ionicons name="checkmark-circle" size={18} color="#34C759" />
-                  <View>
-                    <Typography size={11} weight="800" color="#34C759">{appliedDiscount.code}</Typography>
-                    <Typography size={9} color="#34C759" style={{ opacity: 0.8 }}>
-                      {appliedDiscount.type === 'percentage'
-                        ? `${appliedDiscount.value}% off applied`
-                        : `₹${appliedDiscount.value} off applied`}
-                      {' · '}Saving {formatPrice(discountAmount)}
-                    </Typography>
-                  </View>
+          {appliedDiscount ? (
+            <View style={[styles.promoApplied, { backgroundColor: 'rgba(52,199,89,0.08)', borderColor: 'rgba(52,199,89,0.2)' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                <Ionicons name="checkmark-circle" size={18} color="#34C759" />
+                <View>
+                  <Typography size={11} weight="800" color="#34C759">{appliedDiscount.code}</Typography>
+                  <Typography size={9} color="#34C759" style={{ opacity: 0.8 }}>
+                    {appliedDiscount.type === 'percentage'
+                      ? `${appliedDiscount.value}% off applied`
+                      : `₹${appliedDiscount.value} off applied`}
+                    {' · '}Saving {formatPrice(discountAmount)}
+                  </Typography>
                 </View>
-                <TouchableOpacity onPress={handleRemovePromo} style={styles.removeBtn}>
-                  <Ionicons name="close-circle" size={20} color="rgba(52,199,89,0.5)" />
-                </TouchableOpacity>
               </View>
-            ) : (
-              <View style={styles.promoRow}>
-                <TextInput
-                  value={promoCode}
-                  onChangeText={(v) => { setPromoCode(v.toUpperCase()); setPromoError(null); }}
-                  placeholder="Enter promo code"
-                  placeholderTextColor={colors.textExtraLight}
-                  autoCapitalize="characters"
-                  style={[styles.promoInput, { 
-                    backgroundColor: colors.surface, 
-                    borderColor: promoError ? 'rgba(255,59,48,0.4)' : colors.borderLight, 
-                    color: colors.text 
-                  }]}
-                />
-                <TouchableOpacity
-                  onPress={handleApplyPromo}
-                  disabled={promoLoading || !promoCode.trim()}
-                  style={[styles.applyBtn, { 
-                    backgroundColor: promoCode.trim() ? colors.foreground : colors.surface,
-                    opacity: !promoCode.trim() ? 0.4 : 1,
-                  }]}
-                >
-                  {promoLoading ? (
-                    <ActivityIndicator size="small" color={colors.background} />
-                  ) : (
-                    <Typography size={9} weight="800" color={promoCode.trim() ? colors.background : colors.textMuted} style={{ letterSpacing: 1 }}>
-                      APPLY
-                    </Typography>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
+              <TouchableOpacity onPress={handleRemovePromo} style={styles.removeBtn}>
+                <Ionicons name="close-circle" size={20} color="rgba(52,199,89,0.5)" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.promoRow}>
+              <TextInput
+                value={promoCode}
+                onChangeText={(v) => { setPromoCode(v.toUpperCase()); setPromoError(null); }}
+                placeholder="Enter promo code"
+                placeholderTextColor={colors.textExtraLight}
+                autoCapitalize="characters"
+                style={[styles.promoInput, { 
+                  backgroundColor: colors.surface, 
+                  borderColor: promoError ? 'rgba(255,59,48,0.4)' : colors.borderLight, 
+                  color: colors.text 
+                }]}
+              />
+              <TouchableOpacity
+                onPress={handleApplyPromo}
+                disabled={promoLoading || !promoCode.trim()}
+                style={[styles.applyBtn, { 
+                  backgroundColor: promoCode.trim() ? colors.foreground : colors.surface,
+                  opacity: !promoCode.trim() ? 0.4 : 1,
+                  borderColor: colors.borderLight,
+                  borderWidth: 1.5,
+                }]}
+              >
+                {promoLoading ? (
+                  <ActivityIndicator size="small" color={colors.background} />
+                ) : (
+                  <Typography size={10} weight="800" color={promoCode.trim() ? colors.background : colors.textMuted} style={{ letterSpacing: 1 }}>
+                    APPLY
+                  </Typography>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
 
-            {promoError && (
-              <View style={styles.promoErrorRow}>
-                <Ionicons name="alert-circle-outline" size={12} color="rgba(255,59,48,0.8)" />
-                <Typography size={9} color="rgba(255,59,48,0.8)" weight="600" style={{ marginLeft: 4 }}>
-                  {promoError}
-                </Typography>
-              </View>
-            )}
-          </View>
+          {promoError && (
+            <View style={styles.promoErrorRow}>
+              <Ionicons name="alert-circle-outline" size={12} color="rgba(255,59,48,0.8)" />
+              <Typography size={9} color="rgba(255,59,48,0.8)" weight="600" style={{ marginLeft: 4 }}>
+                {promoError}
+              </Typography>
+            </View>
+          )}
         </View>
 
         {/* ─── STORE CREDITS ─── */}
@@ -512,56 +508,58 @@ export default function OrderReviewScreen() {
         )}
 
         {/* ─── PAYMENT METHOD ─── */}
-        <View style={styles.section}>
-          <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>PAYMENT METHOD</Typography>
-          <View style={{ gap: 12 }}>
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                { backgroundColor: colors.surface, borderColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.borderLight },
-              ]}
-              onPress={() => { haptics.buttonTap(); setSelectedPaymentMethod('razorpay'); }}
-              activeOpacity={0.8}
-              accessibilityLabel="Pay now with Razorpay"
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selectedPaymentMethod === 'razorpay' }}
-            >
-              <View style={[styles.iconBox, { backgroundColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.background }]}>
-                <Ionicons name="flash-outline" size={18} color={selectedPaymentMethod === 'razorpay' ? colors.background : colors.textMuted} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 16 }}>
-                <Typography size={12} weight="800" color={colors.text}>Pay Now</Typography>
-                <Typography size={9} weight="600" color={colors.textExtraLight} style={{ marginTop: 4 }}>UPI / Card / Netbanking via Razorpay</Typography>
-              </View>
-              <View style={[styles.radio, { borderColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.borderLight }]}>
-                {selectedPaymentMethod === 'razorpay' && <View style={[styles.radioInner, { backgroundColor: colors.foreground }]} />}
-              </View>
-            </TouchableOpacity>
+        {grandTotal > 0 && (
+          <View style={styles.section}>
+            <Typography size={7} weight="700" color={colors.textExtraLight} style={styles.sectionLabel}>PAYMENT METHOD</Typography>
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  styles.optionCard,
+                  { backgroundColor: colors.surface, borderColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.borderLight },
+                ]}
+                onPress={() => { haptics.buttonTap(); setSelectedPaymentMethod('razorpay'); }}
+                activeOpacity={0.8}
+                accessibilityLabel="Pay now with Razorpay"
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedPaymentMethod === 'razorpay' }}
+              >
+                <View style={[styles.iconBox, { backgroundColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.background }]}>
+                  <Ionicons name="flash-outline" size={16} color={selectedPaymentMethod === 'razorpay' ? colors.background : colors.textMuted} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Typography size={11} weight="800" color={colors.text}>Pay Now</Typography>
+                  <Typography size={8} weight="600" color={colors.textExtraLight} style={{ marginTop: 2 }}>UPI / Card / Netbanking via Razorpay</Typography>
+                </View>
+                <View style={[styles.radio, { borderColor: selectedPaymentMethod === 'razorpay' ? colors.foreground : colors.borderLight }]}>
+                  {selectedPaymentMethod === 'razorpay' && <View style={[styles.radioInner, { backgroundColor: colors.foreground }]} />}
+                </View>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                { backgroundColor: colors.surface, borderColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.borderLight },
-              ]}
-              onPress={() => { haptics.buttonTap(); setSelectedPaymentMethod('cod'); }}
-              activeOpacity={0.8}
-              accessibilityLabel="Pay with Cash on Delivery"
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selectedPaymentMethod === 'cod' }}
-            >
-              <View style={[styles.iconBox, { backgroundColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.background }]}>
-                <Ionicons name="cash-outline" size={18} color={selectedPaymentMethod === 'cod' ? colors.background : colors.textMuted} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 16 }}>
-                <Typography size={12} weight="800" color={colors.text}>Cash on Delivery</Typography>
-                <Typography size={9} weight="600" color={colors.textExtraLight} style={{ marginTop: 4 }}>Extra ₹99 service fee applies</Typography>
-              </View>
-              <View style={[styles.radio, { borderColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.borderLight }]}>
-                {selectedPaymentMethod === 'cod' && <View style={[styles.radioInner, { backgroundColor: colors.foreground }]} />}
-              </View>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.optionCard,
+                  { backgroundColor: colors.surface, borderColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.borderLight },
+                ]}
+                onPress={() => { haptics.buttonTap(); setSelectedPaymentMethod('cod'); }}
+                activeOpacity={0.8}
+                accessibilityLabel="Pay with Cash on Delivery"
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedPaymentMethod === 'cod' }}
+              >
+                <View style={[styles.iconBox, { backgroundColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.background }]}>
+                  <Ionicons name="cash-outline" size={16} color={selectedPaymentMethod === 'cod' ? colors.background : colors.textMuted} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Typography size={11} weight="800" color={colors.text}>Cash on Delivery</Typography>
+                  <Typography size={8} weight="600" color={colors.textExtraLight} style={{ marginTop: 2 }}>Extra ₹99 service fee applies</Typography>
+                </View>
+                <View style={[styles.radio, { borderColor: selectedPaymentMethod === 'cod' ? colors.foreground : colors.borderLight }]}>
+                  {selectedPaymentMethod === 'cod' && <View style={[styles.radioInner, { backgroundColor: colors.foreground }]} />}
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* ─── ORDER SUMMARY ─── */}
         <View style={styles.section}>
@@ -645,37 +643,35 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    borderRadius: 24,
+    padding: 16,
+    borderRadius: 20,
     borderWidth: 1.5,
   },
   iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  radioInner: { width: 10, height: 10, borderRadius: 5 },
+  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  radioInner: { width: 8, height: 8, borderRadius: 4 },
   // Promo Code styles
-  promoSection: { padding: 18, borderRadius: 24, borderWidth: 1.5 },
-  promoLabel: { letterSpacing: 2, marginBottom: 12 },
-  promoRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  promoRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   promoInput: {
     flex: 1,
-    height: 52,
-    borderRadius: 16,
+    height: 48,
+    borderRadius: 12,
     borderWidth: 1.5,
     paddingHorizontal: 16,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1,
   },
   applyBtn: {
-    height: 52,
-    paddingHorizontal: 18,
-    borderRadius: 16,
+    height: 48,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },

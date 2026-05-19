@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, Search, CheckCircle2, XCircle, RefreshCw, Package, CreditCard, AlertTriangle, Check, X, Clock, Inbox } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, Search, CheckCircle2, XCircle, RefreshCw, Package, CreditCard, AlertTriangle, Check, X, Clock, Inbox, Eye, ArrowRight, TruckIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type ReturnRequest = {
@@ -22,6 +23,8 @@ type Summary = {
   requested: number;
   approved: number;
   rejected: number;
+  received: number;
+  refunded: number;
   total: number;
 };
 
@@ -29,6 +32,9 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   pending_approval: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Pending Approval" },
   approved: { color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20", label: "Approved" },
   rejected: { color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20", label: "Rejected" },
+  pickup_scheduled: { color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20", label: "Pickup Scheduled" },
+  received: { color: "text-teal-500", bg: "bg-teal-500/10", border: "border-teal-500/20", label: "Received" },
+  refunded: { color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "Refunded" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -42,8 +48,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ReturnsPage() {
+  const router = useRouter();
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
-  const [summary, setSummary] = useState<Summary>({ requested: 0, approved: 0, rejected: 0, total: 0 });
+  const [summary, setSummary] = useState<Summary>({ requested: 0, approved: 0, rejected: 0, received: 0, refunded: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -78,13 +85,15 @@ export default function ReturnsPage() {
         const data = await res.json();
         setReturns(data.returns || []);
         
-        let pending = 0, approved = 0, rejected = 0;
+        let pending = 0, approved = 0, rejected = 0, received = 0, refunded = 0;
         data.returns.forEach((r: any) => {
           if (r.status === "pending_approval") pending++;
           if (r.status === "approved") approved++;
           if (r.status === "rejected") rejected++;
+          if (r.status === "received") received++;
+          if (r.status === "refunded") refunded++;
         });
-        setSummary({ requested: pending, approved, rejected, total: data.total });
+        setSummary({ requested: pending, approved, rejected, received, refunded, total: data.total });
       }
     } catch (err) {
       console.error(err);
@@ -151,7 +160,7 @@ export default function ReturnsPage() {
             reason: "Admin manual return",
             quantity: si.quantity
           })),
-          estimatedRefund: selectedItems.reduce((acc, si) => acc + (si.price * si.quantity), 0)
+          estimatedRefund: selectedItems.reduce((acc: number, si: any) => acc + (si.price * si.quantity), 0)
         })
       });
       if (res.ok) {
@@ -181,9 +190,22 @@ export default function ReturnsPage() {
     setRefundAmount("");
   };
 
+  const filteredReturns = returns.filter(r => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      r.shopifyOrderId?.toLowerCase().includes(q) ||
+      r.userName?.toLowerCase().includes(q) ||
+      r.userEmail?.toLowerCase().includes(q) ||
+      r.returnRequestId?.toLowerCase().includes(q)
+    );
+  });
+
   const summaryCards = [
     { label: "Pending", statusKey: "pending_approval", count: summary.requested, icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10" },
     { label: "Approved", statusKey: "approved", count: summary.approved, icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "Received", statusKey: "received", count: summary.received, icon: TruckIcon, color: "text-teal-500", bg: "bg-teal-500/10" },
+    { label: "Refunded", statusKey: "refunded", count: summary.refunded, icon: CreditCard, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { label: "Rejected", statusKey: "rejected", count: summary.rejected, icon: XCircle, color: "text-rose-500", bg: "bg-rose-500/10" },
   ];
 
@@ -215,8 +237,8 @@ export default function ReturnsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {summaryCards.map((card, i) => {
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {summaryCards.map((card) => {
           const Icon = card.icon;
           return (
             <motion.button key={card.label} onClick={() => setStatusFilter(card.statusKey)} className={`glass-card p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98] group relative overflow-hidden ${statusFilter === card.statusKey ? "ring-1 ring-foreground/20" : ""}`}>
@@ -231,12 +253,22 @@ export default function ReturnsPage() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-3">
-        <div className="flex items-center bg-background border border-foreground/[0.05] rounded-md p-1">
-          {["all", "pending_approval", "approved", "rejected"].map((s) => (
+        <div className="flex items-center bg-background border border-foreground/[0.05] rounded-md p-1 overflow-x-auto">
+          {["all", "pending_approval", "approved", "received", "refunded", "rejected"].map((s) => (
             <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-[4px] text-[8px] font-medium uppercase tracking-[0.15em] transition-colors whitespace-nowrap ${statusFilter === s ? "bg-foreground text-background" : "text-foreground/50 hover:bg-foreground/[0.03]"}`}>
               {s === "all" ? "All" : STATUS_CONFIG[s]?.label || s}
             </button>
           ))}
+        </div>
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/30" />
+          <input
+            type="text"
+            placeholder="Search by order ID, customer..."
+            className="w-full bg-background border border-foreground/[0.05] rounded-md pl-10 pr-4 py-2 text-[11px] outline-none focus:border-foreground/20 transition-colors"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
@@ -247,10 +279,10 @@ export default function ReturnsPage() {
               <tr>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Order</th>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Customer</th>
-                <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Items</th>
+                <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest hidden md:table-cell">Items</th>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Refund</th>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">Status</th>
-                <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest text-center">Date</th>
+                <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest text-center hidden sm:table-cell">Date</th>
                 <th className="px-4 py-3 text-[9px] font-semibold text-foreground/50 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
@@ -262,7 +294,7 @@ export default function ReturnsPage() {
                     <p className="text-[10px] font-medium uppercase tracking-widest text-foreground/40">Loading returns...</p>
                   </td>
                 </tr>
-              ) : returns.length === 0 ? (
+              ) : filteredReturns.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-16 text-center">
                     <Inbox className="w-8 h-8 text-foreground/10 mx-auto mb-3" />
@@ -270,8 +302,12 @@ export default function ReturnsPage() {
                   </td>
                 </tr>
               ) : (
-                returns.map((req) => (
-                  <tr key={req.returnRequestId} className="hover:bg-foreground/[0.01] transition-all">
+                filteredReturns.map((req) => (
+                  <tr
+                    key={req.returnRequestId}
+                    className="hover:bg-foreground/[0.01] transition-all cursor-pointer"
+                    onClick={() => router.push(`/dashboard/returns/${req.returnRequestId}`)}
+                  >
                     <td className="px-4 py-3">
                       <span className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId}</span>
                     </td>
@@ -279,12 +315,15 @@ export default function ReturnsPage() {
                       <div className="text-[11px] font-medium text-foreground">{req.userName}</div>
                       <div className="text-[9px] text-foreground/40 mt-0.5">{req.userEmail}</div>
                     </td>
-                    <td className="px-4 py-3 max-w-[200px] whitespace-normal">
-                      {req.items?.map((item: any, idx: number) => (
+                    <td className="px-4 py-3 max-w-[200px] whitespace-normal hidden md:table-cell">
+                      {req.items?.slice(0, 2).map((item: any, idx: number) => (
                         <div key={idx} className="text-[10px] text-foreground/70 mb-1">
                           <span className="font-semibold">{item.product?.title || "Item"}</span> - {item.reason}
                         </div>
                       ))}
+                      {req.items?.length > 2 && (
+                        <span className="text-[9px] text-foreground/40">+{req.items.length - 2} more</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-[11px] font-semibold text-foreground">₹{(req.actualRefund || req.estimatedRefund).toLocaleString("en-IN")}</span>
@@ -292,20 +331,28 @@ export default function ReturnsPage() {
                     <td className="px-4 py-3">
                       <StatusBadge status={req.status} />
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3 text-center hidden sm:table-cell">
                       <span className="text-[10px] text-foreground/50">{new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      {req.status === "pending_approval" && (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => handleAction(req.returnRequestId, "reject", { reason: "Admin rejected" })} disabled={actionLoading === req.returnRequestId} className="px-3 py-1.5 rounded-lg text-rose-500 hover:bg-rose-500/5 border border-rose-500/10 text-[8px] font-bold uppercase tracking-widest disabled:opacity-50">
-                            Reject
-                          </button>
-                          <button onClick={() => { setRefundModal(req); setRefundAmount(String(req.estimatedRefund)); }} disabled={actionLoading === req.returnRequestId} className="px-3 py-1.5 bg-foreground text-background rounded-lg text-[8px] font-bold uppercase tracking-widest shadow-lg disabled:opacity-50 flex items-center gap-1">
-                            {actionLoading === req.returnRequestId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Approve & Refund"}
-                          </button>
-                        </div>
-                      )}
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => router.push(`/dashboard/returns/${req.returnRequestId}`)}
+                          className="px-2.5 py-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-foreground/[0.03] text-[8px] font-bold uppercase tracking-widest"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        {req.status === "pending_approval" && (
+                          <>
+                            <button onClick={() => handleAction(req.returnRequestId, "reject", { reason: "Admin rejected" })} disabled={actionLoading === req.returnRequestId} className="px-3 py-1.5 rounded-lg text-rose-500 hover:bg-rose-500/5 border border-rose-500/10 text-[8px] font-bold uppercase tracking-widest disabled:opacity-50">
+                              Reject
+                            </button>
+                            <button onClick={() => { setRefundModal(req); setRefundAmount(String(req.estimatedRefund)); }} disabled={actionLoading === req.returnRequestId} className="px-3 py-1.5 bg-foreground text-background rounded-lg text-[8px] font-bold uppercase tracking-widest shadow-lg disabled:opacity-50 flex items-center gap-1">
+                              {actionLoading === req.returnRequestId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Approve"}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -315,6 +362,7 @@ export default function ReturnsPage() {
         </div>
       </div>
 
+      {/* Refund Modal */}
       <AnimatePresence>
         {refundModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
@@ -328,6 +376,7 @@ export default function ReturnsPage() {
               <div className="space-y-4">
                 <div className="bg-foreground/[0.02] border border-foreground/[0.05] rounded-lg p-3 space-y-1">
                   <p className="text-[10px] text-foreground/50 uppercase tracking-widest">Order #{refundModal.shopifyOrderId}</p>
+                  <p className="text-[10px] text-foreground/70">{refundModal.userName} • {refundModal.userEmail}</p>
                 </div>
 
                 <div className="flex gap-2">
@@ -349,6 +398,7 @@ export default function ReturnsPage() {
         )}
       </AnimatePresence>
 
+      {/* Create Return Modal */}
       <AnimatePresence>
         {createModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
@@ -399,27 +449,27 @@ export default function ReturnsPage() {
                   <div className="space-y-3">
                     <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Select Items to Return</p>
                     {selectedOrder.items?.map((item: any) => {
-                      const isSelected = selectedItems.some(si => si.id === item.id);
+                      const isSelected = selectedItems.some((si: any) => si.id === item.id);
                       return (
-                        <TouchableOpacity 
-                          key={item.id} 
-                          onPress={() => {
+                        <button
+                          key={item.id}
+                          onClick={() => {
                             if (isSelected) {
-                              setSelectedItems(selectedItems.filter(si => si.id !== item.id));
+                              setSelectedItems(selectedItems.filter((si: any) => si.id !== item.id));
                             } else {
                               setSelectedItems([...selectedItems, { ...item, quantity: item.quantity }]);
                             }
                           }}
-                          className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${isSelected ? "border-emerald-500/50 bg-emerald-500/5" : "border-foreground/[0.05]"}`}
+                          className={`w-full flex items-center gap-3 p-2 rounded-lg border transition-all ${isSelected ? "border-emerald-500/50 bg-emerald-500/5" : "border-foreground/[0.05]"}`}
                         >
                           <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? "bg-emerald-500 border-emerald-500" : "border-foreground/20"}`}>
                             {isSelected && <Check className="w-3 h-3 text-white" />}
                           </div>
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 text-left">
                             <p className="text-[11px] font-semibold text-foreground truncate">{item.title}</p>
                             <p className="text-[9px] text-foreground/40">₹{item.price.toLocaleString()} x {item.quantity}</p>
                           </div>
-                        </TouchableOpacity>
+                        </button>
                       );
                     })}
                   </div>
@@ -428,7 +478,7 @@ export default function ReturnsPage() {
                     <div className="pt-4 border-t border-foreground/[0.05]">
                       <div className="flex justify-between items-center mb-4">
                         <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Est. Refund</span>
-                        <span className="text-lg font-bold text-foreground">₹{selectedItems.reduce((acc, si) => acc + (si.price * si.quantity), 0).toLocaleString()}</span>
+                        <span className="text-lg font-bold text-foreground">₹{selectedItems.reduce((acc: number, si: any) => acc + (si.price * si.quantity), 0).toLocaleString()}</span>
                       </div>
                       <button onClick={handleCreateReturn} className="w-full py-3 bg-foreground text-background rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center justify-center gap-2">
                         <CheckCircle2 className="w-4 h-4" /> Create Return Request

@@ -201,6 +201,7 @@ export function useProducts(count = 24) {
   const [products, setProducts] = useState<FlatProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isError, setIsError] = useState(false);
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -212,6 +213,11 @@ export function useProducts(count = 24) {
     const cacheKey = `products_list_${count}`;
     
     try {
+      if (isMounted.current) {
+        setIsError(false);
+        setError(null);
+      }
+
       if (!isRefresh) {
         const cached = await getCacheService().get<FlatProduct[]>(cacheKey);
         if (cached && cached.length > 0 && isMounted.current) {
@@ -241,6 +247,8 @@ export function useProducts(count = 24) {
       throw new Error('Empty product response');
     } catch (err: any) {
       if (!isMounted.current) return;
+      
+      setIsError(true);
       if (products.length === 0) {
         setProducts(fallbackProducts.slice(0, count));
         setError('Showing bundled products while the catalog reconnects.');
@@ -256,7 +264,7 @@ export function useProducts(count = 24) {
     fetchProducts();
   }, [fetchProducts]);
 
-  return { products, loading, error, refetch: () => fetchProducts(true) };
+  return { products, loading, error, isError, refetch: () => fetchProducts(true) };
 }
 
 export function useProductByHandle(handle: string) {
