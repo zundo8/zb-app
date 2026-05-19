@@ -380,7 +380,28 @@ export default function TemplatesTab() {
                     <iframe
                       title="Email Live Preview"
                       sandbox="allow-same-origin"
-                      srcDoc={editForm.htmlBody}
+                      srcDoc={
+                        editForm.htmlBody
+                          .replace(/\{\{customerName\}\}/g, 'Aria')
+                          .replace(/\{\{orderId\}\}/g, 'ZB-10294')
+                          .replace(/\{\{totalPrice\}\}/g, '₹4,500')
+                          .replace(/\{\{itemsHtml\}\}/g, `
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
+          <tr>
+            <td class="item-img" width="110" style="vertical-align:top; padding:0;">
+              <img src="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=220&q=80&auto=format&fit=crop" width="110" height="130" style="display:block; object-fit:cover; opacity:0.8;" alt="Mock Product" />
+            </td>
+            <td style="vertical-align:top; padding:20px 20px 20px 22px; border-left:1px solid rgba(255,255,255,0.1);">
+              <p style="margin:0 0 4px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase;">Qty: 1</p>
+              <p style="margin:0 0 6px; font-family:'DM Serif Display',serif; font-size:17px; color:rgba(255,255,255,0.7); line-height:1.3;">Oversized Obsidian Blazer</p>
+              <p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3);">Size: M</p>
+              <p style="margin:0; font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.5);">₹4,500</p>
+            </td>
+          </tr>
+        </table>
+                          `)
+                          .replace(/\{\{collectionName\}\}/g, 'Midnight Mirage')
+                      }
                       className="w-full h-full border-none bg-white"
                     />
                   ) : (
