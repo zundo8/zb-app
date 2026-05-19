@@ -1,3 +1,5 @@
+import { config } from '../constants/config';
+
 /**
  * Robust image URL resolver to handle various data structures
  * coming from Shopify, Prisma, or manual inputs.
@@ -8,6 +10,9 @@ export function resolveImageUrl(source: any): string | null {
   // 1. If it's already a string, return it (clean up if needed)
   if (typeof source === 'string') {
     if (source.startsWith('//')) return `https:${source}`;
+    if (source.startsWith('/') && !source.startsWith('//')) {
+      return `${config.appUrl}${source}`;
+    }
     return source;
   }
 

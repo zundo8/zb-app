@@ -6,6 +6,7 @@ import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { Typography } from './Typography';
 import { useFeaturedUsers } from '../hooks/useAdminFeatures';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -112,7 +113,7 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
                 accessibilityHint={hasIg ? 'Opens this look on Instagram' : undefined}
               >
                 <Image
-                  source={typeof look.imageUrl === 'string' ? { uri: look.imageUrl } : look.imageUrl}
+                  source={typeof look.imageUrl === 'string' ? { uri: resolveImageUrl(look.imageUrl) || '' } : look.imageUrl}
                   style={styles.image}
                   contentFit="cover"
                   transition={200}

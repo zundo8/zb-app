@@ -272,9 +272,10 @@ export function useRazorpay(): UseRazorpayReturn {
       const apiBase = getPaymentApiBaseUrl();
       const amountPaise = Math.round(opts.amount * 100);
 
+      let orderId = opts.orderId;
+      let keyId = opts.razorpayKeyId;
+
       try {
-        let orderId = opts.orderId;
-        let keyId = opts.razorpayKeyId;
 
         // ── Step 1: Create order on backend (only if not pre-created) ──
         if (!orderId || !keyId) {

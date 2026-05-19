@@ -58,7 +58,39 @@ export const useAuthStore = create<AuthStore>()(
           // Non-fatal
         }
       },
-      logout: () => set({ user: null, token: null, isAuthenticated: false }),
+      logout: () => {
+        set({ user: null, token: null, isAuthenticated: false });
+        try {
+          // 1. Clear cart
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { useCartStore } = require('./cartStore');
+          useCartStore.getState().clearCart();
+          useCartStore.setState({ shippingAddress: null });
+
+          // 2. Clear wishlist
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { useWishlistStore } = require('./wishlistStore');
+          useWishlistStore.getState().clearWishlist();
+
+          // 3. Clear recent products
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { useRecentStore } = require('./recentStore');
+          useRecentStore.getState().clearRecent();
+
+          // 4. Clear notifications
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { useNotificationStore } = require('./notificationStore');
+          useNotificationStore.getState().clearAll();
+          useNotificationStore.setState({ pushToken: null });
+
+          // 5. Reset notification service
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { NotificationService } = require('../services/NotificationService');
+          NotificationService.reset();
+        } catch (_e) {
+          // Non-fatal
+        }
+      },
       setBiometric: (enabled) => set({ biometricEnabled: enabled }),
       setRememberMe: (enabled) => set({ rememberMe: enabled }),
       updateUser: (updates) =>

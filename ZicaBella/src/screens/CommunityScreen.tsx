@@ -18,6 +18,7 @@ import { useAdminSettings, useFeaturedUsers } from '../hooks/useAdminFeatures';
 import { useCommunityStore } from '../store/communityStore';
 import { haptics } from '../utils/haptics';
 import { useThemeStore } from '../store/themeStore';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
@@ -220,7 +221,7 @@ export default function CommunityScreen() {
                    disabled={isUploading}
                 >
                    {form.imageUrl ? (
-                     <Image source={{ uri: form.imageUrl }} style={styles.previewImage} />
+                     <Image source={{ uri: resolveImageUrl(form.imageUrl) || '' }} style={styles.previewImage} />
                    ) : (
                      <View style={styles.uploadPlaceholder}>
                         <Ionicons name="camera-outline" size={32} color={colors.textExtraLight} />

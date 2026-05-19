@@ -224,18 +224,24 @@ export default function LoginScreen() {
       const res = await fetch(`${BASE_URL}/api/auth/mobile-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: fullPhone, otp: finalOtp, name: name.trim() }),
+        body: JSON.stringify({ phone: fullPhone, otp: finalOtp, name: (name || '').trim() }),
       });
       const json = await res.json();
       
       if (!res.ok) throw new Error(json.error || 'Verification failed');
       if (!json.token) throw new Error('Session expired');
       
-      const { syncWishlist } = useWishlistStore.getState();
-      await syncWishlist(json.token);
-      
+      // 1. Immediately log the user in to make the transition instant
       login(json.user, json.token);
       haptics.success();
+
+      // 2. Synchronize wishlist non-blockingly in the background
+      try {
+        const { syncWishlist } = useWishlistStore.getState();
+        syncWishlist(json.token);
+      } catch (wishErr) {
+        console.warn('[Background Wishlist Sync Failure]:', wishErr);
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message);
       haptics.error();
@@ -394,7 +400,7 @@ export default function LoginScreen() {
                     onChangeText={(v) => handleOTPChange(v, i)}
                     onKeyPress={(e) => handleOTPKeyPress(e, i)}
                     keyboardType="number-pad"
-                    maxLength={i === 0 ? 6 : 1}
+                    maxLength={6}
                     style={[styles.otpInput, { color: colors.text }]}
                     autoFocus={i === 0}
                     selectTextOnFocus
