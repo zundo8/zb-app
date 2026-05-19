@@ -16,8 +16,14 @@ import Animated, {
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import Markdown from 'react-native-markdown-display';
-import { Audio } from 'expo-av';
 import { BlurView } from 'expo-blur';
+
+let Audio: any = null;
+try {
+  Audio = require('expo-av').Audio;
+} catch (e) {
+  console.warn('[ZicaAI] ExponentAV native module is not ready:', e);
+}
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { useUIStore } from '../store/uiStore';
@@ -1216,7 +1222,7 @@ const ChatScreen = memo(() => {
   const [userOrders, setUserOrders] = useState<any[]>([]);
 
   // Audio prompt recording states
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recording, setRecording] = useState<any>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<any>(null);
@@ -1605,6 +1611,15 @@ const ChatScreen = memo(() => {
   const startRecording = useCallback(async () => {
     try {
       haptics.success();
+      
+      if (!Audio) {
+        Alert.alert(
+          'Voice Feature Not Ready',
+          'Please rebuild the native application binary using Xcode, VS Code, or "npx expo run:ios" to compile the newly added ExponentAV dependency.'
+        );
+        return;
+      }
+
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status !== 'granted') {
         Alert.alert('Permission Denied', 'Please grant microphone access to record audio.');
