@@ -18,12 +18,12 @@ import * as FileSystem from 'expo-file-system';
 import Markdown from 'react-native-markdown-display';
 import { BlurView } from 'expo-blur';
 
-let Audio: any = null;
-try {
-  Audio = require('expo-av').Audio;
-} catch (e) {
-  console.warn('[ZicaAI] ExponentAV native module is not ready:', e);
-}
+import { 
+  useAudioRecorder, 
+  RecordingPresets, 
+  getRecordingPermissionsAsync, 
+  requestRecordingPermissionsAsync 
+} from 'expo-audio';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { useUIStore } from '../store/uiStore';
@@ -1222,7 +1222,7 @@ const ChatScreen = memo(() => {
   const [userOrders, setUserOrders] = useState<any[]>([]);
 
   // Audio prompt recording states
-  const [recording, setRecording] = useState<any>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<any>(null);
@@ -1607,79 +1607,6 @@ const ChatScreen = memo(() => {
     }
   }, [scrollToEndThrottled, setMessages]);
 
-  // Start recording voice prompt
-  const startRecording = useCallback(async () => {
-    try {
-      haptics.success();
-      
-      if (!Audio) {
-        Alert.alert(
-          'Voice Feature Not Ready',
-          'Please rebuild the native application binary using Xcode, VS Code, or "npx expo run:ios" to compile the newly added ExponentAV dependency.'
-        );
-        return;
-      }
-
-      const permission = await Audio.requestPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permission Denied', 'Please grant microphone access to record audio.');
-        return;
-      }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      
-      setRecording(newRecording);
-      setIsRecording(true);
-      setRecordingDuration(0);
-
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
-
-    } catch (err) {
-      console.error('Failed to start recording', err);
-      Alert.alert('Microphone Error', 'Failed to initialize microphone recording.');
-    }
-  }, []);
-
-  // Stop recording and process transcription
-  const stopRecording = useCallback(async () => {
-    try {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-
-      haptics.success();
-      setIsRecording(false);
-
-      if (!recording) return;
-
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
-
-      if (uri) {
-        await transcribeAndSend(uri);
-      }
-    } catch (err) {
-      console.error('Failed to stop recording', err);
-      setIsRecording(false);
-      setRecording(null);
-    }
-  }, [recording]);
-
   // Transcribe voice prompt and invoke Zica AI prompt response
   const transcribeAndSend = useCallback(async (audioUri: string) => {
     try {
@@ -1715,6 +1642,63 @@ const ChatScreen = memo(() => {
       Alert.alert('Network Error', 'Failed to connect to speech transcription service.');
     }
   }, [handleSend]);
+
+  // Start recording voice prompt
+  const startRecording = useCallback(async () => {
+    try {
+      haptics.success();
+      
+      const permissions = await getRecordingPermissionsAsync();
+      if (!permissions.granted) {
+        const req = await requestRecordingPermissionsAsync();
+        if (!req.granted) {
+          Alert.alert('Permission Denied', 'Please grant microphone access to record audio.');
+          return;
+        }
+      }
+
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+
+      await audioRecorder.prepareToRecordAsync();
+      await audioRecorder.record();
+      
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+
+    } catch (err) {
+      console.error('Failed to start recording', err);
+      Alert.alert('Microphone Error', 'Failed to initialize microphone recording.');
+    }
+  }, [audioRecorder]);
+
+  // Stop recording and process transcription
+  const stopRecording = useCallback(async () => {
+    try {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+
+      haptics.success();
+      setIsRecording(false);
+
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+
+      if (uri) {
+        await transcribeAndSend(uri);
+      }
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+      setIsRecording(false);
+    }
+  }, [audioRecorder, transcribeAndSend]);
 
   // Clean up recording timer on unmount
   useEffect(() => {
