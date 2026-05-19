@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       newStatus,
       customerEmail,
       customerName,
+      paymentMethod,
       items,
       total,
       trackingNumber,
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
       orderId,
       customerEmail,
       customerName: resolvedName,
+      paymentMethod,
       items: resolvedItems,
       total: resolvedTotal,
       currency: currency || 'INR',
@@ -64,9 +66,15 @@ export async function POST(request: NextRequest) {
     let trigger = '';
 
     if (['confirmed', 'placed', 'processing', 'approved'].includes(status)) {
-      await sendOrderConfirmationEmail(orderPayload);
+      if (paymentMethod && paymentMethod.toLowerCase() === 'cod') {
+        const { sendOrderCodConfirmationEmail } = await import('@/lib/services/orderEmailService');
+        await sendOrderCodConfirmationEmail(orderPayload);
+        trigger = 'cod_confirmation';
+      } else {
+        await sendOrderConfirmationEmail(orderPayload);
+        trigger = 'confirmation';
+      }
       emailSent = true;
-      trigger = 'confirmation';
     } else if (['shipped', 'out_for_delivery', 'dispatched', 'ready for dispatch'].includes(status)) {
       await sendOrderShippedEmail({
         ...orderPayload,
@@ -79,6 +87,11 @@ export async function POST(request: NextRequest) {
       await sendOrderDeliveredEmail(orderPayload);
       emailSent = true;
       trigger = 'delivered';
+    } else if (['cancelled', 'canceled'].includes(status)) {
+      const { sendOrderCancelledEmail } = await import('@/lib/services/orderEmailService');
+      await sendOrderCancelledEmail(orderPayload);
+      emailSent = true;
+      trigger = 'cancelled';
     }
 
     // 4. Return success response

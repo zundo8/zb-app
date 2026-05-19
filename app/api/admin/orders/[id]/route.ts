@@ -37,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const oldOrder = await prisma.order.findUnique({
       where: { id },
-      select: { status: true, deliveryStatus: true, customerId: true }
+      select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true }
     });
 
     // Auto-cancel sub-statuses if status is set to cancelled
@@ -108,6 +108,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 newStatus: resolvedStatus,
                 customerEmail: fullOrder.customer.email,
                 customerName: fullOrder.customer.name || 'Valued Customer',
+                paymentMethod: fullOrder.paymentMethod || undefined,
                 items: fullOrder.items.map((i: any) => ({
                   name: i.title,
                   size: i.sku?.split('-')?.pop() || 'M',
