@@ -2093,7 +2093,7 @@ const ChatScreen = memo(() => {
               data={messages}
               keyExtractor={keyExtractor}
               renderItem={renderMessage}
-              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: insets.top + 70 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: insets.top + 70 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
@@ -2299,6 +2299,10 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     backgroundColor: 'transparent',
     zIndex: 10,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   inputPill: {
     flexDirection: 'row', 
