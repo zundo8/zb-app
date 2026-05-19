@@ -160,7 +160,7 @@ export default function OrderDetailsScreen() {
 
   const contactSupport = () => {
     haptics.buttonTap();
-    navigation.navigate('ChatTab');
+    navigation.navigate('Main', { screen: 'ChatTab' });
   };
 
   const handleCancelOrder = async () => {

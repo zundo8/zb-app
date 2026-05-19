@@ -22,7 +22,8 @@ import {
   useAudioRecorder, 
   RecordingPresets, 
   getRecordingPermissionsAsync, 
-  requestRecordingPermissionsAsync 
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync
 } from 'expo-audio';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -1657,6 +1658,11 @@ const ChatScreen = memo(() => {
         }
       }
 
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
       }
@@ -1689,6 +1695,16 @@ const ChatScreen = memo(() => {
       setIsRecording(false);
 
       await audioRecorder.stop();
+      
+      try {
+        await setAudioModeAsync({
+          allowsRecording: false,
+          playsInSilentMode: true,
+        });
+      } catch (e) {
+        console.warn('Failed to reset audio mode', e);
+      }
+
       const uri = audioRecorder.uri;
 
       if (uri) {
@@ -1697,6 +1713,13 @@ const ChatScreen = memo(() => {
     } catch (err) {
       console.error('Failed to stop recording', err);
       setIsRecording(false);
+      
+      try {
+        await setAudioModeAsync({
+          allowsRecording: false,
+          playsInSilentMode: true,
+        });
+      } catch (e) {}
     }
   }, [audioRecorder, transcribeAndSend]);
 
