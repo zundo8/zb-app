@@ -50,6 +50,16 @@ export async function POST(req: Request) {
       );
     }
 
+    // Special case: Demo User Bypass
+    if (digits.slice(-10) === '9999999999') {
+      return NextResponse.json({ 
+        success: true, 
+        message: "OTP sent successfully (Demo Mode)",
+        provider: "demo",
+        phone: "+91******9999"
+      });
+    }
+
     // 1. Try Twilio Verify first
     try {
       const verifyResult = await SmsService.sendVerification(normalizedPhone);

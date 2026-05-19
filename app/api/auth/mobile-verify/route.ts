@@ -24,6 +24,11 @@ export async function POST(req: Request) {
 
     let isVerified = false;
 
+    // Special case: Demo User Bypass
+    if (normalizedPhone === "9999999999" && otp === "123456") {
+      isVerified = true;
+    }
+
     // 1. Try Twilio Verify check first
     try {
       const verifyCheck = await SmsService.checkVerification(phone, otp);
