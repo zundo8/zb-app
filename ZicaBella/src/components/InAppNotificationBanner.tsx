@@ -62,7 +62,13 @@ export const InAppNotificationBanner = () => {
       }, 4000);
     });
 
-    return () => subscription.remove();
+    return () => {
+      try {
+        subscription.remove();
+      } catch (e) {
+        console.warn('Failed to remove notification banner subscription:', e);
+      }
+    };
   }, []);
 
   const dismiss = () => {

@@ -121,7 +121,11 @@ export class NotificationService {
 
       // ── 4. Foreground received listener ─────────────────────────────
       // Remove any stale subscription before registering a new one
-      _foregroundSub?.remove();
+      try {
+        _foregroundSub?.remove();
+      } catch (e) {
+        console.warn('Failed to remove stale foreground notification listener:', e);
+      }
       _foregroundSub = Notifications.addNotificationReceivedListener((notification) => {
         haptics.success();
         const { title, body, data } = notification.request.content;
@@ -140,7 +144,11 @@ export class NotificationService {
       });
 
       // ── 5. Response listener (notification tapped) ───────────────────
-      _responseSub?.remove();
+      try {
+        _responseSub?.remove();
+      } catch (e) {
+        console.warn('Failed to remove stale notification response listener:', e);
+      }
       _responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
         const { title, body, data } = response.notification.request.content;
         const notifData = data as Record<string, string>;

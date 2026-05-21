@@ -18,7 +18,7 @@ import { Typography } from '../components/Typography';
 import { OrderSkeleton } from '../components/OrderSkeleton';
 
 import { resolveImageUrl } from '../utils/imageUtils';
-import { getOrderStatusLabel, getOrderStatusProgressStep } from '../utils/orderStatus';
+import { getOrderStatusLabel, getOrderStatusProgressStep, resolveOrderDisplayStatus } from '../utils/orderStatus';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 type OrderTab = 'ACTIVE' | 'HISTORY';
@@ -115,20 +115,34 @@ export default function OrderHistoryScreen() {
       
       const isCancelled = mainStatus.includes('cancel');
       const isDelivered = !!deliveredAt;
+      const isReturnActive = ['return_initiated', 'return_approved', 'exchange_initiated', 'exchange_approved'].includes(mainStatus) ||
+                             o.returnRequests?.some((r: any) => !['cancelled', 'rejected', 'refunded'].includes(r.status)) ||
+                             o.exchangeRequests?.some((e: any) => !['cancelled', 'rejected', 'new_order_created'].includes(e.status));
       
       if (activeTab === 'HISTORY') return true;
-      return !isCancelled && !isDelivered;
+      return !isCancelled && (!isDelivered || isReturnActive);
     });
   }, [orders, activeTab]);
 
   const getStatusConfig = (order: any) => {
-    const label = getOrderStatusLabel(order.deliveryStatus || order.status);
+    const label = resolveOrderDisplayStatus(order);
     
     switch (label) {
       case 'Cancelled':
         return { color: '#FF3B30', bg: 'rgba(255,59,48,0.06)', label: 'Cancelled', icon: 'close-circle' as const };
+      case 'Return Requested':
+      case 'Exchange Requested':
       case 'Return / Exchange Requested':
-        return { color: '#FF9F0A', bg: 'rgba(255,159,10,0.06)', label: 'Return / Exchange Requested', icon: 'swap-horizontal' as const };
+      case 'Return Approved':
+      case 'Exchange Approved':
+      case 'Refund Pending':
+      case 'Pickup Scheduled':
+      case 'Return Item Received':
+      case 'Exchange Item Received':
+        return { color: '#FF9F0A', bg: 'rgba(255,159,10,0.06)', label, icon: 'swap-horizontal' as const };
+      case 'Returned':
+      case 'Exchanged':
+        return { color: '#8E8E93', bg: 'rgba(142,142,147,0.06)', label, icon: 'checkmark-circle-outline' as const };
       case 'Delivered':
         return { color: '#34C759', bg: 'rgba(52,199,89,0.06)', label: 'Delivered', icon: 'checkmark-circle' as const };
       case 'Shipped / Out for Delivery':
@@ -304,8 +318,15 @@ export default function OrderHistoryScreen() {
       
       if (isPaymentUnsuccessful) return false;
       
-      const ds = getVal(o.deliveryStatus);
-      return ds !== 'delivered' && !s.includes('cancel');
+      const timeline = Array.isArray(o.statusTimeline) ? o.statusTimeline : [];
+      const deliveredAt = timeline.find((t: any) => t.step === 'delivered')?.completedAt;
+      const isCancelled = s.includes('cancel');
+      const isDelivered = !!deliveredAt;
+      const isReturnActive = ['return_initiated', 'return_approved', 'exchange_initiated', 'exchange_approved'].includes(s) ||
+                             o.returnRequests?.some((r: any) => !['cancelled', 'rejected', 'refunded'].includes(r.status)) ||
+                             o.exchangeRequests?.some((e: any) => !['cancelled', 'rejected', 'new_order_created'].includes(e.status));
+      
+      return !isCancelled && (!isDelivered || isReturnActive);
     }).length;
     
     const history = orders.filter(o => {

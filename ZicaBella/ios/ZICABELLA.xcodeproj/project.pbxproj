@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00D9804BE989B6DDF49248DD /* Pods_ZICABELLA.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4029455BB577F8E4514D1A65 /* Pods_ZICABELLA.framework */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		216C981AF8A7A6E997BFACF3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A06B872F52D34C6DD8DB2A2A /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* LaunchScreen.storyboard */; };
 		8C0E87440B794487B8CE7E11 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 863C01127A514349AFD1C172 /* GoogleService-Info.plist */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		ED28454E504DC98A7A22763D /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9ABB7A5815DC4A038CDDA4A /* ExpoModulesProvider.swift */; };
-		ED5E97C31C3717B0CBF5E883 /* Pods_ZICABELLA.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 321FE1F1CBFD231FEB5BF5A5 /* Pods_ZICABELLA.framework */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		F18800012D0307B40044C1D9 /* Rocaston.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F18800022D0307B40044C1D9 /* Rocaston.ttf */; };
 /* End PBXBuildFile section */
@@ -23,16 +23,16 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = ZICABELLA/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = ZICABELLA/Info.plist; sourceTree = "<group>"; };
 		25160AF42F7015D100874FDF /* ZICABELLARelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = ZICABELLARelease.entitlements; path = ZICABELLA/ZICABELLARelease.entitlements; sourceTree = "<group>"; };
-		321FE1F1CBFD231FEB5BF5A5 /* Pods_ZICABELLA.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZICABELLA.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		7ECDC5DFB34556234A944380 /* Pods-ZICABELLA.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZICABELLA.release.xcconfig"; path = "Target Support Files/Pods-ZICABELLA/Pods-ZICABELLA.release.xcconfig"; sourceTree = "<group>"; };
+		4029455BB577F8E4514D1A65 /* Pods_ZICABELLA.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZICABELLA.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		85CA536206404C4FF1AAC21A /* Pods-ZICABELLA.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZICABELLA.release.xcconfig"; path = "Target Support Files/Pods-ZICABELLA/Pods-ZICABELLA.release.xcconfig"; sourceTree = "<group>"; };
 		863C01127A514349AFD1C172 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "ZICABELLA/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A06B872F52D34C6DD8DB2A2A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = ZICABELLA/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = ZICABELLA/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		E24ADB3E823B6B4F8C5AF6FF /* Pods-ZICABELLA.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZICABELLA.debug.xcconfig"; path = "Target Support Files/Pods-ZICABELLA/Pods-ZICABELLA.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = ZICABELLA/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* ZICABELLA-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "ZICABELLA-Bridging-Header.h"; path = "ZICABELLA/ZICABELLA-Bridging-Header.h"; sourceTree = "<group>"; };
+		F129743E4C3D854D2D51F197 /* Pods-ZICABELLA.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZICABELLA.debug.xcconfig"; path = "Target Support Files/Pods-ZICABELLA/Pods-ZICABELLA.debug.xcconfig"; sourceTree = "<group>"; };
 		F18800022D0307B40044C1D9 /* Rocaston.ttf */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file; name = Rocaston.ttf; path = ZICABELLA/Rocaston.ttf; sourceTree = "<group>"; };
 		F9ABB7A5815DC4A038CDDA4A /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-ZICABELLA/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -42,7 +42,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				ED5E97C31C3717B0CBF5E883 /* Pods_ZICABELLA.framework in Frameworks */,
+				00D9804BE989B6DDF49248DD /* Pods_ZICABELLA.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,7 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				321FE1F1CBFD231FEB5BF5A5 /* Pods_ZICABELLA.framework */,
+				4029455BB577F8E4514D1A65 /* Pods_ZICABELLA.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -133,8 +133,8 @@
 		E42676389D55A16F2AB31106 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				E24ADB3E823B6B4F8C5AF6FF /* Pods-ZICABELLA.debug.xcconfig */,
-				7ECDC5DFB34556234A944380 /* Pods-ZICABELLA.release.xcconfig */,
+				F129743E4C3D854D2D51F197 /* Pods-ZICABELLA.debug.xcconfig */,
+				85CA536206404C4FF1AAC21A /* Pods-ZICABELLA.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -146,14 +146,14 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "ZICABELLA" */;
 			buildPhases = (
-				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
+				082B8C5C3902487637B6173C /* [CP] Check Pods Manifest.lock */,
 				BFA1600A831E033EB21B95A8 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
-				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				C0E3C30031E4A1E9D58C5752 /* [CP] Embed Pods Frameworks */,
+				10C5AC5170052CC4163446BF /* [CP] Embed Pods Frameworks */,
+				402791520B5538E7F11AC0BE /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -229,7 +229,7 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
 		};
-		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
+		082B8C5C3902487637B6173C /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -251,7 +251,31 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
+		10C5AC5170052CC4163446BF /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ZICABELLA/Pods-ZICABELLA-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/razorpay-core-pod/Razorpay.framework/Razorpay",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/razorpay-core-pod/RazorpayCore.framework/RazorpayCore",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/razorpay-customui-pod/RazorpayCustom.framework/RazorpayCustom",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Razorpay.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/RazorpayCore.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/RazorpayCustom.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ZICABELLA/Pods-ZICABELLA-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		402791520B5538E7F11AC0BE /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -319,30 +343,6 @@
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-ZICABELLA/expo-configure-project.sh\"\n";
 		};
-		C0E3C30031E4A1E9D58C5752 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-ZICABELLA/Pods-ZICABELLA-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/razorpay-core-pod/Razorpay.framework/Razorpay",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/razorpay-core-pod/RazorpayCore.framework/RazorpayCore",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/razorpay-customui-pod/RazorpayCustom.framework/RazorpayCustom",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Razorpay.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/RazorpayCore.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/RazorpayCustom.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ZICABELLA/Pods-ZICABELLA-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -360,7 +360,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E24ADB3E823B6B4F8C5AF6FF /* Pods-ZICABELLA.debug.xcconfig */;
+			baseConfigurationReference = F129743E4C3D854D2D51F197 /* Pods-ZICABELLA.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -405,7 +405,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7ECDC5DFB34556234A944380 /* Pods-ZICABELLA.release.xcconfig */;
+			baseConfigurationReference = 85CA536206404C4FF1AAC21A /* Pods-ZICABELLA.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

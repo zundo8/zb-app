@@ -8,6 +8,7 @@ import { Typography } from '../../components/Typography';
 import CheckoutSummaryBar from '../../components/CheckoutSummaryBar';
 import { useCartStore } from '../../store/cartStore';
 import { useAuth } from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/authStore';
 import { haptics } from '../../utils/haptics';
 import { config } from '../../constants/config';
 
@@ -15,7 +16,7 @@ export default function DeliveryAddressScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const colors = useColors();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { total, items, shippingAddress, setShippingAddress, buyNowItem } = useCartStore();
 
   const checkoutItems = buyNowItem ? [buyNowItem] : items;
@@ -38,9 +39,72 @@ export default function DeliveryAddressScreen() {
     country: 'India',
   });
 
+  const STATE_CODE_TO_NAME: { [key: string]: string } = {
+    AP: 'Andhra Pradesh',
+    AR: 'Arunachal Pradesh',
+    AS: 'Assam',
+    BR: 'Bihar',
+    CG: 'Chhattisgarh',
+    GA: 'Goa',
+    GJ: 'Gujarat',
+    HR: 'Haryana',
+    HP: 'Himachal Pradesh',
+    JH: 'Jharkhand',
+    KA: 'Karnataka',
+    KL: 'Kerala',
+    MP: 'Madhya Pradesh',
+    MH: 'Maharashtra',
+    MN: 'Manipur',
+    ML: 'Meghalaya',
+    MZ: 'Mizoram',
+    NL: 'Nagaland',
+    OD: 'Odisha',
+    PB: 'Punjab',
+    RJ: 'Rajasthan',
+    SK: 'Sikkim',
+    TN: 'Tamil Nadu',
+    TG: 'Telangana',
+    TR: 'Tripura',
+    UP: 'Uttar Pradesh',
+    UK: 'Uttarakhand',
+    WB: 'West Bengal',
+    AN: 'Andaman and Nicobar Islands',
+    CH: 'Chandigarh',
+    DN: 'Dadra and Nagar Haveli and Daman and Diu',
+    DL: 'Delhi',
+    JK: 'Jammu and Kashmir',
+    LA: 'Ladakh',
+    LD: 'Lakshadweep',
+    PY: 'Puducherry',
+  };
+
   const fetchPincodeDetails = async (pin: string) => {
     if (pin.length !== 6) return;
     setLoadingPincode(true);
+
+    // 1. Try the secure app backend serviceability API first
+    try {
+      const backendRes = await fetch(`${config.appUrl}/api/logistics/serviceability?pincode=${pin}`);
+      if (backendRes.ok) {
+        const backendJson = await backendRes.json();
+        if (backendJson.district && backendJson.state) {
+          const stateCode = backendJson.state.toUpperCase();
+          const stateName = STATE_CODE_TO_NAME[stateCode] || backendJson.state;
+          setAddress(prev => ({
+            ...prev,
+            city: backendJson.district,
+            state: stateName,
+          }));
+          haptics.success();
+          setLoadingPincode(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend pincode fetch failed, trying fallback API:', e);
+    }
+
+    // 2. Fallback to the public API
     try {
       const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
       const json = await res.json();
@@ -64,6 +128,7 @@ export default function DeliveryAddressScreen() {
       }
     } catch (e) {
       console.error('Pincode fetch error:', e);
+      haptics.error();
     } finally {
       setLoadingPincode(false);
     }
@@ -374,13 +439,13 @@ export default function DeliveryAddressScreen() {
                 placeholder="New Delhi"
                 placeholderTextColor={colors.textExtraLight}
                 textContentType="addressCity"
-                autoComplete="address-line2"
+                autoComplete="postal-address-locality"
                 style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
               />
               {fieldError('city') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('city')}</Typography>}
             </View>
           </View>
-
+ 
           <View style={styles.field}>
             <Typography size={7} weight="600" color={colors.textExtraLight} style={styles.label}>STATE</Typography>
             <TextInput
@@ -389,7 +454,7 @@ export default function DeliveryAddressScreen() {
               placeholder="Delhi"
               placeholderTextColor={colors.textExtraLight}
               textContentType="addressState"
-              autoComplete="address-line1"
+              autoComplete="postal-address-region"
               style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.borderLight }]}
             />
             {fieldError('state') && <Typography size={8} color={colors.error} style={{ marginLeft: 6 }}>{fieldError('state')}</Typography>}
@@ -408,6 +473,30 @@ export default function DeliveryAddressScreen() {
           
           if (!isEditing && shippingAddress) {
             haptics.buttonTap();
+            // Sync selected saved address email with user profile
+            if (shippingAddress.email && shippingAddress.email !== user?.email) {
+              updateUser({ email: shippingAddress.email });
+              if (user?.id) {
+                const token = useAuthStore.getState().token;
+                if (token) {
+                  try {
+                    await fetch(`${config.appUrl}/api/app/profile`, {
+                      method: 'PATCH',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({
+                        customerId: user.id,
+                        email: shippingAddress.email,
+                      }),
+                    });
+                  } catch (err) {
+                    console.error('Failed to sync updated email to backend profile:', err);
+                  }
+                }
+              }
+            }
             navigation.navigate('OrderReview');
             return;
           }
@@ -459,6 +548,31 @@ export default function DeliveryAddressScreen() {
               fetchSavedAddresses();
             } catch (e) {
               console.error('Failed to save address to DB:', e);
+            }
+          }
+
+          // Update profile email locally and in backend database to keep in sync
+          if (normalized.email && normalized.email !== user?.email) {
+            updateUser({ email: normalized.email });
+            if (user?.id) {
+              const token = useAuthStore.getState().token;
+              if (token) {
+                try {
+                  await fetch(`${config.appUrl}/api/app/profile`, {
+                    method: 'PATCH',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                      customerId: user.id,
+                      email: normalized.email,
+                    }),
+                  });
+                } catch (err) {
+                  console.error('Failed to sync updated email to backend profile:', err);
+                }
+              }
             }
           }
 

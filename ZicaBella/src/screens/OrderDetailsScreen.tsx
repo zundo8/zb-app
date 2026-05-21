@@ -21,7 +21,7 @@ import { useUIStore } from '../store/uiStore';
 import { Image } from 'expo-image';
 import { trackOrder } from '../services/shipmentService';
 
-import { getOrderStatusLabel } from '../utils/orderStatus';
+import { getOrderStatusLabel, resolveOrderDisplayStatus } from '../utils/orderStatus';
 import { resolveImageUrl } from '../utils/imageUtils';
 
 export default function OrderDetailsScreen() {
@@ -69,7 +69,9 @@ export default function OrderDetailsScreen() {
   const steps = useMemo(() => {
     if (!order) return [];
     const status = String(order.status || '').toLowerCase();
-    const isReturn = status.includes('return') || status.includes('exchange') || status === 'returned' || status === 'exchanged';
+    const hasActiveReturn = order.returnRequests?.some((r: any) => r.status !== 'cancelled') || false;
+    const hasActiveExchange = order.exchangeRequests?.some((e: any) => e.status !== 'cancelled') || false;
+    const isReturn = status.includes('return') || status.includes('exchange') || status === 'returned' || status === 'exchanged' || hasActiveReturn || hasActiveExchange;
     
     if (isReturn) {
       return [
@@ -256,7 +258,72 @@ export default function OrderDetailsScreen() {
   const isCancelled = (order.status || '').toLowerCase().includes('cancel');
   const isDelivered = (order.deliveryStatus || '').toLowerCase() === 'delivered';
   const orderNumber = order.orderNumber || order.id?.slice(0, 8);
-  const statusColor = isCancelled ? '#FF3B30' : isDelivered ? '#34C759' : '#007AFF';
+  const displayLabel = resolveOrderDisplayStatus(order);
+  const statusColor = (() => {
+    if (isCancelled) return '#FF3B30';
+    switch (displayLabel) {
+      case 'Return Requested':
+      case 'Exchange Requested':
+      case 'Return / Exchange Requested':
+      case 'Return Approved':
+      case 'Exchange Approved':
+      case 'Refund Pending':
+      case 'Pickup Scheduled':
+      case 'Return Item Received':
+      case 'Exchange Item Received':
+        return '#FF9F0A';
+      case 'Returned':
+      case 'Exchanged':
+        return '#8E8E93';
+      case 'Delivered':
+        return '#34C759';
+      case 'Shipped / Out for Delivery':
+        return '#AF52DE';
+      case 'Ready for Dispatch':
+        return '#FF9500';
+      case 'Order Placed':
+        return '#007AFF';
+      default:
+        return colors.textSecondary;
+    }
+  })();
+  // New function to cancel pending return or exchange request
+  const handleCancelReturnExchange = async () => {
+    const pendingReq = order.returnRequests?.find((r: any) => r.status === 'pending_approval')
+      || order.exchangeRequests?.find((e: any) => e.status === 'pending_approval');
+    if (!pendingReq) {
+      Alert.alert('Info', 'No pending return or exchange to cancel.');
+      return;
+    }
+    Alert.alert('Cancel Request', 'Are you sure you want to cancel this return/exchange request?', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Yes, Cancel',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setLoading(true);
+            const token = useAuthStore.getState().token || '';
+            const response = await fetch(`${config.appUrl}/api/returns/cancel`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ returnRequestId: pendingReq.id })
+            });
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+            haptics.success();
+            Alert.alert('Success', 'Return/Exchange request cancelled.');
+            fetchOrderDetails();
+          } catch (e: any) {
+            haptics.error();
+            Alert.alert('Error', e.message || 'Failed to cancel request');
+          } finally {
+            setLoading(false);
+          }
+        }
+      }
+    ]);
+  };
 
 
   const handleReturn = () => {
@@ -268,6 +335,11 @@ export default function OrderDetailsScreen() {
     haptics.buttonTap();
     navigation.navigate('ExchangeSelectProduct', { order });
   };
+
+  const hasActiveReturn = order.returnRequests?.some((r: any) => r.status !== 'cancelled') || false;
+  const hasActiveExchange = order.exchangeRequests?.some((e: any) => e.status !== 'cancelled') || false;
+  const hasPendingRequest = order.returnRequests?.some((r: any) => r.status === 'pending_approval') || 
+                            order.exchangeRequests?.some((e: any) => e.status === 'pending_approval') || false;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -286,9 +358,7 @@ export default function OrderDetailsScreen() {
                 ? 'Order Cancelled' 
                 : (['payment_failed', 'payment_pending', 'failed', 'pending'].includes((order.status || '').toLowerCase()) || (order.status || '').toLowerCase().includes('failed'))
                   ? 'Payment Failed'
-                  : isDelivered 
-                    ? 'Delivered' 
-                    : (order.deliveryStatus || order.status || 'Processing').replace(/_/g, ' ')}
+                  : displayLabel}
             </Typography>
             <Typography size={11} weight="600" color={colors.textMuted} style={{ marginTop: 6 }}>
               {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
@@ -436,12 +506,11 @@ export default function OrderDetailsScreen() {
             <Typography size={20} weight="800" color={colors.text}>{formatPrice(order.totalPrice)}</Typography>
           </View>
         </View>
-
       </Animated.ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={{ gap: 12 }}>
-          {isReturnWindowOpen ? (
+          {isReturnWindowOpen && !hasActiveReturn && !hasActiveExchange ? (
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity onPress={handleReturn} activeOpacity={0.7} style={{ flex: 1, borderRadius: 24, overflow: 'hidden' }}>
                 <BlurView 
@@ -468,7 +537,25 @@ export default function OrderDetailsScreen() {
                 </BlurView>
               </TouchableOpacity>
             </View>
-          ) : (
+          ) : null}
+          {/* Cancel button for pending return/exchange requests */}
+          {hasPendingRequest ? (
+            <TouchableOpacity onPress={handleCancelReturnExchange} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden', marginTop: 12 }}>
+              <BlurView 
+                intensity={isDark ? 30 : 60} 
+                tint={isDark ? 'dark' : 'light'} 
+                style={[styles.mainBtn, { 
+                  backgroundColor: 'rgba(255, 59, 48, 0.08)', 
+                  borderWidth: 1, 
+                  borderColor: 'rgba(255, 59, 48, 0.2)' 
+                }]}
+              >
+                <Typography size={13} weight="700" color="#FF3B30">Cancel Return/Exchange</Typography>
+              </BlurView>
+            </TouchableOpacity>
+          ) : null}
+          
+          {!(isReturnWindowOpen && !hasActiveReturn && !hasActiveExchange) && !hasPendingRequest && (
             <>
               {(
                 (order.paymentMethod === 'COD' && (order.status || '').toLowerCase() === 'awaiting_approval') || 

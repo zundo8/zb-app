@@ -31,35 +31,35 @@ function extractSentiment(text: string): string {
 export async function GET(req: NextRequest) {
   try {
     const auth = getAppAuthFromRequest(req);
-    if (!auth?.userId) {
+    if (!auth?.customerId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     let userId = searchParams.get("userId");
     
-    // Fallback to auth.userId if the client didn't explicitly pass it or passed empty
+    // Fallback to auth.customerId if the client didn't explicitly pass it or passed empty
     if (!userId) {
-      userId = auth.userId;
+      userId = auth.customerId;
     }
     
     // Strictly ensure users can only fetch their own data unless admin
-    const isAdmin = auth.email?.endsWith('@zicabella.com') || false;
-    if (userId !== auth.userId && !isAdmin) {
+    const isAdmin = auth.customerEmail?.endsWith('@zicabella.com') || false;
+    if (userId !== auth.customerId && !isAdmin) {
       return NextResponse.json({ error: "Unauthorized access to user cache" }, { status: 403 });
     }
 
     const limit = parseInt(searchParams.get("limit") || "10", 10);
 
     const history = await prisma.zicaAiCache.findMany({
-      where: { userId },
+      where: { userId: userId || undefined },
       orderBy: { timestamp: "desc" },
       take: limit,
     });
 
     // Profile fetching for Module 4 injection
     const profile = await prisma.zicaUserProfile.findUnique({
-      where: { userId },
+      where: { userId: userId || undefined },
     });
 
     return NextResponse.json({ 
@@ -76,14 +76,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const auth = getAppAuthFromRequest(req);
-    if (!auth?.userId) {
+    if (!auth?.customerId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json();
     const { sessionId, turnIndex, userMessage, aiResponse, detectedProducts, detectedCollections, responseTokens } = body;
 
-    const userId = auth.userId;
+    const userId = auth.customerId;
 
     if (!sessionId || turnIndex === undefined || !userMessage || !aiResponse) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -153,8 +153,8 @@ async function updateUserProfile(userId: string, products: string[], intentTags:
       });
     } else {
       // Very basic merge
-      const newFavs = [...new Set([...existing.favouriteProducts, ...products])];
-      const newStyles = [...new Set([...existing.styleTags, ...intentTags])];
+      const newFavs = existing.favouriteProducts.concat(products).filter((val, idx, self) => self.indexOf(val) === idx);
+      const newStyles = existing.styleTags.concat(intentTags).filter((val, idx, self) => self.indexOf(val) === idx);
       await prisma.zicaUserProfile.update({
         where: { userId },
         data: {

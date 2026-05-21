@@ -86,10 +86,19 @@ export async function POST(req: Request) {
 
     const auth = getAppAuthFromRequest(req);
     const aiSettings = getAISettings();
-    const isAdmin = auth?.email?.endsWith('@zicabella.com') || false;
-    const settings = isAdmin ? aiSettings.admin : aiSettings.user;
+    const isAdmin = false;
+    const settings = aiSettings.user;
 
-    let systemPrompt = isAdmin ? ZICA_ADMIN_PROMPT : ZICA_USER_PROMPT;
+    let systemPrompt = ZICA_USER_PROMPT;
+
+    // Secure & sanitize userContext to prevent spoofing of admin emails or user contexts
+    const customerEmail = auth?.customerEmail || (userContext?.email && !userContext.email.endsWith('@zicabella.com') ? userContext.email : null);
+    const sanitizedUserContext = {
+      id: auth?.customerId || userContext?.id || null,
+      name: userContext?.name || null,
+      phone: auth?.customerPhone || userContext?.phone || null,
+      email: customerEmail,
+    };
 
     if (aiSettings.trainingRules && aiSettings.trainingRules.length > 0) {
       systemPrompt += `\n\nADDITIONAL DYNAMIC KNOWLEDGE & MEMORY:\nYou have been trained with the following additional custom operational instructions and knowledge. You MUST follow them strictly:\n`;
@@ -237,7 +246,7 @@ export async function POST(req: Request) {
 
         for (const block of response.content) {
           if (block.type === "tool_use" && block.name && block.id) {
-            const result = await executeClaudeTool(block.name, block.input || {}, userContext);
+            const result = await executeClaudeTool(block.name, block.input || {}, sanitizedUserContext);
             
             const parsedResult = JSON.parse(result);
             const isError = parsedResult.error !== undefined;

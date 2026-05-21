@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const STATUS_STEPS = [
   { key: "pending_approval", label: "Requested", icon: Clock },
   { key: "approved", label: "Approved", icon: CheckCircle2 },
+  { key: "refund_pending", label: "Refund Pending", icon: Clock },
   { key: "pickup_scheduled", label: "Pickup Scheduled", icon: TruckIcon },
   { key: "received", label: "Received", icon: Package },
   { key: "refunded", label: "Refunded", icon: CreditCard },
@@ -16,15 +17,17 @@ const STATUS_STEPS = [
 const STATUS_INDEX: Record<string, number> = {
   pending_approval: 0,
   approved: 1,
-  pickup_scheduled: 2,
-  received: 3,
-  refunded: 4,
+  refund_pending: 2,
+  pickup_scheduled: 3,
+  received: 4,
+  refunded: 5,
   rejected: -1,
 };
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
   pending_approval: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Pending Approval" },
   approved: { color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20", label: "Approved" },
+  refund_pending: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Refund Pending" },
   rejected: { color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20", label: "Rejected" },
   pickup_scheduled: { color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20", label: "Pickup Scheduled" },
   received: { color: "text-teal-500", bg: "bg-teal-500/10", border: "border-teal-500/20", label: "Received" },
@@ -140,7 +143,7 @@ export default function ReturnDetailPage() {
   };
 
   const handleRefundSubmit = () => {
-    handleStatusUpdate("approved", {
+    handleStatusUpdate("refund_pending", {
       actualRefund: parseFloat(refundAmount) || data?.estimatedRefund || 0,
       isStoreCredit: refundType === "store_credit",
       customerId: data?.customerId || data?.customer?.id,
@@ -400,8 +403,8 @@ export default function ReturnDetailPage() {
                     disabled={!!actionLoading}
                     className="w-full py-2.5 bg-foreground text-background rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {actionLoading === "approved" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                    Approve & Refund
+                    {actionLoading === "refund_pending" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    Approve Request
                   </button>
                   <button
                     onClick={() => handleStatusUpdate("rejected", { reason: "Admin rejected" })}
@@ -414,21 +417,21 @@ export default function ReturnDetailPage() {
               )}
               {currentStatus === "approved" && (
                 <button
-                  onClick={() => handleStatusUpdate("RECEIVED")}
+                  onClick={() => handleStatusUpdate("received")}
                   disabled={!!actionLoading}
                   className="w-full py-2.5 bg-teal-500 text-white rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {actionLoading === "RECEIVED" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Package className="w-3.5 h-3.5" />}
+                  {actionLoading === "received" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Package className="w-3.5 h-3.5" />}
                   Mark as Received
                 </button>
               )}
               {(currentStatus === "received" || currentStatus === "pickup_scheduled") && (
                 <button
-                  onClick={() => handleStatusUpdate("REFUNDED")}
+                  onClick={() => handleStatusUpdate("refunded")}
                   disabled={!!actionLoading}
                   className="w-full py-2.5 bg-emerald-500 text-white rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {actionLoading === "REFUNDED" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3.5 h-3.5" />}
+                  {actionLoading === "refunded" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3.5 h-3.5" />}
                   Process Refund
                 </button>
               )}

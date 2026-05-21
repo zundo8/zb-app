@@ -61,7 +61,7 @@ export default function StorefrontFooter() {
       {/* FOOTER VIDEO (From Next.js parity) */}
       {footerVideo && (
         <View style={styles.videoSection}>
-          <HeroVideo source={footerVideo} height={200} borderRadius={24} />
+          <HeroVideo key={footerVideo} source={footerVideo} height={200} borderRadius={24} />
           <View style={[styles.videoOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.05)' }]} />
         </View>
       )}

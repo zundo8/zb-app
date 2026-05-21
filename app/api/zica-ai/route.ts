@@ -32,13 +32,13 @@ export async function POST(req: NextRequest) {
 
     const { messages } = body;
     const auth = getAppAuthFromRequest(req);
-    const isAdmin = auth?.email?.endsWith('@zicabella.com') || false;
+    const isAdmin = false;
     // Fetch Global Insights and User Profile Context
     let globalContext = "";
     let userContext = "";
     let recentHistory: any[] = [];
 
-    if (!isAdmin && auth?.userId) {
+    if (!isAdmin && auth?.customerId) {
       try {
         const topProducts = await prisma.zicaAiGlobalInsight.findMany({
           where: { insightType: "popular_product" },
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         }
 
         const profile = await prisma.zicaUserProfile.findUnique({
-          where: { userId: auth.userId }
+          where: { userId: auth.customerId }
         });
         if (profile) {
           const categories = profile.preferredCategories.join(", ") || "various categories";
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         }
 
         const history = await prisma.zicaAiCache.findMany({
-          where: { userId: auth.userId },
+          where: { userId: auth.customerId },
           orderBy: { timestamp: "desc" },
           take: 10,
         });

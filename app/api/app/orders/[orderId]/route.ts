@@ -82,11 +82,19 @@ function statusTimeline(order: any) {
   const delivery = String(order.deliveryStatus || '').toLowerCase();
   const updatedAt = new Date(order.updatedAt).toISOString();
 
-  const isReturnInitiated = status.includes('return') || status.includes('exchange') || status === 'returned' || status === 'exchanged';
+  const hasActiveReturn = order.returnRequests?.some((r: any) => r.status !== 'cancelled') || false;
+  const hasActiveExchange = order.exchangeRequests?.some((e: any) => e.status !== 'cancelled') || false;
+  const isReturnInitiated = status.includes('return') || status.includes('exchange') || status === 'returned' || status === 'exchanged' || hasActiveReturn || hasActiveExchange;
 
   if (isReturnInitiated) {
-    const isApproved = status === 'return_approved' || status === 'returned' || status === 'exchanged';
-    const isCompleted = status === 'returned' || status === 'exchanged';
+    const isApproved = status === 'return_approved' || status === 'exchange_approved' || status === 'returned' || status === 'exchanged' ||
+      order.returnRequests?.some((r: any) => ['approved', 'refund_pending', 'pickup_scheduled', 'received', 'refunded'].includes(r.status)) ||
+      order.exchangeRequests?.some((e: any) => ['approved', 'exchange_approved', 'qc_passed', 'received', 'new_order_created'].includes(e.status));
+      
+    const isCompleted = status === 'returned' || status === 'exchanged' ||
+      order.returnRequests?.some((r: any) => r.status === 'refunded') ||
+      order.exchangeRequests?.some((e: any) => e.status === 'new_order_created');
+
     return [
       { step: 'order_placed', completedAt: createdAt },
       { step: 'delivered', completedAt: createdAt },
@@ -131,6 +139,8 @@ export async function GET(req: Request, { params }: { params: { orderId: string 
         },
         shipments: true,
         customer: true,
+        returnRequests: true,
+        exchangeRequests: true,
       },
     });
 
@@ -217,6 +227,8 @@ export async function GET(req: Request, { params }: { params: { orderId: string 
         tags: order.tags,
         razorpayOrderId: order.razorpayOrderId,
         razorpayPaymentId: order.razorpayPaymentId,
+        returnRequests: order.returnRequests || [],
+        exchangeRequests: order.exchangeRequests || [],
       },
     }, { headers: corsHeaders });
   } catch (e: any) {

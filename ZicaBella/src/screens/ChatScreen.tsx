@@ -976,20 +976,7 @@ const MessageBubble = memo(({
           </View>
         ) : null}
 
-        {!isUser && !item.isStreaming && item.content && (
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4, opacity: 0.8 }}>
-            <TouchableOpacity 
-              onPress={() => onPlaySpeech(item.id, item.content)}
-              style={{ padding: 6, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)' }}
-            >
-              <Ionicons 
-                name={playingMessageId === item.id ? "volume-mute-outline" : "volume-medium-outline"} 
-                size={16} 
-                color={colors.textMuted} 
-              />
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Voice/Audio play button disabled/hidden */}
       </View>
     </View>
   );
@@ -1113,11 +1100,6 @@ const InputBar = memo(({
 
   const handleSubmit = () => {
     if (!localInput.trim() && !pendingImage) {
-      if (!isRecording) {
-        onStartRecording?.();
-      } else {
-        onStopRecording?.();
-      }
       return;
     }
     onSend(localInput, pendingImage);
@@ -1184,14 +1166,14 @@ const InputBar = memo(({
         </View>
 
         <TextInput
-          value={isRecording ? `Recording audio prompt... [${recordingDuration}s]` : localInput}
+          value={localInput}
           onChangeText={setLocalInput}
-          placeholder={isRecording ? "Pulsing waveform active..." : "Ask anything"}
+          placeholder="Ask anything"
           placeholderTextColor={placeholderColor}
-          style={[styles.input, { color: isRecording ? '#FF3B30' : textColor, fontSize: 15, backgroundColor: 'transparent' }]}
+          style={[styles.input, { color: textColor, fontSize: 15, backgroundColor: 'transparent' }]}
           multiline
           maxLength={20000}
-          editable={!isRecording}
+          editable={true}
           keyboardAppearance="dark"
         />
 
@@ -1199,11 +1181,9 @@ const InputBar = memo(({
           <TouchableOpacity 
             style={styles.micButton} 
             onPress={() => {
-              if (isRecording) return;
               haptics.buttonTap();
               onSend('');
             }}
-            disabled={isRecording}
           >
             <Ionicons name="time-outline" size={22} color={iconColor} />
           </TouchableOpacity>
@@ -1211,27 +1191,22 @@ const InputBar = memo(({
 
         <TouchableOpacity
           onPress={handleSubmit}
-          disabled={isTyping}
+          disabled={!hasContent || isTyping}
           style={[
             styles.waveformCircle,
             {
-              backgroundColor: sendBg,
+              backgroundColor: hasContent ? sendBg : (isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'),
               width: 38,
               height: 38,
               borderRadius: 19,
               justifyContent: 'center',
               alignItems: 'center',
+              opacity: hasContent ? 1 : 0.4,
             }
           ]}
           activeOpacity={0.8}
         >
-          {hasContent ? (
-            <Ionicons name="arrow-up" size={18} color={sendIconColor} />
-          ) : isRecording ? (
-            <Ionicons name="square" size={14} color={sendIconColor} />
-          ) : (
-            <WaveformIcon color={sendIconColor} />
-          )}
+          <Ionicons name="arrow-up" size={18} color={hasContent ? sendIconColor : (isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)')} />
         </TouchableOpacity>
       </BlurView>
     </View>
@@ -1251,7 +1226,7 @@ const ChatScreen = memo(() => {
   const [isTyping, setIsTyping] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const user = useAuthStore(s => s.user);
-  const isAdmin = user?.email?.endsWith('@zicabella.com') || false; 
+  const isAdmin = false;
 
   const flatListRef = useRef<FlatList>(null);
   const abortControllerRef = useRef<(() => void) | null>(null);

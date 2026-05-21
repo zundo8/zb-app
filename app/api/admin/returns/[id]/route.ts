@@ -16,7 +16,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const { status, refundAmount, refundMethod } = body;
     const returnRequestId = params.id;
 
-    const validStatuses = ['APPROVED', 'REJECTED', 'RECEIVED', 'REFUNDED', 'PICKUP_SCHEDULED'];
+    const validStatuses = ['APPROVED', 'REJECTED', 'RECEIVED', 'REFUNDED', 'PICKUP_SCHEDULED', 'REFUND_PENDING'];
     const lowerStatus = status.toLowerCase(); // keep request level status lowercase
     if (!status || !validStatuses.includes(status.toUpperCase())) {
       return NextResponse.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });

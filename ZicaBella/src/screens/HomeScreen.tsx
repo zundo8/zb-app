@@ -45,7 +45,7 @@ const HomeScreen = React.memo(() => {
   const ringHandle = 'accessories';
   const ringTitle = 'ACCESSORIES';
 
-  const heroVideoSrc = settings?.hero?.video || config.heroVideoUrl;
+  const heroVideoSrc = settingsLoading ? null : (settings?.hero?.video || config.heroVideoUrl);
   const heroImageSrc = settings?.hero?.image;
   const heroTitle = settings?.hero?.title || 'ZICA BELLA';
   const heroSubtitle = settings?.hero?.subtitle || 'ARCHIVAL VISION';
@@ -181,6 +181,7 @@ const HomeScreen = React.memo(() => {
         {/* ═══ HERO VIDEO ═══ */}
         <View style={{ position: 'relative' }}>
           <HeroVideo 
+            key={heroVideoSrc || 'hero-loading'}
             source={heroVideoSrc} 
             isMuted={isHeroMuted}
             onToggleMute={toggleHeroMute}
@@ -218,7 +219,7 @@ const HomeScreen = React.memo(() => {
           {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
           {renderBelowFold && settings?.media?.collections && (
             <View style={styles.mediaSection}>
-               <HeroVideo source={settings.media.collections} height={200} borderRadius={12} />
+               <HeroVideo key={settings.media.collections} source={settings.media.collections} height={200} borderRadius={12} />
             </View>
           )}
 
@@ -252,7 +253,7 @@ const HomeScreen = React.memo(() => {
               {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
               {settings?.media?.featured ? (
                 <View style={styles.blueprintSection}>
-                   <HeroVideo source={settings.media.featured} height={520} borderRadius={0} />
+                   <HeroVideo key={settings.media.featured} source={settings.media.featured} height={520} borderRadius={0} />
                    <View style={styles.blueprintOverlay}>
                      <Typography size={22} weight="600" color="#fff" style={styles.blueprintOverlayTitle}>
                        {(settings?.blueprint?.title || 'THE BLUEPRINT').toUpperCase()}

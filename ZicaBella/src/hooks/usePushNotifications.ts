@@ -50,10 +50,18 @@ export function usePushNotifications() {
 
     return () => {
       if (notificationListener.current) {
-        notificationListener.current.remove();
+        try {
+          notificationListener.current.remove();
+        } catch (e) {
+          console.warn('Failed to remove notificationListener:', e);
+        }
       }
       if (responseListener.current) {
-        responseListener.current.remove();
+        try {
+          responseListener.current.remove();
+        } catch (e) {
+          console.warn('Failed to remove responseListener:', e);
+        }
       }
     };
   }, [authToken]);
