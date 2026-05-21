@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme, NavigationIndependentTree } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { Accelerometer } from 'expo-sensors';
@@ -160,7 +160,8 @@ const RootNavigator = () => {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <NavigationContainer ref={navigationRef} linking={linking as any} theme={navigationTheme}>
+      <NavigationIndependentTree>
+        <NavigationContainer ref={navigationRef} linking={linking as any} theme={navigationTheme}>
         <Stack.Navigator id="RootStackNavigator" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
           <Stack.Screen name="Main" component={TabNavigator} />
           <Stack.Screen name="Auth" component={AuthNavigator} />
@@ -233,7 +234,8 @@ const RootNavigator = () => {
           visible={isMenuOpen}
           onClose={() => setMenuOpen(false)}
         />
-      </NavigationContainer>
+        </NavigationContainer>
+      </NavigationIndependentTree>
     </View>
   );
 };
