@@ -13,6 +13,42 @@ export default function TicketDetailPage() {
   const [sending, setSending] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleApproveDeletion = async () => {
+    if (!ticket || !ticket.customerId) {
+      alert("Error: This ticket doesn't have an associated Customer ID.");
+      return;
+    }
+    const confirmed = confirm(
+      `WARNING: Are you absolutely sure you want to approve this account deletion request?\n\nThis will permanently delete the customer "${ticket.guestName || 'Anonymous'}" and ALL of their associated data (orders, address, messages, payments). This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/admin/support/delete-customer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: ticket.customerId,
+          ticketId: ticket.id,
+        }),
+      });
+
+      if (res.ok) {
+        alert('Account deletion request has been approved and user data completely purged.');
+        router.push('/dashboard/support');
+      } else {
+        const data = await res.json();
+        alert('Failed to delete customer: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const fetchTicket = async () => {
     try {
@@ -179,6 +215,23 @@ export default function TicketDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Account Deletion approval box */}
+          {ticket.subject?.startsWith('[ACCOUNT_DELETION]') && (
+            <div className="glass-card p-8 rounded-[2.5rem] border border-rose-500/20 bg-rose-500/[0.02] space-y-4">
+              <h3 className="text-[10px] font-bold text-rose-500 uppercase tracking-[0.3em]">Account Deletion</h3>
+              <p className="text-[11px] text-foreground/60 leading-relaxed uppercase tracking-wider">
+                This is a formal request to permanently delete this customer account and purge all data.
+              </p>
+              <button
+                disabled={deleting}
+                onClick={handleApproveDeletion}
+                className="w-full py-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[9px] font-bold uppercase tracking-[0.2em] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-rose-950/20"
+              >
+                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Approve & Purge Data'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Chat Area */}

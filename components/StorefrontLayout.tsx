@@ -14,12 +14,20 @@ interface StorefrontLayoutProps {
 export default function StorefrontLayout({ children, footer }: StorefrontLayoutProps) {
   const pathname = usePathname();
   const [collections, setCollections] = useState<any[]>([]);
+  const [isMobileApp, setIsMobileApp] = useState(false);
   
   useEffect(() => {
     fetch("/api/shopify/collections?usage=header")
       .then(res => res.json())
       .then(data => setCollections(data))
       .catch(err => console.error("Error fetching collections for header:", err));
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('platform') === 'mobile' || params.get('app') === 'true') {
+        setIsMobileApp(true);
+      }
+    }
   }, []);
 
   return (
@@ -27,7 +35,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
       <Suspense fallback={null}>
         <PageLoader />
       </Suspense>
-      <StorefrontHeader collections={collections} />
+      {!isMobileApp && <StorefrontHeader collections={collections} />}
       
       {/* ── Main Content ── */}
       <div className="relative z-10 w-full overflow-x-hidden">
@@ -35,10 +43,10 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
       </div>
 
       {/* ── Footer (passed from server) ── */}
-      {pathname !== "/login" && pathname !== "/chat" && footer}
+      {!isMobileApp && pathname !== "/login" && pathname !== "/chat" && footer}
 
       {/* ── Shared Bottom Nav ── */}
-      <StorefrontNav />
+      {!isMobileApp && <StorefrontNav />}
     </div>
   );
 }
