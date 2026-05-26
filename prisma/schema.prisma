@@ -231,6 +231,8 @@ model Order {
   returns               Return[]
   returnRequests        ReturnRequest[]
   shipments             Shipment[]
+  delhivery_awb         String?
+  tracking_status       String?
 }
 
 model OrderItem {

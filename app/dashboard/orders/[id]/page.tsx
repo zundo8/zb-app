@@ -34,6 +34,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import DelhiveryActions from "@/components/orders/DelhiveryActions";
 
 interface OrderItem {
   id: string;
@@ -79,6 +80,8 @@ interface OrderDetail {
   };
   items: OrderItem[];
   shipments: Shipment[];
+  delhivery_awb: string | null;
+  tracking_status: string | null;
 }
 
 const STATUS_THEME: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -423,58 +426,14 @@ export default function OrderDetailPage() {
                 <h3 className="text-lg font-semibold text-foreground tracking-tight">Logistics Command</h3>
                 <p className="text-[11px] text-foreground/20 font-bold uppercase tracking-widest">Delhivery B2C Fulfillment Hub</p>
               </div>
-              {latestShipment?.awb && (
+              {order.delhivery_awb && (
                 <div className="px-5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[12px] font-mono font-bold text-blue-500">
-                  {latestShipment.awb}
+                  {order.delhivery_awb}
                 </div>
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {!latestShipment?.awb ? (
-                <div className="md:col-span-2 flex flex-col items-center justify-center py-12 space-y-8 border border-dashed border-foreground/10 rounded-[32px]">
-                   <Truck className="w-10 h-10 text-foreground/5" />
-                   <div className="text-center space-y-2">
-                     <p className="text-[11px] font-bold text-foreground/20 uppercase tracking-[0.2em]">Node Awaiting Shipment</p>
-                     <p className="text-[13px] text-foreground/40 max-w-xs mx-auto">No active shipment record exists for this transaction profile.</p>
-                   </div>
-                   <button 
-                    onClick={() => handleAction("create_shipment")}
-                    disabled={delhiveryLoading || order.status === 'cancelled' || order.status === 'payment_failed'}
-                    className="flex items-center gap-3 px-10 py-4 bg-foreground text-background rounded-2xl text-[11px] font-bold uppercase tracking-[0.3em] hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-                   >
-                     {delhiveryLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-background" />}
-                     Initiate Dispatch
-                   </button>
-                </div>
-              ) : (
-                <>
-                  <div className="p-6 rounded-[24px] bg-foreground/[0.03] border border-foreground/5 space-y-6">
-                    <div className="space-y-1">
-                      <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest">Current Status</p>
-                      <p className="text-[15px] font-bold text-blue-400 uppercase tracking-tight italic">{latestShipment.status}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest">Courier Partner</p>
-                      <p className="text-[13px] font-semibold text-foreground/60">{latestShipment.courier || "Delhivery"}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-4">
-                    <a href={latestShipment.trackingUrl || "#"} target="_blank" className="flex items-center justify-center gap-3 py-4 bg-foreground/5 hover:bg-foreground text-background border border-foreground/10 rounded-[20px] text-[11px] font-bold uppercase tracking-widest transition-all group">
-                       Track Signal
-                       <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                    </a>
-                    <button 
-                      onClick={() => handleAction("cancel_shipment")}
-                      disabled={delhiveryLoading}
-                      className="py-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-[20px] text-[11px] font-bold uppercase tracking-widest text-rose-500 transition-all"
-                    >
-                      Terminated Dispatch
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            <DelhiveryActions order={order} onRefresh={() => fetchOrder(true)} />
           </div>
         </div>
 

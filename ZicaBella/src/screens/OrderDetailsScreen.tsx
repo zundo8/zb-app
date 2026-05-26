@@ -20,6 +20,7 @@ import { useCartStore } from '../store/cartStore';
 import { useUIStore } from '../store/uiStore';
 import { Image } from 'expo-image';
 import { trackOrder } from '../services/shipmentService';
+import TrackingTimeline from '../components/TrackingTimeline';
 
 import { getOrderStatusLabel, resolveOrderDisplayStatus } from '../utils/orderStatus';
 import { resolveImageUrl } from '../utils/imageUtils';
@@ -38,6 +39,9 @@ export default function OrderDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [trackingLive, setTrackingLive] = useState<any | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
+  const [trackingData, setTrackingData] = useState<any>(null);
+  const [loadingTracking, setLoadingTracking] = useState(false);
+  const [trackingFetchError, setTrackingFetchError] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const isMounted = useRef(true);
@@ -156,6 +160,43 @@ export default function OrderDetailsScreen() {
     const interval = setInterval(() => fetchOrderDetails(true), 60000);
     return () => clearInterval(interval);
   }, [fadeAnim, fetchOrderDetails]);
+
+  useEffect(() => {
+    const fetchTracking = async () => {
+      if (!orderId) return;
+      try {
+        setLoadingTracking(true);
+        setTrackingFetchError(null);
+        const token = useAuthStore.getState().token || '';
+        const user = useAuthStore.getState().user;
+        const guestAddress = useCartStore.getState().shippingAddress;
+        
+        const params = new URLSearchParams();
+        if (user?.id) params.set('customerId', user.id);
+        if (user?.phone) params.set('phone', user.phone);
+        if (user?.email) params.set('email', user.email);
+        
+        if (!user?.id) {
+          if (guestAddress?.phone) params.set('phone', guestAddress.phone);
+          if (guestAddress?.email) params.set('email', guestAddress.email);
+        }
+
+        const res = await fetch(`${config.appUrl}/api/orders/${orderId}/tracking?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}`, 'Accept': 'application/json' }
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to fetch tracking');
+        setTrackingData(json);
+      } catch (e: any) {
+        console.error('Fetch Tracking Error:', e);
+        setTrackingFetchError(e.message || 'Failed to load tracking data');
+      } finally {
+        setLoadingTracking(false);
+      }
+    };
+
+    fetchTracking();
+  }, [orderId]);
 
   const refreshTracking = useCallback(async () => {
     const awb = order?.trackingNumber || order?.tracking?.awb;
@@ -490,6 +531,34 @@ export default function OrderDetailsScreen() {
             <Typography size={11} weight="700" color={colors.text}>Mobile App</Typography>
           </View>
         </View>
+
+        {/* Live Tracking Timeline Section */}
+        {(order.delhivery_awb || (trackingData && trackingData.awb)) ? (
+          <>
+            <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>TRACKING</Typography>
+            <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
+              {loadingTracking && !trackingData ? (
+                <ActivityIndicator size="small" color={colors.foreground} style={{ paddingVertical: 10 }} />
+              ) : trackingFetchError ? (
+                <Typography size={12} color={colors.error}>{trackingFetchError}</Typography>
+              ) : trackingData ? (
+                <>
+                  <TrackingTimeline timeline={trackingData.timeline} currentStatus={trackingData.currentStatus} />
+                  {trackingData.awb && (
+                    <TouchableOpacity 
+                      style={{ marginTop: 12, alignItems: 'center' }} 
+                      onPress={() => Linking.openURL('https://www.delhivery.com/track/package/' + trackingData.awb)}
+                    >
+                      <Typography color={colors.iosBlue} style={{ textDecorationLine: 'underline', fontSize: 13, fontWeight: '600' }}>
+                        Track on Delhivery website
+                      </Typography>
+                    </TouchableOpacity>
+                  )}
+                </>
+              ) : null}
+            </View>
+          </>
+        ) : null}
 
         <Typography size={10} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>BILLING SUMMARY</Typography>
         <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
