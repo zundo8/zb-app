@@ -51,3 +51,7 @@ prisma/dev.db
 /ZicaBella/.expo/
 tsc_output*.txt
 *.p8
+
+# scratch
+/scratch/
+

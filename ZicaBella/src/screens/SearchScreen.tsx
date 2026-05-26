@@ -269,7 +269,7 @@ const SearchScreen = React.memo(() => {
         maxToRenderPerBatch={4}
         windowSize={7}
         updateCellsBatchingPeriod={50}
-        extraData={results}
+        extraData={[results, theme]}
       />
     </View>
   );

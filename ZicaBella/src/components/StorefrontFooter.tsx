@@ -53,10 +53,6 @@ export default function StorefrontFooter() {
       <Typography rocaston size={18} color={colors.text} style={styles.brandName}>
         ZICA BELLA
       </Typography>
-      
-      <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.estLabel}>
-        EST. 2024
-      </Typography>
 
       {/* FOOTER VIDEO (From Next.js parity) */}
       {footerVideo && (
@@ -131,11 +127,6 @@ const styles = StyleSheet.create({
   },
   brandName: {
     letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  estLabel: {
-    letterSpacing: 5,
-    opacity: 0.25,
     marginBottom: 24,
   },
   videoSection: {

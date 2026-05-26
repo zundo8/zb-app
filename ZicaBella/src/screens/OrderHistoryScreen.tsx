@@ -158,7 +158,8 @@ export default function OrderHistoryScreen() {
   };
 
   const renderProgressBar = (order: any) => {
-    const step = getOrderStatusProgressStep(order.deliveryStatus || order.status);
+    const displayStatus = resolveOrderDisplayStatus(order);
+    const step = getOrderStatusProgressStep(displayStatus);
     if (step === -1) {
       return null;
     }

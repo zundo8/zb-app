@@ -27,7 +27,7 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus
 } from 'expo-audio';
-import { useColors } from '../constants/colors';
+import { useColors, getColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { useUIStore } from '../store/uiStore';
 import GlassHeader from '../components/GlassHeader';
@@ -721,7 +721,8 @@ const MessageBubble = memo(({
   userOrders = [], 
   isLatest = false,
   playingMessageId = null,
-  onPlaySpeech = () => {}
+  onPlaySpeech = () => {},
+  theme
 }: { 
   item: Message; 
   onLinkPress: (url: string) => boolean; 
@@ -729,11 +730,11 @@ const MessageBubble = memo(({
   isLatest?: boolean;
   playingMessageId?: string | null;
   onPlaySpeech?: (id: string, text: string) => void;
+  theme: 'light' | 'dark';
 }) => {
   const isUser = item.isUser;
   const navigation = useNavigation<any>();
-  const colors = useColors();
-  const { theme } = useThemeStore();
+  const colors = getColors(theme);
   const isDark = theme === 'dark';
 
   const mdStyles = React.useMemo(() => buildMarkdownStyles(colors), [colors]);
@@ -893,7 +894,7 @@ const MessageBubble = memo(({
         msgStyles.bubble,
         isUser 
           ? { 
-              backgroundColor: 'rgba(255, 255, 255, 0.07)', 
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.05)', 
               borderRadius: 20,
               borderBottomRightRadius: 20,
               paddingHorizontal: 16,
@@ -923,7 +924,7 @@ const MessageBubble = memo(({
           <Typography 
               size={13} 
               weight={"500"} 
-              color="#FFFFFF"
+              color={isDark ? '#FFFFFF' : '#000000'}
               style={{ lineHeight: 20, letterSpacing: -0.2 }}
           >
             {item.content}
@@ -970,7 +971,7 @@ const MessageBubble = memo(({
 
         {item.toolsUsed ? (
           <View style={[msgStyles.metaRow, { marginTop: 6 }]}>
-            <Typography size={6} weight="800" color={isUser ? "#FFFFFF" : colors.info} style={{ letterSpacing: 1, opacity: 0.8 }}>
+            <Typography size={6} weight="800" color={isUser ? (isDark ? '#FFFFFF' : '#000000') : colors.info} style={{ letterSpacing: 1, opacity: 0.8 }}>
               ⚡ {item.toolsUsed} TOOL{item.toolsUsed > 1 ? 'S' : ''}
             </Typography>
           </View>
@@ -981,7 +982,8 @@ const MessageBubble = memo(({
     </View>
   );
 }, (prev, next) => (
-  prev.item.id === next.item.id
+  prev.theme === next.theme
+  && prev.item.id === next.item.id
   && prev.item.content === next.item.content
   && prev.item.isUser === next.item.isUser
   && prev.item.isStreaming === next.item.isStreaming
@@ -2004,8 +2006,9 @@ const ChatScreen = memo(() => {
       isLatest={index === messages.length - 1}
       playingMessageId={playingMessageId}
       onPlaySpeech={handlePlaySpeech}
+      theme={theme}
     />
-  ), [handleLinkPress, messages.length, userOrders, playingMessageId, handlePlaySpeech]);
+  ), [handleLinkPress, messages.length, userOrders, playingMessageId, handlePlaySpeech, theme]);
 
   const handleContentSizeChange = useCallback(() => {
     if (messagesRef.current.length > 0 && isNearBottom.current) {
@@ -2085,6 +2088,7 @@ const ChatScreen = memo(() => {
               data={messages}
               keyExtractor={keyExtractor}
               renderItem={renderMessage}
+              extraData={theme}
               contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: insets.top + 70 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"

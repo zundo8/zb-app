@@ -85,35 +85,38 @@ export class NotificationService {
         });
       }
 
-      // ── 3. Get push token and register with backend ─────────────────
-      // Use native APNs as the primary iOS token. Expo token remains a fallback.
+      // ── 3. Get push tokens and register with backend ─────────────────
       try {
-        let pushToken: string | undefined;
+        let expoToken: string | undefined;
+        let deviceToken: string | undefined;
 
-        if (Platform.OS === 'ios') {
-          try {
-            const nativeToken = await Notifications.getDevicePushTokenAsync();
-            pushToken = typeof nativeToken?.data === 'string'
-              ? nativeToken.data
-              : JSON.stringify(nativeToken?.data);
-          } catch (_nativeErr) {
-            // Will fall through to Expo token when available.
-          }
-        }
-
+        // Fetch Expo token if we have a project ID
         const projectId = getExpoProjectId();
-        if (!pushToken && projectId && projectId !== 'your-eas-project-id') {
+        if (projectId && projectId !== 'your-eas-project-id') {
           try {
             const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-            pushToken = tokenData?.data;
+            expoToken = tokenData?.data;
           } catch (_expoErr) {
             // Non-fatal
           }
         }
 
-        if (pushToken) {
-          useNotificationStore.getState().setPushToken(pushToken);
-          await this.registerDevice(pushToken);
+        // Fetch APNs token on iOS physical devices
+        if (Platform.OS === 'ios') {
+          try {
+            const nativeToken = await Notifications.getDevicePushTokenAsync();
+            deviceToken = typeof nativeToken?.data === 'string'
+              ? nativeToken.data
+              : JSON.stringify(nativeToken?.data);
+          } catch (_nativeErr) {
+            // Non-fatal
+          }
+        }
+
+        const primaryToken = expoToken || deviceToken;
+        if (primaryToken) {
+          useNotificationStore.getState().setPushToken(primaryToken);
+          await this.registerDevice(expoToken, deviceToken);
         }
       } catch (_tokenErr) {
         // Non-fatal — app still works, just won't receive remote pushes
@@ -183,19 +186,24 @@ export class NotificationService {
    * Register the device token + userId with the backend so admin
    * dashboard can send targeted pushes.
    */
-  static async registerDevice(pushToken?: string, forceUserId?: string) {
+  static async registerDevice(expoToken?: string, deviceToken?: string, forceUserId?: string) {
     const user = getAuthUser();
     const userId = forceUserId || user?.id;
-    const token = pushToken || useNotificationStore.getState().pushToken;
 
-    if (!token) {
+    // Use values from store as fallback if not provided
+    const storedToken = useNotificationStore.getState().pushToken;
+    const finalExpoToken = expoToken || (storedToken?.startsWith('ExponentPushToken') ? storedToken : undefined);
+    const finalDeviceToken = deviceToken || (storedToken && !storedToken.startsWith('ExponentPushToken') ? storedToken : undefined);
+
+    const primaryToken = finalExpoToken || finalDeviceToken;
+    if (!primaryToken) {
       return;
     }
 
     try {
       // Use userId if available, otherwise fallback to device-only registration
       const deviceId = userId ? `dev_${Platform.OS}_${userId}` : `guest_${Platform.OS}_${Constants.sessionId || Date.now()}`;
-      const tokenType = token.startsWith('ExponentPushToken') ? 'expo' : Platform.OS === 'ios' ? 'apns' : 'fcm';
+      const tokenType = finalExpoToken ? 'expo' : 'apns';
 
       // Register with the existing detailed endpoint
       const response = await fetch(`${config.appUrl}/api/notifications/register-device`, {
@@ -204,12 +212,12 @@ export class NotificationService {
         body: JSON.stringify({
           userId,
           deviceId,
-          fcmToken: token,        // Backward-compatible legacy field name.
-          expoPushToken: tokenType === 'expo' ? token : undefined,
-          apnsToken: tokenType === 'apns' ? token : undefined,
-          deviceToken: tokenType === 'apns' ? token : undefined,
-          pushToken: token,
-          token,
+          fcmToken: primaryToken,        // Backward-compatible legacy field name.
+          expoPushToken: finalExpoToken,
+          apnsToken: finalDeviceToken,
+          deviceToken: finalDeviceToken,
+          pushToken: primaryToken,
+          token: primaryToken,
           tokenType,
           pushProvider: tokenType,
           platform: Platform.OS,
@@ -224,9 +232,9 @@ export class NotificationService {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId,
-            token,
-            apnsToken: tokenType === 'apns' ? token : undefined,
-            expoPushToken: tokenType === 'expo' ? token : undefined,
+            token: primaryToken,
+            expoPushToken: finalExpoToken,
+            apnsToken: finalDeviceToken,
             tokenType,
             pushProvider: tokenType,
             platform: Platform.OS,

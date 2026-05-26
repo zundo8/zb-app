@@ -60,4 +60,5 @@ export type RootStackParamList = {
   About: undefined;
   Support: undefined;
   SupportDetail: { ticketId: string; subject: string };
+  Returns: undefined;
 };

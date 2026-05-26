@@ -21,7 +21,8 @@ class AppDelegate: ExpoAppDelegate {
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
-    UNUserNotificationCenter.current().delegate = NotificationCenterManager.shared
+    // UNUserNotificationCenter delegate is handled automatically by ExpoModulesProvider / ExpoNotifications modules.
+    // Manually setting it overrides the delegate chain and can prevent notification listeners from firing.
 
 #if os(iOS) || os(tvOS)
     window = UIWindow(frame: UIScreen.main.bounds)

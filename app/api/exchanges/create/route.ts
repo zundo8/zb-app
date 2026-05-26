@@ -69,10 +69,32 @@ export async function POST(req: Request) {
         }
       }
 
-      // Find the replacement product
-      const newProduct = await prisma.product.findUnique({
+      // Resolve replacement product ID - handle Prisma CUID, Shopify GID, or numeric Shopify ID
+      let shopifyProductId = item.replacementProductId;
+      if (shopifyProductId.startsWith('gid://shopify/Product/')) {
+        shopifyProductId = shopifyProductId.split('/').pop() || '';
+      }
+
+      let newProduct = await prisma.product.findUnique({
         where: { id: item.replacementProductId }
       });
+
+      if (!newProduct) {
+        newProduct = await prisma.product.findUnique({
+          where: { shopifyProductId }
+        });
+      }
+
+      if (!newProduct) {
+        newProduct = await prisma.product.findFirst({
+          where: {
+            OR: [
+              { shopifyProductId: { contains: shopifyProductId } },
+              { id: { contains: shopifyProductId } }
+            ]
+          }
+        });
+      }
 
       if (!newProduct) {
         return NextResponse.json({ error: `Replacement product ${item.replacementProductId} not found` }, { status: 404 });
@@ -86,7 +108,7 @@ export async function POST(req: Request) {
 
       itemsToExchange.push({
         originalProductId,
-        newProductId: item.replacementProductId,
+        newProductId: newProduct.id, // Store the resolved database CUID
         status: "REQUESTED",
         priceDifference: itemDiff,
         reason: item.reason || "Customer exchange request"

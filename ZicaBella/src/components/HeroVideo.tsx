@@ -28,35 +28,75 @@ export default function HeroVideo({
   const [showIcon, setShowIcon] = React.useState(false);
   const timerRef = React.useRef<any>(null);
   
+  const [localMuted, setLocalMuted] = React.useState(isMuted);
+
+  // Sync prop changes to local state
+  React.useEffect(() => {
+    setLocalMuted(isMuted);
+  }, [isMuted]);
+
   // Guard against empty strings or invalid URLs that cause AVFoundation errors
   const safeSource = source && source.trim() !== '' && source !== '/' ? source : null;
 
   const player = useVideoPlayer(safeSource, (player) => {
     if (safeSource) {
       player.loop = true;
-      player.muted = isMuted;
+      player.muted = localMuted;
+      player.play();
     }
   });
 
   const isFocused = useNavigation().isFocused();
+  const isAppActive = useUIStore(s => s.isAppActive);
+
+  // Handle player event subscriptions to ensure looping and playback persistence
+  React.useEffect(() => {
+    if (!player) return;
+
+    // Direct listener to force replay if the native looping fails or ends
+    const endSub = player.addListener('playToEnd', () => {
+      if (isFocused && isAppActive) {
+        player.currentTime = 0;
+        player.play();
+      }
+    });
+
+    // If play status changes to paused, but the app is still active and screen focused, restart playback
+    const playingSub = player.addListener('playingChange', () => {
+      if (isFocused && isAppActive && !player.playing) {
+        player.play();
+      }
+    });
+
+    // If status transitions to ready, make sure we play
+    const statusSub = player.addListener('statusChange', (event) => {
+      if (isFocused && isAppActive && event.status === 'readyToPlay' && !player.playing) {
+        player.play();
+      }
+    });
+
+    return () => {
+      endSub.remove();
+      playingSub.remove();
+      statusSub.remove();
+    };
+  }, [player, isFocused, isAppActive]);
 
   React.useEffect(() => {
     if (!player) return;
-    player.muted = isMuted;
+    player.muted = localMuted;
     
     // Show icon briefly when muted state changes
     setShowIcon(true);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setShowIcon(false), 2000);
-  }, [isMuted, player]);
+  }, [localMuted, player]);
 
   React.useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
-
-  const isAppActive = useUIStore(s => s.isAppActive);
 
   React.useEffect(() => {
     if (!player) return;
@@ -66,6 +106,14 @@ export default function HeroVideo({
       player.play();
     }
   }, [isFocused, isAppActive, player]);
+
+  const handlePress = () => {
+    if (onToggleMute) {
+      onToggleMute();
+    } else {
+      setLocalMuted(prev => !prev);
+    }
+  };
 
   if (!safeSource) {
     return (
@@ -82,7 +130,7 @@ export default function HeroVideo({
   return (
     <TouchableOpacity 
       activeOpacity={0.95}
-      onPress={onToggleMute}
+      onPress={handlePress}
       style={[styles.container, { height: customHeight || height, borderRadius: borderRadius || 0, backgroundColor: colors.surface }]}
     >
       <VideoView
@@ -96,7 +144,7 @@ export default function HeroVideo({
       {showIcon && (
         <View style={styles.muteIconWrapper}>
           <Ionicons 
-            name={isMuted ? "volume-mute-outline" : "volume-medium-outline"} 
+            name={localMuted ? "volume-mute-outline" : "volume-medium-outline"} 
             size={16} 
             color="#FFF" 
             style={{ opacity: 0.9, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } }}

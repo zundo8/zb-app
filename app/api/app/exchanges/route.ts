@@ -69,8 +69,8 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
       include: {
         order: { select: { id: true, shopifyOrderId: true } },
-        originalProduct: { select: { id: true, title: true, shopifyProductId: true } },
-        newProduct: { select: { id: true, title: true, shopifyProductId: true } },
+        originalProduct: { select: { id: true, title: true, shopifyProductId: true, featuredImage: true } },
+        newProduct: { select: { id: true, title: true, shopifyProductId: true, featuredImage: true } },
       },
     });
 
@@ -82,11 +82,13 @@ export async function GET(req: Request) {
         id: e.originalProduct?.id || null,
         title: e.originalProduct?.title || 'Unknown',
         shopifyProductId: e.originalProduct?.shopifyProductId || null,
+        image: e.originalProduct?.featuredImage || null,
       },
       newProduct: {
         id: e.newProduct?.id || null,
         title: e.newProduct?.title || 'Unknown',
         shopifyProductId: e.newProduct?.shopifyProductId || null,
+        image: e.newProduct?.featuredImage || null,
       },
       status: e.status,
       priceDifference: e.priceDifference,

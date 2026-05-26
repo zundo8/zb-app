@@ -1,0 +1,62 @@
+/**
+ * WhatsApp Abandoned Cart Trigger API Endpoint
+ * Location: app/api/whatsapp/abandoned-cart/trigger/route.js
+ */
+
+import { NextResponse } from 'next/server';
+import { sendAbandonedCart } from '@/lib/whatsapp/templates';
+import prisma from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(req) {
+  let isConfigured = !!process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!isConfigured) {
+    try {
+      const shop = await prisma.shop.findFirst();
+      if (shop?.whatsappToken) {
+        isConfigured = true;
+      }
+    } catch (e) {}
+  }
+
+  if (!isConfigured) {
+    return NextResponse.json(
+      { error: 'WhatsApp not configured' },
+      { status: 503 }
+    );
+  }
+
+  try {
+    const body = await req.json();
+    const checkout = body.checkout || body;
+
+    const phone = checkout.phone || checkout.billing_address?.phone;
+
+    if (!phone) {
+      return NextResponse.json({ skipped: 'no_phone' });
+    }
+
+    const customerName = checkout.billing_address?.first_name || 'there';
+    const itemCount = checkout.line_items?.length || 0;
+    const cartTotal = checkout.total_price || '0.00';
+    const checkoutUrl = checkout.abandoned_checkout_url || '';
+
+    const result = await sendAbandonedCart({
+      phone,
+      customerName,
+      itemCount,
+      cartTotal,
+      checkoutUrl
+    });
+
+    if (result.success) {
+      return NextResponse.json({ success: true, messageId: result.messageId });
+    } else {
+      return NextResponse.json({ success: false, error: result.error }, { status: 500 });
+    }
+  } catch (error) {
+    console.error('[WhatsApp Abandoned Cart Trigger] Error:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}

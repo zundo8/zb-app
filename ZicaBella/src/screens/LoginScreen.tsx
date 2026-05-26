@@ -22,28 +22,55 @@ const { width } = Dimensions.get('window');
 // Clean base URL to prevent double slashes
 const BASE_URL = config.appUrl.replace(/\/$/, '');
 
+type Country = {
+  name: string;
+  code: string;
+  iso: string;
+  flagColors: string[];
+};
+
 const COUNTRIES = [
-  { name: 'India', code: '+91', flag: '🇮🇳' },
-  { name: 'United States', code: '+1', flag: '🇺🇸' },
-  { name: 'United Kingdom', code: '+44', flag: '🇬🇧' },
-  { name: 'United Arab Emirates', code: '+971', flag: '🇦🇪' },
-  { name: 'Canada', code: '+1', flag: '🇨🇦' },
-  { name: 'Australia', code: '+61', flag: '🇦🇺' },
-  { name: 'Singapore', code: '+65', flag: '🇸🇬' },
-  { name: 'Germany', code: '+49', flag: '🇩🇪' },
-  { name: 'France', code: '+33', flag: '🇫🇷' },
-  { name: 'Italy', code: '+39', flag: '🇮🇹' },
-  { name: 'Spain', code: '+34', flag: '🇪🇸' },
-  { name: 'Japan', code: '+81', flag: '🇯🇵' },
-  { name: 'South Korea', code: '+82', flag: '🇰🇷' },
-  { name: 'Saudi Arabia', code: '+966', flag: '🇸🇦' },
-  { name: 'Qatar', code: '+974', flag: '🇶🇦' },
-  { name: 'Kuwait', code: '+965', flag: '🇰🇼' },
-  { name: 'Netherlands', code: '+31', flag: '🇳🇱' },
-  { name: 'Switzerland', code: '+41', flag: '🇨🇭' },
-  { name: 'Ireland', code: '+353', flag: '🇮🇪' },
-  { name: 'Hong Kong', code: '+852', flag: '🇭🇰' },
-];
+  { name: 'India', code: '+91', iso: 'IN', flagColors: ['#FF9933', '#FFFFFF', '#138808'] },
+  { name: 'United States', code: '+1', iso: 'US', flagColors: ['#B22234', '#FFFFFF', '#3C3B6E'] },
+  { name: 'United Kingdom', code: '+44', iso: 'GB', flagColors: ['#012169', '#FFFFFF', '#C8102E'] },
+  { name: 'United Arab Emirates', code: '+971', iso: 'AE', flagColors: ['#00732F', '#FFFFFF', '#000000', '#FF0000'] },
+  { name: 'Canada', code: '+1', iso: 'CA', flagColors: ['#D52B1E', '#FFFFFF', '#D52B1E'] },
+  { name: 'Australia', code: '+61', iso: 'AU', flagColors: ['#00008B', '#FFFFFF', '#E4002B'] },
+  { name: 'Singapore', code: '+65', iso: 'SG', flagColors: ['#EF3340', '#FFFFFF'] },
+  { name: 'Germany', code: '+49', iso: 'DE', flagColors: ['#000000', '#DD0000', '#FFCE00'] },
+  { name: 'France', code: '+33', iso: 'FR', flagColors: ['#0055A4', '#FFFFFF', '#EF4135'] },
+  { name: 'Italy', code: '+39', iso: 'IT', flagColors: ['#009246', '#FFFFFF', '#CE2B37'] },
+  { name: 'Spain', code: '+34', iso: 'ES', flagColors: ['#AA151B', '#F1BF00', '#AA151B'] },
+  { name: 'Japan', code: '+81', iso: 'JP', flagColors: ['#FFFFFF', '#BC002D', '#FFFFFF'] },
+  { name: 'South Korea', code: '+82', iso: 'KR', flagColors: ['#FFFFFF', '#CD2E3A', '#0047A0'] },
+  { name: 'Saudi Arabia', code: '+966', iso: 'SA', flagColors: ['#006C35', '#FFFFFF'] },
+  { name: 'Qatar', code: '+974', iso: 'QA', flagColors: ['#FFFFFF', '#8A1538'] },
+  { name: 'Kuwait', code: '+965', iso: 'KW', flagColors: ['#007A3D', '#FFFFFF', '#CE1126', '#000000'] },
+  { name: 'Netherlands', code: '+31', iso: 'NL', flagColors: ['#AE1C28', '#FFFFFF', '#21468B'] },
+  { name: 'Switzerland', code: '+41', iso: 'CH', flagColors: ['#FF0000', '#FFFFFF', '#FF0000'] },
+  { name: 'Ireland', code: '+353', iso: 'IE', flagColors: ['#169B62', '#FFFFFF', '#FF883E'] },
+  { name: 'Hong Kong', code: '+852', iso: 'HK', flagColors: ['#DE2910', '#FFFFFF'] },
+] satisfies Country[];
+
+const FlagBadge = ({ country, size = 'small' }: { country: Country; size?: 'small' | 'large' }) => {
+  const isLarge = size === 'large';
+
+  return (
+    <View style={[styles.flagBadge, isLarge && styles.flagBadgeLarge]}>
+      <View style={styles.flagBands}>
+        {country.flagColors.map((flagColor, index) => (
+          <View
+            key={`${country.iso}-${flagColor}-${index}`}
+            style={[styles.flagBand, { backgroundColor: flagColor }]}
+          />
+        ))}
+      </View>
+      <Typography size={isLarge ? 9 : 8} weight="800" color="#FFFFFF" style={styles.flagIso}>
+        {country.iso}
+      </Typography>
+    </View>
+  );
+};
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -325,8 +352,11 @@ export default function LoginScreen() {
                 accessibilityLabel={`Select country code. Current: ${country.name} ${country.code}`}
                 accessibilityRole="button"
               >
-                <Typography size={22}>{country.flag}</Typography>
-                <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} style={{ marginLeft: 2 }} />
+                <FlagBadge country={country} />
+                <Typography size={12} weight="700" color={colors.text} style={styles.selectedCountryCode}>
+                  {country.code}
+                </Typography>
+                <Ionicons name="chevron-down" size={10} color={colors.textExtraLight} style={{ marginLeft: 4 }} />
               </TouchableOpacity>
               
               <View style={styles.phoneInputWrapper}>
@@ -526,7 +556,7 @@ export default function LoginScreen() {
                   style={styles.pickerItem}
                   onPress={() => { setCountry(item); setShowPicker(false); haptics.buttonTap(); }}
                 >
-                  <Typography size={24}>{item.flag}</Typography>
+                  <FlagBadge country={item} size="large" />
                   <Typography size={14} weight="700" style={{ flex: 1, marginLeft: 16 }}>{item.name.toUpperCase()}</Typography>
                   <Typography size={12} color={colors.textExtraLight} weight="700">{item.code}</Typography>
                 </TouchableOpacity>
@@ -576,9 +606,43 @@ const styles = StyleSheet.create({
   flagPicker: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 8,
+    paddingRight: 10,
     borderRightWidth: 0.5,
     borderRightColor: 'rgba(150,150,150,0.1)',
+  },
+  flagBadge: {
+    width: 30,
+    height: 20,
+    borderRadius: 7,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  flagBadgeLarge: {
+    width: 38,
+    height: 26,
+    borderRadius: 8,
+  },
+  flagBands: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    opacity: 0.85,
+  },
+  flagBand: {
+    flex: 1,
+  },
+  flagIso: {
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    letterSpacing: 0.5,
+  },
+  selectedCountryCode: {
+    marginLeft: 8,
+    letterSpacing: 0.4,
   },
   phoneInputWrapper: {
     flex: 1,

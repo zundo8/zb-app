@@ -51,14 +51,6 @@ export default function OrderDetailsScreen() {
   // ─── All hooks MUST be declared before any early return ────────────
   const setTabBarVisible = useUIStore(s => s.setTabBarVisible);
 
-  useFocusEffect(
-    useCallback(() => {
-      setTabBarVisible(false);
-      return () => {
-        setTabBarVisible(true);
-      };
-    }, [setTabBarVisible])
-  );
 
   // Guard inside the callback if `order` might be null.
   const isCancelledMemo = useMemo(() => {
@@ -147,6 +139,16 @@ export default function OrderDetailsScreen() {
       }
     }
   }, [orderId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setTabBarVisible(false);
+      fetchOrderDetails();
+      return () => {
+        setTabBarVisible(true);
+      };
+    }, [setTabBarVisible, fetchOrderDetails])
+  );
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();

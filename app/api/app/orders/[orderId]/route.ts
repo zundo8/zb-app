@@ -95,9 +95,12 @@ function statusTimeline(order: any) {
       order.returnRequests?.some((r: any) => r.status === 'refunded') ||
       order.exchangeRequests?.some((e: any) => e.status === 'new_order_created');
 
+    const latestShipment = (order.shipments || []).find((s: any) => String(s.status).toLowerCase() === 'delivered');
+    const deliveredAt = latestShipment?.updatedAt ? new Date(latestShipment.updatedAt).toISOString() : updatedAt;
+
     return [
       { step: 'order_placed', completedAt: createdAt },
-      { step: 'delivered', completedAt: createdAt },
+      { step: 'delivered', completedAt: deliveredAt },
       { step: 'return_requested', completedAt: updatedAt },
       { step: 'pickup_approved', completedAt: isApproved ? updatedAt : null },
       { step: 'refund_completed', completedAt: isCompleted ? updatedAt : null },

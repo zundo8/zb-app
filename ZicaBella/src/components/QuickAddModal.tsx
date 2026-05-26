@@ -54,11 +54,23 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
   };
 
   const sizes = (product?.variants
-    ?.map((v) => ({ size: v.size ?? "One Size", variantId: String(v.id) }))
+    ?.map((v) => {
+      const sizeStr = v.size ?? "One Size";
+      const sizeVariants = product.variants.filter((x) => (x.size ?? "One Size") === sizeStr);
+      const inStockVariant = sizeVariants.find(
+        (x) => x.quantityAvailable !== 0 && x.availableForSale !== false
+      );
+      const chosenVariant = inStockVariant || sizeVariants[0] || v;
+      return {
+        size: sizeStr,
+        variantId: String(chosenVariant.id),
+        isOutOfStock: chosenVariant.quantityAvailable === 0 || !chosenVariant.availableForSale,
+      };
+    })
     .filter((v, i, a) => a.findIndex((x) => x.size === v.size) === i) || [])
     .sort((a, b) => sortSizes(a.size, b.size));
 
-  const price = product?.price || 0;
+  const price = product?.price || '0';
   const image = resolveImageUrl(product?.featuredImage);
 
   // Reset state when modal opens with a new product
@@ -79,6 +91,13 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
   if (!product) return null;
 
   const needsSize = sizes.length > 0;
+  const isSelectedOutOfStock = selectedSize
+    ? sizes.find((s) => s.size === selectedSize)?.isOutOfStock || false
+    : false;
+  const isDefaultOutOfStock = !needsSize && product.variants?.[0]
+    ? (product.variants[0].quantityAvailable === 0 || !product.variants[0].availableForSale)
+    : false;
+  const isSoldOut = needsSize ? (selectedSize ? isSelectedOutOfStock : false) : isDefaultOutOfStock;
 
   const handleNavigateToProduct = () => {
     if (product?.handle) {
@@ -135,6 +154,7 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
     }
     
     const variant = sizes.find((s) => s.size === (selectedSize ?? sizes[0]?.size));
+    const variantObj = product.variants?.find((v) => String(v.id) === variant?.variantId) || product.variants?.[0];
     
     addItem({
       productId: product.id,
@@ -142,7 +162,7 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
       title: product.title,
       size: selectedSize,
       handle: product.handle,
-      price: product.price,
+      price: variantObj ? variantObj.price : product.price,
       image: product.featuredImage || '',
     });
 
@@ -218,11 +238,12 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
                 </TouchableOpacity>
               </View>
               <View style={styles.sizeRow}>
-                {sizes.map(({ size }) => {
+                {sizes.map(({ size, isOutOfStock }) => {
                   const isActive = selectedSize === size;
                   return (
                     <TouchableOpacity
                       key={size}
+                      disabled={isOutOfStock}
                       onPress={() => {
                         setSelectedSize(size);
                         setSizeError(false);
@@ -231,16 +252,20 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
                       style={[
                         styles.sizeBox,
                         { borderColor: sizeError ? 'rgba(255,59,48,0.3)' : colors.borderLight },
-                        isActive && { backgroundColor: '#000', borderColor: '#000' }
+                        isActive && { backgroundColor: '#000', borderColor: '#000' },
+                        isOutOfStock && { opacity: 0.25 }
                       ]}
-                      accessibilityLabel={`Select size ${size}`}
+                      accessibilityLabel={`Select size ${size}${isOutOfStock ? ' - Out of stock' : ''}`}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: isActive }}
+                      accessibilityState={{ selected: isActive, disabled: isOutOfStock }}
                     >
                       <Text style={[
                         styles.sizeBoxText,
                         { color: isActive ? '#FFF' : colors.textSecondary }
                       ]}>{size}</Text>
+                      {isOutOfStock && (
+                        <View style={[styles.diagonalLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)' }]} />
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -280,18 +305,20 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
 
             <TouchableOpacity
               onPress={handleAdd}
-              disabled={added}
+              disabled={added || isSoldOut}
               style={[
                 styles.addBtn,
                 { backgroundColor: added ? colors.iosGreen : '#000' },
-                (needsSize && !selectedSize) && styles.addBtnNeedsSize
+                ((needsSize && !selectedSize) || isSoldOut) && styles.addBtnNeedsSize
               ]}
               activeOpacity={0.8}
-              accessibilityLabel={added ? "Item added to bag" : (needsSize && !selectedSize ? "Select a size before adding to bag" : "Add to bag")}
+              accessibilityLabel={added ? "Item added to bag" : isSoldOut ? "Sold Out" : (needsSize && !selectedSize ? "Select a size before adding to bag" : "Add to bag")}
               accessibilityRole="button"
             >
               {added ? (
                 <Text style={styles.addBtnText}>Added to Bag</Text>
+              ) : isSoldOut ? (
+                <Text style={styles.addBtnText}>Sold Out</Text>
               ) : (
                 <View style={styles.btnContent}>
                   <Ionicons name="bag-outline" size={16} color="#FFF" />
@@ -414,6 +441,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  diagonalLine: {
+    position: 'absolute',
+    width: '140%',
+    height: 1,
+    transform: [{ rotate: '150deg' }],
   },
   sizeBoxText: {
     fontSize: 10,

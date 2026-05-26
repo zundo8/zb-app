@@ -6,6 +6,11 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
 
+    // Allow webhook routes through without auth (Meta WhatsApp, Shopify, etc.)
+    if (pathname.startsWith('/api/webhooks')) {
+      return NextResponse.next();
+    }
+
     // Allow public API routes for the React Native app
     if (pathname.startsWith('/api/app/')) return NextResponse.next();
 

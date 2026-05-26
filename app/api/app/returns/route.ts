@@ -57,7 +57,7 @@ export async function GET(req: Request) {
       orderBy: { requestedAt: 'desc' },
       include: {
         order: { select: { id: true, shopifyOrderId: true, totalPrice: true } },
-        product: { select: { id: true, title: true, shopifyProductId: true } },
+        product: { select: { id: true, title: true, shopifyProductId: true, featuredImage: true } },
       },
     });
 
@@ -69,6 +69,7 @@ export async function GET(req: Request) {
         id: r.product?.id || null,
         title: r.product?.title || 'Unknown Product',
         shopifyProductId: r.product?.shopifyProductId || null,
+        image: r.product?.featuredImage || null,
       },
       sku: r.sku,
       reason: r.reason,

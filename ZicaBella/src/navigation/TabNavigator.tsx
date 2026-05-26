@@ -26,6 +26,7 @@ import OrderHistoryScreen from '../screens/OrderHistoryScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import ReturnRequestScreen from '../screens/ReturnRequestScreen';
 import ExchangeSelectProductScreen from '../screens/ExchangeSelectProductScreen';
+import ReturnsScreen from '../screens/ReturnsScreen';
 import PolicyScreen from '../screens/PolicyScreen';
 import ShopScreen from '../screens/ShopScreen';
 import WishlistScreen from '../screens/WishlistScreen';
@@ -87,6 +88,7 @@ function ProfileStack() {
       <Stack.Screen name="OrderDetails" component={OrderDetailsScreen as any} />
       <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen as any} />
       <Stack.Screen name="ExchangeSelectProduct" component={ExchangeSelectProductScreen as any} />
+      <Stack.Screen name="Returns" component={ReturnsScreen as any} />
       <Stack.Screen name="Wishlist" component={WishlistScreen as any} />
       <Stack.Screen name="Blogs" component={BlogsScreen as any} />
       <Stack.Screen name="Collaborations" component={CollaborationsScreen as any} />

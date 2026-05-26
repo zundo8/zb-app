@@ -1,11 +1,36 @@
 import db from '../db';
 import axios from 'axios';
 
-const WHATSAPP_URL = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
-const HEADERS = {
-  Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-  'Content-Type': 'application/json',
-};
+async function getDynamicConfig() {
+  let dbPhoneId = null;
+  let dbAccessToken = null;
+
+  try {
+    const shop = await db.shop.findFirst();
+    if (shop) {
+      dbPhoneId = shop.whatsappPhoneId;
+      dbAccessToken = shop.whatsappToken;
+    }
+  } catch (err: any) {
+    console.warn('[WhatsApp Service Config] Database lookup failed, using environment variables:', err.message);
+  }
+
+  const phoneId = dbPhoneId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const accessToken = dbAccessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+  const apiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0';
+
+  if (!phoneId || !accessToken) {
+    throw new Error(`WhatsApp is not configured. Missing: ${!phoneId ? 'WHATSAPP_PHONE_NUMBER_ID ' : ''}${!accessToken ? 'WHATSAPP_ACCESS_TOKEN' : ''}`);
+  }
+
+  return {
+    url: `https://graph.facebook.com/${apiVersion}/${phoneId}/messages`,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    }
+  };
+}
 
 export const WhatsAppService = {
   /**
@@ -18,7 +43,8 @@ export const WhatsAppService = {
     components: any[] = []
   ) {
     try {
-      const response = await axios.post(WHATSAPP_URL, {
+      const config = await getDynamicConfig();
+      const response = await axios.post(config.url, {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
         to,
@@ -28,7 +54,7 @@ export const WhatsAppService = {
           language: { code: languageCode },
           components,
         },
-      }, { headers: HEADERS });
+      }, { headers: config.headers });
 
       return response.data;
     } catch (error: any) {
@@ -42,13 +68,14 @@ export const WhatsAppService = {
    */
   async sendTextMessage(to: string, text: string) {
     try {
-      const response = await axios.post(WHATSAPP_URL, {
+      const config = await getDynamicConfig();
+      const response = await axios.post(config.url, {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
         to,
         type: 'text',
         text: { preview_url: true, body: text },
-      }, { headers: HEADERS });
+      }, { headers: config.headers });
 
       return response.data;
     } catch (error: any) {
@@ -62,6 +89,7 @@ export const WhatsAppService = {
    */
   async sendMediaMessage(to: string, type: 'image' | 'video' | 'document', url: string, caption?: string) {
     try {
+      const config = await getDynamicConfig();
       const payload: any = {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
@@ -72,7 +100,7 @@ export const WhatsAppService = {
       payload[type] = { link: url };
       if (caption) payload[type].caption = caption;
 
-      const response = await axios.post(WHATSAPP_URL, payload, { headers: HEADERS });
+      const response = await axios.post(config.url, payload, { headers: config.headers });
       return response.data;
     } catch (error: any) {
       console.error(`WhatsApp ${type} send error:`, error.response?.data || error.message);
@@ -85,11 +113,12 @@ export const WhatsAppService = {
    */
   async markAsRead(messageId: string) {
     try {
-      const response = await axios.post(WHATSAPP_URL, {
+      const config = await getDynamicConfig();
+      const response = await axios.post(config.url, {
         messaging_product: 'whatsapp',
         status: 'read',
         message_id: messageId,
-      }, { headers: HEADERS });
+      }, { headers: config.headers });
 
       return response.data;
     } catch (error: any) {
