@@ -56,7 +56,7 @@ export async function GET() {
     // Cross reference with local whatsapp_message_log database to see which ones are already sent
     const sentPhones = new Set();
     try {
-      const logs: any = await prisma.$queryRaw`
+      const logs = await prisma.$queryRaw`
         SELECT DISTINCT recipient_phone FROM whatsapp_message_log
         WHERE message_type = 'abandoned_cart' AND status = 'sent'
       `;
