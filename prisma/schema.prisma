@@ -1034,6 +1034,15 @@ model AuditLog {
   @@index([timestamp])
 }
 
+model AdminNotificationRead {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  lastReadAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
 model AIChatSession {
   id        String          @id @default(cuid())
   userId    String?

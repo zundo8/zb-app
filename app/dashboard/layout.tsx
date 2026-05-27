@@ -55,6 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: session } = useSession();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const profileRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const router = useRouter();
@@ -66,6 +67,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     setIsSidebarOpen(false);
     setIsProfileOpen(false);
+  }, [pathname]);
+
+  // Poll unread notification count
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/admin/notifications/unread-count");
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.unreadCount || 0);
+        }
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
   }, [pathname]);
 
   // Click outside to close profile dropdown
@@ -455,9 +472,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2 lg:gap-4">
             <ThemeToggle />
             <div className="hidden sm:block w-[1px] h-4 bg-foreground/10" />
-            <button className="hidden sm:flex w-9 h-9 items-center justify-center rounded-2xl bg-foreground/5 text-foreground/40 hover:text-foreground transition-all border border-foreground/5">
+            <Link
+              href="/dashboard/admin-notifications"
+              className="hidden sm:flex w-9 h-9 items-center justify-center rounded-2xl bg-foreground/5 text-foreground/40 hover:text-foreground transition-all border border-foreground/5 relative"
+            >
               <Bell className="w-[18px] h-[18px]" />
-            </button>
+              {unreadCount > 0 && pathname !== '/dashboard/admin-notifications' && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-blue-500 text-white text-[9px] font-bold shadow-lg shadow-blue-500/30"
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </motion.span>
+              )}
+            </Link>
             
             <div ref={profileRef} className="relative">
               <button
