@@ -4,10 +4,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import {
   BarChart3,
   Package,
+  LogOut,
+  User,
   ShoppingCart,
   ArrowLeftRight,
   Undo2,
@@ -52,16 +54,40 @@ import ZicaAI from "@/components/ZicaAI";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const router = useRouter();
   const navScrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
   useRealtimeSync();
 
-  // Close mobile sidebar on navigation — but DON'T touch scroll
+  // Close mobile sidebar and profile dropdown on navigation — but DON'T touch scroll
   useEffect(() => {
     setIsSidebarOpen(false);
+    setIsProfileOpen(false);
   }, [pathname]);
+
+  // Click outside to close profile dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const getInitials = (name?: string | null) => {
+    if (!name) return "AD";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 0) return "AD";
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
 
   // Mandatory password change check
   useEffect(() => {
@@ -432,17 +458,83 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button className="hidden sm:flex w-9 h-9 items-center justify-center rounded-2xl bg-foreground/5 text-foreground/40 hover:text-foreground transition-all border border-foreground/5">
               <Bell className="w-[18px] h-[18px]" />
             </button>
-            <Link
-              href="/dashboard/settings"
-              className="flex items-center gap-2 lg:gap-3 p-1 lg:p-1.5 pl-3 lg:pl-4 bg-foreground/5 border border-foreground/10 hover:bg-foreground/10 transition-all rounded-full group shadow-inner"
-            >
-              <span className="hidden sm:inline text-[12px] font-medium text-foreground/60 group-hover:text-foreground transition-colors font-inter">
-                Admin
-              </span>
-              <div className="h-7 w-7 rounded-full bg-foreground text-background flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105 duration-500">
-                <span className="text-[10px] font-medium font-inter">ZB</span>
-              </div>
-            </Link>
+            
+            <div ref={profileRef} className="relative">
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center gap-2 lg:gap-3 p-1 lg:p-1.5 pl-3 lg:pl-4 bg-foreground/5 border border-foreground/10 hover:bg-foreground/10 transition-all rounded-full group shadow-inner"
+              >
+                <span className="hidden sm:inline text-[12px] font-medium text-foreground/60 group-hover:text-foreground transition-colors font-inter">
+                  {session?.user?.name || "Admin"}
+                </span>
+                <div className="h-7 w-7 rounded-full bg-foreground text-background flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105 duration-500">
+                  <span className="text-[10px] font-medium font-inter">{getInitials(session?.user?.name)}</span>
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="absolute right-0 mt-3 w-56 rounded-2xl glass border border-foreground/10 shadow-2xl z-50 overflow-hidden py-1.5 backdrop-blur-xl"
+                  >
+                    <div className="px-4 py-2 border-b border-foreground/5 mb-1">
+                      <div className="text-[12px] font-semibold text-foreground truncate">
+                        {session?.user?.name || "Admin"}
+                      </div>
+                      <div className="text-[10px] text-foreground/40 truncate">
+                        {session?.user?.email || "admin@zicabella.in"}
+                      </div>
+                    </div>
+
+                    <Link
+                      href="/dashboard/change-password"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2 text-[12px] text-foreground/75 hover:text-foreground hover:bg-foreground/5 transition-colors font-medium font-inter"
+                    >
+                      <User className="w-4 h-4 opacity-60" />
+                      Profile Settings
+                    </Link>
+
+                    {isSuperAdmin && (
+                      <Link
+                        href="/dashboard/admin-users"
+                        onClick={() => setIsProfileOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-[12px] text-foreground/75 hover:text-foreground hover:bg-foreground/5 transition-colors font-medium font-inter"
+                      >
+                        <Users className="w-4 h-4 opacity-60" />
+                        Admin Management
+                      </Link>
+                    )}
+
+                    <Link
+                      href="/dashboard/settings"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2 text-[12px] text-foreground/75 hover:text-foreground hover:bg-foreground/5 transition-colors font-medium font-inter"
+                    >
+                      <Settings className="w-4 h-4 opacity-60" />
+                      System Config
+                    </Link>
+
+                    <div className="h-[1px] bg-foreground/5 my-1" />
+
+                    <button
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        signOut({ callbackUrl: "/dashboard/login" });
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-[12px] text-red-500 hover:bg-red-500/10 hover:text-red-600 transition-all font-medium font-inter text-left"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 

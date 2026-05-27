@@ -82,6 +82,7 @@ interface OrderDetail {
   shipments: Shipment[];
   delhivery_awb: string | null;
   tracking_status: string | null;
+  orderNumber?: string | null;
 }
 
 const STATUS_THEME: Record<string, { label: string; color: string; bg: string; dot: string }> = {

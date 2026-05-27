@@ -33,6 +33,7 @@ interface MobileOrder {
   paymentStatus: string;
   status: string;
   deliveryStatus: string;
+  shopifyOrderId?: string | null;
   customer: {
     name: string;
     email: string;

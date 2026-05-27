@@ -6,6 +6,7 @@ import { Eye, EyeOff, Lock, Loader2, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { signIn, useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 
 export default function DashboardLoginPage() {
   const router = useRouter();

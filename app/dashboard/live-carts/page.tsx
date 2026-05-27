@@ -281,7 +281,7 @@ export default function LiveCartsPage() {
                              Call Node
                            </button>
                            <button 
-                             onClick={() => handleDeleteCart(cart.id)}
+                             onClick={() => handleClear(cart.id)}
                              className="w-12 h-12 rounded-2xl bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-400/60 hover:bg-red-500/10 transition-all active:scale-95"
                            >
                              <Trash2 className="w-4 h-4" />
