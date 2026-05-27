@@ -60,7 +60,7 @@ export const PROVIDER_PRESETS: Record<string, { baseUrl: string; endpoints: Reco
       trackShipment: '/api/v1/packages/json',
       createReturn: '/api/cmu/create.json',
       cancelShipment: '/api/p/edit',
-      ping: '/api/status',
+      ping: '/waybill/api/fetch/json/',
     },
   },
   bluedart: {
@@ -332,6 +332,123 @@ export async function shipOrder(
         return result;
       }
 
+      if (config.provider === 'delhivery') {
+        const formData = new URLSearchParams();
+        formData.append('format', 'json');
+
+        const dbOrder = await prisma.order.findFirst({
+          where: {
+            OR: [
+              { id: orderId },
+              { shopifyOrderId: orderId }
+            ]
+          }
+        });
+
+        const paymentMode = dbOrder?.paymentMethod === 'COD' ? 'COD' : 'Prepaid';
+
+        const payload = {
+          shipments: [
+            {
+              name: address.name,
+              add: address.address1,
+              pin: address.zip,
+              city: address.city,
+              state: address.province,
+              country: address.country || 'India',
+              phone: address.phone || '',
+              order: orderId.replace('#', ''),
+              payment_mode: paymentMode,
+              return_pin: process.env.WAREHOUSE_PIN || '',
+              return_city: process.env.WAREHOUSE_CITY || '',
+              return_phone: process.env.WAREHOUSE_PHONE || '',
+              return_name: 'Zica Bella Returns',
+              return_add: process.env.WAREHOUSE_ADDRESS || '',
+              products_desc: items.map(i => i.title).join(', '),
+              cod_amount: paymentMode === 'COD' ? String(dbOrder?.totalPrice || items.reduce((s, i) => s + i.price * i.quantity, 0)) : '',
+              order_date: new Date().toISOString(),
+              total_amount: String(dbOrder?.totalPrice || items.reduce((s, i) => s + i.price * i.quantity, 0)),
+              seller_add: process.env.WAREHOUSE_ADDRESS || '',
+              seller_name: 'Zica Bella',
+              seller_inv: orderId.replace('#', ''),
+              quantity: String(items.reduce((s, i) => s + i.quantity, 0)),
+              weight: '500',
+              seller_gst_tin: process.env.GST_NUMBER || '',
+              shipment_length: 30,
+              shipment_width: 20,
+              shipment_height: 5,
+              shipping_mode: 'Surface',
+              address_type: 'home'
+            }
+          ],
+          pickup_location: {
+            name: process.env.DELHIVERY_PICKUP_LOCATION || ''
+          }
+        };
+
+        formData.append('data', JSON.stringify(payload));
+
+        const res = await fetch(`${config.baseUrl || PROVIDER_PRESETS.delhivery.baseUrl}${preset.endpoints.createShipment}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${config.apiKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString()
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Delhivery Ship Error: ${errText}`);
+        }
+
+        const data = await res.json();
+        if (data.packages && data.packages.length > 0) {
+          const pkg = data.packages[0];
+          if (pkg.waybill) {
+            const trackingNumber = String(pkg.waybill);
+            const result: ShipmentResult = {
+              trackingNumber,
+              trackingUrl: `https://www.delhivery.com/track/package/${trackingNumber}`,
+              courier: 'Delhivery',
+            };
+
+            // Save shipment to DB
+            await prisma.shipment.create({
+              data: {
+                orderId: dbOrder?.id || orderId,
+                trackingNumber: result.trackingNumber,
+                awb: result.trackingNumber,
+                trackingUrl: result.trackingUrl,
+                courier: result.courier,
+                status: 'confirmed',
+              },
+            });
+
+            // Update order delivery status & delhivery_awb
+            await prisma.order.updateMany({
+              where: {
+                OR: [
+                  { id: orderId },
+                  { shopifyOrderId: orderId }
+                ]
+              },
+              data: {
+                deliveryStatus: 'confirmed',
+                delhivery_awb: result.trackingNumber,
+                status: 'Shipped'
+              },
+            });
+
+            return result;
+          } else {
+            throw new Error(pkg.remarks ? pkg.remarks.join(', ') : 'Fulfillment registration failed');
+          }
+        }
+
+        throw new Error(data.errors ? data.errors.join(', ') : 'Unknown Delhivery response');
+      }
+
       // Generic handler for other providers
       data = await logisticsApiFetch(preset.endpoints.createShipment, 'POST', {
         order_id: orderId,
@@ -503,6 +620,87 @@ export async function createReturnShipment(
           courier: data?.courier_name || 'Shiprocket Returns',
         };
       }
+
+      if (config.provider === 'delhivery') {
+        const formData = new URLSearchParams();
+        formData.append('format', 'json');
+        
+        const returnOrder = await prisma.return.findFirst({
+          where: {
+            OR: [
+              { id: returnId },
+              { returnRequestId: returnId }
+            ]
+          },
+          include: { order: true }
+        });
+
+        const payload = {
+          shipments: [
+            {
+              name: pickupAddress.name,
+              add: pickupAddress.address1,
+              pin: pickupAddress.zip,
+              city: pickupAddress.city,
+              state: pickupAddress.province,
+              country: pickupAddress.country || 'India',
+              phone: pickupAddress.phone || '',
+              order: returnOrder?.order?.shopifyOrderId?.replace('#', '') || returnId,
+              payment_mode: 'Prepaid',
+              product_type: 'R', // Reverse pickup
+              return_pin: process.env.WAREHOUSE_PIN || '',
+              return_city: process.env.WAREHOUSE_CITY || '',
+              return_phone: process.env.WAREHOUSE_PHONE || '',
+              return_name: 'Zica Bella Returns',
+              return_add: process.env.WAREHOUSE_ADDRESS || '',
+              products_desc: 'Return Items',
+              order_date: new Date().toISOString(),
+              total_amount: String(returnOrder?.priceDifference || '0'),
+              seller_add: process.env.WAREHOUSE_ADDRESS || '',
+              seller_name: 'Zica Bella',
+              quantity: '1',
+              weight: '500',
+              shipment_length: 30,
+              shipment_width: 20,
+              shipment_height: 5,
+              shipping_mode: 'Surface',
+              address_type: 'home'
+            }
+          ],
+          pickup_location: {
+            name: process.env.DELHIVERY_PICKUP_LOCATION || ''
+          }
+        };
+
+        formData.append('data', JSON.stringify(payload));
+
+        const res = await fetch(`${config.baseUrl || PROVIDER_PRESETS.delhivery.baseUrl}${preset.endpoints.createReturn}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${config.apiKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString()
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Delhivery Return Error: ${errText}`);
+        }
+
+        const data = await res.json();
+        if (data.packages && data.packages.length > 0) {
+          const pkg = data.packages[0];
+          if (pkg.waybill) {
+            return {
+              trackingNumber: String(pkg.waybill),
+              trackingUrl: `https://www.delhivery.com/track/package/${pkg.waybill}`,
+              courier: 'Delhivery Returns',
+            };
+          }
+        }
+        throw new Error(data.errors ? data.errors.join(', ') : 'Unknown Delhivery response');
+      }
     } catch (err: any) {
       console.error(`[Logistics] Return shipment creation failed:`, err.message);
     }
@@ -540,9 +738,27 @@ export async function cancelShipment(trackingNumber: string): Promise<{ success:
 
   if (config.provider !== 'mock' && preset) {
     try {
-      await logisticsApiFetch(preset.endpoints.cancelShipment, 'POST', {
-        ids: [trackingNumber],
-      });
+      if (config.provider === 'delhivery') {
+        const res = await fetch(`${config.baseUrl || PROVIDER_PRESETS.delhivery.baseUrl}${preset.endpoints.cancelShipment}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${config.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            waybill: trackingNumber,
+            cancellation: true
+          })
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Delhivery Cancel Error: ${text}`);
+        }
+      } else {
+        await logisticsApiFetch(preset.endpoints.cancelShipment, 'POST', {
+          ids: [trackingNumber],
+        });
+      }
     } catch (err: any) {
       console.error(`[Logistics] Cancel shipment failed:`, err.message);
       // Still mark as cancelled in DB

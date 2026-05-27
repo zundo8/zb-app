@@ -6,7 +6,21 @@ export async function POST(req: Request) {
     const payload = await req.json();
     console.log('[Delhivery Webhook] Received:', payload);
 
-    const { waybill, status, remark } = payload;
+    let waybill = payload.waybill;
+    let status = payload.status;
+    let remark = payload.remark;
+    let location = payload.location;
+
+    // Handle nested Shipment structure (Delhivery default format)
+    if (payload.Shipment) {
+      const s = payload.Shipment;
+      waybill = s.AWB || s.tracking_number || s.ReferenceNo;
+      if (s.Status) {
+        status = s.Status.StatusType || s.Status.Status;
+        remark = s.Status.Instructions || s.Status.remark;
+        location = s.Status.StatusLocation || s.Status.location;
+      }
+    }
 
     if (!waybill) {
       return NextResponse.json({ success: false, error: 'Waybill missing' }, { status: 400 });

@@ -69,13 +69,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
+    // Handle nested Shipment structure (Delhivery default format)
+    let shipmentData = payload;
+    if (payload.Shipment) {
+      shipmentData = payload.Shipment;
+    }
+
     // Normalize fields
-    const trackingNumber = payload.tracking_number || payload.awb || payload.waybill || payload.shipment_id;
-    const rawStatus = payload.status || payload.current_status || payload.shipment_status;
-    const timestamp = payload.timestamp || payload.event_time || payload.scanned_date || new Date().toISOString();
-    const location = payload.location || payload.current_location || payload.city || '';
-    const description = payload.description || payload.activity || payload.status_description || '';
-    const estimatedDelivery = payload.estimated_delivery || payload.etd || null;
+    const trackingNumber = shipmentData.AWB || shipmentData.tracking_number || shipmentData.awb || shipmentData.waybill || shipmentData.shipment_id || shipmentData.ReferenceNo;
+    
+    let rawStatus = shipmentData.status || shipmentData.current_status || shipmentData.shipment_status;
+    let timestamp = shipmentData.timestamp || shipmentData.event_time || shipmentData.scanned_date;
+    let location = shipmentData.location || shipmentData.current_location || shipmentData.city || '';
+    let description = shipmentData.description || shipmentData.activity || shipmentData.status_description || '';
+
+    // Handle nested Status structure from default payload
+    if (shipmentData.Status) {
+      rawStatus = rawStatus || shipmentData.Status.Status || shipmentData.Status.StatusType;
+      timestamp = timestamp || shipmentData.Status.StatusDateTime || shipmentData.Status.PickUpDate;
+      location = location || shipmentData.Status.StatusLocation || '';
+      description = description || shipmentData.Status.Instructions || '';
+    }
+
+    timestamp = timestamp || new Date().toISOString();
+    const estimatedDelivery = shipmentData.estimated_delivery || shipmentData.etd || null;
 
     if (!trackingNumber) {
       return NextResponse.json({ error: 'Missing tracking_number in payload' }, { status: 400 });
