@@ -1,0 +1,60 @@
+/**
+ * Shipment Service — Mobile API client for tracking
+ */
+
+import { config } from '../constants/config';
+
+export interface TrackingEvent {
+  status: string;
+  location: string;
+  timestamp: string;
+  description: string;
+}
+
+export interface TrackingData {
+  status: string;
+  scan_history: TrackingEvent[];
+  estimated_delivery: string | null;
+  current_location: string | null;
+  tracking_url: string | null;
+  awb: string;
+  courier?: string;
+}
+
+export async function trackOrder(params: { awb?: string; order_id?: string }): Promise<TrackingData> {
+  const queryParams = new URLSearchParams();
+  if (params.awb) queryParams.set('id', params.awb);
+  if (params.order_id) queryParams.set('order_id', params.order_id);
+
+  const res = await fetch(`${config.appUrl}/api/orders/tracking?${queryParams.toString()}`);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Network error' }));
+    throw new Error(err.error || `Failed to fetch tracking: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return {
+    status: json.status || 'unknown',
+    scan_history: json.activities || [],
+    estimated_delivery: json.estimatedDelivery || null,
+    current_location: json.location || null,
+    tracking_url: json.trackingUrl || null,
+    awb: json.awb || params.awb || '',
+    courier: json.courier || undefined,
+  };
+}
+
+export async function checkServiceability(pincode: string): Promise<{
+  serviceable: boolean;
+  tat_days: number;
+  cod_available?: boolean;
+}> {
+  const res = await fetch(`${config.appUrl}/api/logistics/serviceability?pincode=${pincode}`);
+  
+  if (!res.ok) {
+    return { serviceable: true, tat_days: 7 }; // Graceful fallback
+  }
+
+  return res.json();
+}
