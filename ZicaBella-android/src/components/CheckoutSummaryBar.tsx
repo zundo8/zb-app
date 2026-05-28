@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from './GlassView';
 import { useColors } from '../constants/colors';
 import { Typography } from './Typography';
 import { formatPrice } from '../utils/formatPrice';
@@ -27,7 +27,7 @@ export default function CheckoutSummaryBar({
 
   return (
     <View style={[styles.wrapper, { paddingBottom: insets.bottom + 12 }]}>
-      <BlurView intensity={isDark ? 40 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <GlassBackdrop intensity={isDark ? 40 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
       <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
       
       <View style={styles.container}>

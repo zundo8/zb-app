@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import GlassHeader from '../components/GlassHeader';
@@ -75,7 +75,7 @@ export default function FAQScreen() {
                 onPress={() => toggleExpand(index)}
                 activeOpacity={0.8}
               >
-                <BlurView 
+                <GlassBackdrop 
                   intensity={isDark ? 40 : 80} 
                   tint={isDark ? "dark" : "light"} 
                   style={[StyleSheet.absoluteFill, { borderRadius: 16 }]} 

@@ -6,7 +6,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { GlassView, GlassBackdrop } from '../components/GlassView';
 import { Image } from 'expo-image';
 import OptimizedImage from '../components/OptimizedImage';
 import Carousel from 'react-native-reanimated-carousel';
@@ -45,7 +45,7 @@ const ImageViewerModal = ({ visible, images, activeIndex, onClose }: any) => {
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <BlurView intensity={isDark ? 80 : 100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill}>
+      <GlassView intensity={isDark ? 80 : 100} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { borderWidth: 0, borderRadius: 0 }]}>
         <View style={styles.viewerHeader}>
           <Typography size={7} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>
             {index + 1} / {images.length}
@@ -91,7 +91,7 @@ const ImageViewerModal = ({ visible, images, activeIndex, onClose }: any) => {
             </View>
           ))}
         </ScrollView>
-      </BlurView>
+      </GlassView>
     </Modal>
   );
 };
@@ -418,7 +418,7 @@ export default function ProductDetailScreen() {
           onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')}
           style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }]}
         >
-          <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+          <GlassBackdrop intensity={20} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           <Ionicons name="chevron-back" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
@@ -754,7 +754,7 @@ export default function ProductDetailScreen() {
       <Animated.View style={[styles.minimalStickyFooter, { paddingBottom: insets.bottom + 8, opacity: stickyOpacity, transform: [{ translateY: stickyOpacity.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
          {isStickySizeExpanded && !selectedSize ? (
            <View style={[styles.stickySizeSelector, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]}>
-             <BlurView intensity={isDark ? 80 : 100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+             <GlassBackdrop intensity={isDark ? 80 : 100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
              <View style={styles.stickySizeHeader}>
                <Typography size={6} weight="800" color={colors.textExtraLight} style={{ letterSpacing: 2 }}>SELECT SIZE</Typography>
                <TouchableOpacity onPress={() => setIsStickySizeExpanded(false)}>

@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { GlassView } from './GlassView';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -86,7 +86,7 @@ export default function CollectionFilters({
   return (
     <View style={styles.container}>
       <View style={[styles.pillWrapper, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
-        <BlurView intensity={isDark ? 30 : 45} tint={isDark ? 'dark' : 'light'} style={styles.pill}>
+        <GlassView intensity={isDark ? 30 : 45} tint={isDark ? 'dark' : 'light'} style={styles.pill}>
           {/* Sort Button */}
           <TouchableOpacity 
             style={[styles.filterBtn, compact && styles.compactBtn]} 
@@ -176,7 +176,7 @@ export default function CollectionFilters({
               color={colors.text} 
             />
           </TouchableOpacity>
-        </BlurView>
+        </GlassView>
       </View>
 
       {/* Dropdown for Sizes */}
@@ -188,7 +188,7 @@ export default function CollectionFilters({
             onPress={() => setIsSizeOpen(false)} 
           />
           <View style={[styles.dropdownContainer, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
-            <BlurView intensity={isDark ? 70 : 85} tint={isDark ? 'dark' : 'light'} style={styles.dropdownInner}>
+            <GlassView intensity={isDark ? 70 : 85} tint={isDark ? 'dark' : 'light'} style={styles.dropdownInner}>
               <ScrollView style={{ maxHeight: 220 }}>
                 <TouchableOpacity 
                   style={styles.dropdownOption}
@@ -214,7 +214,7 @@ export default function CollectionFilters({
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-            </BlurView>
+            </GlassView>
           </View>
         </View>
       )}
@@ -228,7 +228,7 @@ export default function CollectionFilters({
             onPress={() => setIsColorOpen(false)} 
           />
           <View style={[styles.dropdownContainer, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
-            <BlurView intensity={isDark ? 70 : 85} tint={isDark ? 'dark' : 'light'} style={styles.dropdownInner}>
+            <GlassView intensity={isDark ? 70 : 85} tint={isDark ? 'dark' : 'light'} style={styles.dropdownInner}>
               <ScrollView style={{ maxHeight: 220 }}>
                 <TouchableOpacity 
                   style={styles.dropdownOption}
@@ -260,7 +260,7 @@ export default function CollectionFilters({
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-            </BlurView>
+            </GlassView>
           </View>
         </View>
       )}
@@ -281,11 +281,18 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 0.5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+        borderColor: 'rgba(255, 255, 255, 0.12)',
+      },
+    }),
   },
   pill: {
     flexDirection: 'row',
@@ -354,11 +361,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 0.5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.2,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
   },
   dropdownInner: {
     paddingVertical: 8,

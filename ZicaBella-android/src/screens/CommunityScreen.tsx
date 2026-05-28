@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { BlurView } from 'expo-blur';
+import { GlassView, GlassBackdrop } from '../components/GlassView';
 
 import { useColors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
@@ -157,7 +157,7 @@ export default function CommunityScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <BlurView 
+        <GlassView 
           intensity={isDark ? 80 : 100} 
           tint={isDark ? 'dark' : 'light'} 
           style={[styles.banner, { borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', borderWidth: 1 }]}
@@ -165,7 +165,7 @@ export default function CommunityScreen() {
           <Typography heading size={8} weight="700" color={isDark ? colors.textLight : colors.textMuted} style={styles.bannerLabel}>DROP ALERT</Typography>
           <Typography heading size={18} weight="700" color={colors.text} style={styles.bannerTitle}>New season arriving soon</Typography>
           <Typography size={11} color={colors.textSecondary} style={styles.bannerSub}>Be the first to know</Typography>
-        </BlurView>
+        </GlassView>
 
         <TouchableOpacity 
           style={[styles.featuredBtn, { backgroundColor: colors.foreground }]}
@@ -184,7 +184,7 @@ export default function CommunityScreen() {
           <View style={styles.section}>
             <Typography heading size={8} color={colors.textLight} style={styles.sectionLabel}>LIVE UPDATES</Typography>
             {updates.map((update: any, idx: number) => (
-              <BlurView 
+              <GlassView 
                 key={update.id || idx} 
                 intensity={isDark ? 80 : 100} 
                 tint={isDark ? 'dark' : 'light'} 
@@ -195,14 +195,14 @@ export default function CommunityScreen() {
                 </View>
                 <Typography heading size={14} color={colors.text} style={{ marginBottom: 4 }}>{update.title}</Typography>
                 <Typography size={11} color={colors.textSecondary}>{update.description}</Typography>
-              </BlurView>
+              </GlassView>
             ))}
           </View>
         )}
 
         {showForm && (
           <View style={StyleSheet.absoluteFill}>
-             <BlurView intensity={isDark ? 80 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+             <GlassBackdrop intensity={isDark ? 80 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
              <ScrollView style={[styles.formContainer, { backgroundColor: 'transparent' }]} contentContainerStyle={{ padding: 24, paddingBottom: 100 }}>
                 <View style={styles.formHeader}>
                    <Typography heading size={18} color={colors.text}>Publish Look</Typography>

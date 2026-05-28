@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BlurView } from 'expo-blur';
+import { GlassView } from './GlassView';
 import { Typography } from './Typography';
 import { useColors } from '../constants/colors';
 import { haptics } from '../utils/haptics';
@@ -43,7 +43,7 @@ export const ConsentModal = ({ onConsentComplete }: ConsentModalProps) => {
 
   return (
     <Modal transparent animationType="fade" visible={isVisible}>
-      <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill}>
+      <GlassView intensity={100} tint="dark" style={StyleSheet.absoluteFill}>
         <View style={styles.container}>
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
             <Typography heading weight="700" size={16} color={colors.text} style={styles.title}>
@@ -73,7 +73,7 @@ export const ConsentModal = ({ onConsentComplete }: ConsentModalProps) => {
             </TouchableOpacity>
           </View>
         </View>
-      </BlurView>
+      </GlassView>
     </Modal>
   );
 };

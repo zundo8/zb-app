@@ -7,7 +7,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { useColors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { Typography } from '../components/Typography';
@@ -335,7 +335,7 @@ export default function LoginScreen() {
             </Typography>
             
             <View style={[styles.phoneContainer, { borderColor: errors.phone ? colors.error : isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]}>
-              <BlurView intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <GlassBackdrop intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
               <TouchableOpacity 
                 style={styles.flagPicker} 
                 onPress={() => { haptics.buttonTap(); setShowPicker(true); }}
@@ -370,7 +370,7 @@ export default function LoginScreen() {
               accessibilityLabel="Continue"
               accessibilityRole="button"
             >
-              <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+              <GlassBackdrop intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               {loading ? <ActivityIndicator color={colors.text} /> : (
                 <Typography weight="400" size={11} color={colors.text} style={{ letterSpacing: 1.5 }}>CONTINUE</Typography>
               )}
@@ -387,7 +387,7 @@ export default function LoginScreen() {
             </Typography>
 
             <View style={[styles.inputWrapper, { borderColor: errors.name ? colors.error : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
-              <BlurView intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <GlassBackdrop intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
               <TextInput
                 value={name}
                 onChangeText={(v) => { setName(v); if (errors.name) setErrors({}); }}
@@ -407,7 +407,7 @@ export default function LoginScreen() {
               accessibilityLabel="Create account"
               accessibilityRole="button"
             >
-              <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+              <GlassBackdrop intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               {loading ? <ActivityIndicator color={colors.text} /> : (
                 <Typography weight="400" size={11} color={colors.text} style={{ letterSpacing: 1.5 }}>CREATE ACCOUNT</Typography>
               )}
@@ -435,7 +435,7 @@ export default function LoginScreen() {
             <View style={styles.otpRow}>
               {otp.map((digit, i) => (
                 <View key={i} style={[styles.otpBox, { borderColor: digit ? colors.foreground : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
-                  <BlurView intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  <GlassBackdrop intensity={isDark ? 5 : 10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                   <TextInput
                     ref={(el) => { if (el) otpInputs.current[i] = el; }}
                     value={digit}
@@ -459,7 +459,7 @@ export default function LoginScreen() {
               accessibilityLabel="Verify OTP"
               accessibilityRole="button"
             >
-              <BlurView intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+              <GlassBackdrop intensity={isDark ? 10 : 20} tint={isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               {loading ? <ActivityIndicator color={colors.text} /> : (
                 <Typography weight="400" size={11} color={colors.text} style={{ letterSpacing: 1.5 }}>VERIFY</Typography>
               )}
@@ -481,7 +481,7 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView behavior="height" style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
           <ScrollView 
             contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 80 }]} 
@@ -494,7 +494,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={[styles.mainCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]}>
-              <BlurView intensity={isDark ? 15 : 25} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <GlassBackdrop intensity={isDark ? 15 : 25} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
               {renderStep()}
             </View>
 
@@ -512,7 +512,7 @@ export default function LoginScreen() {
 
       <Modal visible={showPicker} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPicker(false)}>
-          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+          <GlassBackdrop intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={[styles.pickerContent, { backgroundColor: colors.surface }]}>
             <View style={styles.pickerDragIndicator} />
             <Typography weight="700" size={12} style={styles.pickerTitle}>SELECT REGION</Typography>
@@ -553,11 +553,17 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 280,
     justifyContent: 'center',
-    // Prism effect using subtle shadow
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#fff',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   stepContainer: { width: '100%' },
   stepTitle: { marginBottom: 6, letterSpacing: -0.5 },

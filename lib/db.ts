@@ -61,23 +61,18 @@ const prismaClientSingleton = () => {
     return createMockPrismaClient('no_db_url');
   }
 
-  // HACK: Force no-verify for SSL to handle self-signed certificates (Supabase pooler issue)
-  const sanitizedPgUrl = pgUrl.includes('sslmode=require') 
-    ? pgUrl.replace('sslmode=require', 'sslmode=no-verify')
-    : pgUrl;
-
   try {
     // Force allow self-signed certificates globally for the process
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
     const pool = new Pool({
-      connectionString: sanitizedPgUrl,
+      connectionString: pgUrl,
       ssl: { 
         rejectUnauthorized: false 
       },
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 15000,
+      max: 5, // Reduced from 20 to prevent database connection exhaustion in production
+      idleTimeoutMillis: 15000, // Reduced from 30000
+      connectionTimeoutMillis: 10000, // Reduced from 15000
     });
 
     pool.on('error', (err) => {
@@ -91,7 +86,7 @@ const prismaClientSingleton = () => {
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     });
 
-    console.log('[DB] Prisma Client initialized with PgAdapter (SSL Patch v1.0.2 active)');
+    console.log('[DB] Prisma Client initialized with PgAdapter (SSL Patch v1.0.3 active)');
     return client;
   } catch (error: any) {
     console.error('[DB] Critical Prisma initialization error:', error.message);
@@ -104,6 +99,9 @@ declare const globalThis: {
 } & typeof global;
 
 const prisma = globalThis.__prisma_fresh_v2 ?? prismaClientSingleton();
+
+// Cache the Prisma client instance globally in all environments to prevent connection leaks
+globalThis.__prisma_fresh_v2 = prisma;
 
 export default prisma;
 
@@ -123,7 +121,7 @@ export async function getShopSettings() {
     'footerLogo3dUrl', 'showLatestCuration', 'showArchive', 'showBlueprint', 'showProductVideo',
     'showSizeChart', 'showBrand', 'showShippingReturn', 'showCare', 'showSizeFit', 'showDetails',
     'pdpBackground', 'instagramUrl', 'appleUrl', 'spotifyUrl', 'youtubeUrl', 'featuredMedia',
-    'collectionsMedia', 'footerVideo', 'mainMenuHandle', 'secondaryMenuHandle', 'showTreeText',
+    'collectionsMedia', 'footerVideo', 'footerLogo3dUrl', 'mainMenuHandle', 'secondaryMenuHandle', 'showTreeText',
     'enabledCollectionsHeader', 'enabledCollectionsPage', 'enabledCollectionsMenu', 'featuredMediaImage',
     'kineticMeshProducts', 'kineticMeshTitle', 'showCommunity', 'communityAgeRestricted',
     'communityMinOrders', 'communityWhatsAppEnabled'
@@ -211,6 +209,3 @@ export async function getShopSettings() {
   }
 }
 
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.__prisma_fresh_v2 = prisma;
-}

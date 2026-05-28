@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/GlassView';
 import { useColors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthStore } from '../store/authStore';
@@ -92,13 +92,13 @@ export default function StoreCreditHistoryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <BlurView intensity={isDark ? 30 : 60} tint={theme} style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: colors.borderExtraLight }]}>
+      <GlassView intensity={isDark ? 30 : 60} tint={theme} style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: colors.borderExtraLight }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Typography heading weight="700" size={16} color={colors.text}>STORE CREDITS</Typography>
         <View style={{ width: 40 }} />
-      </BlurView>
+      </GlassView>
 
       <FlatList
         data={transactions}

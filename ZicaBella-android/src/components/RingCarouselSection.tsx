@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Image } from 'expo-image';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from './GlassView';
 import { useNavigation } from '@react-navigation/native';
 import { FlatProduct } from '../api/types';
 import { useColors } from '../constants/colors';
@@ -34,7 +34,7 @@ const RingCarouselSection = React.memo(({ title = "ACCESSORIES", handle = "acces
           },
         ]}
       >
-        <BlurView intensity={isDark ? 48 : 88} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        <GlassBackdrop intensity={isDark ? 48 : 88} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         
         {/* Header */}
         <View style={styles.header}>
@@ -88,10 +88,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingVertical: 22,
     borderWidth: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 18 },
-    shadowRadius: 28,
-    elevation: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 18 },
+        shadowRadius: 28,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
   },
   header: {
     flexDirection: 'row',
@@ -128,11 +134,17 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 45,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   imageWrapper: {
     width: '100%',

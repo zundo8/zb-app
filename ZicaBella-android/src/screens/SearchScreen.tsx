@@ -15,7 +15,7 @@ import { useThemeStore } from '../store/themeStore';
 import { useUIStore } from '../store/uiStore';
 import GlassHeader from '../components/GlassHeader';
 import { Typography } from '../components/Typography';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import StorefrontFooter from '../components/StorefrontFooter';
 import { withErrorBoundary } from '../components/ErrorBoundary';
 
@@ -101,7 +101,7 @@ const SearchScreen = React.memo(() => {
           backgroundColor: isDark ? 'hsla(0,0%,100%,0.06)' : 'hsla(0,0%,0%,0.03)',
           borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
         }]}>
-          <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <GlassBackdrop intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <Ionicons name="search-outline" size={16} color={colors.textExtraLight} style={styles.searchIcon} />
           <TextInput
             ref={searchInputRef}
@@ -197,7 +197,7 @@ const SearchScreen = React.memo(() => {
                   accessibilityLabel={`Search for ${term}`}
                   accessibilityRole="button"
                 >
-                  <BlurView intensity={12} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  <GlassBackdrop intensity={12} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                   <Typography size={8} color={colors.textSecondary} weight="300" style={styles.trendingText}>{String(term || '').toUpperCase()}</Typography>
                 </TouchableOpacity>
               ))}

@@ -115,6 +115,7 @@ const ProductCard = React.memo(({ product, onQuickAdd, onRemove, style, compact,
             snapToInterval={currentCardWidth}
             snapToAlignment="center"
             onScrollBeginDrag={onScrollBegin}
+            overScrollMode="never"
           >
             {images.map((img, index) => {
               // Only load the first image initially. Load others only after user interacts.

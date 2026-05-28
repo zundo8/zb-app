@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import RenderHTML from 'react-native-render-html';
-import { BlurView } from 'expo-blur';
 import { useColors } from '../constants/colors';
 import { RootStackParamList } from '../navigation/types';
 import { Typography } from '../components/Typography';

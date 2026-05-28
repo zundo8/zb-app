@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import RenderHTML from 'react-native-render-html';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { Image } from 'expo-image';
 import Constants from 'expo-constants';
 
@@ -63,7 +63,7 @@ export default function AboutScreen() {
             style={StyleSheet.absoluteFill}
             contentFit="cover"
           />
-          <BlurView intensity={isDark ? 30 : 50} tint={theme} style={StyleSheet.absoluteFill} />
+          <GlassBackdrop intensity={isDark ? 30 : 50} tint={theme} style={StyleSheet.absoluteFill} />
           <View style={[styles.heroOverlay, { paddingTop: 60 }]}>
             <Typography heading size={42} weight="800" color={colors.text} style={styles.heroTitle}>
               ZICA{"\n"}BELLA

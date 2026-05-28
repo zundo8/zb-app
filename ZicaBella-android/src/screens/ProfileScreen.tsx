@@ -19,7 +19,7 @@ import { config } from '../constants/config';
 import { navigationRef } from '../navigation/navigationUtils';
 import { useUIStore } from '../store/uiStore';
 import { Typography } from '../components/Typography';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/GlassView';
 import { Image } from 'expo-image';
 import { useThemeStore } from '../store/themeStore';
 import { useWishlistStore } from '../store/wishlistStore';
@@ -456,7 +456,7 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView 
-        behavior="height" 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -492,7 +492,7 @@ export default function ProfileScreen() {
                 accessibilityLabel="Edit profile photo"
                 accessibilityRole="button"
               >
-                <BlurView intensity={isDark ? 20 : 60} tint={theme} style={[styles.avatarGlass, { borderColor: colors.borderLight }]}>
+                <GlassView intensity={isDark ? 20 : 60} tint={theme} style={[styles.avatarGlass, { borderColor: colors.borderLight }]}>
                   {profileImage ? (
                     <Image
                       source={{ uri: profileImage }}
@@ -508,7 +508,7 @@ export default function ProfileScreen() {
                   <View style={styles.avatarEditDot}>
                     <Ionicons name="pencil" size={12} color={colors.background} />
                   </View>
-                </BlurView>
+                </GlassView>
               </TouchableOpacity>
               <View style={styles.headerInfo}>
                 <Typography heading weight="600" size={18} color={colors.text}>{user?.name || 'ZICA USER'}</Typography>
@@ -584,19 +584,19 @@ export default function ProfileScreen() {
 
             <View style={styles.sectionContainer}>
               <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>NOTIFICATIONS</Typography>
-              <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
+              <GlassView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
                 <MenuItem 
                   icon="notifications-outline" 
                   title="Notifications" 
                   onPress={() => navigation.navigate('Notifications')} 
                   badge={unreadCount > 0 ? unreadCount : undefined}
                 />
-              </BlurView>
+              </GlassView>
             </View>
 
             <View style={styles.sectionContainer}>
               <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>STORE CREDITS</Typography>
-              <BlurView 
+              <GlassView 
                 intensity={isDark ? 10 : 40} 
                 tint={theme} 
                 style={[styles.menuGlass, { borderColor: storeCredits > 0 ? 'rgba(52, 199, 89, 0.2)' : colors.borderLight }]}
@@ -634,7 +634,7 @@ export default function ProfileScreen() {
                     Store credits can be used on any future purchase and never expire.
                   </Typography>
                 </View>
-              </BlurView>
+              </GlassView>
             </View>
 
             <View style={styles.sectionContainer}>
@@ -645,7 +645,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
 
-              <BlurView 
+              <GlassView 
                 intensity={isDark ? 10 : 40} 
                 tint={theme} 
                 style={[styles.menuGlass, { borderColor: colors.borderLight }]}
@@ -685,7 +685,7 @@ export default function ProfileScreen() {
                     <Typography size={12} color={colors.textMuted}>{user?.phone || 'Not provided'}</Typography>
                   </View>
                 </View>
-              </BlurView>
+              </GlassView>
               
               {isEditing && (
                 <TouchableOpacity 
@@ -702,7 +702,7 @@ export default function ProfileScreen() {
 
             <View style={styles.sectionContainer}>
               <Typography heading size={7} color={colors.textLight} style={styles.sectionTitle}>SUPPORT & LEGAL</Typography>
-              <BlurView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
+              <GlassView intensity={isDark ? 10 : 40} tint={theme} style={[styles.menuGlass, { borderColor: colors.borderLight }]}>
                 <MenuItem icon="information-circle-outline" title="About Zica Bella" onPress={() => navigation.navigate('About')} />
                 <MenuItem icon="call-outline" title="Contact Information" onPress={() => navigatePolicy('contact-information', 'Contact Information')} />
                 <MenuItem icon="shield-checkmark-outline" title="Privacy Policy" onPress={() => navigatePolicy('privacy-policy', 'Privacy Policy')} />
@@ -711,7 +711,7 @@ export default function ProfileScreen() {
                 <MenuItem icon="refresh-outline" title="Refund Policy" onPress={() => navigatePolicy('refund-policy', 'Refund Policy')} />
                 <MenuItem icon="bus-outline" title="Shipping Policy" onPress={() => navigatePolicy('shipping-policy', 'Shipping Policy')} />
                 <MenuItem icon="trash-outline" title="Request Account Deletion" destructive onPress={handleDeleteAccount} />
-              </BlurView>
+              </GlassView>
             </View>
 
             <TouchableOpacity 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   View, Text, StyleSheet, Modal, TouchableOpacity, 
-  Dimensions, Pressable, FlatList 
+  Dimensions, Pressable, FlatList, Platform 
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
@@ -48,7 +48,11 @@ export default function WishlistDrawer({ visible, onClose }: Props) {
     >
       <View style={styles.container}>
         <Pressable style={styles.backdrop} onPress={onClose}>
-          <BlurView intensity={isDark ? 40 : 15} tint={isDark ? 'dark' : 'default'} style={StyleSheet.absoluteFill} />
+          {Platform.OS === 'android' ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.70)' }]} />
+          ) : (
+            <BlurView intensity={isDark ? 40 : 15} tint={isDark ? 'dark' : 'default'} style={StyleSheet.absoluteFill} />
+          )}
         </Pressable>
 
         <View style={[styles.drawer, { 
@@ -56,7 +60,11 @@ export default function WishlistDrawer({ visible, onClose }: Props) {
           backgroundColor: isDark ? 'rgba(5,7,12,0.8)' : 'rgba(255,255,255,0.8)',
           borderColor: colors.borderLight
         }]}>
-          <BlurView intensity={isDark ? 30 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          {Platform.OS === 'android' ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(5, 7, 12, 0.95)' : 'rgba(255, 255, 255, 0.97)' }]} />
+          ) : (
+            <BlurView intensity={isDark ? 30 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           
           <View style={[styles.header, { paddingTop: 30 }]}>
             <View style={styles.headerLeft}>

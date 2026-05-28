@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import GlassHeader from '../components/GlassHeader';
@@ -27,13 +27,13 @@ export default function BlogsScreen() {
           <Text style={[styles.title, { color: colors.text }]}>THE ARCHIVE</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Thoughts, culture, and design ethos.</Text>
         </View>
-
+ 
         <View style={styles.grid}>
           {BLOGS.map((blog) => (
             <TouchableOpacity key={blog.id} activeOpacity={0.8} style={styles.cardWrapper}>
               <View style={[styles.card, { borderColor: 'rgba(255,255,255,0.05)' }]}>
                 <Image source={{ uri: blog.image }} style={styles.image} contentFit="cover" />
-                <BlurView intensity={isDark ? 50 : 80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+                <GlassBackdrop intensity={isDark ? 50 : 80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
                 <View style={styles.cardContent}>
                   <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>{blog.title}</Text>
                   <Text style={[styles.readMore, { color: colors.textExtraLight }]}>READ MORE →</Text>

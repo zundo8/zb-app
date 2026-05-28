@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import GlassHeader from '../components/GlassHeader';
@@ -29,7 +29,7 @@ export default function CollaborationsScreen() {
         <View style={styles.list}>
           {COLLABS.map((collab) => (
             <View key={collab.id} style={styles.itemWrapper}>
-              <BlurView intensity={isDark ? 40 : 80} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { borderRadius: 16 }]} />
+              <GlassBackdrop intensity={isDark ? 40 : 80} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { borderRadius: 16 }]} />
               <TouchableOpacity activeOpacity={0.8} style={[styles.item, { borderColor: 'rgba(255,255,255,0.05)' }]}>
                 <Text style={[styles.collabName, { color: colors.text }]}>{collab.name}</Text>
                 <Text style={[styles.collabRole, { color: colors.textExtraLight }]}>{collab.role}</Text>

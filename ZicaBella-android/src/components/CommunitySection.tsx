@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Linking } from 'react-native';
+import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Linking, Platform } from 'react-native';
 import { Image } from 'expo-image';
-import { BlurView } from 'expo-blur';
+import { GlassView } from './GlassView';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import { Typography } from './Typography';
@@ -123,7 +123,7 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
                   placeholder={LOAD_IMAGES[parseInt(look.id) % 4] || LOAD_IMAGES[0]}
                 />
                 <View style={styles.labelContainer}>
-                  <BlurView
+                  <GlassView
                     intensity={isDark ? 40 : 60}
                     tint={isDark ? 'dark' : 'light'}
                     style={[
@@ -135,7 +135,7 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
                       @{look.name ? look.name.toUpperCase().slice(0, 14) : 'USER'}
                       {hasIg ? ' · IG' : ''}
                     </Typography>
-                  </BlurView>
+                  </GlassView>
                 </View>
               </TouchableOpacity>
             );
@@ -174,11 +174,17 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   image: {
     width: '100%',

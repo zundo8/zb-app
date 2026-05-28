@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -83,7 +83,11 @@ export default function GlassHeader({
         accessibilityLabel={showBack ? "Go back" : "Open menu"}
         accessibilityRole="button"
       >
-        <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        {Platform.OS === 'android' ? (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(10, 10, 10, 0.90)' : 'rgba(240, 240, 240, 0.92)' }]} />
+        ) : (
+          <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        )}
         <View style={styles.iconCircle}>
           {showBack ? (
             <Ionicons name="chevron-back" size={20} color={colors.text} />
@@ -112,7 +116,11 @@ export default function GlassHeader({
           accessibilityLabel="Go to home"
           accessibilityRole="button"
         >
-          <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          {Platform.OS === 'android' ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(10, 10, 10, 0.90)' : 'rgba(240, 240, 240, 0.92)' }]} />
+          ) : (
+            <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <Typography rocaston size={10} color={colors.text} style={styles.titleText}>
             {title.toUpperCase()}
           </Typography>
@@ -121,7 +129,11 @@ export default function GlassHeader({
 
       {/* Box 3: Right Actions Capsule (Consolidated Island) */}
       <View style={[styles.islandBase, styles.rightIsland, { borderColor: colors.borderLight }]}>
-        <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        {Platform.OS === 'android' ? (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(10, 10, 10, 0.90)' : 'rgba(240, 240, 240, 0.92)' }]} />
+        ) : (
+          <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        )}
         <View style={styles.rightActions}>
           <TouchableOpacity 
             style={styles.actionBtn} 
@@ -188,11 +200,18 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 8,
+        borderColor: 'rgba(255, 255, 255, 0.12)',
+      },
+    }),
   },
   leftIsland: {
     width: 40,
@@ -236,10 +255,17 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
 });
 

@@ -17,7 +17,6 @@ import { formatPrice } from '../utils/formatPrice';
 import { haptics } from '../utils/haptics';
 import { Typography } from '../components/Typography';
 import { resolveImageUrl } from '../utils/imageUtils';
-import { BlurView } from 'expo-blur';
 
 type ActiveTab = 'RETURNS' | 'EXCHANGES';
 
@@ -374,7 +373,7 @@ export default function ReturnsScreen() {
               <TouchableOpacity
                 key={tab.key}
                 onPress={() => { haptics.buttonTap(); setActiveTab(tab.key); }}
-                style={[styles.tabBtn, isActive && { backgroundColor: colors.background, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } }]}
+                style={[styles.tabBtn, isActive && { backgroundColor: colors.background, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }]}
               >
                 <Ionicons name={tab.icon as any} size={14} color={isActive ? colors.text : colors.textExtraLight} style={{ marginRight: 6 }} />
                 <Typography size={11} weight={isActive ? '700' : '600'} color={isActive ? colors.text : colors.textExtraLight}>

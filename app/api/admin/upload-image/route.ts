@@ -1,17 +1,12 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { uploadToStorage } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/upload-image
  * Accepts a multipart/form-data request with a 'file' field.
- * Saves the image to /public/uploads/ and returns the public URL.
- *
- * For production (Vercel), the file system is not persistent.
- * In that case, you should replace this with Cloudinary/S3/Vercel Blob.
- * The API gracefully falls back to a base64 data URL if the write fails.
+ * Saves the image persistently to Supabase Storage.
  */
 export async function POST(req: Request) {
   try {
@@ -23,9 +18,9 @@ export async function POST(req: Request) {
     }
 
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type. Only JPG, PNG, WebP, GIF, AVIF allowed.' }, { status: 400 });
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/heic', 'image/heif'];
+    if (!allowedTypes.includes(file.type.toLowerCase()) && !file.name.match(/\.(jpg|jpeg|png|webp|gif|avif|heic|heif)$/i)) {
+      return NextResponse.json({ error: 'Invalid file type. Only JPG, PNG, WebP, GIF, AVIF, HEIC, HEIF allowed.' }, { status: 400 });
     }
 
     // Cap file size to 10 MB
@@ -36,26 +31,11 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Attempt local disk write (works in dev, not in Vercel serverless)
-    try {
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-      await mkdir(uploadDir, { recursive: true });
-
-      const ext = file.name.split('.').pop() || 'jpg';
-      const filename = `${crypto.randomUUID()}.${ext}`;
-      const filePath = path.join(uploadDir, filename);
-
-      await writeFile(filePath, buffer);
-      const publicUrl = `/uploads/${filename}`;
-      return NextResponse.json({ success: true, url: publicUrl });
-    } catch {
-      // Fallback: return a base64 data URL (works everywhere but is large)
-      const base64 = buffer.toString('base64');
-      const dataUrl = `data:${file.type};base64,${base64}`;
-      return NextResponse.json({ success: true, url: dataUrl, fallback: true });
-    }
+    const result = await uploadToStorage(buffer, file.type, file.name);
+    return NextResponse.json({ success: true, url: result.url, fallback: result.fallback });
   } catch (e: any) {
     console.error('[Image Upload Error]:', e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  View, StyleSheet, TouchableOpacity, Animated, Dimensions, Pressable, ScrollView 
+  View, StyleSheet, TouchableOpacity, Animated, Dimensions, Pressable, ScrollView, Platform 
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -98,7 +98,11 @@ export default function MenuDrawer({ visible, onClose }: Props) {
       {/* ── BACKDROP ── */}
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
         <Animated.View style={[styles.backdrop, { opacity: opacityAnim }]}>
-           <BlurView intensity={isDark ? 30 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+           {Platform.OS === 'android' ? (
+             <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.60)' }]} />
+           ) : (
+             <BlurView intensity={isDark ? 30 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+           )}
         </Animated.View>
       </Pressable>
 
@@ -113,7 +117,11 @@ export default function MenuDrawer({ visible, onClose }: Props) {
           borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
         }
       ]}>
-        <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        {Platform.OS === 'android' ? (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(10, 10, 10, 0.95)' : 'rgba(255, 255, 255, 0.95)' }]} />
+        ) : (
+          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        )}
         
         {/* HEADER: MINIMAL SYSTEM TAG */}
         <View style={styles.header}>
@@ -202,7 +210,11 @@ export default function MenuDrawer({ visible, onClose }: Props) {
 
         {/* FLOATING SYSTEM DOCK */}
         <View style={[styles.dock, { backgroundColor: isDark ? 'rgba(20,20,20,0.4)' : 'rgba(240,240,240,0.4)' }]}>
-           <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+           {Platform.OS === 'android' ? (
+             <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.85)' : 'rgba(240, 240, 240, 0.85)' }]} />
+           ) : (
+             <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+           )}
            <TouchableOpacity style={styles.dockItem} onPress={() => handleNavigate('Main', { screen: 'ProfileTab' })}>
               <Ionicons name="person-outline" size={18} color={colors.text} />
               <Typography size={5} weight="700" color={colors.text} style={{ letterSpacing: 1 }}>PROFILE</Typography>
@@ -231,10 +243,17 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 40 },
-    shadowOpacity: 0.2,
-    shadowRadius: 80,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 40 },
+        shadowOpacity: 0.2,
+        shadowRadius: 80,
+      },
+      android: {
+        elevation: 16,
+      },
+    }),
     paddingTop: 24,
     left: 12,
   },
