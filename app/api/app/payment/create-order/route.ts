@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
 import prisma from '@/lib/db';
-import { allocateFailedOrderNumber } from '@/lib/order-utils';
+import { allocateOrderNumber } from '@/lib/order-utils';
 
 const corsJsonHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         const shop = await prisma.shop.findFirst();
         if (shop) {
           const customer = await resolveMobileCustomer(shop.id, orderData, userAuth);
-          const failedOrderNumber = await allocateFailedOrderNumber();
+          const failedOrderNumber = await allocateOrderNumber();
           const resolvedItems = await Promise.all((orderData.lineItems || []).map(async (li: any, idx: number) => {
             let resolvedPid: string | null = null;
             const rawPid = li.productId || li.product_id;

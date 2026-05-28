@@ -344,7 +344,7 @@ export default function OrdersPage() {
                 </button>
              </div>
           ) : orders.map((order, i) => {
-            const isMobile = order.shopifyOrderId.startsWith('ZB71') || (order as any).orderType === 'MOBILE_APP';
+            const isMobile = /^(ZB71|ZB8)/i.test(order.shopifyOrderId) || (order as any).orderType === 'MOBILE_APP';
             
             return (
               <motion.div

@@ -121,6 +121,7 @@ async function handleOrderWebhook(shop: string, orderData: any) {
       totalTax: parseFloat(orderData.total_tax || '0'),
       currency: orderData.currency || 'INR',
       paymentStatus: orderData.financial_status || 'pending',
+      paymentMethod: orderData.gateway || (orderData.payment_gateway_names && orderData.payment_gateway_names[0]) || null,
       fulfillmentStatus: orderData.fulfillment_status || 'unfulfilled',
       deliveryStatus: deliveryStatus,
       shippingAddress: orderData.shipping_address ? JSON.stringify(orderData.shipping_address) : null,
@@ -135,6 +136,7 @@ async function handleOrderWebhook(shop: string, orderData: any) {
       totalTax: parseFloat(orderData.total_tax || '0'),
       currency: orderData.currency || 'INR',
       paymentStatus: orderData.financial_status || 'pending',
+      paymentMethod: orderData.gateway || (orderData.payment_gateway_names && orderData.payment_gateway_names[0]) || null,
       fulfillmentStatus: orderData.fulfillment_status || 'unfulfilled',
       deliveryStatus: deliveryStatus,
       shippingAddress: orderData.shipping_address ? JSON.stringify(orderData.shipping_address) : null,
@@ -145,6 +147,14 @@ async function handleOrderWebhook(shop: string, orderData: any) {
   });
 
   if (orderData.line_items) {
+    const shopifyItemIds = orderData.line_items.map((item: any) => item.id.toString());
+    await prisma.orderItem.deleteMany({
+      where: {
+        orderId: order.id,
+        shopifyLineItemId: { notIn: shopifyItemIds }
+      }
+    });
+
     for (const item of orderData.line_items) {
       const shopifyProductId = item.product_id?.toString();
       let dbProductId = null;

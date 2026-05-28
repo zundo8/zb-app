@@ -71,9 +71,15 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
         const shopifyOrderPayload: any = {
           line_items: mobileOrder.items.map((item) => {
+            // 1. Direct variantId from DB (best source)
+            if (item.variantId && /^\d+$/.test(String(item.variantId))) {
+              return { variant_id: parseInt(String(item.variantId), 10), quantity: item.quantity };
+            }
+            // 2. SKU-embedded variant id (e.g. "variant:12345")
             const sku = item.sku || '';
             const m = sku.match(/variant:(\d+)/i);
             if (m?.[1]) return { variant_id: parseInt(m[1], 10), quantity: item.quantity };
+            // 3. Fallback: title + price based line item
             return { title: item.title, quantity: item.quantity, price: item.price.toFixed(2), requires_shipping: true };
           }),
           financial_status: String(mobileOrder.paymentStatus || '').toLowerCase() === 'paid' ? 'paid' : 'pending',
@@ -136,7 +142,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
               shopId: mobileOrder.customer.shopId,
               shopifyOrderId,
               customerId: mobileOrder.customerId,
-              status: String(mobileOrder.paymentStatus || '').toLowerCase() === 'paid' ? 'PAID' : 'PENDING',
+              status: 'approved',
               totalPrice: mobileOrder.totalPrice,
               subtotalPrice: mobileOrder.subtotalPrice || mobileOrder.totalPrice,
               totalTax: mobileOrder.totalTax || 0,

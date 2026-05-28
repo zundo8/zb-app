@@ -98,27 +98,18 @@ export async function GET(req: Request) {
         ]
       } : (orderId ? { id: orderId } : { 
         customerId: { in: customerIds },
-        AND: [
-          {
-            status: {
-              notIn: ['failed', 'FAILED', 'payment_failed']
+        NOT: {
+          OR: [
+            { status: { in: ['failed', 'FAILED', 'payment_failed', 'payment_pending'] } },
+            { paymentStatus: { in: ['failed', 'payment_failed', 'FAILED', 'PAYMENT_FAILED'] } },
+            {
+              AND: [
+                { paymentStatus: { notIn: ['paid', 'partially_paid', 'refunded', 'partially_refunded', 'PAID', 'PARTIALLY_PAID', 'REFUNDED', 'PARTIALLY_REFUNDED', 'success', 'SUCCESS'] } },
+                { paymentMethod: { notIn: ['COD', 'cod', 'Cash on Delivery', 'cash_on_delivery'] } }
+              ]
             }
-          },
-          {
-            OR: [
-              {
-                paymentStatus: {
-                  in: ['paid', 'partially_paid', 'refunded', 'partially_refunded', 'PAID', 'PARTIALLY_PAID', 'REFUNDED', 'PARTIALLY_REFUNDED']
-                }
-              },
-              {
-                paymentMethod: {
-                  in: ['COD', 'cod', 'Cash on Delivery', 'cash_on_delivery']
-                }
-              }
-            ]
-          }
-        ]
+          ]
+        }
       }),
       include: {
         items: {

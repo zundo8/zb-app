@@ -209,7 +209,13 @@ export default function OrderDetailPage() {
     </div>
   );
 
-  const shippingAddr = order.shippingAddress ? JSON.parse(order.shippingAddress) : null;
+  let shippingAddr: any = null;
+  try {
+    shippingAddr = order.shippingAddress ? JSON.parse(order.shippingAddress) : null;
+  } catch {
+    // shippingAddress may be a plain string, not JSON
+    shippingAddr = typeof order.shippingAddress === 'string' ? { address1: order.shippingAddress } : null;
+  }
   const latestShipment = order.shipments?.[0];
 
   return (

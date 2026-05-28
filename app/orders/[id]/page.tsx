@@ -281,7 +281,23 @@ export default function OrderDetailsPage() {
                  <MapPin className="w-2.5 h-2.5" /> Shipping Destination
               </h4>
               <p className="text-[10px] font-extralight text-white/50 leading-relaxed italic">
-                 {order.shippingAddress || 'No address provided in system records.'}
+                 {(() => {
+                   if (!order.shippingAddress) return 'No address provided in system records.';
+                   try {
+                     const addr = JSON.parse(order.shippingAddress);
+                     const parts = [
+                       addr.name,
+                       addr.address1 || addr.line1,
+                       addr.address2 || addr.line2,
+                       [addr.city, addr.province || addr.state].filter(Boolean).join(', '),
+                       [addr.zip || addr.pincode, addr.country].filter(Boolean).join(' '),
+                       addr.phone ? `Phone: ${addr.phone}` : null,
+                     ].filter(Boolean);
+                     return parts.join(' · ') || order.shippingAddress;
+                   } catch {
+                     return order.shippingAddress;
+                   }
+                 })()}
               </p>
            </div>
         </div>
