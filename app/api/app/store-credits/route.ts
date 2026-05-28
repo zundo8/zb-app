@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { getAppAuthFromRequest } from '@/lib/appAuth';
+import { getAppAuthFromRequest, resolveAuthCustomer } from '@/lib/appAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +26,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 
+    const resolvedCustomer = await resolveAuthCustomer(auth);
+    if (!resolvedCustomer) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404, headers: corsHeaders });
+    }
+
     const url = new URL(req.url);
-    const customerId = url.searchParams.get('customerId')?.trim() || auth.customerId;
+    const customerId = url.searchParams.get('customerId')?.trim() || resolvedCustomer.id;
     
     // Security: Only allow users to view their own balance
-    if (customerId !== auth.customerId) {
+    if (customerId !== resolvedCustomer.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 
@@ -87,13 +92,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 
+    const resolvedCustomer = await resolveAuthCustomer(auth);
+    if (!resolvedCustomer) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404, headers: corsHeaders });
+    }
+
     const body = await req.json();
     const { customerId, action } = body;
 
-    const targetCustomerId = customerId || auth.customerId;
+    const targetCustomerId = customerId || resolvedCustomer.id;
 
     // Security: Users can only modify their own credits/preferences
-    if (targetCustomerId !== auth.customerId) {
+    if (targetCustomerId !== resolvedCustomer.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 

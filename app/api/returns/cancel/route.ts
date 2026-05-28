@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { getAppAuthFromRequest } from '@/lib/appAuth';
+import { getAppAuthFromRequest, resolveAuthCustomer } from '@/lib/appAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +18,11 @@ export async function POST(req: Request) {
   const auth = getAppAuthFromRequest(req);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+  }
+
+  const customer = await resolveAuthCustomer(auth);
+  if (!customer) {
+    return NextResponse.json({ error: 'Customer identity could not be resolved' }, { status: 404, headers: corsHeaders });
   }
 
   try {
@@ -53,7 +58,7 @@ export async function POST(req: Request) {
     const status = isExchange ? exchangeRequest!.status : returnRequest!.status;
     const orderId = isExchange ? exchangeRequest!.orderId : returnRequest!.orderId;
 
-    if (customerId !== auth.customerId) {
+    if (customerId !== customer.id) {
       return NextResponse.json({ error: 'Unauthorized: not your request' }, { status: 403, headers: corsHeaders });
     }
 

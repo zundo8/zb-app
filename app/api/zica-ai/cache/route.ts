@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAppAuthFromRequest } from "@/lib/appAuth";
+import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import prisma from "@/lib/db";
 
 // Basic keyword extraction for intents and entities (Module 3)
@@ -35,17 +35,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const customer = await resolveAuthCustomer(auth);
+    if (!customer) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
     const { searchParams } = new URL(req.url);
     let userId = searchParams.get("userId");
     
-    // Fallback to auth.customerId if the client didn't explicitly pass it or passed empty
+    // Fallback to customer.id if the client didn't explicitly pass it or passed empty
     if (!userId) {
-      userId = auth.customerId;
+      userId = customer.id;
     }
     
     // Strictly ensure users can only fetch their own data unless admin
     const isAdmin = auth.customerEmail?.endsWith('@zicabella.com') || false;
-    if (userId !== auth.customerId && !isAdmin) {
+    if (userId !== customer.id && !isAdmin) {
       return NextResponse.json({ error: "Unauthorized access to user cache" }, { status: 403 });
     }
 
@@ -80,10 +85,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const customer = await resolveAuthCustomer(auth);
+    if (!customer) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
     const body = await req.json();
     const { sessionId, turnIndex, userMessage, aiResponse, detectedProducts, detectedCollections, responseTokens } = body;
 
-    const userId = auth.customerId;
+    const userId = customer.id;
 
     if (!sessionId || turnIndex === undefined || !userMessage || !aiResponse) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });

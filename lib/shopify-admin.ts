@@ -363,6 +363,18 @@ export async function searchCustomerByPhone(phone: string): Promise<ShopifyCusto
   }
 }
 
+export async function searchCustomerByEmail(email: string): Promise<ShopifyCustomer | null> {
+  try {
+    const data = await shopifyFetch<{ customers: ShopifyCustomer[] }>('customers/search.json', {
+      query: `email:${email}`,
+    });
+    return data.customers?.[0] || null;
+  } catch (e) {
+    console.error(`[Shopify Admin] Error searching customer by email ${email}:`, e);
+    return null;
+  }
+}
+
 // ─── Collections ─────────────────────────────────────────────────────
 
 export interface ShopifyCollection {

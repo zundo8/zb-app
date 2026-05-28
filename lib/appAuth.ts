@@ -1,4 +1,6 @@
 import jwt from 'jsonwebtoken';
+import prisma from './db';
+import { searchCustomerByEmail, searchCustomerByPhone } from './shopify-admin';
 
 export type AppAuthTokenPayload = {
   customerId: string;
@@ -40,4 +42,105 @@ export function getAppAuthFromRequest(req: Request) {
     return null;
   }
 }
+
+/**
+ * Resiliently resolves a customer record in the database using the token payload.
+ * If the customer CUID in the token is invalid (e.g. from a different database instance),
+ * it attempts to self-heal the session by looking up the customer via email or phone,
+ * syncing them from Shopify, or creating a guest customer locally as a fallback.
+ */
+export async function resolveAuthCustomer(auth: AppAuthTokenPayload | null) {
+  if (!auth) return null;
+
+  // 1. Try by exact customerId (cuid)
+  let customer = await prisma.customer.findUnique({
+    where: { id: auth.customerId }
+  });
+  if (customer) return customer;
+
+  console.log(`[Auth] Customer ID ${auth.customerId} not found in database. Attempting self-healing...`);
+
+  // 2. Try by email if available
+  if (auth.customerEmail) {
+    customer = await prisma.customer.findFirst({
+      where: { email: auth.customerEmail }
+    });
+    if (customer) {
+      console.log(`[Auth] Self-healed customer ID by email match: ${auth.customerEmail} -> ${customer.id}`);
+      return customer;
+    }
+  }
+
+  // 3. Try by phone if available
+  if (auth.customerPhone) {
+    const phoneDigits = String(auth.customerPhone).replace(/\D/g, '').slice(-10);
+    if (phoneDigits.length === 10) {
+      customer = await prisma.customer.findFirst({
+        where: { phone: { contains: phoneDigits } }
+      });
+      if (customer) {
+        console.log(`[Auth] Self-healed customer ID by phone match: ${auth.customerPhone} -> ${customer.id}`);
+        return customer;
+      }
+    }
+  }
+
+  // 4. Try syncing from Shopify if we have email or phone
+  let shopifyCustomer = null;
+  try {
+    if (auth.customerEmail) {
+      shopifyCustomer = await searchCustomerByEmail(auth.customerEmail);
+    }
+    if (!shopifyCustomer && auth.customerPhone) {
+      const phoneDigits = String(auth.customerPhone).replace(/\D/g, '').slice(-10);
+      const normalizedPhone = auth.customerPhone.startsWith('+') ? auth.customerPhone : `+${auth.customerPhone}`;
+      shopifyCustomer = await searchCustomerByPhone(auth.customerPhone) 
+        || await searchCustomerByPhone(phoneDigits)
+        || await searchCustomerByPhone(normalizedPhone);
+    }
+  } catch (e) {
+    console.error("[Auth] Shopify search failed during customer resolution:", e);
+  }
+
+  const shop = await prisma.shop.findFirst();
+  if (!shop) {
+    console.error("[Auth] No shop configuration found during customer self-healing.");
+    return null;
+  }
+
+  if (shopifyCustomer) {
+    // Create/sync Shopify customer locally
+    customer = await prisma.customer.create({
+      data: {
+        shopifyId: String(shopifyCustomer.id),
+        shopId: shop.id,
+        email: shopifyCustomer.email || auth.customerEmail || null,
+        name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || "User",
+        phone: shopifyCustomer.phone || auth.customerPhone || null,
+        ordersCount: shopifyCustomer.orders_count || 0,
+        totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+      }
+    });
+    console.log(`[Auth] Created synced customer record from Shopify: ${customer.id}`);
+    return customer;
+  }
+
+  // 5. Fallback: Create local guest customer if email or phone is present
+  if (auth.customerEmail || auth.customerPhone) {
+    customer = await prisma.customer.create({
+      data: {
+        shopId: shop.id,
+        shopifyId: `mobile_migrated_${Date.now()}`,
+        name: "Guest User",
+        email: auth.customerEmail || null,
+        phone: auth.customerPhone || null,
+      }
+    });
+    console.log(`[Auth] Created fallback local guest customer record: ${customer.id}`);
+    return customer;
+  }
+
+  return null;
+}
+
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { getAppAuthFromRequest } from "@/lib/appAuth";
+import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +19,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { items, guestId, name, email, phone } = body;
     const auth = getAppAuthFromRequest(req);
-    
-    let customerId = auth?.customerId;
+    const customer = auth ? await resolveAuthCustomer(auth) : null;
+    let customerId = customer?.id;
 
     if (!customerId && !guestId) {
       return NextResponse.json({ error: "Unauthorized or Missing guestId" }, { status: 401 });

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
-import { getAppAuthFromRequest } from "@/lib/appAuth";
+import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import { ZICA_USER_PROMPT, ZICA_ADMIN_PROMPT } from "@/lib/services/claudeService";
 import prisma from "@/lib/db";
 
@@ -32,13 +32,14 @@ export async function POST(req: NextRequest) {
 
     const { messages } = body;
     const auth = getAppAuthFromRequest(req);
+    const customer = auth ? await resolveAuthCustomer(auth) : null;
     const isAdmin = false;
     // Fetch Global Insights and User Profile Context
     let globalContext = "";
     let userContext = "";
     let recentHistory: any[] = [];
 
-    if (!isAdmin && auth?.customerId) {
+    if (!isAdmin && customer) {
       try {
         const topProducts = await prisma.zicaAiGlobalInsight.findMany({
           where: { insightType: "popular_product" },
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
         }
 
         const profile = await prisma.zicaUserProfile.findUnique({
-          where: { userId: auth.customerId }
+          where: { userId: customer.id }
         });
         if (profile) {
           const categories = profile.preferredCategories.join(", ") || "various categories";
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
         }
 
         const history = await prisma.zicaAiCache.findMany({
-          where: { userId: auth.customerId },
+          where: { userId: customer.id },
           orderBy: { timestamp: "desc" },
           take: 10,
         });
