@@ -37,6 +37,9 @@ const createMockPrismaClient = (reason: string) => {
 };
 
 const prismaClientSingleton = () => {
+  if (process.env.SUPABASE_DATABASE_URL) {
+    process.env.DATABASE_URL = process.env.SUPABASE_DATABASE_URL;
+  }
   const dbUrl = process.env.DATABASE_URL || '';
   const isSqlite = dbUrl.startsWith('file:');
 
