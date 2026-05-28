@@ -6,6 +6,10 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
+    // Show which DB we're connecting to (masked)
+    const dbUrl = process.env.DATABASE_URL || '';
+    const maskedUrl = dbUrl.replace(/:[^:@]+@/, ':***@').substring(0, 80);
+    
     // Test 1: Raw count
     const count = await prisma.featuredUser.count();
     
@@ -20,17 +24,19 @@ export async function GET() {
       }
     });
     
-    // Test 3: findMany with status filter
-    const approvedUsers = await prisma.featuredUser.findMany({
-      where: { status: 'APPROVED' },
-      select: {
-        id: true,
-        name: true,
-        status: true,
+    // Test 3: All table counts via raw SQL
+    let tableCounts: any = {};
+    try {
+      const tables = ['Shop', 'Customer', 'Order', 'OrderItem', 'FeaturedUser', 'Review', 'Admin', 'BlogPost'];
+      for (const table of tables) {
+        const result: any = await prisma.$queryRawUnsafe(`SELECT count(*) as c FROM "${table}"`);
+        tableCounts[table] = Number(result[0]?.c || 0);
       }
-    });
+    } catch (e: any) {
+      tableCounts = { error: e.message };
+    }
     
-    // Test 4: Raw SQL
+    // Test 4: Raw SQL for FeaturedUser
     let rawResult: any = [];
     try {
       rawResult = await prisma.$queryRawUnsafe('SELECT id, name, status FROM "FeaturedUser" LIMIT 10');
@@ -39,11 +45,13 @@ export async function GET() {
     }
 
     return NextResponse.json({
+      dbUrlPrefix: maskedUrl,
       totalCount: count,
       allUsers,
-      approvedUsers,
+      tableCounts,
       rawResult,
       prismaIsMock: (prisma as any)._isMock || false,
+      timestamp: new Date().toISOString(),
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -54,6 +62,7 @@ export async function GET() {
     return NextResponse.json({ 
       error: error.message,
       stack: error.stack?.substring(0, 500),
+      dbUrl: (process.env.DATABASE_URL || '').replace(/:[^:@]+@/, ':***@').substring(0, 80),
     }, { status: 500 });
   }
 }
