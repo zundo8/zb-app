@@ -20,16 +20,24 @@ export async function GET(request: NextRequest) {
   console.log(`[IMPORT-DATA] Running database data import in ${projectRoot}...`);
 
   try {
+    const targetDomain = process.env.SHOPIFY_STORE_DOMAIN || '8tiahf-bk.myshopify.com';
+    const targetShopId = 'cmmo2q3he0000gyuemfwdy2z9';
+
+    // Delete any existing shop with conflicting domain or ID to prevent unique/primary key conflicts
+    await prisma.shop.deleteMany({
+      where: {
+        OR: [
+          { domain: targetDomain },
+          { id: targetShopId }
+        ]
+      }
+    });
+
     // Step 1: Create the precise Shop ID record so that foreign key constraints pass
-    const shop = await prisma.shop.upsert({
-      where: { id: 'cmmo2q3he0000gyuemfwdy2z9' },
-      update: {
-        domain: process.env.SHOPIFY_STORE_DOMAIN || '8tiahf-bk.myshopify.com',
-        accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',
-      },
-      create: {
-        id: 'cmmo2q3he0000gyuemfwdy2z9',
-        domain: process.env.SHOPIFY_STORE_DOMAIN || '8tiahf-bk.myshopify.com',
+    const shop = await prisma.shop.create({
+      data: {
+        id: targetShopId,
+        domain: targetDomain,
         accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',
       }
     });
