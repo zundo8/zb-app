@@ -237,7 +237,7 @@ export default function AppIntegrationPage() {
     { name: 'Returns', path: '/api/app/returns?customerId=test', method: 'GET', status: 'loading', icon: Undo2 },
     { name: 'Exchanges', path: '/api/app/exchanges?customerId=test', method: 'GET', status: 'loading', icon: ArrowLeftRight },
     { name: 'Public Settings', path: '/api/app/settings', method: 'GET', status: 'loading', icon: Shield },
-    { name: 'Wishlist', path: '/api/app/wishlist?customerId=test', method: 'GET', status: 'loading', icon: Heart },
+    { name: 'Wishlist', path: '/api/wishlist', method: 'GET', status: 'loading', icon: Heart },
   ]);
 
   const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
