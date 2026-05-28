@@ -109,64 +109,107 @@ export async function POST(req: Request) {
         if (shop) {
           const customer = await resolveMobileCustomer(shop.id, orderData, userAuth);
           const failedOrderNumber = await allocateFailedOrderNumber();
-          await prisma.order.create({
-            data: {
-              shopId: shop.id,
-              customerId: customer.id,
-              shopifyOrderId: `#${failedOrderNumber}`,
-              razorpayOrderId: order.id,
-              totalPrice: amountRupees,
-              subtotalPrice: orderData.subtotal || amountRupees,
-              totalTax: 0,
-              currency: 'INR',
-              paymentStatus: 'pending',
-              status: 'payment_pending',
-              orderType: 'MOBILE_APP',
-              fulfillmentStatus: 'unfulfilled',
-              deliveryStatus: 'pending',
-              paymentMethod: 'Razorpay',
-              shippingAddress: typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : JSON.stringify({
-                ...orderData.shippingAddress,
-                address1: orderData.shippingAddress?.address1 || orderData.shippingAddress?.line1 || orderData.shippingAddress?.street || '',
-                province: orderData.shippingAddress?.province || orderData.shippingAddress?.state || '',
-                zip: orderData.shippingAddress?.zip || orderData.shippingAddress?.pincode || '',
-              }),
-              billingAddress: null,
-              tags: orderData.tags || 'mobile-app, pending',
-              note: orderData.note || 'Created via Payment Initiation',
-              items: {
-                create: await Promise.all((orderData.lineItems || []).map(async (li: any, idx: number) => {
-                  let resolvedPid: string | null = null;
-                  const rawPid = li.productId || li.product_id;
-                  if (rawPid) {
-                    const pidStr = String(rawPid);
-                    const byId = await prisma.product.findUnique({ where: { id: pidStr }, select: { id: true } }).catch(() => null);
-                    if (byId) {
-                      resolvedPid = byId.id;
-                    } else {
-                      const { extractNumericId } = await import('@/lib/utils');
-                      const numericPid = extractNumericId(pidStr);
-                      if (numericPid) {
-                        const byShopifyId = await prisma.product.findUnique({ where: { shopifyProductId: numericPid }, select: { id: true } }).catch(() => null);
-                        if (byShopifyId) resolvedPid = byShopifyId.id;
-                      }
-                    }
-                  }
-                  
-                  return {
-                    shopifyLineItemId: `pending_${order.id}_${idx}`,
-                    productId: resolvedPid,
-                    title: li.name || li.title || 'Product',
-                    quantity: Number(li.quantity || 1),
-                    price: Number(li.price || 0),
-                    sku: li.sku || null,
-                    image: li.image || null,
-                  };
-                })),
+          const resolvedItems = await Promise.all((orderData.lineItems || []).map(async (li: any, idx: number) => {
+            let resolvedPid: string | null = null;
+            const rawPid = li.productId || li.product_id;
+            if (rawPid) {
+              const pidStr = String(rawPid);
+              const byId = await prisma.product.findUnique({ where: { id: pidStr }, select: { id: true } }).catch(() => null);
+              if (byId) {
+                resolvedPid = byId.id;
+              } else {
+                const { extractNumericId } = await import('@/lib/utils');
+                const numericPid = extractNumericId(pidStr);
+                if (numericPid) {
+                  const byShopifyId = await prisma.product.findUnique({ where: { shopifyProductId: numericPid }, select: { id: true } }).catch(() => null);
+                  if (byShopifyId) resolvedPid = byShopifyId.id;
+                }
               }
             }
+            
+            return {
+              productId: resolvedPid,
+              title: li.name || li.title || 'Product',
+              quantity: Number(li.quantity || 1),
+              price: Number(li.price || 0),
+              sku: li.sku || null,
+              image: li.image || null,
+            };
+          }));
+
+          await prisma.$transaction(async (tx) => {
+            // 1. Create pending Order
+            await tx.order.create({
+              data: {
+                shopId: shop.id,
+                customerId: customer.id,
+                shopifyOrderId: `#${failedOrderNumber}`,
+                razorpayOrderId: order.id,
+                totalPrice: amountRupees,
+                subtotalPrice: orderData.subtotal || amountRupees,
+                totalTax: 0,
+                currency: 'INR',
+                paymentStatus: 'pending',
+                status: 'payment_pending',
+                orderType: 'MOBILE_APP',
+                fulfillmentStatus: 'unfulfilled',
+                deliveryStatus: 'pending',
+                paymentMethod: 'Razorpay',
+                shippingAddress: typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : JSON.stringify({
+                  ...orderData.shippingAddress,
+                  address1: orderData.shippingAddress?.address1 || orderData.shippingAddress?.line1 || orderData.shippingAddress?.street || '',
+                  province: orderData.shippingAddress?.province || orderData.shippingAddress?.state || '',
+                  zip: orderData.shippingAddress?.zip || orderData.shippingAddress?.pincode || '',
+                }),
+                billingAddress: null,
+                tags: orderData.tags || 'mobile-app, pending',
+                note: orderData.note || 'Created via Payment Initiation',
+                items: {
+                  create: resolvedItems.map((item, idx) => ({
+                    shopifyLineItemId: `pending_${order.id}_${idx}`,
+                    productId: item.productId,
+                    title: item.title,
+                    quantity: item.quantity,
+                    price: item.price,
+                    sku: item.sku,
+                    image: item.image,
+                  }))
+                }
+              }
+            });
+
+            // 2. Create pending MobileOrder
+            await tx.mobileOrder.create({
+              data: {
+                orderNumber: failedOrderNumber,
+                customerId: customer.id,
+                status: 'payment_pending',
+                paymentStatus: 'pending',
+                paymentMethod: 'PREPAID',
+                totalPrice: amountRupees,
+                subtotalPrice: orderData.subtotal || amountRupees,
+                currency: 'INR',
+                fulfillmentStatus: 'unfulfilled',
+                deliveryStatus: 'pending',
+                shippingAddress: typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : JSON.stringify(orderData.shippingAddress),
+                tags: orderData.tags || 'mobile-app, pending',
+                note: orderData.note || 'Created via Payment Initiation',
+                source: 'mobile_app',
+                items: {
+                  create: resolvedItems.map(item => ({
+                    productId: item.productId,
+                    title: item.title,
+                    quantity: item.quantity,
+                    price: item.price,
+                    sku: item.sku,
+                    image: item.image,
+                  }))
+                }
+              }
+            });
           });
-          console.log(`[Razorpay] Pre-created pending order ${order.id} in DB`);
+
+          console.log(`[Razorpay] Pre-created pending order and mobile order ${order.id} in DB`);
         }
       } catch (dbErr: any) {
         console.warn('[Razorpay] Failed to pre-create pending order:', dbErr.message);

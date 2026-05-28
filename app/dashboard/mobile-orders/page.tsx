@@ -342,7 +342,7 @@ export default function MobileOrdersPage() {
                             const confirmSync = confirm("Approve and Synchronize this order to Shopify?");
                             if (confirmSync) {
                               try {
-                                const res = await fetch(`/api/admin/orders/${order.id}/approve`, { method: 'POST' });
+                                const res = await fetch(`/api/admin/mobile-orders/${order.id}/approve`, { method: 'POST' });
                                 const data = await res.json();
                                 if (data.success) {
                                   alert("Order synchronized successfully!");

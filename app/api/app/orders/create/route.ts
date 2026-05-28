@@ -290,6 +290,89 @@ export async function POST(req: Request) {
           });
         }
 
+        // Also update or create corresponding MobileOrder record
+        const mobileOrder = await tx.mobileOrder.findUnique({
+          where: { orderNumber: orderNumber }
+        });
+
+        const mobileOrderData = {
+          shopifyOrderId: finalShopifyOrderId,
+          status: isSyncedNow ? 'synced' : initialStatus,
+          paymentStatus,
+          paymentMethod: paymentMethod === 'COD' ? 'COD' : 'PREPAID',
+          paymentId: paymentId || null,
+          syncedAt: isSyncedNow ? now : null,
+          tags: finalTags,
+        };
+
+        if (mobileOrder) {
+          await tx.mobileOrder.update({
+            where: { id: mobileOrder.id },
+            data: mobileOrderData
+          });
+        } else {
+          const mobileOrderItems = await Promise.all(lineItems.map(async (li: any) => {
+            const rawPid = li.productId || li.product_id;
+            const vid = extractNumericId(li.variantId || li.variant_id);
+            
+            let resolvedPid: string | null = null;
+            if (rawPid) {
+              const pidStr = String(rawPid);
+              const byId = await tx.product.findUnique({ where: { id: pidStr }, select: { id: true } });
+              if (byId) resolvedPid = byId.id;
+            }
+
+            return {
+              productId: resolvedPid,
+              title: li.name || li.title || 'Product',
+              quantity: Number(li.quantity || 0),
+              price: Number(li.price || 0),
+              sku: li.sku || (vid ? `variant:${vid}` : null),
+              image: li.image || li.imageUrl || null,
+            };
+          }));
+
+          await tx.mobileOrder.create({
+            data: {
+              orderNumber: orderNumber,
+              shopifyOrderId: finalShopifyOrderId,
+              customerId: resolvedCustomerId,
+              status: isSyncedNow ? 'synced' : initialStatus,
+              paymentStatus,
+              paymentMethod: paymentMethod === 'COD' ? 'COD' : 'PREPAID',
+              paymentId: paymentId || null,
+              totalPrice: total,
+              subtotalPrice: subtotal,
+              totalTax: 0,
+              discountAmount: appliedStoreCredits,
+              discountCode: appliedStoreCredits > 0 ? 'STORE_CREDIT' : null,
+              currency: 'INR',
+              fulfillmentStatus: 'unfulfilled',
+              deliveryStatus: 'pending',
+              shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
+                name: shippingAddress?.name || customer!.name,
+                address1: shippingAddress?.address1 || shippingAddress?.line1 || shippingAddress?.street || '',
+                address2: shippingAddress?.address2 || shippingAddress?.line2 || '',
+                city: shippingAddress?.city || '',
+                province: shippingAddress?.province || shippingAddress?.state || '',
+                zip: shippingAddress?.zip || shippingAddress?.pincode || '',
+                country: shippingAddress?.country || 'India',
+                phone: customerPhone || customer!.phone || shippingAddress?.phone || '',
+                email: customerEmail || customer!.email || shippingAddress?.email || '',
+              }),
+              billingAddress: null,
+              note,
+              tags: finalTags,
+              source: 'mobile_app',
+              createdAt: now,
+              syncedAt: isSyncedNow ? now : null,
+              items: {
+                create: mobileOrderItems
+              }
+            }
+          });
+        }
+
         return tx.order.update({
           where: { id: existingOrder!.id },
           data: {
@@ -403,6 +486,76 @@ export async function POST(req: Request) {
                 }
               : undefined,
         },
+      });
+
+      // Also create MobileOrder and MobileOrderItem records
+      const mobileOrderItems = await Promise.all(lineItems.map(async (li: any) => {
+        const rawPid = li.productId || li.product_id;
+        const vid = extractNumericId(li.variantId || li.variant_id);
+        
+        let resolvedPid: string | null = null;
+        if (rawPid) {
+          const pidStr = String(rawPid);
+          const byId = await tx.product.findUnique({ where: { id: pidStr }, select: { id: true } });
+          if (byId) {
+            resolvedPid = byId.id;
+          } else {
+            const numericPid = extractNumericId(pidStr);
+            if (numericPid) {
+              const byShopifyId = await tx.product.findUnique({ where: { shopifyProductId: numericPid }, select: { id: true } });
+              if (byShopifyId) resolvedPid = byShopifyId.id;
+            }
+          }
+        }
+
+        return {
+          productId: resolvedPid,
+          title: li.name || li.title || 'Product',
+          quantity: Number(li.quantity || 0),
+          price: Number(li.price || 0),
+          sku: li.sku || (vid ? `variant:${vid}` : null),
+          image: li.image || li.imageUrl || null,
+        };
+      }));
+
+      await tx.mobileOrder.create({
+        data: {
+          orderNumber: orderNumber,
+          shopifyOrderId: isSyncedNow ? finalShopifyOrderId : null,
+          customerId: resolvedCustomerId,
+          status: isSyncedNow ? 'synced' : initialStatus,
+          paymentStatus,
+          paymentMethod: paymentMethod === 'COD' ? 'COD' : 'PREPAID',
+          paymentId: paymentId || null,
+          totalPrice: total,
+          subtotalPrice: subtotal,
+          totalTax: 0,
+          discountAmount: appliedStoreCredits,
+          discountCode: appliedStoreCredits > 0 ? 'STORE_CREDIT' : null,
+          currency: 'INR',
+          fulfillmentStatus: 'unfulfilled',
+          deliveryStatus: 'pending',
+          shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify({
+            name: shippingAddress?.name || customer!.name,
+            address1: shippingAddress?.address1 || shippingAddress?.line1 || shippingAddress?.street || '',
+            address2: shippingAddress?.address2 || shippingAddress?.line2 || '',
+            city: shippingAddress?.city || '',
+            province: shippingAddress?.province || shippingAddress?.state || '',
+            zip: shippingAddress?.zip || shippingAddress?.pincode || '',
+            country: shippingAddress?.country || 'India',
+            phone: customerPhone || customer!.phone || shippingAddress?.phone || '',
+            email: customerEmail || customer!.email || shippingAddress?.email || '',
+          }),
+          billingAddress: null,
+          note,
+          tags: finalTags,
+          source: 'mobile_app',
+          createdAt: now,
+          syncedAt: isSyncedNow ? now : null,
+          items: {
+            create: mobileOrderItems
+          }
+        }
       });
 
       // 2. Deduct credits

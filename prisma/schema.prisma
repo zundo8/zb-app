@@ -133,6 +133,7 @@ model Customer {
   returns               Return[]
   storeCreditTxns       StoreCredit[]
   wishlist              Wishlist[]
+  mobileOrders          MobileOrder[]
 }
 
 model Cart {
@@ -269,6 +270,7 @@ model Product {
   shop              Shop        @relation(fields: [shopId], references: [id])
   returns           Return[]
   wishlist          Wishlist[]
+  mobileOrderItems  MobileOrderItem[]
 }
 
 model Inventory {
@@ -1130,4 +1132,53 @@ model ZicaUserProfile {
   totalSessions      Int      @default(0)
   lastActive         DateTime @default(now())
   favouriteProducts  String[]
+}
+
+model MobileOrder {
+  id                String   @id @default(cuid())
+  orderNumber       String   @unique        // e.g. "ZB711168"
+  shopifyOrderId    String?                  // Populated after Shopify sync
+  customerId        String
+  status            String   @default("pending")  // pending, approved, cancelled, synced
+  paymentStatus     String   @default("pending")
+  paymentMethod     String?                  // COD, PREPAID, STORE_CREDIT
+  paymentId         String?                  // Razorpay payment ID
+  totalPrice        Float    @default(0)
+  subtotalPrice     Float?
+  totalTax          Float?
+  discountAmount    Float?   @default(0)
+  discountCode      String?
+  currency          String   @default("INR")
+  fulfillmentStatus String   @default("unfulfilled")
+  deliveryStatus    String   @default("pending")
+  shippingAddress   String?                  // JSON
+  billingAddress    String?                  // JSON
+  note              String?
+  tags              String?
+  source            String   @default("mobile_app")  // mobile_app, ios, android
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  syncedAt          DateTime?
+  customer          Customer @relation(fields: [customerId], references: [id])
+  items             MobileOrderItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model MobileOrderItem {
+  id            String      @id @default(cuid())
+  mobileOrderId String
+  productId     String?
+  variantId     String?
+  title         String
+  quantity      Int
+  price         Float
+  sku           String?
+  image         String?
+  mobileOrder   MobileOrder @relation(fields: [mobileOrderId], references: [id], onDelete: Cascade)
+  product       Product?    @relation(fields: [productId], references: [id])
+
+  @@index([mobileOrderId])
 }

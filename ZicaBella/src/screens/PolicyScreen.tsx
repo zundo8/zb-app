@@ -17,6 +17,21 @@ import { haptics } from '../utils/haptics';
 
 const { width } = Dimensions.get('window');
 
+const prepareHtml = (htmlContent: string | null, colors: any, isDark: boolean) => {
+  if (!htmlContent) return '';
+  let processed = htmlContent;
+  processed = processed.replace(/color:\s*(#ffffff|#fff|white|rgb\(255,\s*255,\s*255\))/gi, `color: ${colors.text}`);
+  processed = processed.replace(/border-left:\s*2px\s*solid\s*(#ffffff|#fff|white)/gi, `border-left: 2px solid ${colors.text}`);
+  if (!isDark) {
+    processed = processed.replace(/rgba\(255,\s*255,\s*255,\s*0\.03\)/gi, 'rgba(0, 0, 0, 0.02)');
+    processed = processed.replace(/rgba\(255,\s*255,\s*255,\s*0\.08\)/gi, 'rgba(0, 0, 0, 0.06)');
+  } else {
+    processed = processed.replace(/rgba\(255,\s*255,\s*255,\s*0\.03\)/gi, 'rgba(255, 255, 255, 0.03)');
+    processed = processed.replace(/rgba\(255,\s*255,\s*255,\s*0\.08\)/gi, 'rgba(255, 255, 255, 0.08)');
+  }
+  return processed;
+};
+
 export default function PolicyScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
@@ -191,13 +206,17 @@ export default function PolicyScreen() {
         ) : content ? (
           <RenderHTML
             contentWidth={width - 40}
-            source={{ html: content.replace(/\n/g, '<br/>') }}
+            source={{ 
+              html: /^\s*</.test(content) 
+                ? prepareHtml(content, colors, isDark) 
+                : content.replace(/\n/g, '<br/>') 
+            }}
             tagsStyles={{
               body: {
                 color: colors.text,
                 fontSize: 14,
                 lineHeight: 22,
-                fontFamily: Platform.OS === 'ios' ? 'System' : 'serif',
+                fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
               },
               h1: { fontSize: 24, fontWeight: '700', marginBottom: 16, marginTop: 24, color: colors.text, letterSpacing: -0.5 },
               h2: { fontSize: 18, fontWeight: '700', marginBottom: 12, marginTop: 20, color: colors.text, letterSpacing: -0.3 },

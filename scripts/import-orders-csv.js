@@ -170,7 +170,7 @@ async function main() {
   }
 
   // Read CSV
-  const csvPath = path.join(__dirname, '..', 'orders_export_1.csv');
+  const csvPath = path.join(__dirname, '..', 'orders_export_1-2.csv');
   if (!fs.existsSync(csvPath)) {
     console.error('✗ CSV file not found at:', csvPath);
     process.exit(1);
@@ -209,6 +209,36 @@ async function main() {
   let skipped = 0;
   let errors = 0;
 
+  console.log('⚡ Loading database records into memory for fast lookup...');
+  const [dbProducts, dbCustomersList, dbOrdersList, dbMobileOrdersList, dbAddressesList] = await Promise.all([
+    prisma.product.findMany({ select: { id: true, sku: true, title: true } }),
+    prisma.customer.findMany({ select: { id: true, shopifyId: true, email: true, phone: true, name: true, shopId: true } }),
+    prisma.order.findMany({ select: { id: true, shopifyOrderId: true } }),
+    prisma.mobileOrder.findMany({ select: { id: true, orderNumber: true, shopifyOrderId: true } }),
+    prisma.address.findMany({ select: { id: true, customerId: true, address1: true, city: true, zip: true } })
+  ]);
+
+  console.log(`   Loaded ${dbProducts.length} products, ${dbCustomersList.length} customers, ${dbOrdersList.length} orders, ${dbMobileOrdersList.length} mobile orders, and ${dbAddressesList.length} addresses.`);
+
+  // Create fast lookup maps/sets
+  const productSkuMap = new Map(dbProducts.filter(p => p.sku).map(p => [p.sku.toLowerCase(), p.id]));
+  const productTitleMap = new Map(dbProducts.filter(p => p.title).map(p => [p.title.toLowerCase(), p.id]));
+  
+  // Existing Orders
+  const existingShopifyOrders = new Map(dbOrdersList.map(o => [o.shopifyOrderId, o.id]));
+  const existingMobileOrders = new Map(dbMobileOrdersList.map(o => [o.orderNumber, o]));
+  
+  // Existing Addresses
+  const addressKey = (customerId, addr1, city, zip) => `${customerId}_${(addr1 || '').toLowerCase()}_${(city || '').toLowerCase()}_${(zip || '').toLowerCase()}`;
+  const existingAddressesSet = new Set(dbAddressesList.map(a => addressKey(a.customerId, a.address1, a.city, a.zip)));
+
+  // Populate customerCache with existing DB customers
+  for (const c of dbCustomersList) {
+    if (c.email) customerCache.set(c.email.toLowerCase(), c);
+    if (c.phone) customerCache.set(c.phone, c);
+    if (c.name) customerCache.set(c.name.toLowerCase(), c);
+  }
+
   for (const [orderName, rows] of orderGroups) {
     const primaryRow = rows[0]; // First row has the main order data
     
@@ -237,49 +267,58 @@ async function main() {
       // Build shopify order ID from order name
       const shopifyOrderId = orderName; // e.g. #ZB71451
 
-      // Check if order already exists
-      const existingOrder = await prisma.order.findUnique({
-        where: { shopifyOrderId }
-      });
-      if (existingOrder) {
-        skipped++;
-        continue;
+      // ─── Resolve/Create Customer ───
+      let customer = null;
+      if (email && customerCache.has(email.toLowerCase())) {
+        customer = customerCache.get(email.toLowerCase());
+      } else if (phone && customerCache.has(phone)) {
+        customer = customerCache.get(phone);
+      } else if (billingName && customerCache.has(billingName.toLowerCase())) {
+        customer = customerCache.get(billingName.toLowerCase());
       }
 
-      // ─── Resolve/Create Customer ───
-      const customerKey = email || phone || billingName;
-      let customer;
-      
-      if (customerCache.has(customerKey)) {
-        customer = customerCache.get(customerKey);
+      if (!customer) {
+        // Create new customer
+        const customerShopifyId = shopifyId ? `csv_${shopifyId}` : `csv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        customer = await prisma.customer.create({
+          data: {
+            shopifyId: customerShopifyId,
+            shopId: shop.id,
+            email: email || null,
+            name: billingName || shippingName || 'Customer',
+            phone: phone || null,
+          }
+        });
+        
+        // Add to cache
+        if (email) customerCache.set(email.toLowerCase(), customer);
+        if (phone) customerCache.set(phone, customer);
+        if (billingName) customerCache.set(billingName.toLowerCase(), customer);
       } else {
-        // Try find existing customer
-        const whereConditions = [];
-        if (email) whereConditions.push({ email });
-        if (phone) whereConditions.push({ phone });
-        
-        if (whereConditions.length > 0) {
-          customer = await prisma.customer.findFirst({
-            where: { OR: whereConditions }
-          });
+        // Update customer details if empty in db
+        let needsUpdate = false;
+        const updateData = {};
+        if ((!customer.name || customer.name === 'Customer') && (billingName || shippingName)) {
+          updateData.name = billingName || shippingName;
+          needsUpdate = true;
         }
-
-        if (!customer) {
-          // Create new customer
-          const customerShopifyId = shopifyId ? `csv_${shopifyId}` : `csv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-          customer = await prisma.customer.create({
-            data: {
-              shopifyId: customerShopifyId,
-              shopId: shop.id,
-              email: email || null,
-              name: billingName || shippingName || 'Customer',
-              phone: phone || null,
-            }
-          });
+        if (!customer.phone && phone) {
+          updateData.phone = phone;
+          needsUpdate = true;
         }
-        
-        if (customerKey) {
-          customerCache.set(customerKey, customer);
+        if (!customer.email && email) {
+          updateData.email = email;
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          customer = await prisma.customer.update({
+            where: { id: customer.id },
+            data: updateData
+          });
+          // Update in cache
+          if (email) customerCache.set(email.toLowerCase(), customer);
+          if (phone) customerCache.set(phone, customer);
+          if (billingName) customerCache.set(billingName.toLowerCase(), customer);
         }
       }
 
@@ -306,6 +345,40 @@ async function main() {
         country: getVal(primaryRow, hMap, 'Billing Country'),
         phone: normalizePhone(getVal(primaryRow, hMap, 'Billing Phone')) || phone,
       });
+
+      // ─── Create/Update Address in Address Table ───
+      const shAddress1 = getVal(primaryRow, hMap, 'Shipping Address1');
+      const shCity = getVal(primaryRow, hMap, 'Shipping City');
+      const shZip = (getVal(primaryRow, hMap, 'Shipping Zip') || '').replace(/'/g, '').trim();
+      const shState = getVal(primaryRow, hMap, 'Shipping Province Name') || getVal(primaryRow, hMap, 'Shipping Province');
+      const shCountry = getVal(primaryRow, hMap, 'Shipping Country') || 'India';
+      const shName = shippingName || billingName;
+      const shPhone = normalizePhone(getVal(primaryRow, hMap, 'Shipping Phone')) || phone;
+
+      if (shAddress1 && shCity && shZip) {
+        const key = addressKey(customer.id, shAddress1, shCity, shZip);
+        if (!existingAddressesSet.has(key)) {
+          const hasDefault = dbAddressesList.some(a => a.customerId === customer.id);
+
+          const newAddress = await prisma.address.create({
+            data: {
+              customerId: customer.id,
+              name: shName || null,
+              phone: shPhone || null,
+              email: email || null,
+              address1: shAddress1,
+              address2: getVal(primaryRow, hMap, 'Shipping Address2') || null,
+              city: shCity,
+              state: shState || 'Delhi',
+              zip: shZip,
+              country: shCountry,
+              isDefault: !hasDefault,
+            }
+          });
+          existingAddressesSet.add(key);
+          dbAddressesList.push(newAddress);
+        }
+      }
 
       // ─── Build Line Items ───
       const lineItems = [];
@@ -349,75 +422,184 @@ async function main() {
         paymentMethod ? `Payment: ${paymentMethod}` : '',
       ].filter(Boolean).join(' | ');
 
-      // ─── Create Order ───
-      const createdOrder = await prisma.order.create({
-        data: {
-          shopId: shop.id,
-          shopifyOrderId,
-          customerId: customer.id,
-          status: orderStatus,
-          totalPrice,
-          subtotalPrice: subtotal || (totalPrice - taxes - shipping),
-          totalTax: taxes,
-          currency,
-          paymentStatus: financialStatus || 'pending',
-          fulfillmentStatus: fulfillmentStatus || 'unfulfilled',
-          deliveryStatus,
-          shippingAddress,
-          billingAddress,
-          note: orderNote || null,
-          tags: tags || null,
-          createdAt: orderDate,
-          items: {
-            create: lineItems
-          },
-          ...(paymentMethod ? {
-            payments: {
-              create: {
-                customerId: customer.id,
-                amount: totalPrice,
-                type: financialStatus === 'paid' ? 'PAYMENT' : 'COD',
-                status: financialStatus || 'pending',
-                gateway: paymentMethod,
+      // ─── Check if it is a mobile order ───
+      const isMobile = tags && (
+        tags.toLowerCase().includes('mobile-app') ||
+        tags.toLowerCase().includes('mobileapp') ||
+        tags.toLowerCase().includes('apporder')
+      );
+
+      if (isMobile) {
+        let mobileOrderNumber = null;
+        if (tags) {
+          const match = tags.match(/zb-order-([A-Za-z0-9-]+)/);
+          if (match) {
+            mobileOrderNumber = match[1];
+          }
+        }
+        const mOrderNumber = mobileOrderNumber || shopifyOrderId.replace(/^#/, '');
+
+        const existingMobileOrder = existingMobileOrders.get(mOrderNumber);
+
+        if (!existingMobileOrder) {
+          // Create mobile order items
+          const mobileItems = [];
+          for (const item of lineItems) {
+            const skuLower = item.sku ? item.sku.toLowerCase() : '';
+            const titleLower = item.title ? item.title.toLowerCase() : '';
+            const productId = productSkuMap.get(skuLower) || productTitleMap.get(titleLower) || null;
+            
+            mobileItems.push({
+              title: item.title,
+              quantity: item.quantity,
+              price: item.price,
+              sku: item.sku,
+              productId,
+              variantId: null
+            });
+          }
+
+          const createdMobileOrder = await prisma.mobileOrder.create({
+            data: {
+              orderNumber: mOrderNumber,
+              shopifyOrderId: shopifyOrderId,
+              customerId: customer.id,
+              status: 'synced',
+              paymentStatus: financialStatus || 'pending',
+              paymentMethod: paymentMethod || null,
+              totalPrice: totalPrice,
+              subtotalPrice: subtotal || (totalPrice - taxes - shipping),
+              totalTax: taxes,
+              discountAmount: discountAmount || 0,
+              discountCode: discountCode || null,
+              currency: currency,
+              fulfillmentStatus: fulfillmentStatus || 'unfulfilled',
+              deliveryStatus: deliveryStatus,
+              shippingAddress: shippingAddress,
+              billingAddress: billingAddress,
+              note: orderNote || null,
+              tags: tags || null,
+              source: 'mobile_app',
+              createdAt: orderDate,
+              syncedAt: new Date(),
+              items: {
+                create: mobileItems
               }
             }
-          } : {}),
-        },
-        include: { items: true }
-      });
-
-      // ─── Handle Returns for Refunded Orders ───
-      if (financialStatus?.toLowerCase().includes('refunded')) {
-        const firstItem = createdOrder.items[0];
-        if (firstItem) {
-          await prisma.return.create({
-            data: {
-              orderId: createdOrder.id,
-              customerId: customer.id,
-              productId: firstItem.productId || 'cmmpk2s1k000481uej9u1o3v7', // Fallback to a valid product ID if missing
-              reason: 'Refunded in Shopify',
-              status: 'REFUNDED',
-              refundMethod: 'ORIGINAL',
-              refundAmount: totalPrice,
-              refundStatus: 'COMPLETED',
-              requestedAt: orderDate,
-            }
           });
+          existingMobileOrders.set(mOrderNumber, createdMobileOrder);
+          console.log(`   ✓ Populated MobileOrder: ${mOrderNumber} (linked to ${shopifyOrderId})`);
+        } else {
+          // Update shopifyOrderId if empty
+          if (!existingMobileOrder.shopifyOrderId) {
+            await prisma.mobileOrder.update({
+              where: { id: existingMobileOrder.id },
+              data: {
+                shopifyOrderId: shopifyOrderId,
+                status: 'synced',
+                syncedAt: new Date()
+              }
+            });
+            existingMobileOrder.shopifyOrderId = shopifyOrderId;
+            existingMobileOrder.status = 'synced';
+          }
         }
       }
 
-      // Update customer order count
-      await prisma.customer.update({
-        where: { id: customer.id },
-        data: {
-          ordersCount: { increment: 1 },
-          totalSpent: { increment: totalPrice },
-        }
-      });
+      // ─── Create/Update Order in Order Table ───
+      const orderExists = existingShopifyOrders.has(shopifyOrderId);
 
-      imported++;
-      if (imported % 50 === 0) {
-        console.log(`  ✓ Imported ${imported} orders...`);
+      if (!orderExists) {
+        // Resolve product IDs for the items if possible
+        const orderLineItems = [];
+        for (const item of lineItems) {
+          const skuLower = item.sku ? item.sku.toLowerCase() : '';
+          const titleLower = item.title ? item.title.toLowerCase() : '';
+          const productId = productSkuMap.get(skuLower) || productTitleMap.get(titleLower) || null;
+          
+          orderLineItems.push({
+            shopifyLineItemId: item.shopifyLineItemId,
+            title: item.title,
+            quantity: item.quantity,
+            price: item.price,
+            sku: item.sku,
+            productId
+          });
+        }
+
+        const createdOrder = await prisma.order.create({
+          data: {
+            shopId: shop.id,
+            shopifyOrderId,
+            customerId: customer.id,
+            status: orderStatus,
+            totalPrice,
+            subtotalPrice: subtotal || (totalPrice - taxes - shipping),
+            totalTax: taxes,
+            currency,
+            paymentStatus: financialStatus || 'pending',
+            fulfillmentStatus: fulfillmentStatus || 'unfulfilled',
+            deliveryStatus,
+            shippingAddress,
+            billingAddress,
+            note: orderNote || null,
+            tags: tags || null,
+            createdAt: orderDate,
+            items: {
+              create: orderLineItems
+            },
+            ...(paymentMethod ? {
+              payments: {
+                create: {
+                  customerId: customer.id,
+                  amount: totalPrice,
+                  type: financialStatus === 'paid' ? 'PAYMENT' : 'COD',
+                  status: financialStatus || 'pending',
+                  gateway: paymentMethod,
+                }
+              }
+            } : {}),
+          },
+          include: { items: true }
+        });
+
+        existingShopifyOrders.set(shopifyOrderId, createdOrder.id);
+
+        // ─── Handle Returns for Refunded Orders ───
+        if (financialStatus?.toLowerCase().includes('refunded')) {
+          const firstItem = createdOrder.items[0];
+          if (firstItem) {
+            await prisma.return.create({
+              data: {
+                orderId: createdOrder.id,
+                customerId: customer.id,
+                productId: firstItem.productId || dbProducts[0]?.id || 'cmmpk2s1k000481uej9u1o3v7',
+                reason: 'Refunded in Shopify',
+                status: 'REFUNDED',
+                refundMethod: 'ORIGINAL',
+                refundAmount: totalPrice,
+                refundStatus: 'COMPLETED',
+                requestedAt: orderDate,
+              }
+            });
+          }
+        }
+
+        // Update customer order count
+        await prisma.customer.update({
+          where: { id: customer.id },
+          data: {
+            ordersCount: { increment: 1 },
+            totalSpent: { increment: totalPrice },
+          }
+        });
+
+        imported++;
+        if (imported % 50 === 0) {
+          console.log(`  ✓ Imported ${imported} orders...`);
+        }
+      } else {
+        skipped++;
       }
     } catch (err) {
       errors++;

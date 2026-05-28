@@ -110,6 +110,27 @@ export async function POST(req: NextRequest) {
 
             console.log(`[Razorpay Webhook] payment.captured → Order ${order.id} marked paid`);
 
+            // Update corresponding MobileOrder status
+            const match = (order.tags || '').match(/zb-order-([A-Za-z0-9-]+)/);
+            const mobileOrderNumber = match ? match[1] : order.shopifyOrderId?.replace(/^#/, '');
+            if (mobileOrderNumber) {
+              try {
+                await prisma.mobileOrder.updateMany({
+                  where: { orderNumber: mobileOrderNumber },
+                  data: {
+                    status: 'synced',
+                    paymentStatus: 'paid',
+                    paymentId: razorpayPaymentId,
+                    syncedAt: new Date(),
+                    tags: `${order.tags || ''}, synced`,
+                  }
+                });
+                console.log(`[Razorpay Webhook] MobileOrder ${mobileOrderNumber} status updated to synced`);
+              } catch (moErr: any) {
+                console.warn('[Razorpay Webhook] Failed to update corresponding MobileOrder:', moErr.message);
+              }
+            }
+
             // Auto-create shipment after payment captured
             try {
               const shippingAddress = order.shippingAddress ? JSON.parse(order.shippingAddress) : null;

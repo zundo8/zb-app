@@ -12,19 +12,7 @@ export async function GET(req: Request) {
     const active = url.searchParams.get('active') === 'true';
     const abandoned = url.searchParams.get('abandoned') === 'true';
 
-    // Base filters for all mobile orders
-    const mobileIdentityFilters = [
-      { tags: { contains: 'mobile-app', mode: 'insensitive' } },
-      { tags: { contains: 'AppOrder', mode: 'insensitive' } },
-      { tags: { contains: 'App', mode: 'insensitive' } },
-      { note: { contains: 'Mobile app order', mode: 'insensitive' } },
-      { note: { contains: 'App order', mode: 'insensitive' } },
-      { orderType: 'MOBILE_APP' },
-    ];
-
-    const where: any = {
-      OR: mobileIdentityFilters,
-    };
+    const where: any = {};
 
     if (abandoned) {
       // Abandoned = NOT paid AND NOT COD AND NOT approved
@@ -45,10 +33,9 @@ export async function GET(req: Request) {
         }
       ];
     }
-    // If neither active nor abandoned is specified, it returns ALL mobile orders
 
     const [orders, total] = await Promise.all([
-      prisma.order.findMany({
+      prisma.mobileOrder.findMany({
         where,
         include: {
           items: {
@@ -57,13 +44,12 @@ export async function GET(req: Request) {
             }
           },
           customer: { select: { id: true, name: true, email: true, phone: true } },
-          shipments: { orderBy: { createdAt: 'desc' }, take: 1 },
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
       }),
-      prisma.order.count({ where })
+      prisma.mobileOrder.count({ where })
     ]);
 
     return NextResponse.json({
@@ -71,12 +57,6 @@ export async function GET(req: Request) {
       total,
       hasMore: total > offset + limit,
       orders: orders.map((o: any) => {
-        const latestShipment = o.shipments?.[0];
-        const orderNumber =
-          String(o.tags || '').match(/zb-order-(ZB[71\d-]+)/i)?.[1]?.toUpperCase() ||
-          String(o.shopifyOrderId || '').replace(/^#/, '') ||
-          o.id;
-
         let shippingAddress: any = null;
         try {
           shippingAddress = o.shippingAddress ? JSON.parse(o.shippingAddress) : null;
@@ -88,7 +68,7 @@ export async function GET(req: Request) {
 
         return {
           id: o.id,
-          orderNumber,
+          orderNumber: o.orderNumber,
           createdAt: o.createdAt,
           status: o.status,
           paymentMethod,
@@ -97,7 +77,7 @@ export async function GET(req: Request) {
           deliveryStatus: o.deliveryStatus,
           totalPrice: o.totalPrice,
           currency: o.currency,
-          shopifyOrderId: o.shopifyOrderId && /^\d+$/.test(String(o.shopifyOrderId)) ? o.shopifyOrderId : null,
+          shopifyOrderId: o.shopifyOrderId,
           shippingAddress,
           customer: o.customer,
           items: o.items.map((item: any) => ({
@@ -106,12 +86,7 @@ export async function GET(req: Request) {
             title: item.title || item.product?.title || 'Unknown Product',
             handle: item.product?.handle || null,
           })),
-          tracking: latestShipment
-            ? {
-                awb: latestShipment.awb || latestShipment.trackingNumber || null,
-                carrier: latestShipment.courier || null,
-              }
-            : null,
+          tracking: null,
         };
       }),
     });

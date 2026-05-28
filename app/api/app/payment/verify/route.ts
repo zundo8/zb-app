@@ -179,6 +179,28 @@ export async function POST(req: Request) {
             status: 'approved', // Auto-approved upon payment
           }
         });
+
+        // Update corresponding MobileOrder status
+        const match = (order.tags || '').match(/zb-order-([A-Za-z0-9-]+)/);
+        const mobileOrderNumber = match ? match[1] : order.shopifyOrderId?.replace(/^#/, '');
+        if (mobileOrderNumber) {
+          try {
+            await prisma.mobileOrder.updateMany({
+              where: { orderNumber: mobileOrderNumber },
+              data: {
+                status: 'synced',
+                paymentStatus: 'paid',
+                paymentId: razorpay_payment_id,
+                shopifyOrderId: shopifyOrderId,
+                syncedAt: now,
+                tags: `${tags}, synced`,
+              }
+            });
+            console.log(`[Verify] MobileOrder ${mobileOrderNumber} status updated to synced`);
+          } catch (moErr: any) {
+            console.warn('[Verify] Failed to update corresponding MobileOrder:', moErr.message);
+          }
+        }
         
         // Record payment
         await prisma.payment.create({
