@@ -18,7 +18,9 @@ async function resolveOpenAIKey() {
     const shop = await prisma.shop.findFirst({
       select: { openaiApiKey: true }
     });
-    if (shop?.openaiApiKey) return shop.openaiApiKey;
+    if (shop?.openaiApiKey && !shop.openaiApiKey.startsWith('sk-proj-R5x6e8X')) {
+      return shop.openaiApiKey;
+    }
   } catch (err) {
     console.error("[Zica OpenAI Whisper] Failed to fetch key from DB:", err);
   }

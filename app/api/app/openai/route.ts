@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getAppAuthFromRequest } from "@/lib/appAuth";
+import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import prisma from "@/lib/db";
 import OpenAI from "openai";
 
@@ -12,7 +12,9 @@ async function resolveOpenAIKey() {
     const shop = await prisma.shop.findFirst({
       select: { openaiApiKey: true }
     });
-    if (shop?.openaiApiKey) return shop.openaiApiKey;
+    if (shop?.openaiApiKey && !shop.openaiApiKey.startsWith('sk-proj-R5x6e8X')) {
+      return shop.openaiApiKey;
+    }
   } catch (err) {
     console.error("[Zica User OpenAI] Failed to fetch key from DB:", err);
   }
@@ -44,7 +46,8 @@ export async function POST(req: NextRequest) {
 
     const { messages, sessionId, userContext, orderIdContext } = body;
     const auth = getAppAuthFromRequest(req);
-    const userId = (auth && "userId" in auth) ? (auth as any).userId : userContext?.id;
+    const customer = auth ? await resolveAuthCustomer(auth) : null;
+    const userId = customer?.id || userContext?.id;
 
     // 1. Resolve Session ID (Ensure secure private session storage)
     let currentSessionId = sessionId;
