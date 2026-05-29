@@ -531,7 +531,7 @@ export default function ProductDetailsClient({
                   className="object-cover"
                   priority
                   sizes="100vw"
-                  quality={100}
+                  quality={85}
                   draggable={false}
                   onError={handleImageError}
                 />
@@ -596,7 +596,7 @@ export default function ProductDetailsClient({
                     fill 
                     className="object-cover transition-transform duration-700" 
                     sizes="120px" 
-                    quality={100} 
+                    quality={75} 
                     priority={i < 4}
                     onError={handleImageError}
                   />

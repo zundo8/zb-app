@@ -1,5 +1,7 @@
 import { Instagram, Youtube, Music2, Disc, ArrowUpRight } from "lucide-react";
 import prisma from "@/lib/db";
+import ThreeDLogo from "./ThreeDLogo";
+import LazyVideo from "./LazyVideo";
 
 export default async function StorefrontFooter() {
   let shop = null;
@@ -43,19 +45,7 @@ export default async function StorefrontFooter() {
           {/* Brand Column */}
           <div className="col-span-4 space-y-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 relative shrink-0">
-                {/* @ts-expect-error model-viewer web component */}
-                <model-viewer
-                  src={s?.footerLogo3dUrl || "https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb"}
-                  alt="Zica Bella 3D Logo"
-                  auto-rotate
-                  camera-controls
-                  interaction-prompt="none"
-                  shadow-intensity="0.5"
-                  loading="lazy"
-                  style={{ width: "100%", height: "100%", background: "transparent", touchAction: "none" }}
-                />
-              </div>
+              <ThreeDLogo src={s?.footerLogo3dUrl} size={48} />
               <div>
                 <h2 className="font-rocaston text-sm tracking-[0.08em] text-foreground font-light uppercase leading-none">ZICA BELLA</h2>
                 <p className="text-[7px] font-semibold uppercase tracking-[0.4em] text-foreground/20 mt-1">Luxury Streetwear</p>
@@ -69,7 +59,7 @@ export default async function StorefrontFooter() {
             {/* Footer video */}
             {footerVideo && (
               <div className="relative w-full aspect-[2/1] rounded-2xl overflow-hidden group border border-foreground/[0.04]">
-                <video src={footerVideo} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-70 transition-opacity duration-1000" />
+                <LazyVideo src={footerVideo} className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-70 transition-opacity duration-1000" />
               </div>
             )}
           </div>
@@ -169,33 +159,14 @@ export default async function StorefrontFooter() {
       <div className="md:hidden px-6 pt-12 pb-8">
         {/* Brand */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 relative shrink-0">
-            {/* @ts-expect-error model-viewer web component */}
-            <model-viewer
-              src={s?.footerLogo3dUrl || "https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb"}
-              alt="Zica Bella 3D Logo"
-              auto-rotate
-              camera-controls
-              interaction-prompt="none"
-              shadow-intensity="0.5"
-              loading="lazy"
-              style={{ width: "100%", height: "100%", background: "transparent", touchAction: "none" }}
-            />
-          </div>
+          <ThreeDLogo src={s?.footerLogo3dUrl} size={40} />
           <div>
             <h2 className="font-rocaston text-xs tracking-[0.06em] text-foreground font-light uppercase leading-none">ZICA BELLA</h2>
             <p className="text-[6px] font-semibold uppercase tracking-[0.4em] text-foreground/20 mt-0.5">Luxury Streetwear</p>
           </div>
         </div>
 
-        {/* Footer video mobile */}
-        {footerVideo && (
-          <div className="mb-8 relative w-full aspect-[2/1] rounded-xl overflow-hidden border border-foreground/[0.04]">
-            <video src={footerVideo} autoPlay loop muted playsInline
-              className="absolute inset-0 w-full h-full object-cover opacity-40"
-            />
-          </div>
-        )}
+        {/* Footer video mobile removed for performance optimization */}
 
         {/* Navigation grid */}
         <div className="grid grid-cols-2 gap-6 mb-8">

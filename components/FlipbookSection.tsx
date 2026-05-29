@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useScroll, useTransform, useSpring } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import NextImage from "next/image";
 import { handleImageError } from "./ImagePlaceholder";
 
@@ -28,6 +28,18 @@ export default function FlipbookSection({ imgUrl, videoUrl, tag, title, desc }: 
   const displayTitle = title    || DEFAULTS.title;
   const displayDesc  = desc     || DEFAULTS.desc;
 
+  const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mediaQuery.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
+  }, []);
+
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start end", "end start"],
@@ -38,6 +50,8 @@ export default function FlipbookSection({ imgUrl, videoUrl, tag, title, desc }: 
   // No more scroll-fades for text to ensure absolute visibility
   const imageScale   = useTransform(smoothProgress, [0, 0.5, 1], [1.05, 1, 1.05]);
   const textY        = useTransform(smoothProgress, [0, 0.3], [15, 0]);
+
+  const showVideo = mounted && !isMobile && videoUrl;
 
   return (
     <div
@@ -59,7 +73,7 @@ export default function FlipbookSection({ imgUrl, videoUrl, tag, title, desc }: 
             
             {/* Media */}
             <motion.div className="absolute inset-0" style={{ scale: imageScale, opacity: 1 }}>
-              {videoUrl ? (
+              {showVideo ? (
                 <video
                   src={videoUrl}
                   autoPlay loop muted playsInline

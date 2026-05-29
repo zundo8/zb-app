@@ -110,7 +110,7 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 pt-2 pb-4">
           <div className="relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-foreground/[0.03]">
-            <Image src={image} alt={product.title} fill onError={handleImageError} className="object-cover" style={image === "/zb-logo-220px.png" ? { objectFit: "contain", padding: "25%", opacity: 0.3 } : {}}/>
+            <Image src={image} alt={product.title} fill sizes="80px" onError={handleImageError} className="object-cover" style={image === "/zb-logo-220px.png" ? { objectFit: "contain", padding: "25%", opacity: 0.3 } : {}}/>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[9px] font-extralight uppercase tracking-[0.22em] text-foreground/80 line-clamp-2 leading-relaxed">

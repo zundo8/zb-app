@@ -241,7 +241,7 @@ export default async function Home() {
 
         {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
         {collectionsMedia && (
-          <section className="mb-10 max-w-4xl mx-auto relative w-full aspect-video rounded-[1.25rem] overflow-hidden shadow-lg" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
+          <section className="hidden md:block mb-10 max-w-4xl mx-auto relative w-full aspect-video rounded-[1.25rem] overflow-hidden shadow-lg" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
             <LazyVideo src={collectionsMedia} className="absolute inset-0 w-full h-full object-cover opacity-80" />
           </section>
         )}
@@ -298,6 +298,7 @@ export default async function Home() {
             {featuredMedia ? (
               <LazyVideo
                 src={featuredMedia}
+                fallbackImage={featuredMediaImage || "/section-image1.PNG"}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
               />
             ) : (
@@ -344,7 +345,7 @@ export default async function Home() {
 
         {/* ═══ FOOTER VIDEO ═══ */}
         {footerVideo && (
-          <section className="my-10 max-w-4xl mx-auto aspect-[9/16] sm:aspect-video rounded-[2rem] overflow-hidden group shadow-2xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+          <section className="hidden md:block my-10 max-w-4xl mx-auto aspect-[9/16] sm:aspect-video rounded-[2rem] overflow-hidden group shadow-2xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
             <LazyVideo
               src={footerVideo}
               className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"

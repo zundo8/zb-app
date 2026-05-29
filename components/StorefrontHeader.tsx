@@ -23,36 +23,12 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
   const [collections, setCollections] = useState(initialCollections);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [showHeader, setShowHeader] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   const isDark = resolvedTheme === "dark";
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      // Always show at the top of the page
-      if (currentScrollY < 30) {
-        setShowHeader(true);
-      } else {
-        // Show on scroll up, hide on scroll down
-        if (currentScrollY < lastScrollY) {
-          setShowHeader(true);
-        } else {
-          setShowHeader(false);
-        }
-      }
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
 
   const toggleCart = useCallback(() => {
     setIsCartOpen(prev => !prev);
@@ -83,63 +59,65 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
     let title = segments[segments.length - 1];
     title = title.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
     return title;
-  };  return (
+  };
+
+  return (
     <>
       {/* ── Desktop Header Pill (md and up) ── */}
-      <header className={`hidden md:flex fixed left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-6xl z-50 px-6 h-11 items-center justify-between rounded-full pointer-events-auto apple-glass-capsule liquid-glass-hover-sweep shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-all duration-500 ${(isHome || showHeader) ? "top-4 translate-y-0" : "top-4 -translate-y-24"}`}>
+      <header className="hidden md:flex fixed top-0 left-0 w-full z-50 px-8 h-16 items-center justify-between pointer-events-auto apple-glass-capsule rounded-none border-x-0 border-t-0 shadow-[0_4px_30px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.35)]">
         {/* Sweep Glow Overlay */}
         <div className="apple-glass-sweep-glow" />
 
         {/* Left: Brand */}
-        <Link href="/" className="flex items-center gap-2.5 active:scale-95 transition-all z-10">
-          <div className="relative w-5 h-5 dark:invert">
+        <Link href="/" className="flex items-center gap-3 active:scale-95 transition-all z-10">
+          <div className="relative w-7 h-7 dark:invert">
             <NextImage src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain" />
           </div>
-          <span className="font-rocaston text-[9.5px] font-semibold tracking-[0.25em] text-foreground/70 uppercase pt-0.5">ZICA BELLA</span>
+          <span className="font-rocaston text-[12.5px] font-bold tracking-[0.25em] text-foreground/80 uppercase pt-0.5">ZICA BELLA</span>
         </Link>
 
         {/* Center: Nav Links */}
-        <div className="flex items-center gap-7 z-10">
+        <div className="flex items-center gap-9 z-10">
           {collections.slice(0, 5).map((col) => (
-            <Link key={col.id} href={`/collections/${col.handle}`} className="text-[8px] font-medium tracking-[0.22em] text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground uppercase transition-all duration-300 hover:scale-105 active:scale-95 pt-0.5">
+            <Link key={col.id} href={`/collections/${col.handle}`} className="text-[10px] font-semibold tracking-[0.22em] text-foreground/55 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground uppercase transition-all duration-300 hover:scale-105 active:scale-95 pt-0.5">
               {col.title}
             </Link>
           ))}
-          <Link href="/blogs" className="text-[8px] font-medium tracking-[0.22em] text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground uppercase transition-all duration-300 hover:scale-105 active:scale-95 pt-0.5">
+          <Link href="/blogs" className="text-[10px] font-semibold tracking-[0.22em] text-foreground/55 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground uppercase transition-all duration-300 hover:scale-105 active:scale-95 pt-0.5">
             Blogs
           </Link>
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-3.5 z-10">
+        <div className="flex items-center gap-5 z-10">
           {mounted && (
             <button
               onClick={() => setTheme(isDark ? "light" : "dark")}
               className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300 active:scale-90"
               aria-label="Toggle Theme"
             >
-              {isDark ? <Sun className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} /> : <Moon className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />}
+              {isDark ? <Sun className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} /> : <Moon className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />}
             </button>
           )}
           <Link href="/search" aria-label="Search" className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
-            <Search className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+            <Search className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
           </Link>
           <button onClick={() => setIsBookmarkOpen(true)} aria-label="Bookmarks" className="relative text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
-            <Bookmark className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+            <Bookmark className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
             {bookmarks.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-foreground/60 rounded-full" />}
           </button>
           <button onClick={() => setIsCartOpen(true)} aria-label="Cart" className="relative text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
-            <ShoppingBag className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+            <ShoppingBag className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
             {count > 0 && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-foreground/60 rounded-full" />}
           </button>
           <Link href="/profile" aria-label="Profile" className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
-            <User className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+            <User className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
           </Link>
         </div>
       </header>
 
       {/* ── Mobile Header Capsules ── */}
-      <header className={`flex md:hidden fixed left-0 w-full z-50 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-1 items-center justify-between gap-2 pointer-events-none transition-all duration-500 ${(isHome || showHeader) ? "top-0 translate-y-0" : "top-0 -translate-y-24"}`}>
+      <header className="flex md:hidden fixed left-0 w-full z-50 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-1 items-center justify-between gap-2 pointer-events-none">
         
         {/* Left */}
         <div className="flex-none pointer-events-auto">

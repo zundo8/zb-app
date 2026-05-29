@@ -2,6 +2,8 @@
 const nextConfig = {
   output: 'standalone',
   images: {
+    loader: 'custom',
+    loaderFile: './lib/shopify-image-loader.js',
     remotePatterns: [
       {
         protocol: 'https',

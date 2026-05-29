@@ -12,39 +12,49 @@ interface HeroVideoProps {
 export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: HeroVideoProps) {
   const [isMuted, setIsMuted] = useState(true);
   const [isInView, setIsInView] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const mobileVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    setMounted(true);
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mediaQuery.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     const observer = new IntersectionObserver(
       ([entry]) => setIsInView(entry.isIntersecting),
       { threshold: 0.1 }
     );
     if (videoRef.current) observer.observe(videoRef.current);
-    if (mobileVideoRef.current) observer.observe(mobileVideoRef.current);
     return () => {
       if (videoRef.current) observer.unobserve(videoRef.current);
-      if (mobileVideoRef.current) observer.unobserve(mobileVideoRef.current);
     };
-  }, []);
+  }, [mounted, isMobile]); // Re-observe when video element changes
 
   useEffect(() => {
-    if (isInView) {
-      if (videoRef.current) videoRef.current.play().catch(() => {});
-      if (mobileVideoRef.current) mobileVideoRef.current.play().catch(() => {});
-    } else {
-      if (videoRef.current) videoRef.current.pause();
-      if (mobileVideoRef.current) mobileVideoRef.current.pause();
+    if (videoRef.current) {
+      if (isInView) {
+        videoRef.current.play().catch(() => {});
+      } else {
+        videoRef.current.pause();
+      }
     }
-  }, [isInView]);
+  }, [isInView, isMobile]);
 
   const toggle = () => {
-    const v = videoRef.current;
-    const mv = mobileVideoRef.current;
-    if (v) v.muted = !isMuted;
-    if (mv) mv.muted = !isMuted;
-    setIsMuted(!isMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
   };
+
+  const activeSrc = (mounted && isMobile && mobileSrc) ? mobileSrc : src;
 
   return (
     <div 
@@ -52,28 +62,16 @@ export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: H
       onClick={toggle}
     >
       {!showControlOnly && (
-        <>
-          <video
-            ref={videoRef}
-            src={src}
-            autoPlay
-            muted
-            loop
-            playsInline
-            className={`${mobileSrc ? "hidden md:block" : ""} w-full h-full object-cover transition-all duration-700`}
-          />
-          {mobileSrc && (
-            <video
-              ref={mobileVideoRef}
-              src={mobileSrc}
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="block md:hidden w-full h-full object-cover transition-all duration-700"
-            />
-          )}
-        </>
+        <video
+          ref={videoRef}
+          key={activeSrc}
+          src={activeSrc}
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="w-full h-full object-cover transition-all duration-700"
+        />
       )}
       
       {/* Absolute minimal mute icon */}
@@ -97,3 +95,4 @@ export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: H
     </div>
   );
 }
+

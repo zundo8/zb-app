@@ -119,7 +119,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                         >
                           <Link href={`/products/${item.handle}`} onClick={onClose} className="shrink-0">
                             <div className="relative w-[68px] h-[84px] rounded-xl overflow-hidden shadow-sm">
-                              <Image src={item.image} alt={item.title} fill className="object-cover" />
+                              <Image src={item.image} alt={item.title} fill sizes="80px" className="object-cover" />
                             </div>
                           </Link>
                           <div className="flex-1 min-w-0 flex flex-col py-0.5">
