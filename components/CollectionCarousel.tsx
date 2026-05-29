@@ -15,7 +15,7 @@ interface Collection {
 const FALLBACKS = [
   "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=800&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=800&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1552346154-21d328109967?q=80&w=800&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=800&auto=format&fit=crop",
 ];
 
 export default function CollectionCarousel({ collections }: { collections: Collection[] }) {

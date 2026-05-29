@@ -5,12 +5,27 @@ import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, Package, Truck, Calendar, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
+import * as fp from "@/lib/meta-pixel";
 
 export default function OrderConfirmationPage() {
   const { id } = useParams();
   const router = useRouter();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [purchasedPixel, setPurchasedPixel] = useState(false);
+
+  useEffect(() => {
+    if (order && !purchasedPixel) {
+      setPurchasedPixel(true);
+      fp.event("Purchase", {
+        value: parseFloat(order.totalPrice || "0"),
+        currency: "INR",
+        content_ids: order.items?.map((item: any) => item.productId || item.variantId) || [],
+        content_type: "product",
+        num_items: order.items?.length || 0,
+      });
+    }
+  }, [order, purchasedPixel]);
 
   useEffect(() => {
     const fetchOrder = async () => {

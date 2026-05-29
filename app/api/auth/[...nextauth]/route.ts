@@ -6,6 +6,7 @@ import prisma from "@/lib/db";
 import { AuthOptions } from "next-auth";
 import { searchCustomerByPhone, fetchOrdersByCustomerId } from "@/lib/shopify-admin";
 import bcrypt from "bcryptjs";
+import { SmsService } from "@/lib/services/sms.service";
 
 // Shopify Storefront API customer access token
 async function shopifyCustomerLogin(email: string, password: string) {
@@ -103,15 +104,58 @@ export const authOptions: AuthOptions = {
           const providedOtp = String(credentials?.otp || "").trim();
           const providedPhone = String(credentials?.phone || "").trim();
 
-          if (providedOtp !== "123456") {
-            console.warn(`[AUTH] Invalid OTP attempt: Received "${providedOtp}" for phone: ${providedPhone}`);
-            throw new Error("Invalid OTP");
+          // Validate OTP format
+          if (!/^\d{6}$/.test(providedOtp)) {
+            throw new Error("OTP must be exactly 6 digits");
           }
 
           const phoneDigits = providedPhone.replace(/\D/g, "");
-
           const normalizedPhone = phoneDigits.slice(-10);
           const fullPhone = `+${phoneDigits}`;
+
+          let isVerified = false;
+
+          // Special case: Demo User Bypass
+          if (normalizedPhone === "9999999999" && providedOtp === "123456") {
+            isVerified = true;
+          }
+
+          // 1. Try Twilio Verify check first
+          if (!isVerified) {
+            try {
+              const verifyCheck = await SmsService.checkVerification(fullPhone, providedOtp);
+              if (verifyCheck === true) {
+                isVerified = true;
+              }
+            } catch (err: any) {
+              console.log("[AUTH] Twilio Verify check failed/skipped:", err.message);
+            }
+          }
+
+          // 2. Fallback to local DB check if not verified by Twilio Verify
+          if (!isVerified) {
+            const verification = await prisma.verificationCode.findFirst({
+              where: {
+                phone: { contains: normalizedPhone },
+                code: providedOtp,
+                expiresAt: { gt: new Date() }
+              },
+              orderBy: { createdAt: 'desc' }
+            });
+
+            if (verification) {
+              isVerified = true;
+              // Delete the used code to prevent reuse
+              await prisma.verificationCode.delete({
+                where: { id: verification.id }
+              }).catch(console.error);
+            }
+          }
+
+          if (!isVerified) {
+            console.warn(`[AUTH] Invalid OTP attempt: Received "${providedOtp}" for phone: ${providedPhone}`);
+            throw new Error("Invalid or expired OTP");
+          }
 
           console.log(`[AUTH] --- ATTEMPT --- phone: ${fullPhone}, normalized: ${normalizedPhone}, otp: ${providedOtp}`);
 

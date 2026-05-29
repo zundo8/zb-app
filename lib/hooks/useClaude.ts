@@ -37,10 +37,12 @@ interface UseClaudeOptions {
   pageContext?: string;
   /** Live page data to send as context */
   contextData?: any;
+  /** Custom endpoint URL, defaults to "/api/admin/claude" */
+  apiUrl?: string;
 }
 
 export function useClaude(options: UseClaudeOptions = {}) {
-  const { storageKey, pageContext, contextData } = options;
+  const { storageKey, pageContext, contextData, apiUrl } = options;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationHistory, setConversationHistory] = useState<ConversationEntry[]>([]);
@@ -96,7 +98,7 @@ export function useClaude(options: UseClaudeOptions = {}) {
       setIsLoading(true);
 
       try {
-        const res = await fetch("/api/admin/claude", {
+        const res = await fetch(apiUrl || "/api/admin/claude", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

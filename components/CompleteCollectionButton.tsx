@@ -73,7 +73,7 @@ export default function CompleteCollectionButton({ products, collectionName }: P
         className="relative w-full py-4 rounded-[1.2rem] overflow-hidden group transition-all active:scale-[0.98] shadow-lg"
         style={{
           background: "hsl(var(--foreground))",
-          boxShadow: "0 12px 40px -12px hsla(var(--foreground), 0.4)"
+          boxShadow: "0 12px 40px -12px hsl(var(--foreground) / 0.4)"
         }}
       >
         {/* Progress Fill Overlay */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
+import * as fp from "@/lib/meta-pixel";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPin, 
@@ -13,7 +14,9 @@ import {
   Plus, 
   CheckCircle2,
   AlertCircle,
-  Loader2
+  Loader2,
+  Tag,
+  X
 } from "lucide-react";
 import Link from "next/link";
 
@@ -36,9 +39,22 @@ export default function CheckoutPage() {
   const { items, subtotal, clear } = useCart();
   const router = useRouter();
 
-  const [step, setStep] = useState(1); // 1: Address, 2: Payment, 3: Review
+  const [step, setStep] = useState(1); // 1: Address, 2: Payment
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [initiatedPixel, setInitiatedPixel] = useState(false);
+
+  useEffect(() => {
+    if (items.length > 0 && !initiatedPixel) {
+      setInitiatedPixel(true);
+      fp.event("InitiateCheckout", {
+        num_items: items.length,
+        value: subtotal,
+        currency: "INR",
+        content_ids: items.map(item => item.productId)
+      });
+    }
+  }, [items, subtotal, initiatedPixel]);
   
   const [address, setAddress] = useState<Address>({
     name: session?.user?.name || "",
@@ -53,9 +69,16 @@ export default function CheckoutPage() {
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("UPI");
   const codFee = 99;
-  const shipping = 0; // Standard free shipping
+  const shipping = 0;
+
+  // Coupon state
+  const [couponCode, setCouponCode] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponMessage, setCouponMessage] = useState("");
+  const [couponValid, setCouponValid] = useState(false);
   
-  const total = subtotal + (paymentMethod === "COD" ? codFee : 0) + shipping;
+  const total = subtotal - couponDiscount + (paymentMethod === "COD" ? codFee : 0) + shipping;
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -85,6 +108,42 @@ export default function CheckoutPage() {
     setStep(2);
   };
 
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    setCouponMessage("");
+    
+    try {
+      const res = await fetch("/api/storefront/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponCode, subtotal }),
+      });
+      const data = await res.json();
+      
+      setCouponMessage(data.message);
+      if (data.valid) {
+        setCouponDiscount(data.discount);
+        setCouponValid(true);
+      } else {
+        setCouponDiscount(0);
+        setCouponValid(false);
+      }
+    } catch {
+      setCouponMessage("Unable to validate coupon.");
+      setCouponValid(false);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode("");
+    setCouponDiscount(0);
+    setCouponMessage("");
+    setCouponValid(false);
+  };
+
   const handlePlaceOrder = async () => {
     setLoading(true);
     setError("");
@@ -101,6 +160,8 @@ export default function CheckoutPage() {
             total,
             subtotal,
             codFee,
+            couponCode: couponValid ? couponCode : null,
+            couponDiscount: couponDiscount,
           }),
         });
 
@@ -140,6 +201,8 @@ export default function CheckoutPage() {
                 total,
                 subtotal,
                 razorpay: response,
+                couponCode: couponValid ? couponCode : null,
+                couponDiscount: couponDiscount,
               }),
             });
 
@@ -172,35 +235,30 @@ export default function CheckoutPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground relative">
+    <div className="min-h-screen relative">
       <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
       
-      {/* Ambient Orbs */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden>
-        <div className="absolute -top-[20%] right-[-5%] w-[60vw] h-[60vw] rounded-full glow-orb-2 opacity-8 dark:opacity-15" />
-        <div className="absolute -bottom-[10%] -left-[10%] w-[50vw] h-[50vw] rounded-full glow-orb-1 opacity-5 dark:opacity-10" />
-      </div>
-
-      <div className="relative z-10 max-w-md mx-auto px-4 pt-20 pb-safe-nav">
-        {/* Page Title - Unified Style */}
+      <div className="relative z-10 max-w-xl mx-auto px-4 pt-28 pb-32">
+        {/* Page Title */}
         <div className="mb-8">
-          <p className="text-[7px] font-extralight uppercase tracking-[0.55em] text-muted-foreground/35 mb-0.5 ml-0.5">Your</p>
+          <p className="glass-label mb-0.5 ml-0.5">Your</p>
           <div className="flex items-center justify-between">
-            <h1 className="font-heading text-[13px] uppercase tracking-widest text-foreground/80 flex items-center gap-2">
+            <h1 className="glass-heading text-[13px] flex items-center gap-2">
               Checkout
-              <span className="text-[8px] px-2 py-0.5 rounded-full bg-foreground/10 text-foreground/70 dark:text-foreground/50 font-inter font-medium">
+              <span className="glass-badge">
                 Step {step}/2
               </span>
             </h1>
           </div>
         </div>
 
+        {/* Step indicator */}
         <div className="flex justify-center gap-1.5 mb-10">
           {[1, 2].map((s) => (
             <div 
               key={s}
               className={`h-1 rounded-full transition-all duration-500 ${
-                s <= step ? "w-8 bg-foreground" : "w-2 bg-foreground/10"
+                s <= step ? "w-8 bg-white" : "w-2 bg-white/10"
               }`}
             />
           ))}
@@ -216,8 +274,8 @@ export default function CheckoutPage() {
               className="space-y-6"
             >
               <div className="space-y-1">
-                <h2 className="text-lg font-bold tracking-tight">Delivery</h2>
-                <p className="text-muted-foreground text-[11px] font-medium">Where should we send your pieces?</p>
+                <h2 className="text-lg font-bold tracking-tight text-foreground">Delivery</h2>
+                <p className="text-foreground/40 text-[11px] font-medium">Where should we send your pieces?</p>
               </div>
 
               <form onSubmit={handleAddressSubmit} className="space-y-3">
@@ -228,7 +286,7 @@ export default function CheckoutPage() {
                     required
                     value={address.name}
                     onChange={(e) => setAddress({...address, name: e.target.value})}
-                    className="w-full px-4 py-3 bg-muted/30 rounded-xl border-none focus:ring-1 focus:ring-foreground/5 outline-none transition-all text-[13px] placeholder:text-muted-foreground/30"
+                    className="glass-input w-full px-4 py-3 text-[13px]"
                   />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <input
@@ -237,7 +295,7 @@ export default function CheckoutPage() {
                         required
                         value={address.email}
                         onChange={(e) => setAddress({...address, email: e.target.value})}
-                        className="w-full px-4 py-3 bg-muted/30 rounded-xl border-none focus:ring-1 focus:ring-foreground/5 outline-none transition-all text-[13px] placeholder:text-muted-foreground/30"
+                        className="glass-input w-full px-4 py-3 text-[13px]"
                     />
                     <input
                         type="tel"
@@ -245,7 +303,7 @@ export default function CheckoutPage() {
                         required
                         value={address.phone}
                         onChange={(e) => setAddress({...address, phone: e.target.value})}
-                        className="w-full px-4 py-3 bg-muted/30 rounded-xl border-none focus:ring-1 focus:ring-foreground/5 outline-none transition-all text-[13px] placeholder:text-muted-foreground/30"
+                        className="glass-input w-full px-4 py-3 text-[13px]"
                     />
                   </div>
                   <input
@@ -254,7 +312,7 @@ export default function CheckoutPage() {
                     required
                     value={address.street}
                     onChange={(e) => setAddress({...address, street: e.target.value})}
-                    className="w-full px-4 py-3 bg-muted/30 rounded-xl border-none focus:ring-1 focus:ring-foreground/5 outline-none transition-all text-[13px] placeholder:text-muted-foreground/30"
+                    className="glass-input w-full px-4 py-3 text-[13px]"
                   />
                   <div className="grid grid-cols-2 gap-3">
                     <input
@@ -263,7 +321,7 @@ export default function CheckoutPage() {
                       required
                       value={address.city}
                       onChange={(e) => setAddress({...address, city: e.target.value})}
-                      className="w-full px-4 py-3 bg-muted/30 rounded-xl border-none focus:ring-1 focus:ring-foreground/5 outline-none transition-all text-[13px] placeholder:text-muted-foreground/30"
+                      className="glass-input w-full px-4 py-3 text-[13px]"
                     />
                     <input
                       type="text"
@@ -271,7 +329,7 @@ export default function CheckoutPage() {
                       required
                       value={address.zip}
                       onChange={(e) => setAddress({...address, zip: e.target.value})}
-                      className="w-full px-4 py-3 bg-muted/30 rounded-xl border-none focus:ring-1 focus:ring-foreground/5 outline-none transition-all text-[13px] placeholder:text-muted-foreground/30"
+                      className="glass-input w-full px-4 py-3 text-[13px]"
                     />
                   </div>
                   <input
@@ -280,14 +338,14 @@ export default function CheckoutPage() {
                     required
                     value={address.state}
                     onChange={(e) => setAddress({...address, state: e.target.value})}
-                    className="w-full px-4 py-3 bg-muted/30 rounded-xl border-none focus:ring-1 focus:ring-foreground/5 outline-none transition-all text-[13px] placeholder:text-muted-foreground/30"
+                    className="glass-input w-full px-4 py-3 text-[13px]"
                   />
                 </div>
 
                 <div className="pt-6">
                   <button
                     type="submit"
-                    className="w-full py-4 bg-foreground text-background rounded-2xl font-bold uppercase tracking-[0.15em] text-[10px] hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    className="glass-cta w-full py-4 text-[10px] flex items-center justify-center gap-2"
                   >
                     Select Payment
                     <Plus className="w-3.5 h-3.5" />
@@ -304,8 +362,8 @@ export default function CheckoutPage() {
               className="space-y-6"
             >
               <div className="space-y-1">
-                <h2 className="text-lg font-bold tracking-tight">Payment</h2>
-                <p className="text-muted-foreground text-[11px] font-medium">Choose how you'd like to pay.</p>
+                <h2 className="text-lg font-bold tracking-tight text-foreground">Payment</h2>
+                <p className="text-foreground/40 text-[11px] font-medium">Choose how you'd like to pay.</p>
               </div>
 
               <div className="space-y-2.5">
@@ -317,15 +375,15 @@ export default function CheckoutPage() {
                   <button
                     key={method.id}
                     onClick={() => setPaymentMethod(method.id as PaymentMethod)}
-                    className={`w-full p-4 text-left rounded-2xl border transition-all flex items-center justify-between ${
+                    className={`w-full p-4 text-left rounded-2xl transition-all flex items-center justify-between ${
                       paymentMethod === method.id 
-                        ? "border-foreground bg-foreground text-background shadow-lg scale-[1.01]" 
-                        : "border-border/20 bg-muted/20 text-foreground hover:border-border/50"
+                        ? "bg-foreground text-background shadow-[0_0_30px_rgba(var(--foreground),0.1)] scale-[1.01]" 
+                        : "glass-panel text-foreground hover:bg-foreground/[0.06]"
                     }`}
                   >
                     <div className="space-y-0.5">
                       <p className="font-bold text-[13px]">{method.label}</p>
-                      <p className={`text-[10px] font-medium ${paymentMethod === method.id ? "opacity-60" : "text-muted-foreground/60"}`}>
+                      <p className={`text-[10px] font-medium ${paymentMethod === method.id ? "opacity-50" : "text-foreground/35"}`}>
                         {method.description}
                       </p>
                     </div>
@@ -334,29 +392,79 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              <div className="mt-8 p-6 bg-muted/20 rounded-[2rem] space-y-3 border border-border/10">
-                <div className="flex justify-between items-center text-[13px] font-medium">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span>₹{subtotal.toLocaleString()}</span>
+              {/* ═══ Coupon Code ═══ */}
+              <div className="glass-panel p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5 text-foreground/40" />
+                  <span className="text-[11px] font-bold text-foreground/60 uppercase tracking-wider">Coupon Code</span>
                 </div>
+                
+                {couponValid ? (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-foreground/[0.06] border border-foreground/10">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-foreground/70" />
+                      <span className="text-[11px] font-bold text-foreground/80">{couponCode.toUpperCase()}</span>
+                      <span className="text-[9px] text-foreground/40">— {couponMessage}</span>
+                    </div>
+                    <button onClick={handleRemoveCoupon} className="text-foreground/30 hover:text-foreground/60">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter code"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      className="glass-input flex-1 px-3 py-2.5 text-[12px] uppercase tracking-wider"
+                    />
+                    <button
+                      onClick={handleApplyCoupon}
+                      disabled={couponLoading || !couponCode.trim()}
+                      className="glass-button px-4 py-2.5 text-[9px] font-bold uppercase tracking-wider disabled:opacity-30"
+                    >
+                      {couponLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+                    </button>
+                  </div>
+                )}
+                
+                {couponMessage && !couponValid && (
+                  <p className="text-[10px] text-foreground/40 font-medium">{couponMessage}</p>
+                )}
+              </div>
+
+              {/* ═══ Order Summary ═══ */}
+              <div className="glass-panel p-6 space-y-3">
+                <div className="flex justify-between items-center text-[13px] font-medium">
+                  <span className="text-foreground/50">Subtotal</span>
+                  <span className="text-foreground/80">₹{subtotal.toLocaleString()}</span>
+                </div>
+                {couponDiscount > 0 && (
+                  <div className="flex justify-between items-center text-[13px] font-medium">
+                    <span className="text-foreground/50">Coupon Discount</span>
+                    <span className="text-foreground/70">- ₹{couponDiscount.toLocaleString()}</span>
+                  </div>
+                )}
                 {paymentMethod === "COD" && (
                   <div className="flex justify-between items-center text-[13px] font-medium">
-                    <span className="text-muted-foreground">COD Fee</span>
-                    <span className="text-orange-500">+ ₹{codFee}</span>
+                    <span className="text-foreground/50">COD Fee</span>
+                    <span className="text-foreground/60">+ ₹{codFee}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center text-[13px] font-medium">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span className="text-green-500">Free</span>
+                  <span className="text-foreground/50">Shipping</span>
+                  <span className="text-foreground/70">Free</span>
                 </div>
-                <div className="pt-3 border-t border-border/10 flex justify-between items-center">
-                  <span className="font-bold text-[13px]">Total</span>
-                  <span className="text-lg font-black tracking-tight">₹{total.toLocaleString()}</span>
+                <div className="glass-divider" />
+                <div className="flex justify-between items-center pt-1">
+                  <span className="font-bold text-[13px] text-foreground/80">Total</span>
+                  <span className="text-lg font-black tracking-tight text-foreground">₹{total.toLocaleString()}</span>
                 </div>
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 p-3.5 bg-red-500/5 text-red-500 rounded-xl text-[10px] font-bold border border-red-500/10">
+                <div className="flex items-center gap-2 p-3.5 rounded-xl text-[10px] font-bold" style={{ background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.15)", color: "rgba(255,120,120,0.9)" }}>
                   <AlertCircle className="w-3.5 h-3.5" />
                   {error}
                 </div>
@@ -366,7 +474,7 @@ export default function CheckoutPage() {
                 <button
                   onClick={handlePlaceOrder}
                   disabled={loading}
-                  className="w-full py-4 bg-foreground text-background rounded-2xl font-bold uppercase tracking-[0.15em] text-[10px] hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 disabled:opacity-30 border border-foreground"
+                  className="glass-cta w-full py-4 text-[10px] flex items-center justify-center gap-2.5 disabled:opacity-30"
                 >
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -377,7 +485,7 @@ export default function CheckoutPage() {
                     </>
                   )}
                 </button>
-                <p className="text-center text-[8px] text-muted-foreground/40 mt-4 uppercase tracking-[0.2em] font-bold">
+                <p className="text-center text-[8px] text-foreground/20 mt-4 uppercase tracking-[0.2em] font-bold">
                   Secure Checkout
                 </p>
               </div>

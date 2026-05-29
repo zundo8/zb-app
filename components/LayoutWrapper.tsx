@@ -12,7 +12,7 @@ export default function LayoutWrapper({
   footer: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isAdmin = pathname?.startsWith("/dashboard") || pathname?.startsWith("/scanner") || pathname?.startsWith("/portal");
+  const isAdmin = pathname?.startsWith("/dashboard") || pathname?.startsWith("/scanner") || pathname?.startsWith("/portal") || pathname?.startsWith("/web-store");
   if (isAdmin) {
     return <>{children}</>;
   }

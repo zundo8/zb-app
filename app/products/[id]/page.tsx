@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
 export default async function ProductPage({ params }: { params: { id: string } }) {
   const [product, shop, allProducts, collections] = await Promise.all([
     fetchProductByHandle(params.id).catch(() => null),
-    prisma.shop.findFirst().catch(() => null),
+    prisma.shop.findUnique({ where: { domain: "zicabella.com" } }).catch(() => null)
+      .then(s => s || prisma.shop.findFirst().catch(() => null)),
     fetchProducts(8).catch(() => []),
     fetchCollections().catch(() => [])
   ]);
@@ -48,6 +49,39 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "name": product.title,
+            "image": images.map(img => img.src),
+            "description": product.body_html ? product.body_html.replace(/<[^>]*>/g, '') : product.title,
+            "sku": product.variants?.[0]?.sku || product.id.toString(),
+            "mpn": product.variants?.[0]?.barcode || product.id.toString(),
+            "brand": {
+              "@type": "Brand",
+              "name": "Zica Bella"
+            },
+            "offers": {
+              "@type": "Offer",
+              "url": `https://zicabella.com/products/${product.handle}`,
+              "priceCurrency": "INR",
+              "price": parseFloat(initialPrice).toFixed(2),
+              "priceValidUntil": "2029-12-31",
+              "itemCondition": "https://schema.org/NewCondition",
+              "availability": product.variants?.some(v => (v.inventory_quantity || 0) > 0)
+                ? "https://schema.org/InStock"
+                : "https://schema.org/OutOfStock",
+              "seller": {
+                "@type": "Organization",
+                "name": "Zica Bella"
+              }
+            }
+          })
+        }}
+      />
       <ProductDetailsClient 
         product={product} 
         shopSettings={shop as any} 
@@ -57,3 +91,4 @@ export default async function ProductPage({ params }: { params: { id: string } }
     </>
   );
 }
+

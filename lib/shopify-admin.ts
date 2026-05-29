@@ -419,11 +419,12 @@ export async function fetchProductsByCollectionId(collectionId: string | number,
 /**
  * Fetches only the collections that are enabled in the admin dashboard for a specific location.
  */
-export async function fetchEnabledCollections(location: 'header' | 'page' | 'menu' = 'page'): Promise<ShopifyCollection[]> {
+export async function fetchEnabledCollections(location: 'header' | 'page' | 'menu' = 'page', shopDomain?: string): Promise<ShopifyCollection[]> {
   const allCollections = await fetchCollections();
   
   try {
     const shop = await prisma.shop.findFirst({
+      where: shopDomain ? { domain: shopDomain } : undefined,
       select: {
         enabledCollectionsHeader: true,
         enabledCollectionsPage: true,
@@ -432,7 +433,7 @@ export async function fetchEnabledCollections(location: 'header' | 'page' | 'men
     });
 
     if (!shop) {
-      console.log(`[Shopify Admin] No shop config found, returning all ${allCollections.length} collections`);
+      console.log(`[Shopify Admin] No shop config found for ${shopDomain || 'default'}, returning all ${allCollections.length} collections`);
       return allCollections;
     }
 

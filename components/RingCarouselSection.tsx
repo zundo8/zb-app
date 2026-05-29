@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { handleImageError } from "./ImagePlaceholder";
 
@@ -26,7 +26,6 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Try parsing configured items first
     if (itemsConfig) {
       try {
         const parsed = JSON.parse(itemsConfig);
@@ -35,29 +34,24 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
           setLoading(false);
           return;
         }
-      } catch (e) {
-        // fall through to API fetch
-      }
+      } catch (e) { /* fall through */ }
     }
 
-    // Fetch real products from the configured collection
     const fetchRings = async () => {
       try {
         let handle = "accessories";
         if (itemsConfig && itemsConfig !== "[]") {
           try {
-             const parsed = JSON.parse(itemsConfig);
-             if (Array.isArray(parsed) && parsed.length > 0) return; // Handled above
+            const parsed = JSON.parse(itemsConfig);
+            if (Array.isArray(parsed) && parsed.length > 0) return;
           } catch(e) {
-             handle = itemsConfig; // Use as raw handle
+            handle = itemsConfig;
           }
         }
         const res = await fetch(`/api/shopify/products?collection=${handle}&limit=12`);
         if (res.ok) {
           const data = await res.json();
           let products = Array.isArray(data) ? data : data.products || [];
-          
-          // Fallback if the specific collection is empty
           if (products.length === 0) {
             const fallbackRes = await fetch("/api/shopify/products?limit=6");
             if (fallbackRes.ok) {
@@ -65,7 +59,6 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
               products = Array.isArray(fallbackData) ? fallbackData : fallbackData.products || [];
             }
           }
-
           if (products.length > 0) {
             const mapped: RingItem[] = products.map((p: any) => ({
               id: p.id?.toString() || `ring-${Math.random()}`,
@@ -76,7 +69,7 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
               handle: p.handle || p.id?.toString(),
             })).filter((r: RingItem) => r.image);
             if (mapped.length > 0) {
-              setItems(mapped.slice(0, 10)); // Limit to 10 for minimalist look
+              setItems(mapped.slice(0, 12));
               setLoading(false);
               return;
             }
@@ -91,101 +84,85 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
     fetchRings();
   }, [itemsConfig]);
 
-  // Don't render section if no items and not loading
+  const scrollLeft = () => scrollRef.current?.scrollBy({ left: -300, behavior: "smooth" });
+  const scrollRight = () => scrollRef.current?.scrollBy({ left: 300, behavior: "smooth" });
+
   if (!loading && items.length === 0) return null;
 
   return (
-    <section className="w-full mt-1 mb-1">
-      <div className="px-1.5">
-        <div
-          className="relative rounded-[1.25rem] overflow-hidden py-4 px-2.5"
-          style={{
-            background: "rgba(255, 255, 255, 0.01)",
-            backdropFilter: "blur(40px)",
-            WebkitBackdropFilter: "blur(40px)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.05)",
-          }}
-        >
-          {/* Inner top glow - removed for maximum minimalism if needed, or subtle glass */}
-          <div
-            className="absolute inset-0 rounded-[1.75rem] pointer-events-none"
-            style={{ 
-              background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%)",
-              backdropFilter: "blur(20px)"
-            }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-2.5 px-1 relative z-10">
-            <h2 className="text-[7.5px] font-semibold tracking-[0.3em] text-foreground/40 uppercase">
+    <section className="w-full py-12 md:py-16 relative z-10">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex items-end justify-between mb-6 md:mb-8">
+          <div>
+            <span className="text-[7px] md:text-[8px] font-bold text-foreground/20 uppercase tracking-[0.35em] block mb-1">CURATED ACCESSORIES</span>
+            <h2 className="text-sm md:text-base font-heading tracking-[0.15em] uppercase text-foreground leading-none">
               {title}
             </h2>
-            <Link
-              href="/collections/accessories"
-              className="flex items-center gap-0.5 group"
-              aria-label="View all accessories"
-            >
-              <ArrowRight
-                className="w-3 h-3 text-foreground/20 group-hover:text-foreground/40 transition-colors"
-                strokeWidth={1.5}
-              />
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="hidden md:flex gap-1">
+              <button onClick={scrollLeft} className="w-8 h-8 rounded-full border border-foreground/[0.06] flex items-center justify-center text-foreground/25 hover:text-foreground/60 transition-all duration-300 active:scale-90" aria-label="Scroll Left">
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={scrollRight} className="w-8 h-8 rounded-full border border-foreground/[0.06] flex items-center justify-center text-foreground/25 hover:text-foreground/60 transition-all duration-300 active:scale-90" aria-label="Scroll Right">
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <Link href="/collections/accessories" className="flex items-center gap-1 text-[8px] uppercase tracking-widest text-foreground/25 hover:text-foreground/50 transition-all font-semibold">
+              Explore All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
+        </div>
 
-          {/* Carousel */}
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-4 h-4 animate-spin text-foreground/10" />
-            </div>
-          ) : (
+        {/* Carousel */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-5 h-5 animate-spin text-foreground/15" />
+          </div>
+        ) : (
+          <div className="relative group">
+            {/* Edge fades (desktop only on hover) */}
+            <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-background to-transparent z-20 pointer-events-none opacity-0 md:group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-background to-transparent z-20 pointer-events-none opacity-0 md:group-hover:opacity-100 transition-opacity duration-500" />
+
             <div
               ref={scrollRef}
-              className="flex items-center gap-3 overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x ios-scroll hide-scrollbar scroll-pl-1.5"
+              className="flex gap-3 md:gap-4 overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x ios-scroll hide-scrollbar"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               {items.map((item, i) => (
                 <motion.div
                   key={item.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: i * 0.03, ease: [0.23, 1, 0.32, 1] }}
-                  className="snap-center shrink-0 w-[95px] h-[95px]"
+                  transition={{ duration: 0.6, delay: i * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                  className="snap-start shrink-0 w-[140px] h-[140px] sm:w-[160px] sm:h-[160px] md:w-[220px] md:h-[220px] lg:w-[260px] lg:h-[260px]"
                 >
                   <Link
                     href={`/products/${item.handle || item.id}`}
-                    className="group block relative"
+                    className="group/card block w-full h-full"
                     prefetch={false}
                   >
-                    {/* Glass Image Container */}
-                    <div 
-                      className="w-[95px] h-[95px] rounded-2xl overflow-hidden relative transition-all duration-500 group-hover:shadow-2xl group-hover:shadow-black/20"
-                      style={{
-                        background: "rgba(255, 255, 255, 0.03)",
-                        backdropFilter: "blur(10px)",
-                        WebkitBackdropFilter: "blur(10px)",
-                      }}
-                    >
+                    {/* Plain minimal card — image only, no text overlay */}
+                    <div className="w-full h-full rounded-2xl md:rounded-[1.25rem] overflow-hidden relative bg-foreground/[0.03] transition-all duration-500 group-hover/card:bg-foreground/[0.05]">
                       <img
                         src={item.image}
-                        alt={item.title || "ring"}
+                        alt={item.title || "Accessory"}
                         draggable={false}
                         loading="lazy"
                         onError={handleImageError}
-                        className="w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-700 ease-out"
+                        className="w-full h-full object-contain select-none p-4 md:p-6 group-hover/card:scale-105 transition-transform duration-700 ease-out"
                       />
-                      
-                      {/* Subtle overlay */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-500" />
                     </div>
                   </Link>
                 </motion.div>
               ))}
               <div className="shrink-0 w-1" />
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </section>
   );

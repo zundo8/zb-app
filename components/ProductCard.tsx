@@ -44,37 +44,35 @@ export default function ProductCard({ product, priority = false, selectedSize }:
 
   return (
     <>
-      <div className={`group relative w-full ${isSoldOut ? "opacity-70" : ""}`}>
+      <div className={`group relative w-full ${isSoldOut ? "opacity-60" : ""}`}>
         {/* Badges */}
         <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
           {isSoldOut ? (
-            <div
-              className="px-1.5 py-[1px] rounded-[2px] leading-none border border-foreground/10"
-              style={{
-                background: "rgba(0, 0, 0, 0.4)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-              }}
-            >
-              <span className="text-[6px] font-bold uppercase tracking-tighter text-white">Sold Out</span>
+            <div className="glass-badge" style={{ padding: "2px 6px" }}>
+              <span className="text-[6px] font-bold uppercase tracking-tighter text-foreground/80">Sold Out</span>
             </div>
           ) : isOnSale && (
             <div
               className="px-1.5 py-[1px] rounded-[2px] leading-none"
               style={{
-                background: "hsla(var(--foreground), 0.85)",
+                background: "rgba(255, 255, 255, 0.9)",
                 backdropFilter: "blur(8px)",
                 WebkitBackdropFilter: "blur(8px)",
               }}
             >
-              <span className="text-[6px] font-bold uppercase tracking-tighter text-background">Sale</span>
+              <span className="text-[6px] font-bold uppercase tracking-tighter text-black">Sale</span>
             </div>
           )}
         </div>
 
         {/* Image */}
         <Link href={`/products/${productSlug}`} className="block">
-          <div className="aspect-[3/4.2] relative rounded-[6px] overflow-hidden bg-muted mb-2 shadow-sm">
+          <div className="aspect-[3/4.2] relative rounded-[8px] overflow-hidden mb-2"
+            style={{
+              border: "1px solid rgba(0, 0, 0, 0.04)",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
+            }}
+          >
             <Image
               src={image}
               alt={product.title}
@@ -82,7 +80,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
               priority={priority}
               onError={handleImageError}
               sizes="(max-width: 768px) 50vw, 360px"
-              className={`object-cover transition-transform duration-700 ${!isSoldOut ? "group-hover:scale-[1.04]" : ""}`}
+              className={`object-cover transition-all duration-700 ${!isSoldOut ? "group-hover:scale-[1.04]" : ""}`}
               style={isSoldOut ? { filter: "grayscale(0.4)" } : image === "/zb-logo-220px.png" ? { objectFit: "contain", padding: "25%", opacity: 0.3 } : {}}
             />
             {/* Hover glass overlay */}
@@ -90,7 +88,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
               <div
                 className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
                 style={{
-                  background: "linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.12) 100%)",
+                  background: "linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.25) 100%)",
                 }}
               />
             )}
@@ -100,15 +98,15 @@ export default function ProductCard({ product, priority = false, selectedSize }:
         {/* Info row with "+" button */}
         <div className="flex justify-between items-start leading-tight px-1 pb-1">
           <div className="flex-1 min-w-0 pr-1.5 flex flex-col gap-0.5">
-            <p className="text-[7.5px] sm:text-[8.5px] font-sans font-bold uppercase tracking-[0.15em] text-foreground/45 leading-none truncate pt-0.5">
+            <p className="text-[7.5px] sm:text-[8.5px] font-sans font-bold uppercase tracking-[0.15em] text-foreground/50 leading-none truncate pt-0.5">
               {product.title}
             </p>
             <div className="flex items-center gap-1.5">
-              <p className="text-[8px] sm:text-[9px] font-sans font-medium tracking-tight text-foreground/65 uppercase">
+              <p className="text-[8px] sm:text-[9px] font-sans font-medium tracking-tight text-foreground/70 uppercase">
                 ₹{parseFloat(price).toLocaleString("en-IN")}
               </p>
               {isOnSale && compareAtPrice && (
-                <p className="text-[7px] font-sans font-normal tracking-tight text-foreground/20 uppercase line-through">
+                <p className="text-[7px] font-sans font-normal tracking-tight text-foreground/25 uppercase line-through">
                   ₹{parseFloat(compareAtPrice).toLocaleString("en-IN")}
                 </p>
               )}
@@ -124,7 +122,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
               {isAdding ? (
                 <div className="w-2.5 h-2.5 rounded-full border border-foreground/30 border-t-foreground/80 animate-spin" />
               ) : (
-                <Plus className="w-3.5 h-3.5 text-foreground/60 transition-colors group-hover:text-foreground/90" strokeWidth={1.5} />
+                <Plus className="w-3.5 h-3.5 text-foreground/40 transition-colors group-hover:text-foreground/80" strokeWidth={1.5} />
               )}
             </button>
           )}

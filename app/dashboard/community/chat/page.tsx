@@ -213,7 +213,7 @@ export default function ChatManagementPage() {
                    <Tooltip 
                      contentStyle={{ 
                        background: 'hsl(var(--background))', 
-                       border: '1px solid hsla(var(--foreground), 0.1)',
+                       border: '1px solid hsl(var(--foreground) / 0.1)',
                        borderRadius: '12px',
                        fontSize: '10px'
                      }}

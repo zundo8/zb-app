@@ -24,7 +24,7 @@ export default async function CollectionPage({
     48
   );
   
-  const allCollections = await fetchEnabledCollections('page');
+  const allCollections = await fetchEnabledCollections('page', 'zicabella.com');
 
   if (!collection) notFound();
  
@@ -75,9 +75,8 @@ export default async function CollectionPage({
   });
 
   return (
-    <div className="min-h-screen">
-
-      <div className="relative z-10 max-w-md mx-auto px-2 pb-safe-nav pt-header">
+    <div className="min-h-screen pt-12">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32 pt-header">
 
         {/* Back navigation */}
         <div className="mb-5">
@@ -92,7 +91,6 @@ export default async function CollectionPage({
         {/* Minimalist Filter Bar */}
         <CollectionFilters allSizes={allSizes} />
 
-
         {/* Product Grid */}
         {products.length === 0 ? (
           <div className="text-center py-20">
@@ -101,10 +99,10 @@ export default async function CollectionPage({
             </p>
           </div>
         ) : (
-          <div className={`grid gap-x-1 ${
-            viewMode === "full" ? "grid-cols-1 gap-y-6" : 
-            viewMode === "thumbnail" ? "grid-cols-4 sm:grid-cols-5 gap-x-0.5 gap-y-1.5" : 
-            "grid-cols-2 gap-y-4"
+          <div className={`grid gap-x-2 md:gap-x-6 gap-y-6 md:gap-y-12 ${
+            viewMode === "full" ? "grid-cols-1 md:grid-cols-2" : 
+            viewMode === "thumbnail" ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-x-1 md:gap-x-2 gap-y-2 md:gap-y-3" : 
+            "grid-cols-2 md:grid-cols-4"
           }`}>
             {products.map((product) => (
               <ProductCard key={product.id} product={product} selectedSize={selectedSize} />

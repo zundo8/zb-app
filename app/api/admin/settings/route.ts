@@ -31,6 +31,7 @@ function envSettings() {
     twilioPhoneNumber: '',
     heroImage: '',
     heroVideo: '',
+    heroVideoMobile: '',
     heroTitle: '',
     heroSubtitle: '',
     heroButtonText: 'Discover',
@@ -103,24 +104,41 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
-    const domainOverride = url.searchParams.get('shop') || ENV_DOMAIN;
+    const domainOverride = url.searchParams.get('shop');
 
     let shop: any = null;
 
     try {
-      shop = await prisma.shop.findFirst({
-        where: domainOverride ? { domain: domainOverride } : {}
-      });
+      if (domainOverride) {
+        shop = await prisma.shop.findUnique({
+          where: { domain: domainOverride }
+        });
+      } else {
+        shop = await prisma.shop.findFirst();
+      }
 
-      if (!shop) shop = await prisma.shop.findFirst();
-
-      // Auto-create shop record from env vars if none exists
+      // Auto-create shop record for this domain if none exists
       if (!shop) {
-        console.log('[Settings API] Auto-initializing shop record from env vars...');
+        const targetDomain = domainOverride || ENV_DOMAIN;
+        console.log(`[Settings API] Auto-initializing shop record for ${targetDomain}...`);
+        const existing = await prisma.shop.findFirst().catch(() => null);
         shop = await prisma.shop.create({
           data: {
-            domain: ENV_DOMAIN,
-            accessToken: ENV_TOKEN || 'shpat_required',
+            domain: targetDomain,
+            accessToken: existing?.accessToken || ENV_TOKEN || 'shpat_required',
+            heroTitle: "Redefine The Standard",
+            heroSubtitle: "Explore the latest drops tailored for the relentless.",
+            heroButtonText: "Discover",
+            showHeroText: true,
+            heroVideo: "/zb-video-heroo.mp4",
+            showLatestCuration: true,
+            showArchive: true,
+            showBlueprint: true,
+            showCommunity: true,
+            communityTitle: "Featured Looks",
+            communitySubtitle: "Community",
+            spotlightTitle: "AUTHENTIC STREETWEAR",
+            spotlightSubtitle: "Luxury Indian streetwear for modern men."
           }
         });
         console.log(`[Settings API] Shop record created: ${shop.domain}`);
@@ -155,6 +173,7 @@ export async function GET(req: Request) {
       twilioPhoneNumber: s.twilioPhoneNumber || '',
       heroImage: s.heroImage || '',
       heroVideo: s.heroVideo || '',
+      heroVideoMobile: s.heroVideoMobile || '',
       heroTitle: s.heroTitle || '',
       heroSubtitle: s.heroSubtitle || '',
       heroButtonText: s.heroButtonText || 'Discover',
@@ -238,7 +257,7 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { shopId, shopDomain: bodyDomain, ...updates } = body;
 
-    const targetDomain = ENV_DOMAIN || bodyDomain;
+    const targetDomain = bodyDomain || ENV_DOMAIN;
 
     let shop: any = null;
 
@@ -249,20 +268,15 @@ export async function PATCH(req: Request) {
 
     // 2. By domain
     if (!shop && targetDomain) {
-      shop = await prisma.shop.findFirst({ where: { domain: targetDomain } }).catch(() => null);
+      shop = await prisma.shop.findUnique({ where: { domain: targetDomain } }).catch(() => null);
     }
 
-    // 3. Any shop
-    if (!shop) {
-      shop = await prisma.shop.findFirst().catch(() => null);
-    }
-
-    // 4. Auto-create from env vars
-    if (!shop) {
-      console.log('[Settings API PATCH] No shop found, auto-creating from env vars...');
+    // 3. Auto-create this specific domain if requested but not found
+    if (!shop && targetDomain) {
+      console.log(`[Settings API PATCH] No shop found for domain ${targetDomain}, auto-creating...`);
       shop = await prisma.shop.create({
         data: {
-          domain: ENV_DOMAIN,
+          domain: targetDomain,
           accessToken: ENV_TOKEN || 'shpat_required',
         }
       });
@@ -278,7 +292,7 @@ export async function PATCH(req: Request) {
       'shiprocketEmail', 'shiprocketPassword', 'shiprocketToken', 'webhookSecret',
       'whatsappPhoneId', 'whatsappToken', 'firebaseProjectId', 'firebaseClientEmail',
       'firebasePrivateKey', 'sendgridApiKey', 'twilioAccountSid', 'twilioAuthToken', 'twilioPhoneNumber',
-      'heroImage', 'heroVideo', 'heroTitle', 'heroSubtitle', 'heroButtonText',
+      'heroImage', 'heroVideo', 'heroVideoMobile', 'heroTitle', 'heroSubtitle', 'heroButtonText',
       'latestCurationTitle', 'latestCurationSubtitle', 'archiveTitle', 'archiveSubtitle',
       'blueprintTitle', 'blueprintSubtitle', 'showHeroText', 'showLatestCuration',
       'showArchive', 'showBlueprint', 'showProductVideo', 'showSizeChart',

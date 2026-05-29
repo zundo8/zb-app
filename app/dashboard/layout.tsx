@@ -130,6 +130,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Guide", href: "/dashboard/guide", icon: FileText },
   ];
 
+  const webStoreNav = [
+    { name: "Web Store Overview", href: "/web-store", icon: BarChart3 },
+    { name: "Web Store Orders", href: "/web-store/orders", icon: ShoppingBag },
+    { name: "Web Store Customers", href: "/web-store/customers", icon: Users },
+    { name: "Web Storefront", href: "/web-store/storefront", icon: Monitor },
+    { name: "Homepage Banners", href: "/web-store/banners", icon: Monitor },
+    { name: "Web Store Coupons", href: "/web-store/coupons", icon: Tag },
+  ];
+
   const operationalNav = [
     { name: "Collections", href: "/dashboard/collections", icon: Package, module: 'PRODUCTS' },
     { name: "Inventory", href: "/dashboard/inventory", icon: BoxSelect, module: 'INVENTORY' },
@@ -209,7 +218,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isActive = useCallback(
     (href: string) =>
-      pathname === href || (href !== "/dashboard" && pathname.startsWith(href)),
+      pathname === href || (href !== "/dashboard" && href !== "/web-store" && pathname.startsWith(href)),
     [pathname]
   );
 
@@ -338,6 +347,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <SectionLabel>Core Services</SectionLabel>
               <div className="space-y-0.5">
                 {filterNav(coreNav).map((item) => (
+                  <NavLink key={item.name} item={item} />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <SectionLabel>Web Store CMS</SectionLabel>
+              <div className="space-y-0.5">
+                {webStoreNav.map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>

@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import NextImage from "next/image";
-import { Bookmark, ShoppingBag, Plus, X, ChevronLeft } from "lucide-react";
-import ThemeToggle from "./ThemeToggle";
+import { Bookmark, ShoppingBag, ChevronLeft, Search, User, Menu, Sun, Moon } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import MenuDrawer from "./MenuDrawer";
 import CartDrawer from "./CartDrawer";
@@ -12,6 +11,7 @@ import BookmarkDrawer from "./BookmarkDrawer";
 import { useBookmarks } from "@/lib/bookmark-context";
 import { useRouter, usePathname } from "next/navigation";
 import { useShakeToCart } from "@/lib/hooks/useShakeToCart";
+import { useTheme } from "next-themes";
 
 export default function StorefrontHeader({ collections: initialCollections = [] }: { collections?: any[] }) {
   const router = useRouter();
@@ -21,8 +21,39 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [collections, setCollections] = useState(initialCollections);
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const [showHeader, setShowHeader] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
 
-  // Shake-to-Cart: toggles cart drawer on device shake (iOS)
+  const isDark = resolvedTheme === "dark";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Always show at the top of the page
+      if (currentScrollY < 30) {
+        setShowHeader(true);
+      } else {
+        // Show on scroll up, hide on scroll down
+        if (currentScrollY < lastScrollY) {
+          setShowHeader(true);
+        } else {
+          setShowHeader(false);
+        }
+      }
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY]);
+
   const toggleCart = useCallback(() => {
     setIsCartOpen(prev => !prev);
   }, []);
@@ -50,84 +81,140 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
     const segments = pathname?.split("/").filter(Boolean) || [];
     if (segments.length === 0) return "Zica Bella";
     let title = segments[segments.length - 1];
-    // Convert slugs like "products-name" to "Products Name"
     title = title.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
     return title;
-  };
-
-  return (
+  };  return (
     <>
-      <header className="fixed top-0 left-0 w-full z-50 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-1 flex items-center justify-between gap-2 pointer-events-none">
+      {/* ── Desktop Header Pill (md and up) ── */}
+      <header className={`hidden md:flex fixed left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-6xl z-50 px-6 h-11 items-center justify-between rounded-full pointer-events-auto apple-glass-capsule liquid-glass-hover-sweep shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-all duration-500 ${(isHome || showHeader) ? "top-4 translate-y-0" : "top-4 -translate-y-24"}`}>
+        {/* Sweep Glow Overlay */}
+        <div className="apple-glass-sweep-glow" />
+
+        {/* Left: Brand */}
+        <Link href="/" className="flex items-center gap-2.5 active:scale-95 transition-all z-10">
+          <div className="relative w-5 h-5 dark:invert">
+            <NextImage src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain" />
+          </div>
+          <span className="font-rocaston text-[9.5px] font-semibold tracking-[0.25em] text-foreground/70 uppercase pt-0.5">ZICA BELLA</span>
+        </Link>
+
+        {/* Center: Nav Links */}
+        <div className="flex items-center gap-7 z-10">
+          {collections.slice(0, 5).map((col) => (
+            <Link key={col.id} href={`/collections/${col.handle}`} className="text-[8px] font-medium tracking-[0.22em] text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground uppercase transition-all duration-300 hover:scale-105 active:scale-95 pt-0.5">
+              {col.title}
+            </Link>
+          ))}
+          <Link href="/blogs" className="text-[8px] font-medium tracking-[0.22em] text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground uppercase transition-all duration-300 hover:scale-105 active:scale-95 pt-0.5">
+            Blogs
+          </Link>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-3.5 z-10">
+          {mounted && (
+            <button
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+              className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300 active:scale-90"
+              aria-label="Toggle Theme"
+            >
+              {isDark ? <Sun className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} /> : <Moon className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />}
+            </button>
+          )}
+          <Link href="/search" aria-label="Search" className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
+            <Search className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+          </Link>
+          <button onClick={() => setIsBookmarkOpen(true)} aria-label="Bookmarks" className="relative text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
+            <Bookmark className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+            {bookmarks.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-foreground/60 rounded-full" />}
+          </button>
+          <button onClick={() => setIsCartOpen(true)} aria-label="Cart" className="relative text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
+            <ShoppingBag className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+            {count > 0 && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-foreground/60 rounded-full" />}
+          </button>
+          <Link href="/profile" aria-label="Profile" className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
+            <User className="w-4 h-4 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+          </Link>
+        </div>
+      </header>
+
+      {/* ── Mobile Header Capsules ── */}
+      <header className={`flex md:hidden fixed left-0 w-full z-50 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-1 items-center justify-between gap-2 pointer-events-none transition-all duration-500 ${(isHome || showHeader) ? "top-0 translate-y-0" : "top-0 -translate-y-24"}`}>
         
-        {/* Box 1: Left Action Capsule (Circular Logo) */}
+        {/* Left */}
         <div className="flex-none pointer-events-auto">
           {isHome ? (
             <button 
               onClick={() => setIsMenuOpen(true)}
-              className="h-9 w-9 flex items-center justify-center rounded-full glass-vibrancy shadow-lg border border-white/5 group active:scale-95 transition-all"
+              className="h-9 w-9 flex items-center justify-center rounded-full shadow-lg group active:scale-95 transition-all apple-glass-capsule liquid-glass-hover-sweep"
               aria-label="Menu"
             >
-              <div className="relative w-6 h-6 opacity-80 group-hover:opacity-100 transition-opacity">
-                <NextImage
-                  src="/zb-logo-220px.png"
-                  alt="Zica Bella"
-                  fill
-                  className="object-contain dark:invert"
-                />
+              <div className="apple-glass-sweep-glow" />
+              <div className="relative w-6 h-6 opacity-80 group-hover:opacity-100 transition-opacity dark:invert z-10">
+                <NextImage src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain" />
               </div>
             </button>
           ) : (
             <button 
               onClick={() => router.back()}
-              className="h-9 w-9 flex items-center justify-center rounded-full glass-vibrancy shadow-lg border border-white/5 active:scale-95 transition-all group"
+              className="h-9 w-9 flex items-center justify-center rounded-full shadow-lg active:scale-95 transition-all group apple-glass-capsule liquid-glass-hover-sweep"
               aria-label="Back"
             >
-              <ChevronLeft strokeWidth={1.5} className="w-5 h-5 text-foreground/60 transition-transform duration-300 group-hover:text-foreground" />
+              <div className="apple-glass-sweep-glow" />
+              <ChevronLeft strokeWidth={1.5} className="w-5 h-5 text-foreground/50 transition-transform duration-300 group-hover:text-foreground z-10" />
             </button>
           )}
         </div>
 
-        {/* Box 2: Center Identity Capsule (Minimalist Typography) */}
+        {/* Center */}
         <div className="flex-1 min-w-0 pointer-events-auto">
           <Link 
             href="/"
-            className="h-9 flex items-center justify-center px-6 rounded-full glass-vibrancy shadow-lg border border-white/5 active:scale-[0.98] transition-all max-w-full"
+            className="h-9 flex items-center justify-center px-6 rounded-full shadow-lg active:scale-[0.98] transition-all max-w-full apple-glass-capsule liquid-glass-hover-sweep"
           >
-            <span className="text-[10px] sm:text-[11px] font-rocaston tracking-[0.08em] text-foreground/90 uppercase truncate pt-0.5">
+            <div className="apple-glass-sweep-glow" />
+            <span className="text-[10px] sm:text-[11px] font-rocaston tracking-[0.08em] text-foreground/70 uppercase truncate pt-0.5 z-10">
               {getPageTitle()}
             </span>
           </Link>
         </div>
 
-        {/* Box 3: Right Actions Capsule (Consolidated Island) */}
+        {/* Right */}
         <div className="flex-none pointer-events-auto">
-          <div className="flex items-center gap-0 h-9 p-0.5 px-1 rounded-full glass-vibrancy shadow-lg border border-white/5">
-            <ThemeToggle />
-
+          <div className="flex items-center gap-0.5 h-9 p-0.5 px-1.5 rounded-full shadow-lg apple-glass-capsule liquid-glass-hover-sweep">
+            <div className="apple-glass-sweep-glow" />
+            {mounted && (
+              <button 
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                aria-label="Toggle Theme"
+                className="relative h-8 w-8 flex items-center justify-center text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all active:scale-90 z-10"
+              >
+                {isDark ? <Sun className="w-4 h-4 transition-transform duration-300 hover:scale-110" /> : <Moon className="w-4 h-4 transition-transform duration-300 hover:scale-110" />}
+              </button>
+            )}
             <button 
               onClick={() => setIsBookmarkOpen(true)}
               aria-label="Bookmarks"
-              className="relative h-8 w-8 flex items-center justify-center text-foreground/40 hover:text-foreground transition-all active:scale-90"
+              className="relative h-8 w-8 flex items-center justify-center text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all active:scale-90 z-10"
             >
-              <Bookmark className="w-4 h-4" />
+              <Bookmark className="w-4 h-4 transition-transform duration-300 hover:scale-110" />
               {bookmarks.length > 0 && (
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_6px_hsla(var(--primary),0.5)]" />
+                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-foreground/60 rounded-full" />
               )}
             </button>
             <button 
               onClick={() => setIsCartOpen(true)}
               aria-label="Cart"
-              className="relative h-8 w-8 flex items-center justify-center text-foreground/40 hover:text-foreground transition-all active:scale-90"
+              className="relative h-8 w-8 flex items-center justify-center text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all active:scale-90 z-10"
             >
-              <ShoppingBag className="w-4 h-4" />
+              <ShoppingBag className="w-4 h-4 transition-transform duration-300 hover:scale-110" />
               {count > 0 && (
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_6px_hsla(var(--primary),0.5)]" />
+                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-foreground/60 rounded-full" />
               )}
             </button>
           </div>
         </div>
       </header>
-
       {/* Drawers */}
       <MenuDrawer isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />

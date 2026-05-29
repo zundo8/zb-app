@@ -5,13 +5,15 @@ import { VolumeX, Volume2 } from "lucide-react";
 
 interface HeroVideoProps {
   src: string;
+  mobileSrc?: string;
   showControlOnly?: boolean;
 }
 
-export default function HeroVideo({ src, showControlOnly = false }: HeroVideoProps) {
+export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: HeroVideoProps) {
   const [isMuted, setIsMuted] = useState(true);
   const [isInView, setIsInView] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const mobileVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -19,22 +21,28 @@ export default function HeroVideo({ src, showControlOnly = false }: HeroVideoPro
       { threshold: 0.1 }
     );
     if (videoRef.current) observer.observe(videoRef.current);
+    if (mobileVideoRef.current) observer.observe(mobileVideoRef.current);
     return () => {
       if (videoRef.current) observer.unobserve(videoRef.current);
+      if (mobileVideoRef.current) observer.unobserve(mobileVideoRef.current);
     };
   }, []);
 
   useEffect(() => {
-    if (videoRef.current) {
-      if (isInView) videoRef.current.play().catch(() => {});
-      else videoRef.current.pause();
+    if (isInView) {
+      if (videoRef.current) videoRef.current.play().catch(() => {});
+      if (mobileVideoRef.current) mobileVideoRef.current.play().catch(() => {});
+    } else {
+      if (videoRef.current) videoRef.current.pause();
+      if (mobileVideoRef.current) mobileVideoRef.current.pause();
     }
   }, [isInView]);
 
   const toggle = () => {
     const v = videoRef.current;
-    if (!v) return;
-    v.muted = !isMuted;
+    const mv = mobileVideoRef.current;
+    if (v) v.muted = !isMuted;
+    if (mv) mv.muted = !isMuted;
     setIsMuted(!isMuted);
   };
 
@@ -44,14 +52,28 @@ export default function HeroVideo({ src, showControlOnly = false }: HeroVideoPro
       onClick={toggle}
     >
       {!showControlOnly && (
-        <video
-          ref={videoRef}
-          src={src}
-          muted={isMuted}
-          loop
-          playsInline
-          className="w-full h-full object-cover transition-all duration-700"
-        />
+        <>
+          <video
+            ref={videoRef}
+            src={src}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className={`${mobileSrc ? "hidden md:block" : ""} w-full h-full object-cover transition-all duration-700`}
+          />
+          {mobileSrc && (
+            <video
+              ref={mobileVideoRef}
+              src={mobileSrc}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="block md:hidden w-full h-full object-cover transition-all duration-700"
+            />
+          )}
+        </>
       )}
       
       {/* Absolute minimal mute icon */}

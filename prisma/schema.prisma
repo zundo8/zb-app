@@ -20,6 +20,7 @@ model Shop {
   webhookSecret            String?
   heroImage                String?
   heroVideo                String?
+  heroVideoMobile          String?
   heroTitle                String?
   heroSubtitle             String?
   heroButtonText           String?    @default("Discover")
@@ -1182,3 +1183,89 @@ model MobileOrderItem {
 
   @@index([mobileOrderId])
 }
+
+model WebStoreOrder {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderNumber        String   @unique @map("order_number")
+  customerName       String   @map("customer_name")
+  customerEmail      String   @map("customer_email")
+  customerPhone      String   @map("customer_phone")
+  shippingAddress    Json     @map("shipping_address")
+  items              Json     @map("items")
+  subtotal           Decimal  @db.Decimal(10, 2)
+  shippingCharge     Decimal  @map("shipping_charge") @db.Decimal(10, 2)
+  discountCode       String?  @map("discount_code")
+  discountAmount     Decimal  @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  totalAmount        Decimal  @map("total_amount") @db.Decimal(10, 2)
+  paymentStatus      String   @map("payment_status")
+  paymentMethod      String   @map("payment_method")
+  razorpayOrderId    String?  @map("razorpay_order_id")
+  razorpayPaymentId  String?  @map("razorpay_payment_id")
+  fulfillmentStatus  String   @default("unfulfilled") @map("fulfillment_status")
+  trackingNumber     String?  @map("tracking_number")
+  trackingUrl        String?  @map("tracking_url")
+  notes              String?
+  source             String   @default("web")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("web_store_orders")
+}
+
+model WebStoreCustomer {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String             @unique
+  name                String
+  phone               String
+  passwordHash        String             @map("password_hash")
+  addresses           Json               @default("[]")
+  defaultAddressIndex Int                @default(0) @map("default_address_index")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at")
+  wishlists           WebStoreWishlist[]
+
+  @@map("web_store_customers")
+}
+
+model WebStoreWishlist {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId String           @map("customer_id") @db.Uuid
+  productId  String           @map("product_id")
+  variantId  String           @map("variant_id")
+  addedAt    DateTime         @default(now()) @map("added_at")
+  customer   WebStoreCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("web_store_wishlists")
+}
+
+model WebStoreCoupon {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String    @unique
+  discountType   String    @map("discount_type")
+  discountValue  Decimal   @map("discount_value") @db.Decimal(10, 2)
+  minOrderValue  Decimal   @default(0) @map("min_order_value") @db.Decimal(10, 2)
+  usageLimit     Int?      @map("usage_limit")
+  usedCount      Int       @default(0) @map("used_count")
+  validFrom      DateTime  @map("valid_from")
+  validUntil     DateTime  @map("valid_until")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("web_store_coupons")
+}
+
+model WebStoreBanner {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String
+  subtitle       String?
+  imageUrl       String   @map("image_url")
+  mobileImageUrl String?  @map("mobile_image_url")
+  ctaLabel       String?  @map("cta_label")
+  ctaLink        String?  @map("cta_link")
+  position       Int
+  isActive       Boolean  @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("web_store_banners")
+}
+

@@ -18,19 +18,16 @@ export default async function SearchPage({
   const minPrice = parseFloat(searchParams.min || "0");
   const maxPrice = parseFloat(searchParams.max || "999999");
 
-  // Fetch products and collections in parallel
   const [productsRaw, collections] = await Promise.all([
     query ? searchProducts(query, 48).catch(() => [] as ShopifyProduct[]) : Promise.resolve([] as ShopifyProduct[]),
     fetchCollections().catch(() => [] as any[]),
   ]);
 
-  // Apply price filter
   let products = productsRaw.filter((p) => {
     const price = parseFloat(p.variants?.[0]?.price || "0");
     return price >= minPrice && price <= maxPrice;
   });
 
-  // Sort
   if (sortBy === "price-asc") {
     products.sort((a, b) => parseFloat(a.variants?.[0]?.price || "0") - parseFloat(b.variants?.[0]?.price || "0"));
   } else if (sortBy === "price-desc") {
@@ -39,55 +36,45 @@ export default async function SearchPage({
 
   return (
     <div className="min-h-screen">
-      <div className="relative z-10 max-w-md mx-auto px-3 pb-32 pt-header">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32 pt-28">
 
         {/* ── Search Bar ── */}
-        <form method="GET" action="/search" className="mb-4">
-          <div
-            className="relative flex items-center rounded-2xl overflow-hidden"
-            style={{
-              background: "hsla(var(--glass-bg), 0.55)",
-              backdropFilter: "blur(24px) saturate(180%)",
-              WebkitBackdropFilter: "blur(24px) saturate(180%)",
-              border: "1px solid hsla(var(--glass-border), 0.10)",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
-            }}
-          >
-            <Search className="absolute left-4 w-4 h-4 text-foreground/50 dark:text-foreground/30 pointer-events-none" />
+        <form method="GET" action="/search" className="mb-10 max-w-xl mx-auto">
+          <div className="glass-liquid relative flex items-center rounded-2xl overflow-hidden shadow-lg border border-white/5">
+            <Search className="absolute left-4 w-4 h-4 text-white/30 pointer-events-none" />
             <input
               name="q"
               defaultValue={query}
               placeholder="Search Zica Bella…"
               autoFocus={!query}
               autoComplete="off"
-              className="w-full pl-11 pr-4 py-4 bg-transparent text-sm text-foreground placeholder-foreground/25 focus:outline-none"
+              className="w-full pl-11 pr-4 py-4 bg-transparent text-sm text-white placeholder-white/20 focus:outline-none"
             />
             {query && (
-              <Link href="/search" className="absolute right-3 px-2 py-1 text-[8px] uppercase tracking-widest text-foreground/50 dark:text-foreground/30 hover:text-foreground/80 dark:text-foreground/60 transition-colors">
+              <Link href="/search" className="absolute right-3 px-2 py-1 text-[8px] uppercase tracking-widest text-white/30 hover:text-white/60 transition-colors">
                 Clear
               </Link>
             )}
           </div>
 
-          {/* Sort filters — only when there are results */}
+          {/* Sort filters */}
           {query && products.length > 0 && (
-            <div className="flex gap-2 mt-3 flex-wrap">
+            <div className="flex gap-2 mt-3 flex-wrap justify-center">
               {[
                 { label: "Relevance", value: "relevance" },
                 { label: "Price ↑",   value: "price-asc" },
                 { label: "Price ↓",   value: "price-desc" },
               ].map((opt) => (
                 <button
-                  key={opt.value}
-                  type="submit"
-                  name="sort"
-                  value={opt.value}
-                  className={`px-3 py-1.5 rounded-full text-[9px] uppercase tracking-widest transition-all ${
-                    sortBy === opt.value
-                      ? "bg-foreground text-background"
-                      : "text-foreground/45 border border-foreground/10 hover:border-foreground/20"
-                  }`}
-                  style={sortBy !== opt.value ? { background: "hsla(var(--glass-bg), 0.4)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" } : {}}
+                   key={opt.value}
+                   type="submit"
+                   name="sort"
+                   value={opt.value}
+                   className={`px-3.5 py-1.5 rounded-full text-[9px] uppercase tracking-widest transition-all ${
+                     sortBy === opt.value
+                       ? "bg-white text-black font-bold shadow-md"
+                       : "glass-button text-white/50 border border-white/5"
+                   }`}
                 >
                   {opt.label}
                 </button>
@@ -98,11 +85,11 @@ export default async function SearchPage({
 
         {/* ── Results header ── */}
         {query && (
-          <div className="flex justify-between items-baseline mb-4">
-            <h1 className="text-[11px] font-medium text-foreground/80 dark:text-foreground/60 uppercase tracking-widest">
+          <div className="flex justify-between items-baseline mb-6 max-w-6xl mx-auto px-1">
+            <h1 className="text-[11px] font-medium text-white/60 uppercase tracking-widest">
               &ldquo;{query}&rdquo;
             </h1>
-            <p className="text-[9px] text-foreground/50 dark:text-foreground/30 uppercase tracking-widest">
+            <p className="text-[9px] text-white/30 uppercase tracking-widest">
               {products.length} {products.length === 1 ? "result" : "results"}
             </p>
           </div>
@@ -110,7 +97,7 @@ export default async function SearchPage({
 
         {/* ── Product Grid ── */}
         {products.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-1.5 gap-y-5 mb-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12 max-w-6xl mx-auto">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
@@ -120,34 +107,28 @@ export default async function SearchPage({
         {/* ── No results ── */}
         {query && products.length === 0 && (
           <div className="text-center py-20 flex flex-col items-center gap-4">
-            <div className="w-14 h-14 rounded-full border border-foreground/[0.06] flex items-center justify-center">
-              <Search className="w-5 h-5 text-foreground/40 dark:text-foreground/20" />
+            <div className="glass-panel w-14 h-14 rounded-full flex items-center justify-center">
+              <Search className="w-5 h-5 text-white/20" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.3em] text-foreground/60 dark:text-foreground/40">No results for &ldquo;{query}&rdquo;</p>
-              <p className="text-[9px] text-foreground/40 dark:text-foreground/20 mt-1.5 uppercase tracking-widest">Try a different term or browse below</p>
+              <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">No results for &ldquo;{query}&rdquo;</p>
+              <p className="text-[9px] text-white/20 mt-1.5 uppercase tracking-widest">Try a different term or browse below</p>
             </div>
           </div>
         )}
 
         {/* ── Empty state — show trending + collections ── */}
         {!query && (
-          <>
+          <div className="max-w-4xl mx-auto mt-6">
             {/* Trending */}
-            <div className="mb-8">
-              <p className="text-[8px] font-medium tracking-[0.45em] uppercase text-foreground/25 mb-3">Trending</p>
-              <div className="flex flex-wrap gap-2">
+            <div className="mb-10">
+              <p className="glass-label mb-3">Trending Searches</p>
+              <div className="flex flex-wrap gap-2.5">
                 {TRENDING.map((term) => (
                   <Link
                     key={term}
                     href={`/search?q=${encodeURIComponent(term)}`}
-                    className="px-3 py-1.5 rounded-full text-[9px] uppercase tracking-widest text-foreground/70 dark:text-foreground/50 hover:text-foreground/90 transition-colors"
-                    style={{
-                      background: "hsla(var(--glass-bg), 0.35)",
-                      backdropFilter: "blur(12px)",
-                      WebkitBackdropFilter: "blur(12px)",
-                      border: "1px solid hsla(var(--glass-border), 0.08)",
-                    }}
+                    className="glass-button px-4 py-2 rounded-xl text-[9px] uppercase tracking-widest text-white/60 hover:text-white/90 border border-white/5 shadow-md hover:border-white/10 active:scale-95 transition-all"
                   >
                     {term}
                   </Link>
@@ -158,24 +139,25 @@ export default async function SearchPage({
             {/* Collections */}
             {collections.length > 0 && (
               <div>
-                <p className="text-[8px] font-medium tracking-[0.45em] uppercase text-foreground/25 mb-3">Collections</p>
+                <p className="glass-label mb-3">Explore Collections</p>
                 <div className="flex flex-col gap-0">
                   {collections.slice(0, 10).map((c: any) => (
                     <Link
                       key={c.id}
                       href={`/collections/${c.handle}`}
-                      className="group flex items-center justify-between py-3 border-b border-foreground/[0.04] last:border-0"
+                      className="group flex items-center justify-between py-4"
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
                     >
-                      <span className="text-[13px] font-light uppercase tracking-[0.06em] text-foreground/70 dark:text-foreground/50 group-hover:text-foreground/90 transition-colors">
+                      <span className="text-[13px] font-light uppercase tracking-[0.06em] text-white/50 group-hover:text-white/80 transition-colors">
                         {c.title}
                       </span>
-                      <ArrowRight className="w-3.5 h-3.5 text-foreground/15 opacity-0 group-hover:opacity-100 group-hover:text-foreground/60 dark:text-foreground/40 transition-all" />
+                      <ArrowRight className="w-3.5 h-3.5 text-white/10 opacity-0 group-hover:opacity-100 group-hover:text-white/40 transition-all transform group-hover:translate-x-1 duration-300" />
                     </Link>
                   ))}
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
 
       </div>

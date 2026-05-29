@@ -67,13 +67,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-3 right-3 bottom-3 z-[120] w-[90%] max-w-sm flex flex-col rounded-[1.5rem] overflow-hidden font-sans"
-              style={{
-                background: "hsla(var(--glass-bg), 0.72)",
-                backdropFilter: "blur(48px) saturate(220%)",
-                WebkitBackdropFilter: "blur(48px) saturate(220%)",
-                boxShadow: "inset 0 0 0 1px hsla(var(--glass-border), 0.12), -20px 0 80px -12px rgba(0,0,0,0.25)",
-              }}
+              className="fixed top-3 right-3 bottom-3 z-[120] w-[90%] max-w-sm flex flex-col rounded-[1.5rem] overflow-hidden font-sans bg-white/70 dark:bg-black/75 backdrop-blur-3xl border border-black/5 dark:border-white/10 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] transition-colors duration-500"
             >
               {/* Header */}
               <div className="flex justify-between items-center px-6 py-5 border-b border-foreground/[0.06]">
@@ -121,11 +115,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, x: -20, scale: 0.95 }}
                           transition={{ duration: 0.22 }}
-                          className="flex gap-3.5 p-3 rounded-2xl"
-                          style={{
-                            background: "hsla(var(--glass-bg), 0.45)",
-                            border: "1px solid hsla(var(--glass-border), 0.08)",
-                          }}
+                          className="flex gap-3.5 p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/5 transition-colors duration-500"
                         >
                           <Link href={`/products/${item.handle}`} onClick={onClose} className="shrink-0">
                             <div className="relative w-[68px] h-[84px] rounded-xl overflow-hidden shadow-sm">
@@ -146,11 +136,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                                 ₹{(parseFloat(item.price) * item.quantity).toLocaleString("en-IN")}
                               </p>
                               <div
-                                className="flex items-center gap-1 rounded-lg px-1.5 py-1"
-                                style={{
-                                  background: "hsla(var(--glass-bg), 0.6)",
-                                  border: "1px solid hsla(var(--glass-border), 0.1)",
-                                }}
+                                className="flex items-center gap-1 rounded-lg px-1.5 py-1 bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/10 transition-colors duration-500"
                               >
                                 <button
                                   onClick={() => update(item.id, item.quantity - 1)}
@@ -180,12 +166,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               {/* Footer */}
               {items.length > 0 && (
                 <div
-                  className="px-6 py-5 border-t border-foreground/[0.06]"
-                  style={{
-                    background: "hsla(var(--glass-bg), 0.3)",
-                    backdropFilter: "blur(20px)",
-                    WebkitBackdropFilter: "blur(20px)",
-                  }}
+                  className="px-6 py-5 border-t border-black/5 dark:border-white/5 bg-white/40 dark:bg-black/40 backdrop-blur-xl transition-colors duration-500"
                 >
                   {/* Subtotal */}
                   <div className="flex justify-between items-center mb-4">
@@ -212,7 +193,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                     style={{
                       background: "hsl(var(--foreground))",
                       color: "hsl(var(--background))",
-                      boxShadow: "0 8px 32px -8px hsla(var(--foreground), 0.35)",
+                      boxShadow: "0 8px 32px -8px hsl(var(--foreground) / 0.35)",
                     }}
                   >
                     {isCheckingOut ? (

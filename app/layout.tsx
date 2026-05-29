@@ -7,6 +7,7 @@ import "./globals.css";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import StorefrontFooter from "@/components/StorefrontFooter";
 import { Toaster } from "sonner";
+import MetaPixelTracker from "@/components/MetaPixelTracker";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -53,9 +54,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID || "123456789012345";
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://cdn.shopify.com" />
         <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="beforeInteractive" />
         <Script
           type="module"
@@ -64,6 +70,22 @@ export default function RootLayout({
         />
       </head>
       <body className={`${geistSans.variable} ${inter.variable} antialiased`}>
+        {/* Meta Pixel Script */}
+        <Script id="fb-pixel" strategy="afterInteractive">
+          {`
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window, document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', '${pixelId}');
+            fbq('track', 'PageView');
+          `}
+        </Script>
+        <MetaPixelTracker />
         <Providers>
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}
@@ -74,3 +96,4 @@ export default function RootLayout({
     </html>
   );
 }
+

@@ -124,7 +124,7 @@ export default function OrderDetailsPage() {
         <div className="absolute bottom-0 left-0 w-[80vw] h-[80vw] bg-purple-500/5 rounded-full blur-[120px]" />
       </div>
 
-      <main className="relative z-10 max-w-md mx-auto px-5 pt-12">
+      <main className="relative z-10 max-w-3xl mx-auto px-5 pt-28 pb-32">
         {/* Header Navigation */}
         <div className="flex items-center justify-between mb-10">
           <Link href="/orders" className="group flex items-center gap-2 p-2 -ml-2 rounded-full hover:bg-white/5 transition-colors">

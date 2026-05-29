@@ -6,7 +6,7 @@ import NextImage from "next/image";
 import { handleImageError } from "./ImagePlaceholder";
 
 const DEFAULTS = {
-  imgUrl: "https://images.unsplash.com/photo-1552346154-21d328109967?q=80&w=1200",
+  imgUrl: "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1200",
   tag: "Core Manifest",
   title: "Archival Vision",
   desc: "Engineered for those who move without compromise.",

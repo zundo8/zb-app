@@ -17,15 +17,61 @@ import { handleImageError } from "@/components/ImagePlaceholder";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [shop, collections, policies] = await Promise.all([
-    prisma.shop.findFirst().catch(() => null),
-    fetchEnabledCollections('header').catch(() => []),
+  let shop: any = null;
+  try {
+    shop = await prisma.shop.findUnique({ where: { domain: "zicabella.com" } });
+    if (!shop) {
+      console.log("[Storefront Home] zicabella.com shop record not found, auto-initializing...");
+      const existing = await prisma.shop.findFirst().catch(() => null);
+      const ENV_TOKEN = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "";
+      shop = await prisma.shop.create({
+        data: {
+          domain: "zicabella.com",
+          accessToken: existing?.accessToken || ENV_TOKEN || "shpat_required",
+          delhiveryApiKey: existing?.delhiveryApiKey,
+          razorpayKeyId: existing?.razorpayKeyId,
+          razorpayKeySecret: existing?.razorpayKeySecret,
+          shiprocketEmail: existing?.shiprocketEmail,
+          shiprocketToken: existing?.shiprocketToken,
+          shiprocketPassword: existing?.shiprocketPassword,
+          webhookSecret: existing?.webhookSecret,
+          heroTitle: "Redefine The Standard",
+          showHeroText: true,
+          showLatestCuration: true,
+          showArchive: true,
+          showBlueprint: true,
+          showCommunity: true,
+          communityTitle: "Featured Looks",
+          communitySubtitle: "Community",
+          spotlightTitle: "AUTHENTIC STREETWEAR",
+          spotlightSubtitle: "Luxury Indian streetwear for modern men."
+        }
+      });
+    }
+  } catch (e) {
+    console.error("Error auto-initializing webstore shop settings:", e);
+    shop = await prisma.shop.findFirst().catch(() => null);
+  }
+
+  const [collections, policies] = await Promise.all([
+    fetchEnabledCollections('header', 'zicabella.com').catch(() => []),
     fetchPolicies().catch(() => []),
   ]);
 
+  // Fetch banners from WebStoreBanner table
+  let banners: any[] = [];
+  try {
+    banners = await prisma.webStoreBanner.findMany({
+      where: { isActive: true },
+      orderBy: { position: "asc" },
+    });
+  } catch (e) {
+    // Silently handle - banners are optional
+  }
+
   const s = (shop as any) || {
     heroTitle: "Redefine The Standard",
-    showHeroText: false,
+    showHeroText: true,
     showLatestCuration: true,
     showArchive: true,
     showBlueprint: true,
@@ -61,7 +107,8 @@ export default async function Home() {
   const heroSubtitle   = s?.heroSubtitle    || "Explore the latest drops tailored for the relentless.";
   const heroButtonText = s?.heroButtonText  || "Discover";
   const heroImage      = s?.heroImage       || "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=2070&auto=format&fit=crop";
-  const heroVideo      = "/zb-video-heroo.mp4";
+  const heroVideo      = s?.heroVideo       || "/zb-video-heroo.mp4";
+  const heroVideoMobile = s?.heroVideoMobile || "";
   const latestTitle    = s?.latestCurationTitle    || "Latest Curation";
   const latestSubtitle = s?.latestCurationSubtitle || "Season Drop";
   const archiveTitle   = s?.archiveTitle    || "The Archive";
@@ -70,7 +117,7 @@ export default async function Home() {
   const featuredMedia  = s?.featuredMedia;
   const featuredMediaImage = s?.featuredMediaImage;
   const footerVideo    = s?.footerVideo;
-
+  
   const socialLinks = [
     { url: s?.instagramUrl, icon: Instagram, label: "Instagram" },
     { url: s?.appleUrl,     icon: Disc,      label: "Apple Music" },
@@ -90,52 +137,102 @@ export default async function Home() {
   const ringCarouselItems = s?.ringCarouselItems || "[]";
 
   return (
-    <div className="relative home-page">
-      {/* ═══ HERO: Full-screen, scoped to hero section only ═══ */}
-      <section className="relative w-full h-[100svh] overflow-hidden">
+    <div className="relative home-page overflow-hidden">
+      {/* Ambient background glows for infinite three-dimensional Dusk depth */}
+      <div className="absolute top-[80vh] left-1/4 -translate-x-1/2 w-[700px] h-[700px] rounded-full bg-violet-600/5 blur-[150px] pointer-events-none z-0" />
+      <div className="absolute top-[180vh] right-1/4 translate-x-1/2 w-[700px] h-[700px] rounded-full bg-indigo-600/5 blur-[150px] pointer-events-none z-0" />
+
+      {/* ═══ HERO: Full-screen ═══ */}
+      <section className="relative w-full h-[100svh] md:h-screen overflow-hidden">
         {/* Background video */}
         {heroVideo ? (
-          <HeroVideo src={heroVideo} />
+          <HeroVideo src={heroVideo} mobileSrc={heroVideoMobile} />
         ) : (
           <NextImage src={heroImage} alt="Hero" fill priority className="object-cover" onError={handleImageError} />
         )}
-        {/* Gradient removed as per request */}
 
-        {/* Hero content */}
+        {/* Glass gradient overlay at bottom */}
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
+
+        {/* Hero content: Spatial Liquid Glass Card */}
         {s?.showHeroText && (
-          <div className="absolute inset-x-0 bottom-0 px-5 pb-8">
-            <h1 className="font-heading text-[20px] mb-1.5 leading-tight uppercase tracking-wide text-white drop-shadow-2xl">
-              {heroTitle}
-            </h1>
-            <p className="text-[7.5px] text-white/50 max-w-[240px] mb-5 font-extralight leading-relaxed tracking-widest uppercase drop-shadow">
-              {heroSubtitle}
-            </p>
-            <button className="px-7 py-2.5 bg-white/10 backdrop-blur-xl border border-white/20 text-white text-[7.5px] font-extralight uppercase tracking-[0.4em] rounded-full hover:bg-white/20 active:scale-95 transition-all">
-              {heroButtonText}
-            </button>
+          <div className="absolute inset-0 flex items-end justify-center md:justify-start p-4 sm:p-6 md:p-16 z-20">
+            <div className="glass rounded-[2rem] border border-white/10 p-6 sm:p-8 md:p-10 w-full max-w-sm sm:max-w-md md:max-w-xl backdrop-blur-2xl shadow-[0_32px_80px_rgba(0,0,0,0.6)] space-y-4 md:space-y-6 transition-all duration-500 hover:border-white/20 relative overflow-hidden group">
+              {/* Internal subtle overlay glow (monochrome) */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-white/[0.02] to-transparent blur-2xl pointer-events-none" />
+              
+              <div className="relative z-10 space-y-1">
+                <span className="text-[8px] font-bold text-white/40 uppercase tracking-[0.3em]">NEW DROP</span>
+                <h1 className="font-heading text-xl md:text-3xl font-black uppercase tracking-[0.08em] text-white leading-none">
+                  {heroTitle}
+                </h1>
+              </div>
+              
+              <p className="relative z-10 text-[9.5px] md:text-[11px] text-white/50 font-normal leading-relaxed tracking-wider max-w-md">
+                {heroSubtitle}
+              </p>
+              
+              <div className="relative z-10 pt-2">
+                <Link href="/collections" className="glass px-8 py-3 text-white text-[8px] font-bold uppercase tracking-[0.3em] bg-white/5 hover:bg-white/10 transition-all rounded-full flex items-center justify-center gap-2 border border-white/10 active:scale-95 w-max">
+                  {heroButtonText} <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
           </div>
         )}
+        
       </section>
 
       {/* ═══ CONTENT BELOW HERO ═══ */}
-      <div className="relative bg-background z-10 max-w-[410px] mx-auto px-1.5 pb-24 rounded-t-2xl">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24 rounded-t-2xl" style={{ marginTop: "-1.5rem" }}>
+
+        {/* ═══ BANNERS (from admin CMS) ═══ */}
+        {banners.length > 0 && (
+          <section className="mb-8 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {banners.map((banner: any) => (
+                <Link key={banner.id} href={banner.ctaLink || "#"} className="block">
+                  <div className="relative w-full aspect-[21/9] rounded-[1.25rem] overflow-hidden glass-panel group">
+                    <NextImage
+                      src={banner.mobileImageUrl || banner.imageUrl}
+                      alt={banner.title || "Banner"}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-700"
+                      onError={handleImageError}
+                    />
+                    {banner.title && (
+                      <div className="absolute inset-0 flex items-end p-6 bg-gradient-to-t from-black/70 to-transparent">
+                        <div>
+                          {banner.subtitle && (
+                            <p className="glass-label mb-1.5">{banner.subtitle}</p>
+                          )}
+                          <h3 className="text-white text-[12px] md:text-sm font-bold uppercase tracking-wider">{banner.title}</h3>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ═══ SECTION LABEL: Latest ═══ */}
         {s?.showLatestCuration && (
-          <div className="flex justify-between items-end mb-2 px-2 pt-6">
+          <div className="flex justify-between items-end mb-6 pt-8 px-1">
             <div>
-              <p className="text-[7px] font-extralight uppercase tracking-[0.5em] text-muted-foreground/35 mb-0.5">{latestSubtitle}</p>
-              <h2 className="font-heading text-[10px] uppercase tracking-[0.18em] text-foreground/75">{latestTitle}</h2>
+              <p className="glass-label mb-1">{latestSubtitle}</p>
+              <h2 className="glass-heading text-xs md:text-sm uppercase tracking-[0.2em]">{latestTitle}</h2>
             </div>
-            <Link href="/search" className="flex items-center gap-1 text-[8px] uppercase tracking-widest text-muted-foreground/50 hover:text-foreground transition-colors">
-              View all <ChevronRight className="w-2.5 h-2.5" />
+            <Link href="/search" className="flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-foreground/30 hover:text-foreground/60 transition-colors">
+              View all <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
         )}
 
         {/* ═══ PRODUCT GRID 1 ═══ */}
-        <section className="mb-2 px-[1px]">
-          <div className="grid grid-cols-2 gap-x-1 gap-y-5">
+        <section className="mb-10 px-[1px]">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12">
             {products.slice(0, 4).map((p: ShopifyProduct, idx: number) => (
               <ProductCard key={p.id} product={p} priority={idx < 4} />
             ))}
@@ -144,29 +241,32 @@ export default async function Home() {
 
         {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
         {collectionsMedia && (
-          <section className="mb-2 relative w-full aspect-video rounded-[0.75rem] overflow-hidden bg-muted shadow-lg border border-foreground/5">
+          <section className="mb-10 max-w-4xl mx-auto relative w-full aspect-video rounded-[1.25rem] overflow-hidden shadow-lg" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
             <LazyVideo src={collectionsMedia} className="absolute inset-0 w-full h-full object-cover opacity-80" />
           </section>
         )}
 
+        {/* ═══ GLASS DIVIDER ═══ */}
+        <div className="glass-divider my-8" />
+
         {/* ═══ COLLECTIONS CAROUSEL ═══ */}
-        <section className="py-5 -mx-2">
+        <section className="py-8 max-w-6xl mx-auto overflow-hidden">
           {s?.showArchive && (
-            <div className="flex justify-center mb-5 px-4">
-              <span className="text-[7px] font-extralight uppercase tracking-[0.9em] text-muted-foreground/22">— {archiveTitle} —</span>
+            <div className="flex justify-center mb-6 px-4">
+              <span className="glass-label">— {archiveTitle} —</span>
             </div>
           )}
           <CollectionCarousel collections={collections} />
           {s?.showArchive && (
-            <div className="flex justify-center mt-5 mb-1">
-              <span className="text-[7px] font-extralight uppercase tracking-[0.4em] text-muted-foreground/18">{archiveSubtitle}</span>
+            <div className="flex justify-center mt-6 mb-2">
+              <span className="text-[8px] font-extralight uppercase tracking-[0.4em] text-foreground/15">{archiveSubtitle}</span>
             </div>
           )}
         </section>
         
         {/* ═══ RING COLLECTION CAROUSEL ═══ */}
         {showRingCarousel && (
-          <div className="mt-3 mb-3">
+          <div className="my-8">
             <RingCarouselSection 
               title={ringCarouselTitle} 
               itemsConfig={ringCarouselItems} 
@@ -175,24 +275,26 @@ export default async function Home() {
         )}
 
         {/* ═══ 3D FLIPBOOK SECTION ═══ */}
-        <FlipbookSection 
-          imgUrl={flipbookImage}
-          videoUrl={flipbookVideo}
-          title={flipbookTitle} 
-          tag={flipbookTag} 
-          desc={flipbookDesc} 
-        />
+        <div className="my-8 max-w-4xl mx-auto">
+          <FlipbookSection 
+            imgUrl={flipbookImage}
+            videoUrl={flipbookVideo}
+            title={flipbookTitle} 
+            tag={flipbookTag} 
+            desc={flipbookDesc} 
+          />
+        </div>
 
         {/* ═══ PRODUCT GRID 2 ═══ */}
-        <section className="mb-2 px-[1px]">
-          <div className="grid grid-cols-2 gap-x-1 gap-y-5">
+        <section className="mb-10 px-[1px]">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12">
             {products.slice(4, 8).map((p: ShopifyProduct) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
 
         {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
         {s?.showBlueprint && (
-          <section className="mb-2 relative w-full aspect-[4/5] rounded-[1rem] overflow-hidden bg-muted border border-foreground/[0.03] group shadow-xl">
+          <section className="mb-10 max-w-2xl mx-auto relative w-full aspect-[4/5] rounded-[1.5rem] overflow-hidden group shadow-xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
             {featuredMedia ? (
               <LazyVideo
                 src={featuredMedia}
@@ -211,17 +313,18 @@ export default async function Home() {
           </section>
         )}
 
-
+        {/* ═══ GLASS DIVIDER ═══ */}
+        <div className="glass-divider my-8" />
 
         {/* ═══ PRODUCT GRID 3 ═══ */}
-        <section className="mt-4 mb-2 px-[1px]">
-          <div className="grid grid-cols-2 gap-x-1 gap-y-5">
+        <section className="mt-8 mb-10 px-[1px]">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12">
             {products.slice(12, 16).map((p: ShopifyProduct) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
 
         {/* ═══ AUTHENTIC STREETWEAR SECTION ═══ */}
-        <div className="mt-8 mb-8">
+        <div className="my-10 max-w-6xl mx-auto">
           <SpotlightSection 
             title={s?.spotlightTitle || "AUTHENTIC STREETWEAR"} 
             subtitle={s?.spotlightSubtitle} 
@@ -231,7 +334,7 @@ export default async function Home() {
         </div>
 
         {/* ═══ FEATURED LOOKS (COMMUNITY) ═══ */}
-        <div className="mt-8 mb-8">
+        <div className="my-10 max-w-6xl mx-auto">
           <FeaturedUsersSection
             showCommunity={s?.showCommunity}
             title={s?.communityTitle}
@@ -241,7 +344,7 @@ export default async function Home() {
 
         {/* ═══ FOOTER VIDEO ═══ */}
         {footerVideo && (
-          <section className="mt-8 -mx-2 aspect-[9/16] sm:aspect-video rounded-[1.5rem] overflow-hidden bg-muted group shadow-2xl">
+          <section className="my-10 max-w-4xl mx-auto aspect-[9/16] sm:aspect-video rounded-[2rem] overflow-hidden group shadow-2xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
             <LazyVideo
               src={footerVideo}
               className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"

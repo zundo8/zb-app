@@ -28,31 +28,31 @@ export default function WishlistPage() {
 
   return (
     <>
-      <div className="relative z-10 max-w-md mx-auto px-4 pt-20 min-h-[80vh]">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 min-h-[80vh] pb-32">
         {/* Page Header */}
         <div className="mb-12 text-center">
-          <p className="text-[8px] font-bold uppercase tracking-[0.5em] text-primary/60 mb-3">Saved Pieces</p>
-          <h1 className="font-heading text-[22px] uppercase tracking-[0.1em] text-foreground/90">Your Bookmarks</h1>
-          <div className="w-8 h-[1px] bg-foreground/10 mx-auto mt-4" />
+          <p className="text-[8px] font-bold uppercase tracking-[0.5em] text-white/40 mb-3">Saved Pieces</p>
+          <h1 className="font-heading text-[22px] uppercase tracking-[0.1em] text-white/95">Your Bookmarks</h1>
+          <div className="w-8 h-[1px] bg-white/10 mx-auto mt-4" />
         </div>
 
         {bookmarks.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20">
-            <div className="w-16 h-16 rounded-full bg-foreground/5 flex items-center justify-center mb-6">
-              <Bookmark className="w-6 h-6 text-foreground/40 dark:text-foreground/20" />
+            <div className="w-16 h-16 rounded-[2rem] bg-white/5 flex items-center justify-center mb-6 border border-white/5">
+              <Bookmark className="w-6 h-6 text-white/30" />
             </div>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest leading-relaxed max-w-[240px] mb-10 opacity-60">
+            <p className="text-[10px] text-white/30 uppercase tracking-widest leading-relaxed max-w-[240px] mb-10">
               Your collection of saved luxury pieces is currently empty.
             </p>
             <Link 
               href="/" 
-              className="px-10 py-4 bg-foreground text-background text-[9px] uppercase font-bold tracking-[0.3em] rounded-full hover:opacity-90 transition-all shadow-xl shadow-foreground/10 active:scale-95"
+              className="px-10 py-4 bg-white text-black text-[9px] uppercase font-bold tracking-[0.3em] rounded-full hover:opacity-90 transition-all shadow-xl active:scale-95"
             >
               Explore Collection
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
             <AnimatePresence>
               {bookmarks.map((product) => (
                 <motion.div 
@@ -60,10 +60,10 @@ export default function WishlistPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="group relative flex gap-5 p-4 rounded-[2rem] bg-foreground/[0.02] border border-foreground/5 backdrop-blur-xl"
+                  className="group relative flex gap-5 p-4 rounded-[2rem] glass-panel border-white/5 bg-white/[0.01] hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300"
                 >
                   <Link href={`/products/${product.handle}`} className="shrink-0">
-                    <div className="relative w-28 h-36 rounded-2xl overflow-hidden shadow-lg">
+                    <div className="relative w-28 h-36 rounded-2xl overflow-hidden border border-white/5 shadow-lg">
                       <Image 
                         src={product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png"} 
                         alt={product.title} 
@@ -75,10 +75,10 @@ export default function WishlistPage() {
 
                   <div className="flex-1 flex flex-col justify-between py-1">
                     <div>
-                      <h3 className="text-[12px] font-bold uppercase tracking-tight text-foreground/90 mb-1 line-clamp-1">
+                      <h3 className="text-[12px] font-bold uppercase tracking-tight text-white/90 mb-1 line-clamp-1">
                         {product.title}
                       </h3>
-                      <p className="text-[13px] font-medium tracking-tighter text-foreground/70 dark:text-foreground/50">
+                      <p className="text-[13px] font-medium tracking-tighter text-white/50">
                         ₹{parseFloat(product.variants[0].price).toLocaleString("en-IN")}
                       </p>
                     </div>
@@ -86,14 +86,14 @@ export default function WishlistPage() {
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={() => handleQuickAdd(product)}
-                        className="flex-1 py-3.5 rounded-xl bg-foreground text-background text-[9px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-lg shadow-foreground/5 active:scale-95 transition-all"
+                        className="flex-1 py-3.5 rounded-xl bg-white text-black text-[9px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-lg hover:opacity-90 active:scale-95 transition-all"
                       >
                         <ShoppingBag className="w-3.5 h-3.5" />
                         Add to Bag
                       </button>
                       <button 
                         onClick={() => removeBookmark(product.id.toString())}
-                        className="p-3.5 rounded-xl bg-foreground/5 text-foreground/50 dark:text-foreground/30 hover:text-rose-400 hover:bg-rose-400/5 transition-all active:scale-90"
+                        className="p-3.5 rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all active:scale-90"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -104,8 +104,6 @@ export default function WishlistPage() {
             </AnimatePresence>
           </div>
         )}
-
-        {/* Continue Shopping removed - StorefrontNav handles it */}
       </div>
     </>
   );

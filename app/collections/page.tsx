@@ -6,32 +6,31 @@ import Image from "next/image";
 export const dynamic = "force-dynamic";
 
 export default async function CollectionsPage() {
-  const collections = await fetchEnabledCollections('page');
+  const collections = await fetchEnabledCollections('page', 'zicabella.com');
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-md mx-auto px-6 pt-20 pb-32">
+    <div className="min-h-screen bg-background pt-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32">
         {/* Header Section */}
         <div className="mb-px">
-          
           <div className="space-y-4">
             <h1 className="text-3xl font-bold tracking-[0.2em] uppercase text-foreground/90 font-heading" style={{ fontFamily: "'HeadingPro', sans-serif" }}>
               Collections
             </h1>
             <div className="h-[1px] w-16 bg-foreground/10 rounded-full" />
-            <p className="text-[9px] text-foreground/50 dark:text-foreground/30 font-medium uppercase tracking-[0.2em] leading-relaxed max-w-[280px]">
+            <p className="text-[9px] text-foreground/50 dark:text-foreground/30 font-medium uppercase tracking-[0.2em] leading-relaxed">
               Curated luxury series
             </p>
           </div>
         </div>
 
         {/* Collections Grid */}
-        <div className="grid grid-cols-1 gap-12 mt-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12 mt-12">
           {collections.map((collection, idx) => (
             <Link 
               key={collection.id} 
               href={`/collections/${collection.handle}`}
-              className="group relative block aspect-[16/9] rounded-[2rem] overflow-hidden transition-all duration-700 hover:scale-[1.01] active:scale-[0.99]"
+              className="group relative block aspect-[16/10] rounded-[2rem] overflow-hidden transition-all duration-700 hover:scale-[1.01] active:scale-[0.99] border border-white/5 shadow-2xl"
             >
               {/* Background Image */}
               {collection.image?.src ? (
