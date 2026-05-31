@@ -182,7 +182,6 @@
     overflow-x: hidden;
     position: relative;
     -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
     overscroll-behavior-x: none;
     /* iOS notch / dynamic island safe areas */
     padding-top: 0;
@@ -326,8 +325,6 @@
 /* Mobile scroll performance */
 @media (max-width: 768px) {
   .home-page {
-    contain: layout style;
-    will-change: scroll-position;
     -webkit-overflow-scrolling: touch;
   }
   /* Prevent any element from breaking horizontal bounds on mobile */
@@ -338,9 +335,8 @@
 
 /* Hardware acceleration for scroll containers */
 .smooth-gpu {
-  transform: translate3d(0, 0, 0);
+  transform: translateZ(0);
   backface-visibility: hidden;
-  will-change: transform;
 }
 
 /* ============================================
@@ -870,23 +866,26 @@
 
 /* ============================================
    PERFORMANCE RENDER OPTIMIZATIONS (OFFSCREEN SECTIONS)
+   Desktop only — content-visibility:auto causes blank flashes on mobile
    ============================================ */
-.render-deferred-media {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 500px;
-}
+@media (min-width: 769px) {
+  .render-deferred-media {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 500px;
+  }
 
-.render-deferred-carousel {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
-}
+  .render-deferred-carousel {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
+  }
 
-.render-deferred-section {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 450px;
-}
+  .render-deferred-section {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 450px;
+  }
 
-.render-deferred-footer {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 240px;
+  .render-deferred-footer {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
+  }
 }

@@ -144,9 +144,9 @@ export default async function Home() {
 
   return (
     <div className="relative home-page max-w-full">
-      {/* Ambient background glows for infinite three-dimensional Dusk depth */}
-      <div className="absolute top-[80vh] left-1/4 -translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-violet-600/5 blur-[150px] pointer-events-none z-0" />
-      <div className="absolute top-[180vh] right-1/4 translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-indigo-600/5 blur-[150px] pointer-events-none z-0" />
+      {/* Ambient background glows — desktop only to save mobile GPU */}
+      <div className="hidden md:block absolute top-[80vh] left-1/4 -translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-violet-600/5 blur-[150px] pointer-events-none z-0" />
+      <div className="hidden md:block absolute top-[180vh] right-1/4 translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-indigo-600/5 blur-[150px] pointer-events-none z-0" />
 
       {/* ═══ HERO: Full-screen ═══ */}
       <section className="relative w-full h-[100svh] md:h-screen overflow-hidden">
@@ -247,7 +247,7 @@ export default async function Home() {
 
         {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
         {(collectionsMedia || collectionsMediaMobile) && (
-          <section className="render-deferred-media smooth-gpu mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[1.25rem] overflow-hidden shadow-lg border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
+          <section className="render-deferred-media mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[1.25rem] overflow-hidden shadow-lg border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
             {collectionsMedia && (
               <div className="hidden md:block absolute inset-0 w-full h-full">
                 <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
@@ -269,7 +269,7 @@ export default async function Home() {
         <div className="glass-divider my-8" />
 
         {/* ═══ COLLECTIONS CAROUSEL ═══ */}
-        <section className="render-deferred-carousel smooth-gpu py-8 max-w-6xl mx-auto overflow-hidden">
+        <section className="render-deferred-carousel py-8 max-w-6xl mx-auto overflow-hidden">
           {s?.showArchive && (
             <div className="flex justify-center mb-6 px-4">
               <span className="glass-label">— {archiveTitle} —</span>
@@ -285,7 +285,7 @@ export default async function Home() {
         
         {/* ═══ RING COLLECTION CAROUSEL ═══ */}
         {showRingCarousel && (
-          <div className="render-deferred-carousel smooth-gpu my-8">
+          <div className="render-deferred-carousel my-8">
             <RingCarouselSection 
               title={ringCarouselTitle} 
               itemsConfig={ringCarouselItems} 
@@ -294,7 +294,7 @@ export default async function Home() {
         )}
 
         {/* ═══ 3D FLIPBOOK SECTION ═══ */}
-        <div className="render-deferred-media smooth-gpu my-8 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto">
+        <div className="render-deferred-media my-8 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto">
           <FlipbookSection 
             imgUrl={flipbookImage}
             videoUrl={flipbookVideo}
@@ -317,7 +317,7 @@ export default async function Home() {
         {s?.showBlueprint && (
           <>
             {/* Desktop View (Landscape) */}
-            <section className="render-deferred-media smooth-gpu hidden md:block mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[21/9] rounded-[1.5rem] overflow-hidden group shadow-xl border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+            <section className="render-deferred-media hidden md:block mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[21/9] rounded-[1.5rem] overflow-hidden group shadow-xl border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
               {featuredMedia ? (
                 <LazyVideo
                   src={featuredMedia}
@@ -336,7 +336,7 @@ export default async function Home() {
             </section>
 
             {/* Mobile View (Portrait) */}
-            <section className="render-deferred-media smooth-gpu md:hidden mb-10 max-w-2xl mx-auto relative w-full aspect-[4/5] rounded-[1.5rem] overflow-hidden group shadow-xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+            <section className="render-deferred-media md:hidden mb-10 max-w-2xl mx-auto relative w-full aspect-[4/5] rounded-[1.5rem] overflow-hidden group shadow-xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
               {featuredMediaMobile ? (
                 <LazyVideo
                   src={featuredMediaMobile}
@@ -401,7 +401,7 @@ export default async function Home() {
 
         {/* ═══ FOOTER VIDEO ═══ */}
         {(footerVideo || footerVideoMobile) && (
-          <section className="render-deferred-media smooth-gpu relative my-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto aspect-[9/16] md:aspect-[21/9] rounded-[2rem] overflow-hidden group shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+          <section className="render-deferred-media relative my-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto aspect-[9/16] md:aspect-[21/9] rounded-[2rem] overflow-hidden group shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
             {footerVideo && (
               <div className="hidden md:block absolute inset-0 w-full h-full">
                 <LazyVideo

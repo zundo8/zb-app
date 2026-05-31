@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import NextImage from "next/image";
 import { handleImageError } from "./ImagePlaceholder";
 
@@ -12,59 +12,60 @@ interface LazyVideoProps {
 }
 
 export default function LazyVideo({ src, className, poster, fallbackImage }: LazyVideoProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isInView, setIsInView] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const mediaQuery = window.matchMedia("(max-width: 768px)");
-    setIsMobile(mediaQuery.matches);
+    const mq = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mq.matches);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // Observe visibility of the container (works on both mobile & desktop)
   useEffect(() => {
-    if (!mounted || isMobile) return;
+    if (!mounted) return;
+    const el = containerRef.current;
+    if (!el) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setIsInView(entry.isIntersecting);
+        setIsVisible(entry.isIntersecting);
+        // Once visible for the first time, mark as loaded so we keep the video element
+        if (entry.isIntersecting) setHasLoaded(true);
       },
-      { threshold: 0.1 } // Start playing when 10% visible
+      { rootMargin: "200px 0px", threshold: 0.01 }
     );
 
-    if (videoRef.current) {
-      observer.observe(videoRef.current);
-    }
+    observer.observe(el);
+    return () => observer.unobserve(el);
+  }, [mounted]);
 
-    return () => {
-      if (videoRef.current) {
-        observer.unobserve(videoRef.current);
-      }
-    };
-  }, [mounted, isMobile]);
-
+  // Play / pause based on visibility
   useEffect(() => {
-    if (videoRef.current && !isMobile) {
-      if (isInView) {
-        videoRef.current.play().catch(() => {});
-      } else {
-        videoRef.current.pause();
-      }
+    const video = videoRef.current;
+    if (!video) return;
+    if (isVisible) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
     }
-  }, [isInView, isMobile]);
+  }, [isVisible, hasLoaded]);
 
-  // SSR and Mobile viewports fallback
-  if (!mounted || isMobile) {
+  // SSR: show fallback or placeholder
+  if (!mounted) {
     if (fallbackImage) {
       return (
         <div className="relative w-full h-full">
           <NextImage
             src={fallbackImage}
-            alt="Section Media Fallback"
+            alt="Section Media"
             fill
             className="object-cover"
             onError={handleImageError}
@@ -72,21 +73,56 @@ export default function LazyVideo({ src, className, poster, fallbackImage }: Laz
         </div>
       );
     }
-    // Return empty placeholder if no fallback is available on mobile
-    return <div className="w-full h-full bg-foreground/[0.03] backdrop-blur-sm" />;
+    return <div className="w-full h-full bg-foreground/[0.03]" />;
+  }
+
+  // Mobile: show fallback image if available and video hasn't started loading yet
+  // But still render the container so IntersectionObserver can trigger
+  if (isMobile && fallbackImage && !hasLoaded) {
+    return (
+      <div ref={containerRef} className="relative w-full h-full">
+        <NextImage
+          src={fallbackImage}
+          alt="Section Media"
+          fill
+          className="object-cover"
+          onError={handleImageError}
+        />
+      </div>
+    );
   }
 
   return (
-    <video
-      ref={videoRef}
-      src={src}
-      className={className}
-      poster={poster}
-      muted
-      loop
-      playsInline
-      preload="none" // Don't preload until necessary
-    />
+    <div ref={containerRef} className="relative w-full h-full">
+      {/* Show fallback image behind video while it loads */}
+      {fallbackImage && (
+        <NextImage
+          src={fallbackImage}
+          alt="Section Media"
+          fill
+          className="object-cover"
+          onError={handleImageError}
+          style={{ zIndex: 0 }}
+        />
+      )}
+      {/* Only mount the video element once the section has been scrolled into view */}
+      {hasLoaded && (
+        <video
+          ref={videoRef}
+          src={src}
+          className={`${className || ""} relative`}
+          poster={poster}
+          muted
+          loop
+          playsInline
+          preload="none"
+          style={{ zIndex: 1 }}
+        />
+      )}
+      {/* If no fallback and not yet loaded, show a subtle placeholder */}
+      {!fallbackImage && !hasLoaded && (
+        <div className="w-full h-full bg-foreground/[0.02]" />
+      )}
+    </div>
   );
 }
-

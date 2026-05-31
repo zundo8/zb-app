@@ -147,12 +147,11 @@ function CollectionCard({
         damping: 32,
         mass: 1
       }}
-      className="absolute w-[65vw] max-w-[280px] md:w-[320px] md:max-w-none aspect-[3/4] rounded-[2rem] overflow-hidden shadow-xl origin-center select-none will-change-transform"
+      className="absolute w-[65vw] max-w-[280px] md:w-[320px] md:max-w-none aspect-[3/4] rounded-[2rem] overflow-hidden shadow-xl origin-center select-none"
       style={{
         zIndex: 10 - Math.round(Math.abs(diff)),
         pointerEvents: isActive ? "auto" : "all", // Keep click active for selection
         backfaceVisibility: "hidden",
-        WebkitBackdropFilter: "blur(10px)",
         userSelect: "none",
         WebkitUserDrag: "none",
       }}
