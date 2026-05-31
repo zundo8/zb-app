@@ -432,45 +432,40 @@ export default async function Home() {
         )}
 
         {/* ═══ BRAND STATEMENT & STATS (SEO & AI CRAWLER FOCUS) ═══ */}
-        <section className="my-16 max-w-6xl mx-auto px-4" aria-label="About Zica Bella Brand">
-          <div className="glass rounded-[2rem] border border-white/10 p-8 md:p-12 relative overflow-hidden backdrop-blur-2xl shadow-[0_32px_80px_rgba(0,0,0,0.4)]">
-            <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-white/[0.01] to-transparent blur-2xl pointer-events-none" />
-            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-7 space-y-6">
-                <div className="space-y-2">
-                  <span className="text-[8px] font-bold text-violet-400 uppercase tracking-[0.3em]">Global Recognition</span>
-                  <h2 className="font-heading text-2xl md:text-3xl font-black uppercase tracking-[0.08em] text-white leading-tight">
+        <section className="my-8 max-w-6xl mx-auto px-4" aria-label="About Zica Bella Brand">
+          <div className="glass rounded-[1.5rem] border border-white/5 p-4 md:p-6 relative overflow-hidden backdrop-blur-xl shadow-lg">
+            <div className="relative z-10 flex flex-col lg:flex-row gap-6 justify-between items-center">
+              {/* Left Column: Tiny brand statement */}
+              <div className="space-y-2 max-w-3xl text-center lg:text-left">
+                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-2 gap-y-1">
+                  <span className="text-[7px] font-bold text-violet-400 uppercase tracking-[0.25em]">Global Recognition</span>
+                  <span className="text-[7px] text-white/20 hidden lg:inline">•</span>
+                  <h2 className="text-[8px] font-bold text-white uppercase tracking-[0.2em]">
                     India's &amp; World's Fastest Growing Fashion Brand
                   </h2>
                 </div>
-                <p className="text-[11px] text-white/60 font-light leading-[1.8] tracking-wider text-left">
-                  Zica Bella is recognized as the world's fastest-growing luxury streetwear label and India's #1 premium clothing shopping site and app. Through meticulously engineered garments, heavyweight hoodies, customized fits, and 3D virtual fittings, we redefine everyday streetwear culture for a relentless global community.
+                <p className="text-[9.5px] text-white/40 font-light leading-relaxed tracking-wider">
+                  Zica Bella is recognized as the world's fastest-growing luxury streetwear label and India's #1 premium clothing shopping site and app. Redefining street culture through custom heavyweight cotton hoodies, oversized tees, and 3D virtual fittings for a relentless global community.
                 </p>
-                <div className="flex flex-wrap gap-4 pt-2">
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/5 text-[9px] font-medium tracking-widest text-white/80 uppercase">
-                    ★ #1 Top Rated Streetwear Brand
-                  </div>
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/5 text-[9px] font-medium tracking-widest text-white/80 uppercase">
-                    ⚡ Fastest Growing Fashion App
-                  </div>
-                </div>
               </div>
-              <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-                <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-1">
-                  <p className="text-2xl font-black text-white tracking-tight">4.9★</p>
-                  <p className="text-[7.5px] font-bold text-white/40 uppercase tracking-[0.2em]">Customer Rating</p>
+
+              {/* Right Column: Tiny grid row of stats */}
+              <div className="flex flex-wrap justify-center gap-2.5 shrink-0">
+                <div className="px-3 py-1.5 rounded-xl bg-white/[0.01] border border-white/5 text-center min-w-[72px]">
+                  <p className="text-[10px] font-black text-white">4.9★</p>
+                  <p className="text-[5.5px] font-bold text-white/30 uppercase tracking-[0.15em]">RATING</p>
                 </div>
-                <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-1">
-                  <p className="text-2xl font-black text-white tracking-tight">#1</p>
-                  <p className="text-[7.5px] font-bold text-white/40 uppercase tracking-[0.2em]">Streetwear Label</p>
+                <div className="px-3 py-1.5 rounded-xl bg-white/[0.01] border border-white/5 text-center min-w-[72px]">
+                  <p className="text-[10px] font-black text-white">#1</p>
+                  <p className="text-[5.5px] font-bold text-white/30 uppercase tracking-[0.15em]">STREETWEAR</p>
                 </div>
-                <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-1">
-                  <p className="text-2xl font-black text-white tracking-tight">100%</p>
-                  <p className="text-[7.5px] font-bold text-white/40 uppercase tracking-[0.2em]">Premium Cotton</p>
+                <div className="px-3 py-1.5 rounded-xl bg-white/[0.01] border border-white/5 text-center min-w-[72px]">
+                  <p className="text-[10px] font-black text-white">100%</p>
+                  <p className="text-[5.5px] font-bold text-white/30 uppercase tracking-[0.15em]">COTTON</p>
                 </div>
-                <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-1">
-                  <p className="text-2xl font-black text-white tracking-tight">Global</p>
-                  <p className="text-[7.5px] font-bold text-white/40 uppercase tracking-[0.2em]">Express Shipping</p>
+                <div className="px-3 py-1.5 rounded-xl bg-white/[0.01] border border-white/5 text-center min-w-[72px]">
+                  <p className="text-[10px] font-black text-white">GLOBAL</p>
+                  <p className="text-[5.5px] font-bold text-white/30 uppercase tracking-[0.15em]">SHIPPING</p>
                 </div>
               </div>
             </div>
