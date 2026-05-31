@@ -139,59 +139,59 @@ export default function ProfilePage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 0.95, y: 0 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="relative rounded-[2rem] overflow-hidden mb-5 p-6 glass-panel border-white/10 shadow-2xl bg-white/[0.01]"
+          className="relative rounded-[2rem] overflow-hidden mb-5 p-6 glass-panel border-foreground/10 shadow-2xl bg-foreground/[0.01]"
         >
           {/* Ambient glow */}
-          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 30% 0%, rgba(255,255,255,0.03) 0%, transparent 70%)" }} />
+          <div className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-100" style={{ background: "radial-gradient(ellipse at 30% 0%, rgba(255,255,255,0.03) 0%, transparent 70%)" }} />
 
           <div className="flex items-center gap-5 relative z-10">
             {/* Avatar */}
             <div className="relative shrink-0">
-              <div className="w-20 h-20 rounded-[1.5rem] border border-white/10 overflow-hidden relative group/img bg-white/[0.02]">
+              <div className="w-20 h-20 rounded-[1.5rem] border border-foreground/10 overflow-hidden relative group/img bg-foreground/[0.02]">
                 {uploading && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20 backdrop-blur-sm">
-                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-20 backdrop-blur-sm">
+                    <Loader2 className="w-5 h-5 text-foreground animate-spin" />
                   </div>
                 )}
                 {customer?.image || session.user?.image ? (
                   <img src={customer?.image || session.user?.image || ""} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <User className="w-8 h-8 text-white/30" />
+                    <User className="w-8 h-8 text-foreground/30" />
                   </div>
                 )}
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 bg-black/0 group-hover/img:bg-black/30 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-all"
+                  className="absolute inset-0 bg-foreground/0 group-hover/img:bg-foreground/10 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-all"
                 >
-                  <Camera className="w-4 h-4 text-white/70" />
+                  <Camera className="w-4 h-4 text-foreground/70" />
                 </button>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-xl bg-white flex items-center justify-center border-2 border-black shadow-lg">
-                <Sparkles className="w-2.5 h-2.5 text-black" />
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-xl bg-foreground flex items-center justify-center border-2 border-background shadow-lg">
+                <Sparkles className="w-2.5 h-2.5 text-background" />
               </div>
             </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <h1 className="text-[17px] font-bold tracking-tight text-white/90 truncate leading-tight">{name}</h1>
+              <h1 className="text-[17px] font-bold tracking-tight text-foreground/90 truncate leading-tight">{name}</h1>
               {email && (
-                <p className="text-[10px] text-white/50 truncate tracking-wide mt-0.5">{email}</p>
+                <p className="text-[10px] text-foreground/50 truncate tracking-wide mt-0.5">{email}</p>
               )}
               <div className="flex items-center gap-3 mt-1.5">
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-white/80">{customer?.followersCount || 0}</span>
-                  <span className="text-[10px] text-white/35 font-medium text-glass-secondary">Followers</span>
+                  <span className="text-[11px] font-bold text-foreground/80">{customer?.followersCount || 0}</span>
+                  <span className="text-[10px] text-foreground/35 font-medium text-glass-secondary">Followers</span>
                 </div>
-                <div className="w-1 h-1 rounded-full bg-white/10" />
+                <div className="w-1 h-1 rounded-full bg-foreground/10" />
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-white/80">{customer?.followingCount || 0}</span>
-                  <span className="text-[10px] text-white/35 font-medium text-glass-secondary">Following</span>
+                  <span className="text-[11px] font-bold text-foreground/80">{customer?.followingCount || 0}</span>
+                  <span className="text-[10px] text-foreground/35 font-medium text-glass-secondary">Following</span>
                 </div>
               </div>
               <div className="mt-3 flex items-center gap-3">
-                <span className="px-2.5 py-1 rounded-full text-[7px] font-bold uppercase tracking-widest border border-white/10 text-white/60">
+                <span className="px-2.5 py-1 rounded-full text-[7px] font-bold uppercase tracking-widest border border-foreground/10 text-foreground/60">
                   Silver Member
                 </span>
               </div>
@@ -207,11 +207,11 @@ export default function ProfilePage() {
             ].map(({ label, value, icon: Icon }) => (
               <div
                 key={label}
-                className="flex flex-col items-center justify-center py-3 rounded-[1rem] glass-panel border-white/5 bg-white/[0.01] hover:bg-white/[0.03]"
+                className="flex flex-col items-center justify-center py-3 rounded-[1rem] glass-panel border-foreground/5 bg-foreground/[0.01] hover:bg-foreground/[0.03]"
               >
-                <Icon className="w-3.5 h-3.5 text-white/20 mb-1.5" />
-                <p className="text-[11px] font-bold text-white/80 leading-none">{value}</p>
-                <p className="text-[7px] font-medium text-white/20 uppercase tracking-wide mt-0.5">{label}</p>
+                <Icon className="w-3.5 h-3.5 text-foreground/20 mb-1.5" />
+                <p className="text-[11px] font-bold text-foreground/80 leading-none">{value}</p>
+                <p className="text-[7px] font-medium text-foreground/20 uppercase tracking-wide mt-0.5">{label}</p>
               </div>
             ))}
           </div>
@@ -219,14 +219,14 @@ export default function ProfilePage() {
 
         {/* ─── Tab Switcher ─── */}
         <div
-          className="flex rounded-[1rem] p-1 mb-4 glass-panel border-white/5 bg-white/[0.01]"
+          className="flex rounded-[1rem] p-1 mb-4 glass-panel border-foreground/5 bg-foreground/[0.01]"
         >
           {(["orders", "wishlist", "info"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={`flex-1 py-2 rounded-[0.75rem] text-[8px] font-bold uppercase tracking-[0.15em] transition-all ${
-                tab === t ? "bg-white text-black font-bold shadow-lg" : "text-white/40 hover:text-white/65"
+                tab === t ? "bg-foreground text-background font-bold shadow-lg" : "text-foreground/40 hover:text-foreground/65"
               }`}
             >
               {t === "orders" ? "Orders" : t === "wishlist" ? "Wishlist" : "Account"}
@@ -239,8 +239,8 @@ export default function ProfilePage() {
           {tab === "orders" && (
             <motion.div key="orders" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
               <div className="flex items-center justify-between mb-3 px-1">
-                <span className="text-[8px] font-semibold uppercase tracking-[0.3em] text-white/40">Order History</span>
-                <Link href="/orders" className="flex items-center gap-1 text-[8px] font-bold text-white/60 hover:text-white/80 transition-colors">
+                <span className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Order History</span>
+                <Link href="/orders" className="flex items-center gap-1 text-[8px] font-bold text-foreground/60 hover:text-foreground/80 transition-colors">
                   All <ArrowUpRight className="w-3 h-3" />
                 </Link>
               </div>
@@ -253,36 +253,36 @@ export default function ProfilePage() {
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.07 }}
-                        className="flex items-center gap-4 p-4 rounded-[1.25rem] glass-panel border-white/5 hover:border-white/10 bg-white/[0.01] hover:bg-white/[0.03] transition-all group"
+                        className="flex items-center gap-4 p-4 rounded-[1.25rem] glass-panel border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] hover:bg-foreground/[0.03] transition-all group"
                       >
-                        <div className="w-11 h-11 rounded-[0.75rem] bg-white/[0.02] border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="w-11 h-11 rounded-[0.75rem] bg-foreground/[0.02] border border-foreground/5 flex items-center justify-center shrink-0 overflow-hidden">
                           {order.items?.[0]?.image ? (
                             <img src={order.items[0].image} className="w-full h-full object-cover" alt="" />
                           ) : (
-                            <Package className="w-4 h-4 text-white/10" />
+                            <Package className="w-4 h-4 text-foreground/10" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-white/80 truncate">
+                          <p className="text-[10px] font-bold text-foreground/80 truncate">
                             #{order.shopifyOrderId?.slice(-6) || order.id.slice(-6)}
                           </p>
-                          <p className="flex items-center gap-1 text-[8px] text-white/40 mt-0.5">
+                          <p className="flex items-center gap-1 text-[8px] text-foreground/40 mt-0.5">
                             <Clock className="w-2.5 h-2.5" />
                             {new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                           </p>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-[11px] font-bold text-white/85">₹{order.totalPrice.toLocaleString("en-IN")}</p>
-                          <ChevronRight className="w-3 h-3 ml-auto mt-0.5 text-white/20 group-hover:text-white/60 transition-colors" />
+                          <p className="text-[11px] font-bold text-foreground/85">₹{order.totalPrice.toLocaleString("en-IN")}</p>
+                          <ChevronRight className="w-3 h-3 ml-auto mt-0.5 text-foreground/20 group-hover:text-foreground/60 transition-colors" />
                         </div>
                       </motion.div>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <div className="py-16 text-center rounded-[1.5rem] border border-dashed border-white/10 bg-white/[0.01]">
-                  <Package className="w-8 h-8 text-white/20 mx-auto mb-3" />
-                  <p className="text-[8px] font-semibold uppercase tracking-widest text-white/20">No orders yet</p>
+                <div className="py-16 text-center rounded-[1.5rem] border border-dashed border-foreground/10 bg-foreground/[0.01]">
+                  <Package className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
+                  <p className="text-[8px] font-semibold uppercase tracking-widest text-foreground/20">No orders yet</p>
                 </div>
               )}
             </motion.div>
@@ -291,8 +291,8 @@ export default function ProfilePage() {
           {tab === "wishlist" && (
             <motion.div key="wishlist" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
               <div className="flex items-center justify-between mb-3 px-1">
-                <span className="text-[8px] font-semibold uppercase tracking-[0.3em] text-white/40">Saved Items</span>
-                <Link href="/wishlist" className="flex items-center gap-1 text-[8px] font-bold text-white/60 hover:text-white/80 transition-colors">
+                <span className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Saved Items</span>
+                <Link href="/wishlist" className="flex items-center gap-1 text-[8px] font-bold text-foreground/60 hover:text-foreground/80 transition-colors">
                   All <ArrowUpRight className="w-3 h-3" />
                 </Link>
               </div>
@@ -301,7 +301,7 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-2 gap-2">
                   {bookmarks.slice(0, 6).map((item) => (
                     <Link key={item.id} href={`/products/${item.handle}`}>
-                      <div className="aspect-[4/5] rounded-[1.25rem] overflow-hidden relative group border border-white/5 hover:border-white/10 bg-white/[0.01]">
+                      <div className="aspect-[4/5] rounded-[1.25rem] overflow-hidden relative group border border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01]">
                         <img
                           src={item.image?.src || "/zb-logo-220px.png"}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
@@ -316,9 +316,9 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <div className="py-16 text-center rounded-[1.5rem] border border-dashed border-white/10 bg-white/[0.01]">
-                  <Bookmark className="w-8 h-8 text-white/20 mx-auto mb-3" />
-                  <p className="text-[8px] font-semibold uppercase tracking-widest text-white/20">Nothing saved yet</p>
+                <div className="py-16 text-center rounded-[1.5rem] border border-dashed border-foreground/10 bg-foreground/[0.01]">
+                  <Bookmark className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
+                  <p className="text-[8px] font-semibold uppercase tracking-widest text-foreground/20">Nothing saved yet</p>
                 </div>
               )}
             </motion.div>
@@ -328,9 +328,9 @@ export default function ProfilePage() {
             <motion.div key="info" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="space-y-3">
 
               {/* Region Picker */}
-              <div className="rounded-[1.5rem] overflow-hidden glass-panel border-white/5 bg-white/[0.01]">
-                <div className="px-4 py-3 border-b border-white/5 bg-white/[0.02]">
-                  <p className="text-[8px] font-semibold uppercase tracking-[0.3em] text-white/40">Region</p>
+              <div className="rounded-[1.5rem] overflow-hidden glass-panel border-foreground/5 bg-foreground/[0.01]">
+                <div className="px-4 py-3 border-b border-foreground/5 bg-foreground/[0.02]">
+                  <p className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Region</p>
                 </div>
                 <div className="p-3 grid grid-cols-2 gap-2">
                   {[
@@ -342,15 +342,15 @@ export default function ProfilePage() {
                       onClick={() => handleUpdateRegion(r.id)}
                       className={`flex items-center justify-between px-4 py-3 rounded-[1rem] border transition-all text-left ${
                         customer?.region === r.id
-                          ? "bg-white border-transparent text-black font-bold shadow-lg"
-                          : "border-white/5 text-white/50 hover:bg-white/[0.03] hover:text-white/85"
+                          ? "bg-foreground border-transparent text-background font-bold shadow-lg"
+                          : "border-foreground/5 text-foreground/50 hover:bg-foreground/[0.03] hover:text-foreground/85"
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-base">{r.flag}</span>
                         <span className="text-[9px] font-bold uppercase tracking-wide">{r.name}</span>
                       </div>
-                      {customer?.region === r.id && <Check className="w-3 h-3 text-black" />}
+                      {customer?.region === r.id && <Check className="w-3.5 h-3.5 text-background" />}
                     </button>
                   ))}
                 </div>
@@ -359,25 +359,25 @@ export default function ProfilePage() {
               {/* The Collective */}
               <Link href="/community" className="block">
                 <div
-                  className="flex items-center justify-between p-4 rounded-[1.5rem] group transition-all glass-panel border-white/5 hover:border-white/10 bg-white/[0.01] hover:bg-white/[0.03]"
+                  className="flex items-center justify-between p-4 rounded-[1.5rem] group transition-all glass-panel border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] hover:bg-foreground/[0.03]"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-[0.75rem] bg-white/5 flex items-center justify-center border border-white/10">
-                      <Shield className="w-4 h-4 text-white" />
+                    <div className="w-10 h-10 rounded-[0.75rem] bg-foreground/5 flex items-center justify-center border border-foreground/10">
+                      <Shield className="w-4 h-4 text-foreground" />
                     </div>
                     <div>
-                      <p className="text-[11px] font-bold text-white uppercase tracking-wide">The Collective</p>
-                      <p className="text-[8px] text-white/40 uppercase tracking-tight font-medium mt-0.5">Verified Member Access</p>
+                      <p className="text-[11px] font-bold text-foreground uppercase tracking-wide">The Collective</p>
+                      <p className="text-[8px] text-foreground/40 uppercase tracking-tight font-medium mt-0.5">Verified Member Access</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-white/45 group-hover:text-white/70 group-hover:translate-x-0.5 transition-transform" />
+                  <ChevronRight className="w-4 h-4 text-foreground/45 group-hover:text-foreground/70 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
 
               {/* Sign Out */}
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="w-full py-4 rounded-[1.5rem] text-[9px] font-bold uppercase tracking-[0.3em] text-white/40 hover:text-white/85 bg-white/[0.01] hover:bg-red-950/10 border border-white/5 hover:border-red-900/20 transition-all active:scale-[0.98]"
+                className="w-full py-4 rounded-[1.5rem] text-[9px] font-bold uppercase tracking-[0.3em] text-foreground/40 hover:text-foreground/85 bg-foreground/[0.01] hover:bg-red-950/10 border border-foreground/5 hover:border-red-900/20 transition-all active:scale-[0.98]"
               >
                 Sign Out
               </button>
@@ -385,8 +385,6 @@ export default function ProfilePage() {
           )}
         </AnimatePresence>
       </main>
-
-
     </div>
   );
 }

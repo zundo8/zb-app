@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Sparkles,
   Calendar,
-  X
+  X,
+  ShoppingBag
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";

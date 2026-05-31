@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft,
   User,
@@ -52,17 +52,20 @@ interface Order {
   createdAt: string;
 }
 
-export default function WebStoreCustomerDetail({ params }: { params: { id: string } }) {
+export default function WebStoreCustomerDetail() {
   const router = useRouter();
+  const params = useParams();
+  const customerId = params?.id as string;
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchCustomerDetail() {
+      if (!customerId) return;
       setLoading(true);
       try {
-        const res = await fetch(`/api/web-store/customers/${params.id}`);
+        const res = await fetch(`/api/web-store/customers/${customerId}`);
         if (!res.ok) throw new Error("Customer profile not found");
         const data = await res.json();
         
@@ -89,7 +92,7 @@ export default function WebStoreCustomerDetail({ params }: { params: { id: strin
       }
     }
     fetchCustomerDetail();
-  }, [params.id]);
+  }, [customerId]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {

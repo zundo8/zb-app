@@ -5,6 +5,8 @@ import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
@@ -13,6 +15,10 @@ export async function GET(
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!UUID_REGEX.test(params.id)) {
+      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
     }
 
     // Fetch customer details

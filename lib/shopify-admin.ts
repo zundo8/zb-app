@@ -21,7 +21,7 @@ import {
 export { getShopConfig, shopifyFetch, adminUrl, headers, clearShopConfigCache, shopifyPatch };
 
 const pageCache = new Map<string, { data: any, nextPageUrl?: string, timestamp: number }>();
-const PAGE_CACHE_TTL = 10000; // 10 seconds
+const PAGE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function shopifyFetchPage<T>(urlStr: string): Promise<{ data: T; nextPageUrl?: string }> {
   const now = Date.now();

@@ -81,7 +81,7 @@ export default function ZicaAIWidget() {
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.92 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-5 right-5 z-[100] w-10 h-10 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all duration-300 group apple-glass-capsule liquid-glass-hover-sweep"
+            className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] md:bottom-5 right-4 md:right-5 z-[100] w-10 h-10 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all duration-300 group apple-glass-capsule liquid-glass-hover-sweep"
             aria-label="Zica AI"
           >
             <div className="apple-glass-sweep-glow" />
@@ -98,7 +98,7 @@ export default function ZicaAIWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 40, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed bottom-4 right-4 lg:bottom-6 lg:right-6 w-[calc(100vw-2rem)] max-w-[420px] h-[min(640px,calc(100dvh-3rem))] rounded-[1.75rem] z-[100] flex flex-col overflow-hidden transition-all duration-500 apple-glass-capsule"
+            className="fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full md:w-[calc(100vw-2rem)] md:max-w-[420px] h-[100dvh] md:h-[min(640px,calc(100dvh-3rem))] rounded-none md:rounded-[1.75rem] z-[100] flex flex-col overflow-hidden transition-all duration-500 apple-glass-capsule"
           >
             {/* Header */}
             <div className="relative z-10 flex items-center justify-between px-5 py-3 shrink-0 transition-colors duration-500"

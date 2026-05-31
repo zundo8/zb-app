@@ -15,12 +15,14 @@ const DEFAULTS = {
 interface FlipbookProps {
   imgUrl?: string;
   videoUrl?: string;
+  imgUrlMobile?: string;
+  videoUrlMobile?: string;
   tag?: string;
   title?: string;
   desc?: string;
 }
 
-export default function FlipbookSection({ imgUrl, videoUrl, tag, title, desc }: FlipbookProps) {
+export default function FlipbookSection({ imgUrl, videoUrl, imgUrlMobile, videoUrlMobile, tag, title, desc }: FlipbookProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const displayImg   = imgUrl   || DEFAULTS.imgUrl;
@@ -51,63 +53,41 @@ export default function FlipbookSection({ imgUrl, videoUrl, tag, title, desc }: 
   const imageScale   = useTransform(smoothProgress, [0, 0.5, 1], [1.05, 1, 1.05]);
   const textY        = useTransform(smoothProgress, [0, 0.3], [15, 0]);
 
-  const showVideo = mounted && !isMobile && videoUrl;
+  const activeVideo  = isMobile ? (videoUrlMobile || videoUrl) : videoUrl;
+  const activeImg    = isMobile ? (imgUrlMobile || displayImg) : displayImg;
+  const showVideo    = mounted && !!activeVideo;
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full overflow-hidden bg-background"
-      style={{ padding: "60px 0 40px" }}
+      className="relative w-full overflow-hidden bg-transparent py-4 md:py-8"
     >
-      <div className="max-w-[1200px] mx-auto px-4 flex flex-col items-center">
-
-        {/* Tag */}
-        <div className="text-center mb-8">
-          <span className="text-[7px] font-semibold uppercase tracking-[1em] text-foreground/40">{displayTag}</span>
-          <div className="w-5 h-[1px] bg-foreground/15 mx-auto mt-2.5" />
-        </div>
+      <div className="max-w-[1400px] mx-auto px-4">
 
         {/* Card */}
-        <div className="relative w-full max-w-[360px] mx-auto overflow-visible">
-          <div className="relative w-full aspect-[3/4.2] rounded-[2.5rem] overflow-hidden shadow-2xl border border-foreground/[0.03]">
-            
-            {/* Media */}
-            <motion.div className="absolute inset-0" style={{ scale: imageScale, opacity: 1 }}>
-              {showVideo ? (
-                <video
-                  src={videoUrl}
-                  autoPlay loop muted playsInline
-                  className="w-full h-full object-cover"
+        <div className="relative w-full max-w-[360px] md:max-w-6xl lg:max-w-[1400px] mx-auto overflow-hidden rounded-[1.5rem] shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04] aspect-[3/4.2] md:aspect-[21/9]">
+          
+          {/* Media */}
+          <motion.div className="absolute inset-0 will-change-transform" style={{ scale: imageScale, opacity: 1 }}>
+            {showVideo && activeVideo ? (
+              <video
+                src={activeVideo}
+                autoPlay loop muted playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="relative w-full h-full">
+                <NextImage
+                  src={activeImg}
+                  alt={displayTitle}
+                  fill
+                  className="object-cover transition-opacity duration-700"
+                  sizes="(max-width: 768px) 400px, 1200px"
+                  onError={handleImageError}
                 />
-              ) : (
-                <div className="relative w-full h-full">
-                  <NextImage
-                    src={displayImg}
-                    alt={displayTitle}
-                    fill
-                    className="object-cover transition-opacity duration-700"
-                    sizes="400px"
-                    onError={handleImageError}
-                  />
-                </div>
-              )}
-              <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-            </motion.div>
-
-            {/* Text Content */}
-            <motion.div
-              className="absolute inset-x-6 bottom-8 z-20 text-center"
-              style={{ opacity: 1, y: textY }}
-            >
-              <h3 className="font-heading text-[12px] font-bold text-white uppercase tracking-[0.2em] leading-tight mb-2.5 drop-shadow-md">
-                {displayTitle}
-              </h3>
-              <div className="w-5 h-[1.5px] bg-white/20 mx-auto mb-3" />
-              <p className="text-white/45 text-[7px] font-light leading-relaxed uppercase tracking-[0.35em] max-w-[200px] mx-auto drop-shadow-sm">
-                {displayDesc}
-              </p>
-            </motion.div>
-          </div>
+              </div>
+            )}
+          </motion.div>
         </div>
 
       </div>

@@ -49,6 +49,12 @@ model Shop {
   featuredMedia            String?
   collectionsMedia         String?
   footerVideo              String?
+  featuredMediaMobile      String?
+  featuredMediaImageMobile String?
+  collectionsMediaMobile   String?
+  flipbookImageMobile      String?
+  flipbookVideoMobile      String?
+  footerVideoMobile        String?
   mainMenuHandle           String?
   secondaryMenuHandle      String?
   showTreeText             Boolean    @default(true)

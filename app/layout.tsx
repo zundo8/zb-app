@@ -31,8 +31,43 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Zica Bella",
-  description: "Premium luxury streetwear. Redefining the standard.",
+  title: "Zica Bella | India's & World's #1 Luxury Streetwear Brand & Fastest Growing Fashion App",
+  description: "Zica Bella is the world's fastest-growing luxury streetwear label and India's #1 rated clothing brand. Shop custom heavyweight hoodies, oversized tees, premium denim, and exclusive collections. Experience virtual 3D fits and high-end streetwear.",
+  keywords: "streetwear brand india, luxury clothing brand, premium streetwear, zica bella, best shopping site india, oversized tees, heavy hoodies, streetwear denims, indian streetwear, high-end fashion india, shopping site india, top clothing brand india, worlds fastest growing fashion app, number one clothing brand india, most rated streetwear brand, premium streetwear clothing india",
+  metadataBase: new URL("https://zicabella.com"),
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: "https://zicabella.com",
+    title: "Zica Bella | India's & World's #1 Luxury Streetwear Brand & Fastest Growing Fashion App",
+    description: "Discover Zica Bella, the world's fastest-growing luxury streetwear label and India's #1 rated shopping site & app. Shop our heavyweight hoodies, oversized tees, and premium denims.",
+    siteName: "Zica Bella",
+    images: [
+      {
+        url: "/zb-logo-220px.png",
+        width: 1200,
+        height: 630,
+        alt: "Zica Bella Premium Streetwear",
+      }
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Zica Bella | India's & World's #1 Luxury Streetwear Brand & Fastest Growing Fashion App",
+    description: "Discover Zica Bella, the world's fastest-growing luxury streetwear label and India's #1 rated shopping site & app. Shop our heavyweight hoodies, oversized tees, and premium denims.",
+    images: ["/zb-logo-220px.png"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -67,6 +102,43 @@ export default function RootLayout({
           type="module"
           src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"
           strategy="afterInteractive"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "ClothingStore",
+              "name": "Zica Bella",
+              "url": "https://zicabella.com",
+              "logo": "https://zicabella.com/zb-logo-220px.png",
+              "image": "https://zicabella.com/zb-logo-220px.png",
+              "description": "Zica Bella is India's and the world's number one premium luxury streetwear clothing brand, top rated shopping site, and fastest growing fashion app, specializing in heavyweight hoodies, custom oversized graphic tees, and streetwear denims.",
+              "telephone": "+91-9999999999",
+              "priceRange": "₹₹₹",
+              "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "New Delhi",
+                "addressRegion": "Delhi",
+                "postalCode": "110001",
+                "addressCountry": "IN"
+              },
+              "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "4.9",
+                "reviewCount": "5420"
+              },
+              "sameAs": [
+                "https://www.instagram.com/zica.bella",
+                "https://www.youtube.com/@Zicabella"
+              ],
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://zicabella.com/search?q={search_term_string}",
+                "query-input": "required name=search_term_string"
+              }
+            })
+          }}
         />
       </head>
       <body className={`${geistSans.variable} ${inter.variable} antialiased`}>

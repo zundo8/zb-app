@@ -41,8 +41,12 @@ interface SettingsData {
   showBlueprint: boolean;
   featuredMedia: string;
   featuredMediaImage: string;
+  featuredMediaMobile: string;
+  featuredMediaImageMobile: string;
   collectionsMedia: string;
+  collectionsMediaMobile: string;
   footerVideo: string;
+  footerVideoMobile: string;
   mainMenuHandle: string;
   secondaryMenuHandle: string;
   showTreeText: boolean;
@@ -59,7 +63,9 @@ interface SettingsData {
   enabledCollectionsPage: string;
   enabledCollectionsMenu: string;
   flipbookImage: string;
+  flipbookImageMobile: string;
   flipbookVideo: string;
+  flipbookVideoMobile: string;
   flipbookTitle: string;
   flipbookTag: string;
   flipbookDesc: string;
@@ -294,13 +300,14 @@ export default function WebStorefrontSettingsPage() {
         'showArchive', 'showBlueprint', 'showProductVideo', 'showSizeChart',
         'showBrand', 'showShippingReturn', 'showCare', 'showSizeFit', 'showDetails',
         'pdpBackground', 'instagramUrl', 'appleUrl', 'spotifyUrl', 'youtubeUrl',
-        'featuredMedia', 'featuredMediaImage', 'collectionsMedia', 'footerVideo',
+        'featuredMedia', 'featuredMediaImage', 'featuredMediaMobile', 'featuredMediaImageMobile',
+        'collectionsMedia', 'collectionsMediaMobile', 'footerVideo', 'footerVideoMobile',
         'mainMenuHandle', 'secondaryMenuHandle', 'showTreeText', 'showCommunity',
         'communityTitle', 'communitySubtitle', 'spotlightTitle', 'spotlightSubtitle',
         'spotlightCollection', 'spotlightProducts',
         'kineticMeshTitle', 'kineticMeshProducts', 'enabledCollectionsHeader', 
         'enabledCollectionsPage', 'enabledCollectionsMenu',
-        'flipbookImage', 'flipbookVideo', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
+        'flipbookImage', 'flipbookImageMobile', 'flipbookVideo', 'flipbookVideoMobile', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
         'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl',
         'homepageCollection', 'homepageProducts'
     ];
@@ -386,11 +393,29 @@ export default function WebStorefrontSettingsPage() {
           <SettingsRow label="Mobile Hero Video" icon={Video} description="Mobile background MP4 link">
              <MediaPicker value={settings.heroVideoMobile!} onChange={set('heroVideoMobile')} label="Mobile Hero Video" type="video" />
           </SettingsRow>
-          <SettingsRow label="Footer Video" icon={Video} description="Footer video background">
-             <MediaPicker value={settings.footerVideo!} onChange={set('footerVideo')} label="Footer Video" type="video" />
+          <SettingsRow label="Footer Video (Desktop)" icon={Video} description="Desktop footer video (landscape)">
+             <MediaPicker value={settings.footerVideo!} onChange={set('footerVideo')} label="Footer Video (Desktop)" type="video" />
           </SettingsRow>
-          <SettingsRow label="Featured Media" icon={ImageIcon} description="Image above Spotlight section">
-             <MediaPicker value={settings.featuredMediaImage!} onChange={set('featuredMediaImage')} label="Featured Media Image" type="image" />
+          <SettingsRow label="Footer Video (Mobile)" icon={Video} description="Mobile footer video (portrait)">
+             <MediaPicker value={settings.footerVideoMobile!} onChange={set('footerVideoMobile')} label="Footer Video (Mobile)" type="video" />
+          </SettingsRow>
+          <SettingsRow label="Collections Video (Desktop)" icon={Video} description="Desktop collection background (landscape)">
+             <MediaPicker value={settings.collectionsMedia!} onChange={set('collectionsMedia')} label="Collections Video (Desktop)" type="video" />
+          </SettingsRow>
+          <SettingsRow label="Collections Video (Mobile)" icon={Video} description="Mobile collection background (portrait)">
+             <MediaPicker value={settings.collectionsMediaMobile!} onChange={set('collectionsMediaMobile')} label="Collections Video (Mobile)" type="video" />
+          </SettingsRow>
+          <SettingsRow label="Featured Media Image (Desktop)" icon={ImageIcon} description="Desktop featured image fallback">
+             <MediaPicker value={settings.featuredMediaImage!} onChange={set('featuredMediaImage')} label="Featured Media Image (Desktop)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Featured Media Video (Desktop)" icon={Video} description="Desktop featured video (landscape)">
+             <MediaPicker value={settings.featuredMedia!} onChange={set('featuredMedia')} label="Featured Media Video (Desktop)" type="video" />
+          </SettingsRow>
+          <SettingsRow label="Featured Media Image (Mobile)" icon={ImageIcon} description="Mobile featured image fallback">
+             <MediaPicker value={settings.featuredMediaImageMobile!} onChange={set('featuredMediaImageMobile')} label="Featured Media Image (Mobile)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Featured Media Video (Mobile)" icon={Video} description="Mobile featured video (portrait)">
+             <MediaPicker value={settings.featuredMediaMobile!} onChange={set('featuredMediaMobile')} label="Featured Media Video (Mobile)" type="video" />
           </SettingsRow>
           <SettingsRow label="Featured Media Title" description="Main overlay text">
              <InputField value={settings.blueprintTitle!} onChange={set('blueprintTitle')} placeholder="e.g. The Blueprint" />
@@ -483,11 +508,17 @@ export default function WebStorefrontSettingsPage() {
                 Configure the web scroll reveal feature section.
              </p>
           </div>
-          <SettingsRow label="Image URL" icon={ImageIcon} description="Main revealing image (used if no video)">
-             <MediaPicker value={settings.flipbookImage!} onChange={set('flipbookImage')} label="Flipbook Image" type="image" />
+          <SettingsRow label="Image URL (Desktop)" icon={ImageIcon} description="Desktop revealing image (landscape)">
+             <MediaPicker value={settings.flipbookImage!} onChange={set('flipbookImage')} label="Flipbook Image (Desktop)" type="image" />
           </SettingsRow>
-          <SettingsRow label="Video URL" icon={Video} description="MP4 video for reveal (overrides image)">
-             <MediaPicker value={settings.flipbookVideo!} onChange={set('flipbookVideo')} label="Flipbook Video" type="video" />
+          <SettingsRow label="Video URL (Desktop)" icon={Video} description="Desktop revealing video (landscape)">
+             <MediaPicker value={settings.flipbookVideo!} onChange={set('flipbookVideo')} label="Flipbook Video (Desktop)" type="video" />
+          </SettingsRow>
+          <SettingsRow label="Image URL (Mobile)" icon={ImageIcon} description="Mobile revealing image (portrait)">
+             <MediaPicker value={settings.flipbookImageMobile!} onChange={set('flipbookImageMobile')} label="Flipbook Image (Mobile)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Video URL (Mobile)" icon={Video} description="Mobile revealing video (portrait)">
+             <MediaPicker value={settings.flipbookVideoMobile!} onChange={set('flipbookVideoMobile')} label="Flipbook Video (Mobile)" type="video" />
           </SettingsRow>
           <SettingsRow label="Label Tag" description="Small tag above title">
              <InputField value={settings.flipbookTag!} onChange={set('flipbookTag')} placeholder="e.g. Core Manifest" />

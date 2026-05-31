@@ -2,8 +2,26 @@ import { fetchEnabledCollections } from "@/lib/shopify-admin";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import Image from "next/image";
+import { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Curated Collections | Luxury Streetwear - Zica Bella",
+  description: "Browse Zica Bella's curated luxury streetwear collections. Explore custom oversized tees, heavyweight hoodies, premium denim, and limited capsule drops.",
+  keywords: "zica bella collections, luxury streetwear collections, streetwear hoodies, oversized tees, streetwear brand india, premium denim, limited drop fashion",
+  openGraph: {
+    title: "Curated Collections | Luxury Streetwear - Zica Bella",
+    description: "Browse Zica Bella's curated luxury streetwear collections. Explore custom oversized tees, heavyweight hoodies, premium denim, and limited capsule drops.",
+    url: "https://zicabella.com/collections",
+    images: [
+      {
+        url: "/zb-logo-220px.png",
+        alt: "Zica Bella Collections",
+      }
+    ],
+  },
+};
 
 export default async function CollectionsPage() {
   const collections = await fetchEnabledCollections('page', 'zicabella.com');

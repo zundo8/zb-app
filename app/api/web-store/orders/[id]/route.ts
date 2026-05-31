@@ -5,6 +5,8 @@ import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // GET: Fetch details of a single web store order
 export async function GET(
   _request: Request,
@@ -14,6 +16,10 @@ export async function GET(
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!UUID_REGEX.test(params.id)) {
+      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
     }
 
     const order = await prisma.webStoreOrder.findUnique({
@@ -40,6 +46,10 @@ export async function PATCH(
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!UUID_REGEX.test(params.id)) {
+      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
     }
 
     const body = await request.json();

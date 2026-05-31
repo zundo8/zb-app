@@ -64,60 +64,119 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
   return (
     <>
       {/* ── Desktop Header Pill (md and up) ── */}
-      <header className="hidden md:flex fixed top-0 left-0 w-full z-50 px-8 h-16 items-center justify-between pointer-events-auto apple-glass-capsule rounded-none border-x-0 border-t-0 shadow-[0_4px_30px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.35)]">
-        {/* Sweep Glow Overlay */}
-        <div className="apple-glass-sweep-glow" />
-
+      <header className="hidden md:flex fixed top-5 left-1/2 -translate-x-1/2 w-[calc(100%-4rem)] max-w-6xl z-50 px-6 h-14 items-center justify-between pointer-events-auto bg-white/75 dark:bg-white/[0.04] backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-[0_12px_45px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.55)] rounded-full transition-all duration-300">
         {/* Left: Brand */}
-        <Link href="/" className="flex items-center gap-3 active:scale-95 transition-all z-10">
-          <div className="relative w-7 h-7 dark:invert">
+        <Link href="/" className="flex items-center gap-2.5 active:scale-95 transition-all z-10 py-1.5 px-3 rounded-full hover:bg-foreground/5 dark:hover:bg-white/5">
+          <div className="relative w-6 h-6 dark:invert">
             <NextImage src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain" />
           </div>
-          <span className="font-rocaston text-[12.5px] font-bold tracking-[0.25em] text-foreground/80 uppercase pt-0.5">ZICA BELLA</span>
+          <span className="font-rocaston text-[11px] font-bold tracking-[0.25em] text-foreground/80 uppercase pt-0.5">ZICA BELLA</span>
         </Link>
 
         {/* Center: Nav Links */}
-        <div className="flex items-center gap-9 z-10">
-          {collections.slice(0, 5).map((col) => (
-            <Link key={col.id} href={`/collections/${col.handle}`} className="text-[10px] font-semibold tracking-[0.22em] text-foreground/55 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground uppercase transition-all duration-300 hover:scale-105 active:scale-95 pt-0.5">
-              {col.title}
-            </Link>
-          ))}
-          <Link href="/blogs" className="text-[10px] font-semibold tracking-[0.22em] text-foreground/55 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground uppercase transition-all duration-300 hover:scale-105 active:scale-95 pt-0.5">
+        <div className="flex items-center gap-1.5 z-10">
+          {collections.slice(0, 5).map((col) => {
+            const active = pathname === `/collections/${col.handle}`;
+            return (
+              <Link
+                key={col.id}
+                href={`/collections/${col.handle}`}
+                className={`text-[9px] font-bold tracking-[0.2em] uppercase transition-all duration-300 py-1.5 px-3.5 rounded-full ${
+                  active
+                    ? "bg-foreground text-background dark:bg-white dark:text-black font-extrabold shadow-sm"
+                    : "text-foreground/50 hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5"
+                }`}
+              >
+                {col.title}
+              </Link>
+            );
+          })}
+          <Link
+            href="/blogs"
+            className={`text-[9px] font-bold tracking-[0.2em] uppercase transition-all duration-300 py-1.5 px-3.5 rounded-full ${
+              pathname === "/blogs"
+                ? "bg-foreground text-background dark:bg-white dark:text-black font-extrabold shadow-sm"
+                : "text-foreground/50 hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5"
+            }`}
+          >
             Blogs
           </Link>
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-5 z-10">
+        <div className="flex items-center gap-2.5 z-10">
           {mounted && (
             <button
               onClick={() => setTheme(isDark ? "light" : "dark")}
-              className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300 active:scale-90"
+              className="h-8 w-8 flex items-center justify-center rounded-full text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent transition-all duration-300 active:scale-90"
               aria-label="Toggle Theme"
             >
-              {isDark ? <Sun className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} /> : <Moon className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />}
+              {isDark ? (
+                <Sun className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+              ) : (
+                <Moon className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+              )}
             </button>
           )}
-          <Link href="/search" aria-label="Search" className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
-            <Search className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+          
+          <Link
+            href="/search"
+            aria-label="Search"
+            className={`h-8 w-8 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
+              pathname === "/search"
+                ? "text-foreground dark:text-white bg-foreground/[0.06] dark:bg-white/[0.08] border border-foreground/[0.08] dark:border-white/10 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.02)]"
+                : "text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent"
+            }`}
+          >
+            <Search className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
           </Link>
-          <button onClick={() => setIsBookmarkOpen(true)} aria-label="Bookmarks" className="relative text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
-            <Bookmark className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
-            {bookmarks.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-foreground/60 rounded-full" />}
+          
+          <button
+            onClick={() => setIsBookmarkOpen(true)}
+            aria-label="Bookmarks"
+            className={`relative h-8 w-8 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
+              isBookmarkOpen
+                ? "text-foreground dark:text-white bg-foreground/[0.06] dark:bg-white/[0.08] border border-foreground/[0.08] dark:border-white/10 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.02)]"
+                : "text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent"
+            }`}
+          >
+            <Bookmark className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+            {bookmarks.length > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-foreground dark:bg-white rounded-full animate-pulse" />
+            )}
           </button>
-          <button onClick={() => setIsCartOpen(true)} aria-label="Cart" className="relative text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
-            <ShoppingBag className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
-            {count > 0 && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-foreground/60 rounded-full" />}
+          
+          <button
+            onClick={() => setIsCartOpen(true)}
+            aria-label="Cart"
+            className={`relative h-8 w-8 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
+              isCartOpen
+                ? "text-foreground dark:text-white bg-foreground/[0.06] dark:bg-white/[0.08] border border-foreground/[0.08] dark:border-white/10 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.02)]"
+                : "text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent"
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+            {count > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-foreground dark:bg-white rounded-full animate-pulse" />
+            )}
           </button>
-          <Link href="/profile" aria-label="Profile" className="text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all duration-300">
-            <User className="w-5 h-5 transition-transform duration-300 hover:scale-110" strokeWidth={1.5} />
+          
+          <Link
+            href="/profile"
+            aria-label="Profile"
+            className={`h-8 w-8 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
+              pathname === "/profile"
+                ? "text-foreground dark:text-white bg-foreground/[0.06] dark:bg-white/[0.08] border border-foreground/[0.08] dark:border-white/10 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.02)]"
+                : "text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent"
+            }`}
+          >
+            <User className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
           </Link>
         </div>
       </header>
 
       {/* ── Mobile Header Capsules ── */}
-      <header className="flex md:hidden fixed left-0 w-full z-50 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-1 items-center justify-between gap-2 pointer-events-none">
+      <header className="flex md:hidden fixed top-0 left-0 w-full z-50 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-1 items-center justify-between gap-2 pointer-events-none">
         
         {/* Left */}
         <div className="flex-none pointer-events-auto">

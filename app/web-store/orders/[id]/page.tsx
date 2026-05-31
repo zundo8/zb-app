@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft,
   ShoppingBag,
@@ -68,8 +68,10 @@ interface Order {
   updatedAt: string;
 }
 
-export default function WebStoreOrderDetail({ params }: { params: { id: string } }) {
+export default function WebStoreOrderDetail() {
   const router = useRouter();
+  const params = useParams();
+  const orderId = params?.id as string;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -84,7 +86,7 @@ export default function WebStoreOrderDetail({ params }: { params: { id: string }
   const fetchOrderDetail = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/web-store/orders/${params.id}`);
+      const res = await fetch(`/api/web-store/orders/${orderId}`);
       if (!res.ok) throw new Error("Order not found");
       const data = await res.json();
       setOrder(data.order);
@@ -105,13 +107,13 @@ export default function WebStoreOrderDetail({ params }: { params: { id: string }
 
   useEffect(() => {
     fetchOrderDetail();
-  }, [params.id]);
+  }, [orderId]);
 
   const handleUpdateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setUpdating(true);
     try {
-      const res = await fetch(`/api/web-store/orders/${params.id}`, {
+      const res = await fetch(`/api/web-store/orders/${orderId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

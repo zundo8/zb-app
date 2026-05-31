@@ -238,6 +238,7 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async (codeOverride?: string) => {
+    if (loading) return;
     const finalOtp = codeOverride || otp.join('');
     // Ensure we send exactly 6 digits
     if (finalOtp.length < 6 || !/^\d{6}$/.test(finalOtp)) {

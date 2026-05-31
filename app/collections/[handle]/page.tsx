@@ -6,11 +6,52 @@ import { ChevronLeft } from "lucide-react";
 import { LayoutGrid, Grid3X3, Square } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 import { notFound } from "next/navigation";
+import { Metadata } from "next";
 
 import CollectionHeaderClient from "@/components/CollectionHeaderClient";
 import CollectionFilters from "@/components/CollectionFilters";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: { handle: string } }): Promise<Metadata> {
+  const { collection } = await fetchCollectionByHandle(params.handle, 1).catch(() => ({ collection: null }));
+  if (!collection) {
+    return {
+      title: "Collection Not Found - Zica Bella",
+    };
+  }
+
+  const title = `${collection.title} Collection | Premium Streetwear - Zica Bella`;
+  const plainDesc = collection.body_html
+    ? collection.body_html.replace(/<[^>]*>/g, '').slice(0, 160) + '...'
+    : `Explore the exclusive ${collection.title} series at Zica Bella. India's #1 premium luxury streetwear label and fastest growing fashion app.`;
+
+  const image = collection.image?.src || "/zb-logo-220px.png";
+
+  return {
+    title,
+    description: plainDesc,
+    keywords: `${collection.title}, streetwear collection, zica bella, premium apparel, limited capsule drop`,
+    openGraph: {
+      title,
+      description: plainDesc,
+      type: "website",
+      url: `https://zicabella.com/collections/${collection.handle}`,
+      images: [
+        {
+          url: image,
+          alt: collection.title,
+        }
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: plainDesc,
+      images: [image],
+    },
+  };
+}
 
 export default async function CollectionPage({
   params,
@@ -75,41 +116,66 @@ export default async function CollectionPage({
   });
 
   return (
-    <div className="min-h-screen pt-12">
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32 pt-header">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "name": collection.title,
+            "url": `https://zicabella.com/collections/${collection.handle}`,
+            "description": collection.body_html ? collection.body_html.replace(/<[^>]*>/g, '') : `Shop the ${collection.title} collection at Zica Bella.`,
+            "image": collection.image?.src || "https://zicabella.com/zb-logo-220px.png",
+            "mainEntity": {
+              "@type": "ItemList",
+              "itemListElement": products.map((product, index) => ({
+                "@type": "ListItem",
+                "position": index + 1,
+                "url": `https://zicabella.com/products/${product.handle}`,
+                "name": product.title,
+                "image": product.images?.[0]?.src || product.image?.src || "https://zicabella.com/zb-logo-220px.png"
+              }))
+            }
+          })
+        }}
+      />
+      <div className="min-h-screen pt-12">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32 pt-header">
 
-        {/* Back navigation */}
-        <div className="mb-5">
-          <CollectionHeaderClient 
-            currentHandle={params.handle}
-            currentTitle={collection.title}
-            allCollections={allCollections}
-            currentImage={collection.image?.src}
-          />
+          {/* Back navigation */}
+          <div className="mb-5">
+            <CollectionHeaderClient 
+              currentHandle={params.handle}
+              currentTitle={collection.title}
+              allCollections={allCollections}
+              currentImage={collection.image?.src}
+            />
+          </div>
+
+          {/* Minimalist Filter Bar */}
+          <CollectionFilters allSizes={allSizes} />
+
+          {/* Product Grid */}
+          {products.length === 0 ? (
+            <div className="text-center py-20">
+              <p className="font-heading text-[10px] uppercase tracking-widest text-foreground/25">
+                No products found
+              </p>
+            </div>
+          ) : (
+            <div className={`grid gap-x-2 md:gap-x-6 gap-y-6 md:gap-y-12 ${
+              viewMode === "full" ? "grid-cols-1 md:grid-cols-2" : 
+              viewMode === "thumbnail" ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-x-1 md:gap-x-2 gap-y-2 md:gap-y-3" : 
+              "grid-cols-2 md:grid-cols-4"
+            }`}>
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} selectedSize={selectedSize} />
+              ))}
+            </div>
+          )}
         </div>
-
-        {/* Minimalist Filter Bar */}
-        <CollectionFilters allSizes={allSizes} />
-
-        {/* Product Grid */}
-        {products.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="font-heading text-[10px] uppercase tracking-widest text-foreground/25">
-              No products found
-            </p>
-          </div>
-        ) : (
-          <div className={`grid gap-x-2 md:gap-x-6 gap-y-6 md:gap-y-12 ${
-            viewMode === "full" ? "grid-cols-1 md:grid-cols-2" : 
-            viewMode === "thumbnail" ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-x-1 md:gap-x-2 gap-y-2 md:gap-y-3" : 
-            "grid-cols-2 md:grid-cols-4"
-          }`}>
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} selectedSize={selectedSize} />
-            ))}
-          </div>
-        )}
       </div>
-    </div>
+    </>
   );
 }

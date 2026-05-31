@@ -266,7 +266,7 @@ export default function ProductDetailsClient({
   return (
     <>
       {/* ─── DESKTOP VIEW (md and up) ─── */}
-      <div className="hidden md:block min-h-screen pt-28 pb-20 px-6 max-w-7xl mx-auto relative z-10 text-foreground">
+      <div className="hidden md:block min-h-screen pt-28 pb-20 px-6 max-w-7xl mx-auto relative z-10 text-foreground product-page">
         <div className="grid grid-cols-12 gap-10 items-start">
           
           {/* Left Column: Media Gallery */}
@@ -425,9 +425,8 @@ export default function ProductDetailsClient({
         {shuffledRecommended.length > 0 && (
           <div className="mt-20 border-t border-foreground/10 pt-12">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-xs uppercase tracking-[0.25em] text-foreground font-rocaston flex items-center">
-                CURATED PAIR
-                <span className="inline-flex items-center justify-center border border-foreground rounded-full w-3.5 h-3.5 text-[6.5px] ml-1.5 font-sans font-bold leading-none pt-[0.5px]">S</span>
+              <h2 className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-foreground font-heading flex items-center">
+                CURATED PAIRS
               </h2>
               <div className="flex items-center gap-4">
                 <button 
@@ -449,17 +448,17 @@ export default function ProductDetailsClient({
             
             <div 
               ref={curatedScrollRef}
-              className="flex overflow-x-auto hide-scrollbar scroll-smooth snap-x border-y border-foreground/10 py-6 gap-4"
+              className="flex overflow-x-auto hide-scrollbar scroll-smooth snap-x border-y border-foreground/10 py-6 gap-0"
             >
               {shuffledRecommended.map((p, idx) => {
                 const initialPrice = p.variants?.[0]?.price || "0.00";
                 return (
                   <div 
                     key={`desk-pair-${p.id}`}
-                    className="min-w-[240px] w-[240px] snap-start flex flex-col group cursor-pointer border-r border-foreground/10 last:border-r-0 pr-4 transition-all duration-300"
+                    className="min-w-[240px] w-[240px] snap-start flex flex-col group cursor-pointer border-r border-black/10 dark:border-white/10 last:border-r-0 p-4 transition-all duration-300"
                     onClick={() => router.push(`/products/${p.handle}`)}
                   >
-                    <div className="relative aspect-[3/5] w-full rounded-2xl overflow-hidden mb-3 bg-foreground/[0.02]">
+                    <div className="relative aspect-[3/5] w-full rounded-none overflow-hidden mb-3 bg-foreground/[0.02] border border-black/10 dark:border-white/10">
                       <Image 
                         src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
                         alt={p.title} 
@@ -470,10 +469,10 @@ export default function ProductDetailsClient({
                     </div>
                     <div className="flex items-center justify-between mt-1 px-1">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-rocaston tracking-[0.15em] uppercase text-foreground/80 line-clamp-1">
+                        <span className="text-[9.5px] font-normal tracking-[0.15em] uppercase text-foreground/80 line-clamp-1">
                           {p.title}
                         </span>
-                        <span className="text-[10px] font-light text-foreground/45">
+                        <span className="text-[9.5px] font-light text-foreground/45">
                           ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
                         </span>
                       </div>
@@ -825,9 +824,8 @@ export default function ProductDetailsClient({
                 {shuffledRecommended.length > 0 && (
                   <div className="mt-8 mb-6 -mx-1 border-t border-foreground/5 bg-transparent">
                       <div className="flex items-center justify-between px-4 py-3">
-                          <h2 className="text-xs uppercase tracking-[0.25em] text-foreground font-rocaston flex items-center">
-                            CURATED PAIR
-                            <span className="inline-flex items-center justify-center border border-foreground rounded-full w-3.5 h-3.5 text-[6.5px] ml-1.5 font-sans font-bold leading-none pt-[0.5px]">S</span>
+                          <h2 className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-foreground font-heading flex items-center">
+                            CURATED PAIRS
                           </h2>
                           <div className="flex items-center gap-4">
                             <button 
@@ -857,7 +855,7 @@ export default function ProductDetailsClient({
                       
                       <div 
                         ref={curatedScrollRef}
-                        className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-4 px-4 pb-6"
+                        className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-0 px-4 pb-6"
                         style={{ 
                             scrollbarWidth: "none", 
                             msOverflowStyle: "none", 
@@ -874,14 +872,14 @@ export default function ProductDetailsClient({
                           return (
                             <div 
                               key={`stark-pair-${p.id}-${idx}`}
-                              className="min-w-[85vw] w-[85vw] sm:min-w-[320px] sm:w-[320px] flex-shrink-0 snap-center flex flex-col group cursor-pointer"
+                              className="min-w-[80vw] w-[80vw] sm:min-w-[300px] sm:w-[300px] flex-shrink-0 snap-center flex flex-col group cursor-pointer border-r border-black/10 dark:border-white/10 last:border-r-0 p-4"
                               onClick={(e) => { 
                                 if (isCuratedDragging) e.preventDefault(); 
                                 else router.push(`/products/${p.handle}`);
                               }}
                             >
                               {/* Large Image Container */}
-                              <div className="relative w-full aspect-[3/5] rounded-[20px] overflow-hidden bg-foreground/[0.03] mb-3">
+                              <div className="relative w-full aspect-[3/5] rounded-none overflow-hidden bg-foreground/[0.03] mb-3 border border-black/10 dark:border-white/10">
                                 <Image 
                                   src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
                                   alt={p.title} 
@@ -896,10 +894,10 @@ export default function ProductDetailsClient({
                               {/* Bottom Details - Minimal React Native style */}
                               <div className="flex items-center justify-between mt-1 px-1">
                                 <div className="flex flex-col gap-0.5">
-                                  <span className="text-[10px] font-rocaston tracking-[0.15em] uppercase text-foreground/80 line-clamp-1">
+                                  <span className="text-[9.5px] font-normal tracking-[0.15em] uppercase text-foreground/80 line-clamp-1">
                                     {p.title}
                                   </span>
-                                  <span className="text-[10px] font-light text-foreground/45">
+                                  <span className="text-[9.5px] font-light text-foreground/45">
                                     ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
                                   </span>
                                 </div>

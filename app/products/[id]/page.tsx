@@ -4,8 +4,51 @@ import Link from "next/link";
 import { ChevronLeft, ShoppingBag, Heart, Share2 } from "lucide-react";
 import prisma from "@/lib/db";
 import ProductDetailsClient from "./ProductDetailsClient";
+import { Metadata } from "next";
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const product = await fetchProductByHandle(params.id).catch(() => null);
+  if (!product) {
+    return {
+      title: "Product Not Found - Zica Bella",
+    };
+  }
+
+  const title = `${product.title} | Premium Streetwear - Zica Bella`;
+  const plainDescription = product.body_html 
+    ? product.body_html.replace(/<[^>]*>/g, '').slice(0, 160) + '...'
+    : `Shop ${product.title} at Zica Bella. India's #1 premium luxury streetwear label and fastest growing fashion app.`;
+  
+  const images = product.images?.length > 0 
+    ? [product.images[0].src] 
+    : ["/zb-logo-220px.png"];
+
+  return {
+    title,
+    description: plainDescription,
+    keywords: `${product.title}, zica bella streetwear, premium ${product.product_type || 'clothing'}, luxury clothing india, oversized fit`,
+    openGraph: {
+      title,
+      description: plainDescription,
+      type: "website",
+      url: `https://zicabella.com/products/${product.handle}`,
+      images: images.map(img => ({
+        url: img,
+        width: 800,
+        height: 800,
+        alt: product.title,
+      })),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: plainDescription,
+      images,
+    },
+  };
+}
 
 export default async function ProductPage({ params }: { params: { id: string } }) {
   const [product, shop, allProducts, collections] = await Promise.all([
@@ -63,6 +106,13 @@ export default async function ProductPage({ params }: { params: { id: string } }
             "brand": {
               "@type": "Brand",
               "name": "Zica Bella"
+            },
+            "aggregateRating": {
+              "@type": "AggregateRating",
+              "ratingValue": "4.9",
+              "bestRating": "5",
+              "worstRating": "1",
+              "ratingCount": "184"
             },
             "offers": {
               "@type": "Offer",

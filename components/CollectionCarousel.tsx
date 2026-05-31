@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, useMotionValue, useTransform, AnimatePresence, PanInfo } from "framer-motion";
+import { motion, useMotionValue, PanInfo } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Collection {
   id: string | number;
@@ -20,12 +21,20 @@ const FALLBACKS = [
 
 export default function CollectionCarousel({ collections }: { collections: Collection[] }) {
   const [index, setIndex] = useState(0);
-  const x = useMotionValue(0);
   const total = collections.length;
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mediaQuery.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
+  }, []);
 
   // Handle Drag / Swipe Snapping
   const onDragEnd = (event: any, info: PanInfo) => {
-    const threshold = 50;
+    const threshold = 35;
     if (info.offset.x < -threshold) {
       setIndex((i) => (i + 1) % total);
     } else if (info.offset.x > threshold) {
@@ -36,15 +45,39 @@ export default function CollectionCarousel({ collections }: { collections: Colle
   if (!total) return null;
 
   return (
-    <div className="relative w-full overflow-hidden py-10">
+    <div className="relative w-full py-10 group overflow-visible">
       <div className="relative h-[85vw] max-h-[460px] w-full flex items-center justify-center overflow-visible">
+        {/* Left/Right Arrow Buttons (Desktop only) */}
+        {total > 1 && (
+          <>
+            <div className="hidden md:flex absolute left-4 lg:left-12 z-30">
+              <button
+                onClick={() => setIndex((i) => (i - 1 + total) % total)}
+                className="w-12 h-12 rounded-full border border-foreground/[0.06] bg-background/60 hover:bg-background dark:bg-zinc-900/60 dark:hover:bg-zinc-900 backdrop-blur-md flex items-center justify-center text-foreground/45 hover:text-foreground transition-all duration-300 active:scale-90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+                aria-label="Previous Collection"
+              >
+                <ChevronLeft className="w-5 h-5 text-foreground/60 hover:text-foreground" />
+              </button>
+            </div>
+            <div className="hidden md:flex absolute right-4 lg:right-12 z-30">
+              <button
+                onClick={() => setIndex((i) => (i + 1) % total)}
+                className="w-12 h-12 rounded-full border border-foreground/[0.06] bg-background/60 hover:bg-background dark:bg-zinc-900/60 dark:hover:bg-zinc-900 backdrop-blur-md flex items-center justify-center text-foreground/45 hover:text-foreground transition-all duration-300 active:scale-90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+                aria-label="Next Collection"
+              >
+                <ChevronRight className="w-5 h-5 text-foreground/60 hover:text-foreground" />
+              </button>
+            </div>
+          </>
+        )}
+
         {/* The Drag Container */}
         <motion.div
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.2}
+          dragElastic={0.95}
           onDragEnd={onDragEnd}
-          className="relative w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
+          className="relative w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
           style={{ 
             perspective: "1200px", 
             transformStyle: "preserve-3d",
@@ -64,6 +97,8 @@ export default function CollectionCarousel({ collections }: { collections: Colle
                 diff={diff}
                 isActive={Math.abs(diff) < 0.1}
                 fallback={FALLBACKS[i % FALLBACKS.length]}
+                isMobile={isMobile}
+                onSelect={() => setIndex(i)}
               />
             );
           })}
@@ -77,15 +112,22 @@ function CollectionCard({
   collection,
   diff,
   isActive,
-  fallback
+  fallback,
+  isMobile,
+  onSelect
 }: {
   collection: Collection;
   diff: number;
   isActive: boolean;
   fallback: string;
+  isMobile: boolean;
+  onSelect: () => void;
 }) {
-  // Calculate visibility
-  const isVisible = Math.abs(diff) <= 2;
+  // Calculate visibility responsively (5 cards on desktop, 3 on mobile)
+  const maxDiff = isMobile ? 1 : 2;
+  const isVisible = Math.abs(diff) <= maxDiff;
+  const spacing = isMobile ? 200 : 340;
+  const opacityVal = Math.abs(diff) > maxDiff ? 0 : 1 - Math.abs(diff) * (isMobile ? 0.5 : 0.35);
 
   if (!isVisible) return null;
 
@@ -93,11 +135,11 @@ function CollectionCard({
     <motion.div
       initial={false}
       animate={{
-        x: diff * 220, // Horizontal offset
-        scale: isActive ? 1 : 0.8,
-        rotateY: diff * 35, // 3D Tilt
-        z: isActive ? 0 : -150, // Depth
-        opacity: Math.abs(diff) > 1 ? 0 : 1 - Math.abs(diff) * 0.4,
+        x: diff * spacing, // Spaced wider on desktop
+        scale: isActive ? 1 : 0.82,
+        rotateY: diff * (isMobile ? 35 : 25), // 3D Tilt
+        z: isActive ? 0 : -180, // Depth
+        opacity: opacityVal,
       }}
       transition={{
         type: "spring",
@@ -105,12 +147,14 @@ function CollectionCard({
         damping: 32,
         mass: 1
       }}
-      className="absolute w-[65vw] max-w-[280px] aspect-[3/4] rounded-[2rem] overflow-hidden shadow-xl origin-center will-change-transform"
+      className="absolute w-[65vw] max-w-[280px] md:w-[320px] md:max-w-none aspect-[3/4] rounded-[2rem] overflow-hidden shadow-xl origin-center select-none will-change-transform"
       style={{
         zIndex: 10 - Math.round(Math.abs(diff)),
-        pointerEvents: isActive ? "auto" : "none", // Prevent inactive cards from stealing touch
+        pointerEvents: isActive ? "auto" : "all", // Keep click active for selection
         backfaceVisibility: "hidden",
         WebkitBackdropFilter: "blur(10px)",
+        userSelect: "none",
+        WebkitUserDrag: "none",
       }}
     >
       <Link 
@@ -118,14 +162,17 @@ function CollectionCard({
         className="block w-full h-full relative"
         draggable={false}
         onClick={(e) => {
-          if (!isActive) e.preventDefault(); // Don't navigate if clicking a side card
+          if (!isActive) {
+            e.preventDefault(); // Don't navigate if clicking a side card
+            onSelect(); // Focus the clicked side card
+          }
         }}
       >
         <Image
           src={collection.image?.src || fallback}
           alt={collection.title}
           fill
-          sizes="(max-width: 768px) 80vw, 320px"
+          sizes="(max-width: 768px) 80vw, 360px"
           className="object-cover pointer-events-none"
           priority={isActive}
         />

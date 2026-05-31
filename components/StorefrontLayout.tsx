@@ -32,7 +32,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
   }, []);
 
   return (
-    <div className="liquid-glass-body min-h-screen max-w-full overflow-x-hidden text-foreground selection:bg-white/10 transition-colors duration-500">
+    <div className="liquid-glass-body min-h-screen max-w-full text-foreground selection:bg-white/10 transition-colors duration-500">
       <Suspense fallback={null}>
         <PageLoader />
       </Suspense>
