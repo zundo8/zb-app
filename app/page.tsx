@@ -247,7 +247,7 @@ export default async function Home() {
 
         {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
         {(collectionsMedia || collectionsMediaMobile) && (
-          <section className="mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[1.25rem] overflow-hidden shadow-lg border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
+          <section className="render-deferred-media smooth-gpu mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[1.25rem] overflow-hidden shadow-lg border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
             {collectionsMedia && (
               <div className="hidden md:block absolute inset-0 w-full h-full">
                 <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
@@ -269,7 +269,7 @@ export default async function Home() {
         <div className="glass-divider my-8" />
 
         {/* ═══ COLLECTIONS CAROUSEL ═══ */}
-        <section className="py-8 max-w-6xl mx-auto overflow-hidden">
+        <section className="render-deferred-carousel smooth-gpu py-8 max-w-6xl mx-auto overflow-hidden">
           {s?.showArchive && (
             <div className="flex justify-center mb-6 px-4">
               <span className="glass-label">— {archiveTitle} —</span>
@@ -285,7 +285,7 @@ export default async function Home() {
         
         {/* ═══ RING COLLECTION CAROUSEL ═══ */}
         {showRingCarousel && (
-          <div className="my-8">
+          <div className="render-deferred-carousel smooth-gpu my-8">
             <RingCarouselSection 
               title={ringCarouselTitle} 
               itemsConfig={ringCarouselItems} 
@@ -294,7 +294,7 @@ export default async function Home() {
         )}
 
         {/* ═══ 3D FLIPBOOK SECTION ═══ */}
-        <div className="my-8 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto">
+        <div className="render-deferred-media smooth-gpu my-8 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto">
           <FlipbookSection 
             imgUrl={flipbookImage}
             videoUrl={flipbookVideo}
@@ -307,7 +307,7 @@ export default async function Home() {
         </div>
 
         {/* ═══ PRODUCT GRID 2 ═══ */}
-        <section className="mb-10 px-[1px]">
+        <section className="render-deferred-section mb-10 px-[1px]">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12">
             {products.slice(4, 8).map((p: ShopifyProduct) => <ProductCard key={p.id} product={p} />)}
           </div>
@@ -317,7 +317,7 @@ export default async function Home() {
         {s?.showBlueprint && (
           <>
             {/* Desktop View (Landscape) */}
-            <section className="hidden md:block mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[21/9] rounded-[1.5rem] overflow-hidden group shadow-xl border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+            <section className="render-deferred-media smooth-gpu hidden md:block mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[21/9] rounded-[1.5rem] overflow-hidden group shadow-xl border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
               {featuredMedia ? (
                 <LazyVideo
                   src={featuredMedia}
@@ -330,14 +330,13 @@ export default async function Home() {
                   alt="Blueprint Media"
                   fill
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                  priority
                   onError={handleImageError}
                 />
               )}
             </section>
 
             {/* Mobile View (Portrait) */}
-            <section className="md:hidden mb-10 max-w-2xl mx-auto relative w-full aspect-[4/5] rounded-[1.5rem] overflow-hidden group shadow-xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+            <section className="render-deferred-media smooth-gpu md:hidden mb-10 max-w-2xl mx-auto relative w-full aspect-[4/5] rounded-[1.5rem] overflow-hidden group shadow-xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
               {featuredMediaMobile ? (
                 <LazyVideo
                   src={featuredMediaMobile}
@@ -350,7 +349,6 @@ export default async function Home() {
                   alt="Blueprint Media Mobile"
                   fill
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                  priority
                   onError={handleImageError}
                 />
               ) : featuredMedia ? (
@@ -365,7 +363,6 @@ export default async function Home() {
                   alt="Blueprint Media Fallback"
                   fill
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                  priority
                   onError={handleImageError}
                 />
               )}
@@ -377,14 +374,14 @@ export default async function Home() {
         <div className="glass-divider my-8" />
 
         {/* ═══ PRODUCT GRID 3 ═══ */}
-        <section className="mt-8 mb-10 px-[1px]">
+        <section className="render-deferred-section mt-8 mb-10 px-[1px]">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12">
             {products.slice(12, 16).map((p: ShopifyProduct) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
 
         {/* ═══ AUTHENTIC STREETWEAR SECTION ═══ */}
-        <div className="my-10 max-w-6xl mx-auto">
+        <div className="render-deferred-section my-10 max-w-6xl mx-auto">
           <SpotlightSection 
             title={s?.spotlightTitle || "AUTHENTIC STREETWEAR"} 
             subtitle={s?.spotlightSubtitle} 
@@ -394,7 +391,7 @@ export default async function Home() {
         </div>
 
         {/* ═══ FEATURED LOOKS (COMMUNITY) ═══ */}
-        <div className="my-10 max-w-6xl mx-auto">
+        <div className="render-deferred-section my-10 max-w-6xl mx-auto">
           <FeaturedUsersSection
             showCommunity={s?.showCommunity}
             title={s?.communityTitle}
@@ -404,7 +401,7 @@ export default async function Home() {
 
         {/* ═══ FOOTER VIDEO ═══ */}
         {(footerVideo || footerVideoMobile) && (
-          <section className="relative my-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto aspect-[9/16] md:aspect-[21/9] rounded-[2rem] overflow-hidden group shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+          <section className="render-deferred-media smooth-gpu relative my-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto aspect-[9/16] md:aspect-[21/9] rounded-[2rem] overflow-hidden group shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
             {footerVideo && (
               <div className="hidden md:block absolute inset-0 w-full h-full">
                 <LazyVideo
@@ -432,7 +429,7 @@ export default async function Home() {
         )}
 
         {/* ═══ BRAND STATEMENT & STATS (SEO & AI CRAWLER FOCUS) ═══ */}
-        <section className="my-8 max-w-6xl mx-auto px-4" aria-label="About Zica Bella Brand">
+        <section className="render-deferred-footer my-8 max-w-6xl mx-auto px-4" aria-label="About Zica Bella Brand">
           <div className="glass rounded-[1.5rem] border border-white/5 p-4 md:p-6 relative overflow-hidden backdrop-blur-xl shadow-lg">
             <div className="relative z-10 flex flex-col lg:flex-row gap-6 justify-between items-center">
               {/* Left Column: Tiny brand statement */}

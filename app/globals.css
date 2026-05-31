@@ -327,14 +327,20 @@
 @media (max-width: 768px) {
   .home-page {
     contain: layout style;
-    will-change: auto;
+    will-change: scroll-position;
+    -webkit-overflow-scrolling: touch;
   }
   /* Prevent any element from breaking horizontal bounds on mobile */
-  .home-page > *,
-  .home-page section {
+  .home-page > * {
     max-width: 100vw;
-    overflow-x: hidden;
   }
+}
+
+/* Hardware acceleration for scroll containers */
+.smooth-gpu {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 /* ============================================
@@ -860,4 +866,27 @@
 .liquid-glass-hover-sweep:hover .apple-glass-sweep-glow {
   left: 150%;
   transition: left 0.85s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ============================================
+   PERFORMANCE RENDER OPTIMIZATIONS (OFFSCREEN SECTIONS)
+   ============================================ */
+.render-deferred-media {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+.render-deferred-carousel {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+.render-deferred-section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 450px;
+}
+
+.render-deferred-footer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 240px;
 }
