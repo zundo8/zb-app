@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Loader2, ChevronLeft, ChevronDown } from "lucide-react";
+import { ArrowRight, Loader2, ChevronLeft, ChevronDown, Search } from "lucide-react";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 
@@ -34,10 +34,11 @@ const COUNTRIES = [
 const FlagBadge = ({ country, size = 'small' }: { country: typeof COUNTRIES[number]; size?: 'small' | 'large' }) => {
   const isLarge = size === 'large';
   return (
-    <div className={`relative overflow-hidden border border-white/45 bg-white/12 flex items-center justify-center shrink-0 ${
-      isLarge ? "w-[38px] h-[26px] rounded-lg" : "w-[30px] h-[20px] rounded-md"
-    }`}>
-      <div className="absolute inset-0 flex opacity-85 pointer-events-none">
+    <div className={`relative overflow-hidden border border-black/10 dark:border-white/20 shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.1)] flex items-center justify-center ${
+      isLarge ? "w-[32px] h-[22px] rounded-md" : "w-[24px] h-[16px] rounded-[4px]"
+    } bg-black/5 dark:bg-white/10`}>
+      {/* Fallback Stripe Design */}
+      <div className="absolute inset-0 flex opacity-75 pointer-events-none">
         {country.flagColors.map((color, idx) => (
           <div
             key={`${country.iso}-${color}-${idx}`}
@@ -47,11 +48,20 @@ const FlagBadge = ({ country, size = 'small' }: { country: typeof COUNTRIES[numb
         ))}
       </div>
       <span 
-        className="relative text-white font-black uppercase tracking-wider drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.65)] select-none z-10"
-        style={{ fontSize: isLarge ? '9px' : '7.5px' }}
+        className="absolute text-white font-black uppercase tracking-wider drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.65)] select-none z-10"
+        style={{ fontSize: isLarge ? '8px' : '6.5px' }}
       >
         {country.iso}
       </span>
+      {/* High-quality flag CDN image */}
+      <img
+        src={`https://flagcdn.com/w40/${country.iso.toLowerCase()}.png`}
+        alt={`${country.name} flag`}
+        className="absolute inset-0 w-full h-full object-cover z-20 opacity-100 transition-opacity duration-300"
+        onError={(e) => {
+          e.currentTarget.style.opacity = '0';
+        }}
+      />
     </div>
   );
 };
@@ -69,7 +79,14 @@ export default function LoginPage() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [country, setCountry] = useState(COUNTRIES[0]);
   const [showPicker, setShowPicker] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [errors, setErrors] = useState<{ phone?: string; otp?: string; name?: string }>({});
+
+  const filteredCountries = COUNTRIES.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.code.includes(searchQuery) ||
+    c.iso.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -86,6 +103,7 @@ export default function LoginPage() {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowPicker(false);
+        setSearchQuery("");
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -361,23 +379,48 @@ export default function LoginPage() {
                             animate={{ opacity: 1, y: 0, scale: 1 }} 
                             exit={{ opacity: 0, y: -5, scale: 0.98 }} 
                             transition={{ duration: 0.15 }}
-                            className="absolute top-full left-0 mt-2 w-[220px] max-h-[220px] overflow-y-auto bg-white/95 dark:bg-[#161618]/95 backdrop-blur-2xl rounded-2xl shadow-2xl z-50 py-2 border border-black/5 dark:border-white/10 select-none custom-scrollbar"
+                            className="absolute top-full left-0 mt-2 w-[250px] bg-white/95 dark:bg-[#161618]/95 backdrop-blur-2xl rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 border border-black/5 dark:border-white/10 select-none overflow-hidden flex flex-col"
+                            style={{ maxHeight: '280px' }}
                           >
-                            <div className="px-3.5 py-1.5 text-[8px] font-bold uppercase tracking-widest text-black/30 dark:text-white/30 border-b border-black/[0.03] dark:border-white/[0.03] mb-1">SELECT REGION</div>
-                            {COUNTRIES.map((c, idx) => (
-                              <button 
-                                key={`${c.iso}-${idx}`} 
-                                type="button"
-                                onClick={() => { setCountry(c); setShowPicker(false); }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors ${
-                                  country.iso === c.iso ? 'bg-black/[0.02] dark:bg-white/[0.04] text-black dark:text-white' : 'text-black/60 dark:text-white/60'
-                                }`}
-                              >
-                                <FlagBadge country={c} />
-                                <span className="text-[9.5px] font-bold flex-1 uppercase tracking-wider">{c.name}</span>
-                                <span className="text-[8.5px] font-bold text-black/30 dark:text-white/30">{c.code}</span>
-                              </button>
-                            ))}
+                            <div className="px-3.5 pt-3 pb-1.5 text-[8px] font-bold uppercase tracking-widest text-black/30 dark:text-white/30">SELECT REGION</div>
+                            
+                            {/* Search bar inside the dropdown */}
+                            <div className="px-2.5 pb-2 border-b border-black/[0.03] dark:border-white/[0.05] flex items-center gap-1.5">
+                              <Search className="w-3.5 h-3.5 text-black/30 dark:text-white/40 shrink-0 ml-1.5" />
+                              <input
+                                type="text"
+                                placeholder="Search country or code..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 rounded-xl px-2.5 py-1.5 text-[10.5px] text-black dark:text-white outline-none placeholder:text-black/30 dark:placeholder:text-white/40 font-semibold"
+                                onClick={(e) => e.stopPropagation()}
+                                autoFocus
+                              />
+                            </div>
+
+                            {/* Dropdown list */}
+                            <div className="overflow-y-auto max-h-[190px] py-1 custom-scrollbar">
+                              {filteredCountries.length === 0 ? (
+                                <div className="px-3.5 py-6 text-center text-[10px] text-black/40 dark:text-white/40 font-medium">
+                                  No countries found
+                                </div>
+                              ) : (
+                                filteredCountries.map((c, idx) => (
+                                  <button 
+                                    key={`${c.iso}-${idx}`} 
+                                    type="button"
+                                    onClick={() => { setCountry(c); setShowPicker(false); setSearchQuery(""); }}
+                                    className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-left hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors ${
+                                      country.iso === c.iso ? 'bg-black/[0.02] dark:bg-white/[0.04] text-black dark:text-white' : 'text-black/60 dark:text-white/60'
+                                    }`}
+                                  >
+                                    <FlagBadge country={c} />
+                                    <span className="text-[9.5px] font-bold flex-1 uppercase tracking-wider">{c.name}</span>
+                                    <span className="text-[8.5px] font-bold text-black/30 dark:text-white/30">{c.code}</span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>

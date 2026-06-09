@@ -40,18 +40,18 @@ export default async function SearchPage({
 
         {/* ── Search Bar ── */}
         <form method="GET" action="/search" className="mb-10 max-w-xl mx-auto">
-          <div className="glass-liquid relative flex items-center rounded-2xl overflow-hidden shadow-lg border border-white/5">
-            <Search className="absolute left-4 w-4 h-4 text-white/30 pointer-events-none" />
+          <div className="glass-liquid relative flex items-center rounded-2xl overflow-hidden shadow-lg border border-foreground/5">
+            <Search className="absolute left-4 w-4 h-4 text-foreground/30 pointer-events-none" />
             <input
               name="q"
               defaultValue={query}
               placeholder="Search Zica Bella…"
               autoFocus={!query}
               autoComplete="off"
-              className="w-full pl-11 pr-4 py-4 bg-transparent text-sm text-white placeholder-white/20 focus:outline-none"
+              className="w-full pl-11 pr-4 py-4 bg-transparent text-sm text-foreground placeholder-foreground/30 focus:outline-none"
             />
             {query && (
-              <Link href="/search" className="absolute right-3 px-2 py-1 text-[8px] uppercase tracking-widest text-white/30 hover:text-white/60 transition-colors">
+              <Link href="/search" className="absolute right-3 px-2 py-1 text-[8px] uppercase tracking-widest text-foreground/30 hover:text-foreground/60 transition-colors">
                 Clear
               </Link>
             )}
@@ -72,8 +72,8 @@ export default async function SearchPage({
                    value={opt.value}
                    className={`px-3.5 py-1.5 rounded-full text-[9px] uppercase tracking-widest transition-all ${
                      sortBy === opt.value
-                       ? "bg-white text-black font-bold shadow-md"
-                       : "glass-button text-white/50 border border-white/5"
+                       ? "bg-foreground text-background font-bold shadow-md"
+                       : "glass-button text-foreground/50 border border-foreground/5"
                    }`}
                 >
                   {opt.label}
@@ -86,10 +86,10 @@ export default async function SearchPage({
         {/* ── Results header ── */}
         {query && (
           <div className="flex justify-between items-baseline mb-6 max-w-6xl mx-auto px-1">
-            <h1 className="text-[11px] font-medium text-white/60 uppercase tracking-widest">
+            <h1 className="text-[11px] font-medium text-foreground/60 uppercase tracking-widest">
               &ldquo;{query}&rdquo;
             </h1>
-            <p className="text-[9px] text-white/30 uppercase tracking-widest">
+            <p className="text-[9px] text-foreground/30 uppercase tracking-widest">
               {products.length} {products.length === 1 ? "result" : "results"}
             </p>
           </div>
@@ -108,11 +108,11 @@ export default async function SearchPage({
         {query && products.length === 0 && (
           <div className="text-center py-20 flex flex-col items-center gap-4">
             <div className="glass-panel w-14 h-14 rounded-full flex items-center justify-center">
-              <Search className="w-5 h-5 text-white/20" />
+              <Search className="w-5 h-5 text-foreground/20" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">No results for &ldquo;{query}&rdquo;</p>
-              <p className="text-[9px] text-white/20 mt-1.5 uppercase tracking-widest">Try a different term or browse below</p>
+              <p className="text-[11px] uppercase tracking-[0.3em] text-foreground/40">No results for &ldquo;{query}&rdquo;</p>
+              <p className="text-[9px] text-foreground/20 mt-1.5 uppercase tracking-widest">Try a different term or browse below</p>
             </div>
           </div>
         )}
@@ -128,7 +128,7 @@ export default async function SearchPage({
                   <Link
                     key={term}
                     href={`/search?q=${encodeURIComponent(term)}`}
-                    className="glass-button px-4 py-2 rounded-xl text-[9px] uppercase tracking-widest text-white/60 hover:text-white/90 border border-white/5 shadow-md hover:border-white/10 active:scale-95 transition-all"
+                    className="glass-button px-4 py-2 rounded-xl text-[9px] uppercase tracking-widest text-foreground/60 hover:text-foreground/90 border border-foreground/5 shadow-md hover:border-foreground/10 active:scale-95 transition-all"
                   >
                     {term}
                   </Link>
@@ -145,13 +145,12 @@ export default async function SearchPage({
                     <Link
                       key={c.id}
                       href={`/collections/${c.handle}`}
-                      className="group flex items-center justify-between py-4"
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+                      className="group flex items-center justify-between py-4 border-b border-foreground/5"
                     >
-                      <span className="text-[13px] font-light uppercase tracking-[0.06em] text-white/50 group-hover:text-white/80 transition-colors">
+                      <span className="text-[13px] font-light uppercase tracking-[0.06em] text-foreground/50 group-hover:text-foreground/80 transition-colors">
                         {c.title}
                       </span>
-                      <ArrowRight className="w-3.5 h-3.5 text-white/10 opacity-0 group-hover:opacity-100 group-hover:text-white/40 transition-all transform group-hover:translate-x-1 duration-300" />
+                      <ArrowRight className="w-3.5 h-3.5 text-foreground/10 opacity-0 group-hover:opacity-100 group-hover:text-foreground/40 transition-all transform group-hover:translate-x-1 duration-300" />
                     </Link>
                   ))}
                 </div>

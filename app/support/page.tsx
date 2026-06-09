@@ -214,7 +214,7 @@ export default function SupportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black font-sans relative overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-500 font-sans relative overflow-x-hidden">
       
       {/* Background Animated Gradient Blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
@@ -231,7 +231,7 @@ export default function SupportPage() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="text-4xl md:text-6xl font-bold tracking-tighter mb-4 bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent"
+              className="text-4xl md:text-6xl font-bold tracking-tighter mb-4 bg-gradient-to-b from-foreground to-foreground/40 bg-clip-text text-transparent"
             >
               SUPPORT CENTER
             </motion.h1>
@@ -239,7 +239,7 @@ export default function SupportPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.6 }}
               transition={{ delay: 0.2 }}
-              className="text-white/60 text-xs md:text-sm uppercase tracking-[0.25em]"
+              className="text-foreground/60 text-xs md:text-sm uppercase tracking-[0.25em]"
             >
               How can we assist you today?
             </motion.p>
@@ -255,50 +255,50 @@ export default function SupportPage() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="lg:col-span-1 space-y-6"
           >
-            <div className="p-6 md:p-8 rounded-[2rem] border border-white/5 bg-white/[0.01] backdrop-blur-3xl shadow-2xl relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+            <div className="p-6 md:p-8 rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] backdrop-blur-3xl shadow-2xl relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-b from-foreground/[0.02] to-transparent pointer-events-none" />
               
-              <h2 className="text-lg font-bold mb-8 uppercase tracking-widest text-white/95">Get In Touch</h2>
+              <h2 className="text-lg font-bold mb-8 uppercase tracking-widest text-foreground/95">Get In Touch</h2>
               
               <div className="space-y-6">
                 
                 <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 text-white/70">
+                  <div className="p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5 text-foreground/70">
                     <Mail className="w-4 h-4" />
                   </div>
                   <div>
-                    <p className="text-[9px] text-white/30 uppercase tracking-widest mb-0.5">Email Support</p>
-                    <p className="text-white/80 text-sm font-medium">support@zicabella.com</p>
-                    <p className="text-white/40 text-xs mt-1">Average response within 24h</p>
+                    <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">Email Support</p>
+                    <p className="text-foreground/80 text-sm font-medium">support@zicabella.com</p>
+                    <p className="text-foreground/40 text-xs mt-1">Average response within 24h</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 text-white/70">
+                  <div className="p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5 text-foreground/70">
                     <Phone className="w-4 h-4" />
                   </div>
                   <div>
-                    <p className="text-[9px] text-white/30 uppercase tracking-widest mb-0.5">Helpline</p>
-                    <p className="text-white/80 text-sm font-medium">+91 (800) ZICA-BELA</p>
-                    <p className="text-white/40 text-xs mt-1">Mon - Sat: 10AM - 7PM IST</p>
+                    <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">Helpline</p>
+                    <p className="text-foreground/80 text-sm font-medium">+91 (800) ZICA-BELA</p>
+                    <p className="text-foreground/40 text-xs mt-1">Mon - Sat: 10AM - 7PM IST</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 text-white/70">
+                  <div className="p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5 text-foreground/70">
                     <MapPin className="w-4 h-4" />
                   </div>
                   <div>
-                    <p className="text-[9px] text-white/30 uppercase tracking-widest mb-0.5">HQ Location</p>
-                    <p className="text-white/80 text-sm font-medium">Bengaluru, KA, India</p>
+                    <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">HQ Location</p>
+                    <p className="text-foreground/80 text-sm font-medium">Bengaluru, KA, India</p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-12 p-5 rounded-2xl bg-blue-500/[0.02] border border-blue-500/10">
                 <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-1">Knowledge Base</p>
-                <p className="text-white/50 text-xs leading-relaxed">
-                  Have quick queries? Look at our <a href="/faq" className="text-white border-b border-white/20 hover:border-white transition-colors">FAQ section</a> first.
+                <p className="text-foreground/50 text-xs leading-relaxed">
+                  Have quick queries? Look at our <a href="/faq" className="text-foreground border-b border-foreground/20 hover:border-foreground transition-colors">FAQ section</a> first.
                 </p>
               </div>
             </div>
@@ -311,15 +311,15 @@ export default function SupportPage() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
             className="lg:col-span-2"
           >
-            <div className="h-full min-h-[580px] rounded-[2rem] border border-white/5 bg-white/[0.01] backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col relative">
-              <div className="absolute inset-0 bg-gradient-to-b from-white/[0.01] to-transparent pointer-events-none" />
+            <div className="h-full min-h-[580px] rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col relative">
+              <div className="absolute inset-0 bg-gradient-to-b from-foreground/[0.01] to-transparent pointer-events-none" />
               
               {/* Tab Navigation */}
-              <div className="flex border-b border-white/5 p-2 bg-white/[0.01] relative z-10">
+              <div className="flex border-b border-foreground/5 p-2 bg-foreground/[0.01] relative z-10">
                 <button
                   onClick={() => setActiveTab('form')}
                   className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-                    activeTab === 'form' ? 'bg-white/5 text-white border border-white/5' : 'text-white/40 hover:text-white/75'
+                    activeTab === 'form' ? 'bg-foreground/5 text-foreground border border-foreground/5' : 'text-foreground/40 hover:text-foreground/75'
                   }`}
                 >
                   Message Us
@@ -327,7 +327,7 @@ export default function SupportPage() {
                 <button
                   onClick={() => setActiveTab('chat')}
                   className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-                    activeTab === 'chat' ? 'bg-white/5 text-white border border-white/5' : 'text-white/40 hover:text-white/75'
+                    activeTab === 'chat' ? 'bg-foreground/5 text-foreground border border-foreground/5' : 'text-foreground/40 hover:text-foreground/75'
                   }`}
                 >
                   Live Chat
@@ -335,7 +335,7 @@ export default function SupportPage() {
                 <button
                   onClick={() => setActiveTab('delete')}
                   className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
-                    activeTab === 'delete' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'text-white/40 hover:text-rose-400/80'
+                    activeTab === 'delete' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'text-foreground/40 hover:text-rose-400/80'
                   }`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -359,7 +359,7 @@ export default function SupportPage() {
                       className="space-y-6 max-w-xl mx-auto"
                     >
                       {success && (
-                        <div className="p-4 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center gap-3 text-green-400">
+                        <div className="p-4 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center gap-3 text-green-600 dark:text-green-400">
                           <CheckCircle2 className="w-4 h-4 shrink-0" />
                           <span className="text-xs font-semibold">Message sent! Switching to live support chat...</span>
                         </div>
@@ -368,50 +368,50 @@ export default function SupportPage() {
                       <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                           <div className="space-y-1.5">
-                            <label className="text-[9px] text-white/30 uppercase tracking-widest ml-2">Name</label>
+                            <label className="text-[9px] text-foreground/30 uppercase tracking-widest ml-2">Name</label>
                             <input
                               required
                               type="text"
                               value={formData.name}
                               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                              className="w-full bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-white/20 transition-all text-sm text-white"
+                              className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-sm text-foreground"
                               placeholder="Enter your name"
                             />
                           </div>
                           
                           <div className="space-y-1.5">
-                            <label className="text-[9px] text-white/30 uppercase tracking-widest ml-2">Email Address</label>
+                            <label className="text-[9px] text-foreground/30 uppercase tracking-widest ml-2">Email Address</label>
                             <input
                               required
                               type="email"
                               value={formData.email}
                               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                              className="w-full bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-white/20 transition-all text-sm text-white"
+                              className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-sm text-foreground"
                               placeholder="Enter your email"
                             />
                           </div>
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-[9px] text-white/30 uppercase tracking-widest ml-2">Subject</label>
+                          <label className="text-[9px] text-foreground/30 uppercase tracking-widest ml-2">Subject</label>
                           <input
                             required
                             type="text"
                             value={formData.subject}
                             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                            className="w-full bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-white/20 transition-all text-sm text-white"
+                            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-sm text-foreground"
                             placeholder="Reason for inquiry"
                           />
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-[9px] text-white/30 uppercase tracking-widest ml-2">Message Description</label>
+                          <label className="text-[9px] text-foreground/30 uppercase tracking-widest ml-2">Message Description</label>
                           <textarea
                             required
                             rows={5}
                             value={formData.message}
                             onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                            className="w-full bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-white/20 transition-all text-sm text-white resize-none"
+                            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-sm text-foreground resize-none"
                             placeholder="Detail your request..."
                           />
                         </div>
@@ -419,7 +419,7 @@ export default function SupportPage() {
                         <button
                           disabled={loading}
                           type="submit"
-                          className="w-full py-4.5 rounded-2xl bg-white text-black font-bold text-xs uppercase tracking-widest hover:bg-white/90 transition-all active:scale-[0.98] disabled:opacity-50 flex justify-center items-center gap-2 mt-4 shadow-lg shadow-white/5"
+                          className="w-full py-4.5 rounded-2xl bg-foreground text-background font-bold text-xs uppercase tracking-widest hover:bg-foreground/90 transition-all active:scale-[0.98] disabled:opacity-50 flex justify-center items-center gap-2 mt-4 shadow-lg shadow-black/5"
                         >
                           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-3.5 h-3.5" /> Submit Support Request</>}
                         </button>
@@ -439,16 +439,16 @@ export default function SupportPage() {
                     >
                       {!ticketId ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center py-12 space-y-4">
-                          <div className="w-14 h-14 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-2">
-                            <MessageSquare className="w-6 h-6 text-white/30" />
+                          <div className="w-14 h-14 rounded-2xl bg-foreground/[0.02] border border-foreground/5 flex items-center justify-center mb-2">
+                            <MessageSquare className="w-6 h-6 text-foreground/30" />
                           </div>
                           <h3 className="text-base font-semibold">Active Session Required</h3>
-                          <p className="text-white/40 text-xs max-w-xs mx-auto leading-relaxed">
+                          <p className="text-foreground/40 text-xs max-w-xs mx-auto leading-relaxed">
                             Please submit a support message first. Once submitted, you can chat with our support team live.
                           </p>
                           <button
                             onClick={() => setActiveTab('form')}
-                            className="mt-2 px-6 py-2.5 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-[10px] font-bold uppercase tracking-wider"
+                            className="mt-2 px-6 py-2.5 rounded-full bg-foreground/5 border border-foreground/5 hover:bg-foreground/10 transition-all text-[10px] font-bold uppercase tracking-wider"
                           >
                             Create a Ticket
                           </button>
@@ -458,7 +458,7 @@ export default function SupportPage() {
                           {/* Messages list */}
                           <div className="flex-1 space-y-4 pb-4 overflow-y-auto max-h-[360px] custom-scrollbar">
                             {chatMessages.length === 0 ? (
-                              <div className="flex items-center justify-center h-32 text-white/30 text-xs">
+                              <div className="flex items-center justify-center h-32 text-foreground/30 text-xs">
                                 No messages yet...
                               </div>
                             ) : (
@@ -470,12 +470,12 @@ export default function SupportPage() {
                                   <div
                                     className={`max-w-[75%] p-4 rounded-2xl ${
                                       msg.senderType === 'USER'
-                                        ? 'bg-white/5 text-white border border-white/5 rounded-tr-none'
-                                        : 'bg-white text-black rounded-tl-none font-medium'
+                                        ? 'bg-foreground/[0.06] text-foreground border border-foreground/10 rounded-tr-none'
+                                        : 'bg-foreground text-background rounded-tl-none font-medium'
                                     }`}
                                   >
                                     <p className="text-xs leading-relaxed">{msg.content}</p>
-                                    <p className={`text-[8px] mt-2 uppercase tracking-tighter ${msg.senderType === 'USER' ? 'text-white/40' : 'text-black/50'}`}>
+                                    <p className={`text-[8px] mt-2 uppercase tracking-tighter ${msg.senderType === 'USER' ? 'text-foreground/45' : 'text-background/50'}`}>
                                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                   </div>
@@ -492,12 +492,12 @@ export default function SupportPage() {
                               value={newMessage}
                               onChange={(e) => setNewMessage(e.target.value)}
                               placeholder="Type a message..."
-                              className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-5 pr-14 py-4 focus:outline-none focus:border-white/20 transition-all text-xs text-white"
+                              className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl pl-5 pr-14 py-4 focus:outline-none focus:border-foreground/20 transition-all text-xs text-foreground"
                             />
                             <button
                               type="submit"
                               disabled={!newMessage.trim()}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center hover:bg-white/90 transition-all active:scale-95 disabled:opacity-50"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-foreground text-background flex items-center justify-center hover:bg-foreground/90 transition-all active:scale-95 disabled:opacity-50"
                             >
                               <Send className="w-3.5 h-3.5" />
                             </button>
@@ -525,13 +525,13 @@ export default function SupportPage() {
                           </div>
                           <div className="space-y-2">
                             <h3 className="text-base font-semibold uppercase tracking-wider">Authentication Required</h3>
-                            <p className="text-white/40 text-xs max-w-xs mx-auto leading-relaxed">
+                            <p className="text-foreground/40 text-xs max-w-xs mx-auto leading-relaxed">
                               You must be logged in to your account to initiate a deletion request.
                             </p>
                           </div>
                           <button
                             onClick={() => window.location.href = `/login?callbackUrl=/support?tab=delete`}
-                            className="px-8 py-3.5 rounded-2xl bg-white text-black font-bold text-xs uppercase tracking-widest hover:bg-white/90 transition-all active:scale-95 shadow-lg"
+                            className="px-8 py-3.5 rounded-2xl bg-foreground text-background font-bold text-xs uppercase tracking-widest hover:bg-foreground/90 transition-all active:scale-95 shadow-lg"
                           >
                             Sign In to Zica Bella
                           </button>
@@ -548,25 +548,25 @@ export default function SupportPage() {
                               </div>
                               <div className="space-y-1">
                                 <h4 className="text-sm font-bold uppercase tracking-wider text-rose-400">Deletion Request Pending</h4>
-                                <p className="text-white/45 text-xs">
+                                <p className="text-foreground/45 text-xs">
                                   We have received your account deletion request.
                                 </p>
                               </div>
-                              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-left text-xs text-white/70 space-y-2">
+                              <div className="p-4 rounded-xl bg-foreground/[0.02] border border-foreground/5 text-left text-xs text-foreground/70 space-y-2">
                                 <div className="flex justify-between">
-                                  <span className="text-white/40 uppercase tracking-wider text-[9px]">Request ID:</span>
-                                  <span className="font-bold text-[10px] text-white/80">#{existingDeletionTicket.id.slice(-8).toUpperCase()}</span>
+                                  <span className="text-foreground/40 uppercase tracking-wider text-[9px]">Request ID:</span>
+                                  <span className="font-bold text-[10px] text-foreground/80">#{existingDeletionTicket.id.slice(-8).toUpperCase()}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-white/40 uppercase tracking-wider text-[9px]">Status:</span>
+                                  <span className="text-foreground/40 uppercase tracking-wider text-[9px]">Status:</span>
                                   <span className="font-bold text-[10px] text-yellow-500 uppercase tracking-widest">{existingDeletionTicket.status}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-white/40 uppercase tracking-wider text-[9px]">Submitted:</span>
-                                  <span className="font-bold text-[10px] text-white/80">{new Date(existingDeletionTicket.createdAt).toLocaleDateString()}</span>
+                                  <span className="text-foreground/40 uppercase tracking-wider text-[9px]">Submitted:</span>
+                                  <span className="font-bold text-[10px] text-foreground/80">{new Date(existingDeletionTicket.createdAt).toLocaleDateString()}</span>
                                 </div>
                               </div>
-                              <p className="text-[11px] text-white/40 leading-relaxed">
+                              <p className="text-[11px] text-foreground/40 leading-relaxed">
                                 You can message support in the <button onClick={() => { setTicketId(existingDeletionTicket.id); setChatMessages(existingDeletionTicket.messages); setActiveTab('chat'); }} className="text-blue-400 border-b border-blue-400/20 hover:text-blue-300">Live Chat</button> tab to follow up.
                               </p>
                             </div>
@@ -577,7 +577,7 @@ export default function SupportPage() {
                                 <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
                                 <div className="space-y-2">
                                   <h4 className="text-xs font-bold uppercase tracking-widest text-rose-400">Important Security Notice</h4>
-                                  <p className="text-white/50 text-[11px] leading-relaxed">
+                                  <p className="text-foreground/50 text-[11px] leading-relaxed">
                                     Account deletion is permanent. Once completed, your profile history, addresses, unused store credits, wishlists, order receipts, and community memberships are completely purged.
                                   </p>
                                 </div>
@@ -591,21 +591,21 @@ export default function SupportPage() {
                                     id="confirmDelete"
                                     checked={confirmDelete}
                                     onChange={(e) => setConfirmDelete(e.target.checked)}
-                                    className="w-4 h-4 rounded border-white/10 bg-white/5 mt-0.5 accent-rose-500"
+                                    className="w-4 h-4 rounded border-foreground/10 bg-foreground/5 mt-0.5 accent-rose-500"
                                   />
-                                  <label htmlFor="confirmDelete" className="text-white/70 text-xs select-none leading-relaxed">
+                                  <label htmlFor="confirmDelete" className="text-foreground/70 text-xs select-none leading-relaxed">
                                     I understand that this action is irreversible and request the permanent deletion of my personal user data.
                                   </label>
                                 </div>
                               </div>
 
                               <div className="space-y-1.5">
-                                <label className="text-[9px] text-white/30 uppercase tracking-widest ml-2">Reason for leaving (Optional)</label>
+                                <label className="text-[9px] text-foreground/30 uppercase tracking-widest ml-2">Reason for leaving (Optional)</label>
                                 <textarea
                                   rows={4}
                                   value={deleteReason}
                                   onChange={(e) => setDeleteReason(e.target.value)}
-                                  className="w-full bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-white/20 transition-all text-xs text-white resize-none"
+                                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-xs text-foreground resize-none"
                                   placeholder="Help us improve. Why are you deleting your account?"
                                 />
                               </div>
@@ -632,10 +632,10 @@ export default function SupportPage() {
 
       {/* footer */}
       {!isMobileApp && (
-        <footer className="relative z-10 border-t border-white/5 py-12 px-6 bg-black">
+        <footer className="relative z-10 border-t border-foreground/5 py-12 px-6 bg-background">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="text-xl font-black tracking-[0.4em] text-white">ZICA BELLA</div>
-            <p className="text-white/20 text-[9px] uppercase tracking-[0.3em]">
+            <div className="text-xl font-black tracking-[0.4em] text-foreground">ZICA BELLA</div>
+            <p className="text-foreground/20 text-[9px] uppercase tracking-[0.3em]">
               © 2026 Zica Bella Private Limited. All rights reserved.
             </p>
           </div>
