@@ -124,7 +124,7 @@ function InputField({
       value={value || ''}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
-      className={`w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground placeholder:text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/30 outline-none transition-colors ${className}`}
+      className={`w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/10 focus:border-foreground/30 text-right text-[11px] font-medium text-foreground placeholder:text-foreground/45 outline-none transition-colors ${className}`}
     />
   );
 }
@@ -220,7 +220,7 @@ function MediaPicker({
           value={value || ''}
           onChange={e => onChange(e.target.value)}
           placeholder={`https://... or upload ${type}`}
-          className="flex-1 bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground placeholder:text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/50 dark:text-foreground/30 outline-none transition-colors"
+          className="flex-1 bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/10 focus:border-foreground/30 text-right text-[11px] font-medium text-foreground placeholder:text-foreground/45 outline-none transition-colors"
         />
         <label className="shrink-0 flex items-center justify-center w-10 h-10 rounded-md bg-foreground/5 border border-foreground/10 cursor-pointer hover:bg-foreground/10 transition-colors">
           {isUploading ? (
@@ -270,7 +270,8 @@ export default function StorefrontSettingsPage() {
   const [allCollections, setAllCollections] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('/api/admin/settings')
+    // Explicitly target zicabella.com configurations (same as web-store storefront)
+    fetch('/api/admin/settings?shop=zicabella.com')
       .then(r => r.json())
       .then(data => {
         setSettings(data);
@@ -310,7 +311,8 @@ export default function StorefrontSettingsPage() {
         'homepageCollection', 'homepageProducts'
     ];
 
-    const partialUpdate: any = { shopId: settings.id };
+    // Pass shopDomain explicitly to route to target the correct record in PATCH
+    const partialUpdate: any = { shopId: settings.id, shopDomain: 'zicabella.com' };
     storefrontKeys.forEach(key => {
         if (settings[key] !== undefined) partialUpdate[key] = settings[key];
     });
@@ -435,6 +437,22 @@ export default function StorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Show Text" description="Toggle hero text visibility">
              <ToggleField checked={settings.showHeroText!} onChange={set('showHeroText')} />
+          </SettingsRow>
+        </SettingsGroup>
+
+        {/* Section Headings */}
+        <SettingsGroup title="Section Headings" icon={MessageSquare}>
+          <SettingsRow label="Latest Curation Title" description="Heading for latest collection drop">
+             <InputField value={settings.latestCurationTitle!} onChange={set('latestCurationTitle')} placeholder="e.g. Latest Curation" />
+          </SettingsRow>
+          <SettingsRow label="Latest Curation Subtitle" description="Sub-heading or tag (e.g. Season Drop)">
+             <InputField value={settings.latestCurationSubtitle!} onChange={set('latestCurationSubtitle')} placeholder="e.g. Season Drop" />
+          </SettingsRow>
+          <SettingsRow label="Archive Section Title" description="Heading for past archives">
+             <InputField value={settings.archiveTitle!} onChange={set('archiveTitle')} placeholder="e.g. The Archive" />
+          </SettingsRow>
+          <SettingsRow label="Archive Section Subtitle" description="Sub-heading for past archives">
+             <InputField value={settings.archiveSubtitle!} onChange={set('archiveSubtitle')} placeholder="e.g. Organic Evolution" />
           </SettingsRow>
         </SettingsGroup>
 

@@ -220,6 +220,13 @@ export default function CheckoutPage() {
           setError(data.error || "Failed to place order");
         }
       } else {
+        // Ensure Razorpay SDK is loaded (from layout.tsx beforeInteractive script)
+        if (!(window as any).Razorpay) {
+          setError("Payment gateway is loading. Please try again in a moment.");
+          setLoading(false);
+          return;
+        }
+
         const res = await fetch("/api/checkout/razorpay", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -230,68 +237,114 @@ export default function CheckoutPage() {
         
         if (!res.ok) throw new Error(orderData.error || "Failed to initiate payment");
 
-        const options = {
-          key: orderData.keyId,
+        const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
+
+        const options: any = {
+          key: orderData.keyId || orderData.key_id,
           amount: orderData.amount,
           currency: "INR",
           name: "Zica Bella",
           description: "Order Checkout",
-          order_id: orderData.id,
+          order_id: orderData.id || orderData.razorpay_order_id,
           handler: async function (response: any) {
-            const verifyRes = await fetch("/api/checkout/complete", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                address,
-                paymentMethod,
-                items,
-                total,
-                subtotal,
-                razorpay: response,
-                couponCode: couponValid ? couponCode : null,
-                couponDiscount: couponDiscount,
-              }),
-            });
+            try {
+              const verifyRes = await fetch("/api/checkout/complete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  address,
+                  paymentMethod,
+                  items,
+                  total,
+                  subtotal,
+                  razorpay: response,
+                  couponCode: couponValid ? couponCode : null,
+                  couponDiscount: couponDiscount,
+                }),
+              });
 
-            const verifyData = await verifyRes.json();
-            if (verifyRes.ok) {
-              clear();
-              router.push(`/orders/${verifyData.orderId}/confirmation`);
-            } else {
-              setError(verifyData.error || "Payment verification failed");
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok) {
+                clear();
+                router.push(`/orders/${verifyData.orderId}/confirmation`);
+              } else {
+                setError(verifyData.error || "Payment verification failed");
+              }
+            } catch (verifyErr: any) {
+              setError(verifyErr.message || "Payment verification failed. Please contact support.");
             }
           },
           prefill: {
             name: address.name,
             email: address.email,
             contact: address.phone,
-            method: "upi", // Prefill UPI option
+            method: paymentMethod === "UPI" ? "upi" : "card",
           },
-          config: {
+          theme: {
+            color: "#000000",
+          },
+          modal: {
+            ondismiss: function () {
+              setLoading(false);
+            },
+            confirm_close: true,
+          },
+        };
+
+        // Configure display blocks for UPI or Card
+        if (paymentMethod === "UPI") {
+          options.config = {
             display: {
               blocks: {
                 upi: {
-                  name: "Pay via UPI (Instant Apps)",
+                  name: "Pay via UPI",
                   instruments: [
                     {
                       method: "upi",
-                      flows: ["intent", "qr", "collect"]
+                      flows: isMobile ? ["intent", "collect"] : ["qr", "collect"],
+                      apps: isMobile ? ["google_pay", "phonepe", "paytm"] : undefined,
                     }
                   ]
                 }
               },
               sequence: ["block.upi"],
               preferences: {
-                show_default_blocks: true
+                show_default_blocks: false
               }
             }
-          },
-          theme: {
-            color: "#000000",
-          },
-        };
+          };
+        } else if (paymentMethod === "CARD") {
+          options.config = {
+            display: {
+              blocks: {
+                card: {
+                  name: "Pay via Card",
+                  instruments: [
+                    {
+                      method: "card"
+                    }
+                  ]
+                }
+              },
+              sequence: ["block.card"],
+              preferences: {
+                show_default_blocks: false
+              }
+            }
+          };
+        }
 
         const rzp = new (window as any).Razorpay(options);
+        
+        // Handle payment failure
+        rzp.on('payment.failed', function (response: any) {
+          const errorDesc = response?.error?.description || "Payment failed. Please try again.";
+          const errorCode = response?.error?.code || "";
+          console.error('[Razorpay] Payment failed:', response?.error);
+          setError(`${errorDesc}${errorCode ? ` (${errorCode})` : ''}`);
+          setLoading(false);
+        });
+
         rzp.open();
       }
     } catch (err: any) {
@@ -303,9 +356,9 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen relative bg-background text-foreground font-sans">
-      <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
+      {/* Razorpay SDK loaded via layout.tsx beforeInteractive — no duplicate script needed */}
       
-      <div className="relative z-10 max-w-xl mx-auto px-4 pt-28 pb-32">
+      <div className="relative z-10 max-w-xl mx-auto px-4 pt-20 md:pt-28 pb-32" style={{ paddingBottom: 'max(8rem, env(safe-area-inset-bottom, 8rem))' }}>
         {/* Page Title */}
         <div className="mb-6">
           <p className="text-[7px] font-semibold uppercase tracking-[0.4em] text-foreground/40 mb-1">Your Purchase</p>
@@ -355,7 +408,7 @@ export default function CheckoutPage() {
                         key={addr.id}
                         type="button"
                         onClick={() => handleSelectSavedAddress(addr)}
-                        className={`snap-start shrink-0 w-[240px] text-left p-3.5 rounded-[1.25rem] glass-panel border transition-all ${
+                        className={`snap-start shrink-0 w-[200px] md:w-[240px] text-left p-3.5 rounded-[1.25rem] glass-panel border transition-all ${
                           selectedSavedId === addr.id
                             ? "border-foreground/30 bg-foreground/[0.03] shadow-[0_0_15px_rgba(var(--foreground),0.02)]"
                             : "border-foreground/5 bg-foreground/[0.01] hover:border-foreground/10"
