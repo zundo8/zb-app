@@ -50,6 +50,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRealtimeSync } from "@/lib/hooks/useRealtime";
 import ThemeToggle from "@/components/ThemeToggle";
 import ZicaAI from "@/components/ZicaAI";
+import AdminPolarisProvider from "@/components/AdminPolarisProvider";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
@@ -278,7 +279,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .replace(/\b\w/g, (l) => l.toUpperCase());
 
   return (
-    <div className="min-h-[100dvh] flex text-foreground bg-background dark:bg-[#0A0A0A] font-sans selection:bg-foreground/20 selection:text-foreground">
+    <AdminPolarisProvider>
+      <div className="min-h-[100dvh] flex text-foreground bg-background dark:bg-[#0A0A0A] font-sans selection:bg-foreground/20 selection:text-foreground">
       {/* Subtle background */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-background" aria-hidden="true">
         <div
@@ -594,5 +596,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Zica AI — Floating Command Center */}
       <ZicaAI />
     </div>
+  </AdminPolarisProvider>
   );
 }
