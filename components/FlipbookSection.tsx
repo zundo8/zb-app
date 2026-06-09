@@ -90,10 +90,10 @@ export default function FlipbookSection({ imgUrl, videoUrl, imgUrlMobile, videoU
       ref={containerRef}
       className="relative w-full overflow-hidden bg-transparent py-4 md:py-8"
     >
-      <div className="max-w-[1400px] mx-auto px-4">
+      <div className="w-full">
 
         {/* Card */}
-        <div className="relative w-full max-w-[360px] md:max-w-6xl lg:max-w-[1400px] mx-auto overflow-hidden rounded-[1.5rem] shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04] aspect-[3/4.2] md:aspect-[21/9]">
+        <div className="relative w-full overflow-hidden rounded-none shadow-2xl border-y border-foreground/[0.03] dark:border-white/[0.04] aspect-[3/4.2] md:aspect-[21/9]">
           
           {/* Media */}
           {isMobile ? (

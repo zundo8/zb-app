@@ -90,10 +90,11 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
   if (!loading && items.length === 0) return null;
 
   return (
-    <section className="w-full py-12 md:py-16 relative z-10">
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="w-full py-8 md:py-12 relative z-10 overflow-hidden">
+      {/* Centered Header container to align with standard padding */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex items-end justify-between mb-6 md:mb-8">
+        <div className="flex items-end justify-between mb-6">
           <div>
             <span className="text-[7px] md:text-[8px] font-bold text-foreground/20 uppercase tracking-[0.35em] block mb-1">CURATED ACCESSORIES</span>
             <h2 className="text-sm md:text-base font-heading tracking-[0.15em] uppercase text-foreground leading-none">
@@ -114,8 +115,10 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
             </Link>
           </div>
         </div>
+      </div>
 
-        {/* Carousel */}
+      {/* Carousel Wrapper - Full screen breakout */}
+      <div className="w-full mt-2">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-5 h-5 animate-spin text-foreground/15" />
@@ -128,8 +131,12 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
 
             <div
               ref={scrollRef}
-              className="flex gap-3 md:gap-4 overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x ios-scroll hide-scrollbar"
-              style={{ WebkitOverflowScrolling: "touch" }}
+              className="flex gap-2.5 overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x ios-scroll hide-scrollbar"
+              style={{ 
+                WebkitOverflowScrolling: "touch",
+                paddingLeft: 'max(16px, calc((100vw - 1280px) / 2 + 24px))',
+                paddingRight: 'max(16px, calc((100vw - 1280px) / 2 + 24px))'
+              }}
             >
               {items.map((item, i) => (
                 <motion.div
@@ -145,15 +152,15 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
                     className="group/card block w-full h-full"
                     prefetch={false}
                   >
-                    {/* Plain minimal card — image only, no text overlay */}
-                    <div className="w-full h-full rounded-2xl md:rounded-[1.25rem] overflow-hidden relative bg-foreground/[0.03] transition-all duration-500 group-hover/card:bg-foreground/[0.05]">
+                    {/* Plain minimal card — image only, rounded-none for streetwear vibe */}
+                    <div className="w-full h-full rounded-none overflow-hidden relative bg-foreground/[0.03] transition-all duration-500 group-hover/card:bg-foreground/[0.05]">
                       <img
                         src={item.image}
                         alt={item.title || "Accessory"}
                         draggable={false}
                         loading="lazy"
                         onError={handleImageError}
-                        className="w-full h-full object-contain select-none p-4 md:p-6 group-hover/card:scale-105 transition-transform duration-700 ease-out"
+                        className="w-full h-full object-contain select-none p-3 md:p-5 group-hover/card:scale-105 transition-transform duration-700 ease-out"
                       />
                     </div>
                   </Link>

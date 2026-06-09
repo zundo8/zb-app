@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { 
   Package, 
   Truck, 
@@ -17,18 +17,29 @@ import {
   ExternalLink,
   RefreshCw,
   Box,
-  Home
+  Home,
+  RotateCcw,
+  ArrowLeftRight,
+  X
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 const STEPS = [
-  { id: "confirmed",   label: "Confirmed",   icon: CheckCircle2 },
-  { id: "processing",  label: "Processing",  icon: Clock },
-  { id: "shipped",     label: "Shipped",     icon: Package },
-  { id: "in_transit",   label: "In Transit",  icon: Truck },
+  { id: "order_placed",   label: "Order Placed",   icon: CheckCircle2 },
+  { id: "confirmed",      label: "Confirmed",      icon: Clock },
+  { id: "shipped",        label: "Shipped",        icon: Package },
+  { id: "in_transit",     label: "In Transit",     icon: Truck },
   { id: "out_for_delivery", label: "Out for Delivery", icon: Box },
-  { id: "delivered",   label: "Delivered",   icon: Home },
+  { id: "delivered",      label: "Delivered",      icon: Home },
+];
+
+const RETURN_STEPS = [
+  { id: "order_placed",      label: "Order Placed",            icon: CheckCircle2 },
+  { id: "delivered",          label: "Delivered",               icon: Home },
+  { id: "return_requested",   label: "Return/Exchange Requested", icon: RotateCcw },
+  { id: "pickup_approved",    label: "Pickup Manifested",       icon: Truck },
+  { id: "refund_completed",   label: "Refund/Exchange Completed", icon: CheckCircle2 },
 ];
 
 export default function OrderDetailsPage() {
@@ -37,6 +48,7 @@ export default function OrderDetailsPage() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -69,16 +81,100 @@ export default function OrderDetailsPage() {
 
   const handleSync = async () => {
     setSyncing(true);
-    // Simulate Shiprocket API sync
     await new Promise(r => setTimeout(r, 1500));
     await fetchOrder();
     setSyncing(false);
   };
 
+  const handleCancelOrder = async () => {
+    if (!confirm("Are you sure you want to cancel this order?")) return;
+    setCancelling(true);
+    try {
+      const res = await fetch("/api/app/orders/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id, reason: "User cancelled from webstore" })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to cancel");
+      alert("Order cancelled successfully.");
+      fetchOrder();
+    } catch (e: any) {
+      alert(e.message || "Failed to cancel order");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleCancelReturnExchange = async () => {
+    const pendingReq = order.returnRequests?.find((r: any) => r.status === 'pending_approval')
+      || order.exchangeRequests?.find((e: any) => e.status === 'pending_approval');
+    if (!pendingReq) {
+      alert("No pending return or exchange request to cancel.");
+      return;
+    }
+    if (!confirm("Are you sure you want to cancel this return/exchange request?")) return;
+    try {
+      const res = await fetch("/api/returns/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnRequestId: pendingReq.id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to cancel");
+      alert("Return/Exchange request cancelled.");
+      fetchOrder();
+    } catch (e: any) {
+      alert(e.message || "Failed to cancel request");
+    }
+  };
+
+  // Compute derived state
+  const isCancelled = useMemo(() => (order?.status || '').toLowerCase().includes('cancel'), [order]);
+  const isDelivered = useMemo(() => (order?.deliveryStatus || '').toLowerCase() === 'delivered', [order]);
+  const hasActiveReturn = useMemo(() => order?.returnRequests?.some((r: any) => r.status !== 'cancelled') || false, [order]);
+  const hasActiveExchange = useMemo(() => order?.exchangeRequests?.some((e: any) => e.status !== 'cancelled') || false, [order]);
+  const hasPendingRequest = useMemo(() => {
+    return order?.returnRequests?.some((r: any) => r.status === 'pending_approval') || 
+           order?.exchangeRequests?.some((e: any) => e.status === 'pending_approval') || false;
+  }, [order]);
+
+  const isReturnWindowOpen = useMemo(() => {
+    if (!isDelivered) return false;
+    const timelineArr = Array.isArray(order?.statusTimeline) ? order.statusTimeline : [];
+    const deliveredEntry = timelineArr.find((t: any) => t.step === 'delivered');
+    const deliveredAt = deliveredEntry?.completedAt || order?.updatedAt;
+    if (!deliveredAt) return false;
+    const diffDays = Math.ceil(Math.abs(Date.now() - new Date(deliveredAt).getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays <= 10;
+  }, [order, isDelivered]);
+
+  const isReturnFlow = useMemo(() => {
+    if (!order) return false;
+    const s = (order.status || '').toLowerCase();
+    return s.includes('return') || s.includes('exchange') || s === 'returned' || s === 'exchanged' || hasActiveReturn || hasActiveExchange;
+  }, [order, hasActiveReturn, hasActiveExchange]);
+
+  const steps = isReturnFlow ? RETURN_STEPS : STEPS;
+
+  const timelineByStep = useMemo(() => {
+    const tl = Array.isArray(order?.statusTimeline) ? order.statusTimeline : [];
+    const m = new Map<string, string | null>();
+    tl.forEach((t: any) => m.set(t.step, t.completedAt || null));
+    return m;
+  }, [order]);
+
   const getCurrentStepIndex = () => {
     if (!order) return 0;
-    const status = order.deliveryStatus.toLowerCase();
-    switch (status) {
+    const s = order.deliveryStatus.toLowerCase();
+    if (isReturnFlow) {
+      if (timelineByStep.get('refund_completed')) return 4;
+      if (timelineByStep.get('pickup_approved')) return 3;
+      if (timelineByStep.get('return_requested')) return 2;
+      if (timelineByStep.get('delivered')) return 1;
+      return 0;
+    }
+    switch (s) {
       case "delivered": return 5;
       case "out_for_delivery": return 4;
       case "shipped": return 3;
@@ -90,11 +186,21 @@ export default function OrderDetailsPage() {
 
   const currentStepIndex = getCurrentStepIndex();
 
+  const canCancel = useMemo(() => {
+    if (!order) return false;
+    const s = (order.status || '').toLowerCase();
+    return (
+      (order.paymentMethod === 'COD' && s === 'awaiting_approval') ||
+      s === 'payment_pending' ||
+      s === 'pending'
+    ) && !isDelivered && !['payment_failed', 'failed'].includes(s);
+  }, [order, isDelivered]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 space-y-4">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/20" />
-        <p className="text-[8px] text-muted-foreground/30 font-black uppercase tracking-[0.3em]">Locating Package</p>
+        <Loader2 className="w-6 h-6 animate-spin text-foreground/20" />
+        <p className="text-[8px] text-foreground/30 font-black uppercase tracking-[0.3em]">Locating Package</p>
       </div>
     );
   }
@@ -102,14 +208,14 @@ export default function OrderDetailsPage() {
   if (!order) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center space-y-6">
-        <div className="w-16 h-16 bg-muted/20 rounded-[2rem] flex items-center justify-center">
-          <AlertCircle className="w-6 h-6 text-red-500/30" />
+        <div className="w-16 h-16 bg-foreground/5 rounded-[2rem] flex items-center justify-center">
+          <AlertCircle className="w-6 h-6 text-red-500/50" />
         </div>
         <div className="space-y-1">
-          <h2 className="text-[12px] font-heading uppercase tracking-widest">Order Not Found</h2>
-          <p className="text-[9px] text-muted-foreground/50">The requested order could not be located in our system.</p>
+          <h2 className="text-[12px] font-heading uppercase tracking-widest text-foreground">Order Not Found</h2>
+          <p className="text-[9px] text-foreground/50">The requested order could not be located.</p>
         </div>
-        <Link href="/orders" className="px-8 py-3 bg-foreground text-background rounded-full text-[9px] font-black uppercase tracking-[0.2em] shadow-lg shadow-foreground/5">
+        <Link href="/orders" className="glass-cta px-8 py-3 text-[9px]">
              Back to Orders
         </Link>
       </div>
@@ -118,136 +224,155 @@ export default function OrderDetailsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground relative pb-safe-nav">
-      {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-0 right-0 w-[80vw] h-[80vw] bg-blue-500/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-0 w-[80vw] h-[80vw] bg-purple-500/5 rounded-full blur-[120px]" />
-      </div>
-
       <main className="relative z-10 max-w-3xl mx-auto px-5 pt-28 pb-32">
         {/* Header Navigation */}
         <div className="flex items-center justify-between mb-10">
-          <Link href="/orders" className="group flex items-center gap-2 p-2 -ml-2 rounded-full hover:bg-white/5 transition-colors">
+          <Link href="/orders" className="group flex items-center gap-2 p-2 -ml-2 rounded-full hover:bg-foreground/5 transition-colors">
             <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span className="text-[9px] font-black uppercase tracking-widest opacity-40">Orders</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-foreground/40">Orders</span>
           </Link>
           <button 
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 active:scale-95 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-button text-[8px] font-black uppercase tracking-wider disabled:opacity-50"
           >
-            <RefreshCw className={`w-3 h-3 text-blue-400 ${syncing ? 'animate-spin' : ''}`} />
-            <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">Sync Status</span>
+            <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+            <span>Sync Status</span>
           </button>
         </div>
 
         {/* Order Identifier */}
         <div className="mb-10 text-center">
-            <p className="text-[7px] font-light uppercase tracking-[0.55em] text-muted-foreground/30 mb-2">Tracking ID</p>
+            <p className="text-[7px] font-light uppercase tracking-[0.55em] text-foreground/30 mb-2">Tracking ID</p>
             <h1 className="text-2xl font-heading tracking-widest uppercase text-foreground/80 mb-1">
               #{order.shopifyOrderId || order.id.slice(-6).toUpperCase()}
             </h1>
-            <div className="flex items-center justify-center gap-2 text-[9px] font-extralight text-muted-foreground/40 italic uppercase tracking-wider">
+            <div className="flex items-center justify-center gap-2 text-[9px] font-extralight text-foreground/40 italic uppercase tracking-wider">
                <span>Placed {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
             </div>
         </div>
 
         {/* LIVE STATUS BAR (STEPPER) */}
-        <div className="relative mb-14 px-2">
-            <div className="absolute top-4 left-10 right-10 h-[2px] bg-white/5 z-0" />
-            <motion.div 
-               className="absolute top-4 left-10 h-[2px] bg-blue-500 z-1" 
-               initial={{ width: 0 }}
-               animate={{ width: `${(currentStepIndex / (STEPS.length - 1)) * 80}%` }}
-               transition={{ duration: 1, ease: "circOut" }}
-            />
-            
-            <div className="flex justify-between relative z-10">
-               {STEPS.map((step, i) => {
-                 const isCompleted = i <= currentStepIndex;
-                 const isActive = i === currentStepIndex;
-                 const Icon = step.icon;
+        {!isCancelled && (
+          <div className="relative mb-14 px-2">
+              <div className="absolute top-4 left-10 right-10 h-[2px] bg-foreground/5 z-0" />
+              <motion.div 
+                 className="absolute top-4 left-10 h-[2px] bg-foreground z-[1]" 
+                 initial={{ width: 0 }}
+                 animate={{ width: `${(currentStepIndex / (steps.length - 1)) * 80}%` }}
+                 transition={{ duration: 1, ease: "circOut" }}
+              />
+              
+              <div className="flex justify-between relative z-10">
+                 {steps.map((step, i) => {
+                   const isCompleted = !!timelineByStep.get(step.id);
+                   const isActive = i === currentStepIndex;
+                   const Icon = step.icon;
 
-                 return (
-                   <div key={step.id} className="flex flex-col items-center group">
-                      <div 
-                         className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${
-                           isCompleted 
-                            ? 'bg-blue-500 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]' 
-                            : 'bg-background border-white/10'
-                         }`}
-                      >
-                         <Icon className={`w-3.5 h-3.5 transition-colors duration-500 ${isCompleted ? 'text-white' : 'text-white/10'}`} />
-                      </div>
-                      <span className={`text-[6px] font-black uppercase tracking-widest mt-2 transition-colors duration-500 ${isCompleted ? 'text-white/60' : 'text-white/5'} ${isActive ? 'text-blue-400' : ''}`}>
-                         {step.label}
-                      </span>
-                   </div>
-                 );
-               })}
-            </div>
-        </div>
+                   return (
+                     <div key={step.id} className="flex flex-col items-center group">
+                        <div 
+                           className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${
+                             isCompleted 
+                              ? 'bg-foreground border-foreground shadow-[0_0_15px_rgba(var(--foreground),0.2)]' 
+                              : 'bg-background border-foreground/10'
+                           }`}
+                        >
+                           <Icon className={`w-3.5 h-3.5 transition-colors duration-500 ${isCompleted ? 'text-background' : 'text-foreground/10'}`} />
+                        </div>
+                        <span className={`text-[6px] font-black uppercase tracking-widest mt-2 transition-colors duration-500 ${isCompleted ? 'text-foreground/60' : 'text-foreground/10'} ${isActive ? 'text-foreground/80' : ''}`}>
+                           {step.label}
+                        </span>
+                     </div>
+                   );
+                 })}
+              </div>
+          </div>
+        )}
+
+        {/* Cancelled State */}
+        {isCancelled && (
+          <div className="mb-10 p-5 rounded-2xl glass-panel border-red-500/20 text-center space-y-2">
+            <AlertCircle className="w-6 h-6 text-red-500 mx-auto" />
+            <p className="text-[12px] font-bold text-red-500 uppercase tracking-wider">Order Cancelled</p>
+          </div>
+        )}
 
         {/* SHIPMENT DETAILS CARD */}
         {order.shipments?.[0] && (
-          <div className="mb-8 p-5 rounded-3xl bg-white/[0.03] border border-white/[0.05] backdrop-blur-3xl overflow-hidden relative group">
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500/0 via-blue-500/20 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="mb-8 p-5 rounded-3xl glass-panel overflow-hidden relative group">
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-foreground/0 via-foreground/10 to-foreground/0 opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="flex items-start justify-between mb-6">
                 <div className="space-y-1">
-                    <p className="text-[7px] font-black uppercase tracking-[0.3em] text-blue-400/60">Live Shipment</p>
+                    <p className="text-[7px] font-black uppercase tracking-[0.3em] text-foreground/40">Live Shipment</p>
                     <h3 className="text-[12px] font-heading tracking-widest text-foreground/80 uppercase">
                         {order.shipments[0].courier || 'Standard'} Express
                     </h3>
                 </div>
-                <div className="p-2 bg-blue-500/10 rounded-xl">
-                   <Truck className="w-4 h-4 text-blue-400" />
+                <div className="p-2 bg-foreground/10 rounded-xl">
+                   <Truck className="w-4 h-4 text-foreground/60" />
                 </div>
             </div>
 
             <div className="grid grid-cols-2 gap-8 mb-4">
                 <div>
-                   <p className="text-[6.5px] font-black uppercase tracking-widest text-white/15 mb-1.5 font-mono">Tracking No.</p>
-                   <p className="text-[10px] font-mono text-white/60 font-medium uppercase">{order.shipments[0].trackingNumber}</p>
+                   <p className="text-[6.5px] font-black uppercase tracking-widest text-foreground/15 mb-1.5 font-mono">Tracking No.</p>
+                   <p className="text-[10px] font-mono text-foreground/60 font-medium uppercase">{order.shipments[0].trackingNumber}</p>
                 </div>
                 <div>
-                   <p className="text-[6.5px] font-black uppercase tracking-widest text-white/15 mb-1.5 font-mono">Current Station</p>
-                   <p className="text-[10px] text-white/60 font-medium italic">Transit Hub · Delhi</p>
+                   <p className="text-[6.5px] font-black uppercase tracking-widest text-foreground/15 mb-1.5 font-mono">Status</p>
+                   <p className="text-[10px] text-foreground/60 font-medium">{order.deliveryStatus}</p>
                 </div>
             </div>
 
             <button 
                 onClick={() => window.open(`https://www.shiprocket.in/shipment-tracking/?awb=${order.shipments[0].trackingNumber}`, '_blank')}
-                className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 text-[8px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-2xl glass-button text-[8px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2"
             >
                 External Track <ExternalLink className="w-3 h-3 opacity-30" />
             </button>
           </div>
         )}
 
+        {/* Reverse Shipment (Return Pickup) */}
+        {order.shipments?.find((s: any) => String(s.awb || s.trackingNumber || '').startsWith('ZBRET') || String(s.status || '').includes('pickup')) && (
+          <div className="mb-8 p-5 rounded-3xl glass-panel border-amber-500/20 overflow-hidden">
+            <p className="text-[7px] font-black uppercase tracking-[0.3em] text-amber-500/60 mb-2">Return Pickup Logistics</p>
+            <p className="text-[10px] font-mono text-foreground/60">
+              {(() => {
+                const rs = order.shipments.find((s: any) => String(s.awb || s.trackingNumber || '').startsWith('ZBRET') || String(s.status || '').includes('pickup'));
+                return `${rs.courier || ''} • ${rs.awb || rs.trackingNumber} • Status: ${rs.status === 'pickup_pending' ? 'Awaiting Pickup Agent' : rs.status?.toUpperCase()}`;
+              })()}
+            </p>
+          </div>
+        )}
+
         {/* ORDER ITEMS */}
         <div className="mb-10">
-           <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-white/20 mb-6 flex items-center gap-2">
+           <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-6 flex items-center gap-2">
               <ShoppingBag className="w-3 h-3" /> Package Contents
            </h4>
            <div className="space-y-3">
               {order.items.map((item: any) => (
                 <div 
                    key={item.id} 
-                   className="flex items-center gap-4 p-3 rounded-2xl border border-white/[0.03] bg-white/[0.01] hover:bg-white/[0.03] transition-colors"
+                   className="flex items-center gap-4 p-3 rounded-2xl glass-panel"
                 >
-                   <div className="w-14 h-14 rounded-xl overflow-hidden bg-white/5 border border-white/5 flex-shrink-0">
+                   <div className="w-14 h-14 rounded-xl overflow-hidden bg-foreground/5 border border-foreground/5 flex-shrink-0">
                       {item.product?.featuredImage ? (
                         <img src={item.product.featuredImage} alt={item.title} className="w-full h-full object-cover" />
+                      ) : item.image ? (
+                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-foreground/5 text-foreground/40 dark:text-foreground/20 font-black text-lg uppercase">{item.title[0]}</div>
+                        <div className="w-full h-full flex items-center justify-center bg-foreground/5 text-foreground/20 font-black text-lg uppercase">{item.title[0]}</div>
                       )}
                    </div>
                    <div className="flex-1 min-w-0">
                       <h5 className="text-[10px] font-bold text-foreground/80 truncate uppercase tracking-tight">{item.title}</h5>
-                      <p className="text-[8px] font-extralight text-muted-foreground/40 mt-0.5 font-mono">Qty: {item.quantity} · INR {(item.price).toLocaleString('en-IN')}</p>
+                      <p className="text-[8px] font-extralight text-foreground/40 mt-0.5 font-mono">Qty: {item.quantity} · INR {(item.price).toLocaleString('en-IN')}</p>
                    </div>
                    <div className="text-right">
-                      <p className="text-[10px] font-inter font-bold text-white/60">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+                      <p className="text-[10px] font-inter font-bold text-foreground/60">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
                    </div>
                 </div>
               ))}
@@ -255,54 +380,105 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* SUMMARY & DETAILS */}
-        <div className="grid grid-cols-1 gap-4 mb-20">
+        <div className="grid grid-cols-1 gap-4 mb-10">
            {/* Summary */}
-           <div className="p-6 rounded-3xl border border-white/[0.03] bg-white/[0.01] space-y-4">
-               <h4 className="text-[7px] font-black uppercase tracking-[0.3em] text-white/10 mb-2">Payment Summary</h4>
+           <div className="p-6 rounded-3xl glass-panel space-y-4">
+               <h4 className="text-[7px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-2">Payment Summary</h4>
                <div className="space-y-2.5">
-                  <div className="flex justify-between text-[9px] font-extralight text-white/40">
+                  <div className="flex justify-between text-[9px] font-extralight text-foreground/40">
                      <span>Subtotal</span>
                      <span>₹{(order.totalPrice).toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="flex justify-between text-[9px] font-extralight text-white/40">
+                  <div className="flex justify-between text-[9px] font-extralight text-foreground/40">
                      <span>Shipping</span>
-                     <span className="text-green-500/60 uppercase text-[7px] font-black tracking-widest">Free</span>
+                     <span className="text-emerald-500/60 uppercase text-[7px] font-black tracking-widest">Free</span>
                   </div>
-                  <div className="pt-2.5 mt-2.5 border-t border-white/5 flex justify-between items-center">
-                     <span className="text-[8px] font-black uppercase tracking-widest text-white/20">Total Amount</span>
+                  <div className="pt-2.5 mt-2.5 border-t border-foreground/5 flex justify-between items-center">
+                     <span className="text-[8px] font-black uppercase tracking-widest text-foreground/20">Total Amount</span>
                      <span className="text-sm font-heading tracking-widest text-foreground/90">₹{(order.totalPrice).toLocaleString('en-IN')}</span>
                   </div>
                </div>
            </div>
 
            {/* Address */}
-           <div className="p-6 rounded-3xl border border-white/[0.03] bg-white/[0.01]">
-              <h4 className="text-[7px] font-black uppercase tracking-[0.3em] text-white/10 mb-4 flex items-center gap-2">
+           <div className="p-6 rounded-3xl glass-panel">
+              <h4 className="text-[7px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-4 flex items-center gap-2">
                  <MapPin className="w-2.5 h-2.5" /> Shipping Destination
               </h4>
-              <p className="text-[10px] font-extralight text-white/50 leading-relaxed italic">
+              <p className="text-[10px] font-extralight text-foreground/50 leading-relaxed">
                  {(() => {
-                   if (!order.shippingAddress) return 'No address provided in system records.';
+                   if (!order.shippingAddress) return 'No address provided.';
                    try {
-                     const addr = JSON.parse(order.shippingAddress);
+                     const addr = typeof order.shippingAddress === 'string' ? JSON.parse(order.shippingAddress) : order.shippingAddress;
                      const parts = [
                        addr.name,
-                       addr.address1 || addr.line1,
+                       addr.address1 || addr.line1 || addr.street,
                        addr.address2 || addr.line2,
                        [addr.city, addr.province || addr.state].filter(Boolean).join(', '),
                        [addr.zip || addr.pincode, addr.country].filter(Boolean).join(' '),
                        addr.phone ? `Phone: ${addr.phone}` : null,
                      ].filter(Boolean);
-                     return parts.join(' · ') || order.shippingAddress;
+                     return parts.join(' · ') || 'No address provided.';
                    } catch {
-                     return order.shippingAddress;
+                     return typeof order.shippingAddress === 'string' ? order.shippingAddress : 'No address provided.';
                    }
                  })()}
               </p>
            </div>
         </div>
-      </main>
 
+        {/* ACTION BUTTONS */}
+        <div className="space-y-3 mb-20">
+          {/* Return & Exchange buttons for delivered orders within window */}
+          {isReturnWindowOpen && !hasActiveReturn && !hasActiveExchange && (
+            <div className="flex gap-3">
+              <Link 
+                href={`/orders/${id}/return`}
+                className="flex-1 py-4 rounded-2xl glass-button text-[11px] font-bold uppercase tracking-wider text-center flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Return
+              </Link>
+              <Link 
+                href={`/orders/${id}/exchange`}
+                className="flex-1 py-4 rounded-2xl glass-cta text-[11px] flex items-center justify-center gap-2"
+              >
+                <ArrowLeftRight className="w-4 h-4" />
+                Exchange
+              </Link>
+            </div>
+          )}
+
+          {/* Cancel pending return/exchange */}
+          {hasPendingRequest && (
+            <button
+              onClick={handleCancelReturnExchange}
+              className="w-full py-4 rounded-2xl text-[11px] font-bold uppercase tracking-wider text-red-500 bg-red-500/5 border border-red-500/15 hover:bg-red-500/10 transition-all active:scale-[0.98]"
+            >
+              Cancel Return/Exchange Request
+            </button>
+          )}
+
+          {/* Cancel order for pending/COD */}
+          {canCancel && !hasPendingRequest && (
+            <button
+              onClick={handleCancelOrder}
+              disabled={cancelling}
+              className="w-full py-4 rounded-2xl text-[11px] font-bold uppercase tracking-wider text-red-500 bg-red-500/5 border border-red-500/15 hover:bg-red-500/10 transition-all active:scale-[0.98] disabled:opacity-50"
+            >
+              {cancelling ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Cancel Order"}
+            </button>
+          )}
+
+          {/* Contact Support */}
+          <Link
+            href="/support"
+            className="block w-full py-4 rounded-2xl glass-button text-[11px] font-bold uppercase tracking-wider text-center"
+          >
+            Contact Support
+          </Link>
+        </div>
+      </main>
     </div>
   );
 }

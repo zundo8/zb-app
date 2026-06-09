@@ -93,12 +93,7 @@ export default function FeaturedUsersSection({
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
                     
                     <div className="absolute inset-x-0 bottom-0 p-6">
-                      <div className="flex flex-col mb-2">
-                         <span className="text-[10px] font-bold text-white tracking-[0.1em] uppercase mb-1">{user.name}</span>
-                      </div>
-                      <p className="text-[9px] text-white/50 font-normal leading-relaxed line-clamp-2 tracking-wide">
-                        {user.styleDescription}
-                      </p>
+                      <span className="text-[10px] font-bold text-white tracking-[0.15em] uppercase">{user.name}</span>
                     </div>
 
                   </div>

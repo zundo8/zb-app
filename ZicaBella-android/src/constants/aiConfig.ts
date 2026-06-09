@@ -8,7 +8,7 @@
 
 export const ZICA_AI_CONFIG = {
   CLAUDE_API_KEY: process.env.EXPO_PUBLIC_CLAUDE_API_KEY || '',
-  MODEL: 'claude-sonnet-4-6',
+  MODEL: 'claude-3-5-sonnet-latest',
   MAX_TOKENS: 2048,
   SYSTEM_PROMPT: `You are Zica, the intelligent personal fashion AI for Zica Bella — a premium fashion brand based in India. You are an expert in:
 - Global and Indian fashion trends

@@ -183,7 +183,7 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
                 disabled={added || isVariantSoldOut || (sizes.length > 1 && !selectedSize)}
                 className={`w-full py-3.5 rounded-2xl text-[9px] font-light uppercase tracking-[0.4em] transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 ${
                   added
-                    ? "bg-green-500 text-white"
+                    ? "bg-foreground text-background border border-foreground/20"
                     : isVariantSoldOut || (sizes.length > 1 && !selectedSize)
                       ? "bg-foreground/10 text-foreground/30 cursor-not-allowed"
                       : "bg-foreground text-background hover:opacity-90"

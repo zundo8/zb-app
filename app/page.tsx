@@ -145,8 +145,8 @@ export default async function Home() {
   return (
     <div className="relative home-page max-w-full">
       {/* Ambient background glows — desktop only to save mobile GPU */}
-      <div className="hidden md:block absolute top-[80vh] left-1/4 -translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-violet-600/5 blur-[150px] pointer-events-none z-0" />
-      <div className="hidden md:block absolute top-[180vh] right-1/4 translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-indigo-600/5 blur-[150px] pointer-events-none z-0" />
+      <div className="hidden md:block absolute top-[80vh] left-1/4 -translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-foreground/[0.03] blur-[150px] pointer-events-none z-0" />
+      <div className="hidden md:block absolute top-[180vh] right-1/4 translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-foreground/[0.02] blur-[150px] pointer-events-none z-0" />
 
       {/* ═══ HERO: Full-screen ═══ */}
       <section className="relative w-full h-[100svh] md:h-screen overflow-hidden">
@@ -189,12 +189,12 @@ export default async function Home() {
         
       </section>
 
-      {/* ═══ CONTENT BELOW HERO ═══ */}
-      <div className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-24 rounded-t-2xl -mt-4 md:-mt-6 overflow-x-hidden">
+      {/* ─── CONTENT BELOW HERO ─── */}
+      <div className="relative z-10 w-full pb-16 rounded-t-2xl -mt-4 md:-mt-6 overflow-x-hidden">
 
-        {/* ═══ BANNERS (from admin CMS) ═══ */}
+        {/* ─── BANNERS (from admin CMS) ─── */}
         {banners.length > 0 && (
-          <section className="mb-8 pt-4">
+          <section className="mb-4 pt-2 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {banners.map((banner: any) => (
                 <Link key={banner.id} href={banner.ctaLink || "#"} className="block">
@@ -223,9 +223,9 @@ export default async function Home() {
           </section>
         )}
 
-        {/* ═══ SECTION LABEL: Latest ═══ */}
+        {/* ─── SECTION LABEL: Latest ─── */}
         {s?.showLatestCuration && (
-          <div className="flex justify-between items-end mb-6 pt-8 px-1">
+          <div className="flex justify-between items-end mb-3 pt-4 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto">
             <div>
               <p className="glass-label mb-1.5">{latestSubtitle}</p>
               <h2 className="font-heading text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-foreground/70 leading-none">{latestTitle}</h2>
@@ -236,56 +236,58 @@ export default async function Home() {
           </div>
         )}
 
-        {/* ═══ PRODUCT GRID 1 ═══ */}
-        <section className="mb-10 px-[1px]">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12">
+        {/* ─── PRODUCT GRID 1 ─── */}
+        <section className="mb-6 w-full px-[2px] md:px-1">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[4px]">
             {products.slice(0, 4).map((p: ShopifyProduct, idx: number) => (
               <ProductCard key={p.id} product={p} priority={idx < 4} />
             ))}
           </div>
         </section>
 
-        {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
+        {/* ─── ABOVE-COLLECTION MEDIA ─── */}
         {(collectionsMedia || collectionsMediaMobile) && (
-          <section className="render-deferred-media mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[1.25rem] overflow-hidden shadow-lg border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
-            {collectionsMedia && (
-              <div className="hidden md:block absolute inset-0 w-full h-full">
-                <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
-              </div>
-            )}
-            {collectionsMediaMobile ? (
-              <div className="md:hidden absolute inset-0 w-full h-full">
-                <LazyVideo src={collectionsMediaMobile} className="w-full h-full object-cover opacity-80" />
-              </div>
-            ) : collectionsMedia ? (
-              <div className="md:hidden absolute inset-0 w-full h-full">
-                <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
-              </div>
-            ) : null}
-          </section>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 mb-6">
+            <section className="render-deferred-media relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[1.25rem] overflow-hidden shadow-lg border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
+              {collectionsMedia && (
+                <div className="hidden md:block absolute inset-0 w-full h-full">
+                  <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
+                </div>
+              )}
+              {collectionsMediaMobile ? (
+                <div className="md:hidden absolute inset-0 w-full h-full">
+                  <LazyVideo src={collectionsMediaMobile} className="w-full h-full object-cover opacity-80" />
+                </div>
+              ) : collectionsMedia ? (
+                <div className="md:hidden absolute inset-0 w-full h-full">
+                  <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
+                </div>
+              ) : null}
+            </section>
+          </div>
         )}
 
-        {/* ═══ GLASS DIVIDER ═══ */}
-        <div className="glass-divider my-8" />
+        {/* ─── GLASS DIVIDER ─── */}
+        <div className="glass-divider my-4 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8" />
 
-        {/* ═══ COLLECTIONS CAROUSEL ═══ */}
-        <section className="render-deferred-carousel py-8 max-w-6xl mx-auto overflow-hidden">
+        {/* ─── COLLECTIONS CAROUSEL ─── */}
+        <section className="render-deferred-carousel py-4 max-w-6xl mx-auto overflow-hidden px-3 sm:px-6 lg:px-8">
           {s?.showArchive && (
-            <div className="flex justify-center mb-6 px-4">
+            <div className="flex justify-center mb-3 px-4">
               <span className="glass-label">— {archiveTitle} —</span>
             </div>
           )}
           <CollectionCarousel collections={collections} />
           {s?.showArchive && (
-            <div className="flex justify-center mt-6 mb-2">
+            <div className="flex justify-center mt-3 mb-2">
               <span className="text-[8px] font-extralight uppercase tracking-[0.4em] text-foreground/15">{archiveSubtitle}</span>
             </div>
           )}
         </section>
         
-        {/* ═══ RING COLLECTION CAROUSEL ═══ */}
+        {/* ─── RING COLLECTION CAROUSEL ─── */}
         {showRingCarousel && (
-          <div className="render-deferred-carousel my-8">
+          <div className="render-deferred-carousel my-4 w-full">
             <RingCarouselSection 
               title={ringCarouselTitle} 
               itemsConfig={ringCarouselItems} 
@@ -293,8 +295,8 @@ export default async function Home() {
           </div>
         )}
 
-        {/* ═══ 3D FLIPBOOK SECTION ═══ */}
-        <div className="render-deferred-media my-8 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto">
+        {/* ─── 3D FLIPBOOK SECTION ─── */}
+        <div className="render-deferred-media my-4 w-full">
           <FlipbookSection 
             imgUrl={flipbookImage}
             videoUrl={flipbookVideo}
@@ -306,18 +308,18 @@ export default async function Home() {
           />
         </div>
 
-        {/* ═══ PRODUCT GRID 2 ═══ */}
-        <section className="render-deferred-section mb-10 px-[1px]">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12">
+        {/* ─── PRODUCT GRID 2 ─── */}
+        <section className="render-deferred-section mb-6 w-full px-[2px] md:px-1">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[4px]">
             {products.slice(4, 8).map((p: ShopifyProduct) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
 
-        {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
+        {/* ─── FEATURED MEDIA / BLUEPRINT ─── */}
         {s?.showBlueprint && (
-          <>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 mb-6">
             {/* Desktop View (Landscape) */}
-            <section className="render-deferred-media hidden md:block mb-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto relative w-full aspect-[21/9] rounded-[1.5rem] overflow-hidden group shadow-xl border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+            <section className="render-deferred-media hidden md:block relative w-full aspect-[21/9] rounded-[1.5rem] overflow-hidden group shadow-xl border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
               {featuredMedia ? (
                 <LazyVideo
                   src={featuredMedia}
@@ -336,7 +338,7 @@ export default async function Home() {
             </section>
 
             {/* Mobile View (Portrait) */}
-            <section className="render-deferred-media md:hidden mb-10 max-w-2xl mx-auto relative w-full aspect-[4/5] rounded-[1.5rem] overflow-hidden group shadow-xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+            <section className="render-deferred-media md:hidden relative w-full aspect-[4/5] rounded-[1.5rem] overflow-hidden group shadow-xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
               {featuredMediaMobile ? (
                 <LazyVideo
                   src={featuredMediaMobile}
@@ -367,21 +369,21 @@ export default async function Home() {
                 />
               )}
             </section>
-          </>
+          </div>
         )}
 
-        {/* ═══ GLASS DIVIDER ═══ */}
-        <div className="glass-divider my-8" />
+        {/* ─── GLASS DIVIDER ─── */}
+        <div className="glass-divider my-4 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8" />
 
-        {/* ═══ PRODUCT GRID 3 ═══ */}
-        <section className="render-deferred-section mt-8 mb-10 px-[1px]">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12">
+        {/* ─── PRODUCT GRID 3 ─── */}
+        <section className="render-deferred-section mt-4 mb-6 w-full px-[2px] md:px-1">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[4px]">
             {products.slice(12, 16).map((p: ShopifyProduct) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
 
-        {/* ═══ AUTHENTIC STREETWEAR SECTION ═══ */}
-        <div className="render-deferred-section my-10 max-w-6xl mx-auto">
+        {/* ─── AUTHENTIC STREETWEAR SECTION ─── */}
+        <div className="render-deferred-section my-4 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8">
           <SpotlightSection 
             title={s?.spotlightTitle || "AUTHENTIC STREETWEAR"} 
             subtitle={s?.spotlightSubtitle} 
@@ -390,8 +392,8 @@ export default async function Home() {
           />
         </div>
 
-        {/* ═══ FEATURED LOOKS (COMMUNITY) ═══ */}
-        <div className="render-deferred-section my-10 max-w-6xl mx-auto">
+        {/* ─── FEATURED LOOKS (COMMUNITY) ─── */}
+        <div className="render-deferred-section my-4 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8">
           <FeaturedUsersSection
             showCommunity={s?.showCommunity}
             title={s?.communityTitle}
@@ -399,75 +401,69 @@ export default async function Home() {
           />
         </div>
 
-        {/* ═══ FOOTER VIDEO ═══ */}
+        {/* ─── FOOTER VIDEO ─── */}
         {(footerVideo || footerVideoMobile) && (
-          <section className="render-deferred-media relative my-10 max-w-6xl md:max-w-7xl lg:max-w-[1400px] mx-auto aspect-[9/16] md:aspect-[21/9] rounded-[2rem] overflow-hidden group shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
-            {footerVideo && (
-              <div className="hidden md:block absolute inset-0 w-full h-full">
-                <LazyVideo
-                  src={footerVideo}
-                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"
-                />
-              </div>
-            )}
-            {footerVideoMobile ? (
-              <div className="md:hidden absolute inset-0 w-full h-full">
-                <LazyVideo
-                  src={footerVideoMobile}
-                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"
-                />
-              </div>
-            ) : footerVideo ? (
-              <div className="md:hidden absolute inset-0 w-full h-full">
-                <LazyVideo
-                  src={footerVideo}
-                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"
-                />
-              </div>
-            ) : null}
-          </section>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 my-4">
+            <section className="render-deferred-media relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[2rem] overflow-hidden group shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+              {footerVideo && (
+                <div className="hidden md:block absolute inset-0 w-full h-full">
+                  <LazyVideo
+                    src={footerVideo}
+                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"
+                  />
+                </div>
+              )}
+              {footerVideoMobile ? (
+                <div className="md:hidden absolute inset-0 w-full h-full">
+                  <LazyVideo
+                    src={footerVideoMobile}
+                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"
+                  />
+                </div>
+              ) : footerVideo ? (
+                <div className="md:hidden absolute inset-0 w-full h-full">
+                  <LazyVideo
+                    src={footerVideo}
+                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"
+                  />
+                </div>
+              ) : null}
+            </section>
+          </div>
         )}
 
-        {/* ═══ BRAND STATEMENT & STATS (SEO & AI CRAWLER FOCUS) ═══ */}
-        <section className="render-deferred-footer my-8 max-w-6xl mx-auto px-4" aria-label="About Zica Bella Brand">
-          <div className="glass rounded-[1.5rem] border border-white/5 p-4 md:p-6 relative overflow-hidden backdrop-blur-xl shadow-lg">
-            <div className="relative z-10 flex flex-col lg:flex-row gap-6 justify-between items-center">
-              {/* Left Column: Tiny brand statement */}
-              <div className="space-y-2 max-w-3xl text-center lg:text-left">
-                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-2 gap-y-1">
-                  <span className="text-[7px] font-bold text-violet-400 uppercase tracking-[0.25em]">Global Recognition</span>
-                  <span className="text-[7px] text-white/20 hidden lg:inline">•</span>
-                  <h2 className="text-[8px] font-bold text-white uppercase tracking-[0.2em]">
-                    India's &amp; World's Fastest Growing Fashion Brand
-                  </h2>
-                </div>
-                <p className="text-[9.5px] text-white/40 font-light leading-relaxed tracking-wider">
-                  Zica Bella is recognized as the world's fastest-growing luxury streetwear label and India's #1 premium clothing shopping site and app. Redefining street culture through custom heavyweight cotton hoodies, oversized tees, and 3D virtual fittings for a relentless global community.
-                </p>
-              </div>
-
-              {/* Right Column: Tiny grid row of stats */}
-              <div className="flex flex-wrap justify-center gap-2.5 shrink-0">
-                <div className="px-3 py-1.5 rounded-xl bg-white/[0.01] border border-white/5 text-center min-w-[72px]">
-                  <p className="text-[10px] font-black text-white">4.9★</p>
-                  <p className="text-[5.5px] font-bold text-white/30 uppercase tracking-[0.15em]">RATING</p>
-                </div>
-                <div className="px-3 py-1.5 rounded-xl bg-white/[0.01] border border-white/5 text-center min-w-[72px]">
-                  <p className="text-[10px] font-black text-white">#1</p>
-                  <p className="text-[5.5px] font-bold text-white/30 uppercase tracking-[0.15em]">STREETWEAR</p>
-                </div>
-                <div className="px-3 py-1.5 rounded-xl bg-white/[0.01] border border-white/5 text-center min-w-[72px]">
-                  <p className="text-[10px] font-black text-white">100%</p>
-                  <p className="text-[5.5px] font-bold text-white/30 uppercase tracking-[0.15em]">COTTON</p>
-                </div>
-                <div className="px-3 py-1.5 rounded-xl bg-white/[0.01] border border-white/5 text-center min-w-[72px]">
-                  <p className="text-[10px] font-black text-white">GLOBAL</p>
-                  <p className="text-[5.5px] font-bold text-white/30 uppercase tracking-[0.15em]">SHIPPING</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* ═══ SEO — Invisible structured data for search engines & AI crawlers ═══ */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "Zica Bella",
+              "url": "https://zicabella.com",
+              "logo": "https://zicabella.com/zb-logo-220px.png",
+              "description": "Zica Bella is recognized as the world's fastest-growing luxury streetwear label and India's #1 premium clothing shopping site and app. Redefining street culture through custom heavyweight cotton hoodies, oversized tees, and 3D virtual fittings for a relentless global community.",
+              "slogan": "Redefine The Standard",
+              "award": ["India's #1 Premium Streetwear Brand", "World's Fastest Growing Fashion Brand"],
+              "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "4.9",
+                "reviewCount": "5420",
+                "bestRating": "5"
+              },
+              "hasOfferCatalog": {
+                "@type": "OfferCatalog",
+                "name": "Zica Bella Collections",
+                "itemListElement": [
+                  { "@type": "OfferCatalog", "name": "Heavyweight Hoodies" },
+                  { "@type": "OfferCatalog", "name": "Oversized Tees" },
+                  { "@type": "OfferCatalog", "name": "Premium Denim" },
+                  { "@type": "OfferCatalog", "name": "Accessories" }
+                ]
+              }
+            })
+          }}
+        />
 
       </div>
     </div>

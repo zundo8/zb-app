@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, startTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, Loader2, Bookmark, X, Plus, ChevronLeft, ArrowLeft, ArrowRight } from "lucide-react";
@@ -53,24 +53,49 @@ export default function ProductDetailsClient({
   const [activeImg, setActiveImg] = useState(0);
   const [direction, setDirection] = useState(0);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
   const [winHeight, setWinHeight] = useState(800);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isAdded, setIsAdded] = useState(false);
-  const [[page, dragDirection], setPage] = useState([0, 0]);
   const [quickAddProduct, setQuickAddProduct] = useState<ShopifyProduct | null>(null);
 
-  const imageIndex = ((page % allImages.length) + allImages.length) % allImages.length;
-  
+  // Sync zoom status on index switches
   useEffect(() => {
-    setActiveImg(imageIndex);
-  }, [imageIndex]);
+    setIsZoomed(false);
+  }, [activeImg]);
 
-  const paginate = (newDirection: number) => {
-    setPage([page + newDirection, newDirection]);
-  };
+  // Lock background scroll and hide floating headers when gallery is open
+  useEffect(() => {
+    if (isGalleryOpen) {
+      document.body.classList.add("gallery-open");
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.classList.remove("gallery-open");
+      document.body.style.overflow = "";
+      setIsZoomed(false);
+    }
+    return () => {
+      document.body.classList.remove("gallery-open");
+      document.body.style.overflow = "";
+    };
+  }, [isGalleryOpen]);
+
+  // Align horizontal gallery scroll to clicked image index on modal mount
+  useEffect(() => {
+    if (isGalleryOpen && galleryScrollRef.current) {
+      isScrolling.current = true;
+      const index = activeImg;
+      // Use clientWidth or window.innerWidth to determine scroll width
+      const width = galleryScrollRef.current.clientWidth || window.innerWidth;
+      galleryScrollRef.current.scrollLeft = index * width;
+      setTimeout(() => {
+        isScrolling.current = false;
+      }, 150);
+    }
+  }, [isGalleryOpen]);
 
 
   // Refs for scroll sync — avoids fragile querySelector
@@ -214,9 +239,12 @@ export default function ProductDetailsClient({
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const { scrollLeft, clientWidth } = scrollRef.current;
-    const index = Math.round(scrollLeft / clientWidth);
+    const width = clientWidth || window.innerWidth;
+    const index = Math.round(scrollLeft / width);
     if (index !== activeImg) {
-      setActiveImg(index);
+      startTransition(() => {
+        setActiveImg(index);
+      });
     }
   };
 
@@ -241,24 +269,25 @@ export default function ProductDetailsClient({
 
   // Curated Pairs Carousel Logic - Mirroring RingCarouselSection smoothness
   const curatedScrollRef = useRef<HTMLDivElement>(null);
+  const curatedScrollMobileRef = useRef<HTMLDivElement>(null);
   const [isCuratedDragging, setIsCuratedDragging] = useState(false);
   const [curatedStartX, setCuratedStartX] = useState(0);
   const [curatedScrollLeft, setCuratedScrollLeft] = useState(0);
 
   const onCuratedMouseDown = (e: React.MouseEvent) => {
     setIsCuratedDragging(true);
-    if (curatedScrollRef.current) {
-        setCuratedStartX(e.pageX - curatedScrollRef.current.offsetLeft);
-        setCuratedScrollLeft(curatedScrollRef.current.scrollLeft);
+    if (curatedScrollMobileRef.current) {
+        setCuratedStartX(e.pageX - curatedScrollMobileRef.current.offsetLeft);
+        setCuratedScrollLeft(curatedScrollMobileRef.current.scrollLeft);
     }
   };
 
   const onCuratedMouseMove = (e: React.MouseEvent) => {
-    if (!isCuratedDragging || !curatedScrollRef.current) return;
+    if (!isCuratedDragging || !curatedScrollMobileRef.current) return;
     e.preventDefault();
-    const x = e.pageX - curatedScrollRef.current.offsetLeft;
+    const x = e.pageX - curatedScrollMobileRef.current.offsetLeft;
     const walk = (x - curatedStartX) * 1.8;
-    curatedScrollRef.current.scrollLeft = curatedScrollLeft - walk;
+    curatedScrollMobileRef.current.scrollLeft = curatedScrollLeft - walk;
   };
 
   const stopCuratedDrag = () => setIsCuratedDragging(false);
@@ -271,7 +300,10 @@ export default function ProductDetailsClient({
           
           {/* Left Column: Media Gallery */}
           <div className="col-span-6 sticky top-28 space-y-6 flex flex-col items-center w-full">
-            <div className="relative aspect-[4/5] w-full max-w-[450px] rounded-3xl overflow-hidden border border-foreground/5 shadow-2xl bg-foreground/[0.01]">
+            <div 
+              onClick={() => setIsGalleryOpen(true)}
+              className="relative aspect-[4/5] w-full max-w-[450px] rounded-3xl overflow-hidden border border-foreground/5 shadow-2xl bg-foreground/[0.01] cursor-zoom-in hover:brightness-95 transition-all duration-300"
+            >
               <Image
                 src={allImages[activeImg]?.src || "/zb-logo-220px.png"}
                 alt={product.title}
@@ -300,7 +332,9 @@ export default function ProductDetailsClient({
           </div>
 
           {/* Right Column: Checkout Info & Tabs */}
-          <div className="col-span-6 space-y-4 glass-panel border border-black/5 dark:border-white/5 rounded-3xl p-6 bg-white/30 dark:bg-black/30 backdrop-blur-[30px] shadow-[0_15px_35px_rgba(0,0,0,0.1)] dark:shadow-[0_15px_35px_rgba(0,0,0,0.3)]">
+          <div className="col-span-6 space-y-4 rounded-3xl p-6 bg-white dark:bg-black border border-black/5 dark:border-white/10 backdrop-blur-[30px] shadow-[0_15px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_15px_35px_rgba(0,0,0,0.7)] relative overflow-hidden">
+            {/* Specular glass reflection */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.01] to-white/[0.03] dark:to-white/[0.06] pointer-events-none rounded-3xl" />
             <div className="flex justify-between items-start">
               <div>
                 <h1 className="text-[14px] font-bold tracking-[0.2em] uppercase text-foreground font-heading mb-1.5 leading-snug">{product.title}</h1>
@@ -350,8 +384,8 @@ export default function ProductDetailsClient({
                           selectedSize === size
                             ? "bg-foreground text-background border-transparent shadow-sm"
                             : isOutOfStock
-                            ? "bg-foreground/[0.01] border-foreground/5 text-foreground/15 cursor-not-allowed"
-                            : "bg-foreground/5 border-foreground/10 text-foreground/60 hover:border-foreground/20 hover:text-foreground/90"
+                            ? "bg-black/[0.01] dark:bg-white/[0.01] border-black/[0.05] dark:border-white/[0.05] text-black/20 dark:text-white/20 cursor-not-allowed"
+                            : "bg-black/[0.03] dark:bg-white/[0.05] border-black/[0.08] dark:border-white/[0.12] text-black/60 dark:text-white/60 hover:border-black/20 dark:hover:border-white/25"
                         }`}
                       >
                         {size}
@@ -421,198 +455,176 @@ export default function ProductDetailsClient({
           </div>
         </div>
 
-        {/* Recommended & Curated Pairs Row inside Widescreen */}
-        {shuffledRecommended.length > 0 && (
-          <div className="mt-20 border-t border-foreground/10 pt-12">
+      </div>
+
+      {/* Recommended & Curated Pairs Row outside the max-w container to be full-width */}
+      {shuffledRecommended.length > 0 && (
+        <div className="hidden md:block bg-black text-white py-16 border-t border-white/10 w-full overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-foreground font-heading flex items-center">
-                CURATED PAIRS
+              <h2 className="text-[12px] md:text-sm uppercase tracking-[0.25em] font-heading flex items-center text-white font-bold">
+                CURATED PAIR(S)
               </h2>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-6">
                 <button 
-                  className="flex items-center justify-center p-2 rounded-full border border-foreground/10 text-foreground/50 hover:text-foreground transition-all hover:border-foreground/30 active:scale-95"
+                  className="flex items-center justify-center text-white/40 hover:text-white transition-all active:scale-95"
                   onClick={() => curatedScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
                   aria-label="Previous Curated Items"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1} />
+                  <ArrowLeft className="w-5 h-5" strokeWidth={1} />
                 </button>
                 <button 
-                  className="flex items-center justify-center p-2 rounded-full border border-foreground/10 text-foreground/50 hover:text-foreground transition-all hover:border-foreground/30 active:scale-95"
+                  className="flex items-center justify-center text-white/40 hover:text-white transition-all active:scale-95"
                   onClick={() => curatedScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
                   aria-label="Next Curated Items"
                 >
-                  <ArrowRight className="w-3.5 h-3.5" strokeWidth={1} />
+                  <ArrowRight className="w-5 h-5" strokeWidth={1} />
                 </button>
               </div>
             </div>
-            
-            <div 
-              ref={curatedScrollRef}
-              className="flex overflow-x-auto hide-scrollbar scroll-smooth snap-x border-y border-foreground/10 py-6 gap-0"
-            >
-              {shuffledRecommended.map((p, idx) => {
-                const initialPrice = p.variants?.[0]?.price || "0.00";
-                return (
-                  <div 
-                    key={`desk-pair-${p.id}`}
-                    className="min-w-[240px] w-[240px] snap-start flex flex-col group cursor-pointer border-r border-black/10 dark:border-white/10 last:border-r-0 p-4 transition-all duration-300"
-                    onClick={() => router.push(`/products/${p.handle}`)}
-                  >
-                    <div className="relative aspect-[3/5] w-full rounded-none overflow-hidden mb-3 bg-foreground/[0.02] border border-black/10 dark:border-white/10">
-                      <Image 
-                        src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
-                        alt={p.title} 
-                        fill 
-                        className="object-cover group-hover:scale-105 transition-transform duration-700" 
-                        sizes="300px"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between mt-1 px-1">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[9.5px] font-normal tracking-[0.15em] uppercase text-foreground/80 line-clamp-1">
-                          {p.title}
-                        </span>
-                        <span className="text-[9.5px] font-light text-foreground/45">
-                          ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                      <button
-                        className="w-7 h-7 flex items-center justify-center rounded-full text-foreground/50 hover:text-foreground active:scale-90 transition-all border border-foreground/10 hover:border-foreground/30"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQuickAddProduct(p);
-                        }}
-                      >
-                        <Plus className="w-3.5 h-3.5" strokeWidth={1} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
-        )}
-      </div>
+          
+          <div 
+            ref={curatedScrollRef}
+            className="flex overflow-x-auto hide-scrollbar scroll-smooth snap-x py-4 gap-4 px-6 md:px-[calc((100vw-1280px)/2+24px)]"
+            style={{ paddingLeft: 'max(24px, calc((100vw - 1280px) / 2 + 24px))' }}
+          >
+            {shuffledRecommended.map((p, idx) => {
+              const initialPrice = p.variants?.[0]?.price || "0.00";
+              return (
+                <div 
+                  key={`desk-pair-${p.id}`}
+                  className="min-w-[320px] w-[320px] snap-start flex flex-col group cursor-pointer transition-all duration-300"
+                  onClick={() => router.push(`/products/${p.handle}`)}
+                >
+                  <div className="relative aspect-[3/4.8] w-full rounded-none overflow-hidden mb-3 bg-white/5">
+                    <Image 
+                      src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
+                      alt={p.title} 
+                      fill 
+                      className="object-cover group-hover:scale-105 transition-transform duration-700" 
+                      sizes="350px"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-1 px-1">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-white line-clamp-1">
+                        {p.title}
+                      </span>
+                      <span className="text-[10px] font-sans font-light text-white/50">
+                        ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <button
+                      className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white active:scale-90 transition-all"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setQuickAddProduct(p);
+                      }}
+                    >
+                      <Plus className="w-5 h-5" strokeWidth={1} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ─── MOBILE VIEW (sm and below) ─── */}
       <div className="md:hidden">
-        {/* Sticky Background Gallery with Rounded Bottom Corners */}
-        <div className="sticky top-0 w-full h-[85dvh] overflow-hidden z-0 rounded-b-[1rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
+        {/* Mobile View Gallery Carousel - Native Horizontal Swiping */}
+        <div className="relative w-full aspect-[4/5] overflow-hidden bg-foreground/[0.02] rounded-b-[1rem]">
           <div 
-            className="relative w-full h-full"
-            style={{
-              background: "hsla(var(--glass-bg), 0.1)",
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="w-full h-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth"
+            style={{ 
+              scrollSnapType: 'x mandatory',
+              WebkitOverflowScrolling: "touch"
             }}
           >
-            <AnimatePresence initial={false} custom={dragDirection} mode="popLayout">
-              <motion.div
-                key={page}
-                custom={dragDirection}
-                initial={{ opacity: 0, x: dragDirection > 0 ? '100%' : '-100%' }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: dragDirection > 0 ? '-100%' : '100%' }}
-                transition={{
-                  x: { 
-                      type: "spring", 
-                      stiffness: 280, 
-                      damping: 32, 
-                      mass: 0.8,
-                      restDelta: 0.001
-                  },
-                  opacity: { duration: 0.5, ease: "circOut" }
+            {allImages.map((img, i) => (
+              <div 
+                key={`mobile-gal-${i}`} 
+                className="w-full h-full flex-shrink-0 snap-center relative cursor-zoom-in"
+                onClick={() => {
+                  setActiveImg(i);
+                  setIsGalleryOpen(true);
                 }}
-                className="absolute inset-0"
               >
                 <Image
-                  src={allImages[imageIndex]?.src || "/zb-logo-220px.png"}
+                  src={img.src || "/zb-logo-220px.png"}
                   alt={product.title}
                   fill
                   className="object-cover"
-                  priority
+                  priority={i === 0}
                   sizes="100vw"
-                  quality={85}
-                  draggable={false}
                   onError={handleImageError}
                 />
-              </motion.div>
-            </AnimatePresence>
-            
-            {/* Parallax Overlay - darkens slightly as user scrolls down */}
-            <motion.div 
-              className={`absolute inset-0 z-10 pointer-events-none transition-colors duration-1000`}
-              id="pdp-blur-overlay-internal"
-              style={{
-                backgroundColor: "rgba(0,0,0,0)",
-              }}
-            />
+              </div>
+            ))}
+          </div>
+
+          {/* Dot Indicators */}
+          <div className="absolute bottom-4 inset-x-0 flex justify-center gap-1.5 z-10">
+            {allImages.map((_, i) => (
+              <div 
+                key={`dot-${i}`}
+                className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                  activeImg === i ? "w-4 bg-white" : "bg-white/45"
+                }`}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Scrollable Layer - iOS Optimized */}
-        <div className="relative z-20 -mt-[85dvh] min-h-[100vh]">
-          
-          {/* Transparent Gesture & Spacer Layer - FEATHER TOUCH READY */}
-          <div className="relative h-[85dvh] w-full group">
-            <motion.div 
-              className="absolute inset-0 z-0 touch-pan-y cursor-zoom-in"
-              onClick={() => setIsGalleryOpen(true)}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.9}
-              dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
-              onDragEnd={(e, { offset, velocity }) => {
-                const swipe = Math.abs(offset.x) > 20 || Math.abs(velocity.x) > 300;
-                if (swipe) {
-                  paginate(offset.x > 0 ? -1 : 1);
-                }
-              }}
-            />
-            {/* Precise 1px Gap at the bottom of the sticky area */}
-            <div className="absolute bottom-0 left-0 w-full h-[1px] bg-background/5 transition-opacity" />
+        {/* Thumbnails Navigation */}
+        <div className="relative px-4 pb-2 mt-3 flex justify-center">
+          <div className="flex overflow-x-auto gap-2 py-2 hide-scrollbar snap-x justify-start sm:justify-center items-center w-full">
+            {allImages.map((img, i) => (
+              <button
+                key={`thumb-mobile-${i}`}
+                onClick={() => {
+                  setActiveImg(i);
+                  if (scrollRef.current) {
+                    scrollRef.current.scrollTo({
+                      left: i * scrollRef.current.clientWidth,
+                      behavior: "smooth"
+                    });
+                  }
+                }}
+                className={`relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 snap-center border transition-all duration-300 shadow-sm outline-none ${
+                    activeImg === i 
+                    ? "border-foreground scale-105 ring-1 ring-foreground/20" 
+                    : "border-foreground/10 opacity-60 hover:opacity-100"
+                }`}
+              >
+                <Image 
+                  src={img.src || "/zb-logo-220px.png"} 
+                  alt="variant" 
+                  fill 
+                  className="object-cover pointer-events-none" 
+                  sizes="80px" 
+                  onError={handleImageError}
+                />
+              </button>
+            ))}
           </div>
+        </div>
 
-          {/* Repositioned Thumbnails - Looping Sync */}
-          <div className="relative z-30 px-4 pb-2 mt-[1px]">
-            <div className="flex overflow-x-auto gap-1 py-2 hide-scrollbar snap-x justify-start sm:justify-center items-center -mx-2 px-2">
-              {allImages.map((img, i) => (
-                <button
-                  key={`thumb-ios-loop-v4-${img.src || i}`}
-                  onClick={() => {
-                    const currentImageIndex = imageIndex;
-                    const diff = i - currentImageIndex;
-                    if (diff !== 0) paginate(diff);
-                  }}
-                  className={`relative w-28 h-28 rounded-[2rem] overflow-hidden flex-shrink-0 snap-center border transition-all duration-500 shadow-xl outline-none ${
-                      imageIndex === i 
-                      ? "border-white/90 scale-105 ring-2 ring-white/30" 
-                      : "border-white/10 scale-95 hover:border-white/30"
-                  }`}
-                >
-                  <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
-                  <Image 
-                    src={img.src || "/zb-logo-220px.png"} 
-                    alt="variant" 
-                    fill 
-                    className="object-cover transition-transform duration-700" 
-                    sizes="120px" 
-                    quality={75} 
-                    priority={i < 4}
-                    onError={handleImageError}
-                  />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 1px Gap before the details box */}
-          <div className="h-[1px] w-full" />
+        {/* Scrollable Content Container (No more negative margins) */}
+        <div className="relative z-20 min-h-[100vh]">
 
           <main className="relative z-20 product-page px-[1px] pb-[1px]">
             <div 
-              className="min-h-[60vh] rounded-[2rem] px-4 pt-6 pb-6 border border-white/5 glass-panel bg-black/60 shadow-2xl backdrop-blur-[35px]"
+              className="min-h-[60vh] rounded-[2rem] px-4 pt-6 pb-6 border border-black/5 dark:border-white/10 bg-white dark:bg-black shadow-[0_24px_50px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_24px_50px_-12px_rgba(0,0,0,0.8)] backdrop-blur-[35px] relative overflow-hidden"
             >
+              {/* Specular glass reflection */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.01] to-white/[0.03] dark:to-white/[0.06] pointer-events-none rounded-[2rem]" />
 
-              <div className="flex justify-between items-start mb-2 px-1">
+              <div className="flex justify-between items-start mb-2 px-1 relative z-10">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
                     <h1 className="text-[11px] sm:text-[12px] font-bold tracking-[0.25em] uppercase leading-tight text-foreground/90 font-heading">
@@ -647,14 +659,14 @@ export default function ProductDetailsClient({
                 </button>
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 relative z-10">
                 {/* Size Section - Ultra Tiny */}
                 {sizes.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex justify-between items-center px-1">
-                      <span className="text-[7px] font-bold uppercase tracking-[0.4em] text-foreground/40 dark:text-foreground/20">Select Size</span>
+                      <span className="text-[7px] font-bold uppercase tracking-[0.4em] text-black/40 dark:text-white/40">Select Size</span>
                       {(shopSettings?.showSizeChart ?? true) && sizeChartImageUrl && (
-                        <button onClick={() => setShowSizeChart(true)} className="text-[7px] font-bold text-foreground/40 dark:text-foreground/20 hover:text-foreground transition-all uppercase tracking-[0.2em] border-b border-foreground/5">
+                        <button onClick={() => setShowSizeChart(true)} className="text-[7px] font-bold text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-all uppercase tracking-[0.2em] border-b border-black/10 dark:border-white/10">
                           Guide
                         </button>
                       )}
@@ -672,8 +684,8 @@ export default function ProductDetailsClient({
                               selectedSize === size
                                 ? "bg-foreground text-background border-transparent shadow-sm"
                                 : isOutOfStock
-                                ? "bg-foreground/[0.01] border-foreground/[0.04] text-foreground/15 cursor-not-allowed"
-                                : "bg-foreground/[0.03] border-foreground/[0.07] text-foreground/60 dark:text-foreground/40 hover:border-foreground/20 hover:text-foreground/70"
+                                ? "bg-black/[0.01] dark:bg-white/[0.01] border-black/[0.05] dark:border-white/[0.05] text-black/20 dark:text-white/20 cursor-not-allowed"
+                                : "bg-black/[0.03] dark:bg-white/[0.05] border-black/[0.08] dark:border-white/[0.12] text-black/60 dark:text-white/60 hover:border-black/20 dark:hover:border-white/25"
                             }`}
                           >
                             {size}
@@ -758,7 +770,7 @@ export default function ProductDetailsClient({
                 </div>
 
                 <div 
-                  className="mt-0.5 p-3 rounded-[1.5rem] glass-panel border-foreground/5 bg-foreground/[0.01]"
+                  className="mt-0.5 p-3 rounded-[1.5rem] border border-foreground/[0.06] bg-foreground/[0.01]"
                 >
                   <div className="flex overflow-x-auto hide-scrollbar gap-1.5 mb-2 px-0.5">
                     {tabs.map((tab) => (
@@ -768,7 +780,7 @@ export default function ProductDetailsClient({
                     ))}
                   </div>
                   <div 
-                    className="rounded-[1rem] p-3 border border-foreground/5 bg-foreground/[0.01]"
+                    className="rounded-[1rem] p-3 border border-foreground/[0.06] bg-foreground/[0.01]"
                   >
                     {activeTab === "details" ? (
                       <div className="relative">
@@ -820,106 +832,6 @@ export default function ProductDetailsClient({
                   </div>
                 )}
 
-                {/* Recommended Products - Curated Pairs Minimal Glass Overhaul */}
-                {shuffledRecommended.length > 0 && (
-                  <div className="mt-8 mb-6 -mx-1 border-t border-foreground/5 bg-transparent">
-                      <div className="flex items-center justify-between px-4 py-3">
-                          <h2 className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-foreground font-heading flex items-center">
-                            CURATED PAIRS
-                          </h2>
-                          <div className="flex items-center gap-4">
-                            <button 
-                              className="flex items-center justify-center p-2 rounded-full border border-foreground/10 text-foreground/50 hover:text-foreground active:scale-95 transition-all"
-                              onClick={() => {
-                                if (curatedScrollRef.current) {
-                                  curatedScrollRef.current.scrollBy({ left: -320, behavior: 'smooth' });
-                                }
-                              }}
-                              aria-label="Previous Curated Items"
-                            >
-                              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1} />
-                            </button>
-                            <button 
-                              className="flex items-center justify-center p-2 rounded-full border border-foreground/10 text-foreground/50 hover:text-foreground active:scale-95 transition-all"
-                              onClick={() => {
-                                if (curatedScrollRef.current) {
-                                  curatedScrollRef.current.scrollBy({ left: 320, behavior: 'smooth' });
-                                }
-                              }}
-                              aria-label="Next Curated Items"
-                            >
-                              <ArrowRight className="w-3.5 h-3.5" strokeWidth={1} />
-                            </button>
-                          </div>
-                      </div>
-                      
-                      <div 
-                        ref={curatedScrollRef}
-                        className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-0 px-4 pb-6"
-                        style={{ 
-                            scrollbarWidth: "none", 
-                            msOverflowStyle: "none", 
-                            WebkitOverflowScrolling: "touch",
-                            scrollSnapType: 'x mandatory'
-                        }}
-                        onMouseDown={onCuratedMouseDown}
-                        onMouseLeave={stopCuratedDrag}
-                        onMouseUp={stopCuratedDrag}
-                        onMouseMove={onCuratedMouseMove}
-                      >
-                        {shuffledRecommended.map((p, idx) => {
-                          const initialPrice = p.variants?.[0]?.price || "0.00";
-                          return (
-                            <div 
-                              key={`stark-pair-${p.id}-${idx}`}
-                              className="min-w-[80vw] w-[80vw] sm:min-w-[300px] sm:w-[300px] flex-shrink-0 snap-center flex flex-col group cursor-pointer border-r border-black/10 dark:border-white/10 last:border-r-0 p-4"
-                              onClick={(e) => { 
-                                if (isCuratedDragging) e.preventDefault(); 
-                                else router.push(`/products/${p.handle}`);
-                              }}
-                            >
-                              {/* Large Image Container */}
-                              <div className="relative w-full aspect-[3/5] rounded-none overflow-hidden bg-foreground/[0.03] mb-3 border border-black/10 dark:border-white/10">
-                                <Image 
-                                  src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
-                                  alt={p.title} 
-                                  fill 
-                                  className="object-cover" 
-                                  sizes="350px" 
-                                  quality={95} 
-                                  onError={handleImageError}
-                                />
-                              </div>
-                              
-                              {/* Bottom Details - Minimal React Native style */}
-                              <div className="flex items-center justify-between mt-1 px-1">
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-[9.5px] font-normal tracking-[0.15em] uppercase text-foreground/80 line-clamp-1">
-                                    {p.title}
-                                  </span>
-                                  <span className="text-[9.5px] font-light text-foreground/45">
-                                    ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
-                                  </span>
-                                </div>
-                                <button
-                                  className="w-7 h-7 flex items-center justify-center rounded-full text-foreground/50 hover:text-foreground active:scale-90 transition-all border border-foreground/10 hover:border-foreground/30"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setQuickAddProduct(p);
-                                  }}
-                                  aria-label="Quick Add to Bag"
-                                >
-                                  <Plus className="w-3.5 h-3.5" strokeWidth={1} />
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      
-                  </div>
-                )}
-
                 {/* Recently Viewed */}
                 {recentlyViewed.length > 1 && (
                   <div className="mt-4 pt-4 border-t border-foreground/[0.05] -mx-0.5">
@@ -933,6 +845,94 @@ export default function ProductDetailsClient({
                 )}
               </div>
             </div>
+
+            {/* New mobile Curated Pairs section below the glass panel */}
+            {shuffledRecommended.length > 0 && (
+              <div className="bg-black text-white py-12 mt-8 w-full overflow-hidden border-t border-white/10">
+                <div className="flex items-center justify-between px-6 mb-6">
+                  <h2 className="text-[12px] uppercase tracking-[0.25em] font-heading flex items-center text-white font-bold">
+                    CURATED PAIR(S)
+                  </h2>
+                  <div className="flex items-center gap-6">
+                    <button 
+                      className="flex items-center justify-center text-white/40 hover:text-white transition-all active:scale-95"
+                      onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: -300, behavior: 'smooth' })}
+                      aria-label="Previous Curated Items"
+                    >
+                      <ArrowLeft className="w-5 h-5" strokeWidth={1} />
+                    </button>
+                    <button 
+                      className="flex items-center justify-center text-white/40 hover:text-white transition-all active:scale-95"
+                      onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: 300, behavior: 'smooth' })}
+                      aria-label="Next Curated Items"
+                    >
+                      <ArrowRight className="w-5 h-5" strokeWidth={1} />
+                    </button>
+                  </div>
+                </div>
+                
+                <div 
+                  ref={curatedScrollMobileRef}
+                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-4 px-6 pb-6"
+                  style={{ 
+                      scrollbarWidth: "none", 
+                      msOverflowStyle: "none", 
+                      WebkitOverflowScrolling: "touch",
+                      scrollSnapType: 'x mandatory'
+                  }}
+                  onMouseDown={onCuratedMouseDown}
+                  onMouseLeave={stopCuratedDrag}
+                  onMouseUp={stopCuratedDrag}
+                  onMouseMove={onCuratedMouseMove}
+                >
+                  {shuffledRecommended.map((p, idx) => {
+                    const initialPrice = p.variants?.[0]?.price || "0.00";
+                    return (
+                      <div 
+                        key={`mobile-pair-${p.id}-${idx}`}
+                        className="min-w-[80vw] w-[80vw] snap-center flex flex-col group cursor-pointer"
+                        onClick={(e) => { 
+                          if (isCuratedDragging) e.preventDefault(); 
+                          else router.push(`/products/${p.handle}`);
+                        }}
+                      >
+                        <div className="relative w-full aspect-[3/4.8] rounded-none overflow-hidden bg-white/5 mb-3">
+                          <Image 
+                            src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
+                            alt={p.title} 
+                            fill 
+                            className="object-cover" 
+                            sizes="300px" 
+                            quality={95} 
+                            onError={handleImageError}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between mt-1 px-1">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-white line-clamp-1">
+                              {p.title}
+                            </span>
+                            <span className="text-[10px] font-sans font-light text-white/50">
+                              ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                          <button
+                            className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white active:scale-90 transition-all"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickAddProduct(p);
+                            }}
+                            aria-label="Quick Add to Bag"
+                          >
+                            <Plus className="w-5 h-5" strokeWidth={1} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>
@@ -961,85 +961,18 @@ export default function ProductDetailsClient({
       {/* FULL SCREEN GALLERY MODAL */}
       <AnimatePresence>
         {isGalleryOpen && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed inset-0 z-[200] bg-background flex flex-col"
-          >
-            {/* Gallery Header */}
-            <div className="flex justify-between items-center p-6 pt-10">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold tracking-tighter text-foreground mb-0.5">{product.title}</span>
-                <span className="text-[8px] font-medium text-foreground/50 dark:text-foreground/30 uppercase tracking-widest">{activeImg + 1} of {allImages.length}</span>
-              </div>
-              <button 
-                onClick={() => {
-                  setIsGalleryOpen(false);
-                }}
-                className="w-10 h-10 rounded-full bg-foreground/5 flex items-center justify-center active:scale-90 transition-all"
-              >
-                <X className="w-4.5 h-4.5 text-foreground/80 dark:text-foreground/60" />
-              </button>
-            </div>
-
-            {/* Gallery Main Carousel */}
-            <div className="flex-1 relative overflow-hidden flex items-center justify-center">
-              <div
-                ref={galleryScrollRef}
-                className="w-full h-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar"
-                style={{ scrollSnapType: 'x mandatory' }}
-                onScroll={(e) => {
-                  const target = e.currentTarget;
-                  const index = Math.round(target.scrollLeft / target.clientWidth);
-                  if (activeImg !== index) {
-                    setActiveImg(index);
-                    // Sync bg scroll via ref
-                    bgScrollRef.current?.scrollTo({ left: index * window.innerWidth, behavior: 'auto' });
-                  }
-                }}
-              >
-                {allImages.map((img, i) => (
-                  <div key={`gallery-${img.src}`} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center p-2">
-                    <TransformWrapper
-                      initialScale={1}
-                      minScale={1}
-                      maxScale={4}
-                      doubleClick={{ step: 1.5 }}
-                      wheel={{ wheelDisabled: false }}
-                    >
-                      <TransformComponent wrapperClass="!w-full !h-full flex items-center justify-center" contentClass="!w-full !h-full flex items-center justify-center">
-                        <div className="relative w-full h-[80dvh] cursor-zoom-in">
-                          <Image 
-                            src={img.src || "/zb-logo-220px.png"} 
-                            alt={product.title} 
-                            fill 
-                            className="object-contain" 
-                            sizes="100vw"
-                            priority={i === activeImg}
-                            onError={handleImageError}
-                          />
-                        </div>
-                      </TransformComponent>
-                    </TransformWrapper>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Gallery Nav Thumbnails */}
-            <div className="p-8 pb-12 flex justify-center gap-2">
-              {allImages.map((_, i) => (
-                <button
-                  key={`gal-thumb-${i}`}
-                  onClick={() => {
-                    galleryScrollRef.current?.scrollTo({ left: i * window.innerWidth, behavior: 'smooth' });
-                  }}
-                  className={`w-1 h-1 rounded-full transition-all duration-500 ${activeImg === i ? "w-4 bg-foreground" : "bg-foreground/20"}`}
-                />
-              ))}
-            </div>
-          </motion.div>
+          <FullScreenGallery
+            product={product}
+            allImages={allImages}
+            initialImg={activeImg}
+            onClose={() => setIsGalleryOpen(false)}
+            onImageChange={(index) => {
+              setActiveImg(index);
+              if (scrollRef.current) {
+                scrollRef.current.scrollLeft = index * scrollRef.current.clientWidth;
+              }
+            }}
+          />
         )}
       </AnimatePresence>
 
@@ -1069,5 +1002,147 @@ export default function ProductDetailsClient({
         <QuickAddModal product={quickAddProduct} onClose={() => setQuickAddProduct(null)} />
       )}
     </>
+  );
+}
+
+interface FullScreenGalleryProps {
+  product: ShopifyProduct;
+  allImages: any[];
+  initialImg: number;
+  onClose: () => void;
+  onImageChange: (index: number) => void;
+}
+
+function FullScreenGallery({
+  product,
+  allImages,
+  initialImg,
+  onClose,
+  onImageChange
+}: FullScreenGalleryProps) {
+  const [localActiveImg, setLocalActiveImg] = useState(initialImg);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const galleryScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsZoomed(false);
+  }, [localActiveImg]);
+
+  // Align horizontal gallery scroll to clicked image index on mount
+  useEffect(() => {
+    if (galleryScrollRef.current) {
+      const width = galleryScrollRef.current.clientWidth || window.innerWidth;
+      galleryScrollRef.current.scrollLeft = initialImg * width;
+    }
+  }, [initialImg]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isZoomed) return;
+    const target = e.currentTarget;
+    const width = target.clientWidth || window.innerWidth;
+    const index = Math.round(target.scrollLeft / width);
+    if (localActiveImg !== index && index >= 0 && index < allImages.length) {
+      setLocalActiveImg(index);
+      startTransition(() => {
+        onImageChange(index);
+      });
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="fixed inset-0 z-[200] bg-black flex flex-col select-none"
+    >
+      {/* Gallery Header */}
+      <div className="flex justify-between items-center p-6 pt-10 text-white z-10">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-bold tracking-tighter text-white/95 mb-0.5">{product.title}</span>
+          <span className="text-[8px] font-medium text-white/45 uppercase tracking-widest">{localActiveImg + 1} of {allImages.length}</span>
+        </div>
+        <button 
+          onClick={onClose}
+          className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center active:scale-90 transition-all text-white/85"
+        >
+          <X className="w-4.5 h-4.5" />
+        </button>
+      </div>
+
+      {/* Gallery Main Carousel */}
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center w-full">
+        <div
+          ref={galleryScrollRef}
+          className={`w-full h-full flex hide-scrollbar ${isZoomed ? "overflow-hidden" : "overflow-x-auto snap-x snap-mandatory"}`}
+          style={{ 
+            scrollSnapType: isZoomed ? 'none' : 'x mandatory',
+            touchAction: isZoomed ? 'none' : 'pan-x pan-y'
+          }}
+          onScroll={handleScroll}
+        >
+          {allImages.map((img, i) => (
+            <div key={`gallery-${img.src || i}`} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center p-2">
+              {i === localActiveImg ? (
+                <TransformWrapper
+                  initialScale={1}
+                  minScale={1}
+                  maxScale={4}
+                  doubleClick={{ step: 1.5 }}
+                  wheel={{ wheelDisabled: false }}
+                  panning={{ disabled: !isZoomed }}
+                  onTransformed={(ref) => {
+                    const currentScale = ref.state.scale;
+                    setIsZoomed(currentScale > 1);
+                  }}
+                >
+                  <TransformComponent wrapperClass="!w-full !h-full flex items-center justify-center" contentClass="!w-full !h-full flex items-center justify-center">
+                    <div className="relative w-full h-[80dvh] cursor-zoom-in">
+                      <Image 
+                        src={img.src || "/zb-logo-220px.png"} 
+                        alt={product.title} 
+                        fill 
+                        className="object-contain" 
+                        sizes="100vw"
+                        priority
+                        onError={handleImageError}
+                      />
+                    </div>
+                  </TransformComponent>
+                </TransformWrapper>
+              ) : (
+                <div className="relative w-full h-[80dvh]">
+                  <Image 
+                    src={img.src || "/zb-logo-220px.png"} 
+                    alt={product.title} 
+                    fill 
+                    className="object-contain" 
+                    sizes="100vw"
+                    onError={handleImageError}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Gallery Nav Indicator Dots */}
+      <div className="p-8 pb-12 flex justify-center gap-2">
+        {allImages.map((_, i) => (
+          <button
+            key={`gal-thumb-${i}`}
+            onClick={() => {
+              if (isZoomed) return;
+              if (galleryScrollRef.current) {
+                const width = galleryScrollRef.current.clientWidth || window.innerWidth;
+                galleryScrollRef.current.scrollTo({ left: i * width, behavior: 'smooth' });
+              }
+            }}
+            className={`w-1 h-1 rounded-full transition-all duration-500 ${localActiveImg === i ? "w-4 bg-white" : "bg-white/20"}`}
+          />
+        ))}
+      </div>
+    </motion.div>
   );
 }

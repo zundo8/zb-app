@@ -98,11 +98,13 @@ export const authOptions: AuthOptions = {
       credentials: {
         phone: { label: "Phone", type: "text" },
         otp: { label: "OTP", type: "text" },
+        name: { label: "Name", type: "text" },
       },
       async authorize(credentials) {
         try {
           const providedOtp = String(credentials?.otp || "").trim();
           const providedPhone = String(credentials?.phone || "").trim();
+          const providedName = String(credentials?.name || "").trim();
 
           // Validate OTP format
           if (!/^\d{6}$/.test(providedOtp)) {
@@ -258,14 +260,21 @@ export const authOptions: AuthOptions = {
             console.log(`[AUTH] No Shopify record and no local record. Creating guest for ${fullPhone}.`);
             customer = await prisma.customer.create({
               data: {
-                  phone: fullPhone,
-                  shopId: shopId,
+                phone: fullPhone,
+                shopId: shopId,
                 shopifyId: `otp_${Date.now()}`,
-                name: "New User",
+                name: providedName || "New User",
               },
             });
           } else {
             console.log(`[AUTH] No Shopify record found, but local customer already exists: ${customer.id}`);
+            if (providedName && (!customer.name || customer.name === "New User" || customer.name === "User")) {
+              console.log(`[AUTH] Updating local customer name from '${customer.name}' to: ${providedName}`);
+              customer = await prisma.customer.update({
+                where: { id: customer.id },
+                data: { name: providedName },
+              });
+            }
           }
 
           if (!customer) return null;

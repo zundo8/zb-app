@@ -67,12 +67,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
 
         {/* Image */}
         <Link href={`/products/${productSlug}`} className="block">
-          <div className="aspect-[3/4.2] relative rounded-[8px] overflow-hidden mb-2"
-            style={{
-              border: "1px solid rgba(0, 0, 0, 0.04)",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-            }}
-          >
+          <div className="aspect-[2/3] relative rounded-none overflow-hidden mb-2 transition-all duration-500">
             <Image
               src={image}
               alt={product.title}
@@ -80,15 +75,15 @@ export default function ProductCard({ product, priority = false, selectedSize }:
               priority={priority}
               onError={handleImageError}
               sizes="(max-width: 768px) 50vw, 360px"
-              className={`object-cover transition-all duration-700 ${!isSoldOut ? "group-hover:scale-[1.04]" : ""}`}
+              className={`object-cover transition-all duration-[800ms] ease-out ${!isSoldOut ? "group-hover:scale-[1.04]" : ""}`}
               style={isSoldOut ? { filter: "grayscale(0.4)" } : image === "/zb-logo-220px.png" ? { objectFit: "contain", padding: "25%", opacity: 0.3 } : {}}
             />
-            {/* Hover glass overlay */}
+            {/* Hover subtle overlay */}
             {!isSoldOut && (
               <div
                 className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
                 style={{
-                  background: "linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.25) 100%)",
+                  background: "linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.15) 100%)",
                 }}
               />
             )}

@@ -3,7 +3,6 @@
 import { usePathname } from "next/navigation";
 import StorefrontHeader from "./StorefrontHeader";
 import StorefrontNav from "./StorefrontNav";
-import ZicaAI from "./ZicaAI";
 import { useEffect, useState, Suspense } from "react";
 import PageLoader from "./PageLoader";
 
@@ -32,7 +31,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
   }, []);
 
   return (
-    <div className="liquid-glass-body min-h-screen max-w-full text-foreground selection:bg-white/10 transition-colors duration-500">
+    <div className="liquid-glass-body min-h-[100dvh] max-w-full text-foreground selection:bg-white/10 transition-colors duration-500">
       <Suspense fallback={null}>
         <PageLoader />
       </Suspense>
@@ -42,9 +41,6 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
       <div className="relative z-10 w-full overflow-x-hidden">
         {children}
       </div>
-
-      {/* Floating Zica AI Assistant Widget */}
-      {!isMobileApp && pathname !== "/chat" && <ZicaAI />}
 
       {/* ── Footer (passed from server) ── */}
       {!isMobileApp && pathname !== "/login" && pathname !== "/chat" && footer}

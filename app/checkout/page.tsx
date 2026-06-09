@@ -16,10 +16,12 @@ import {
   AlertCircle,
   Loader2,
   Tag,
-  X
+  X,
+  ShoppingBag,
+  ChevronRight,
+  ChevronLeft
 } from "lucide-react";
 import Link from "next/link";
-
 
 type Address = {
   name: string;
@@ -30,6 +32,20 @@ type Address = {
   state: string;
   zip: string;
   country: string;
+};
+
+type DBAddress = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  address1: string;
+  address2?: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  isDefault: boolean;
 };
 
 type PaymentMethod = "UPI" | "CARD" | "COD";
@@ -43,6 +59,10 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [initiatedPixel, setInitiatedPixel] = useState(false);
+  
+  // Saved addresses
+  const [savedAddresses, setSavedAddresses] = useState<DBAddress[]>([]);
+  const [selectedSavedId, setSelectedSavedId] = useState<string>("");
 
   useEffect(() => {
     if (items.length > 0 && !initiatedPixel) {
@@ -86,22 +106,49 @@ export default function CheckoutPage() {
     } else if (items.length === 0 && step !== 4) {
       router.push("/cart");
     }
-  }, [items, step, router, status, session]);
+  }, [items, step, router, status]);
 
-  // Auto-fetch previous order address if available
+  // Fetch saved addresses
   useEffect(() => {
-    if (session) {
-      const customer = (session as any).customer;
-      if (customer?.defaultAddress) {
-        try {
-          const savedAddr = JSON.parse(customer.defaultAddress);
-          setAddress(prev => ({ ...prev, ...savedAddr }));
-        } catch (e) {
-          console.error("Error parsing saved address", e);
-        }
-      }
+    if (status === "authenticated") {
+      fetch("/api/customer/addresses")
+        .then(res => res.json())
+        .then(data => {
+          if (data.addresses) {
+            setSavedAddresses(data.addresses);
+            const def = data.addresses.find((a: DBAddress) => a.isDefault);
+            if (def) {
+              setSelectedSavedId(def.id);
+              setAddress({
+                name: def.name || "",
+                email: def.email || "",
+                phone: def.phone || "",
+                street: def.address2 ? `${def.address1}, ${def.address2}` : def.address1,
+                city: def.city || "",
+                state: def.state || "",
+                zip: def.zip || "",
+                country: def.country || "India",
+              });
+            }
+          }
+        })
+        .catch(err => console.error("Error loading addresses:", err));
     }
-  }, [session]);
+  }, [status]);
+
+  const handleSelectSavedAddress = (addr: DBAddress) => {
+    setSelectedSavedId(addr.id);
+    setAddress({
+      name: addr.name || "",
+      email: addr.email || "",
+      phone: addr.phone || "",
+      street: addr.address2 ? `${addr.address1}, ${addr.address2}` : addr.address1,
+      city: addr.city || "",
+      state: addr.state || "",
+      zip: addr.zip || "",
+      country: addr.country || "India",
+    });
+  };
 
   const handleAddressSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,6 +265,26 @@ export default function CheckoutPage() {
             name: address.name,
             email: address.email,
             contact: address.phone,
+            method: "upi", // Prefill UPI option
+          },
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay via UPI (Instant Apps)",
+                  instruments: [
+                    {
+                      method: "upi",
+                      flows: ["intent", "qr", "collect"]
+                    }
+                  ]
+                }
+              },
+              sequence: ["block.upi"],
+              preferences: {
+                show_default_blocks: true
+              }
+            }
           },
           theme: {
             color: "#000000",
@@ -235,17 +302,17 @@ export default function CheckoutPage() {
   };
 
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen relative bg-background text-foreground font-sans">
       <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
       
       <div className="relative z-10 max-w-xl mx-auto px-4 pt-28 pb-32">
         {/* Page Title */}
-        <div className="mb-8">
-          <p className="glass-label mb-0.5 ml-0.5">Your</p>
+        <div className="mb-6">
+          <p className="text-[7px] font-semibold uppercase tracking-[0.4em] text-foreground/40 mb-1">Your Purchase</p>
           <div className="flex items-center justify-between">
-            <h1 className="glass-heading text-[13px] flex items-center gap-2">
+            <h1 className="text-[20px] font-black tracking-tight flex items-center gap-2">
               Checkout
-              <span className="glass-badge">
+              <span className="px-2 py-0.5 rounded-full text-[8px] font-bold bg-foreground/[0.05] border border-foreground/10 text-foreground/60 uppercase">
                 Step {step}/2
               </span>
             </h1>
@@ -253,12 +320,12 @@ export default function CheckoutPage() {
         </div>
 
         {/* Step indicator */}
-        <div className="flex justify-center gap-1.5 mb-10">
+        <div className="flex justify-center gap-1.5 mb-8">
           {[1, 2].map((s) => (
             <div 
               key={s}
               className={`h-1 rounded-full transition-all duration-500 ${
-                s <= step ? "w-8 bg-white" : "w-2 bg-white/10"
+                s === step ? "w-12 bg-foreground" : s < step ? "w-6 bg-foreground/50" : "w-3 bg-foreground/10"
               }`}
             />
           ))}
@@ -274,36 +341,101 @@ export default function CheckoutPage() {
               className="space-y-6"
             >
               <div className="space-y-1">
-                <h2 className="text-lg font-bold tracking-tight text-foreground">Delivery</h2>
-                <p className="text-foreground/40 text-[11px] font-medium">Where should we send your pieces?</p>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-foreground/80">Shipping Details</h2>
+                <p className="text-foreground/40 text-[10px] font-medium uppercase tracking-wider">Where should we deliver your pieces?</p>
               </div>
+
+              {/* Saved Addresses list */}
+              {savedAddresses.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-foreground/45">Use Saved Address</p>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
+                    {savedAddresses.map((addr) => (
+                      <button
+                        key={addr.id}
+                        type="button"
+                        onClick={() => handleSelectSavedAddress(addr)}
+                        className={`snap-start shrink-0 w-[240px] text-left p-3.5 rounded-[1.25rem] glass-panel border transition-all ${
+                          selectedSavedId === addr.id
+                            ? "border-foreground/30 bg-foreground/[0.03] shadow-[0_0_15px_rgba(var(--foreground),0.02)]"
+                            : "border-foreground/5 bg-foreground/[0.01] hover:border-foreground/10"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold truncate pr-1">{addr.name}</span>
+                          {addr.isDefault && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[5px] font-bold uppercase tracking-wider bg-foreground text-background">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[9px] text-foreground/50 truncate">
+                          {addr.address1}{addr.address2 ? `, ${addr.address2}` : ""}
+                        </p>
+                        <p className="text-[9px] text-foreground/50 font-medium">
+                          {addr.city}, {addr.state}
+                        </p>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSavedId("");
+                        setAddress({
+                          name: "",
+                          email: "",
+                          phone: "",
+                          street: "",
+                          city: "",
+                          state: "",
+                          zip: "",
+                          country: "India",
+                        });
+                      }}
+                      className="snap-start shrink-0 p-4 rounded-[1.25rem] glass-panel border border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] flex flex-col items-center justify-center gap-1 w-[120px] text-center"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-foreground/40" />
+                      <span className="text-[8px] font-bold uppercase tracking-widest text-foreground/50">New Form</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={handleAddressSubmit} className="space-y-3">
                 <div className="grid grid-cols-1 gap-3">
                   <input
                     type="text"
-                    placeholder="Full Name"
+                    placeholder="Recipient Full Name"
                     required
                     value={address.name}
-                    onChange={(e) => setAddress({...address, name: e.target.value})}
-                    className="glass-input w-full px-4 py-3 text-[13px]"
+                    onChange={(e) => {
+                      setSelectedSavedId("");
+                      setAddress({...address, name: e.target.value});
+                    }}
+                    className="glass-input w-full px-4 py-3 text-[12px]"
                   />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <input
                         type="email"
-                        placeholder="Email"
+                        placeholder="Email Address"
                         required
                         value={address.email}
-                        onChange={(e) => setAddress({...address, email: e.target.value})}
-                        className="glass-input w-full px-4 py-3 text-[13px]"
+                        onChange={(e) => {
+                          setSelectedSavedId("");
+                          setAddress({...address, email: e.target.value});
+                        }}
+                        className="glass-input w-full px-4 py-3 text-[12px]"
                     />
                     <input
                         type="tel"
-                        placeholder="Phone"
+                        placeholder="Mobile Number"
                         required
                         value={address.phone}
-                        onChange={(e) => setAddress({...address, phone: e.target.value})}
-                        className="glass-input w-full px-4 py-3 text-[13px]"
+                        onChange={(e) => {
+                          setSelectedSavedId("");
+                          setAddress({...address, phone: e.target.value});
+                        }}
+                        className="glass-input w-full px-4 py-3 text-[12px]"
                     />
                   </div>
                   <input
@@ -311,8 +443,11 @@ export default function CheckoutPage() {
                     placeholder="Street Address, Area, Landmark"
                     required
                     value={address.street}
-                    onChange={(e) => setAddress({...address, street: e.target.value})}
-                    className="glass-input w-full px-4 py-3 text-[13px]"
+                    onChange={(e) => {
+                      setSelectedSavedId("");
+                      setAddress({...address, street: e.target.value});
+                    }}
+                    className="glass-input w-full px-4 py-3 text-[12px]"
                   />
                   <div className="grid grid-cols-2 gap-3">
                     <input
@@ -320,16 +455,22 @@ export default function CheckoutPage() {
                       placeholder="City"
                       required
                       value={address.city}
-                      onChange={(e) => setAddress({...address, city: e.target.value})}
-                      className="glass-input w-full px-4 py-3 text-[13px]"
+                      onChange={(e) => {
+                        setSelectedSavedId("");
+                        setAddress({...address, city: e.target.value});
+                      }}
+                      className="glass-input w-full px-4 py-3 text-[12px]"
                     />
                     <input
                       type="text"
-                      placeholder="ZIP Code"
+                      placeholder="ZIP Code (6 digits)"
                       required
                       value={address.zip}
-                      onChange={(e) => setAddress({...address, zip: e.target.value})}
-                      className="glass-input w-full px-4 py-3 text-[13px]"
+                      onChange={(e) => {
+                        setSelectedSavedId("");
+                        setAddress({...address, zip: e.target.value});
+                      }}
+                      className="glass-input w-full px-4 py-3 text-[12px]"
                     />
                   </div>
                   <input
@@ -337,18 +478,21 @@ export default function CheckoutPage() {
                     placeholder="State"
                     required
                     value={address.state}
-                    onChange={(e) => setAddress({...address, state: e.target.value})}
-                    className="glass-input w-full px-4 py-3 text-[13px]"
+                    onChange={(e) => {
+                      setSelectedSavedId("");
+                      setAddress({...address, state: e.target.value});
+                    }}
+                    className="glass-input w-full px-4 py-3 text-[12px]"
                   />
                 </div>
 
                 <div className="pt-6">
                   <button
                     type="submit"
-                    className="glass-cta w-full py-4 text-[10px] flex items-center justify-center gap-2"
+                    className="glass-cta w-full py-4 text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
                   >
-                    Select Payment
-                    <Plus className="w-3.5 h-3.5" />
+                    Select Payment Method
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </form>
@@ -361,52 +505,60 @@ export default function CheckoutPage() {
               exit={{ opacity: 0, x: -10 }}
               className="space-y-6"
             >
-              <div className="space-y-1">
-                <h2 className="text-lg font-bold tracking-tight text-foreground">Payment</h2>
-                <p className="text-foreground/40 text-[11px] font-medium">Choose how you'd like to pay.</p>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setStep(1)}
+                  className="p-1.5 rounded-lg glass-panel hover:bg-foreground/5 text-foreground/60 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="space-y-0.5">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-foreground/80">Select Payment</h2>
+                  <p className="text-foreground/40 text-[10px] font-medium uppercase tracking-wider">Choose your preferred settlement method</p>
+                </div>
               </div>
 
               <div className="space-y-2.5">
                 {[
-                  { id: "UPI", label: "UPI (Google Pay, PhonePe)", description: "Instant, safe, and secure" },
-                  { id: "CARD", label: "Credit / Debit Card", description: "Visa, Mastercard, RuPay" },
-                  { id: "COD", label: "Cash on Delivery", description: "Pay when you receive. ₹99 fee applies." },
+                  { id: "UPI", label: "UPI Payments (Intent & GPay/PhonePe)", description: "Seamless intent launch on mobile devices" },
+                  { id: "CARD", label: "Credit & Debit Cards", description: "Visa, Mastercard, RuPay & international options" },
+                  { id: "COD", label: "Cash on Delivery (COD)", description: "Additional ₹99 processing fee applies" },
                 ].map((method) => (
                   <button
                     key={method.id}
                     onClick={() => setPaymentMethod(method.id as PaymentMethod)}
-                    className={`w-full p-4 text-left rounded-2xl transition-all flex items-center justify-between ${
+                    className={`w-full p-4 text-left rounded-[1.5rem] transition-all flex items-center justify-between border ${
                       paymentMethod === method.id 
-                        ? "bg-foreground text-background shadow-[0_0_30px_rgba(var(--foreground),0.1)] scale-[1.01]" 
-                        : "glass-panel text-foreground hover:bg-foreground/[0.06]"
+                        ? "bg-foreground text-background border-transparent shadow-[0_0_25px_rgba(var(--foreground),0.05)] scale-[1.01]" 
+                        : "glass-panel text-foreground border-foreground/5 hover:bg-foreground/[0.04]"
                     }`}
                   >
                     <div className="space-y-0.5">
-                      <p className="font-bold text-[13px]">{method.label}</p>
-                      <p className={`text-[10px] font-medium ${paymentMethod === method.id ? "opacity-50" : "text-foreground/35"}`}>
+                      <p className="font-bold text-[12px] uppercase tracking-wide">{method.label}</p>
+                      <p className={`text-[9px] font-medium ${paymentMethod === method.id ? "opacity-60" : "text-foreground/35"}`}>
                         {method.description}
                       </p>
                     </div>
-                    {paymentMethod === method.id && <CheckCircle2 className="w-4 h-4" />}
+                    {paymentMethod === method.id && <CheckCircle2 className="w-4 h-4 text-background shrink-0 ml-2" />}
                   </button>
                 ))}
               </div>
 
               {/* ═══ Coupon Code ═══ */}
-              <div className="glass-panel p-4 space-y-3">
+              <div className="glass-panel p-4 space-y-3 border border-foreground/5">
                 <div className="flex items-center gap-2">
-                  <Tag className="w-3.5 h-3.5 text-foreground/40" />
-                  <span className="text-[11px] font-bold text-foreground/60 uppercase tracking-wider">Coupon Code</span>
+                  <Tag className="w-3.5 h-3.5 text-foreground/45" />
+                  <span className="text-[9px] font-bold text-foreground/60 uppercase tracking-widest">Discount Code</span>
                 </div>
                 
                 {couponValid ? (
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-foreground/[0.06] border border-foreground/10">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-foreground/[0.04] border border-foreground/10">
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-foreground/70" />
-                      <span className="text-[11px] font-bold text-foreground/80">{couponCode.toUpperCase()}</span>
-                      <span className="text-[9px] text-foreground/40">— {couponMessage}</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-foreground/60" />
+                      <span className="text-[10px] font-bold text-foreground/80">{couponCode.toUpperCase()}</span>
+                      <span className="text-[8px] text-foreground/40">— {couponMessage}</span>
                     </div>
-                    <button onClick={handleRemoveCoupon} className="text-foreground/30 hover:text-foreground/60">
+                    <button onClick={handleRemoveCoupon} className="text-foreground/30 hover:text-foreground/60 p-1">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -414,57 +566,87 @@ export default function CheckoutPage() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Enter code"
+                      placeholder="Discount Code"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      className="glass-input flex-1 px-3 py-2.5 text-[12px] uppercase tracking-wider"
+                      className="glass-input flex-1 px-3 py-2 text-[11px] uppercase tracking-wider"
                     />
                     <button
                       onClick={handleApplyCoupon}
                       disabled={couponLoading || !couponCode.trim()}
-                      className="glass-button px-4 py-2.5 text-[9px] font-bold uppercase tracking-wider disabled:opacity-30"
+                      className="glass-button px-4 py-2 text-[9px] font-bold uppercase tracking-widest disabled:opacity-30"
                     >
-                      {couponLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+                      {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
                     </button>
                   </div>
                 )}
                 
                 {couponMessage && !couponValid && (
-                  <p className="text-[10px] text-foreground/40 font-medium">{couponMessage}</p>
+                  <p className="text-[9px] text-foreground/40 font-semibold">{couponMessage}</p>
                 )}
               </div>
 
+              {/* ═══ Cart Items Preview ═══ */}
+              <div className="glass-panel p-4 border border-foreground/5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-3.5 h-3.5 text-foreground/40" />
+                  <span className="text-[9px] font-bold text-foreground/60 uppercase tracking-widest">Order Preview</span>
+                </div>
+                <div className="max-h-[160px] overflow-y-auto divide-y divide-foreground/5 space-y-2 pr-1 scrollbar-thin">
+                  {items.map((item) => (
+                    <div key={item.id} className="flex gap-3 py-2 first:pt-0 last:pb-0">
+                      <div className="w-12 h-14 rounded-[0.5rem] bg-foreground/[0.02] border border-foreground/5 overflow-hidden shrink-0">
+                        {item.image ? (
+                          <img src={item.image} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-foreground/20 text-[8px]">ZB</div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <p className="text-[10px] font-bold text-foreground/80 truncate leading-tight">{item.title}</p>
+                        <p className="text-[8px] text-foreground/40 font-bold uppercase tracking-wider mt-0.5">
+                          Size: {item.size || "Free"} × {item.quantity}
+                        </p>
+                      </div>
+                      <div className="text-right flex flex-col justify-center">
+                        <span className="text-[10px] font-bold text-foreground/80">₹{(item.price * item.quantity).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* ═══ Order Summary ═══ */}
-              <div className="glass-panel p-6 space-y-3">
-                <div className="flex justify-between items-center text-[13px] font-medium">
-                  <span className="text-foreground/50">Subtotal</span>
+              <div className="glass-panel p-5 space-y-3 border border-foreground/5">
+                <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider">
+                  <span className="text-foreground/45">Subtotal</span>
                   <span className="text-foreground/80">₹{subtotal.toLocaleString()}</span>
                 </div>
                 {couponDiscount > 0 && (
-                  <div className="flex justify-between items-center text-[13px] font-medium">
-                    <span className="text-foreground/50">Coupon Discount</span>
-                    <span className="text-foreground/70">- ₹{couponDiscount.toLocaleString()}</span>
+                  <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider">
+                    <span className="text-foreground/45">Coupon Discount</span>
+                    <span className="text-foreground/60">- ₹{couponDiscount.toLocaleString()}</span>
                   </div>
                 )}
                 {paymentMethod === "COD" && (
-                  <div className="flex justify-between items-center text-[13px] font-medium">
-                    <span className="text-foreground/50">COD Fee</span>
+                  <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider">
+                    <span className="text-foreground/45">COD Fee</span>
                     <span className="text-foreground/60">+ ₹{codFee}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center text-[13px] font-medium">
-                  <span className="text-foreground/50">Shipping</span>
-                  <span className="text-foreground/70">Free</span>
+                <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider">
+                  <span className="text-foreground/45">Shipping</span>
+                  <span className="text-foreground/60">Free</span>
                 </div>
-                <div className="glass-divider" />
+                <div className="h-[1px] bg-foreground/10 my-2" />
                 <div className="flex justify-between items-center pt-1">
-                  <span className="font-bold text-[13px] text-foreground/80">Total</span>
-                  <span className="text-lg font-black tracking-tight text-foreground">₹{total.toLocaleString()}</span>
+                  <span className="font-extrabold text-[11px] text-foreground/60 uppercase tracking-widest">Total Payable</span>
+                  <span className="text-xl font-black tracking-tight text-foreground">₹{total.toLocaleString()}</span>
                 </div>
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 p-3.5 rounded-xl text-[10px] font-bold" style={{ background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.15)", color: "rgba(255,120,120,0.9)" }}>
+                <div className="flex items-center gap-2 p-3.5 rounded-xl text-[10px] font-bold" style={{ background: "rgba(255,80,80,0.06)", border: "1px solid rgba(255,80,80,0.12)", color: "rgba(255,100,100,0.9)" }}>
                   <AlertCircle className="w-3.5 h-3.5" />
                   {error}
                 </div>
@@ -474,19 +656,19 @@ export default function CheckoutPage() {
                 <button
                   onClick={handlePlaceOrder}
                   disabled={loading}
-                  className="glass-cta w-full py-4 text-[10px] flex items-center justify-center gap-2.5 disabled:opacity-30"
+                  className="glass-cta w-full py-4 text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-2.5 disabled:opacity-30"
                 >
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
-                      {paymentMethod === "COD" ? "Place COD Order" : "Complete Order"}
+                      {paymentMethod === "COD" ? "Place COD Order" : "Complete Payment"}
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </>
                   )}
                 </button>
-                <p className="text-center text-[8px] text-foreground/20 mt-4 uppercase tracking-[0.2em] font-bold">
-                  Secure Checkout
+                <p className="text-center text-[7px] text-foreground/20 mt-4 uppercase tracking-[0.25em] font-bold">
+                  256-Bit SSL Secured Transaction
                 </p>
               </div>
             </motion.div>

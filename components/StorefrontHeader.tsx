@@ -61,16 +61,63 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
     return title;
   };
 
+  const isProductPage = pathname?.startsWith("/products/");
+
+  if (isProductPage) {
+    return (
+      <>
+        {/* Floating Back Button (Top Left) */}
+        <div className="fixed top-4 left-4 z-50 pointer-events-auto">
+          <button 
+            onClick={() => router.back()}
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.25)] text-foreground/60 hover:text-foreground hover:bg-white/80 dark:hover:bg-black/80 active:scale-90 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
+            aria-label="Back"
+          >
+            <ChevronLeft strokeWidth={1.25} className="w-4.5 h-4.5 -ml-0.5" />
+          </button>
+        </div>
+
+        {/* Floating Actions (Top Right) */}
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 pointer-events-auto">
+          {mounted && (
+            <button 
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+              aria-label="Toggle Theme"
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.25)] text-foreground/60 hover:text-foreground hover:bg-white/80 dark:hover:bg-black/80 active:scale-90 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
+            >
+              {isDark ? <Sun strokeWidth={1.25} className="w-4 h-4" /> : <Moon strokeWidth={1.25} className="w-4 h-4" />}
+            </button>
+          )}
+          <button 
+            onClick={() => setIsCartOpen(true)}
+            aria-label="Cart"
+            className="relative w-9 h-9 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.25)] text-foreground/60 hover:text-foreground hover:bg-white/80 dark:hover:bg-black/80 active:scale-90 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
+          >
+            <ShoppingBag strokeWidth={1.25} className="w-4 h-4" />
+            {count > 0 && (
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-foreground rounded-full animate-pulse" />
+            )}
+          </button>
+        </div>
+
+        {/* Drawers */}
+        <MenuDrawer isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+        <BookmarkDrawer isOpen={isBookmarkOpen} onClose={() => setIsBookmarkOpen(false)} />
+      </>
+    );
+  }
+
   return (
     <>
       {/* ── Desktop Header Pill (md and up) ── */}
-      <header className="hidden md:flex fixed top-5 left-1/2 -translate-x-1/2 w-[calc(100%-4rem)] max-w-6xl z-50 px-6 h-14 items-center justify-between pointer-events-auto bg-white/75 dark:bg-white/[0.04] backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-[0_12px_45px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.55)] rounded-full transition-all duration-300">
+      <header className="hidden md:flex fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-5xl z-50 px-5 h-11 items-center justify-between pointer-events-auto bg-white/75 dark:bg-white/[0.04] backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-full transition-all duration-300">
         {/* Left: Brand */}
-        <Link href="/" className="flex items-center gap-2.5 active:scale-95 transition-all z-10 py-1.5 px-3 rounded-full hover:bg-foreground/5 dark:hover:bg-white/5">
-          <div className="relative w-6 h-6 dark:invert">
+        <Link href="/" className="flex items-center gap-2 active:scale-95 transition-all z-10 py-1 px-2.5 rounded-full hover:bg-foreground/5 dark:hover:bg-white/5">
+          <div className="relative w-4.5 h-4.5 dark:invert">
             <NextImage src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain" />
           </div>
-          <span className="font-rocaston text-[11px] font-bold tracking-[0.25em] text-foreground/80 uppercase pt-0.5">ZICA BELLA</span>
+          <span className="font-rocaston text-[9.5px] font-bold tracking-[0.22em] text-foreground/80 uppercase pt-0.5">ZICA BELLA</span>
         </Link>
 
         {/* Center: Nav Links */}
@@ -81,7 +128,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
               <Link
                 key={col.id}
                 href={`/collections/${col.handle}`}
-                className={`text-[9px] font-bold tracking-[0.2em] uppercase transition-all duration-300 py-1.5 px-3.5 rounded-full ${
+                className={`text-[7.5px] font-bold tracking-[0.22em] uppercase transition-all duration-300 py-1 px-3 rounded-full ${
                   active
                     ? "bg-foreground text-background dark:bg-white dark:text-black font-extrabold shadow-sm"
                     : "text-foreground/50 hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5"
@@ -93,7 +140,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
           })}
           <Link
             href="/blogs"
-            className={`text-[9px] font-bold tracking-[0.2em] uppercase transition-all duration-300 py-1.5 px-3.5 rounded-full ${
+            className={`text-[7.5px] font-bold tracking-[0.22em] uppercase transition-all duration-300 py-1 px-3 rounded-full ${
               pathname === "/blogs"
                 ? "bg-foreground text-background dark:bg-white dark:text-black font-extrabold shadow-sm"
                 : "text-foreground/50 hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5"
@@ -104,17 +151,17 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2.5 z-10">
+        <div className="flex items-center gap-2 z-10">
           {mounted && (
             <button
               onClick={() => setTheme(isDark ? "light" : "dark")}
-              className="h-8 w-8 flex items-center justify-center rounded-full text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent transition-all duration-300 active:scale-90"
+              className="h-[30px] w-[30px] flex items-center justify-center rounded-full text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent transition-all duration-300 active:scale-90"
               aria-label="Toggle Theme"
             >
               {isDark ? (
-                <Sun className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+                <Sun className="w-3.5 h-3.5 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
               ) : (
-                <Moon className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+                <Moon className="w-3.5 h-3.5 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
               )}
             </button>
           )}
@@ -122,25 +169,25 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
           <Link
             href="/search"
             aria-label="Search"
-            className={`h-8 w-8 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
+            className={`h-[30px] w-[30px] flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
               pathname === "/search"
                 ? "text-foreground dark:text-white bg-foreground/[0.06] dark:bg-white/[0.08] border border-foreground/[0.08] dark:border-white/10 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.02)]"
                 : "text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent"
             }`}
           >
-            <Search className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+            <Search className="w-3.5 h-3.5 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
           </Link>
           
           <button
             onClick={() => setIsBookmarkOpen(true)}
             aria-label="Bookmarks"
-            className={`relative h-8 w-8 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
+            className={`relative h-[30px] w-[30px] flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
               isBookmarkOpen
                 ? "text-foreground dark:text-white bg-foreground/[0.06] dark:bg-white/[0.08] border border-foreground/[0.08] dark:border-white/10 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.02)]"
                 : "text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent"
             }`}
           >
-            <Bookmark className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+            <Bookmark className="w-3.5 h-3.5 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
             {bookmarks.length > 0 && (
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-foreground dark:bg-white rounded-full animate-pulse" />
             )}
@@ -149,13 +196,13 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
           <button
             onClick={() => setIsCartOpen(true)}
             aria-label="Cart"
-            className={`relative h-8 w-8 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
+            className={`relative h-[30px] w-[30px] flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
               isCartOpen
                 ? "text-foreground dark:text-white bg-foreground/[0.06] dark:bg-white/[0.08] border border-foreground/[0.08] dark:border-white/10 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.02)]"
                 : "text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent"
             }`}
           >
-            <ShoppingBag className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+            <ShoppingBag className="w-3.5 h-3.5 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
             {count > 0 && (
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-foreground dark:bg-white rounded-full animate-pulse" />
             )}
@@ -164,94 +211,75 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
           <Link
             href="/profile"
             aria-label="Profile"
-            className={`h-8 w-8 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
+            className={`h-[30px] w-[30px] flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 ${
               pathname === "/profile"
                 ? "text-foreground dark:text-white bg-foreground/[0.06] dark:bg-white/[0.08] border border-foreground/[0.08] dark:border-white/10 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.02)]"
                 : "text-foreground/50 dark:text-white/45 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05] border border-transparent"
             }`}
           >
-            <User className="w-4 h-4 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
+            <User className="w-3.5 h-3.5 transition-transform duration-300 hover:scale-105" strokeWidth={1.25} />
           </Link>
         </div>
       </header>
 
-      {/* ── Mobile Header Capsules ── */}
-      <header className="flex md:hidden fixed top-0 left-0 w-full z-50 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-1 items-center justify-between gap-2 pointer-events-none">
+      {/* ── Mobile Header Pill ── */}
+      <header className="flex md:hidden fixed top-3 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] z-50 px-4 h-11 items-center justify-between pointer-events-auto bg-white/75 dark:bg-white/[0.04] backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.5)] rounded-full transition-all duration-300">
         
-        {/* Left */}
-        <div className="flex-none pointer-events-auto">
-          {isHome ? (
-            <button 
-              onClick={() => setIsMenuOpen(true)}
-              className="h-9 w-9 flex items-center justify-center rounded-full shadow-lg group active:scale-95 transition-all apple-glass-capsule liquid-glass-hover-sweep"
-              aria-label="Menu"
-            >
-              <div className="apple-glass-sweep-glow" />
-              <div className="relative w-6 h-6 opacity-80 group-hover:opacity-100 transition-opacity dark:invert z-10">
-                <NextImage src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain" />
-              </div>
-            </button>
-          ) : (
+        {/* Left Section: Back or Menu Toggle */}
+        <div className="flex items-center gap-0.5">
+          {!isHome && (
             <button 
               onClick={() => router.back()}
-              className="h-9 w-9 flex items-center justify-center rounded-full shadow-lg active:scale-95 transition-all group apple-glass-capsule liquid-glass-hover-sweep"
+              className="w-8 h-8 flex items-center justify-center rounded-full text-foreground/50 hover:text-foreground hover:bg-foreground/5 active:scale-90 transition-all"
               aria-label="Back"
             >
-              <div className="apple-glass-sweep-glow" />
-              <ChevronLeft strokeWidth={1.5} className="w-5 h-5 text-foreground/50 transition-transform duration-300 group-hover:text-foreground z-10" />
+              <ChevronLeft strokeWidth={1.5} className="w-4 h-4" />
             </button>
           )}
-        </div>
-
-        {/* Center */}
-        <div className="flex-1 min-w-0 pointer-events-auto">
-          <Link 
-            href="/"
-            className="h-9 flex items-center justify-center px-6 rounded-full shadow-lg active:scale-[0.98] transition-all max-w-full apple-glass-capsule liquid-glass-hover-sweep"
+          <button 
+            onClick={() => setIsMenuOpen(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-full text-foreground/50 hover:text-foreground hover:bg-foreground/5 active:scale-90 transition-all"
+            aria-label="Menu"
           >
-            <div className="apple-glass-sweep-glow" />
-            <span className="text-[10px] sm:text-[11px] font-rocaston tracking-[0.08em] text-foreground/70 uppercase truncate pt-0.5 z-10">
-              {getPageTitle()}
-            </span>
-          </Link>
+            <Menu strokeWidth={1.5} className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Right */}
-        <div className="flex-none pointer-events-auto">
-          <div className="flex items-center gap-0.5 h-9 p-0.5 px-1.5 rounded-full shadow-lg apple-glass-capsule liquid-glass-hover-sweep">
-            <div className="apple-glass-sweep-glow" />
-            {mounted && (
-              <button 
-                onClick={() => setTheme(isDark ? "light" : "dark")}
-                aria-label="Toggle Theme"
-                className="relative h-8 w-8 flex items-center justify-center text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all active:scale-90 z-10"
-              >
-                {isDark ? <Sun className="w-4 h-4 transition-transform duration-300 hover:scale-110" /> : <Moon className="w-4 h-4 transition-transform duration-300 hover:scale-110" />}
-              </button>
+        {/* Center: Brand Title */}
+        <Link 
+          href="/"
+          className="flex items-center gap-1 active:scale-95 transition-all"
+        >
+          <span className="text-[8.5px] font-rocaston tracking-[0.22em] text-foreground/80 uppercase pt-0.5 font-medium">
+            {getPageTitle()}
+          </span>
+        </Link>
+
+        {/* Right Section: Theme & Cart */}
+        <div className="flex items-center gap-1">
+          {mounted && (
+            <button 
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+              aria-label="Toggle Theme"
+              className="w-8 h-8 flex items-center justify-center rounded-full text-foreground/50 hover:text-foreground hover:bg-foreground/5 active:scale-90 transition-all"
+            >
+              {isDark ? <Sun strokeWidth={1.5} className="w-4 h-4" /> : <Moon strokeWidth={1.5} className="w-4 h-4" />}
+            </button>
+          )}
+          <button 
+            onClick={() => setIsCartOpen(true)}
+            aria-label="Cart"
+            className="relative w-8 h-8 flex items-center justify-center rounded-full text-foreground/50 hover:text-foreground hover:bg-foreground/5 active:scale-90 transition-all"
+          >
+            <ShoppingBag strokeWidth={1.5} className="w-4 h-4" />
+            {count > 0 && (
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-foreground rounded-full animate-pulse" />
             )}
-            <button 
-              onClick={() => setIsBookmarkOpen(true)}
-              aria-label="Bookmarks"
-              className="relative h-8 w-8 flex items-center justify-center text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all active:scale-90 z-10"
-            >
-              <Bookmark className="w-4 h-4 transition-transform duration-300 hover:scale-110" />
-              {bookmarks.length > 0 && (
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-foreground/60 rounded-full" />
-              )}
-            </button>
-            <button 
-              onClick={() => setIsCartOpen(true)}
-              aria-label="Cart"
-              className="relative h-8 w-8 flex items-center justify-center text-foreground/45 hover:text-foreground dark:text-foreground/50 dark:hover:text-foreground transition-all active:scale-90 z-10"
-            >
-              <ShoppingBag className="w-4 h-4 transition-transform duration-300 hover:scale-110" />
-              {count > 0 && (
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-foreground/60 rounded-full" />
-              )}
-            </button>
-          </div>
+          </button>
         </div>
+
       </header>
+
       {/* Drawers */}
       <MenuDrawer isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />

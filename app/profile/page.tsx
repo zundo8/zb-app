@@ -20,9 +20,32 @@ import {
   TrendingUp,
   ArrowUpRight,
   Clock,
+  MapPin,
+  Plus,
+  Trash2,
+  Edit2,
+  Phone,
+  Mail,
+  HelpCircle,
+  FileText,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useBookmarks } from "@/lib/bookmark-context";
+
+type DBAddress = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  address1: string;
+  address2?: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  isDefault: boolean;
+};
 
 export default function ProfilePage() {
   const { data: session, status, update: updateSession } = useSession();
@@ -30,9 +53,21 @@ export default function ProfilePage() {
   const { bookmarks } = useBookmarks();
 
   const [customer, setCustomer] = useState<any>(null);
+  const [addresses, setAddresses] = useState<DBAddress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "wishlist" | "info">("orders");
-  const [updating, setUpdating] = useState(false);
+  const [tab, setTab] = useState<"orders" | "wishlist" | "addresses" | "info">("orders");
+  
+  // Profile editing
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+
+  // Address editing/creation
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Partial<DBAddress> | null>(null);
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  const [updatingRegion, setUpdatingRegion] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +77,7 @@ export default function ProfilePage() {
       router.push("/login?callbackUrl=/profile");
     } else if (status === "authenticated") {
       fetchProfile();
+      fetchAddresses();
     }
   }, [status, router]);
 
@@ -63,6 +99,7 @@ export default function ProfilePage() {
           followersCount: socialData.followersCount,
           followingCount: socialData.followingCount
         });
+        setEditName(profData.customer.name || "");
       }
     } catch (e) {
       console.error("Error fetching profile", e);
@@ -71,8 +108,43 @@ export default function ProfilePage() {
     }
   };
 
+  const fetchAddresses = async () => {
+    try {
+      const res = await fetch("/api/customer/addresses");
+      if (res.ok) {
+        const data = await res.json();
+        setAddresses(data.addresses || []);
+      }
+    } catch (e) {
+      console.error("Error fetching addresses", e);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+    setUpdatingProfile(true);
+    try {
+      const res = await fetch("/api/customer/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCustomer((prev: any) => ({ ...prev, name: data.customer.name }));
+        await updateSession({ ...session, user: { ...session?.user, name: data.customer.name } });
+        setIsEditingProfile(false);
+      }
+    } catch (e) {
+      console.error("Error updating profile name", e);
+    } finally {
+      setUpdatingProfile(false);
+    }
+  };
+
   const handleUpdateRegion = async (region: string) => {
-    setUpdating(true);
+    setUpdatingRegion(true);
     try {
       const res = await fetch("/api/customer/profile", {
         method: "PATCH",
@@ -81,7 +153,7 @@ export default function ProfilePage() {
       });
       if (res.ok) setCustomer({ ...customer, region });
     } finally {
-      setUpdating(false);
+      setUpdatingRegion(false);
     }
   };
 
@@ -109,6 +181,60 @@ export default function ProfilePage() {
     };
   };
 
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAddress) return;
+    setSavingAddress(true);
+
+    try {
+      const isEdit = !!editingAddress.id;
+      const res = await fetch("/api/customer/addresses", {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingAddress),
+      });
+
+      if (res.ok) {
+        await fetchAddresses();
+        setIsAddressModalOpen(false);
+        setEditingAddress(null);
+      }
+    } catch (e) {
+      console.error("Error saving address", e);
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    if (!confirm("Are you sure you want to delete this address?")) return;
+    try {
+      const res = await fetch(`/api/customer/addresses?id=${addressId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setAddresses(prev => prev.filter(a => a.id !== addressId));
+      }
+    } catch (e) {
+      console.error("Error deleting address", e);
+    }
+  };
+
+  const handleSetDefaultAddress = async (address: DBAddress) => {
+    try {
+      const res = await fetch("/api/customer/addresses", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...address, isDefault: true }),
+      });
+      if (res.ok) {
+        await fetchAddresses();
+      }
+    } catch (e) {
+      console.error("Error setting default address", e);
+    }
+  };
+
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
@@ -132,7 +258,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground relative font-sans">
-      <main className="max-w-[430px] mx-auto px-4 pt-20 pb-36">
+      <main className="max-w-[430px] mx-auto px-4 pt-24 pb-36">
 
         {/* ─── Profile Hero Card ─── */}
         <motion.div
@@ -142,7 +268,7 @@ export default function ProfilePage() {
           className="relative rounded-[2rem] overflow-hidden mb-5 p-6 glass-panel border-foreground/10 shadow-2xl bg-foreground/[0.01]"
         >
           {/* Ambient glow */}
-          <div className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-100" style={{ background: "radial-gradient(ellipse at 30% 0%, rgba(255,255,255,0.03) 0%, transparent 70%)" }} />
+          <div className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-100" style={{ background: "radial-gradient(ellipse at 30% 0%, rgba(var(--foreground),0.03) 0%, transparent 70%)" }} />
 
           <div className="flex items-center gap-5 relative z-10">
             {/* Avatar */}
@@ -175,28 +301,77 @@ export default function ProfilePage() {
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <h1 className="text-[17px] font-bold tracking-tight text-foreground/90 truncate leading-tight">{name}</h1>
+              <div className="flex items-center justify-between">
+                <h1 className="text-[17px] font-bold tracking-tight text-foreground truncate leading-tight flex-1 mr-2">{name}</h1>
+                <button 
+                  onClick={() => {
+                    setIsEditingProfile(!isEditingProfile);
+                    setEditName(customer?.name || "");
+                  }} 
+                  className="p-1 text-foreground/40 hover:text-foreground/70 transition-colors"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
               {email && (
                 <p className="text-[10px] text-foreground/50 truncate tracking-wide mt-0.5">{email}</p>
               )}
               <div className="flex items-center gap-3 mt-1.5">
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] font-bold text-foreground/80">{customer?.followersCount || 0}</span>
-                  <span className="text-[10px] text-foreground/35 font-medium text-glass-secondary">Followers</span>
+                  <span className="text-[10px] text-foreground/35 font-medium">Followers</span>
                 </div>
                 <div className="w-1 h-1 rounded-full bg-foreground/10" />
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] font-bold text-foreground/80">{customer?.followingCount || 0}</span>
-                  <span className="text-[10px] text-foreground/35 font-medium text-glass-secondary">Following</span>
+                  <span className="text-[10px] text-foreground/35 font-medium">Following</span>
                 </div>
               </div>
               <div className="mt-3 flex items-center gap-3">
-                <span className="px-2.5 py-1 rounded-full text-[7px] font-bold uppercase tracking-widest border border-foreground/10 text-foreground/60">
+                <span className="px-2.5 py-1 rounded-full text-[7px] font-bold uppercase tracking-widest border border-foreground/10 text-foreground/60 bg-foreground/[0.02]">
                   Silver Member
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Edit Profile Form */}
+          <AnimatePresence>
+            {isEditingProfile && (
+              <motion.form 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                onSubmit={handleUpdateProfile}
+                className="mt-4 pt-4 border-t border-foreground/5 relative z-10 overflow-hidden"
+              >
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Enter full name"
+                    className="glass-input flex-1 px-3 py-2 text-[12px] bg-background"
+                  />
+                  <button
+                    type="submit"
+                    disabled={updatingProfile}
+                    className="glass-button px-4 text-[9px] font-bold uppercase tracking-wider disabled:opacity-50"
+                  >
+                    {updatingProfile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingProfile(false)}
+                    className="p-2 border border-foreground/10 rounded-xl hover:bg-foreground/5"
+                  >
+                    <X className="w-3.5 h-3.5 text-foreground/40" />
+                  </button>
+                </div>
+              </motion.form>
+            )}
+          </AnimatePresence>
 
           {/* Stats Row */}
           <div className="grid grid-cols-3 gap-2 mt-5 relative z-10">
@@ -218,18 +393,21 @@ export default function ProfilePage() {
         </motion.div>
 
         {/* ─── Tab Switcher ─── */}
-        <div
-          className="flex rounded-[1rem] p-1 mb-4 glass-panel border-foreground/5 bg-foreground/[0.01]"
-        >
-          {(["orders", "wishlist", "info"] as const).map((t) => (
+        <div className="flex rounded-[1rem] p-1 mb-4 glass-panel border-foreground/5 bg-foreground/[0.01]">
+          {([
+            { id: "orders", label: "Orders" },
+            { id: "wishlist", label: "Wishlist" },
+            { id: "addresses", label: "Addresses" },
+            { id: "info", label: "Account" }
+          ] as const).map((t) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-[0.75rem] text-[8px] font-bold uppercase tracking-[0.15em] transition-all ${
-                tab === t ? "bg-foreground text-background font-bold shadow-lg" : "text-foreground/40 hover:text-foreground/65"
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 py-2 rounded-[0.75rem] text-[8px] font-bold uppercase tracking-[0.1em] transition-all ${
+                tab === t.id ? "bg-foreground text-background font-bold shadow-lg" : "text-foreground/40 hover:text-foreground/65"
               }`}
             >
-              {t === "orders" ? "Orders" : t === "wishlist" ? "Wishlist" : "Account"}
+              {t.label}
             </button>
           ))}
         </div>
@@ -248,7 +426,7 @@ export default function ProfilePage() {
               {customer?.orders && customer.orders.length > 0 ? (
                 <div className="space-y-2">
                   {customer.orders.slice(0, 5).map((order: any, idx: number) => (
-                    <Link key={order.id} href={`/orders/${order.id}/confirmation`}>
+                    <Link key={order.id} href={`/orders/${order.id}`}>
                       <motion.div
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -324,8 +502,138 @@ export default function ProfilePage() {
             </motion.div>
           )}
 
+          {tab === "addresses" && (
+            <motion.div key="addresses" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Saved Addresses</span>
+                <button
+                  onClick={() => {
+                    setEditingAddress({
+                      name: customer?.name || "",
+                      phone: customer?.phone || "",
+                      email: customer?.email || "",
+                      address1: "",
+                      address2: "",
+                      city: "",
+                      state: "",
+                      zip: "",
+                      country: "India",
+                      isDefault: addresses.length === 0,
+                    });
+                    setIsAddressModalOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-[8px] font-bold text-foreground/60 hover:text-foreground/80 transition-colors"
+                >
+                  <Plus className="w-3 h-3" /> Add New
+                </button>
+              </div>
+
+              {addresses.length > 0 ? (
+                <div className="space-y-2">
+                  {addresses.map((addr) => (
+                    <div
+                      key={addr.id}
+                      className={`p-4 rounded-[1.5rem] glass-panel border transition-all ${
+                        addr.isDefault 
+                          ? "border-foreground/20 bg-foreground/[0.02]" 
+                          : "border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-foreground">{addr.name}</span>
+                            {addr.isDefault && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[6px] font-bold uppercase tracking-wider bg-foreground text-background">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-foreground/60 mt-1 font-medium leading-relaxed">
+                            {addr.address1}
+                            {addr.address2 ? `, ${addr.address2}` : ""}
+                            <br />
+                            {addr.city}, {addr.state} - {addr.zip}
+                            <br />
+                            {addr.country}
+                          </p>
+                          <div className="flex items-center gap-3 mt-2 text-[9px] text-foreground/45 font-medium">
+                            <span className="flex items-center gap-1"><Phone className="w-2.5 h-2.5" /> {addr.phone}</span>
+                            {addr.email && <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> {addr.email}</span>}
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingAddress(addr);
+                              setIsAddressModalOpen(true);
+                            }}
+                            className="p-1.5 text-foreground/40 hover:text-foreground/75 transition-colors"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          {!addr.isDefault && (
+                            <button
+                              onClick={() => handleSetDefaultAddress(addr)}
+                              className="text-[7px] font-bold uppercase tracking-widest text-foreground/35 hover:text-foreground/75 transition-colors"
+                            >
+                              Set Default
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteAddress(addr.id)}
+                            className="p-1.5 text-foreground/20 hover:text-red-500/70 transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center rounded-[1.5rem] border border-dashed border-foreground/10 bg-foreground/[0.01]">
+                  <MapPin className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
+                  <p className="text-[8px] font-semibold uppercase tracking-widest text-foreground/20">No saved addresses</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {tab === "info" && (
             <motion.div key="info" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="space-y-3">
+
+              {/* Support & Policies Links */}
+              <div className="rounded-[1.5rem] overflow-hidden glass-panel border-foreground/5 bg-foreground/[0.01]">
+                <div className="px-4 py-3 border-b border-foreground/5 bg-foreground/[0.02]">
+                  <p className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Quick Services</p>
+                </div>
+                <div className="divide-y divide-foreground/5">
+                  <Link href="/orders" className="flex items-center justify-between px-4 py-3 hover:bg-foreground/[0.02] group transition-all">
+                    <div className="flex items-center gap-3">
+                      <ShoppingBag className="w-3.5 h-3.5 text-foreground/50" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/70">Order History & Returns</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-foreground/30 group-hover:text-foreground/70 group-hover:translate-x-0.5 transition-all" />
+                  </Link>
+                  <Link href="/policies/shipping-policy" className="flex items-center justify-between px-4 py-3 hover:bg-foreground/[0.02] group transition-all">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-3.5 h-3.5 text-foreground/50" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/70">Returns & Exchanges Policy</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-foreground/30 group-hover:text-foreground/70 group-hover:translate-x-0.5 transition-all" />
+                  </Link>
+                  <Link href="/policies/privacy-policy" className="flex items-center justify-between px-4 py-3 hover:bg-foreground/[0.02] group transition-all">
+                    <div className="flex items-center gap-3">
+                      <Shield className="w-3.5 h-3.5 text-foreground/50" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/70">Privacy & Terms</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-foreground/30 group-hover:text-foreground/70 group-hover:translate-x-0.5 transition-all" />
+                  </Link>
+                </div>
+              </div>
 
               {/* Region Picker */}
               <div className="rounded-[1.5rem] overflow-hidden glass-panel border-foreground/5 bg-foreground/[0.01]">
@@ -340,6 +648,7 @@ export default function ProfilePage() {
                     <button
                       key={r.id}
                       onClick={() => handleUpdateRegion(r.id)}
+                      disabled={updatingRegion}
                       className={`flex items-center justify-between px-4 py-3 rounded-[1rem] border transition-all text-left ${
                         customer?.region === r.id
                           ? "bg-foreground border-transparent text-background font-bold shadow-lg"
@@ -385,6 +694,132 @@ export default function ProfilePage() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* ─── Address Form Modal ─── */}
+      <AnimatePresence>
+        {isAddressModalOpen && editingAddress && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-[400px] rounded-[2rem] glass-panel border-foreground/10 shadow-2xl p-6 bg-background overflow-hidden relative"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[12px] font-bold uppercase tracking-wider text-foreground">
+                  {editingAddress.id ? "Edit Address" : "Add Address"}
+                </h3>
+                <button
+                  onClick={() => {
+                    setIsAddressModalOpen(false);
+                    setEditingAddress(null);
+                  }}
+                  className="p-1 hover:bg-foreground/5 rounded-full transition-colors"
+                >
+                  <X className="w-4 h-4 text-foreground/40" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAddress} className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Recipient Name"
+                  required
+                  value={editingAddress.name || ""}
+                  onChange={(e) => setEditingAddress({ ...editingAddress, name: e.target.value })}
+                  className="glass-input w-full px-3 py-2 text-[12px]"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="tel"
+                    placeholder="Phone"
+                    required
+                    value={editingAddress.phone || ""}
+                    onChange={(e) => setEditingAddress({ ...editingAddress, phone: e.target.value })}
+                    className="glass-input w-full px-3 py-2 text-[12px]"
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={editingAddress.email || ""}
+                    onChange={(e) => setEditingAddress({ ...editingAddress, email: e.target.value })}
+                    className="glass-input w-full px-3 py-2 text-[12px]"
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Address Line 1"
+                  required
+                  value={editingAddress.address1 || ""}
+                  onChange={(e) => setEditingAddress({ ...editingAddress, address1: e.target.value })}
+                  className="glass-input w-full px-3 py-2 text-[12px]"
+                />
+                <input
+                  type="text"
+                  placeholder="Address Line 2 (Optional)"
+                  value={editingAddress.address2 || ""}
+                  onChange={(e) => setEditingAddress({ ...editingAddress, address2: e.target.value })}
+                  className="glass-input w-full px-3 py-2 text-[12px]"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="City"
+                    required
+                    value={editingAddress.city || ""}
+                    onChange={(e) => setEditingAddress({ ...editingAddress, city: e.target.value })}
+                    className="glass-input w-full px-3 py-2 text-[12px]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="State"
+                    required
+                    value={editingAddress.state || ""}
+                    onChange={(e) => setEditingAddress({ ...editingAddress, state: e.target.value })}
+                    className="glass-input w-full px-3 py-2 text-[12px]"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="ZIP / Postal Code"
+                    required
+                    value={editingAddress.zip || ""}
+                    onChange={(e) => setEditingAddress({ ...editingAddress, zip: e.target.value })}
+                    className="glass-input w-full px-3 py-2 text-[12px]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Country"
+                    required
+                    value={editingAddress.country || ""}
+                    onChange={(e) => setEditingAddress({ ...editingAddress, country: e.target.value })}
+                    className="glass-input w-full px-3 py-2 text-[12px]"
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 py-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingAddress.isDefault || false}
+                    onChange={(e) => setEditingAddress({ ...editingAddress, isDefault: e.target.checked })}
+                    className="rounded border-foreground/10 bg-background accent-foreground w-3.5 h-3.5"
+                  />
+                  <span className="text-[10px] font-medium text-foreground/60 select-none">Set as default shipping address</span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={savingAddress}
+                  className="glass-cta w-full py-3 mt-2 text-[10px] flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {savingAddress ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Address"}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

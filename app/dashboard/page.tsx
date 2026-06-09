@@ -16,7 +16,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import ZicaAIPanel from "@/components/ZicaAIPanel";
 
 interface DashboardStats {
   totalRevenue: number;
@@ -537,9 +536,6 @@ export default function DashboardOverview() {
           </div>
         </div>
       </motion.div>
-
-      {/* Zica AI Test Console */}
-      <ZicaAIPanel />
     </motion.div>
   );
 }
