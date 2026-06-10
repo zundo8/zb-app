@@ -73,7 +73,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
             className="w-9 h-9 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.25)] text-foreground/60 hover:text-foreground hover:bg-white/80 dark:hover:bg-black/80 active:scale-90 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
             aria-label="Back"
           >
-            <ChevronLeft strokeWidth={1.25} className="w-4.5 h-4.5 -ml-0.5" />
+            <ChevronLeft strokeWidth={1.25} className="w-5 h-5 -ml-0.5" />
           </button>
         </div>
 
@@ -114,7 +114,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
       <header className="hidden md:flex fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-5xl z-50 px-5 h-11 items-center justify-between pointer-events-auto bg-white/75 dark:bg-white/[0.04] backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-full transition-all duration-300">
         {/* Left: Brand */}
         <Link href="/" className="flex items-center gap-2 active:scale-95 transition-all z-10 py-1 px-2.5 rounded-full hover:bg-foreground/5 dark:hover:bg-white/5">
-          <div className="relative w-4.5 h-4.5 dark:invert">
+          <div className="relative w-5 h-5 dark:invert">
             <NextImage src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain" />
           </div>
           <span className="font-rocaston text-[9.5px] font-bold tracking-[0.22em] text-foreground/80 uppercase pt-0.5">ZICABELLA</span>

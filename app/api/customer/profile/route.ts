@@ -66,7 +66,101 @@ export async function GET() {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ customer });
+    // Load active and historic return & exchange requests for the customer
+    const returnRequests = await prisma.returnRequest.findMany({
+      where: { customerId: customer.id },
+      include: {
+        order: {
+          include: { items: true }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    const exchangeRequests = await prisma.exchangeRequest.findMany({
+      where: { customerId: customer.id },
+      include: {
+        order: {
+          include: { items: true }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    // Helper to find matching WebStoreOrder and get proper sequence order number (#ZB40001)
+    async function enrichOrderNumber(orderObj: any) {
+      if (!orderObj) return null;
+      let webStoreOrder = null;
+      if (orderObj.razorpayOrderId) {
+        webStoreOrder = await prisma.webStoreOrder.findFirst({
+          where: { razorpayOrderId: orderObj.razorpayOrderId }
+        });
+      }
+      if (!webStoreOrder) {
+        webStoreOrder = await prisma.webStoreOrder.findFirst({
+          where: {
+            notes: {
+              contains: `Local: ${orderObj.id}`
+            }
+          }
+        });
+      }
+      if (!webStoreOrder && orderObj.shopifyOrderId) {
+        webStoreOrder = await prisma.webStoreOrder.findFirst({
+          where: {
+            notes: {
+              contains: `Shopify: ${orderObj.shopifyOrderId}`
+            }
+          }
+        });
+      }
+      return webStoreOrder?.orderNumber || (orderObj.shopifyOrderId && !orderObj.shopifyOrderId.startsWith('app_pending_') ? orderObj.shopifyOrderId : `#ZB${orderObj.id.slice(-5).toUpperCase()}`);
+    }
+
+    // Enrich all customer orders
+    const enrichedOrders = await Promise.all(
+      (customer.orders || []).map(async (o) => {
+        const orderNumber = await enrichOrderNumber(o);
+        return { ...o, orderNumber };
+      })
+    );
+
+    // Enrich return requests orders
+    const enrichedReturnRequests = await Promise.all(
+      returnRequests.map(async (req) => {
+        const orderNumber = await enrichOrderNumber(req.order);
+        return {
+          ...req,
+          order: {
+            ...req.order,
+            orderNumber
+          }
+        };
+      })
+    );
+
+    // Enrich exchange requests orders
+    const enrichedExchangeRequests = await Promise.all(
+      exchangeRequests.map(async (req) => {
+        const orderNumber = await enrichOrderNumber(req.order);
+        return {
+          ...req,
+          order: {
+            ...req.order,
+            orderNumber
+          }
+        };
+      })
+    );
+
+    const finalCustomer = {
+      ...customer,
+      orders: enrichedOrders,
+      returnRequests: enrichedReturnRequests,
+      exchangeRequests: enrichedExchangeRequests
+    };
+
+    return NextResponse.json({ customer: finalCustomer });
   } catch (error: any) {
     console.error("Fetch Profile Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

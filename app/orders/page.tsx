@@ -127,7 +127,11 @@ export default function OrdersPage() {
                     <div className="space-y-0.5">
                       <p className="text-[8px] font-black uppercase tracking-[0.15em] text-foreground/40 flex items-center gap-1.5">
                         <Clock className="w-2.5 h-2.5 opacity-30" />
-                        #{order.shopifyOrderId || order.id.slice(-6).toUpperCase()}
+                        {order.orderNumber 
+                          ? (order.orderNumber.startsWith('#') ? order.orderNumber : `#${order.orderNumber}`)
+                          : (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') 
+                              ? (order.shopifyOrderId.startsWith('#') ? order.shopifyOrderId : `#${order.shopifyOrderId}`)
+                              : `#ZB${order.id.slice(-6).toUpperCase()}`)}
                       </p>
                       <p className="text-[9px] text-foreground/30 font-bold">
                         {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}

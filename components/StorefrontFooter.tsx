@@ -4,6 +4,15 @@ import ThreeDLogo from "./ThreeDLogo";
 import LazyVideo from "./LazyVideo";
 import Link from "next/link";
 
+function shortenPolicyTitle(title: string) {
+  const t = title.toLowerCase();
+  if (t.includes("privacy")) return "Privacy";
+  if (t.includes("terms") || t.includes("condition")) return "Terms";
+  if (t.includes("refund") || t.includes("return") || t.includes("cancellation")) return "Returns";
+  if (t.includes("shipping") || t.includes("delivery")) return "Shipping";
+  return title.replace(/Policy/gi, "").trim();
+}
+
 export default async function StorefrontFooter() {
   let shop = null;
   let policies: any[] = [];
@@ -42,8 +51,8 @@ export default async function StorefrontFooter() {
       <div className="hidden md:block max-w-7xl mx-auto px-8 py-24">
         <div className="grid grid-cols-12 gap-8 items-start">
           
-          {/* Brand Info (4 Columns) */}
-          <div className="col-span-4 space-y-6">
+          {/* Brand Info (5 Columns) */}
+          <div className="col-span-5 space-y-6">
             <div className="flex items-center gap-4">
               <ThreeDLogo src={s?.footerLogo3dUrl} size={50} />
               <div>
@@ -58,7 +67,7 @@ export default async function StorefrontFooter() {
 
             {/* Footer video - clean layout */}
             {footerVideo && (
-              <div className="relative w-full aspect-[21/9] rounded-2xl overflow-hidden group border border-foreground/[0.04] shadow-md bg-foreground/[0.01]">
+              <div className="relative w-full aspect-[21/9] rounded-2xl overflow-hidden group border border-foreground/[0.04] shadow-md bg-foreground/[0.01] max-w-xs">
                 <LazyVideo src={footerVideo} className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-opacity duration-1000" />
               </div>
             )}
@@ -102,26 +111,8 @@ export default async function StorefrontFooter() {
             </ul>
           </div>
 
-          {/* Legal Column (2 Columns) */}
-          <div className="col-span-2 space-y-4 pt-2">
-            <h3 className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-foreground/25">Legal</h3>
-            {policies.length > 0 ? (
-              <ul className="space-y-3">
-                {policies.map((policy) => (
-                  <li key={policy.handle}>
-                    <Link href={`/policies/${policy.handle}`} className="text-[9.5px] font-normal tracking-[0.12em] uppercase text-foreground/45 hover:text-foreground transition-all duration-300 hover:translate-x-0.5 inline-block">
-                      {policy.title}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[8px] text-foreground/15 tracking-wide uppercase">No policies available</p>
-            )}
-          </div>
-
-          {/* Connect Column (2 Columns) */}
-          <div className="col-span-2 space-y-4 pt-2 flex flex-col items-start">
+          {/* Connect Column (3 Columns) */}
+          <div className="col-span-3 space-y-4 pt-2 flex flex-col items-start">
             <h3 className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-foreground/25">Connect</h3>
             {socialLinks.length > 0 && (
               <div className="flex flex-col gap-2.5 w-full">
@@ -139,11 +130,22 @@ export default async function StorefrontFooter() {
 
         </div>
 
-        {/* Bottom bar */}
-        <div className="mt-20 pt-8 border-t border-foreground/[0.04] flex justify-between items-center">
-          <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-foreground/15">
-            © {new Date().getFullYear()} ZICA BELLA · ALL RIGHTS RESERVED
-          </p>
+        {/* Bottom bar with Copyright & Policies */}
+        <div className="mt-20 pt-8 border-t border-foreground/[0.04] flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-foreground/15">
+              © {new Date().getFullYear()} ZICA BELLA · ALL RIGHTS RESERVED
+            </p>
+            {policies.map((policy) => (
+              <Link 
+                key={policy.handle} 
+                href={`/policies/${policy.handle}`}
+                className="text-[8px] font-bold uppercase tracking-[0.25em] text-foreground/30 hover:text-foreground/80 transition-colors"
+              >
+                {shortenPolicyTitle(policy.title)}
+              </Link>
+            ))}
+          </div>
           <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-foreground/15">
             DESIGNED IN ITALY · CRAFTED IN INDIA
           </p>
@@ -176,19 +178,31 @@ export default async function StorefrontFooter() {
           </div>
         )}
 
-        {/* Navigation / Policy Row Centered */}
-        <div className="flex flex-wrap items-center justify-center gap-x-3.5 gap-y-2 mb-8 max-w-sm px-4">
-          <Link href="/support" className="text-[7.5px] font-bold uppercase tracking-[0.2em] text-foreground/50 hover:text-foreground transition-colors">
-            SUPPORT
-          </Link>
-          {policies.map((policy: any) => (
-            <div key={policy.handle} className="flex items-center gap-3.5">
-              <span className="text-foreground/10 text-[6px] select-none">·</span>
+        {/* Navigation Links Row */}
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-5 max-w-sm px-4">
+          {[
+            { href: "/search", label: "Catalog" },
+            { href: "/collections", label: "Collections" },
+            { href: "/blogs", label: "Journal" },
+            { href: "/profile", label: "Profile" },
+            { href: "/support", label: "Support" },
+          ].map(link => (
+            <Link key={link.href} href={link.href} className="text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/45 hover:text-foreground transition-colors">
+              {link.label}
+            </Link>
+          ))}
+        </div>
+
+        {/* Policies Row Centered */}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 mb-8 max-w-sm px-4">
+          {policies.map((policy: any, idx: number) => (
+            <div key={policy.handle} className="flex items-center gap-3">
+              {idx > 0 && <span className="text-foreground/10 text-[6px] select-none">·</span>}
               <Link
                 href={`/policies/${policy.handle}`}
-                className="text-[7.5px] font-bold uppercase tracking-[0.2em] text-foreground/50 hover:text-foreground transition-colors"
+                className="text-[8px] font-medium uppercase tracking-[0.15em] text-foreground/30 hover:text-foreground transition-colors"
               >
-                {policy.title}
+                {shortenPolicyTitle(policy.title)}
               </Link>
             </div>
           ))}

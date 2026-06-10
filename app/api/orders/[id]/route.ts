@@ -86,7 +86,40 @@ export async function GET(
         }, {}) : {},
     };
 
-    return NextResponse.json({ order: enrichedOrder });
+    // Find matching WebStoreOrder to get the nice #ZB40001 order number format
+    let webStoreOrder = null;
+    if (order.razorpayOrderId) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: { razorpayOrderId: order.razorpayOrderId }
+      });
+    }
+    if (!webStoreOrder) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: {
+          notes: {
+            contains: `Local: ${order.id}`
+          }
+        }
+      });
+    }
+    if (!webStoreOrder && order.shopifyOrderId) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: {
+          notes: {
+            contains: `Shopify: ${order.shopifyOrderId}`
+          }
+        }
+      });
+    }
+
+    const orderNumber = webStoreOrder?.orderNumber || (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') ? order.shopifyOrderId : `#ZB${order.id.slice(-5).toUpperCase()}`);
+
+    const finalOrder = {
+      ...enrichedOrder,
+      orderNumber,
+    };
+
+    return NextResponse.json({ order: finalOrder });
   } catch (error: any) {
     console.error("Fetch Single Order Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

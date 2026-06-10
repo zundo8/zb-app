@@ -59,6 +59,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [initiatedPixel, setInitiatedPixel] = useState(false);
+  const [isOrderPlaced, setIsOrderPlaced] = useState(false);
   
   // Saved addresses
   const [savedAddresses, setSavedAddresses] = useState<DBAddress[]>([]);
@@ -103,10 +104,10 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (status === "unauthenticated") {
        router.push(`/login?callbackUrl=/checkout`);
-    } else if (items.length === 0 && step !== 4) {
+    } else if (items.length === 0 && !isOrderPlaced) {
       router.push("/cart");
     }
-  }, [items, step, router, status]);
+  }, [items, isOrderPlaced, router, status]);
 
   // Fetch saved addresses
   useEffect(() => {
@@ -214,6 +215,7 @@ export default function CheckoutPage() {
 
         const data = await res.json();
         if (res.ok) {
+          setIsOrderPlaced(true);
           clear();
           if (typeof window !== "undefined") {
             sessionStorage.setItem("last_placed_order_id", data.orderId);
@@ -268,6 +270,7 @@ export default function CheckoutPage() {
 
               const verifyData = await verifyRes.json();
               if (verifyRes.ok) {
+                setIsOrderPlaced(true);
                 clear();
                 if (typeof window !== "undefined") {
                   sessionStorage.setItem("last_placed_order_id", verifyData.orderId);

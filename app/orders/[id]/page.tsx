@@ -186,6 +186,37 @@ export default function OrderDetailsPage() {
 
   const currentStepIndex = getCurrentStepIndex();
 
+  const displayLabel = useMemo(() => {
+    if (isCancelled) return "Order Cancelled";
+    const s = (order?.status || '').toLowerCase();
+    const ds = (order?.deliveryStatus || '').toLowerCase();
+    
+    if (['payment_failed', 'payment_pending', 'failed', 'pending'].includes(s) || s.includes('failed')) {
+      return "Payment Failed";
+    }
+    if (s.includes('return') || s.includes('exchange') || s === 'returned' || s === 'exchanged' || hasActiveReturn || hasActiveExchange) {
+      if (hasActiveReturn) return "Return Requested";
+      if (hasActiveExchange) return "Exchange Requested";
+      return "Returned/Exchanged";
+    }
+    if (ds === 'delivered') return "Delivered";
+    if (ds === 'out_for_delivery') return "Out for Delivery";
+    if (ds === 'shipped') return "Shipped / In Transit";
+    if (ds === 'processing') return "Ready for Dispatch";
+    return "Order Placed";
+  }, [order, isCancelled, hasActiveReturn, hasActiveExchange]);
+
+  const statusColor = useMemo(() => {
+    if (isCancelled) return "#FF3B30";
+    const label = displayLabel;
+    if (label.includes("Failed")) return "#FF3B30";
+    if (label.includes("Return") || label.includes("Exchange")) return "#FF9F0A";
+    if (label === "Delivered") return "#34C759";
+    if (label.includes("Shipped") || label === "Out for Delivery") return "#AF52DE";
+    if (label === "Ready for Dispatch") return "#FF9500";
+    return "#007AFF"; // Order Placed
+  }, [displayLabel, isCancelled]);
+
   const canCancel = useMemo(() => {
     if (!order) return false;
     const s = (order.status || '').toLowerCase();
@@ -243,13 +274,28 @@ export default function OrderDetailsPage() {
 
         {/* Order Identifier */}
         <div className="mb-10 text-center">
-            <p className="text-[7px] font-light uppercase tracking-[0.55em] text-foreground/30 mb-2">Tracking ID</p>
+            <p className="text-[7px] font-light uppercase tracking-[0.55em] text-foreground/30 mb-2 font-mono">Order Identifier</p>
             <h1 className="text-2xl font-heading tracking-widest uppercase text-foreground/80 mb-1">
-              #{order.shopifyOrderId || order.id.slice(-6).toUpperCase()}
+              {order.orderNumber 
+                ? (order.orderNumber.startsWith('#') ? order.orderNumber : `#${order.orderNumber}`)
+                : (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') 
+                    ? (order.shopifyOrderId.startsWith('#') ? order.shopifyOrderId : `#${order.shopifyOrderId}`)
+                    : `#ZB${order.id.slice(-6).toUpperCase()}`)}
             </h1>
-            <div className="flex items-center justify-center gap-2 text-[9px] font-extralight text-foreground/40 italic uppercase tracking-wider">
-               <span>Placed {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+        </div>
+
+        {/* Status Card matching Mobile App */}
+        <div className="mb-10 p-5 rounded-3xl border border-foreground/5 bg-foreground/[0.01] dark:bg-foreground/[0.02] flex items-center justify-between relative overflow-hidden">
+            <div className="flex-1 min-w-0">
+               <p className="text-[8px] font-black uppercase tracking-[0.15em] text-foreground/30 mb-1 font-mono">Status</p>
+               <h3 className="text-[15px] font-extrabold text-foreground tracking-wide leading-tight">
+                  {displayLabel}
+               </h3>
+               <p className="text-[9px] text-foreground/40 mt-1.5 font-medium">
+                  {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+               </p>
             </div>
+            <div className="w-1.5 h-12 rounded-full ml-4" style={{ backgroundColor: statusColor }} />
         </div>
 
         {/* LIVE STATUS BAR (STEPPER) */}
@@ -379,51 +425,85 @@ export default function OrderDetailsPage() {
            </div>
         </div>
 
-        {/* SUMMARY & DETAILS */}
-        <div className="grid grid-cols-1 gap-4 mb-10">
-           {/* Summary */}
-           <div className="p-6 rounded-3xl glass-panel space-y-4">
-               <h4 className="text-[7px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-2">Payment Summary</h4>
-               <div className="space-y-2.5">
-                  <div className="flex justify-between text-[9px] font-extralight text-foreground/40">
-                     <span>Subtotal</span>
-                     <span>₹{(order.totalPrice).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between text-[9px] font-extralight text-foreground/40">
-                     <span>Shipping</span>
-                     <span className="text-emerald-500/60 uppercase text-[7px] font-black tracking-widest">Free</span>
-                  </div>
-                  <div className="pt-2.5 mt-2.5 border-t border-foreground/5 flex justify-between items-center">
-                     <span className="text-[8px] font-black uppercase tracking-widest text-foreground/20">Total Amount</span>
-                     <span className="text-sm font-heading tracking-widest text-foreground/90">₹{(order.totalPrice).toLocaleString('en-IN')}</span>
-                  </div>
-               </div>
+        {/* DELIVERY ADDRESS */}
+        <div className="mb-10">
+           <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-3 ml-1">
+              Delivery Address
+           </h4>
+           <div className="p-5 rounded-3xl glass-panel">
+              {(() => {
+                if (!order.shippingAddress) return <p className="text-[10px] text-foreground/40">No address provided.</p>;
+                try {
+                  const addr = typeof order.shippingAddress === 'string' ? JSON.parse(order.shippingAddress) : order.shippingAddress;
+                  return (
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[12px] font-bold text-foreground uppercase">{addr.name || 'Recipient'}</p>
+                        <p className="text-[10px] text-foreground/50 leading-relaxed mt-1">
+                          {addr.address1 || addr.line1 || addr.street}
+                          {addr.address2 ? `, ${addr.address2}` : ''}
+                          <br />
+                          {addr.city}, {addr.province || addr.state} - {addr.zip || addr.pincode}
+                          <br />
+                          {addr.country || 'India'}
+                        </p>
+                      </div>
+                      {addr.phone && (
+                        <div className="pt-3 border-t border-foreground/5">
+                          <p className="text-[7px] font-black uppercase tracking-widest text-foreground/20">Contact</p>
+                          <p className="text-[10px] font-medium text-foreground/75 mt-0.5">{addr.phone}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                } catch {
+                  return <p className="text-[10px] text-foreground/50 leading-relaxed">{String(order.shippingAddress)}</p>;
+                }
+              })()}
            </div>
+        </div>
 
-           {/* Address */}
-           <div className="p-6 rounded-3xl glass-panel">
-              <h4 className="text-[7px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-4 flex items-center gap-2">
-                 <MapPin className="w-2.5 h-2.5" /> Shipping Destination
-              </h4>
-              <p className="text-[10px] font-extralight text-foreground/50 leading-relaxed">
-                 {(() => {
-                   if (!order.shippingAddress) return 'No address provided.';
-                   try {
-                     const addr = typeof order.shippingAddress === 'string' ? JSON.parse(order.shippingAddress) : order.shippingAddress;
-                     const parts = [
-                       addr.name,
-                       addr.address1 || addr.line1 || addr.street,
-                       addr.address2 || addr.line2,
-                       [addr.city, addr.province || addr.state].filter(Boolean).join(', '),
-                       [addr.zip || addr.pincode, addr.country].filter(Boolean).join(' '),
-                       addr.phone ? `Phone: ${addr.phone}` : null,
-                     ].filter(Boolean);
-                     return parts.join(' · ') || 'No address provided.';
-                   } catch {
-                     return typeof order.shippingAddress === 'string' ? order.shippingAddress : 'No address provided.';
-                   }
-                 })()}
-              </p>
+        {/* ORDER INFO */}
+        <div className="mb-10">
+           <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-3 ml-1">
+              Order Info
+           </h4>
+           <div className="p-5 rounded-3xl glass-panel divide-y divide-foreground/5 space-y-3">
+              <div className="flex justify-between items-center text-[10px] font-medium pt-0">
+                 <span className="text-foreground/40">Payment Method</span>
+                 <span className="text-foreground font-bold uppercase tracking-wider">{order.paymentMethod || 'Razorpay'}</span>
+              </div>
+              <div className="flex justify-between items-center text-[10px] font-medium pt-3">
+                 <span className="text-foreground/45">Order Source</span>
+                 <span className="text-foreground font-bold uppercase tracking-wider">{order.orderType === 'WEB_STORE' ? 'Web Store' : 'Mobile App'}</span>
+              </div>
+           </div>
+        </div>
+
+        {/* BILLING SUMMARY */}
+        <div className="mb-10">
+           <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-foreground/20 mb-3 ml-1">
+              Billing Summary
+           </h4>
+           <div className="p-5 rounded-3xl glass-panel space-y-3">
+              <div className="flex justify-between items-center text-[11px] font-medium text-foreground/60">
+                 <span>Subtotal</span>
+                 <span className="font-bold text-foreground/80">₹{(order.subtotalPrice || order.totalPrice).toLocaleString('en-IN')}</span>
+              </div>
+              {order.discountAmount > 0 && (
+                 <div className="flex justify-between items-center text-[11px] font-medium text-foreground/60">
+                    <span>Discount ({order.discountCode || 'Coupon'})</span>
+                    <span className="font-bold text-emerald-500/80">- ₹{(order.discountAmount).toLocaleString('en-IN')}</span>
+                 </div>
+              )}
+              <div className="flex justify-between items-center text-[11px] font-medium text-foreground/60">
+                 <span>Shipping</span>
+                 <span className="text-emerald-500 uppercase text-[9px] font-black tracking-widest">Free</span>
+              </div>
+              <div className="pt-4 mt-2 border-t border-foreground/5 flex justify-between items-center">
+                 <span className="text-[12px] font-black uppercase tracking-widest text-foreground/50">Total</span>
+                 <span className="text-lg font-black tracking-tight text-foreground">₹{(order.totalPrice).toLocaleString('en-IN')}</span>
+              </div>
            </div>
         </div>
 
@@ -472,7 +552,7 @@ export default function OrderDetailsPage() {
 
           {/* Contact Support */}
           <Link
-            href={`/support?tab=chat&orderId=${order.shopifyOrderId || order.id}`}
+            href={`/support?tab=chat&orderId=${order.orderNumber || order.shopifyOrderId || order.id}`}
             className="block w-full py-4 rounded-2xl glass-button text-[11px] font-bold uppercase tracking-wider text-center"
           >
             Contact Support

@@ -38,7 +38,43 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ orders });
+    // Match each order with its corresponding webStoreOrder if any
+    const enrichedOrders = await Promise.all(
+      orders.map(async (order) => {
+        let webStoreOrder = null;
+        if (order.razorpayOrderId) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: { razorpayOrderId: order.razorpayOrderId }
+          });
+        }
+        if (!webStoreOrder) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: {
+              notes: {
+                contains: `Local: ${order.id}`
+              }
+            }
+          });
+        }
+        if (!webStoreOrder && order.shopifyOrderId) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: {
+              notes: {
+                contains: `Shopify: ${order.shopifyOrderId}`
+              }
+            }
+          });
+        }
+        
+        const orderNumber = webStoreOrder?.orderNumber || (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') ? order.shopifyOrderId : `#ZB${order.id.slice(-5).toUpperCase()}`);
+        return {
+          ...order,
+          orderNumber,
+        };
+      })
+    );
+
+    return NextResponse.json({ orders: enrichedOrders });
   } catch (error: any) {
     console.error("Fetch Orders Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

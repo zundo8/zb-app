@@ -95,7 +95,7 @@ export default function OrderSuccess({ onContinue }: Props) {
               className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
               style={{ background: "hsla(var(--glass-bg), 0.6)", border: "1px solid hsla(var(--glass-border), 0.1)" }}
             >
-              <Package className="w-4.5 h-4.5 text-foreground/50" />
+              <Package className="w-5 h-5 text-foreground/50" />
             </div>
             <div className="text-left">
               <p className="text-[8px] font-bold uppercase tracking-[0.3em] text-foreground/50 mb-0.5">What&rsquo;s next?</p>

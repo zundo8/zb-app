@@ -55,7 +55,7 @@ export default function ProfilePage() {
   const [customer, setCustomer] = useState<any>(null);
   const [addresses, setAddresses] = useState<DBAddress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "wishlist" | "addresses" | "info">("orders");
+  const [tab, setTab] = useState<"orders" | "returns" | "wishlist" | "addresses" | "info">("orders");
   
   // Profile editing
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -393,9 +393,10 @@ export default function ProfilePage() {
         </motion.div>
 
         {/* ─── Tab Switcher ─── */}
-        <div className="flex rounded-[1rem] p-1 mb-4 glass-panel border-foreground/5 bg-foreground/[0.01]">
+        <div className="flex rounded-[1rem] p-1 mb-4 glass-panel border-foreground/5 bg-foreground/[0.01] overflow-x-auto scrollbar-none snap-x">
           {([
             { id: "orders", label: "Orders" },
+            { id: "returns", label: "Returns" },
             { id: "wishlist", label: "Wishlist" },
             { id: "addresses", label: "Addresses" },
             { id: "info", label: "Account" }
@@ -403,7 +404,7 @@ export default function ProfilePage() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 py-2 rounded-[0.75rem] text-[8px] font-bold uppercase tracking-[0.1em] transition-all ${
+              className={`flex-1 min-w-[75px] py-2 rounded-[0.75rem] text-[8px] font-bold uppercase tracking-[0.1em] transition-all snap-start ${
                 tab === t.id ? "bg-foreground text-background font-bold shadow-lg" : "text-foreground/40 hover:text-foreground/65"
               }`}
             >
@@ -414,6 +415,138 @@ export default function ProfilePage() {
 
         {/* ─── Tab Content ─── */}
         <AnimatePresence mode="wait">
+          {tab === "returns" && (
+            <motion.div key="returns" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="space-y-4">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <span className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Returns & Exchanges</span>
+              </div>
+
+              {((customer?.returnRequests && customer.returnRequests.length > 0) || 
+                (customer?.exchangeRequests && customer.exchangeRequests.length > 0)) ? (
+                <div className="space-y-3">
+                  {/* Return Requests */}
+                  {customer.returnRequests?.map((req: any, idx: number) => (
+                    <Link key={req.id} href={`/orders/${req.orderId}`}>
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="p-4 rounded-[1.25rem] glass-panel border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] hover:bg-foreground/[0.03] transition-all group relative overflow-hidden"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="text-[10px] font-bold text-foreground/80">
+                              Return for {req.order?.orderNumber || `#${req.orderId.slice(-6)}`}
+                            </p>
+                            <p className="text-[8px] text-foreground/35 mt-0.5">
+                              Requested {new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </p>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-wider ${
+                            req.status === 'approved' || req.status === 'refunded'
+                              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                              : req.status === 'cancelled'
+                                ? 'bg-foreground/5 text-foreground/40 border border-foreground/10'
+                                : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                          }`}>
+                            {req.status?.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        {/* Items */}
+                        <div className="space-y-2 mt-2 pt-2 border-t border-foreground/5">
+                          {req.order?.items?.map((item: any, i: number) => (
+                            <div key={i} className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-foreground/5 overflow-hidden shrink-0">
+                                {item.image ? (
+                                  <img src={item.image} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-[8px] text-foreground/20">ZB</div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-bold text-foreground/70 truncate uppercase">{item.title}</p>
+                                <p className="text-[8px] text-foreground/35 font-mono">Qty: {item.quantity} · Size: {item.size || 'Free'}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {req.reason && (
+                          <div className="mt-3 text-[9px] text-foreground/45 italic bg-foreground/[0.02] p-2 rounded-lg border border-foreground/5">
+                            Reason: {req.reason}
+                          </div>
+                        )}
+                      </motion.div>
+                    </Link>
+                  ))}
+
+                  {/* Exchange Requests */}
+                  {customer.exchangeRequests?.map((req: any, idx: number) => (
+                    <Link key={req.id} href={`/orders/${req.orderId}`}>
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="p-4 rounded-[1.25rem] glass-panel border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] hover:bg-foreground/[0.03] transition-all group relative overflow-hidden"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="text-[10px] font-bold text-foreground/80">
+                              Exchange for {req.order?.orderNumber || `#${req.orderId.slice(-6)}`}
+                            </p>
+                            <p className="text-[8px] text-foreground/35 mt-0.5">
+                              Requested {new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </p>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-wider ${
+                            req.status === 'approved' || req.status === 'completed' || req.status === 'new_order_created'
+                              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                              : req.status === 'cancelled'
+                                ? 'bg-foreground/5 text-foreground/40 border border-foreground/10'
+                                : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                          }`}>
+                            {req.status?.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        {/* Items */}
+                        <div className="space-y-2 mt-2 pt-2 border-t border-foreground/5">
+                          {req.order?.items?.map((item: any, i: number) => (
+                            <div key={i} className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-foreground/5 overflow-hidden shrink-0">
+                                {item.image ? (
+                                  <img src={item.image} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-[8px] text-foreground/20">ZB</div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-bold text-foreground/70 truncate uppercase">{item.title}</p>
+                                <p className="text-[8px] text-foreground/35 font-mono">Qty: {item.quantity} · Size: {item.size || 'Free'}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {req.reason && (
+                          <div className="mt-3 text-[9px] text-foreground/45 italic bg-foreground/[0.02] p-2 rounded-lg border border-foreground/5">
+                            Reason: {req.reason}
+                          </div>
+                        )}
+                      </motion.div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-16 text-center rounded-[1.5rem] border border-dashed border-foreground/10 bg-foreground/[0.01]">
+                  <RotateCcw className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
+                  <p className="text-[8px] font-semibold uppercase tracking-widest text-foreground/20">No return or exchange orders</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {tab === "orders" && (
             <motion.div key="orders" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
               <div className="flex items-center justify-between mb-3 px-1">
@@ -442,7 +575,11 @@ export default function ProfilePage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-bold text-foreground/80 truncate">
-                            #{order.shopifyOrderId?.slice(-6) || order.id.slice(-6)}
+                            {order.orderNumber 
+                              ? (order.orderNumber.startsWith('#') ? order.orderNumber : `#${order.orderNumber}`)
+                              : (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') 
+                                  ? (order.shopifyOrderId.startsWith('#') ? order.shopifyOrderId : `#${order.shopifyOrderId}`)
+                                  : `#ZB${order.id.slice(-6).toUpperCase()}`)}
                           </p>
                           <p className="flex items-center gap-1 text-[8px] text-foreground/40 mt-0.5">
                             <Clock className="w-2.5 h-2.5" />

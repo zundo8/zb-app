@@ -85,7 +85,13 @@ export default function OrderConfirmationPage() {
           </motion.div>
           <div className="space-y-1.5">
             <h1 className="text-xl font-black tracking-tight">Confirmed</h1>
-            <p className="text-muted-foreground text-[10px] font-bold tracking-[0.1em] uppercase opacity-50">Order #{order.shopifyOrderId}</p>
+             <p className="text-muted-foreground text-[10px] font-bold tracking-[0.1em] uppercase opacity-50">
+              Order {order.orderNumber 
+                ? (order.orderNumber.startsWith('#') ? order.orderNumber : `#${order.orderNumber}`)
+                : (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') 
+                    ? (order.shopifyOrderId.startsWith('#') ? order.shopifyOrderId : `#${order.shopifyOrderId}`)
+                    : `#ZB${order.id.slice(-6).toUpperCase()}`)}
+            </p>
           </div>
           <p className="text-muted-foreground text-[13px] font-medium leading-relaxed max-w-[240px] mx-auto">
             Your pieces are being prepared. Confirmation sent to email.
