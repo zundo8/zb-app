@@ -18,8 +18,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Shop not found" }, { status: 404 });
     }
 
-    // 1. Verify Payment if not COD
-    if (paymentMethod !== "COD") {
+    // 1. Verify Payment (Required for both prepaid and COD upfront fee)
+    if (paymentMethod !== "COD" || razorpay) {
       if (!razorpay || !razorpay.razorpay_order_id || !razorpay.razorpay_payment_id || !razorpay.razorpay_signature) {
         return NextResponse.json({ error: "Payment details missing" }, { status: 400 });
       }
@@ -55,6 +55,9 @@ export async function POST(req: Request) {
       } else {
         console.warn('[Checkout] Accepting MOCK payment for testing');
       }
+    } else {
+      // paymentMethod === "COD" but no razorpay object was sent
+      return NextResponse.json({ error: "COD upfront payment details missing" }, { status: 400 });
     }
 
     // 2. Find/Sync Customer
@@ -289,7 +292,9 @@ export async function POST(req: Request) {
       },
       phone: address.phone,
       financial_status: paymentMethod === "COD" ? "pending" : "paid",
-      note: paymentMethod === "COD" ? "COD Order from Web Store - ₹99 fee included" : "Paid via Razorpay from Web Store",
+      note: paymentMethod === "COD" 
+        ? `COD Order from Web Store - ₹99 upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})` 
+        : "Paid via Razorpay from Web Store",
       tags: `WebStoreOrder, WebStore, ${paymentMethod === "COD" ? "COD" : "Razorpay"}`,
       total_tax: 0,
       currency: "INR"
@@ -383,7 +388,7 @@ export async function POST(req: Request) {
         razorpayOrderId: razorpay?.razorpay_order_id || null,
         razorpayPaymentId: razorpay?.razorpay_payment_id || null,
         paymentMethod: paymentMethod === "COD" ? "COD" : "razorpay",
-        paymentCapturedAt: paymentMethod !== "COD" ? new Date() : null,
+        paymentCapturedAt: razorpay ? new Date() : null,
         orderType: "WEB_STORE",
         tags: `WebStoreOrder, Web, ${paymentMethod === "COD" ? "COD" : "Razorpay"}`,
         discountCode: couponCode || null,
@@ -433,7 +438,7 @@ export async function POST(req: Request) {
           razorpayOrderId: razorpay?.razorpay_order_id || null,
           razorpayPaymentId: razorpay?.razorpay_payment_id || null,
           fulfillmentStatus: "unfulfilled",
-          notes: `${paymentMethod === "COD" ? "COD Order" : "Paid via Razorpay"} from Web Store | Shopify: ${shopifyOrderId} | Local: ${localOrder.id}`,
+          notes: `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid: ${razorpay?.razorpay_payment_id || 'N/A'})` : "Paid via Razorpay"} from Web Store | Shopify: ${shopifyOrderId} | Local: ${localOrder.id}`,
           source: "web"
         }
       });

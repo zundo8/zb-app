@@ -244,168 +244,143 @@ export default function CheckoutPage() {
     setError("");
 
     try {
-      if (paymentMethod === "COD") {
-        const res = await fetch("/api/checkout/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            address,
-            paymentMethod,
-            items,
-            total,
-            subtotal,
-            codFee,
-            couponCode: couponValid ? couponCode : null,
-            couponDiscount: couponDiscount,
-          }),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          setIsOrderPlaced(true);
-          clear();
-          if (typeof window !== "undefined") {
-            sessionStorage.setItem("last_placed_order_id", data.orderId);
-          }
-          router.push(`/orders/${data.orderId}/confirmation`);
-        } else {
-          setError(data.error || "Failed to place order");
-        }
-      } else {
-        // Ensure Razorpay SDK is loaded (from layout.tsx beforeInteractive script)
-        if (!(window as any).Razorpay) {
-          setError("Payment gateway is loading. Please try again in a moment.");
-          setLoading(false);
-          return;
-        }
-
-        const res = await fetch("/api/checkout/razorpay", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: total }),
-        });
-
-        const orderData = await res.json();
-        
-        if (!res.ok) throw new Error(orderData.error || "Failed to initiate payment");
-
-        const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
-
-        const options: any = {
-          key: orderData.keyId || orderData.key_id,
-          amount: orderData.amount,
-          currency: "INR",
-          name: "Zica Bella",
-          description: "Order Checkout",
-          order_id: orderData.id || orderData.razorpay_order_id,
-          handler: async function (response: any) {
-            try {
-              const verifyRes = await fetch("/api/checkout/complete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  address,
-                  paymentMethod,
-                  items,
-                  total,
-                  subtotal,
-                  razorpay: response,
-                  couponCode: couponValid ? couponCode : null,
-                  couponDiscount: couponDiscount,
-                }),
-              });
-
-              const verifyData = await verifyRes.json();
-              if (verifyRes.ok) {
-                setIsOrderPlaced(true);
-                clear();
-                if (typeof window !== "undefined") {
-                  sessionStorage.setItem("last_placed_order_id", verifyData.orderId);
-                }
-                router.push(`/orders/${verifyData.orderId}/confirmation`);
-              } else {
-                setError(verifyData.error || "Payment verification failed");
-              }
-            } catch (verifyErr: any) {
-              setError(verifyErr.message || "Payment verification failed. Please contact support.");
-            }
-          },
-          prefill: {
-            name: address.name,
-            email: address.email,
-            contact: address.phone,
-            method: paymentMethod === "UPI" ? "upi" : "card",
-          },
-          theme: {
-            color: "#000000",
-          },
-          modal: {
-            ondismiss: function () {
-              setLoading(false);
-            },
-            confirm_close: true,
-          },
-        };
-
-        // Configure display blocks for UPI or Card
-        if (paymentMethod === "UPI") {
-          options.config = {
-            display: {
-              blocks: {
-                upi: {
-                  name: "Pay via UPI",
-                  instruments: [
-                    {
-                      method: "upi",
-                      flows: isMobile ? ["intent", "collect"] : ["qr", "collect"],
-                      apps: isMobile ? ["google_pay", "phonepe", "paytm"] : undefined,
-                    }
-                  ]
-                }
-              },
-              sequence: ["block.upi"],
-              preferences: {
-                show_default_blocks: false
-              }
-            }
-          };
-        } else if (paymentMethod === "CARD") {
-          options.config = {
-            display: {
-              blocks: {
-                card: {
-                  name: "Pay via Card",
-                  instruments: [
-                    {
-                      method: "card"
-                    }
-                  ]
-                }
-              },
-              sequence: ["block.card"],
-              preferences: {
-                show_default_blocks: false
-              }
-            }
-          };
-        }
-
-        const rzp = new (window as any).Razorpay(options);
-        
-        // Handle payment failure
-        rzp.on('payment.failed', function (response: any) {
-          const errorDesc = response?.error?.description || "Payment failed. Please try again.";
-          const errorCode = response?.error?.code || "";
-          console.error('[Razorpay] Payment failed:', response?.error);
-          setError(`${errorDesc}${errorCode ? ` (${errorCode})` : ''}`);
-          setLoading(false);
-        });
-
-        rzp.open();
+      // Ensure Razorpay SDK is loaded (from layout.tsx beforeInteractive script)
+      if (!(window as any).Razorpay) {
+        setError("Payment gateway is loading. Please try again in a moment.");
+        setLoading(false);
+        return;
       }
+
+      // If COD, amount to pay upfront is codFee (99), otherwise it is total
+      const paymentAmount = paymentMethod === "COD" ? codFee : total;
+
+      const res = await fetch("/api/checkout/razorpay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: paymentAmount }),
+      });
+
+      const orderData = await res.json();
+      
+      if (!res.ok) throw new Error(orderData.error || "Failed to initiate payment");
+
+      const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
+
+      const options: any = {
+        key: orderData.keyId || orderData.key_id,
+        amount: orderData.amount,
+        currency: "INR",
+        name: "Zica Bella",
+        description: paymentMethod === "COD" ? "COD Upfront Fee" : "Order Checkout",
+        order_id: orderData.id || orderData.razorpay_order_id,
+        handler: async function (response: any) {
+          try {
+            const verifyRes = await fetch("/api/checkout/complete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                address,
+                paymentMethod,
+                items,
+                total,
+                subtotal,
+                codFee: paymentMethod === "COD" ? codFee : 0,
+                razorpay: response,
+                couponCode: couponValid ? couponCode : null,
+                couponDiscount: couponDiscount,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok) {
+              setIsOrderPlaced(true);
+              clear();
+              if (typeof window !== "undefined") {
+                sessionStorage.setItem("last_placed_order_id", verifyData.orderId);
+              }
+              router.push(`/orders/${verifyData.orderId}/confirmation`);
+            } else {
+              setError(verifyData.error || "Payment verification failed");
+            }
+          } catch (verifyErr: any) {
+            setError(verifyErr.message || "Payment verification failed. Please contact support.");
+          }
+        },
+        prefill: {
+          name: address.name,
+          email: address.email,
+          contact: address.phone,
+          method: (paymentMethod === "UPI" || paymentMethod === "COD") ? "upi" : "card",
+        },
+        theme: {
+          color: "#000000",
+        },
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+          },
+          confirm_close: true,
+        },
+      };
+
+      // Configure display blocks for UPI or Card. For COD, use the same UPI configuration block.
+      if (paymentMethod === "UPI" || paymentMethod === "COD") {
+        options.config = {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay via UPI",
+                instruments: [
+                  {
+                    method: "upi",
+                    flows: isMobile ? ["intent", "collect"] : ["qr", "collect"],
+                    apps: isMobile ? ["google_pay", "phonepe", "paytm"] : undefined,
+                    block: "upi"
+                  }
+                ]
+              }
+            },
+            sequence: ["block.upi"],
+            preferences: {
+              show_default_blocks: false
+            }
+          }
+        };
+      } else if (paymentMethod === "CARD") {
+        options.config = {
+          display: {
+            blocks: {
+              card: {
+                name: "Pay via Card",
+                instruments: [
+                  {
+                    method: "card"
+                  }
+                ]
+              }
+            },
+            sequence: ["block.card"],
+            preferences: {
+              show_default_blocks: false
+            }
+          }
+        };
+      }
+
+      const rzp = new (window as any).Razorpay(options);
+      
+      // Handle payment failure
+      rzp.on('payment.failed', function (response: any) {
+        const errorDesc = response?.error?.description || "Payment failed. Please try again.";
+        const errorCode = response?.error?.code || "";
+        console.error('[Razorpay] Payment failed:', response?.error);
+        setError(`${errorDesc}${errorCode ? ` (${errorCode})` : ''}`);
+        setLoading(false);
+      });
+
+      rzp.open();
     } catch (err: any) {
       setError(err.message || "An error occurred");
-    } finally {
       setLoading(false);
     }
   };
@@ -756,7 +731,7 @@ export default function CheckoutPage() {
                 )}
                 {paymentMethod === "COD" && (
                   <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider">
-                    <span className="text-foreground/45">COD Fee</span>
+                    <span className="text-foreground/45">COD Fee (Upfront)</span>
                     <span className="text-foreground/60">+ ₹{codFee}</span>
                   </div>
                 )}
@@ -765,10 +740,29 @@ export default function CheckoutPage() {
                   <span className="text-foreground/60">Free</span>
                 </div>
                 <div className="h-[1px] bg-foreground/10 my-2" />
-                <div className="flex justify-between items-center pt-1">
-                  <span className="font-extrabold text-[11px] text-foreground/60 uppercase tracking-widest">Total Payable</span>
-                  <span className="text-xl font-black tracking-tight text-foreground">₹{total.toLocaleString()}</span>
-                </div>
+                
+                {paymentMethod === "COD" ? (
+                  <>
+                    <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider">
+                      <span className="text-foreground/45">Total Order Value</span>
+                      <span className="text-foreground/80">₹{total.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider">
+                      <span className="text-foreground/45">Due at Delivery</span>
+                      <span className="text-foreground/80">₹{(total - codFee).toLocaleString()}</span>
+                    </div>
+                    <div className="h-[1px] bg-foreground/10 my-2" />
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="font-extrabold text-[11px] text-foreground/60 uppercase tracking-widest">Pay Upfront</span>
+                      <span className="text-xl font-black tracking-tight text-foreground">₹{codFee.toLocaleString()}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="font-extrabold text-[11px] text-foreground/60 uppercase tracking-widest">Total Payable</span>
+                    <span className="text-xl font-black tracking-tight text-foreground">₹{total.toLocaleString()}</span>
+                  </div>
+                )}
               </div>
 
               {error && (
@@ -788,7 +782,7 @@ export default function CheckoutPage() {
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
-                      {paymentMethod === "COD" ? "Place COD Order" : "Complete Payment"}
+                      {paymentMethod === "COD" ? `Pay ₹${codFee} Upfront & Place COD` : "Complete Payment"}
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </>
                   )}
