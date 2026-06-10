@@ -46,7 +46,7 @@ export default function CollectionCarousel({ collections }: { collections: Colle
 
   return (
     <div className="relative w-full py-10 group overflow-visible">
-      <div className="relative h-[85vw] max-h-[460px] w-full flex items-center justify-center overflow-visible">
+      <div className="relative h-[90vw] md:h-[450px] w-full flex items-center justify-center overflow-visible">
         {/* Left/Right Arrow Buttons (Desktop only) */}
         {total > 1 && (
           <>
@@ -126,8 +126,8 @@ function CollectionCard({
   // Calculate visibility responsively (5 cards on desktop, 3 on mobile)
   const maxDiff = isMobile ? 1 : 2;
   const isVisible = Math.abs(diff) <= maxDiff;
-  const spacing = isMobile ? 200 : 340;
-  const opacityVal = Math.abs(diff) > maxDiff ? 0 : 1 - Math.abs(diff) * (isMobile ? 0.5 : 0.35);
+  const spacing = isMobile ? 90 : 130;
+  const opacityVal = Math.abs(diff) > maxDiff ? 0 : 1 - Math.abs(diff) * 0.15;
 
   if (!isVisible) return null;
 
@@ -135,10 +135,10 @@ function CollectionCard({
     <motion.div
       initial={false}
       animate={{
-        x: diff * spacing, // Spaced wider on desktop
-        scale: isActive ? 1 : 0.82,
-        rotateY: diff * (isMobile ? 35 : 25), // 3D Tilt
-        z: isActive ? 0 : -180, // Depth
+        x: diff * spacing, // Tighter spacing for overlapping stacked deck layout
+        scale: isActive ? 1 : 0.88, // Minimal scaling offset
+        rotateY: 0, // Flat card alignment matching mockup
+        z: 0, // 2D layout
         opacity: opacityVal,
       }}
       transition={{
@@ -147,13 +147,16 @@ function CollectionCard({
         damping: 32,
         mass: 1
       }}
-      className="absolute w-[65vw] max-w-[280px] md:w-[320px] md:max-w-none aspect-[3/4] rounded-[2rem] overflow-hidden shadow-xl origin-center select-none"
+      className="absolute w-[65vw] max-w-[280px] md:w-[320px] md:max-w-none aspect-[3/4] rounded-[2rem] overflow-hidden origin-center select-none transition-shadow duration-500"
       style={{
         zIndex: 10 - Math.round(Math.abs(diff)),
         pointerEvents: isActive ? "auto" : "all", // Keep click active for selection
         backfaceVisibility: "hidden",
         userSelect: "none",
         WebkitUserDrag: "none",
+        boxShadow: isActive 
+          ? "0 30px 60px -15px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1)" 
+          : "0 15px 30px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)",
       }}
     >
       <Link 
@@ -179,21 +182,21 @@ function CollectionCard({
         {/* Dynamic Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-80 pointer-events-none" />
         
-        {/* Title Overlay */}
+        {/* Title Overlay: minimal normal-cased text centered at bottom of card */}
         <div className="absolute inset-x-0 bottom-0 p-8 text-center pointer-events-none">
           <motion.p 
             animate={{ 
-              y: isActive ? 0 : 10,
+              y: isActive ? 0 : 8,
               opacity: isActive ? 1 : 0
             }}
-            className="font-heading text-[12px] uppercase tracking-[0.3em] text-white"
+            className="font-sans text-sm md:text-base font-medium text-white tracking-normal drop-shadow-md text-center"
           >
             {collection.title}
           </motion.p>
         </div>
 
-        {/* Glass Edge Highlight */}
-        <div className="absolute inset-0 border border-white/10 rounded-[2.5rem] pointer-events-none" />
+        {/* Glass Edge Highlight with matching rounded-[2rem] corners */}
+        <div className={`absolute inset-0 border rounded-[2rem] pointer-events-none transition-colors duration-500 ${isActive ? "border-white/15" : "border-white/5"}`} />
       </Link>
     </motion.div>
   );

@@ -96,7 +96,6 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
         {/* Header */}
         <div className="flex items-end justify-between mb-6">
           <div>
-            <span className="text-[7px] md:text-[8px] font-bold text-foreground/20 uppercase tracking-[0.35em] block mb-1">CURATED ACCESSORIES</span>
             <h2 className="text-sm md:text-base font-heading tracking-[0.15em] uppercase text-foreground leading-none">
               {title}
             </h2>

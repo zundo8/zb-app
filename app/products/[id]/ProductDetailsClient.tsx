@@ -454,6 +454,7 @@ export default function ProductDetailsClient({
             )}
           </div>
         </div>
+      </div>
 
       {/* Recommended & Curated Pairs Row outside the max-w container to be full-width */}
       {shuffledRecommended.length > 0 && (
