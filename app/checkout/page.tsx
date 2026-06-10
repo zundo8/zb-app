@@ -215,6 +215,9 @@ export default function CheckoutPage() {
         const data = await res.json();
         if (res.ok) {
           clear();
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("last_placed_order_id", data.orderId);
+          }
           router.push(`/orders/${data.orderId}/confirmation`);
         } else {
           setError(data.error || "Failed to place order");
@@ -266,6 +269,9 @@ export default function CheckoutPage() {
               const verifyData = await verifyRes.json();
               if (verifyRes.ok) {
                 clear();
+                if (typeof window !== "undefined") {
+                  sessionStorage.setItem("last_placed_order_id", verifyData.orderId);
+                }
                 router.push(`/orders/${verifyData.orderId}/confirmation`);
               } else {
                 setError(verifyData.error || "Payment verification failed");
@@ -662,7 +668,7 @@ export default function CheckoutPage() {
                         </p>
                       </div>
                       <div className="text-right flex flex-col justify-center">
-                        <span className="text-[10px] font-bold text-foreground/80">₹{(item.price * item.quantity).toLocaleString()}</span>
+                        <span className="text-[10px] font-bold text-foreground/80">₹{(parseFloat(item.price) * item.quantity).toLocaleString()}</span>
                       </div>
                     </div>
                   ))}

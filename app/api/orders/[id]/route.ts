@@ -12,14 +12,11 @@ export async function GET(
   try {
     const { searchParams } = new URL(request.url);
     const userIdParam = searchParams.get('user_id');
+    const bypassAuth = searchParams.get('bypass_auth') === 'true';
 
     const session = await getServerSession(authOptions);
     const sessionUserId = session?.user ? (session.user as any).id : null;
     const sessionEmail = session?.user?.email;
-
-    if (!sessionUserId && !userIdParam) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const orderId = params.id;
 
@@ -42,19 +39,29 @@ export async function GET(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    // Security check: Ensure the order belongs to the requester
-    const customer = await prisma.customer.findFirst({
-        where: {
-            OR: [
-                { id: userIdParam || "" },
-                { id: sessionUserId || "" },
-                { email: sessionEmail || "" }
-            ]
-        }
-    });
+    // Determine if we should bypass auth (recent checkout confirmation)
+    const isRecent = Date.now() - new Date(order.createdAt).getTime() < 15 * 60 * 1000; // 15 mins
+    const shouldBypass = bypassAuth && isRecent;
 
-    if (!customer || order.customerId !== customer.id) {
-       return NextResponse.json({ error: "Unauthorized access to order" }, { status: 403 });
+    if (!shouldBypass) {
+      if (!sessionUserId && !userIdParam) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      // Security check: Ensure the order belongs to the requester
+      const customer = await prisma.customer.findFirst({
+          where: {
+              OR: [
+                  { id: userIdParam || "" },
+                  { id: sessionUserId || "" },
+                  { email: sessionEmail || "" }
+              ]
+          }
+      });
+
+      if (!customer || order.customerId !== customer.id) {
+         return NextResponse.json({ error: "Unauthorized access to order" }, { status: 403 });
+      }
     }
 
     // Enrich order with tracking data from the latest shipment

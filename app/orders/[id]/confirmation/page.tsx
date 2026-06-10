@@ -30,7 +30,11 @@ export default function OrderConfirmationPage() {
   useEffect(() => {
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`/api/orders/${id}`);
+        const lastPlacedId = typeof window !== "undefined" ? sessionStorage.getItem("last_placed_order_id") : null;
+        const url = lastPlacedId === id 
+          ? `/api/orders/${id}?bypass_auth=true` 
+          : `/api/orders/${id}`;
+        const res = await fetch(url);
         const data = await res.json();
         if (res.ok) {
           // API returns { order: ... } wrapper — extract the order object

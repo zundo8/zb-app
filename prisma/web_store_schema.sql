@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ────────────────────────────────────────────────────────────────
 
 -- Order Number Generator Sequence
-CREATE SEQUENCE IF NOT EXISTS web_store_order_number_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS web_store_order_number_seq START WITH 40001;
 
 -- Automatic updated_at timestamp update function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -21,12 +21,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger function to auto-generate sequential order numbers in format ZB-WEB-00001
+-- Trigger function to auto-generate sequential order numbers in format #ZB40001
 CREATE OR REPLACE FUNCTION generate_web_order_number()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.order_number IS NULL OR NEW.order_number = '' THEN
-        NEW.order_number := 'ZB-WEB-' || LPAD(nextval('web_store_order_number_seq')::text, 5, '0');
+    IF NEW.order_number IS NULL OR NEW.order_number = '' OR NEW.order_number LIKE 'ZB-WEB-%' THEN
+        NEW.order_number := '#ZB' || nextval('web_store_order_number_seq')::text;
     END IF;
     RETURN NEW;
 END;
