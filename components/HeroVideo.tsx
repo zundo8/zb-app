@@ -70,6 +70,7 @@ export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: H
           muted
           loop
           playsInline
+          preload="auto"
           className="w-full h-full object-cover transition-all duration-700"
         />
       )}

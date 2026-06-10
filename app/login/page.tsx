@@ -627,9 +627,9 @@ export default function LoginPage() {
         )}
 
         {/* Card Footer */}
-        <div className="flex items-center justify-between px-1.5 text-[8px] font-bold text-black/15 dark:text-white/10 uppercase tracking-widest">
-          <span>ZICA BELLA EST. 2024</span>
-          <span>TERMS & PRIVACY</span>
+        <div className="flex flex-col items-center text-center text-[9px] font-semibold text-black/40 dark:text-white/40 tracking-wider space-y-1.5 pt-4 border-t border-black/5 dark:border-white/5">
+          <span>By continuing, you agree to our Terms & Privacy Policy</span>
+          <span className="text-[7.5px] text-black/20 dark:text-white/20 font-bold uppercase tracking-[0.2em] opacity-80">SECURED ARCHIVAL PROTOCOL v2.0</span>
         </div>
       </motion.div>
     </div>

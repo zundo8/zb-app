@@ -455,26 +455,24 @@ export default function ProductDetailsClient({
           </div>
         </div>
 
-      </div>
-
       {/* Recommended & Curated Pairs Row outside the max-w container to be full-width */}
       {shuffledRecommended.length > 0 && (
-        <div className="hidden md:block bg-foreground text-background py-16 border-t border-background/10 w-full overflow-hidden">
+        <div className="hidden md:block bg-background text-foreground py-16 border-t border-border w-full overflow-hidden">
           <div className="max-w-7xl mx-auto px-6">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-[12px] md:text-sm uppercase tracking-[0.25em] font-heading flex items-center text-background font-bold">
+              <h2 className="text-[12px] md:text-sm uppercase tracking-[0.25em] font-heading flex items-center text-foreground font-bold">
                 CURATED PAIR(S)
               </h2>
               <div className="flex items-center gap-6">
                 <button 
-                  className="flex items-center justify-center text-background/40 hover:text-background transition-all active:scale-95"
+                  className="flex items-center justify-center text-foreground/45 hover:text-foreground transition-all active:scale-95"
                   onClick={() => curatedScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
                   aria-label="Previous Curated Items"
                 >
                   <ArrowLeft className="w-5 h-5" strokeWidth={1} />
                 </button>
                 <button 
-                  className="flex items-center justify-center text-background/40 hover:text-background transition-all active:scale-95"
+                  className="flex items-center justify-center text-foreground/45 hover:text-foreground transition-all active:scale-95"
                   onClick={() => curatedScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
                   aria-label="Next Curated Items"
                 >
@@ -508,15 +506,15 @@ export default function ProductDetailsClient({
                   </div>
                   <div className="flex items-center justify-between mt-1 px-1">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-background line-clamp-1">
+                      <span className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-foreground line-clamp-1">
                         {p.title}
                       </span>
-                      <span className="text-[10px] font-sans font-light text-background/50">
+                      <span className="text-[10px] font-sans font-light text-foreground/50">
                         ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
                       </span>
                     </div>
                     <button
-                      className="w-8 h-8 flex items-center justify-center text-background/50 hover:text-background active:scale-90 transition-all"
+                      className="w-8 h-8 flex items-center justify-center text-foreground/50 hover:text-foreground active:scale-90 transition-all"
                       onClick={(e) => {
                         e.stopPropagation();
                         setQuickAddProduct(p);
@@ -848,21 +846,21 @@ export default function ProductDetailsClient({
 
             {/* New mobile Curated Pairs section below the glass panel */}
             {shuffledRecommended.length > 0 && (
-              <div className="bg-foreground text-background py-12 mt-8 w-full overflow-hidden border-t border-background/10">
+              <div className="bg-background text-foreground py-12 mt-8 w-full overflow-hidden border-t border-border">
                 <div className="flex items-center justify-between px-6 mb-6">
-                  <h2 className="text-[12px] uppercase tracking-[0.25em] font-heading flex items-center text-background font-bold">
+                  <h2 className="text-[12px] uppercase tracking-[0.25em] font-heading flex items-center text-foreground font-bold">
                     CURATED PAIR(S)
                   </h2>
                   <div className="flex items-center gap-6">
                     <button 
-                      className="flex items-center justify-center text-background/40 hover:text-background transition-all active:scale-95"
+                      className="flex items-center justify-center text-foreground/45 hover:text-foreground transition-all active:scale-95"
                       onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: -300, behavior: 'smooth' })}
                       aria-label="Previous Curated Items"
                     >
                       <ArrowLeft className="w-5 h-5" strokeWidth={1} />
                     </button>
                     <button 
-                      className="flex items-center justify-center text-background/40 hover:text-background transition-all active:scale-95"
+                      className="flex items-center justify-center text-foreground/45 hover:text-foreground transition-all active:scale-95"
                       onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: 300, behavior: 'smooth' })}
                       aria-label="Next Curated Items"
                     >
@@ -909,15 +907,15 @@ export default function ProductDetailsClient({
                         </div>
                         <div className="flex items-center justify-between mt-1 px-1">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-background line-clamp-1">
+                            <span className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-foreground line-clamp-1">
                               {p.title}
                             </span>
-                            <span className="text-[10px] font-sans font-light text-background/50">
+                            <span className="text-[10px] font-sans font-light text-foreground/50">
                               ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
                             </span>
                           </div>
                           <button
-                            className="w-8 h-8 flex items-center justify-center text-background/50 hover:text-background active:scale-90 transition-all"
+                            className="w-8 h-8 flex items-center justify-center text-foreground/50 hover:text-foreground active:scale-90 transition-all"
                             onClick={(e) => {
                               e.stopPropagation();
                               setQuickAddProduct(p);

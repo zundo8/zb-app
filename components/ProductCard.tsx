@@ -48,26 +48,22 @@ export default function ProductCard({ product, priority = false, selectedSize }:
         {/* Badges */}
         <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
           {isSoldOut ? (
-            <div className="glass-badge" style={{ padding: "2px 6px" }}>
-              <span className="text-[6px] font-bold uppercase tracking-tighter text-foreground/80">Sold Out</span>
+            <div className="bg-black/40 border border-white/10 px-1.5 py-0.5 rounded-[2px] backdrop-blur-sm">
+              <span className="text-[6px] font-bold uppercase tracking-widest text-white">Sold Out</span>
             </div>
           ) : isOnSale && (
-            <div
-              className="px-1.5 py-[1px] rounded-[2px] leading-none"
-              style={{
-                background: "rgba(255, 255, 255, 0.9)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-              }}
-            >
-              <span className="text-[6px] font-bold uppercase tracking-tighter text-black">Sale</span>
+            <div className="bg-black/85 px-1.5 py-0.5 rounded-[2px]">
+              <span className="text-[6px] font-bold uppercase tracking-widest text-white">Sale</span>
             </div>
           )}
         </div>
 
         {/* Image */}
         <Link href={`/products/${productSlug}`} className="block">
-          <div className="aspect-[2/3] relative rounded-none overflow-hidden mb-2 transition-all duration-500">
+          <div 
+            className="relative w-full rounded-none overflow-hidden mb-1.5 transition-all duration-500 bg-foreground/[0.02]"
+            style={{ aspectRatio: "3 / 5.2" }}
+          >
             <Image
               src={image}
               alt={product.title}
@@ -75,7 +71,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
               priority={priority}
               onError={handleImageError}
               sizes="(max-width: 768px) 50vw, 360px"
-              className={`object-cover transition-all duration-[800ms] ease-out ${!isSoldOut ? "group-hover:scale-[1.04]" : ""}`}
+              className={`object-cover transition-all duration-[800ms] ease-out ${!isSoldOut ? "group-hover:scale-[1.03]" : ""}`}
               style={isSoldOut ? { filter: "grayscale(0.4)" } : image === "/zb-logo-220px.png" ? { objectFit: "contain", padding: "25%", opacity: 0.3 } : {}}
             />
             {/* Hover subtle overlay */}
@@ -83,7 +79,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
               <div
                 className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
                 style={{
-                  background: "linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.15) 100%)",
+                  background: "linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.1) 100%)",
                 }}
               />
             )}
@@ -91,17 +87,17 @@ export default function ProductCard({ product, priority = false, selectedSize }:
         </Link>
 
         {/* Info row with "+" button */}
-        <div className="flex justify-between items-start leading-tight px-1 pb-1">
-          <div className="flex-1 min-w-0 pr-1.5 flex flex-col gap-0.5">
-            <p className="text-[7.5px] sm:text-[8.5px] font-sans font-bold uppercase tracking-[0.15em] text-foreground/50 leading-none truncate pt-0.5">
+        <div className="flex justify-between items-center leading-tight px-1.5 py-2">
+          <div className="flex-1 min-w-0 pr-2 flex flex-col gap-0.5">
+            <p className="text-[8px] sm:text-[9px] font-sans font-medium uppercase tracking-[0.2em] text-foreground/80 leading-none truncate pt-0.5">
               {product.title}
             </p>
-            <div className="flex items-center gap-1.5">
-              <p className="text-[8px] sm:text-[9px] font-sans font-medium tracking-tight text-foreground/70 uppercase">
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-[8px] sm:text-[9px] font-sans font-normal tracking-tight text-foreground/50 uppercase">
                 ₹{parseFloat(price).toLocaleString("en-IN")}
               </p>
               {isOnSale && compareAtPrice && (
-                <p className="text-[7px] font-sans font-normal tracking-tight text-foreground/25 uppercase line-through">
+                <p className="text-[7.5px] font-sans font-normal tracking-tight text-foreground/25 uppercase line-through">
                   ₹{parseFloat(compareAtPrice).toLocaleString("en-IN")}
                 </p>
               )}
@@ -112,7 +108,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
             <button
               onClick={handleOpenModal}
               aria-label="Quick add to cart"
-              className="w-5 h-5 rounded-md flex items-center justify-center transition-all duration-300 active:scale-95 flex-shrink-0 bg-transparent hover:bg-foreground/5 mt-0.5"
+              className="w-5 h-5 rounded-md flex items-center justify-center transition-all duration-300 active:scale-95 flex-shrink-0 bg-transparent hover:bg-foreground/5"
             >
               {isAdding ? (
                 <div className="w-2.5 h-2.5 rounded-full border border-foreground/30 border-t-foreground/80 animate-spin" />
