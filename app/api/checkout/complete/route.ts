@@ -169,12 +169,68 @@ export async function POST(req: Request) {
 
     // Try to create order in Shopify — but don't fail the entire checkout if Shopify is down
     let shopifyOrderId = `app_pending_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    let sOrder: any = null;
     try {
-      const sOrder = await createOrder(shopifyOrderData);
+      sOrder = await createOrder(shopifyOrderData);
       shopifyOrderId = sOrder.id.toString();
     } catch (shopifyErr: any) {
       console.error('[Checkout] Shopify order creation failed (will sync later):', shopifyErr.message);
       // Order will be saved locally and can be synced to Shopify later via admin dashboard
+    }
+
+    // Resolve products from DB to get correct local database IDs (cuid) and shopify line item IDs
+    const resolvedItems = [];
+    if (sOrder && sOrder.line_items) {
+      for (const li of sOrder.line_items) {
+        let dbProductId = null;
+        if (li.product_id) {
+          const shopifyProdId = String(li.product_id);
+          const byShopifyId = await prisma.product.findUnique({
+            where: { shopifyProductId: shopifyProdId }
+          });
+          if (byShopifyId) {
+            dbProductId = byShopifyId.id;
+          }
+        }
+        resolvedItems.push({
+          shopifyLineItemId: String(li.id),
+          productId: dbProductId,
+          title: li.title,
+          quantity: li.quantity,
+          price: parseFloat(li.price || '0'),
+          sku: li.sku || null
+        });
+      }
+    } else {
+      // Fallback if Shopify order creation failed
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        let dbProductId = null;
+        if (item.productId) {
+          const cleanId = String(item.productId);
+          const byShopifyId = await prisma.product.findUnique({
+            where: { shopifyProductId: cleanId }
+          });
+          if (byShopifyId) {
+            dbProductId = byShopifyId.id;
+          } else {
+            const byCuid = await prisma.product.findUnique({
+              where: { id: cleanId }
+            });
+            if (byCuid) {
+              dbProductId = byCuid.id;
+            }
+          }
+        }
+        resolvedItems.push({
+          shopifyLineItemId: `web_${Date.now()}_${index}_${item.productId || item.variantId || 'item'}`,
+          productId: dbProductId,
+          title: item.title,
+          quantity: item.quantity,
+          price: parseFloat(item.price || '0'),
+          sku: item.variantId || item.productId || null
+        });
+      }
     }
 
     // 4. Create Order in local DB
@@ -200,13 +256,13 @@ export async function POST(req: Request) {
         discountCode: couponCode || null,
         discountAmount: Number(couponDiscount) || 0,
         items: {
-          create: items.map((item: any, index: number) => ({
-            shopifyLineItemId: `web_${Date.now()}_${index}_${item.productId || item.variantId}`,
+          create: resolvedItems.map((item: any) => ({
+            shopifyLineItemId: item.shopifyLineItemId,
             productId: item.productId,
             title: item.title,
             quantity: item.quantity,
-            price: parseFloat(item.price),
-            sku: item.variantId || item.productId
+            price: item.price,
+            sku: item.sku
           }))
         }
       }
