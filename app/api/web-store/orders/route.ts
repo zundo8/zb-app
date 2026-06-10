@@ -100,22 +100,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Let the sequence and DB trigger generate orderNumber sequentially
+    // Generate a fallback order number — DB trigger will override on Postgres
+    const fallbackOrderNumber = `ZB-WEB-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+    // Normalize paymentMethod to valid DB constraint values ('razorpay' or 'cod')
+    const normalizedPaymentMethod = paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay";
+
     const createdOrder = await prisma.webStoreOrder.create({
       data: {
-        orderNumber: "", // DB trigger will override this with ZB-WEB-XXXXX format
+        orderNumber: fallbackOrderNumber, // DB trigger will override on Postgres; fallback used on other DBs
         customerName,
         customerEmail,
         customerPhone: customerPhone || "",
         shippingAddress: shippingAddress || {},
         items: items || [],
-        subtotal: parseFloat(subtotal || totalAmount),
-        shippingCharge: parseFloat(shippingCharge || 0),
+        subtotal: Number(subtotal || totalAmount) || 0,
+        shippingCharge: Number(shippingCharge) || 0,
         discountCode: discountCode || null,
-        discountAmount: parseFloat(discountAmount || 0),
-        totalAmount: parseFloat(totalAmount),
-        paymentStatus: paymentMethod === "razorpay" ? "pending" : "pending", // Razorpay starts as pending
-        paymentMethod,
+        discountAmount: Number(discountAmount) || 0,
+        totalAmount: Number(totalAmount) || 0,
+        paymentStatus: "pending",
+        paymentMethod: normalizedPaymentMethod,
         razorpayOrderId: razorpayOrderId || null,
         fulfillmentStatus: "unfulfilled",
         notes: notes || null,

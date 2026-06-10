@@ -103,16 +103,17 @@ export default async function Home() {
     products = await fetchProducts(24).catch(() => [] as ShopifyProduct[]);
   }
 
-  const heroTitle      = s?.heroTitle       || "Redefine The Standard";
-  const heroSubtitle   = s?.heroSubtitle    || "Explore the latest drops tailored for the relentless.";
-  const heroButtonText = s?.heroButtonText  || "Discover";
+  // Use explicit null/undefined checks — empty string "" from admin should remain blank, not show defaults
+  const heroTitle      = s?.heroTitle      != null ? s.heroTitle      : "Redefine The Standard";
+  const heroSubtitle   = s?.heroSubtitle   != null ? s.heroSubtitle   : "Explore the latest drops tailored for the relentless.";
+  const heroButtonText = s?.heroButtonText != null ? s.heroButtonText : "Discover";
   const heroImage      = s?.heroImage       || "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=2070&auto=format&fit=crop";
   const heroVideo      = s?.heroVideo       || "/zb-video-heroo.mp4";
   const heroVideoMobile = s?.heroVideoMobile || "";
-  const latestTitle    = s?.latestCurationTitle    || "Latest Curation";
-  const latestSubtitle = s?.latestCurationSubtitle || "Season Drop";
-  const archiveTitle   = s?.archiveTitle    || "The Archive";
-  const archiveSubtitle = s?.archiveSubtitle || "Organic Evolution";
+  const latestTitle    = s?.latestCurationTitle    != null ? s.latestCurationTitle    : "Latest Curation";
+  const latestSubtitle = s?.latestCurationSubtitle != null ? s.latestCurationSubtitle : "Season Drop";
+  const archiveTitle   = s?.archiveTitle    != null ? s.archiveTitle   : "The Archive";
+  const archiveSubtitle = s?.archiveSubtitle != null ? s.archiveSubtitle : "Organic Evolution";
   const collectionsMedia = s?.collectionsMedia;
   const collectionsMediaMobile = s?.collectionsMediaMobile;
   const featuredMedia  = s?.featuredMedia;
@@ -134,12 +135,12 @@ export default async function Home() {
   const flipbookImageMobile = s?.flipbookImageMobile;
   const flipbookVideo  = s?.flipbookVideo;
   const flipbookVideoMobile = s?.flipbookVideoMobile;
-  const flipbookTitle  = s?.flipbookTitle  || "Archival Vision";
-  const flipbookTag    = s?.flipbookTag    || "Core Manifest";
-  const flipbookDesc   = s?.flipbookDesc   || "Engineered for those who move without compromise.";
+  const flipbookTitle  = s?.flipbookTitle  != null ? s.flipbookTitle  : "Archival Vision";
+  const flipbookTag    = s?.flipbookTag    != null ? s.flipbookTag    : "Core Manifest";
+  const flipbookDesc   = s?.flipbookDesc   != null ? s.flipbookDesc   : "Engineered for those who move without compromise.";
   
   const showRingCarousel = s?.showRingCarousel ?? true;
-  const ringCarouselTitle = s?.ringCarouselTitle || "RING COLLECTION";
+  const ringCarouselTitle = s?.ringCarouselTitle != null ? s.ringCarouselTitle : "RING COLLECTION";
   const ringCarouselItems = s?.ringCarouselItems || "[]";
 
   return (

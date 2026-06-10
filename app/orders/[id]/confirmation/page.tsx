@@ -33,7 +33,8 @@ export default function OrderConfirmationPage() {
         const res = await fetch(`/api/orders/${id}`);
         const data = await res.json();
         if (res.ok) {
-          setOrder(data);
+          // API returns { order: ... } wrapper — extract the order object
+          setOrder(data.order || data);
         }
       } catch (e) {
         console.error("Error fetching order", e);
