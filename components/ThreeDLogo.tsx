@@ -4,20 +4,14 @@ import { useState, useEffect } from "react";
 import NextImage from "next/image";
 
 export default function ThreeDLogo({ src, size = 48 }: { src?: string; size?: number }) {
-  const [isDesktop, setIsDesktop] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const mediaQuery = window.matchMedia("(min-width: 768px)");
-    setIsDesktop(mediaQuery.matches);
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
   }, []);
 
-  // SSR and Mobile fallback: Render standard 2D image logo
-  if (!mounted || !isDesktop) {
+  // SSR fallback: Render standard 2D image logo
+  if (!mounted) {
     return (
       <div className="relative dark:invert" style={{ width: size, height: size }}>
         <NextImage src="/zb-logo-220px.png" alt="Zica Bella Logo" fill className="object-contain" />
@@ -25,7 +19,7 @@ export default function ThreeDLogo({ src, size = 48 }: { src?: string; size?: nu
     );
   }
 
-  // Desktop view: Load interactive 3D model-viewer
+  // Render interactive 3D model-viewer logo for both desktop and mobile
   return (
     <div style={{ width: size, height: size }} className="relative shrink-0">
       {/* @ts-expect-error model-viewer web component */}

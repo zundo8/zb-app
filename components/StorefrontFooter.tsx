@@ -177,33 +177,20 @@ export default async function StorefrontFooter() {
         )}
 
         {/* Navigation / Policy Row Centered */}
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mb-8 max-w-sm px-4">
-          {[
-            { href: "/search", label: "CATALOG" },
-            { href: "/collections", label: "COLLECTIONS" },
-            { href: "/profile", label: "PROFILE" },
-            { href: "/support", label: "SUPPORT" },
-          ].map((link) => (
-            <span key={link.href} className="flex items-center gap-3">
-              <Link href={link.href} className="text-[7.5px] font-bold uppercase tracking-[0.2em] text-foreground/50 hover:text-foreground transition-colors">
-                {link.label}
-              </Link>
-              <span className="text-foreground/10 text-[6px]">·</span>
-            </span>
-          ))}
-          
-          {policies.map((policy: any, i: number) => (
-            <span key={policy.handle} className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-x-3.5 gap-y-2 mb-8 max-w-sm px-4">
+          <Link href="/support" className="text-[7.5px] font-bold uppercase tracking-[0.2em] text-foreground/50 hover:text-foreground transition-colors">
+            SUPPORT
+          </Link>
+          {policies.map((policy: any) => (
+            <div key={policy.handle} className="flex items-center gap-3.5">
+              <span className="text-foreground/10 text-[6px] select-none">·</span>
               <Link
                 href={`/policies/${policy.handle}`}
                 className="text-[7.5px] font-bold uppercase tracking-[0.2em] text-foreground/50 hover:text-foreground transition-colors"
               >
                 {policy.title}
               </Link>
-              {i < policies.length - 1 && (
-                <span className="text-foreground/10 text-[6px]">·</span>
-              )}
-            </span>
+            </div>
           ))}
         </div>
 
