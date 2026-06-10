@@ -18,6 +18,13 @@ export async function POST(request: NextRequest) {
 
     // 3. Extract order details
     const orderId = payload.name || payload.id?.toString() || 'N/A';
+
+    // If this is a WebStore order, skip sending confirmation email to avoid duplicate emails
+    const tags = payload.tags || '';
+    if (tags.includes('WebStoreOrder') || tags.includes('WebStore') || tags.includes('Web')) {
+      console.log(`[Shopify Webhook] Skipping order confirmation for WebStore order ${orderId} (already handled at checkout)`);
+      return NextResponse.json({ success: true, message: 'WebStore order, confirmation sent during checkout' }, { status: 200 });
+    }
     const customerEmail = payload.email || payload.customer?.email;
     const customerName = payload.customer 
       ? `${payload.customer.first_name || ''} ${payload.customer.last_name || ''}`.trim() 

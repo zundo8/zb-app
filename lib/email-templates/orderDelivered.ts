@@ -29,7 +29,7 @@ export function orderDeliveredEmail(data: OrderEmailData): { subject: string; ht
     </p>
 
     <div style="text-align: center; margin: 35px 0;">
-      <a href="https://app.zicabella.com/reviews/new?orderId=${data.orderId}" style="display: inline-block; background-color: #C9A96E; color: #000000; text-decoration: none; padding: 14px 35px; border-radius: 4px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; font-size: 13px; box-shadow: 0 4px 12px rgba(201, 169, 110, 0.3);">
+      <a href="https://zicabella.com/reviews/new?orderId=${data.orderId}" style="display: inline-block; background-color: #C9A96E; color: #000000; text-decoration: none; padding: 14px 35px; border-radius: 4px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; font-size: 13px; box-shadow: 0 4px 12px rgba(201, 169, 110, 0.3);">
         Share Your Feedback
       </a>
     </div>
@@ -52,7 +52,7 @@ Our delivery partner confirms that your Zica Bella order #${data.orderId} was de
 We hope you love every piece. Each outfit is crafted with precision to elevate your personal style.
 
 Your experience means the world to us. Please share your feedback and review your items here:
-https://app.zicabella.com/reviews/new?orderId=${data.orderId}
+https://zicabella.com/reviews/new?orderId=${data.orderId}
 
 Warmly,
 The Zica Bella Team

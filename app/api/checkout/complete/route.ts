@@ -4,7 +4,7 @@ import prisma from "@/lib/db";
 import { createOrder, createCustomer, updateCustomer } from "@/lib/shopify-admin";
 import { resolveRazorpayCredentials } from "@/lib/razorpay-credentials";
 import { sendMail } from "@/lib/mailer";
-import { orderConfirmationTemplate } from "@/lib/email-templates";
+import { sendOrderConfirmationEmail, sendOrderCodConfirmationEmail } from "@/lib/services/orderEmailService";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 
@@ -402,11 +402,12 @@ export async function POST(req: Request) {
     });
 
     // Also create a WebStoreOrder for the web-store dashboard integration
+    let webStoreOrder: any = null;
     try {
       // Generate a fallback order number in case the DB trigger doesn't fire (e.g. SQLite / non-Postgres)
       const fallbackOrderNumber = `ZB-WEB-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
-      await prisma.webStoreOrder.create({
+      webStoreOrder = await prisma.webStoreOrder.create({
         data: {
           orderNumber: fallbackOrderNumber, // DB trigger will override on Postgres; fallback used on other DBs
           customerName: address.name,
@@ -443,39 +444,41 @@ export async function POST(req: Request) {
 
     // Send order confirmation email to the user directly
     try {
-      const confirmationHtml = orderConfirmationTemplate({
+      const orderPayload = {
+        orderId: webStoreOrder?.orderNumber || localOrder.shopifyOrderId || localOrder.id,
+        customerEmail: address.email,
         customerName: address.name || "Customer",
-        orderId: localOrder.shopifyOrderId || localOrder.id,
-        orderDate: new Date(localOrder.createdAt).toLocaleDateString(),
         items: items.map((item: any) => ({
           name: item.title,
           size: item.size || 'N/A',
-          qty: item.quantity,
-          price: `INR ${item.price}`,
+          quantity: Number(item.quantity || 1),
+          price: Number(item.price || 0),
+          image: item.image || '',
+          product_id: item.productId || null,
+          variant_title: item.variantId || null,
         })),
-        subtotal: `INR ${subtotal}`,
-        shipping: `INR ${codFee ? 99 : 0}`,
-        total: `INR ${total}`,
-        shippingAddress: `${address.street}, ${address.city}, ${address.state} - ${address.zip}, ${address.country || 'India'}`,
-      });
+        total: Number(total),
+        currency: 'INR',
+        orderDate: new Date(localOrder.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' }),
+        paymentMethod: paymentMethod,
+      };
 
-      const emailResult = await sendMail({
-        to: address.email,
-        subject: `Order Confirmed - ${localOrder.shopifyOrderId || localOrder.id}`,
-        html: confirmationHtml,
-      });
+      if (paymentMethod.toLowerCase() === 'cod') {
+        await sendOrderCodConfirmationEmail(orderPayload);
+      } else {
+        await sendOrderConfirmationEmail(orderPayload);
+      }
 
       // Log the email in our system logs
       await prisma.emailLog.create({
         data: {
           recipientEmail: address.email,
           recipientName: address.name,
-          subject: `Order Confirmed - ${localOrder.shopifyOrderId || localOrder.id}`,
-          templateName: 'Order Confirmed',
+          subject: `Order Confirmed - ${orderPayload.orderId}`,
+          templateName: 'ORDER_CONFIRMATION',
           triggerEvent: 'checkout/complete',
           referenceId: localOrder.id,
-          status: emailResult.messageId ? 'sent' : 'failed',
-          messageId: emailResult.messageId || null,
+          status: 'sent',
           sentBy: 'system',
         }
       });
@@ -486,8 +489,8 @@ export async function POST(req: Request) {
         data: {
           recipientEmail: address.email,
           recipientName: address.name,
-          subject: `Order Confirmed - ${localOrder.shopifyOrderId || localOrder.id}`,
-          templateName: 'Order Confirmed',
+          subject: `Order Confirmed - ${webStoreOrder?.orderNumber || localOrder.shopifyOrderId || localOrder.id}`,
+          templateName: 'ORDER_CONFIRMATION',
           triggerEvent: 'checkout/complete',
           referenceId: localOrder.id,
           status: 'failed',

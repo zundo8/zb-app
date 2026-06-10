@@ -26,7 +26,7 @@ export function orderShippedEmail(
   // If we have Delhivery logistics integration, we might link to tracking, or just a default tracking link
   const trackingUrl = data.trackingNumber 
     ? `https://track.delhivery.com/track/package/${data.trackingNumber}`
-    : `https://app.zicabella.com/orders/${data.orderId}`;
+    : `https://zicabella.com/orders/${data.orderId}`;
 
   // HTML Content
   const htmlContent = `

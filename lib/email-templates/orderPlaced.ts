@@ -101,7 +101,7 @@ export function orderPlacedEmail(data: OrderEmailData): { subject: string; html:
     </div>
 
     <div style="text-align: center; margin: 35px 0;">
-      <a href="https://app.zicabella.com/orders/${data.orderId}" style="display: inline-block; background-color: #C9A96E; color: #000000; text-decoration: none; padding: 14px 35px; border-radius: 4px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; font-size: 13px; box-shadow: 0 4px 12px rgba(201, 169, 110, 0.3);">
+      <a href="https://zicabella.com/orders/${data.orderId}" style="display: inline-block; background-color: #C9A96E; color: #000000; text-decoration: none; padding: 14px 35px; border-radius: 4px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; font-size: 13px; box-shadow: 0 4px 12px rgba(201, 169, 110, 0.3);">
         Track Your Order
       </a>
     </div>
@@ -129,7 +129,7 @@ Total Paid: ${currencySymbol}${data.total} ${currencyCode}
 Estimated Delivery:
 Your Zica Bella creations will be delivered within 5 to 7 business days.
 
-Track your order here: https://app.zicabella.com/orders/${data.orderId}
+Track your order here: https://zicabella.com/orders/${data.orderId}
 
 We're crafting your pieces with care.
 

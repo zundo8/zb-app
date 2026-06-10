@@ -83,9 +83,9 @@ export function baseTemplate(content: string, preheader: string = '') {
         <p style="margin: 0 0 8px 0; color: #C9A96E; font-family: 'Rocaston', -apple-system, sans-serif; font-size: 13px; letter-spacing: 4px; text-transform: uppercase;">© ZICA BELLA</p>
         <p style="margin: 0 0 15px 0; color: #44444a;">Faridabad, Haryana | developer@zicabella.com</p>
         <p style="margin: 0; font-size: 9px; letter-spacing: 0.2px;">
-          <a href="https://app.zicabella.com" style="color: #8e8e93; text-decoration: none;">Website</a> &nbsp;·&nbsp;
-          <a href="https://app.zicabella.com/policies/privacy-policy" style="color: #8e8e93; text-decoration: none;">Privacy Policy</a> &nbsp;·&nbsp;
-          <a href="https://app.zicabella.com/policies/contact-information" style="color: #8e8e93; text-decoration: none;">Contact Us</a>
+          <a href="https://zicabella.com" style="color: #8e8e93; text-decoration: none;">Website</a> &nbsp;·&nbsp;
+          <a href="https://zicabella.com/policies/privacy-policy" style="color: #8e8e93; text-decoration: none;">Privacy Policy</a> &nbsp;·&nbsp;
+          <a href="https://zicabella.com/policies/contact-information" style="color: #8e8e93; text-decoration: none;">Contact Us</a>
         </p>
       </div>
     </div>
