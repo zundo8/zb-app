@@ -140,8 +140,7 @@
   }
   
   html {
-    height: 100%;
-    min-height: 100%;
+    min-height: 100dvh;
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -175,8 +174,6 @@
   
   body {
     @apply bg-background text-foreground;
-    height: 100%;
-    min-height: 100vh;
     min-height: 100dvh; /* iOS dynamic viewport height */
     transition: background-color 0.5s ease, color 0.3s ease;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
@@ -193,12 +190,10 @@
     padding-right: env(safe-area-inset-right);
     /* Apple Liquid Background Gradient - ADAPTIVE */
     background: #ffffff;
-    background-attachment: fixed;
   }
 
   .dark body {
     background: #000000;
-    background-attachment: fixed;
   }
 }
 
@@ -408,16 +403,28 @@
 
 /* ── Storefront Body Override (Adaptive) ── */
 .liquid-glass-body {
-  background: radial-gradient(ellipse at 20% 0%, #f5f5f7 0%, #ffffff 50%, #e8e8ed 100%) !important;
-  background-attachment: fixed !important;
+  position: relative;
+  background: transparent !important;
   color: #000000;
   transition: background-color 0.5s ease, color 0.3s ease;
 }
 
+.liquid-glass-body::before {
+  content: "" !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: -1 !important;
+  background: radial-gradient(ellipse at 20% 0%, #f5f5f7 0%, #ffffff 50%, #e8e8ed 100%) !important;
+  pointer-events: none !important;
+}
+
 .dark .liquid-glass-body {
-  background: radial-gradient(ellipse at 20% 0%, #0d0d1a 0%, #000000 50%, #070714 100%) !important;
-  background-attachment: fixed !important;
+  background: transparent !important;
   color: #ffffff;
+}
+
+.dark .liquid-glass-body::before {
+  background: radial-gradient(ellipse at 20% 0%, #0d0d1a 0%, #000000 50%, #070714 100%) !important;
 }
 
 /* ── Primary Glass Surface ── */

@@ -43,7 +43,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
       </div>
 
       {/* ── Footer (passed from server) ── */}
-      {!isMobileApp && pathname !== "/login" && pathname !== "/chat" && footer}
+      {!isMobileApp && pathname !== "/login" && pathname !== "/chat" && pathname !== "/support" && footer}
     </div>
   );
 }

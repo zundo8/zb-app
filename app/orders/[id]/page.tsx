@@ -472,7 +472,7 @@ export default function OrderDetailsPage() {
 
           {/* Contact Support */}
           <Link
-            href="/support"
+            href={`/support?tab=chat&orderId=${order.shopifyOrderId || order.id}`}
             className="block w-full py-4 rounded-2xl glass-button text-[11px] font-bold uppercase tracking-wider text-center"
           >
             Contact Support

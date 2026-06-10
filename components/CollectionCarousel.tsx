@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, useMotionValue, PanInfo } from "framer-motion";
+import { motion, PanInfo } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Collection {
@@ -32,7 +32,7 @@ export default function CollectionCarousel({ collections }: { collections: Colle
     return () => mediaQuery.removeEventListener("change", handler);
   }, []);
 
-  // Handle Drag / Swipe Snapping
+  // Handle Drag / Swipe Snapping for Desktop deck layout
   const onDragEnd = (event: any, info: PanInfo) => {
     const threshold = 35;
     if (info.offset.x < -threshold) {
@@ -45,64 +45,100 @@ export default function CollectionCarousel({ collections }: { collections: Colle
   if (!total) return null;
 
   return (
-    <div className="relative w-full py-10 group overflow-visible">
-      <div className="relative h-[90vw] md:h-[450px] w-full flex items-center justify-center overflow-visible">
-        {/* Left/Right Arrow Buttons (Desktop only) */}
-        {total > 1 && (
-          <>
-            <div className="hidden md:flex absolute left-4 lg:left-12 z-30">
-              <button
-                onClick={() => setIndex((i) => (i - 1 + total) % total)}
-                className="w-12 h-12 rounded-full border border-foreground/[0.06] bg-background/60 hover:bg-background dark:bg-zinc-900/60 dark:hover:bg-zinc-900 backdrop-blur-md flex items-center justify-center text-foreground/45 hover:text-foreground transition-all duration-300 active:scale-90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
-                aria-label="Previous Collection"
-              >
-                <ChevronLeft className="w-5 h-5 text-foreground/60 hover:text-foreground" />
-              </button>
-            </div>
-            <div className="hidden md:flex absolute right-4 lg:right-12 z-30">
-              <button
-                onClick={() => setIndex((i) => (i + 1) % total)}
-                className="w-12 h-12 rounded-full border border-foreground/[0.06] bg-background/60 hover:bg-background dark:bg-zinc-900/60 dark:hover:bg-zinc-900 backdrop-blur-md flex items-center justify-center text-foreground/45 hover:text-foreground transition-all duration-300 active:scale-90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
-                aria-label="Next Collection"
-              >
-                <ChevronRight className="w-5 h-5 text-foreground/60 hover:text-foreground" />
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* The Drag Container */}
-        <motion.div
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.95}
-          onDragEnd={onDragEnd}
-          className="relative w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
-          style={{ 
-            perspective: "1200px", 
-            transformStyle: "preserve-3d",
-            touchAction: "pan-y" 
-          }}
-        >
-          {collections.map((col, i) => {
-            // Virtual indices for circular behavior
-            let diff = i - index;
-            if (diff > total / 2) diff -= total;
-            if (diff < -total / 2) diff += total;
-
-            return (
-              <CollectionCard
-                key={col.id}
-                collection={col}
-                diff={diff}
-                isActive={Math.abs(diff) < 0.1}
-                fallback={FALLBACKS[i % FALLBACKS.length]}
-                isMobile={isMobile}
-                onSelect={() => setIndex(i)}
+    <div className="relative w-full overflow-visible">
+      {/* Mobile view: smooth horizontal native scroll container with CSS snapping */}
+      <div 
+        className="md:hidden flex gap-4 overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x ios-scroll hide-scrollbar w-full py-6"
+        style={{ 
+          WebkitOverflowScrolling: "touch",
+          paddingLeft: "24px",
+          paddingRight: "24px"
+        }}
+      >
+        {collections.map((col, i) => (
+          <div 
+            key={`mobile-${col.id}`} 
+            className="snap-center shrink-0 w-[70vw] max-w-[280px] aspect-[3/4] rounded-[2rem] overflow-hidden relative shadow-[0_15px_35px_-10px_rgba(0,0,0,0.3)]"
+          >
+            <Link href={`/collections/${col.handle}`} className="block w-full h-full relative" draggable={false}>
+              <Image
+                src={col.image?.src || FALLBACKS[i % FALLBACKS.length]}
+                alt={col.title}
+                fill
+                sizes="70vw"
+                className="object-cover pointer-events-none"
+                priority={i === 0}
               />
-            );
-          })}
-        </motion.div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-85 pointer-events-none" />
+              <div className="absolute inset-x-0 bottom-0 p-6 text-center pointer-events-none">
+                <p className="font-sans text-xs font-semibold text-white tracking-wide">
+                  {col.title}
+                </p>
+              </div>
+              <div className="absolute inset-0 border border-white/10 rounded-[2rem] pointer-events-none" />
+            </Link>
+          </div>
+        ))}
+        <div className="shrink-0 w-2" />
+      </div>
+
+      {/* Desktop view: interactive premium glass stacked deck carousel */}
+      <div className="hidden md:block relative w-full py-10 group overflow-visible">
+        <div className="relative h-[450px] w-full flex items-center justify-center overflow-visible">
+          {total > 1 && (
+            <>
+              <div className="absolute left-4 lg:left-12 z-35">
+                <button
+                  onClick={() => setIndex((i) => (i - 1 + total) % total)}
+                  className="w-12 h-12 rounded-full border border-foreground/[0.06] bg-background/60 hover:bg-background dark:bg-zinc-900/60 dark:hover:bg-zinc-900 backdrop-blur-md flex items-center justify-center text-foreground/45 hover:text-foreground transition-all duration-300 active:scale-90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+                  aria-label="Previous Collection"
+                >
+                  <ChevronLeft className="w-5 h-5 text-foreground/60 hover:text-foreground" />
+                </button>
+              </div>
+              <div className="absolute right-4 lg:right-12 z-35">
+                <button
+                  onClick={() => setIndex((i) => (i + 1) % total)}
+                  className="w-12 h-12 rounded-full border border-foreground/[0.06] bg-background/60 hover:bg-background dark:bg-zinc-900/60 dark:hover:bg-zinc-900 backdrop-blur-md flex items-center justify-center text-foreground/45 hover:text-foreground transition-all duration-300 active:scale-90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+                  aria-label="Next Collection"
+                >
+                  <ChevronRight className="w-5 h-5 text-foreground/60 hover:text-foreground" />
+                </button>
+              </div>
+            </>
+          )}
+
+          <motion.div
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.95}
+            onDragEnd={onDragEnd}
+            className="relative w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
+            style={{ 
+              perspective: "1200px", 
+              transformStyle: "preserve-3d",
+              touchAction: "pan-y" 
+            }}
+          >
+            {collections.map((col, i) => {
+              let diff = i - index;
+              if (diff > total / 2) diff -= total;
+              if (diff < -total / 2) diff += total;
+
+              return (
+                <CollectionCard
+                  key={`desktop-${col.id}`}
+                  collection={col}
+                  diff={diff}
+                  isActive={Math.abs(diff) < 0.1}
+                  fallback={FALLBACKS[i % FALLBACKS.length]}
+                  isMobile={false}
+                  onSelect={() => setIndex(i)}
+                />
+              );
+            })}
+          </motion.div>
+        </div>
       </div>
     </div>
   );
@@ -123,7 +159,6 @@ function CollectionCard({
   isMobile: boolean;
   onSelect: () => void;
 }) {
-  // Calculate visibility responsively (5 cards on desktop, 3 on mobile)
   const maxDiff = isMobile ? 1 : 2;
   const isVisible = Math.abs(diff) <= maxDiff;
   const spacing = isMobile ? 90 : 130;
@@ -135,10 +170,10 @@ function CollectionCard({
     <motion.div
       initial={false}
       animate={{
-        x: diff * spacing, // Tighter spacing for overlapping stacked deck layout
-        scale: isActive ? 1 : 0.88, // Minimal scaling offset
-        rotateY: 0, // Flat card alignment matching mockup
-        z: 0, // 2D layout
+        x: diff * spacing,
+        scale: isActive ? 1 : 0.88,
+        rotateY: 0,
+        z: 0,
         opacity: opacityVal,
       }}
       transition={{
@@ -150,10 +185,9 @@ function CollectionCard({
       className="absolute w-[65vw] max-w-[280px] md:w-[320px] md:max-w-none aspect-[3/4] rounded-[2rem] overflow-hidden origin-center select-none transition-shadow duration-500"
       style={{
         zIndex: 10 - Math.round(Math.abs(diff)),
-        pointerEvents: isActive ? "auto" : "all", // Keep click active for selection
+        pointerEvents: isActive ? "auto" : "all",
         backfaceVisibility: "hidden",
         userSelect: "none",
-        WebkitUserDrag: "none",
         boxShadow: isActive 
           ? "0 30px 60px -15px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1)" 
           : "0 15px 30px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)",
@@ -165,8 +199,8 @@ function CollectionCard({
         draggable={false}
         onClick={(e) => {
           if (!isActive) {
-            e.preventDefault(); // Don't navigate if clicking a side card
-            onSelect(); // Focus the clicked side card
+            e.preventDefault();
+            onSelect();
           }
         }}
       >
@@ -179,10 +213,8 @@ function CollectionCard({
           priority={isActive}
         />
         
-        {/* Dynamic Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-80 pointer-events-none" />
         
-        {/* Title Overlay: minimal normal-cased text centered at bottom of card */}
         <div className="absolute inset-x-0 bottom-0 p-8 text-center pointer-events-none">
           <motion.p 
             animate={{ 
@@ -195,7 +227,6 @@ function CollectionCard({
           </motion.p>
         </div>
 
-        {/* Glass Edge Highlight with matching rounded-[2rem] corners */}
         <div className={`absolute inset-0 border rounded-[2rem] pointer-events-none transition-colors duration-500 ${isActive ? "border-white/15" : "border-white/5"}`} />
       </Link>
     </motion.div>
