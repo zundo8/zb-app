@@ -1,15 +1,11 @@
 import { fetchCollectionByHandle, fetchEnabledCollections } from "@/lib/shopify-admin";
 import { ShopifyProduct } from "@/lib/shopify-admin";
-import Image from "next/image";
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
-import { LayoutGrid, Grid3X3, Square } from "lucide-react";
-import ProductCard from "@/components/ProductCard";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 
 import CollectionHeaderClient from "@/components/CollectionHeaderClient";
 import CollectionFilters from "@/components/CollectionFilters";
+import CollectionProductGrid from "@/components/CollectionProductGrid";
 
 export const dynamic = "force-dynamic";
 
@@ -141,10 +137,10 @@ export default async function CollectionPage({
         }}
       />
       <div className="min-h-screen pt-12">
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32 pt-header">
-
-          {/* Back navigation */}
-          <div className="mb-5">
+        {/* Header & Filters — contained width */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-header">
+          {/* Collection selector */}
+          <div className="mb-4">
             <CollectionHeaderClient 
               currentHandle={params.handle}
               currentTitle={collection.title}
@@ -155,25 +151,15 @@ export default async function CollectionPage({
 
           {/* Minimalist Filter Bar */}
           <CollectionFilters allSizes={allSizes} />
+        </div>
 
-          {/* Product Grid */}
-          {products.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="font-heading text-[10px] uppercase tracking-widest text-foreground/25">
-                No products found
-              </p>
-            </div>
-          ) : (
-            <div className={`grid gap-x-2 md:gap-x-6 gap-y-6 md:gap-y-12 ${
-              viewMode === "full" ? "grid-cols-1 md:grid-cols-2" : 
-              viewMode === "thumbnail" ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-x-1 md:gap-x-2 gap-y-2 md:gap-y-3" : 
-              "grid-cols-2 md:grid-cols-4"
-            }`}>
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} selectedSize={selectedSize} />
-              ))}
-            </div>
-          )}
+        {/* Product Grid — edge-to-edge, minimal gaps */}
+        <div className="relative z-10 w-full pb-32">
+          <CollectionProductGrid
+            products={products}
+            viewMode={viewMode}
+            selectedSize={selectedSize}
+          />
         </div>
       </div>
     </>
