@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../auth/[...nextauth]/route';
 import prisma from '@/lib/db';
 import { getAppAuthFromRequest, resolveAuthCustomer } from '@/lib/appAuth';
 
@@ -15,14 +17,32 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: Request) {
+  let customer = null;
   const auth = getAppAuthFromRequest(req);
-  if (!auth) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+
+  if (auth) {
+    customer = await resolveAuthCustomer(auth);
+  } else {
+    const session = await getServerSession(authOptions);
+    if (session && session.user) {
+      const whereClause: any = { OR: [] };
+      if (session.user.email) {
+        whereClause.OR.push({ email: session.user.email });
+      }
+      const sessionUserId = (session.user as any).id;
+      if (sessionUserId) {
+        whereClause.OR.push({ id: sessionUserId });
+      }
+      if (whereClause.OR.length > 0) {
+        customer = await prisma.customer.findFirst({
+          where: whereClause
+        });
+      }
+    }
   }
 
-  const customer = await resolveAuthCustomer(auth);
   if (!customer) {
-    return NextResponse.json({ error: 'Customer identity could not be resolved' }, { status: 404, headers: corsHeaders });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
   }
 
   try {

@@ -61,6 +61,13 @@ export default function OrderDetailsPage() {
     fetchOrder();
   }, [id]);
 
+  useEffect(() => {
+    if (order?.orderNumber) {
+      const event = new CustomEvent("update-header-order-number", { detail: order.orderNumber });
+      window.dispatchEvent(event);
+    }
+  }, [order]);
+
   const fetchOrder = async () => {
     try {
       const res = await fetch(`/api/orders/${id}`);

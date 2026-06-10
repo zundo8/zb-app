@@ -5,6 +5,8 @@ import { createOrder, createCustomer, updateCustomer } from "@/lib/shopify-admin
 import { resolveRazorpayCredentials } from "@/lib/razorpay-credentials";
 import { sendMail } from "@/lib/mailer";
 import { orderConfirmationTemplate } from "@/lib/email-templates";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
 
 export async function POST(req: Request) {
   try {
@@ -56,14 +58,35 @@ export async function POST(req: Request) {
     }
 
     // 2. Find/Sync Customer
-    let localCustomer = await prisma.customer.findFirst({
-      where: {
-        OR: [
-          { email: address.email },
-          { phone: address.phone }
-        ]
+    const session = await getServerSession(authOptions);
+    let localCustomer = null;
+
+    if (session?.user) {
+      const whereClause: any = { OR: [] };
+      if (session.user.email) {
+        whereClause.OR.push({ email: session.user.email });
       }
-    });
+      const userId = (session.user as any).id;
+      if (userId) {
+        whereClause.OR.push({ id: userId });
+      }
+      if (whereClause.OR.length > 0) {
+        localCustomer = await prisma.customer.findFirst({
+          where: whereClause
+        });
+      }
+    }
+
+    if (!localCustomer) {
+      localCustomer = await prisma.customer.findFirst({
+        where: {
+          OR: [
+            { email: address.email },
+            { phone: address.phone }
+          ]
+        }
+      });
+    }
 
     if (!localCustomer) {
       // Should not happen if they are logged in, but handle guest-like flow or sync
@@ -78,9 +101,121 @@ export async function POST(req: Request) {
       });
     }
 
+    // Duplicate account check and merge:
+    // If user inputs a phone number at checkout, check if another customer profile has this phone number.
+    if (address.phone) {
+      const duplicateCustomer = await prisma.customer.findFirst({
+        where: {
+          phone: address.phone,
+          id: { not: localCustomer.id }
+        }
+      });
+
+      if (duplicateCustomer) {
+        console.log(`[Checkout Merge] Merging duplicate customer account: ${duplicateCustomer.id} -> ${localCustomer.id}`);
+        try {
+          // Perform merging in a transaction
+          await prisma.$transaction([
+            prisma.order.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.address.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.return.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.returnRequest.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.exchangeRequest.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.payment.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.profileHistory.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.mobileOrder.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.communityMessage.updateMany({
+              where: { customerId: duplicateCustomer.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.cart.deleteMany({
+              where: { customerId: duplicateCustomer.id }
+            }),
+            prisma.follow.deleteMany({
+              where: {
+                OR: [
+                  { followerId: duplicateCustomer.id },
+                  { followingId: duplicateCustomer.id }
+                ]
+              }
+            })
+          ]);
+
+          // Migrate Wishlist (outside transaction to safely try/catch unique constraint violations)
+          const dupWishlist = await prisma.wishlist.findMany({
+            where: { customerId: duplicateCustomer.id }
+          });
+          for (const item of dupWishlist) {
+            try {
+              await prisma.wishlist.update({
+                where: { id: item.id },
+                data: { customerId: localCustomer.id }
+              });
+            } catch {
+              await prisma.wishlist.delete({
+                where: { id: item.id }
+              });
+            }
+          }
+
+          // Migrate CommunityMember
+          const dupCommunity = await prisma.communityMember.findUnique({
+            where: { customerId: duplicateCustomer.id }
+          });
+          if (dupCommunity) {
+            const primCommunity = await prisma.communityMember.findUnique({
+              where: { customerId: localCustomer.id }
+            });
+            if (!primCommunity) {
+              await prisma.communityMember.update({
+                where: { id: dupCommunity.id },
+                data: { customerId: localCustomer.id }
+              });
+            } else {
+              await prisma.communityMember.delete({
+                where: { id: dupCommunity.id }
+              });
+            }
+          }
+
+          // Delete duplicate customer record
+          await prisma.customer.delete({
+            where: { id: duplicateCustomer.id }
+          });
+          console.log(`[Checkout Merge] Merging completed successfully.`);
+        } catch (mergeErr: any) {
+          console.error("[Checkout Merge] Error occurred during account merge:", mergeErr);
+        }
+      }
+    }
+
     // Sync with Shopify if needed
     let shopifyCustomerId = localCustomer.shopifyId;
-    if (shopifyCustomerId.startsWith('temp_') || shopifyCustomerId.startsWith('google_')) {
+    if (shopifyCustomerId.startsWith('temp_') || shopifyCustomerId.startsWith('google_') || shopifyCustomerId.startsWith('apple_')) {
         try {
             const sCustomer = await createCustomer({
                 first_name: address.name.split(' ')[0],
@@ -104,8 +239,6 @@ export async function POST(req: Request) {
             });
         } catch (e) {
             console.error("Shopify Customer Sync Error:", e);
-            // Fallback: use the temp one for order but this might fail shopify order creation if not careful
-            // Usually we'd want to search if customer exists first.
         }
     }
 
@@ -364,11 +497,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // Update customer name and address for next time
+    // Update customer name, phone, and address for next time
     await prisma.customer.update({
         where: { id: localCustomer.id },
         data: { 
             name: address.name,
+            phone: address.phone,
             defaultAddress: JSON.stringify(address) 
         }
     });

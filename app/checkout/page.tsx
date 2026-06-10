@@ -88,6 +88,35 @@ export default function CheckoutPage() {
     country: "India",
   });
 
+  const [addressError, setAddressError] = useState("");
+  const [zipLoading, setZipLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchZipDetails = async () => {
+      const cleanZip = address.zip.trim();
+      if (/^\d{6}$/.test(cleanZip)) {
+        setZipLoading(true);
+        try {
+          const res = await fetch(`https://api.postalpincode.in/pincode/${cleanZip}`);
+          const data = await res.json();
+          if (data && data[0] && data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice[0]) {
+            const firstOffice = data[0].PostOffice[0];
+            setAddress(prev => ({
+              ...prev,
+              city: firstOffice.District || firstOffice.Block || firstOffice.Name || prev.city,
+              state: firstOffice.State || prev.state,
+            }));
+          }
+        } catch (err) {
+          console.error("Error fetching pincode details:", err);
+        } finally {
+          setZipLoading(false);
+        }
+      }
+    };
+    fetchZipDetails();
+  }, [address.zip]);
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("UPI");
   const codFee = 99;
   const shipping = 0;
@@ -153,6 +182,24 @@ export default function CheckoutPage() {
 
   const handleAddressSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setAddressError("");
+
+    // Clean phone number
+    const digits = address.phone.replace(/\D/g, "");
+    let baseNumber = digits;
+    if (digits.length === 12 && digits.startsWith("91")) {
+      baseNumber = digits.slice(2);
+    } else if (digits.length === 11 && digits.startsWith("0")) {
+      baseNumber = digits.slice(1);
+    }
+
+    if (baseNumber.length !== 10) {
+      setAddressError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    const formattedPhone = `+91${baseNumber}`;
+    setAddress(prev => ({ ...prev, phone: formattedPhone }));
     setStep(2);
   };
 
@@ -488,17 +535,20 @@ export default function CheckoutPage() {
                         }}
                         className="glass-input w-full px-4 py-3 text-[12px]"
                     />
-                    <input
-                        type="tel"
-                        placeholder="Mobile Number"
-                        required
-                        value={address.phone}
-                        onChange={(e) => {
-                          setSelectedSavedId("");
-                          setAddress({...address, phone: e.target.value});
-                        }}
-                        className="glass-input w-full px-4 py-3 text-[12px]"
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[12px] text-foreground/35 font-semibold pointer-events-none">+91</span>
+                      <input
+                          type="tel"
+                          placeholder="10-digit Mobile Number"
+                          required
+                          value={address.phone}
+                          onChange={(e) => {
+                            setSelectedSavedId("");
+                            setAddress({...address, phone: e.target.value});
+                          }}
+                          className="glass-input w-full pl-10 pr-4 py-3 text-[12px]"
+                      />
+                    </div>
                   </div>
                   <input
                     type="text"
@@ -523,17 +573,24 @@ export default function CheckoutPage() {
                       }}
                       className="glass-input w-full px-4 py-3 text-[12px]"
                     />
-                    <input
-                      type="text"
-                      placeholder="ZIP Code (6 digits)"
-                      required
-                      value={address.zip}
-                      onChange={(e) => {
-                        setSelectedSavedId("");
-                        setAddress({...address, zip: e.target.value});
-                      }}
-                      className="glass-input w-full px-4 py-3 text-[12px]"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="PIN Code (6 digits)"
+                        required
+                        maxLength={6}
+                        value={address.zip}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setSelectedSavedId("");
+                          setAddress({...address, zip: val});
+                        }}
+                        className="glass-input w-full px-4 py-3 text-[12px]"
+                      />
+                      {zipLoading && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-foreground/30" />
+                      )}
+                    </div>
                   </div>
                   <input
                     type="text"
@@ -547,6 +604,13 @@ export default function CheckoutPage() {
                     className="glass-input w-full px-4 py-3 text-[12px]"
                   />
                 </div>
+
+                {addressError && (
+                  <div className="flex items-center gap-2 p-3.5 rounded-xl text-[10px] font-bold mt-2" style={{ background: "rgba(255,80,80,0.06)", border: "1px solid rgba(255,80,80,0.12)", color: "rgba(255,100,100,0.9)" }}>
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {addressError}
+                  </div>
+                )}
 
                 <div className="pt-6">
                   <button

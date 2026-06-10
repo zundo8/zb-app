@@ -117,6 +117,7 @@ export async function GET(
     const finalOrder = {
       ...enrichedOrder,
       orderNumber,
+      statusTimeline: statusTimeline(order),
     };
 
     return NextResponse.json({ order: finalOrder });
@@ -124,4 +125,49 @@ export async function GET(
     console.error("Fetch Single Order Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+}
+
+function statusTimeline(order: any) {
+  const createdAt = order.createdAt ? new Date(order.createdAt).toISOString() : null;
+  const status = String(order.status || '').toLowerCase();
+  const delivery = String(order.deliveryStatus || '').toLowerCase();
+  const updatedAt = new Date(order.updatedAt).toISOString();
+
+  const hasActiveReturn = order.returnRequests?.some((r: any) => r.status !== 'cancelled') || false;
+  const hasActiveExchange = order.exchangeRequests?.some((e: any) => e.status !== 'cancelled') || false;
+  const isReturnInitiated = status.includes('return') || status.includes('exchange') || status === 'returned' || status === 'exchanged' || hasActiveReturn || hasActiveExchange;
+
+  if (isReturnInitiated) {
+    const isApproved = status === 'return_approved' || status === 'exchange_approved' || status === 'returned' || status === 'exchanged' ||
+      order.returnRequests?.some((r: any) => ['approved', 'refund_pending', 'pickup_scheduled', 'received', 'refunded'].includes(r.status)) ||
+      order.exchangeRequests?.some((e: any) => ['approved', 'exchange_approved', 'qc_passed', 'received', 'new_order_created'].includes(e.status));
+      
+    const isCompleted = status === 'returned' || status === 'exchanged' ||
+      order.returnRequests?.some((r: any) => r.status === 'refunded') ||
+      order.exchangeRequests?.some((e: any) => e.status === 'new_order_created');
+
+    const latestShipment = (order.shipments || []).find((s: any) => String(s.status).toLowerCase() === 'delivered');
+    const deliveredAt = latestShipment?.updatedAt ? new Date(latestShipment.updatedAt).toISOString() : updatedAt;
+
+    return [
+      { step: 'order_placed', completedAt: createdAt },
+      { step: 'delivered', completedAt: deliveredAt },
+      { step: 'return_requested', completedAt: updatedAt },
+      { step: 'pickup_approved', completedAt: isApproved ? updatedAt : null },
+      { step: 'refund_completed', completedAt: isCompleted ? updatedAt : null },
+    ];
+  }
+
+  const isDelivered = delivery === 'delivered';
+  const isOutForDelivery = isDelivered || delivery === 'out_for_delivery';
+  const isShipped = isOutForDelivery || delivery === 'shipped';
+  const isApproved = isShipped || status === 'approved' || status === 'confirmed';
+
+  return [
+    { step: 'order_placed', completedAt: createdAt },
+    { step: 'confirmed', completedAt: isApproved ? updatedAt : null },
+    { step: 'shipped', completedAt: isShipped ? updatedAt : null },
+    { step: 'out_for_delivery', completedAt: isOutForDelivery ? updatedAt : null },
+    { step: 'delivered', completedAt: isDelivered ? updatedAt : null },
+  ];
 }

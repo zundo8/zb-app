@@ -1,20 +1,48 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
 import prisma from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    let resolvedUserId = null;
+
+    if (session && session.user) {
+      const whereClause: any = { OR: [] };
+      if (session.user.email) {
+        whereClause.OR.push({ email: session.user.email });
+      }
+      const sessionUserId = (session.user as any).id;
+      if (sessionUserId) {
+        whereClause.OR.push({ id: sessionUserId });
+      }
+
+      if (whereClause.OR.length > 0) {
+        const customer = await prisma.customer.findFirst({
+          where: whereClause
+        });
+        if (customer) {
+          resolvedUserId = customer.id;
+        }
+      }
     }
-    const token = authHeader.split(' ')[1];
-    // In a real app we would verify this token, for now we assume it's valid if passed
-    // or fallback to userId provided in body
 
     const body = await req.json();
-    const { orderId, userId, returnItems } = body;
+    const { orderId, userId: bodyUserId, returnItems } = body;
 
-    if (!orderId || !userId || !returnItems || !returnItems.length) {
+    if (!resolvedUserId) {
+      const authHeader = req.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        resolvedUserId = bodyUserId;
+      }
+    }
+
+    if (!resolvedUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!orderId || !returnItems || !returnItems.length) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -27,7 +55,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    if (order.customerId !== userId) {
+    if (order.customerId !== resolvedUserId) {
       return NextResponse.json({ error: "Unauthorized: Order does not belong to user" }, { status: 403 });
     }
 
@@ -52,7 +80,7 @@ export async function POST(req: Request) {
       itemsToReturn.push({
         productId: orderItem.productId,
         orderId: order.id,
-        customerId: userId,
+        customerId: resolvedUserId,
         sku: orderItem.sku,
         reason: returnItem.reason,
         status: "REQUESTED",
@@ -65,7 +93,7 @@ export async function POST(req: Request) {
     const returnRequest = await prisma.returnRequest.create({
       data: {
         orderId,
-        customerId: userId,
+        customerId: resolvedUserId,
         status: "pending_approval",
         estimatedRefund,
         returns: {

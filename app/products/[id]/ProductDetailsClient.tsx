@@ -456,72 +456,69 @@ export default function ProductDetailsClient({
         </div>
       </div>
 
-      {/* Recommended & Curated Pairs Row outside the max-w container to be full-width */}
+      {/* Recommended & Curated Pairs Row — full-width edge-to-edge */}
       {shuffledRecommended.length > 0 && (
-        <div className="hidden md:block bg-background text-foreground py-16 border-t border-border w-full overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-[12px] md:text-sm uppercase tracking-[0.25em] font-heading flex items-center text-foreground font-bold">
-                CURATED PAIR(S)
-              </h2>
-              <div className="flex items-center gap-6">
-                <button 
-                  className="flex items-center justify-center text-foreground/45 hover:text-foreground transition-all active:scale-95"
-                  onClick={() => curatedScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
-                  aria-label="Previous Curated Items"
-                >
-                  <ArrowLeft className="w-5 h-5" strokeWidth={1} />
-                </button>
-                <button 
-                  className="flex items-center justify-center text-foreground/45 hover:text-foreground transition-all active:scale-95"
-                  onClick={() => curatedScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
-                  aria-label="Next Curated Items"
-                >
-                  <ArrowRight className="w-5 h-5" strokeWidth={1} />
-                </button>
-              </div>
+        <div className="hidden md:block bg-background text-foreground py-12 border-t border-border/50 w-full overflow-hidden">
+          <div className="flex items-center justify-between mb-5 px-4">
+            <h2 className="text-[11px] uppercase tracking-[0.2em] font-heading text-foreground font-bold">
+              CURATED PAIR(S)
+            </h2>
+            <div className="flex items-center gap-4">
+              <button 
+                className="flex items-center justify-center text-foreground/35 hover:text-foreground transition-all active:scale-95"
+                onClick={() => curatedScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
+                aria-label="Previous Curated Items"
+              >
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+              <button 
+                className="flex items-center justify-center text-foreground/35 hover:text-foreground transition-all active:scale-95"
+                onClick={() => curatedScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
+                aria-label="Next Curated Items"
+              >
+                <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
+              </button>
             </div>
           </div>
           
           <div 
             ref={curatedScrollRef}
-            className="flex overflow-x-auto hide-scrollbar scroll-smooth snap-x py-4 gap-4 px-6 md:px-[calc((100vw-1280px)/2+24px)]"
-            style={{ paddingLeft: 'max(24px, calc((100vw - 1280px) / 2 + 24px))' }}
+            className="flex overflow-x-auto hide-scrollbar scroll-smooth snap-x gap-[2px]"
           >
             {shuffledRecommended.map((p, idx) => {
               const initialPrice = p.variants?.[0]?.price || "0.00";
               return (
                 <div 
                   key={`desk-pair-${p.id}`}
-                  className="min-w-[320px] w-[320px] snap-start flex flex-col group cursor-pointer transition-all duration-300"
+                  className="min-w-[280px] w-[280px] snap-start flex flex-col group cursor-pointer transition-all duration-300"
                   onClick={() => router.push(`/products/${p.handle}`)}
                 >
-                  <div className="relative aspect-[3/4.8] w-full rounded-none overflow-hidden mb-3 bg-background/5">
+                  <div className="relative aspect-[3/4.8] w-full overflow-hidden bg-background/5">
                     <Image 
                       src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
                       alt={p.title} 
                       fill 
-                      className="object-cover group-hover:scale-105 transition-transform duration-700" 
-                      sizes="350px"
+                      className="object-cover group-hover:scale-[1.03] transition-transform duration-700" 
+                      sizes="300px"
                     />
                   </div>
-                  <div className="flex items-center justify-between mt-1 px-1">
+                  <div className="flex items-center justify-between mt-1.5 px-1.5">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-foreground line-clamp-1">
+                      <span className="text-[9px] font-sans font-bold tracking-[0.12em] uppercase text-foreground line-clamp-1">
                         {p.title}
                       </span>
-                      <span className="text-[10px] font-sans font-light text-foreground/50">
+                      <span className="text-[9px] font-sans font-light text-foreground/50">
                         ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
                       </span>
                     </div>
                     <button
-                      className="w-8 h-8 flex items-center justify-center text-foreground/50 hover:text-foreground active:scale-90 transition-all"
+                      className="w-7 h-7 flex items-center justify-center text-foreground/40 hover:text-foreground active:scale-90 transition-all"
                       onClick={(e) => {
                         e.stopPropagation();
                         setQuickAddProduct(p);
                       }}
                     >
-                      <Plus className="w-5 h-5" strokeWidth={1} />
+                      <Plus className="w-4 h-4" strokeWidth={1.5} />
                     </button>
                   </div>
                 </div>
@@ -831,48 +828,38 @@ export default function ProductDetailsClient({
                   </div>
                 )}
 
-                {/* Recently Viewed */}
-                {recentlyViewed.length > 1 && (
-                  <div className="mt-4 pt-4 border-t border-foreground/[0.05] -mx-0.5">
-                    <div className="flex items-center justify-between mb-[1px] px-1">
-                      <h2 className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/60 dark:text-foreground/40 font-heading">Recently Viewed</h2>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-[6px] gap-y-[1px]">
-                      {recentlyViewed.filter(p => p.id !== product.id).slice(0, 4).map((p) => <ProductCard key={p.id} product={p} />)}
-                    </div>
-                  </div>
-                )}
+                {/* Recently Viewed moved below Curated Pairs */}
               </div>
             </div>
 
-            {/* New mobile Curated Pairs section below the glass panel */}
+            {/* Mobile Curated Pairs — edge-to-edge, minimal gaps */}
             {shuffledRecommended.length > 0 && (
-              <div className="bg-background text-foreground py-12 mt-8 w-full overflow-hidden border-t border-border">
-                <div className="flex items-center justify-between px-6 mb-6">
-                  <h2 className="text-[12px] uppercase tracking-[0.25em] font-heading flex items-center text-foreground font-bold">
+              <div className="bg-background text-foreground py-8 mt-6 w-full overflow-hidden border-t border-border/50">
+                <div className="flex items-center justify-between px-4 mb-4">
+                  <h2 className="text-[11px] uppercase tracking-[0.2em] font-heading text-foreground font-bold">
                     CURATED PAIR(S)
                   </h2>
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-4">
                     <button 
-                      className="flex items-center justify-center text-foreground/45 hover:text-foreground transition-all active:scale-95"
+                      className="flex items-center justify-center text-foreground/35 hover:text-foreground transition-all active:scale-95"
                       onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: -300, behavior: 'smooth' })}
                       aria-label="Previous Curated Items"
                     >
-                      <ArrowLeft className="w-5 h-5" strokeWidth={1} />
+                      <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
                     </button>
                     <button 
-                      className="flex items-center justify-center text-foreground/45 hover:text-foreground transition-all active:scale-95"
+                      className="flex items-center justify-center text-foreground/35 hover:text-foreground transition-all active:scale-95"
                       onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: 300, behavior: 'smooth' })}
                       aria-label="Next Curated Items"
                     >
-                      <ArrowRight className="w-5 h-5" strokeWidth={1} />
+                      <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
                     </button>
                   </div>
                 </div>
                 
                 <div 
                   ref={curatedScrollMobileRef}
-                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-4 px-6 pb-6"
+                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-[2px]"
                   style={{ 
                       scrollbarWidth: "none", 
                       msOverflowStyle: "none", 
@@ -889,13 +876,13 @@ export default function ProductDetailsClient({
                     return (
                       <div 
                         key={`mobile-pair-${p.id}-${idx}`}
-                        className="min-w-[80vw] w-[80vw] snap-center flex flex-col group cursor-pointer"
+                        className="min-w-[75vw] w-[75vw] snap-center flex flex-col group cursor-pointer"
                         onClick={(e) => { 
                           if (isCuratedDragging) e.preventDefault(); 
                           else router.push(`/products/${p.handle}`);
                         }}
                       >
-                        <div className="relative w-full aspect-[3/4.8] rounded-none overflow-hidden bg-background/5 mb-3">
+                        <div className="relative w-full aspect-[3/4.8] overflow-hidden bg-background/5">
                           <Image 
                             src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
                             alt={p.title} 
@@ -906,29 +893,41 @@ export default function ProductDetailsClient({
                             onError={handleImageError}
                           />
                         </div>
-                        <div className="flex items-center justify-between mt-1 px-1">
+                        <div className="flex items-center justify-between mt-1.5 px-1.5">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-foreground line-clamp-1">
+                            <span className="text-[9px] font-sans font-bold tracking-[0.12em] uppercase text-foreground line-clamp-1">
                               {p.title}
                             </span>
-                            <span className="text-[10px] font-sans font-light text-foreground/50">
+                            <span className="text-[9px] font-sans font-light text-foreground/50">
                               ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
                             </span>
                           </div>
                           <button
-                            className="w-8 h-8 flex items-center justify-center text-foreground/50 hover:text-foreground active:scale-90 transition-all"
+                            className="w-7 h-7 flex items-center justify-center text-foreground/40 hover:text-foreground active:scale-90 transition-all"
                             onClick={(e) => {
                               e.stopPropagation();
                               setQuickAddProduct(p);
                             }}
                             aria-label="Quick Add to Bag"
                           >
-                            <Plus className="w-5 h-5" strokeWidth={1} />
+                            <Plus className="w-4 h-4" strokeWidth={1.5} />
                           </button>
                         </div>
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Recently Viewed — below Curated Pairs */}
+            {recentlyViewed.length > 1 && (
+              <div className="bg-background text-foreground py-8 w-full overflow-hidden border-t border-border/50">
+                <div className="flex items-center justify-between px-4 mb-3">
+                  <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/60 dark:text-foreground/40 font-heading">Recently Viewed</h2>
+                </div>
+                <div className="grid grid-cols-2 gap-[2px] px-0">
+                  {recentlyViewed.filter(p => p.id !== product.id).slice(0, 4).map((p) => <ProductCard key={p.id} product={p} />)}
                 </div>
               </div>
             )}

@@ -50,10 +50,32 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
     }
   }, [initialCollections]);
 
+  const [orderNumberOverride, setOrderNumberOverride] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setOrderNumberOverride(customEvent.detail);
+      }
+    };
+    window.addEventListener("update-header-order-number", handleUpdate);
+    return () => {
+      window.removeEventListener("update-header-order-number", handleUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    setOrderNumberOverride(null);
+  }, [pathname]);
+
   const isHome = pathname === "/";
   const getPageTitle = () => {
     if (!pathname) return "ZICABELLA";
     if (isHome) return "ZICABELLA";
+    if (pathname.startsWith("/orders/") && orderNumberOverride) {
+      return orderNumberOverride;
+    }
     const segments = pathname?.split("/").filter(Boolean) || [];
     if (segments.length === 0) return "ZICABELLA";
     let title = segments[segments.length - 1];

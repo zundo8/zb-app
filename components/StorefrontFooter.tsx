@@ -43,7 +43,7 @@ export default async function StorefrontFooter() {
   ].filter((item) => item.url);
 
   return (
-    <footer className="w-full relative z-10 bg-transparent" aria-label="Storefront Footer">
+    <footer className="w-full relative z-10 bg-white dark:bg-black" aria-label="Storefront Footer">
       {/* Top accent line */}
       <div className="h-px w-full bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
 
@@ -53,12 +53,9 @@ export default async function StorefrontFooter() {
           
           {/* Brand Info (5 Columns) */}
           <div className="col-span-5 space-y-6">
-            <div className="flex items-center gap-4">
-              <ThreeDLogo src={s?.footerLogo3dUrl} size={50} />
-              <div>
-                <h2 className="font-rocaston text-[15px] tracking-[0.2em] text-foreground font-light uppercase leading-none">ZICA BELLA</h2>
-                <p className="text-[7.5px] font-semibold uppercase tracking-[0.4em] text-foreground/20 mt-1.5">LUXURY STREETWEAR</p>
-              </div>
+            <div className="flex flex-col items-start gap-2.5">
+              <ThreeDLogo src={s?.footerLogo3dUrl} size={36} />
+              <h2 className="font-rocaston text-[12px] tracking-[0.18em] text-foreground font-light uppercase leading-none">ZICABELLA</h2>
             </div>
 
             <p className="text-[10px] font-normal text-foreground/35 leading-[2] tracking-wider max-w-xs">
@@ -133,8 +130,8 @@ export default async function StorefrontFooter() {
         {/* Bottom bar with Copyright & Policies */}
         <div className="mt-20 pt-8 border-t border-foreground/[0.04] flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-foreground/15">
-              © {new Date().getFullYear()} ZICA BELLA · ALL RIGHTS RESERVED
+            <p className="text-[8px] font-semibold uppercase tracking-[0.2em] text-foreground/15">
+              © {new Date().getFullYear()} ZICABELLA · ALL RIGHTS RESERVED
             </p>
             {policies.map((policy) => (
               <Link 
@@ -146,61 +143,59 @@ export default async function StorefrontFooter() {
               </Link>
             ))}
           </div>
-          <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-foreground/15">
+          <p className="text-[8px] font-semibold uppercase tracking-[0.2em] text-foreground/15">
             DESIGNED IN ITALY · CRAFTED IN INDIA
           </p>
         </div>
       </div>
 
       {/* ─── MOBILE (below md) ─── */}
-      <div className="md:hidden px-6 pt-16 pb-[calc(3rem+env(safe-area-inset-bottom,0px))] flex flex-col items-center text-center">
+      <div className="md:hidden px-5 pt-10 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] flex flex-col items-center text-center">
         
-        {/* Logo */}
-        <div className="mb-4">
-          <ThreeDLogo src={s?.footerLogo3dUrl} size={48} />
+        {/* Logo stacked — 3D on top, text below */}
+        <div className="flex flex-col items-center gap-2 mb-6">
+          <ThreeDLogo src={s?.footerLogo3dUrl} size={30} />
+          <h2 className="font-rocaston text-[10px] tracking-[0.22em] text-foreground/80 uppercase leading-none">ZICABELLA</h2>
         </div>
 
-        {/* Brand Text */}
-        <div className="mb-6">
-          <h2 className="font-rocaston text-[15px] tracking-[0.25em] text-foreground uppercase leading-none">ZICA BELLA</h2>
-          <p className="text-[7px] font-semibold uppercase tracking-[0.4em] text-foreground/25 mt-1.5">LUXURY STREETWEAR</p>
-        </div>
-
-        {/* Social Row */}
+        {/* Social Row — tighter, minimal */}
         {socialLinks.length > 0 && (
-          <div className="flex justify-center gap-6 mb-8">
+          <div className="flex justify-center gap-4 mb-6">
             {socialLinks.map(({ url, icon: Icon, label }) => (
               <a key={label} href={url} target="_blank" rel="noopener noreferrer" aria-label={label}
-                className="w-8 h-8 rounded-full border border-foreground/[0.06] flex items-center justify-center text-foreground/45 hover:text-foreground hover:border-foreground/[0.15] transition-all duration-300 active:scale-90 shadow-sm">
-                <Icon className="w-3.5 h-3.5" />
+                className="w-7 h-7 rounded-full border border-foreground/[0.08] flex items-center justify-center text-foreground/40 hover:text-foreground hover:border-foreground/20 transition-all duration-300 active:scale-90">
+                <Icon className="w-3 h-3" />
               </a>
             ))}
           </div>
         )}
 
-        {/* Navigation Links Row */}
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-5 max-w-sm px-4">
+        {/* Navigation — single compact row with dot separators */}
+        <div className="flex items-center justify-center gap-1 mb-4 flex-wrap">
           {[
-            { href: "/search", label: "Catalog" },
+            { href: "/search", label: "Shop" },
             { href: "/collections", label: "Collections" },
             { href: "/blogs", label: "Journal" },
-            { href: "/profile", label: "Profile" },
-            { href: "/support", label: "Support" },
-          ].map(link => (
-            <Link key={link.href} href={link.href} className="text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/45 hover:text-foreground transition-colors">
-              {link.label}
-            </Link>
+            { href: "/profile", label: "Account" },
+            { href: "/support", label: "Help" },
+          ].map((link, idx) => (
+            <div key={link.href} className="flex items-center gap-1">
+              {idx > 0 && <span className="text-foreground/10 text-[5px] select-none">·</span>}
+              <Link href={link.href} className="text-[8px] font-semibold uppercase tracking-[0.1em] text-foreground/40 hover:text-foreground transition-colors px-0.5">
+                {link.label}
+              </Link>
+            </div>
           ))}
         </div>
 
-        {/* Policies Row Centered */}
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 mb-8 max-w-sm px-4">
+        {/* Policies — ultra-compact inline */}
+        <div className="flex items-center justify-center gap-1 mb-5 flex-wrap">
           {policies.map((policy: any, idx: number) => (
-            <div key={policy.handle} className="flex items-center gap-3">
-              {idx > 0 && <span className="text-foreground/10 text-[6px] select-none">·</span>}
+            <div key={policy.handle} className="flex items-center gap-1">
+              {idx > 0 && <span className="text-foreground/8 text-[5px] select-none">·</span>}
               <Link
                 href={`/policies/${policy.handle}`}
-                className="text-[8px] font-medium uppercase tracking-[0.15em] text-foreground/30 hover:text-foreground transition-colors"
+                className="text-[7px] font-medium uppercase tracking-[0.08em] text-foreground/25 hover:text-foreground transition-colors"
               >
                 {shortenPolicyTitle(policy.title)}
               </Link>
@@ -208,9 +203,9 @@ export default async function StorefrontFooter() {
           ))}
         </div>
 
-        {/* Copyright */}
-        <p className="text-[6.5px] font-semibold uppercase tracking-[0.3em] text-foreground/15">
-          © {new Date().getFullYear()} ZICA BELLA · CRAFTED IN INDIA
+        {/* Copyright — minimal */}
+        <p className="text-[6px] font-semibold uppercase tracking-[0.15em] text-foreground/12">
+          © {new Date().getFullYear()} ZICABELLA · CRAFTED IN INDIA
         </p>
 
       </div>

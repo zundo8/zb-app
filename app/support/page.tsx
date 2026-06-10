@@ -3,14 +3,14 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { 
-  Mail, 
-  MapPin, 
-  Send, 
-  MessageSquare, 
-  Loader2, 
-  CheckCircle2, 
-  Lock, 
+import {
+  Mail,
+  MapPin,
+  Send,
+  MessageSquare,
+  Loader2,
+  CheckCircle2,
+  Lock,
   Sparkles,
   ShieldCheck
 } from 'lucide-react';
@@ -101,10 +101,10 @@ function SupportPageContent() {
       } else {
         const shouldAutoCreate = searchParams.get('tab') === 'chat' || orderIdParam;
         if (shouldAutoCreate) {
-          const subject = orderIdParam 
-            ? `Order Support #${orderIdParam.slice(-8).toUpperCase()}` 
+          const subject = orderIdParam
+            ? `Order Support #${orderIdParam.slice(-8).toUpperCase()}`
             : 'Live Chat Support';
-          
+
           const createRes = await fetch('/api/support/tickets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -209,7 +209,7 @@ function SupportPageContent() {
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-500 font-sans relative overflow-x-hidden">
-      
+
       {/* Background Animated Gradient Blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-blue-500/5 blur-[140px] animate-pulse" style={{ animationDuration: '8s' }} />
@@ -217,11 +217,11 @@ function SupportPageContent() {
       </div>
 
       <main className={`relative z-10 max-w-7xl mx-auto px-4 md:px-8 ${isMobileApp ? 'pt-4 pb-12' : 'pt-24 md:pt-32 pb-24'}`}>
-        
+
         {/* Title Identity */}
         {!isMobileApp && (
           <div className="text-center mb-12">
-            <motion.h1 
+            <motion.h1
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
@@ -229,7 +229,7 @@ function SupportPageContent() {
             >
               SUPPORT CENTER
             </motion.h1>
-            <motion.p 
+            <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.5 }}
               transition={{ delay: 0.2 }}
@@ -241,9 +241,9 @@ function SupportPageContent() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
+
           {/* Contact Info Panel */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -25 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -251,11 +251,11 @@ function SupportPageContent() {
           >
             <div className="p-6 md:p-8 rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] dark:bg-white/[0.01] backdrop-blur-3xl shadow-2xl relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-b from-foreground/[0.02] to-transparent pointer-events-none" />
-              
+
               <h2 className="text-sm font-bold mb-6 uppercase tracking-widest text-foreground/85">Get In Touch</h2>
-              
+
               <div className="space-y-6">
-                
+
                 <div className="flex items-start gap-4">
                   <div className="p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5 text-foreground/70">
                     <Mail className="w-4 h-4" />
@@ -273,7 +273,7 @@ function SupportPageContent() {
                   </div>
                   <div>
                     <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">HQ Location</p>
-                    <p className="text-foreground/80 text-sm font-medium">Bengaluru, KA, India</p>
+                    <p className="text-foreground/80 text-sm font-medium">Noida, India</p>
                   </div>
                 </div>
               </div>
@@ -288,7 +288,7 @@ function SupportPageContent() {
           </motion.div>
 
           {/* Interaction Card Area */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
@@ -296,14 +296,13 @@ function SupportPageContent() {
           >
             <div className="h-full min-h-[500px] md:min-h-[560px] rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] dark:bg-white/[0.01] backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col relative">
               <div className="absolute inset-0 bg-gradient-to-b from-foreground/[0.01] to-transparent pointer-events-none" />
-              
+
               {/* Tab Navigation */}
               <div className="flex border-b border-foreground/5 p-2 bg-foreground/[0.01] relative z-10">
                 <button
                   onClick={() => setActiveTab('form')}
-                  className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-                    activeTab === 'form' ? 'bg-foreground/5 text-foreground border border-foreground/5' : 'text-foreground/40 hover:text-foreground/75'
-                  }`}
+                  className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'form' ? 'bg-foreground/5 text-foreground border border-foreground/5' : 'text-foreground/40 hover:text-foreground/75'
+                    }`}
                 >
                   Message Us
                 </button>
@@ -317,9 +316,8 @@ function SupportPageContent() {
                       }
                     }
                   }}
-                  className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-                    activeTab === 'chat' ? 'bg-foreground/5 text-foreground border border-foreground/5' : 'text-foreground/40 hover:text-foreground/75'
-                  }`}
+                  className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'chat' ? 'bg-foreground/5 text-foreground border border-foreground/5' : 'text-foreground/40 hover:text-foreground/75'
+                    }`}
                 >
                   Live Chat
                 </button>
@@ -327,9 +325,9 @@ function SupportPageContent() {
 
               {/* Interaction Content Area */}
               <div className="flex-1 p-5 md:p-8 flex flex-col relative z-10">
-                
+
                 <AnimatePresence mode="wait">
-                  
+
                   {/* TAB 1: Support Message Form */}
                   {activeTab === 'form' && (
                     <motion.div
@@ -360,7 +358,7 @@ function SupportPageContent() {
                               placeholder="Enter your name"
                             />
                           </div>
-                          
+
                           <div className="space-y-1">
                             <label className="text-[9px] text-foreground/30 uppercase tracking-widest ml-2">Email Address</label>
                             <input
@@ -491,11 +489,10 @@ function SupportPageContent() {
                                       )}
                                     </div>
                                     <div
-                                      className={`p-4 rounded-2xl ${
-                                        msg.senderType === 'USER'
-                                          ? 'bg-foreground/[0.05] text-foreground border border-foreground/10 rounded-tr-none'
-                                          : 'bg-foreground text-background rounded-tl-none font-medium'
-                                      }`}
+                                      className={`p-4 rounded-2xl ${msg.senderType === 'USER'
+                                        ? 'bg-foreground/[0.05] text-foreground border border-foreground/10 rounded-tr-none'
+                                        : 'bg-foreground text-background rounded-tl-none font-medium'
+                                        }`}
                                     >
                                       <p className="text-xs leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                                     </div>
@@ -537,7 +534,17 @@ function SupportPageContent() {
         </div>
       </main>
 
-
+      {/* footer */}
+      {!isMobileApp && (
+        <footer className="relative z-10 border-t border-foreground/5 py-10 px-6 bg-background">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+            <div className="text-lg font-black tracking-[0.4em] text-foreground">ZICA BELLA</div>
+            <p className="text-foreground/20 text-[9px] uppercase tracking-[0.3em]">
+              © 2026 Zica Bella Private Limited. All rights reserved.
+            </p>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

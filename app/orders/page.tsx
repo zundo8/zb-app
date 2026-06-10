@@ -56,7 +56,7 @@ export default function OrdersPage() {
   };
 
   const getStatusConfig = (status: string) => {
-    const s = status.toLowerCase();
+    const s = (status || '').toLowerCase();
     if (s.includes('cancel')) return { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20', label: 'Cancelled' };
     if (s === 'delivered') return { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10 border-emerald-500/20', label: 'Delivered' };
     if (s === 'shipped' || s === 'out_for_delivery') return { icon: Truck, color: 'text-purple-500', bg: 'bg-purple-500/10 border-purple-500/20', label: 'Shipped' };
@@ -112,8 +112,9 @@ export default function OrdersPage() {
         ) : (
           <div className="space-y-3.5 max-w-4xl mx-auto">
             {orders.map((order, idx) => {
-              const statusConfig = getStatusConfig(order.deliveryStatus);
+              const statusConfig = getStatusConfig(order.deliveryStatus || order.status || 'pending');
               const StatusIcon = statusConfig.icon;
+              const orderItems = order.items || [];
               return (
                 <motion.div
                   key={order.id}
@@ -146,22 +147,22 @@ export default function OrdersPage() {
                   {/* Main Content */}
                   <div className="flex items-center gap-4">
                     <div className="flex -space-x-3.5">
-                      {order.items.slice(0, 3).map((item: any, i: number) => (
+                      {orderItems.slice(0, 3).map((item: any, i: number) => (
                         <div key={i} className="h-10 w-10 rounded-xl ring-2 ring-background bg-foreground/[0.02] flex items-center justify-center overflow-hidden border border-foreground/10 shadow-sm relative group-hover:scale-105 transition-transform">
                           {item.image ? (
                             <img src={item.image} alt="" className="object-cover w-full h-full opacity-80" />
                           ) : (
-                            <span className="text-[10px] font-black text-foreground/10">{item.title[0]}</span>
+                            <span className="text-[10px] font-black text-foreground/10">{(item.title || 'ZB')[0]}</span>
                           )}
                         </div>
                       ))}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold truncate tracking-tight text-foreground/90 leading-snug">
-                          {order.items[0].title}
+                          {orderItems[0]?.title || 'Order Items'}
                       </p>
                       <p className="text-[8px] text-foreground/30 font-medium mt-0.5 uppercase tracking-widest">
-                        {order.items.length > 1 ? `+ ${order.items.length - 1} more items` : `1 quantity`}
+                        {orderItems.length > 1 ? `+ ${orderItems.length - 1} more items` : `1 quantity`}
                       </p>
                     </div>
                     <div className="text-right">
@@ -174,7 +175,7 @@ export default function OrdersPage() {
                   </div>
 
                   {/* Tracking / Quick Actions */}
-                  {order.deliveryStatus.toLowerCase() !== "pending" && order.shipments?.[0]?.trackingNumber ? (
+                  {(order.deliveryStatus || '').toLowerCase() !== "pending" && order.shipments?.[0]?.trackingNumber ? (
                     <div className="mt-4 pt-4 border-t border-foreground/5 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="h-6 w-6 rounded-lg bg-foreground/5 flex items-center justify-center border border-foreground/5">

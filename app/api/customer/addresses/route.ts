@@ -80,6 +80,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
+    if (!customer.phone && phone) {
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { phone }
+      });
+      customer.phone = phone;
+    }
+
     if (isDefault) {
       await prisma.address.updateMany({
         where: { customerId: customer.id, isDefault: true },
@@ -169,6 +177,14 @@ export async function PUT(req: Request) {
 
     if (!customer) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
+    if (!customer.phone && phone) {
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { phone }
+      });
+      customer.phone = phone;
     }
 
     // Verify address belongs to customer

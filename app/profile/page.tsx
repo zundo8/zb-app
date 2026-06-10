@@ -29,6 +29,8 @@ import {
   HelpCircle,
   FileText,
   X,
+  RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { useBookmarks } from "@/lib/bookmark-context";
@@ -66,6 +68,35 @@ export default function ProfilePage() {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Partial<DBAddress> | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
+  const [addressModalError, setAddressModalError] = useState("");
+  const [zipLoading, setZipLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchZipDetails = async () => {
+      if (!editingAddress || !editingAddress.zip) return;
+      const cleanZip = editingAddress.zip.trim();
+      if (/^\d{6}$/.test(cleanZip)) {
+        setZipLoading(true);
+        try {
+          const res = await fetch(`https://api.postalpincode.in/pincode/${cleanZip}`);
+          const data = await res.json();
+          if (data && data[0] && data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice[0]) {
+            const firstOffice = data[0].PostOffice[0];
+            setEditingAddress(prev => prev ? ({
+              ...prev,
+              city: firstOffice.District || firstOffice.Block || firstOffice.Name || prev.city,
+              state: firstOffice.State || prev.state,
+            }) : null);
+          }
+        } catch (err) {
+          console.error("Error fetching pincode details:", err);
+        } finally {
+          setZipLoading(false);
+        }
+      }
+    };
+    fetchZipDetails();
+  }, [editingAddress?.zip]);
 
   const [updatingRegion, setUpdatingRegion] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -184,6 +215,26 @@ export default function ProfilePage() {
   const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAddress) return;
+    setAddressModalError("");
+
+    // Validate phone number
+    const phoneInput = editingAddress.phone || "";
+    const digits = phoneInput.replace(/\D/g, "");
+    let baseNumber = digits;
+    if (digits.length === 12 && digits.startsWith("91")) {
+      baseNumber = digits.slice(2);
+    } else if (digits.length === 11 && digits.startsWith("0")) {
+      baseNumber = digits.slice(1);
+    }
+
+    if (baseNumber.length !== 10) {
+      setAddressModalError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    const formattedPhone = `+91${baseNumber}`;
+    const updatedAddress = { ...editingAddress, phone: formattedPhone };
+
     setSavingAddress(true);
 
     try {
@@ -191,16 +242,20 @@ export default function ProfilePage() {
       const res = await fetch("/api/customer/addresses", {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingAddress),
+        body: JSON.stringify(updatedAddress),
       });
 
       if (res.ok) {
         await fetchAddresses();
         setIsAddressModalOpen(false);
         setEditingAddress(null);
+      } else {
+        const errData = await res.json();
+        setAddressModalError(errData.error || "Failed to save address");
       }
     } catch (e) {
       console.error("Error saving address", e);
+      setAddressModalError("An unexpected error occurred.");
     } finally {
       setSavingAddress(false);
     }
@@ -645,6 +700,7 @@ export default function ProfilePage() {
                 <span className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Saved Addresses</span>
                 <button
                   onClick={() => {
+                    setAddressModalError("");
                     setEditingAddress({
                       name: customer?.name || "",
                       phone: customer?.phone || "",
@@ -704,6 +760,7 @@ export default function ProfilePage() {
                         <div className="flex flex-col items-end gap-2 shrink-0">
                           <button
                             onClick={() => {
+                              setAddressModalError("");
                               setEditingAddress(addr);
                               setIsAddressModalOpen(true);
                             }}
@@ -867,14 +924,17 @@ export default function ProfilePage() {
                   className="glass-input w-full px-3 py-2 text-[12px]"
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="tel"
-                    placeholder="Phone"
-                    required
-                    value={editingAddress.phone || ""}
-                    onChange={(e) => setEditingAddress({ ...editingAddress, phone: e.target.value })}
-                    className="glass-input w-full px-3 py-2 text-[12px]"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-foreground/35 font-semibold pointer-events-none">+91</span>
+                    <input
+                      type="tel"
+                      placeholder="10-digit Phone"
+                      required
+                      value={editingAddress.phone || ""}
+                      onChange={(e) => setEditingAddress({ ...editingAddress, phone: e.target.value })}
+                      className="glass-input w-full pl-9 pr-3 py-2 text-[12px]"
+                    />
+                  </div>
                   <input
                     type="email"
                     placeholder="Email"
@@ -917,14 +977,23 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    placeholder="ZIP / Postal Code"
-                    required
-                    value={editingAddress.zip || ""}
-                    onChange={(e) => setEditingAddress({ ...editingAddress, zip: e.target.value })}
-                    className="glass-input w-full px-3 py-2 text-[12px]"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="PIN Code (6 digits)"
+                      required
+                      maxLength={6}
+                      value={editingAddress.zip || ""}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setEditingAddress({ ...editingAddress, zip: val });
+                      }}
+                      className="glass-input w-full px-3 py-2 text-[12px]"
+                    />
+                    {zipLoading && (
+                      <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-foreground/30" />
+                    )}
+                  </div>
                   <input
                     type="text"
                     placeholder="Country"
@@ -944,6 +1013,13 @@ export default function ProfilePage() {
                   />
                   <span className="text-[10px] font-medium text-foreground/60 select-none">Set as default shipping address</span>
                 </label>
+
+                {addressModalError && (
+                  <div className="flex items-center gap-2 p-3.5 rounded-xl text-[10px] font-bold mt-1" style={{ background: "rgba(255,80,80,0.06)", border: "1px solid rgba(255,80,80,0.12)", color: "rgba(255,100,100,0.9)" }}>
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {addressModalError}
+                  </div>
+                )}
 
                 <button
                   type="submit"
