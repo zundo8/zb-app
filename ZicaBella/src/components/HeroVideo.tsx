@@ -15,6 +15,7 @@ interface Props {
   borderRadius?: number;
   isMuted?: boolean;
   onToggleMute?: () => void;
+  imageFallback?: string | null;
 }
 
 export default function HeroVideo({ 
@@ -22,7 +23,8 @@ export default function HeroVideo({
   height: customHeight, 
   borderRadius,
   isMuted = true,
-  onToggleMute
+  onToggleMute,
+  imageFallback
 }: Props) {
   const colors = useColors();
   const [showIcon, setShowIcon] = React.useState(false);
@@ -119,7 +121,7 @@ export default function HeroVideo({
     return (
       <View style={[styles.container, { height: customHeight || height, borderRadius: borderRadius || 0, backgroundColor: colors.surface }]}>
         <Image 
-          source={require('../../assets/load-image-4.jpg')} 
+          source={imageFallback ? { uri: imageFallback } : require('../../assets/load-image-4.jpg')} 
           style={StyleSheet.absoluteFill}
           contentFit="cover"
         />

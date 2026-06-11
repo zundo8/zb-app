@@ -133,18 +133,21 @@ const HomeScreen = React.memo(() => {
     setModalVisible(true);
   }, []);
 
-  const renderProductGrid = (items: FlatProduct[]) => (
-    <View style={styles.gridContainer}>
-      {(items || []).map((product) => (
-        <View key={product.id} style={styles.gridItem}>
-          <ProductCard 
-            product={product} 
-            onQuickAdd={handleQuickAdd}
-          />
-        </View>
-      ))}
-    </View>
-  );
+  const renderProductGrid = (items: FlatProduct[]) => {
+    if (!items || items.length === 0) return null;
+    return (
+      <View style={styles.gridContainer}>
+        {items.map((product) => (
+          <View key={product.id} style={styles.gridItem}>
+            <ProductCard 
+              product={product} 
+              onQuickAdd={handleQuickAdd}
+            />
+          </View>
+        ))}
+      </View>
+    );
+  };
 
   const [isHeroMuted, setIsHeroMuted] = useState(true);
 
@@ -180,15 +183,18 @@ const HomeScreen = React.memo(() => {
           </View>
         )}
 
-        {/* ═══ HERO VIDEO ═══ */}
-        <View style={{ position: 'relative' }}>
-          <HeroVideo 
-            key={heroVideoSrc || 'hero-loading'}
-            source={heroVideoSrc} 
-            isMuted={isHeroMuted}
-            onToggleMute={toggleHeroMute}
-          />
-        </View>
+        {/* ──═ HERO VIDEO / IMAGE ═══ */}
+        {(heroVideoSrc || heroImageSrc) ? (
+          <View style={{ position: 'relative' }}>
+            <HeroVideo 
+              key={heroVideoSrc || heroImageSrc || 'hero-loading'}
+              source={heroVideoSrc} 
+              isMuted={isHeroMuted}
+              onToggleMute={toggleHeroMute}
+              imageFallback={heroImageSrc}
+            />
+          </View>
+        ) : null}
 
         {/* ═══ CONTENT BELOW HERO ═══ */}
         <View style={[styles.content, { backgroundColor: colors.background }]}>
@@ -199,58 +205,62 @@ const HomeScreen = React.memo(() => {
           )}
 
           {/* ═══ SECTION LABEL: Latest ═══ */}
-          {(latestCurationTitle || latestCurationSubtitle) && (
-          <View style={styles.sectionHeader}>
-            <View style={styles.headerLeft}>
-              {latestCurationSubtitle ? <Typography size={6} color={colors.textExtraLight} weight="300" style={styles.sectionTag}>{latestCurationSubtitle}</Typography> : null}
-              {latestCurationTitle ? <Typography size={8} color={colors.text} weight="700" style={styles.sectionTitle}>{latestCurationTitle}</Typography> : null}
-            </View>
-            <TouchableOpacity onPress={() => navigation.navigate('ShopTab')} style={styles.headerRight}>
-              <Typography size={7} color={colors.textExtraLight} weight="400">VIEW ALL</Typography>
-            </TouchableOpacity>
-          </View>
-          )}
-          
-          {/* ═══ PRODUCT GRID 1 ═══ */}
-          <View style={styles.gridContainer}>
-            {(products || []).slice(0, 4).map((product) => (
-              <View key={product.id} style={styles.gridItem}>
-                <ProductCard product={product} onQuickAdd={handleQuickAdd} />
+          {(settings?.latestCuration?.show !== false && products && products.length > 0) && (
+            <>
+              {(latestCurationTitle || latestCurationSubtitle) && (
+              <View style={styles.sectionHeader}>
+                <View style={styles.headerLeft}>
+                  {latestCurationSubtitle ? <Typography size={6} color={colors.textExtraLight} weight="300" style={styles.sectionTag}>{latestCurationSubtitle}</Typography> : null}
+                  {latestCurationTitle ? <Typography size={8} color={colors.text} weight="700" style={styles.sectionTitle}>{latestCurationTitle}</Typography> : null}
+                </View>
+                <TouchableOpacity onPress={() => navigation.navigate('ShopTab')} style={styles.headerRight}>
+                  <Typography size={7} color={colors.textExtraLight} weight="400">VIEW ALL</Typography>
+                </TouchableOpacity>
               </View>
-            ))}
-          </View>
-
-          {/* ═══ ABOVE-COLLECTION MEDIA ═══ */}
-          {renderBelowFold && settings?.media?.collections && (
-            <View style={styles.mediaSection}>
-               <HeroVideo key={settings.media.collections} source={settings.media.collections} height={200} borderRadius={12} />
-            </View>
+              )}
+              
+              {/* ═══ PRODUCT GRID 1 ═══ */}
+              {renderProductGrid(products.slice(0, 4))}
+            </>
           )}
 
           {renderBelowFold && (
             <>
-              <View style={styles.collectionsSection}>
-                {settings?.archive?.title ? (
-                <View style={styles.archiveLabel}>
-                  <Typography size={7.5} color={colors.textExtraLight} weight="300" style={styles.archiveLabelText}>— {settings.archive.title} —</Typography>
-                </View>
-                ) : null}
+              {/* ═══ ARCHIVE SECTION ═══ */}
+              {settings?.archive?.show !== false && (
+                <>
+                  {settings?.media?.collections && (
+                    <View style={styles.mediaSection}>
+                       <HeroVideo key={settings.media.collections} source={settings.media.collections} height={200} borderRadius={12} />
+                    </View>
+                  )}
 
-                <CollectionCarousel collections={collections} />
+                  <View style={styles.collectionsSection}>
+                    {settings?.archive?.title ? (
+                    <View style={styles.archiveLabel}>
+                      <Typography size={7.5} color={colors.textExtraLight} weight="300" style={styles.archiveLabelText}>— {settings.archive.title} —</Typography>
+                    </View>
+                    ) : null}
 
-                {settings?.archive?.subtitle ? (
-                <View style={styles.archiveLabel}>
-                  <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.archiveSubtext}>{settings.archive.subtitle}</Typography>
-                </View>
-                ) : null}
-              </View>
+                    <CollectionCarousel collections={collections} />
+
+                    {settings?.archive?.subtitle ? (
+                    <View style={styles.archiveLabel}>
+                      <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.archiveSubtext}>{settings.archive.subtitle}</Typography>
+                    </View>
+                    ) : null}
+                  </View>
+                </>
+              )}
 
               {/* ═══ RING COLLECTION CAROUSEL ═══ */}
-               <RingCarouselSection 
-                title={ringTitle} 
-                handle={ringHandle}
-                products={(accessories || []).length > 0 ? (accessories || []).slice(0, 15) : (products || []).slice(12, 20)} 
-              />
+              {settings?.ringCarousel?.show !== false && (
+                 <RingCarouselSection 
+                  title={ringTitle} 
+                  handle={ringHandle}
+                  products={(accessories || []).length > 0 ? (accessories || []).slice(0, 15) : (products || []).slice(12, 20)} 
+                />
+              )}
 
               {/* ═══ FLIPBOOK SECTION ═══ */}
               <FlipbookSection scrollY={scrollY} />
@@ -259,7 +269,7 @@ const HomeScreen = React.memo(() => {
               {renderProductGrid(products.slice(4, 8))}
 
               {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
-              {(settings?.media?.featured || settings?.blueprint?.image) ? (
+              {(settings?.blueprint?.show !== false && (settings?.media?.featured || settings?.blueprint?.image)) ? (
                 <View style={styles.blueprintSection}>
                   {settings?.media?.featured ? (
                    <HeroVideo key={settings.media.featured} source={settings.media.featured} height={520} borderRadius={0} />
