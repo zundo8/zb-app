@@ -19,7 +19,7 @@ export default async function StorefrontFooter() {
 
   try {
     const [shopData, policiesData] = await Promise.all([
-      prisma.shop.findUnique({ where: { domain: "zicabella.com" } }).catch(() => null)
+      prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } }).catch(() => null)
         .then(s => s || prisma.shop.findFirst().catch(() => null)),
       prisma.policy.findMany({ 
         select: { handle: true, title: true },

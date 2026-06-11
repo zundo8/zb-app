@@ -394,7 +394,43 @@ export default function AppIntegrationPage() {
   };
 
   const updateSetting = (key: string, value: any) => {
-    setSettings((prev: any) => ({ ...prev, [key]: value }));
+    setSettings((prev: any) => {
+      const updated = { ...prev, [key]: value };
+
+      if (key === 'featuredMedia') {
+        const val = typeof value === 'string' ? value.trim() : '';
+        const isImage = /\.(jpg|jpeg|png|gif|webp|svg|png|PNG)(\?|$)/i.test(val);
+        
+        if (val === '') {
+          updated.featuredMedia = '';
+          updated.featuredMediaImage = '';
+        } else if (isImage) {
+          updated.featuredMedia = '';
+          updated.featuredMediaImage = val;
+        } else {
+          updated.featuredMedia = val;
+          updated.featuredMediaImage = '';
+        }
+      }
+
+      if (key === 'flipbookVideo') {
+        const val = typeof value === 'string' ? value.trim() : '';
+        const isImage = /\.(jpg|jpeg|png|gif|webp|svg|png|PNG)(\?|$)/i.test(val);
+        
+        if (val === '') {
+          updated.flipbookVideo = '';
+          updated.flipbookImage = '';
+        } else if (isImage) {
+          updated.flipbookVideo = '';
+          updated.flipbookImage = val;
+        } else {
+          updated.flipbookVideo = val;
+          updated.flipbookImage = '';
+        }
+      }
+
+      return updated;
+    });
   };
 
   const toggleCollection = (handle: string, location: 'Header' | 'Page' | 'Menu') => {

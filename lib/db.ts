@@ -136,8 +136,8 @@ export async function getShopSettings() {
   ];
 
   try {
-    // Prefer the canonical zicabella.com record to stay in sync with the webstore
-    const shop = await prisma.shop.findUnique({ where: { domain: 'zicabella.com' } })
+    // Prefer the canonical 8tiahf-bk.myshopify.com record to stay in sync with the webstore
+    const shop = await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
       ?? await prisma.shop.findFirst();
     return shop;
   } catch (error) {

@@ -121,8 +121,8 @@ export async function GET(req: Request) {
           where: { domain: domainOverride }
         });
       } else {
-        // Default to the canonical zicabella.com record to stay in sync with the webstore
-        shop = await prisma.shop.findUnique({ where: { domain: 'zicabella.com' } })
+        // Default to the canonical 8tiahf-bk.myshopify.com record to stay in sync with the webstore
+        shop = await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
           ?? await prisma.shop.findFirst();
       }
 
@@ -272,8 +272,8 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { shopId, shopDomain: bodyDomain, ...updates } = body;
 
-    // Default to zicabella.com to stay in sync with the webstore
-    const targetDomain = bodyDomain || 'zicabella.com';
+    // Default to 8tiahf-bk.myshopify.com to stay in sync with the webstore
+    const targetDomain = bodyDomain || '8tiahf-bk.myshopify.com';
 
     let shop: any = null;
 

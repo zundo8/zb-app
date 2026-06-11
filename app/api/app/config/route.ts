@@ -35,25 +35,25 @@ export async function GET() {
       hero: {
         image: nullIfEmpty(s.heroImage),
         video: nullIfEmpty(s.heroVideo),
-        title: s.heroTitle ?? null,        // preserve empty string "" as null (admin cleared it)
-        subtitle: s.heroSubtitle ?? null,
-        buttonText: s.heroButtonText ?? null,
+        title: nullIfEmpty(s.heroTitle),
+        subtitle: nullIfEmpty(s.heroSubtitle),
+        buttonText: nullIfEmpty(s.heroButtonText),
         showText: s.showHeroText,
       },
       latestCuration: {
-        title: s.latestCurationTitle ?? null,
-        subtitle: s.latestCurationSubtitle ?? null,
+        title: nullIfEmpty(s.latestCurationTitle),
+        subtitle: nullIfEmpty(s.latestCurationSubtitle),
         show: s.showLatestCuration,
       },
       archive: {
-        title: s.archiveTitle ?? null,
-        subtitle: s.archiveSubtitle ?? null,
+        title: nullIfEmpty(s.archiveTitle),
+        subtitle: nullIfEmpty(s.archiveSubtitle),
         show: s.showArchive,
         video: nullIfEmpty(s.collectionsMedia),  // archive video = collectionsMedia field
       },
       blueprint: {
-        title: s.blueprintTitle ?? null,
-        subtitle: s.blueprintSubtitle ?? null,
+        title: nullIfEmpty(s.blueprintTitle),
+        subtitle: nullIfEmpty(s.blueprintSubtitle),
         show: s.showBlueprint,
         image: nullIfEmpty(s.featuredMediaImage),
       },
@@ -90,19 +90,19 @@ export async function GET() {
       features: {
         showTreeText: s.showTreeText,
         kineticMeshProducts: safeJsonParse(s.kineticMeshProducts),
-        kineticMeshTitle: s.kineticMeshTitle ?? null,
+        kineticMeshTitle: nullIfEmpty(s.kineticMeshTitle),
       },
       community: {
-        title: s.communityTitle ?? null,
-        subtitle: s.communitySubtitle ?? null,
+        title: nullIfEmpty(s.communityTitle),
+        subtitle: nullIfEmpty(s.communitySubtitle),
         show: s.showCommunity,
         ageRestricted: s.communityAgeRestricted,
         minOrders: s.communityMinOrders,
         whatsAppEnabled: s.communityWhatsAppEnabled,
       },
       spotlight: {
-        title: s.spotlightTitle ?? null,
-        subtitle: s.spotlightSubtitle ?? null,
+        title: nullIfEmpty(s.spotlightTitle),
+        subtitle: nullIfEmpty(s.spotlightSubtitle),
         collection: s.spotlightCollection || null,
         products: safeJsonParse(s.spotlightProducts),
         media: s.spotlightMedia || null,
@@ -113,15 +113,15 @@ export async function GET() {
       },
       flipbook: {
         config: safeJsonParse(s.flipbookConfig),
-        desc: s.flipbookDesc ?? null,
+        desc: nullIfEmpty(s.flipbookDesc),
         image: nullIfEmpty(s.flipbookImage),
-        tag: s.flipbookTag ?? null,
-        title: s.flipbookTitle ?? null,
+        tag: nullIfEmpty(s.flipbookTag),
+        title: nullIfEmpty(s.flipbookTitle),
         video: nullIfEmpty(s.flipbookVideo),
       },
       ringCarousel: {
         items: safeJsonParse(s.ringCarouselItems),
-        title: s.ringCarouselTitle ?? null,
+        title: nullIfEmpty(s.ringCarouselTitle),
         show: s.showRingCarousel,
       }
     };

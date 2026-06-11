@@ -53,7 +53,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 export default async function ProductPage({ params }: { params: { id: string } }) {
   const [product, shop, allProducts, collections] = await Promise.all([
     fetchProductByHandle(params.id).catch(() => null),
-    prisma.shop.findUnique({ where: { domain: "zicabella.com" } }).catch(() => null)
+    prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } }).catch(() => null)
       .then(s => s || prisma.shop.findFirst().catch(() => null)),
     fetchProducts(8).catch(() => []),
     fetchCollections().catch(() => [])

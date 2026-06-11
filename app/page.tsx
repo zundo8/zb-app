@@ -19,14 +19,14 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   let shop: any = null;
   try {
-    shop = await prisma.shop.findUnique({ where: { domain: "zicabella.com" } });
+    shop = await prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } });
     if (!shop) {
-      console.log("[Storefront Home] zicabella.com shop record not found, auto-initializing...");
+      console.log("[Storefront Home] 8tiahf-bk.myshopify.com shop record not found, auto-initializing...");
       const existing = await prisma.shop.findFirst().catch(() => null);
       const ENV_TOKEN = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "";
       shop = await prisma.shop.create({
         data: {
-          domain: "zicabella.com",
+          domain: "8tiahf-bk.myshopify.com",
           accessToken: existing?.accessToken || ENV_TOKEN || "shpat_required",
           delhiveryApiKey: existing?.delhiveryApiKey,
           razorpayKeyId: existing?.razorpayKeyId,
@@ -329,7 +329,7 @@ export default async function Home() {
         </section>
 
         {/* ─── FEATURED MEDIA / BLUEPRINT ─── */}
-        {s?.showBlueprint && (
+        {s?.showBlueprint && (featuredMedia || featuredMediaImage || featuredMediaMobile || featuredMediaImageMobile) && (
           <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 mb-6">
             {/* Desktop View (Landscape) */}
             <section className="render-deferred-media hidden md:block relative w-full aspect-[21/9] rounded-[1.5rem] overflow-hidden group shadow-xl border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
