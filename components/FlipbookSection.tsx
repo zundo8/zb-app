@@ -5,13 +5,6 @@ import { useRef, useState, useEffect } from "react";
 import NextImage from "next/image";
 import { handleImageError } from "./ImagePlaceholder";
 
-const DEFAULTS = {
-  imgUrl: "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1200",
-  tag: "Core Manifest",
-  title: "Archival Vision",
-  desc: "Engineered for those who move without compromise.",
-};
-
 interface FlipbookProps {
   imgUrl?: string;
   videoUrl?: string;
@@ -25,11 +18,6 @@ interface FlipbookProps {
 export default function FlipbookSection({ imgUrl, videoUrl, imgUrlMobile, videoUrlMobile, tag, title, desc }: FlipbookProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  const displayImg   = imgUrl   || DEFAULTS.imgUrl;
-  const displayTag   = tag      || DEFAULTS.tag;
-  const displayTitle = title    || DEFAULTS.title;
-  const displayDesc  = desc     || DEFAULTS.desc;
 
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -82,7 +70,10 @@ export default function FlipbookSection({ imgUrl, videoUrl, imgUrlMobile, videoU
   const imageScale = useTransform(smoothProgress, [0, 0.5, 1], isMobile ? [1, 1, 1] : [1.05, 1, 1.05]);
 
   const activeVideo  = isMobile ? (videoUrlMobile || videoUrl) : videoUrl;
-  const activeImg    = isMobile ? (imgUrlMobile || displayImg) : displayImg;
+  const activeImg    = isMobile ? (imgUrlMobile || imgUrl) : imgUrl;
+
+  if (!activeImg && !activeVideo) return null;
+
   const showVideo    = mounted && !!activeVideo;
 
   return (
@@ -110,8 +101,8 @@ export default function FlipbookSection({ imgUrl, videoUrl, imgUrlMobile, videoU
               ) : (
                 <div className="relative w-full h-full">
                   <NextImage
-                    src={activeImg}
-                    alt={displayTitle}
+                    src={activeImg || ""}
+                    alt={title || "Feature Image"}
                     fill
                     className="object-cover"
                     sizes="400px"
@@ -134,8 +125,8 @@ export default function FlipbookSection({ imgUrl, videoUrl, imgUrlMobile, videoU
               ) : (
                 <div className="relative w-full h-full">
                   <NextImage
-                    src={activeImg}
-                    alt={displayTitle}
+                    src={activeImg || ""}
+                    alt={title || "Feature Image"}
                     fill
                     className="object-cover transition-opacity duration-700"
                     sizes="1200px"

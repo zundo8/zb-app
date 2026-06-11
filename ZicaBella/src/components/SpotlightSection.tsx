@@ -34,9 +34,10 @@ const SpotlightSection = React.memo(({
   const isDark = theme === 'dark';
   const { settings } = useAdminSettings();
 
-  const resolvedTitle = title || settings?.spotlight?.title || "AUTHENTIC STREETWEAR";
-  const resolvedSubtitle = subtitle || settings?.spotlight?.subtitle || "Luxury Indian streetwear for modern men. Redefining bold everyday style.";
-  const resolvedCollectionHandle = collectionHandle || settings?.spotlight?.collection || "tshirts";
+  // Use exact admin values — no hardcoded fallback defaults
+  const resolvedTitle = title ?? settings?.spotlight?.title ?? null;
+  const resolvedSubtitle = subtitle ?? settings?.spotlight?.subtitle ?? null;
+  const resolvedCollectionHandle = collectionHandle ?? settings?.spotlight?.collection ?? "tshirts";
   const resolvedMedia = media || settings?.media?.featured;
 
   const { products, loading } = useCollectionByHandle(resolvedCollectionHandle);
@@ -72,7 +73,9 @@ const SpotlightSection = React.memo(({
       )}
 
       {/* Centered Header */}
+      {(resolvedTitle || resolvedSubtitle) ? (
       <View style={[styles.header, resolvedMedia ? styles.headerWithMedia : null]}>
+        {resolvedTitle ? (
         <Typography 
           size={28} 
           color={resolvedMedia ? "#fff" : colors.text} 
@@ -81,6 +84,8 @@ const SpotlightSection = React.memo(({
         >
           {resolvedTitle.toUpperCase()}
         </Typography>
+        ) : null}
+        {resolvedSubtitle ? (
         <Typography 
           size={7.5} 
           color={resolvedMedia ? "rgba(255,255,255,0.7)" : colors.textExtraLight} 
@@ -90,7 +95,9 @@ const SpotlightSection = React.memo(({
         >
           {resolvedSubtitle.toUpperCase()}
         </Typography>
+        ) : null}
       </View>
+      ) : null}
 
       {/* Grid - 3 columns, Minimalist style */}
       <View style={styles.grid}>

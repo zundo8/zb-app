@@ -103,17 +103,23 @@ export default async function Home() {
     products = await fetchProducts(24).catch(() => [] as ShopifyProduct[]);
   }
 
+  const nullIfEmpty = (val: string | null | undefined): string | null => {
+    if (val === undefined || val === null) return null;
+    if (typeof val === 'string' && val.trim() === '') return null;
+    return val;
+  };
+
   // Use explicit null/undefined checks — empty string "" from admin should remain blank, not show defaults
-  const heroTitle      = s?.heroTitle      != null ? s.heroTitle      : "Redefine The Standard";
-  const heroSubtitle   = s?.heroSubtitle   != null ? s.heroSubtitle   : "Explore the latest drops tailored for the relentless.";
-  const heroButtonText = s?.heroButtonText != null ? s.heroButtonText : "Discover";
+  const heroTitle      = nullIfEmpty(s?.heroTitle);
+  const heroSubtitle   = nullIfEmpty(s?.heroSubtitle);
+  const heroButtonText = nullIfEmpty(s?.heroButtonText);
   const heroImage      = s?.heroImage       || "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=2070&auto=format&fit=crop";
   const heroVideo      = s?.heroVideo       || "/zb-video-heroo.mp4";
   const heroVideoMobile = s?.heroVideoMobile || "";
-  const latestTitle    = s?.latestCurationTitle    != null ? s.latestCurationTitle    : "Latest Curation";
-  const latestSubtitle = s?.latestCurationSubtitle != null ? s.latestCurationSubtitle : "Season Drop";
-  const archiveTitle   = s?.archiveTitle    != null ? s.archiveTitle   : "The Archive";
-  const archiveSubtitle = s?.archiveSubtitle != null ? s.archiveSubtitle : "Organic Evolution";
+  const latestTitle    = nullIfEmpty(s?.latestCurationTitle);
+  const latestSubtitle = nullIfEmpty(s?.latestCurationSubtitle);
+  const archiveTitle   = nullIfEmpty(s?.archiveTitle);
+  const archiveSubtitle = nullIfEmpty(s?.archiveSubtitle);
   const collectionsMedia = s?.collectionsMedia;
   const collectionsMediaMobile = s?.collectionsMediaMobile;
   const featuredMedia  = s?.featuredMedia;
@@ -135,12 +141,12 @@ export default async function Home() {
   const flipbookImageMobile = s?.flipbookImageMobile;
   const flipbookVideo  = s?.flipbookVideo;
   const flipbookVideoMobile = s?.flipbookVideoMobile;
-  const flipbookTitle  = s?.flipbookTitle  != null ? s.flipbookTitle  : "Archival Vision";
-  const flipbookTag    = s?.flipbookTag    != null ? s.flipbookTag    : "Core Manifest";
-  const flipbookDesc   = s?.flipbookDesc   != null ? s.flipbookDesc   : "Engineered for those who move without compromise.";
+  const flipbookTitle  = nullIfEmpty(s?.flipbookTitle);
+  const flipbookTag    = nullIfEmpty(s?.flipbookTag);
+  const flipbookDesc   = nullIfEmpty(s?.flipbookDesc);
   
   const showRingCarousel = s?.showRingCarousel ?? true;
-  const ringCarouselTitle = s?.ringCarouselTitle != null ? s.ringCarouselTitle : "RING COLLECTION";
+  const ringCarouselTitle = nullIfEmpty(s?.ringCarouselTitle);
   const ringCarouselItems = s?.ringCarouselItems || "[]";
 
   return (
@@ -162,7 +168,7 @@ export default async function Home() {
         <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
 
         {/* Hero content: Spatial Liquid Glass Card */}
-        {s?.showHeroText && (
+        {s?.showHeroText && (heroTitle || heroSubtitle) && (
           <div className="absolute inset-0 flex items-end justify-center md:justify-start p-4 sm:p-6 md:p-16 z-20">
             <div className="glass rounded-[2rem] border border-white/10 p-6 sm:p-8 md:p-10 w-full max-w-sm sm:max-w-md md:max-w-xl backdrop-blur-2xl shadow-[0_32px_80px_rgba(0,0,0,0.6)] space-y-4 md:space-y-6 transition-all duration-500 hover:border-white/20 relative overflow-hidden group">
               {/* Internal subtle overlay glow (monochrome) */}
@@ -170,20 +176,26 @@ export default async function Home() {
               
               <div className="relative z-10 space-y-1">
                 <span className="text-[8px] font-bold text-white/40 uppercase tracking-[0.3em]">NEW DROP</span>
-                <h1 className="font-heading text-xl md:text-3xl font-black uppercase tracking-[0.08em] text-white leading-none">
-                  {heroTitle}
-                </h1>
+                {heroTitle && (
+                  <h1 className="font-heading text-xl md:text-3xl font-black uppercase tracking-[0.08em] text-white leading-none">
+                    {heroTitle}
+                  </h1>
+                )}
               </div>
               
-              <p className="relative z-10 text-[9.5px] md:text-[11px] text-white/50 font-normal leading-relaxed tracking-wider max-w-md">
-                {heroSubtitle}
-              </p>
+              {heroSubtitle && (
+                <p className="relative z-10 text-[9.5px] md:text-[11px] text-white/50 font-normal leading-relaxed tracking-wider max-w-md">
+                  {heroSubtitle}
+                </p>
+              )}
               
-              <div className="relative z-10 pt-2">
-                <Link href="/collections" className="glass px-8 py-3 text-white text-[8px] font-bold uppercase tracking-[0.3em] bg-white/5 hover:bg-white/10 transition-all rounded-full flex items-center justify-center gap-2 border border-white/10 active:scale-95 w-max">
-                  {heroButtonText} <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
+              {heroButtonText && (
+                <div className="relative z-10 pt-2">
+                  <Link href="/collections" className="glass px-8 py-3 text-white text-[8px] font-bold uppercase tracking-[0.3em] bg-white/5 hover:bg-white/10 transition-all rounded-full flex items-center justify-center gap-2 border border-white/10 active:scale-95 w-max">
+                    {heroButtonText} <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -225,11 +237,11 @@ export default async function Home() {
         )}
 
         {/* ─── SECTION LABEL: Latest ─── */}
-        {s?.showLatestCuration && (
+        {s?.showLatestCuration && (latestTitle || latestSubtitle) && (
           <div className="flex justify-between items-end mb-3 pt-4 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto">
             <div>
-              <p className="glass-label mb-1.5">{latestSubtitle}</p>
-              <h2 className="font-heading text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-foreground/70 leading-none">{latestTitle}</h2>
+              {latestSubtitle && <p className="glass-label mb-1.5">{latestSubtitle}</p>}
+              {latestTitle && <h2 className="font-heading text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-foreground/70 leading-none">{latestTitle}</h2>}
             </div>
             <Link href="/search" className="flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-foreground/30 hover:text-foreground/60 transition-colors">
               View all <ChevronRight className="w-3 h-3" />
@@ -273,13 +285,13 @@ export default async function Home() {
 
         {/* ─── COLLECTIONS CAROUSEL ─── */}
         <section className="render-deferred-carousel py-4 max-w-6xl mx-auto overflow-hidden px-3 sm:px-6 lg:px-8">
-          {s?.showArchive && (
+          {s?.showArchive && archiveTitle && (
             <div className="flex justify-center mb-3 px-4">
               <span className="glass-label">— {archiveTitle} —</span>
             </div>
           )}
           <CollectionCarousel collections={collections} />
-          {s?.showArchive && (
+          {s?.showArchive && archiveSubtitle && (
             <div className="flex justify-center mt-3 mb-2">
               <span className="text-[8px] font-extralight uppercase tracking-[0.4em] text-foreground/15">{archiveSubtitle}</span>
             </div>

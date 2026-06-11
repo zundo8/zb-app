@@ -121,7 +121,9 @@ export async function GET(req: Request) {
           where: { domain: domainOverride }
         });
       } else {
-        shop = await prisma.shop.findFirst();
+        // Default to the canonical zicabella.com record to stay in sync with the webstore
+        shop = await prisma.shop.findUnique({ where: { domain: 'zicabella.com' } })
+          ?? await prisma.shop.findFirst();
       }
 
       // Auto-create shop record for this domain if none exists
@@ -270,7 +272,8 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { shopId, shopDomain: bodyDomain, ...updates } = body;
 
-    const targetDomain = bodyDomain || ENV_DOMAIN;
+    // Default to zicabella.com to stay in sync with the webstore
+    const targetDomain = bodyDomain || 'zicabella.com';
 
     let shop: any = null;
 
@@ -279,9 +282,14 @@ export async function PATCH(req: Request) {
       shop = await prisma.shop.findUnique({ where: { id: shopId } }).catch(() => null);
     }
 
-    // 2. By domain
+    // 2. By domain (prefer zicabella.com)
     if (!shop && targetDomain) {
       shop = await prisma.shop.findUnique({ where: { domain: targetDomain } }).catch(() => null);
+    }
+
+    // 3. Fallback to any existing record
+    if (!shop) {
+      shop = await prisma.shop.findFirst().catch(() => null);
     }
 
     // 3. Auto-create this specific domain if requested but not found

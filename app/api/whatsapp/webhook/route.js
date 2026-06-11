@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { markAsRead } from '@/lib/whatsapp/client';
+import { updateMessageStatus } from '@/lib/whatsapp/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,12 +43,15 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json();
+    
+    // Log all incoming webhook payloads to console for debugging
+    console.log('[WhatsApp Webhook Payload Received]:', JSON.stringify(body, null, 2));
 
     if (body.object !== 'whatsapp_business_account') {
       return NextResponse.json({ error: 'Unsupported object type' }, { status: 400 });
     }
 
-    // Process entries in background
+    // Process entries
     if (body.entry && Array.isArray(body.entry)) {
       for (const entry of body.entry) {
         if (!entry.changes || !Array.isArray(entry.changes)) continue;
@@ -80,11 +84,19 @@ export async function POST(req) {
             }
           }
 
-          // Process status updates (sent, delivered, read)
+          // Process status updates (sent, delivered, read, failed)
           if (value.statuses && Array.isArray(value.statuses)) {
             for (const statusObj of value.statuses) {
-              const { id, recipient_id, status, timestamp } = statusObj;
+              const { id, recipient_id, status, timestamp, errors } = statusObj;
               console.log('[WhatsApp Webhook] Received Status Update:', { id, recipient_id, status, timestamp });
+              
+              let errorDetails = null;
+              if (errors && errors.length > 0) {
+                errorDetails = errors[0];
+              }
+
+              // Update status in Supabase table: whatsapp_message_logs
+              await updateMessageStatus(id, status, errorDetails);
             }
           }
         }

@@ -19,25 +19,20 @@ interface FlipbookProps {
   scrollY?: SharedValue<number>;
 }
 
-const DEFAULTS = {
-  imgUrl: "https://images.unsplash.com/photo-1552346154-21d328109967?q=80&w=1200",
-  tag: "Core Manifest",
-  title: "Archival Vision",
-  desc: "Engineered for those who move without compromise.",
-};
-
 export default function FlipbookSection({ imgUrl, videoUrl, tag, title, desc, scrollY }: FlipbookProps) {
   const colors = useColors();
   const { settings } = useAdminSettings();
-  const shopData = settings?.shop || settings || {};
 
-  const resolvedImgUrl = imgUrl || settings?.flipbook?.image;
-  const resolvedVideoUrl = videoUrl || settings?.flipbook?.video;
+  // Use exact admin settings — no hardcoded fallback defaults
+  const resolvedImgUrl = imgUrl || settings?.flipbook?.image || null;
+  const resolvedVideoUrl = videoUrl || settings?.flipbook?.video || null;
 
-  const displayImg   = resolvedImgUrl   || DEFAULTS.imgUrl;
-  const displayTag   = tag      || settings?.flipbook?.tag    || DEFAULTS.tag;
-  const displayTitle = title    || settings?.flipbook?.title  || DEFAULTS.title;
-  const displayDesc  = desc     || settings?.flipbook?.description   || DEFAULTS.desc;
+  const displayTag   = tag      || settings?.flipbook?.tag    || null;
+  const displayTitle = title    || settings?.flipbook?.title  || null;
+  const displayDesc  = desc     || settings?.flipbook?.desc   || null;
+
+  // Don't render if no media is configured from admin
+  if (!resolvedImgUrl && !resolvedVideoUrl) return null;
 
   const [layoutY, setLayoutY] = React.useState(0);
   const player = useVideoPlayer(resolvedVideoUrl ?? null, (player) => {
@@ -89,27 +84,29 @@ export default function FlipbookSection({ imgUrl, videoUrl, tag, title, desc, sc
               nativeControls={false}
               contentFit="cover"
             />
-          ) : (
+          ) : resolvedImgUrl ? (
             <Image
-              source={{ uri: displayImg }}
+              source={{ uri: resolvedImgUrl }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={600}
             />
-          )}
+          ) : null}
           {/* Subtle dark overlay for text legibility */}
           <View style={styles.overlay} />
         </Animated.View>
 
-        {/* Floating Tag Overlay - Added for "Unique" feel */}
+        {/* Floating Tag Overlay */}
+        {displayTag ? (
         <View style={styles.floatingTag}>
            <Typography size={7} color="#FFFFFF" weight="600" style={styles.tagText}>{displayTag}</Typography>
         </View>
+        ) : null}
 
         <View style={styles.textContent}>
-          <Typography heading size={12} color="#FFFFFF" weight="bold" style={styles.cardTitle}>{displayTitle}</Typography>
-          <View style={styles.accentLine} />
-          <Typography size={7} color="rgba(255,255,255,0.7)" weight="300" style={styles.cardDesc}>{displayDesc}</Typography>
+          {displayTitle ? <Typography heading size={12} color="#FFFFFF" weight="bold" style={styles.cardTitle}>{displayTitle}</Typography> : null}
+          {(displayTitle || displayDesc) ? <View style={styles.accentLine} /> : null}
+          {displayDesc ? <Typography size={7} color="rgba(255,255,255,0.7)" weight="300" style={styles.cardDesc}>{displayDesc}</Typography> : null}
         </View>
       </View>
     </View>

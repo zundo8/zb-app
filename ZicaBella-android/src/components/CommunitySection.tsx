@@ -64,8 +64,11 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
   const showSection = community?.show !== false;
   if (!showSection) return null;
 
-  const displayTitle = (title ?? community?.title ?? 'FEATURED LOOKS').toUpperCase();
-  const displaySubtitle = (subtitle ?? community?.subtitle ?? 'COMMUNITY').toUpperCase();
+  // Use exact admin values — no hardcoded fallback defaults
+  const rawTitle = title ?? community?.title ?? null;
+  const rawSubtitle = subtitle ?? community?.subtitle ?? null;
+  const displayTitle = rawTitle ? rawTitle.toUpperCase() : null;
+  const displaySubtitle = rawSubtitle ? rawSubtitle.toUpperCase() : null;
 
   const displayUsers: FeaturedLook[] = users && users.length > 0 ? users : DEFAULT_LOOKS;
 
@@ -77,14 +80,20 @@ export default function CommunitySection({ community, title, subtitle }: Props) 
 
   return (
     <View style={styles.container}>
+      {(displayTitle || displaySubtitle) ? (
       <View style={styles.header}>
+        {displaySubtitle ? (
         <Typography size={7} color={colors.textLight} weight="300" style={styles.subtitle}>
           {displaySubtitle}
         </Typography>
+        ) : null}
+        {displayTitle ? (
         <Typography heading size={10} color={colors.foreground} weight="700" style={styles.title}>
           {displayTitle}
         </Typography>
+        ) : null}
       </View>
+      ) : null}
 
       <ScrollView
         horizontal

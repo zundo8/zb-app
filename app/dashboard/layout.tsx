@@ -151,7 +151,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   const aestheticNav = [
-    { name: "Storefront", href: "/dashboard/storefront", icon: Monitor, module: 'STOREFRONT' },
     { name: "Chat Management", href: "/dashboard/community/chat", icon: MessageSquare, module: 'COMMUNITY' },
     { name: "Community", href: "/dashboard/community", icon: Users, module: 'COMMUNITY' },
     { name: "Blogs", href: "/dashboard/blogs", icon: Newspaper, module: 'COMMUNITY' },

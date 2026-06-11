@@ -16,6 +16,7 @@ export default function WhatsAppHubPage() {
   >("campaigns");
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "loading">("loading");
   const [connectionError, setConnectionError] = useState("");
+  const [statusData, setStatusData] = useState<any>(null);
   const [triggerRefresh, setTriggerRefresh] = useState(0);
 
   useEffect(() => {
@@ -26,13 +27,16 @@ export default function WhatsAppHubPage() {
         if (data.connected) {
           setConnectionStatus("connected");
           setConnectionError("");
+          setStatusData(data);
         } else {
           setConnectionStatus("disconnected");
           setConnectionError(data.error || "Verify token or credentials");
+          setStatusData(null);
         }
       } catch (err) {
         setConnectionStatus("disconnected");
         setConnectionError("Failed to connect to API service");
+        setStatusData(null);
       }
     }
     checkConnection();
@@ -47,38 +51,61 @@ export default function WhatsAppHubPage() {
         </div>
         
         {/* Section A: Connection Status Banner */}
-        <div className="flex items-center gap-3">
-          {connectionStatus === "loading" && (
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium bg-foreground/5 text-muted-foreground border border-foreground/10">
-              <RefreshCcw className="w-3.5 h-3.5 animate-spin" />
-              <span>Checking Meta Connection...</span>
-            </div>
-          )}
-          {connectionStatus === "connected" && (
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Meta Connected</span>
-            </div>
-          )}
-          {connectionStatus === "disconnected" && (
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-500 border border-rose-500/20">
+        <div className="flex flex-col items-end gap-1 bg-foreground/5 p-3 rounded-xl border border-foreground/10">
+          <div className="flex items-center gap-3">
+            {connectionStatus === "loading" && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-foreground/5 text-muted-foreground border border-foreground/10">
+                <RefreshCcw className="w-3 h-3 animate-spin" />
+                <span>Checking Meta Connection...</span>
+              </div>
+            )}
+            {connectionStatus === "connected" && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Meta Connected</span>
+              </div>
+            )}
+            {connectionStatus === "disconnected" && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-500 border border-rose-500/20">
                 <AlertCircle className="w-3.5 h-3.5" />
                 <span>Not Connected</span>
               </div>
-              <span className="text-[10px] text-rose-500/80 max-w-[200px] text-right truncate" title={connectionError}>
-                {connectionError || "Setup credentials in .env.local"}
-              </span>
+            )}
+            
+            <button 
+              onClick={() => {
+                setTriggerRefresh((p: number) => p + 1);
+                toast.promise(
+                  fetch("/api/whatsapp/status").then(async (res) => {
+                    const data = await res.json();
+                    if (!data.connected) throw new Error(data.error || "Verification failed");
+                    return data;
+                  }),
+                  {
+                    loading: 'Verifying Meta Connection...',
+                    success: (data) => `Connected to ${data.name} (${data.phone})`,
+                    error: (err) => `Failed: ${err.message}`
+                  }
+                );
+              }}
+              className="px-3 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-foreground font-semibold rounded-lg transition-colors"
+            >
+              Verify Connection
+            </button>
+          </div>
+
+          {connectionStatus === "connected" && statusData && (
+            <div className="text-[10px] text-muted-foreground flex gap-3 mt-1 font-mono">
+              <span>Sender: <strong className="text-foreground">{statusData.phone}</strong></span>
+              <span>WABA ID: <strong className="text-foreground">{statusData.wabaId}</strong></span>
             </div>
           )}
-          
-          <button 
-            onClick={() => setTriggerRefresh((p: number) => p + 1)}
-            className="p-2 hover:bg-foreground/5 rounded-xl border border-foreground/10 transition-colors"
-            title="Refresh status"
-          >
-            <RefreshCcw className="w-4 h-4 text-foreground/70" />
-          </button>
+
+          {connectionStatus === "disconnected" && connectionError && (
+            <span className="text-[10px] text-rose-500/80 max-w-[200px] text-right truncate" title={connectionError}>
+              {connectionError}
+            </span>
+          )}
         </div>
       </div>
 
@@ -138,7 +165,7 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
   // Form State
   const [name, setName] = useState("");
   const [category, setCategory] = useState("MARKETING");
-  const [language, setLanguage] = useState("en");
+  const [language, setLanguage] = useState("en_US");
   const [headerType, setHeaderType] = useState("NONE");
   const [headerText, setHeaderText] = useState("");
   const [headerImage, setHeaderImage] = useState("");
@@ -265,7 +292,7 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success("Template submitted to Meta successfully!");
+        toast.success("Template submitted for Meta review");
         setShowCreateModal(false);
         // Reset form
         setName("");
@@ -422,6 +449,7 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
                       onChange={(e) => setLanguage(e.target.value)}
                       className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
                     >
+                      <option value="en_US">English (en_US)</option>
                       <option value="en">English (en)</option>
                       <option value="hi">Hindi (hi)</option>
                       <option value="en_IN">English (India)</option>
@@ -613,26 +641,44 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
    SECTION C: QUICK SEND SINGLE MESSAGE
    ========================================================================== */
 function QuickSendMessage() {
-  const [phone, setPhone] = useState("");
-  const [type, setType] = useState("welcome");
+  const [phone, setPhone] = useState("+917907914512");
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [params, setParams] = useState<any>({});
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [params, setParams] = useState<Record<string, string>>({});
+  const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
 
-  const templateTypes = [
-    { id: "welcome", label: "Welcome Subscriber", fields: ["customerName"] },
-    { id: "order_confirmed", label: "Order Confirmation", fields: ["customerName", "orderId", "orderTotal"] },
-    { id: "order_status", label: "Order Status Update", fields: ["customerName", "orderId", "status", "extraInfo"] },
-    { id: "order_shipped", label: "Shipping Update", fields: ["customerName", "orderId", "courier", "trackingNumber", "estimatedDelivery"] },
-    { id: "out_for_delivery", label: "Out For Delivery", fields: ["customerName", "orderId"] },
-    { id: "order_delivered", label: "Order Delivered", fields: ["customerName", "orderId"] },
-    { id: "return_confirmed", label: "Return Confirmed", fields: ["customerName", "orderId", "refundAmount"] },
-    { id: "abandoned_cart", label: "Abandoned Cart", fields: ["customerName", "itemCount", "cartTotal", "checkoutUrl"] },
-    { id: "new_collection", label: "New Collection Drop", fields: ["customerName", "collectionName", "tagline", "imageUrl", "shopUrl"] },
-    { id: "sale_alert", label: "Sale Alert Blast", fields: ["customerName", "discountPercent", "saleEndDate"] },
-    { id: "restock_alert", label: "Back in Stock Alert", fields: ["customerName", "productName", "size"] }
-  ];
+  const fetchTemplates = async () => {
+    setTemplatesLoading(true);
+    try {
+      const res = await fetch("/api/whatsapp/templates");
+      const data = await res.json();
+      if (res.ok && data.templates) {
+        setTemplates(data.templates);
+        // Default select 'hello_world' if exists, otherwise first one
+        const helloWorld = data.templates.find((t: any) => t.name === "hello_world");
+        if (helloWorld) {
+          setSelectedTemplate(helloWorld);
+        } else if (data.templates.length > 0) {
+          setSelectedTemplate(data.templates[0]);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load templates in Quick Send", e);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
 
-  const currentTemplate = templateTypes.find(t => t.id === type);
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  // Extract parameter variables from the selected template's BODY text (e.g. {{1}}, {{2}})
+  const bodyText = selectedTemplate?.components?.find((c: any) => c.type === "BODY")?.text || "";
+  const variables = bodyText.match(/\{\{\d\}\}/g) || [];
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -640,96 +686,177 @@ function QuickSendMessage() {
       toast.error("Please enter a phone number");
       return;
     }
-    
+    if (!selectedTemplate) {
+      toast.error("No template selected");
+      return;
+    }
+
     setLoading(true);
-    const toastId = toast.loading("Sending test message...");
+    setSendSuccess(null);
+    setSendError(null);
+    const toastId = toast.loading("Sending message...");
+
+    // Build components parameters
+    const components: any[] = [];
+    if (variables.length > 0) {
+      const bodyParams = variables.map((v: string) => {
+        const num = v.replace(/[^0-9]/g, "");
+        return {
+          type: "text",
+          text: params[num] || ""
+        };
+      });
+      components.push({
+        type: "body",
+        parameters: bodyParams
+      });
+    }
+
     try {
       const res = await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type,
-          payload: {
-            phone,
-            ...params
-          }
+          to: phone,
+          templateName: selectedTemplate.name,
+          languageCode: selectedTemplate.language || "en_US",
+          components
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        setSendSuccess(`Message sent! Message ID: ${data.messageId}`);
         toast.success(`Success! Message ID: ${data.messageId}`, { id: toastId });
         setParams({});
       } else {
-        toast.error(data.error || "Failed to send message.", { id: toastId });
+        const errMsg = data.error || "Failed to send message.";
+        setSendError(errMsg);
+        toast.error(errMsg, { id: toastId });
       }
     } catch (e) {
-      toast.error("Network error sending WhatsApp message.", { id: toastId });
+      const errMsg = "Network error sending WhatsApp message.";
+      setSendError(errMsg);
+      toast.error(errMsg, { id: toastId });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleParamChange = (key: string, value: string) => {
-    setParams((p: any) => ({ ...p, [key]: value }));
-  };
-
   return (
-    <div className="max-w-2xl mx-auto glass-card p-6 mt-4">
-      <h3 className="font-semibold text-lg mb-4">Send Test Message</h3>
+    <div className="max-w-2xl mx-auto glass-card p-6 mt-4 space-y-6">
+      <div>
+        <h3 className="font-semibold text-lg font-mono">Send Test Message</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">Send template notifications directly using Graph API v19.0</p>
+      </div>
+
       <form onSubmit={handleSend} className="space-y-4">
         <div>
           <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Recipient Phone</label>
           <input
             type="text"
             required
-            placeholder="e.g. +91 98765 43210"
+            placeholder="e.g. +91 79079 14512"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
+            className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono"
           />
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Message Type / Template</label>
-          <select
-            value={type}
-            onChange={(e) => { setType(e.target.value); setParams({}); }}
-            className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-          >
-            {templateTypes.map(t => (
-              <option key={t.id} value={t.id}>{t.label}</option>
-            ))}
-          </select>
+          <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Template Selector</label>
+          {templatesLoading ? (
+            <div className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 text-sm text-muted-foreground flex items-center gap-2">
+              <RefreshCcw className="w-4 h-4 animate-spin text-emerald-500" />
+              <span>Loading templates from Meta...</span>
+            </div>
+          ) : (
+            <select
+              value={selectedTemplate?.name || ""}
+              onChange={(e) => {
+                const found = templates.find(t => t.name === e.target.value);
+                setSelectedTemplate(found || null);
+                setParams({});
+              }}
+              className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
+            >
+              {templates.length === 0 ? (
+                <option value="">No templates registered</option>
+              ) : (
+                templates.map(t => (
+                  <option key={t.id} value={t.name}>
+                    {t.name} ({t.status})
+                  </option>
+                ))
+              )}
+            </select>
+          )}
+
+          {selectedTemplate && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Status:</span>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                selectedTemplate.status === "APPROVED" ? "border-emerald-500/20 text-emerald-500 bg-emerald-500/10" :
+                selectedTemplate.status === "PENDING" ? "border-amber-500/20 text-amber-500 bg-amber-500/10" :
+                "border-rose-500/20 text-rose-500 bg-rose-500/10"
+              }`}>
+                {selectedTemplate.status}
+              </span>
+            </div>
+          )}
         </div>
 
-        {currentTemplate && currentTemplate.fields.length > 0 && (
+        {selectedTemplate && bodyText && (
+          <div className="bg-foreground/[0.02] border border-foreground/5 p-4 rounded-xl space-y-2">
+            <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider">Template Preview</h4>
+            <p className="text-sm font-mono bg-background/50 p-3 rounded-lg whitespace-pre-wrap leading-relaxed border border-foreground/5 text-foreground/80">{bodyText}</p>
+          </div>
+        )}
+
+        {selectedTemplate && variables.length > 0 && (
           <div className="space-y-3 pt-3 border-t border-foreground/5">
             <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-2">Template Parameters</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {currentTemplate.fields.map(field => (
-                <div key={field}>
-                  <label className="text-xs text-muted-foreground block mb-1 font-mono">{field}</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder={`Enter ${field}`}
-                    value={params[field] || ""}
-                    onChange={(e) => handleParamChange(field, e.target.value)}
-                    className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3.5 py-2 outline-none focus:border-emerald-500/50 text-sm"
-                  />
-                </div>
-              ))}
+              {variables.map((v: string) => {
+                const num = v.replace(/[^0-9]/g, "");
+                return (
+                  <div key={num}>
+                    <label className="text-xs text-muted-foreground block mb-1 font-mono">Variable {`{{${num}}}`}</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder={`Enter value for {{${num}}}`}
+                      value={params[num] || ""}
+                      onChange={(e) => setParams(prev => ({ ...prev, [num]: e.target.value }))}
+                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3.5 py-2 outline-none focus:border-emerald-500/50 text-sm"
+                    />
+                  </div>
+                );
+              })}
             </div>
+          </div>
+        )}
+
+        {sendSuccess && (
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold rounded-xl flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{sendSuccess}</span>
+          </div>
+        )}
+
+        {sendError && (
+          <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold rounded-xl flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span className="break-words leading-relaxed">{sendError}</span>
           </div>
         )}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !selectedTemplate}
           className="w-full bg-emerald-500 text-foreground py-3 rounded-xl font-medium text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 mt-4"
         >
           {loading ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          <span>Send Now</span>
+          <span>Send Message</span>
         </button>
       </form>
     </div>
@@ -1326,10 +1453,13 @@ function MessageLogs() {
                     <td className="px-5 py-4 font-semibold text-xs text-muted-foreground uppercase">{log.message_type}</td>
                     <td className="px-5 py-4 font-mono text-xs">{log.template_name}</td>
                     <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                        log.status === 'sent' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                        log.status === 'read' ? 'border-blue-500/20 text-blue-500 bg-blue-500/10' :
+                        log.status === 'delivered' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/10' :
+                        log.status === 'failed' ? 'border-rose-500/20 text-rose-500 bg-rose-500/10' :
+                        'border-amber-500/20 text-amber-500 bg-amber-500/10'
                       }`}>
-                        {log.status.toUpperCase()}
+                        {log.status?.toUpperCase() || 'SENT'}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-xs text-muted-foreground">

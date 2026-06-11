@@ -629,7 +629,7 @@ export default function AppIntegrationPage() {
                         <SettingsInput label="Archive Title" value={settings.archiveTitle || ''} onChange={v => updateSetting('archiveTitle', v)} placeholder="THE ARCHIVE" />
                         <SettingsInput label="Archive Subtitle" value={settings.archiveSubtitle || ''} onChange={v => updateSetting('archiveSubtitle', v)} placeholder="SUSTAINABLE EVOLUTION" />
                         <div className="md:col-span-2">
-                           <SettingsInput label="Featured Video URL" value={settings.archiveVideo || ''} onChange={v => updateSetting('archiveVideo', v)} placeholder="https://..." hint="Video shown above the archive carousel" />
+                           <SettingsInput label="Featured Video URL" value={settings.collectionsMedia || ''} onChange={v => updateSetting('collectionsMedia', v)} placeholder="https://..." hint="Video shown above the archive carousel" />
                         </div>
                       </div>
                     </div>

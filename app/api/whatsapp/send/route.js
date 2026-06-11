@@ -1,10 +1,7 @@
-/**
- * Unified WhatsApp Template Sender API Endpoint
- * Location: app/api/whatsapp/send/route.js
- */
-
 import { NextResponse } from 'next/server';
 import * as templates from '@/lib/whatsapp/templates';
+import { sendTemplate, formatPhone } from '@/lib/whatsapp/client';
+import { logMessage } from '@/lib/whatsapp/logger';
 import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -25,11 +22,15 @@ const SENDER_MAP = {
 
 export async function POST(req) {
   // Check if WhatsApp is configured (either in env or DB)
-  let isConfigured = !!process.env.WHATSAPP_ACCESS_TOKEN;
+  const token = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  let isConfigured = !!(token && phoneNumberId && wabaId);
+
   if (!isConfigured) {
     try {
       const shop = await prisma.shop.findFirst();
-      if (shop?.whatsappToken) {
+      if (shop?.whatsappToken && shop?.whatsappPhoneId) {
         isConfigured = true;
       }
     } catch (e) {}
@@ -43,8 +44,71 @@ export async function POST(req) {
   }
 
   try {
-    const { type, payload } = await req.json();
+    const body = await req.json();
+    console.log('[WhatsApp API Send Route Request Body]:', JSON.stringify(body, null, 2));
 
+    const { templateName, languageCode = 'en_US', to, components, type, payload } = body;
+
+    // Determine recipient
+    let recipient = to || payload?.phone || '917907914512';
+    recipient = formatPhone(recipient);
+
+    // Direct Template Send (hello_world, or templates selected from dropdown)
+    if (templateName) {
+      try {
+        console.log(`[WhatsApp API Send Route] Sending template: ${templateName} to ${recipient} using Graph API v19.0`);
+        const result = await sendTemplate({
+          to: recipient,
+          templateName,
+          languageCode,
+          components
+        });
+
+        // Log the full response to console for debugging
+        console.log('[WhatsApp Send API Full Response]:', JSON.stringify(result, null, 2));
+
+        const messageId = result.messages?.[0]?.id || null;
+
+        // Log the event in the database logs table (whatsapp_message_logs)
+        let bodyText = `Template: ${templateName}`;
+        if (components && components.length > 0) {
+          bodyText += ` | Parameters: ${JSON.stringify(components)}`;
+        }
+
+        await logMessage({
+          to_number: recipient,
+          template_name: templateName,
+          message_body: bodyText,
+          status: 'sent',
+          message_id: messageId,
+          error_details: null
+        });
+
+        return NextResponse.json({
+          success: true,
+          messageId,
+          result
+        });
+      } catch (error) {
+        console.error('[WhatsApp Send API Error Details]:', error);
+
+        await logMessage({
+          to_number: recipient,
+          template_name: templateName,
+          message_body: `Template: ${templateName} (Failed)`,
+          status: 'failed',
+          message_id: null,
+          error_details: { error: error.message }
+        });
+
+        return NextResponse.json(
+          { error: error.message || 'Meta API returned an error' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Legacy mapper send
     if (!type || !payload) {
       return NextResponse.json(
         { error: 'Missing type or payload' },
@@ -67,7 +131,8 @@ export async function POST(req) {
     if (result.success) {
       return NextResponse.json({
         success: true,
-        messageId: result.messageId
+        messageId: result.messageId,
+        result: result.result
       });
     } else {
       return NextResponse.json(

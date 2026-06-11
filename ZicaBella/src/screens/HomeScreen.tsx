@@ -42,17 +42,19 @@ const HomeScreen = React.memo(() => {
   const { settings, loading: settingsLoading } = useAdminSettings();
   const { users: communityUsers } = useFeaturedUsers(); // Pre-fetch community data early
   
+  // Ring carousel reads from admin settings instead of hardcoded values
   const ringHandle = 'accessories';
-  const ringTitle = 'ACCESSORIES';
+  const ringTitle = settings?.ringCarousel?.title || 'ACCESSORIES';
 
   const heroVideoSrc = settingsLoading ? null : (settings?.hero?.video || config.heroVideoUrl);
   const heroImageSrc = settings?.hero?.image;
-  const heroTitle = settings?.hero?.title || 'ZICA BELLA';
-  const heroSubtitle = settings?.hero?.subtitle || 'ARCHIVAL VISION';
+  // Use exact admin values — null/empty = show nothing
+  const heroTitle = settings?.hero?.title ?? null;
+  const heroSubtitle = settings?.hero?.subtitle ?? null;
   const showHeroText = settings?.hero?.showText ?? true;
 
-  const latestCurationTitle = settings?.latestCuration?.title || 'LATEST CURATION';
-  const latestCurationSubtitle = settings?.latestCuration?.subtitle || 'SEASON DROP';
+  const latestCurationTitle = settings?.latestCuration?.title ?? null;
+  const latestCurationSubtitle = settings?.latestCuration?.subtitle ?? null;
 
   const { products, loading, error, isError, refetch } = useProducts(24);
   const { collections, refetch: refetchCollections } = useCollections(20, 'page');
@@ -197,15 +199,17 @@ const HomeScreen = React.memo(() => {
           )}
 
           {/* ═══ SECTION LABEL: Latest ═══ */}
+          {(latestCurationTitle || latestCurationSubtitle) && (
           <View style={styles.sectionHeader}>
             <View style={styles.headerLeft}>
-              <Typography size={6} color={colors.textExtraLight} weight="300" style={styles.sectionTag}>{latestCurationSubtitle}</Typography>
-              <Typography size={8} color={colors.text} weight="700" style={styles.sectionTitle}>{latestCurationTitle}</Typography>
+              {latestCurationSubtitle ? <Typography size={6} color={colors.textExtraLight} weight="300" style={styles.sectionTag}>{latestCurationSubtitle}</Typography> : null}
+              {latestCurationTitle ? <Typography size={8} color={colors.text} weight="700" style={styles.sectionTitle}>{latestCurationTitle}</Typography> : null}
             </View>
             <TouchableOpacity onPress={() => navigation.navigate('ShopTab')} style={styles.headerRight}>
               <Typography size={7} color={colors.textExtraLight} weight="400">VIEW ALL</Typography>
             </TouchableOpacity>
           </View>
+          )}
           
           {/* ═══ PRODUCT GRID 1 ═══ */}
           <View style={styles.gridContainer}>
@@ -226,15 +230,19 @@ const HomeScreen = React.memo(() => {
           {renderBelowFold && (
             <>
               <View style={styles.collectionsSection}>
+                {settings?.archive?.title ? (
                 <View style={styles.archiveLabel}>
-                  <Typography size={7.5} color={colors.textExtraLight} weight="300" style={styles.archiveLabelText}>— {settings?.archive?.title || 'THE ARCHIVE'} —</Typography>
+                  <Typography size={7.5} color={colors.textExtraLight} weight="300" style={styles.archiveLabelText}>— {settings.archive.title} —</Typography>
                 </View>
+                ) : null}
 
                 <CollectionCarousel collections={collections} />
 
+                {settings?.archive?.subtitle ? (
                 <View style={styles.archiveLabel}>
-                  <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.archiveSubtext}>{settings?.archive?.subtitle || 'SUSTAINABLE EVOLUTION'}</Typography>
+                  <Typography size={7} color={colors.textExtraLight} weight="300" style={styles.archiveSubtext}>{settings.archive.subtitle}</Typography>
                 </View>
+                ) : null}
               </View>
 
               {/* ═══ RING COLLECTION CAROUSEL ═══ */}
@@ -251,42 +259,38 @@ const HomeScreen = React.memo(() => {
               {renderProductGrid(products.slice(4, 8))}
 
               {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
-              {settings?.media?.featured ? (
+              {(settings?.media?.featured || settings?.blueprint?.image) ? (
                 <View style={styles.blueprintSection}>
+                  {settings?.media?.featured ? (
                    <HeroVideo key={settings.media.featured} source={settings.media.featured} height={520} borderRadius={0} />
-                   <View style={styles.blueprintOverlay}>
-                     <Typography size={22} weight="600" color="#fff" style={styles.blueprintOverlayTitle}>
-                       {(settings?.blueprint?.title || 'THE BLUEPRINT').toUpperCase()}
-                     </Typography>
-                     <Typography size={9} weight="400" color="rgba(255,255,255,0.7)" style={styles.blueprintOverlaySubtitle}>
-                       {(settings?.blueprint?.subtitle || 'TECHNIQUE & MOTION').toUpperCase()}
-                     </Typography>
-                   </View>
-                </View>
-              ) : (
-                <View style={styles.blueprintSection}>
+                  ) : (
                    <Image 
                     source={settings?.blueprint?.image ? { uri: settings.blueprint.image } : require('../../assets/load-image-4.jpg')} 
                     style={styles.blueprintImage} 
                     contentFit="cover" 
                     placeholder={require('../../assets/load-image-4.jpg')}
                   />
+                  )}
                    <View style={styles.blueprintOverlay}>
+                     {settings?.blueprint?.title ? (
                      <Typography size={22} weight="600" color="#fff" style={styles.blueprintOverlayTitle}>
-                       {(settings?.blueprint?.title || 'THE BLUEPRINT').toUpperCase()}
+                       {settings.blueprint.title.toUpperCase()}
                      </Typography>
+                     ) : null}
+                     {settings?.blueprint?.subtitle ? (
                      <Typography size={9} weight="400" color="rgba(255,255,255,0.7)" style={styles.blueprintOverlaySubtitle}>
-                       {(settings?.blueprint?.subtitle || 'TECHNIQUE & MOTION').toUpperCase()}
+                       {settings.blueprint.subtitle.toUpperCase()}
                      </Typography>
+                     ) : null}
                    </View>
                 </View>
-              )}
+              ) : null}
 
               {/* ═══ SPOTLIGHT SECTION ═══ */}
               <SpotlightSection 
-                collectionHandle={settings?.spotlight?.collection || "tshirts"} 
-                title={settings?.spotlight?.title || "AUTHENTIC STREETWEAR"} 
-                subtitle={settings?.spotlight?.subtitle}
+                collectionHandle={settings?.spotlight?.collection ?? undefined} 
+                title={settings?.spotlight?.title ?? undefined} 
+                subtitle={settings?.spotlight?.subtitle ?? undefined}
                 media={settings?.spotlight?.media}
               />
 

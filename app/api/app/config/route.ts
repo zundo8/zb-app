@@ -21,97 +21,108 @@ export async function GET() {
       }
     };
 
+    // Return null for empty strings so the RN app shows nothing when no value is set
+    // This prevents hardcoded fallback text from appearing when admin clears a field
+    const nullIfEmpty = (val: string | null | undefined): string | null => {
+      if (val === undefined || val === null) return null;
+      if (typeof val === 'string' && val.trim() === '') return null;
+      return val;
+    };
+
+    const s = shop as any;
+
     const config = {
       hero: {
-        image: shop.heroImage,
-        video: shop.heroVideo,
-        title: shop.heroTitle,
-        subtitle: shop.heroSubtitle,
-        buttonText: shop.heroButtonText,
-        showText: shop.showHeroText,
+        image: nullIfEmpty(s.heroImage),
+        video: nullIfEmpty(s.heroVideo),
+        title: s.heroTitle ?? null,        // preserve empty string "" as null (admin cleared it)
+        subtitle: s.heroSubtitle ?? null,
+        buttonText: s.heroButtonText ?? null,
+        showText: s.showHeroText,
       },
       latestCuration: {
-        title: shop.latestCurationTitle,
-        subtitle: shop.latestCurationSubtitle,
-        show: shop.showLatestCuration,
+        title: s.latestCurationTitle ?? null,
+        subtitle: s.latestCurationSubtitle ?? null,
+        show: s.showLatestCuration,
       },
       archive: {
-        title: shop.archiveTitle,
-        subtitle: shop.archiveSubtitle,
-        show: shop.showArchive,
+        title: s.archiveTitle ?? null,
+        subtitle: s.archiveSubtitle ?? null,
+        show: s.showArchive,
+        video: nullIfEmpty(s.collectionsMedia),  // archive video = collectionsMedia field
       },
       blueprint: {
-        title: shop.blueprintTitle,
-        subtitle: shop.blueprintSubtitle,
-        show: shop.showBlueprint,
-        image: shop.featuredMediaImage,
+        title: s.blueprintTitle ?? null,
+        subtitle: s.blueprintSubtitle ?? null,
+        show: s.showBlueprint,
+        image: nullIfEmpty(s.featuredMediaImage),
       },
       pdp: {
-        showProductVideo: shop.showProductVideo,
-        showSizeChart: shop.showSizeChart,
-        showBrand: shop.showBrand,
-        showShippingReturn: shop.showShippingReturn,
-        showCare: shop.showCare,
-        showSizeFit: shop.showSizeFit,
-        showDetails: shop.showDetails,
-        background: shop.pdpBackground,
+        showProductVideo: s.showProductVideo,
+        showSizeChart: s.showSizeChart,
+        showBrand: s.showBrand,
+        showShippingReturn: s.showShippingReturn,
+        showCare: s.showCare,
+        showSizeFit: s.showSizeFit,
+        showDetails: s.showDetails,
+        background: nullIfEmpty(s.pdpBackground),
       },
       social: {
-        instagram: shop.instagramUrl,
-        apple: shop.appleUrl,
-        spotify: shop.spotifyUrl,
-        youtube: shop.youtubeUrl,
+        instagram: nullIfEmpty(s.instagramUrl),
+        apple: nullIfEmpty(s.appleUrl),
+        spotify: nullIfEmpty(s.spotifyUrl),
+        youtube: nullIfEmpty(s.youtubeUrl),
       },
       media: {
-        featured: shop.featuredMedia,
-        featuredImage: shop.featuredMediaImage,
-        collections: shop.collectionsMedia,
-        footer: shop.footerVideo,
-        footerLogo3dUrl: shop.footerLogo3dUrl || 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
+        featured: nullIfEmpty(s.featuredMedia),
+        featuredImage: nullIfEmpty(s.featuredMediaImage),
+        collections: nullIfEmpty(s.collectionsMedia),
+        footer: nullIfEmpty(s.footerVideo),
+        footerLogo3dUrl: s.footerLogo3dUrl || 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
       },
       navigation: {
-        mainMenu: shop.mainMenuHandle,
-        secondaryMenu: shop.secondaryMenuHandle,
-        enabledCollectionsHeader: safeJsonParse(shop.enabledCollectionsHeader),
-        enabledCollectionsPage: safeJsonParse(shop.enabledCollectionsPage),
-        enabledCollectionsMenu: safeJsonParse(shop.enabledCollectionsMenu),
+        mainMenu: s.mainMenuHandle,
+        secondaryMenu: s.secondaryMenuHandle,
+        enabledCollectionsHeader: safeJsonParse(s.enabledCollectionsHeader),
+        enabledCollectionsPage: safeJsonParse(s.enabledCollectionsPage),
+        enabledCollectionsMenu: safeJsonParse(s.enabledCollectionsMenu),
       },
       features: {
-        showTreeText: shop.showTreeText,
-        kineticMeshProducts: safeJsonParse(shop.kineticMeshProducts),
-        kineticMeshTitle: shop.kineticMeshTitle,
+        showTreeText: s.showTreeText,
+        kineticMeshProducts: safeJsonParse(s.kineticMeshProducts),
+        kineticMeshTitle: s.kineticMeshTitle ?? null,
       },
       community: {
-        title: shop.communityTitle,
-        subtitle: shop.communitySubtitle,
-        show: shop.showCommunity,
-        ageRestricted: shop.communityAgeRestricted,
-        minOrders: shop.communityMinOrders,
-        whatsAppEnabled: shop.communityWhatsAppEnabled,
+        title: s.communityTitle ?? null,
+        subtitle: s.communitySubtitle ?? null,
+        show: s.showCommunity,
+        ageRestricted: s.communityAgeRestricted,
+        minOrders: s.communityMinOrders,
+        whatsAppEnabled: s.communityWhatsAppEnabled,
       },
       spotlight: {
-        title: shop.spotlightTitle,
-        subtitle: shop.spotlightSubtitle,
-        collection: shop.spotlightCollection,
-        products: safeJsonParse(shop.spotlightProducts),
-        media: (shop as any).spotlightMedia || null,
+        title: s.spotlightTitle ?? null,
+        subtitle: s.spotlightSubtitle ?? null,
+        collection: s.spotlightCollection || null,
+        products: safeJsonParse(s.spotlightProducts),
+        media: s.spotlightMedia || null,
       },
       homepage: {
-        collection: shop.homepageCollection,
-        products: shop.homepageProducts,
+        collection: s.homepageCollection || null,
+        products: s.homepageProducts || null,
       },
       flipbook: {
-        config: safeJsonParse(shop.flipbookConfig),
-        desc: shop.flipbookDesc,
-        image: shop.flipbookImage,
-        tag: shop.flipbookTag,
-        title: shop.flipbookTitle,
-        video: shop.flipbookVideo,
+        config: safeJsonParse(s.flipbookConfig),
+        desc: s.flipbookDesc ?? null,
+        image: nullIfEmpty(s.flipbookImage),
+        tag: s.flipbookTag ?? null,
+        title: s.flipbookTitle ?? null,
+        video: nullIfEmpty(s.flipbookVideo),
       },
       ringCarousel: {
-        items: safeJsonParse(shop.ringCarouselItems),
-        title: shop.ringCarouselTitle,
-        show: shop.showRingCarousel,
+        items: safeJsonParse(s.ringCarouselItems),
+        title: s.ringCarouselTitle ?? null,
+        show: s.showRingCarousel,
       }
     };
 

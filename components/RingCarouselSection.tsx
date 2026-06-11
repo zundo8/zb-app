@@ -20,7 +20,7 @@ interface RingCarouselSectionProps {
   itemsConfig?: string;
 }
 
-export default function RingCarouselSection({ title = "RING COLLECTION", itemsConfig }: RingCarouselSectionProps) {
+export default function RingCarouselSection({ title, itemsConfig }: RingCarouselSectionProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<RingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,9 +96,11 @@ export default function RingCarouselSection({ title = "RING COLLECTION", itemsCo
         {/* Header */}
         <div className="flex items-end justify-between mb-6">
           <div>
-            <h2 className="text-sm md:text-base font-heading tracking-[0.15em] uppercase text-foreground leading-none">
-              {title}
-            </h2>
+            {title ? (
+              <h2 className="text-sm md:text-base font-heading tracking-[0.15em] uppercase text-foreground leading-none">
+                {title}
+              </h2>
+            ) : null}
           </div>
           <div className="flex items-center gap-2.5">
             <div className="hidden md:flex gap-1">

@@ -136,8 +136,9 @@ export async function getShopSettings() {
   ];
 
   try {
-    // Try to fetch with all fields first
-    const shop = await prisma.shop.findFirst();
+    // Prefer the canonical zicabella.com record to stay in sync with the webstore
+    const shop = await prisma.shop.findUnique({ where: { domain: 'zicabella.com' } })
+      ?? await prisma.shop.findFirst();
     return shop;
   } catch (error) {
     console.warn('[DB] Full shop fetch failed, falling back to safe selection:', (error as any).message);
