@@ -80,11 +80,29 @@ const config: Config = {
         'accordion-up': {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' }
-        }
+        },
+        'slide-up': {
+          '0%': { transform: 'translateY(20px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        'progress-bar': {
+          '0%': { width: '0%', marginLeft: '0%' },
+          '50%': { width: '60%', marginLeft: '20%' },
+          '100%': { width: '0%', marginLeft: '100%' },
+        },
+        'shake': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '20%': { transform: 'translateX(-4px)' },
+          '40%': { transform: 'translateX(4px)' },
+          '60%': { transform: 'translateX(-3px)' },
+          '80%': { transform: 'translateX(3px)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out'
+        'accordion-up': 'accordion-up 0.2s ease-out',
+        'slide-up': 'slide-up 200ms ease forwards',
+        'progress-bar': 'progress-bar 500ms ease-in-out',
       }
     }
   },

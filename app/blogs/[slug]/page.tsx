@@ -2,8 +2,9 @@ import { notFound } from "next/navigation";
 import prisma from "@/lib/db";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import Image from "next/image";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR: revalidate every hour
 
 interface BlogPostProps {
   params: {
@@ -94,9 +95,11 @@ export default async function BlogPostPage({ params }: BlogPostProps) {
           {/* Cover Image */}
           {post.coverImage && (
             <div className="w-full aspect-video mb-16 rounded-[2rem] overflow-hidden border border-foreground/5 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 relative bg-foreground/[0.02] glass">
-              <img 
+              <Image 
                 src={post.coverImage} 
                 alt={post.title}
+                fill
+                sizes="(max-width: 1024px) 100vw, 768px"
                 className="w-full h-full object-cover"
               />
             </div>

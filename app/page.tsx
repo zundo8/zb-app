@@ -14,7 +14,7 @@ import SpotlightSection from "@/components/SpotlightSection";
 import LazyVideo from "@/components/LazyVideo";
 import { handleImageError } from "@/components/ImagePlaceholder";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 1800; // ISR: revalidate every 30 minutes
 
 export default async function Home() {
   let shop: any = null;

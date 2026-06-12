@@ -1,8 +1,9 @@
 import prisma from "@/lib/db";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import Image from "next/image";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR: revalidate every 1 hour
 
 export default async function BlogsPage() {
   const posts = await prisma.blogPost.findMany({
@@ -41,9 +42,11 @@ export default async function BlogsPage() {
                 {/* Image Handle */}
                 <div className="w-full aspect-[4/5] bg-foreground/[0.02] border border-foreground/5 rounded-[2rem] overflow-hidden relative glass">
                   {post.coverImage ? (
-                    <img 
+                    <Image 
                       src={post.coverImage} 
                       alt={post.title} 
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                   ) : (

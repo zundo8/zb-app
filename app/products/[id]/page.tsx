@@ -6,7 +6,7 @@ import prisma from "@/lib/db";
 import ProductDetailsClient from "./ProductDetailsClient";
 import { Metadata } from "next";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 900; // ISR: revalidate every 15 minutes
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const product = await fetchProductByHandle(params.id).catch(() => null);

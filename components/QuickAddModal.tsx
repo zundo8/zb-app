@@ -7,6 +7,7 @@ import { useCart } from "@/lib/cart-context";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import { createPortal } from "react-dom";
 import { handleImageError } from "./ImagePlaceholder";
+import { toast } from "sonner";
 
 interface Props {
   product: ShopifyProduct;
@@ -19,6 +20,7 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
   const [selectedSize, setSelectedSize] = useState<string | null>(initialSize || null);
   const [added, setAdded] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [sizeError, setSizeError] = useState(false);
 
   // Mount guard — ensures createPortal only runs client-side
   useEffect(() => { setMounted(true); }, []);
@@ -58,8 +60,25 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
   }, []);
 
   const handleAdd = () => {
-    if (sizes.length > 1 && !selectedSize) return;
+    if (sizes.length > 1 && !selectedSize) {
+      setSizeError(true);
+      toast.error("Please select a size first");
+      setTimeout(() => setSizeError(false), 1500);
+      return;
+    }
     const variant = sizes.find((s) => s.size === (selectedSize ?? sizes[0]?.size));
+    const productVariant = product.variants?.find(v => String(v.id) === variant?.variantId);
+    
+    if (!productVariant) {
+      toast.error("This product is currently unavailable");
+      return;
+    }
+
+    if ((productVariant.inventory_quantity || 0) <= 0) {
+      toast.error("This size is currently sold out");
+      return;
+    }
+
     add({
       productId: String(product.id),
       variantId: variant?.variantId ?? String(product.variants?.[0]?.id),
@@ -70,6 +89,7 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
       image,
     });
     setAdded(true);
+    toast.success(`${product.title} added to bag`);
     setTimeout(() => { setAdded(false); onClose(); }, 900);
   };
 
@@ -135,7 +155,7 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
               Select Size
             </p>
             {/* 6 equal-width columns */}
-            <div className="grid grid-cols-6 gap-1.5">
+            <div className={`grid grid-cols-6 gap-1.5 ${sizeError ? "animate-[shake_0.3s_ease-in-out]" : ""}`}>
               {sizes.map(({ size, variantId }) => {
                 const variant = product.variants?.find(v => String(v.id) === variantId);
                 const isOutOfStock = (variant?.inventory_quantity || 0) <= 0;
@@ -180,11 +200,11 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
             return (
               <button
                 onClick={handleAdd}
-                disabled={added || isVariantSoldOut || (sizes.length > 1 && !selectedSize)}
+                disabled={added || isVariantSoldOut}
                 className={`w-full py-3.5 rounded-2xl text-[9px] font-light uppercase tracking-[0.4em] transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 ${
                   added
                     ? "bg-foreground text-background border border-foreground/20"
-                    : isVariantSoldOut || (sizes.length > 1 && !selectedSize)
+                    : isVariantSoldOut
                       ? "bg-foreground/10 text-foreground/30 cursor-not-allowed"
                       : "bg-foreground text-background hover:opacity-90"
                 }`}

@@ -1,19 +1,29 @@
 "use client";
 
-import { Bookmark, ShoppingBag, ArrowLeft, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bookmark, ShoppingBag, Trash2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useBookmarks } from "@/lib/bookmark-context";
 import { useCart } from "@/lib/cart-context";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 export default function WishlistPage() {
   const { bookmarks, removeBookmark } = useBookmarks();
   const { add: addToCart } = useCart();
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
 
   const handleQuickAdd = (product: any) => {
     const variant = product.variants?.[0];
-    if (!variant) return;
+    if (!variant) {
+      toast.error("This product is currently unavailable");
+      return;
+    }
 
     addToCart({
       productId: product.id.toString(),
@@ -24,7 +34,46 @@ export default function WishlistPage() {
       price: variant.price,
       image: product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png"
     });
+
+    toast.success(`${product.title} added to bag`);
   };
+
+  const handleRemove = (product: any) => {
+    removeBookmark(product.id.toString());
+    toast.success(`${product.title} removed from bookmarks`);
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 min-h-[80vh] pb-32">
+        {/* Page Header */}
+        <div className="mb-12 text-center">
+          <p className="text-[8px] font-bold uppercase tracking-[0.5em] text-foreground/40 mb-3">Saved Pieces</p>
+          <h1 className="font-heading text-[22px] uppercase tracking-[0.1em] text-foreground/90">Your Bookmarks</h1>
+          <div className="w-8 h-[1px] bg-foreground/10 mx-auto mt-4" />
+        </div>
+
+        {/* Loading skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="animate-pulse flex gap-5 p-4 rounded-[2rem] border border-foreground/5 bg-foreground/[0.01]">
+              <div className="w-28 h-36 rounded-2xl bg-foreground/[0.04]" />
+              <div className="flex-1 flex flex-col justify-between py-1">
+                <div>
+                  <div className="h-4 bg-foreground/[0.04] w-2/3 rounded-md mb-2" />
+                  <div className="h-4 bg-foreground/[0.04] w-1/3 rounded-md" />
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <div className="flex-1 h-10 bg-foreground/[0.04] rounded-xl" />
+                  <div className="w-10 h-10 bg-foreground/[0.04] rounded-xl" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -46,7 +95,7 @@ export default function WishlistPage() {
             </p>
             <Link 
               href="/" 
-              className="px-10 py-4 bg-foreground text-background text-[9px] uppercase font-bold tracking-[0.3em] rounded-full hover:opacity-90 transition-all shadow-xl active:scale-95"
+              className="px-10 py-4 bg-foreground text-background text-[9px] uppercase font-bold tracking-[0.3em] rounded-full hover:opacity-90 transition-all shadow-xl active:scale-95 animate-touch"
             >
               Explore Collection
             </Link>
@@ -86,14 +135,14 @@ export default function WishlistPage() {
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={() => handleQuickAdd(product)}
-                        className="flex-1 py-3.5 rounded-xl bg-foreground text-background text-[9px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-lg hover:opacity-90 active:scale-95 transition-all"
+                        className="flex-1 py-3.5 rounded-xl bg-foreground text-background text-[9px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-lg hover:opacity-90 active:scale-95 transition-all animate-touch"
                       >
                         <ShoppingBag className="w-3.5 h-3.5" />
                         Add to Bag
                       </button>
                       <button 
-                        onClick={() => removeBookmark(product.id.toString())}
-                        className="p-3.5 rounded-xl bg-foreground/5 border border-foreground/5 text-foreground/40 hover:text-foreground hover:bg-foreground/10 transition-all active:scale-90"
+                        onClick={() => handleRemove(product)}
+                        className="p-3.5 rounded-xl bg-foreground/5 border border-foreground/5 text-foreground/40 hover:text-foreground hover:bg-foreground/10 transition-all active:scale-90 animate-touch"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

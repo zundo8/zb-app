@@ -88,7 +88,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
 
         {/* Info row with "+" button */}
         <div className="flex justify-between items-center leading-tight px-1.5 py-2">
-          <div className="flex-1 min-w-0 pr-2 flex flex-col gap-0.5">
+          <Link href={`/products/${productSlug}`} className="flex-1 min-w-0 pr-2 flex flex-col gap-0.5 block">
             <p className="text-[8px] sm:text-[9px] font-sans font-medium uppercase tracking-[0.2em] text-foreground/80 leading-none truncate pt-0.5">
               {product.title}
             </p>
@@ -102,7 +102,7 @@ export default function ProductCard({ product, priority = false, selectedSize }:
                 </p>
               )}
             </div>
-          </div>
+          </Link>
 
           {!isSoldOut && (
             <button

@@ -84,6 +84,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 </div>
                 <button
                   onClick={onClose}
+                  aria-label="Close cart drawer"
                   className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-foreground/[0.06] transition-colors active:scale-90"
                 >
                   <X className="w-4 h-4 text-foreground/50" />
@@ -140,6 +141,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                               >
                                 <button
                                   onClick={() => update(item.id, item.quantity - 1)}
+                                  aria-label="Decrease quantity"
                                   className="w-5 h-5 flex items-center justify-center text-foreground/40 hover:text-foreground transition-colors active:scale-90"
                                 >
                                   <Minus className="w-2.5 h-2.5" />
@@ -149,6 +151,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                                 </span>
                                 <button
                                   onClick={() => update(item.id, item.quantity + 1)}
+                                  aria-label="Increase quantity"
                                   className="w-5 h-5 flex items-center justify-center text-foreground/40 hover:text-foreground transition-colors active:scale-90"
                                 >
                                   <Plus className="w-2.5 h-2.5" />

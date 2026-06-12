@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+/* Poppins loaded via next/font in layout.tsx — no render-blocking @import */
 
 @font-face {
   font-family: 'Rocaston';
@@ -170,6 +170,42 @@
   a, button, [role="button"], input, select, textarea, label {
     touch-action: manipulation;
     cursor: pointer;
+  }
+
+  /* ── P0: Instant tactile feedback on all interactive elements ── */
+  button,
+  a,
+  [role="button"],
+  [data-interactive] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    transition: transform 80ms ease, opacity 80ms ease;
+  }
+
+  button:active:not(:disabled),
+  a:active,
+  [role="button"]:active:not(:disabled) {
+    transform: scale(0.96);
+    opacity: 0.85;
+  }
+
+  button:disabled,
+  [aria-busy="true"] {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
+  }
+
+  /* ── Keyboard focus ring (accessibility) ── */
+  :focus-visible {
+    outline: 2px solid hsl(var(--foreground) / 0.5);
+    outline-offset: 2px;
+  }
+
+  /* Remove default outline when not using keyboard */
+  :focus:not(:focus-visible) {
+    outline: none;
   }
   
   body {
@@ -388,6 +424,12 @@
 /* Bottom padding accounting for both nav bar and iOS home indicator */
 .pb-safe-nav {
   padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Minimum tap target size (44×44px per WCAG) */
+.tap-target {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 /* Stable content container for layout-shift prevention */

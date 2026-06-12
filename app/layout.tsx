@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import localFont from "next/font/local";
 import Script from "next/script";
 import { Providers } from "./providers";
@@ -8,6 +8,7 @@ import LayoutWrapper from "@/components/LayoutWrapper";
 import StorefrontFooter from "@/components/StorefrontFooter";
 import { Toaster } from "sonner";
 import MetaPixelTracker from "@/components/MetaPixelTracker";
+import { NavigationProgress } from "@/components/ui/NavigationProgress";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -16,11 +17,20 @@ const geistSans = localFont({
   display: "swap",
 });
 
-export const dynamic = "force-dynamic";
+/* ISR/SSG enabled — force-dynamic removed from root layout.
+   Only truly dynamic pages (checkout, cart, search) set their own dynamic mode. */
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-poppins",
+  display: "swap",
 });
 
 export const viewport = {
@@ -99,12 +109,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://cdn.shopify.com" />
         <link rel="preconnect" href="https://flagcdn.com" />
-        <link rel="preconnect" href="https://connect.facebook.net" />
-        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="beforeInteractive" />
+        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
         <Script
           type="module"
           src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"
@@ -148,7 +155,8 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${geistSans.variable} ${inter.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${inter.variable} ${poppins.variable} antialiased`}>
+        <NavigationProgress />
         {/* Meta Pixel Script */}
         <Script id="fb-pixel" strategy="afterInteractive">
           {`

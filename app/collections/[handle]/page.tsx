@@ -7,7 +7,7 @@ import CollectionHeaderClient from "@/components/CollectionHeaderClient";
 import CollectionFilters from "@/components/CollectionFilters";
 import CollectionProductGrid from "@/components/CollectionProductGrid";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR: revalidate every 1 hour
 
 export async function generateMetadata({ params }: { params: { handle: string } }): Promise<Metadata> {
   const { collection } = await fetchCollectionByHandle(params.handle, 1).catch(() => ({ collection: null }));

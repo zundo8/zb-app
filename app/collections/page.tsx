@@ -4,7 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import Image from "next/image";
 import { Metadata } from "next";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR: revalidate every 1 hour
 
 export const metadata: Metadata = {
   title: "Curated Collections | Luxury Streetwear - Zica Bella",

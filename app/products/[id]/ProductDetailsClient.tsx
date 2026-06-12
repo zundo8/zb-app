@@ -7,6 +7,7 @@ import { ShoppingBag, Loader2, Bookmark, X, Plus, ChevronLeft, ArrowLeft, ArrowR
 import * as fp from "@/lib/meta-pixel";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import { parseShopifyRichText, matchKey } from "@/lib/utils";
+import { toast } from "sonner";
 import Image from "next/image";
 import ProductCard from "@/components/ProductCard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -61,6 +62,7 @@ export default function ProductDetailsClient({
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isAdded, setIsAdded] = useState(false);
   const [quickAddProduct, setQuickAddProduct] = useState<ShopifyProduct | null>(null);
+  const [sizeError, setSizeError] = useState(false);
 
   // Sync zoom status on index switches
   useEffect(() => {
@@ -147,19 +149,21 @@ export default function ProductDetailsClient({
 
   const handleAddToBag = () => {
     if (!selectedSize && sizes.length > 0) {
-      alert("Please select a size first!");
+      setSizeError(true);
+      toast.error("Please select a size first");
+      setTimeout(() => setSizeError(false), 1500);
       return;
     }
 
     const variant = product.variants?.find(v => v.option1 === selectedSize) || product.variants?.[0];
 
     if (!variant) {
-      alert("This product is currently unavailable.");
+      toast.error("This product is currently unavailable");
       return;
     }
 
     if ((variant.inventory_quantity || 0) <= 0) {
-      alert("This size is currently sold out.");
+      toast.error("This size is currently sold out");
       return;
     }
 
@@ -183,24 +187,27 @@ export default function ProductDetailsClient({
     });
 
     setIsAdded(true);
+    toast.success(`${product.title} added to bag`);
     setTimeout(() => setIsAdded(false), 2000);
   };
 
   const handleBuyNow = async () => {
     if (!selectedSize && sizes.length > 0) {
-      alert("Please select a size first!");
+      setSizeError(true);
+      toast.error("Please select a size first");
+      setTimeout(() => setSizeError(false), 1500);
       return;
     }
 
     const variant = product.variants?.find((v) => v.option1 === selectedSize) || product.variants?.[0];
 
     if (!variant) {
-      alert("This product is currently unavailable.");
+      toast.error("This product is currently unavailable");
       return;
     }
 
     if ((variant.inventory_quantity || 0) <= 0) {
-      alert("This size is currently sold out.");
+      toast.error("This size is currently sold out");
       return;
     }
 
@@ -325,7 +332,7 @@ export default function ProductDetailsClient({
                     activeImg === i ? "border-foreground scale-105 shadow-lg" : "border-foreground/10 opacity-60 hover:opacity-100"
                   }`}
                 >
-                  <Image src={img.src} alt="" fill className="object-cover" sizes="80px" />
+                  <Image src={img.src} alt={`${product.title} - View ${i + 1}`} fill className="object-cover" sizes="80px" />
                 </button>
               ))}
             </div>
@@ -349,11 +356,15 @@ export default function ProductDetailsClient({
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!selectedSize && sizes.length > 0) {
-                    alert("Please select a size first!");
+                    setSizeError(true);
+                    toast.error("Please select a size first");
+                    setTimeout(() => setSizeError(false), 1500);
                     return;
                   }
+                  const wasBookmarked = isBookmarked(product.id.toString());
                   toggleBookmark(product);
                   setIsOpen(true);
+                  toast.success(wasBookmarked ? "Removed from bookmarks" : "Saved to bookmarks");
                 }}
                 className="w-8 h-8 rounded-full bg-foreground/5 border border-foreground/5 flex items-center justify-center hover:bg-foreground/10 transition-all active:scale-90 flex-shrink-0"
               >
@@ -372,7 +383,7 @@ export default function ProductDetailsClient({
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-6 gap-1.5">
+                <div className={`grid grid-cols-6 gap-1.5 ${sizeError ? 'animate-[shake_0.3s_ease-in-out]' : ''}`}>
                   {sizes.map((size) => {
                     const variant = product.variants?.find(v => v.option1 === size);
                     const isOutOfStock = (variant?.inventory_quantity || 0) <= 0;
@@ -599,7 +610,7 @@ export default function ProductDetailsClient({
               >
                 <Image 
                   src={img.src || "/zb-logo-220px.png"} 
-                  alt="variant" 
+                  alt={`${product.title} - View ${i + 1}`} 
                   fill 
                   className="object-cover pointer-events-none" 
                   sizes="80px" 
@@ -643,11 +654,15 @@ export default function ProductDetailsClient({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!selectedSize && sizes.length > 0) {
-                      alert("Please select a size first!");
+                      setSizeError(true);
+                      toast.error("Please select a size first");
+                      setTimeout(() => setSizeError(false), 1500);
                       return;
                     }
+                    const wasBookmarked = isBookmarked(product.id.toString());
                     toggleBookmark(product);
                     setIsOpen(true);
+                    toast.success(wasBookmarked ? "Removed from bookmarks" : "Saved to bookmarks");
                   }}
                   className="w-8 h-8 rounded-full bg-foreground/5 border border-foreground/5 flex items-center justify-center hover:bg-foreground/10 transition-all active:scale-90"
                 >
@@ -668,7 +683,7 @@ export default function ProductDetailsClient({
                       )}
                     </div>
                     {/* Equal-size 6-column grid — matches QuickAddModal */}
-                    <div className="grid grid-cols-6 gap-1.5 px-0.5">
+                    <div className={`grid grid-cols-6 gap-1.5 px-0.5 ${sizeError ? 'animate-[shake_0.3s_ease-in-out]' : ''}`}>
                       {sizes.map((size) => {
                         const variant = product.variants?.find(v => v.option1 === size);
                         const isOutOfStock = (variant?.inventory_quantity || 0) <= 0;
@@ -942,15 +957,14 @@ export default function ProductDetailsClient({
               <span className="text-[8px] font-bold uppercase tracking-widest text-foreground/60 dark:text-foreground/40">Sizing Reference</span>
               <button onClick={() => setShowSizeChart(false)} className="px-4 py-1.5 rounded-full bg-foreground/5 text-[7px] uppercase tracking-widest font-bold">Dismiss</button>
             </div>
-            <div className="aspect-square w-full overflow-auto rounded-2xl bg-foreground/[0.03] border border-foreground/5 hide-scrollbar overscroll-none">
-              <div className="min-w-full min-h-full flex items-center justify-center">
-                <img 
-                  src={sizeChartImageUrl} 
-                  alt="Size Guide" 
-                  className="max-w-none w-auto h-auto" 
-                  style={{ minWidth: '100%', minHeight: '100%' }}
-                />
-              </div>
+            <div className="aspect-square w-full rounded-2xl bg-foreground/[0.03] border border-foreground/5 overflow-hidden relative">
+              <Image 
+                src={sizeChartImageUrl} 
+                alt="Size Guide" 
+                fill
+                className="object-contain"
+                sizes="(max-width: 768px) 100vw, 384px"
+              />
             </div>
           </div>
         </div>

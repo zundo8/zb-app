@@ -22,6 +22,7 @@ import {
   ChevronLeft
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 type Address = {
   name: string;
@@ -490,6 +491,7 @@ export default function CheckoutPage() {
                   <input
                     type="text"
                     placeholder="Recipient Full Name"
+                    aria-label="Recipient Full Name"
                     required
                     value={address.name}
                     onChange={(e) => {
@@ -502,6 +504,7 @@ export default function CheckoutPage() {
                     <input
                         type="email"
                         placeholder="Email Address"
+                        aria-label="Email Address"
                         required
                         value={address.email}
                         onChange={(e) => {
@@ -515,6 +518,7 @@ export default function CheckoutPage() {
                       <input
                           type="tel"
                           placeholder="10-digit Mobile Number"
+                          aria-label="10-digit Mobile Number"
                           required
                           value={address.phone}
                           onChange={(e) => {
@@ -528,6 +532,7 @@ export default function CheckoutPage() {
                   <input
                     type="text"
                     placeholder="Street Address, Area, Landmark"
+                    aria-label="Street Address, Area, Landmark"
                     required
                     value={address.street}
                     onChange={(e) => {
@@ -540,6 +545,7 @@ export default function CheckoutPage() {
                     <input
                       type="text"
                       placeholder="City"
+                      aria-label="City"
                       required
                       value={address.city}
                       onChange={(e) => {
@@ -552,6 +558,7 @@ export default function CheckoutPage() {
                       <input
                         type="text"
                         placeholder="PIN Code (6 digits)"
+                        aria-label="PIN Code (6 digits)"
                         required
                         maxLength={6}
                         value={address.zip}
@@ -570,6 +577,7 @@ export default function CheckoutPage() {
                   <input
                     type="text"
                     placeholder="State"
+                    aria-label="State"
                     required
                     value={address.state}
                     onChange={(e) => {
@@ -668,6 +676,7 @@ export default function CheckoutPage() {
                     <input
                       type="text"
                       placeholder="Discount Code"
+                      aria-label="Discount Code"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                       className="glass-input flex-1 px-3 py-2 text-[11px] uppercase tracking-wider"
@@ -696,9 +705,9 @@ export default function CheckoutPage() {
                 <div className="max-h-[160px] overflow-y-auto divide-y divide-foreground/5 space-y-2 pr-1 scrollbar-thin">
                   {items.map((item) => (
                     <div key={item.id} className="flex gap-3 py-2 first:pt-0 last:pb-0">
-                      <div className="w-12 h-14 rounded-[0.5rem] bg-foreground/[0.02] border border-foreground/5 overflow-hidden shrink-0">
+                      <div className="w-12 h-14 rounded-[0.5rem] bg-foreground/[0.02] border border-foreground/5 overflow-hidden shrink-0 relative">
                         {item.image ? (
-                          <img src={item.image} className="w-full h-full object-cover" alt="" />
+                          <Image src={item.image} fill className="w-full h-full object-cover" alt={item.title} sizes="48px" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-foreground/20 text-[8px]">ZB</div>
                         )}
