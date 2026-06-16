@@ -477,14 +477,14 @@ export default function ProductDetailsClient({
             <div className="flex items-center gap-4">
               <button 
                 className="flex items-center justify-center text-foreground/35 hover:text-foreground transition-all active:scale-95"
-                onClick={() => curatedScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
+                onClick={() => curatedScrollRef.current?.scrollBy({ left: -342, behavior: 'smooth' })}
                 aria-label="Previous Curated Items"
               >
                 <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
               </button>
               <button 
                 className="flex items-center justify-center text-foreground/35 hover:text-foreground transition-all active:scale-95"
-                onClick={() => curatedScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
+                onClick={() => curatedScrollRef.current?.scrollBy({ left: 342, behavior: 'smooth' })}
                 aria-label="Next Curated Items"
               >
                 <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
@@ -501,20 +501,20 @@ export default function ProductDetailsClient({
               return (
                 <div 
                   key={`desk-pair-${p.id}`}
-                  className="min-w-[280px] w-[280px] snap-start flex flex-col group cursor-pointer transition-all duration-300"
+                  className="min-w-[340px] w-[340px] snap-start flex flex-col group cursor-pointer transition-all duration-300"
                   onClick={() => router.push(`/products/${p.handle}`)}
                 >
-                  <div className="relative aspect-[3/4.8] w-full overflow-hidden bg-background/5">
+                  <div className="relative aspect-[3/5] w-full overflow-hidden bg-background/5">
                     <Image 
                       src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
                       alt={p.title} 
                       fill 
                       className="object-cover group-hover:scale-[1.03] transition-transform duration-700" 
-                      sizes="300px"
+                      sizes="400px"
                     />
                   </div>
-                  <div className="flex items-center justify-between mt-1.5 px-1.5">
-                    <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between border-t border-black/[0.03] dark:border-white/[0.03] p-3.5">
+                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                       <span className="text-[9px] font-sans font-bold tracking-[0.12em] uppercase text-foreground line-clamp-1">
                         {p.title}
                       </span>
@@ -523,7 +523,7 @@ export default function ProductDetailsClient({
                       </span>
                     </div>
                     <button
-                      className="w-7 h-7 flex items-center justify-center text-foreground/40 hover:text-foreground active:scale-90 transition-all"
+                      className="w-7 h-7 flex items-center justify-center text-foreground/40 hover:text-foreground active:scale-90 transition-all shrink-0 ml-2"
                       onClick={(e) => {
                         e.stopPropagation();
                         setQuickAddProduct(p);
@@ -857,14 +857,14 @@ export default function ProductDetailsClient({
                   <div className="flex items-center gap-4">
                     <button 
                       className="flex items-center justify-center text-foreground/35 hover:text-foreground transition-all active:scale-95"
-                      onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: -300, behavior: 'smooth' })}
+                      onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: typeof window !== 'undefined' ? -window.innerWidth * 0.85 : -300, behavior: 'smooth' })}
                       aria-label="Previous Curated Items"
                     >
                       <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
                     </button>
                     <button 
                       className="flex items-center justify-center text-foreground/35 hover:text-foreground transition-all active:scale-95"
-                      onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: 300, behavior: 'smooth' })}
+                      onClick={() => curatedScrollMobileRef.current?.scrollBy({ left: typeof window !== 'undefined' ? window.innerWidth * 0.85 : 300, behavior: 'smooth' })}
                       aria-label="Next Curated Items"
                     >
                       <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
@@ -891,13 +891,13 @@ export default function ProductDetailsClient({
                     return (
                       <div 
                         key={`mobile-pair-${p.id}-${idx}`}
-                        className="min-w-[75vw] w-[75vw] snap-center flex flex-col group cursor-pointer"
+                        className="min-w-[85vw] w-[85vw] snap-center flex flex-col group cursor-pointer"
                         onClick={(e) => { 
                           if (isCuratedDragging) e.preventDefault(); 
                           else router.push(`/products/${p.handle}`);
                         }}
                       >
-                        <div className="relative w-full aspect-[3/4.8] overflow-hidden bg-background/5">
+                        <div className="relative w-full aspect-[3/5] overflow-hidden bg-background/5">
                           <Image 
                             src={p.image?.src || p.images?.[0]?.src || "/zb-logo-220px.png"} 
                             alt={p.title} 
@@ -908,8 +908,8 @@ export default function ProductDetailsClient({
                             onError={handleImageError}
                           />
                         </div>
-                        <div className="flex items-center justify-between mt-1.5 px-1.5">
-                          <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center justify-between border-t border-black/[0.03] dark:border-white/[0.03] p-3.5">
+                          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                             <span className="text-[9px] font-sans font-bold tracking-[0.12em] uppercase text-foreground line-clamp-1">
                               {p.title}
                             </span>
@@ -918,7 +918,7 @@ export default function ProductDetailsClient({
                             </span>
                           </div>
                           <button
-                            className="w-7 h-7 flex items-center justify-center text-foreground/40 hover:text-foreground active:scale-90 transition-all"
+                            className="w-7 h-7 flex items-center justify-center text-foreground/40 hover:text-foreground active:scale-90 transition-all shrink-0 ml-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               setQuickAddProduct(p);
