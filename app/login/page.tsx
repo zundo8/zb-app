@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, ChevronDown, Shield, Lock, Box } from "lucide-react";
+import { ArrowRight, Loader2, ChevronDown, Search, ShieldCheck } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
+import { useTheme } from "next-themes";
 
 const COUNTRIES = [
   { name: 'India', code: '+91', iso: 'IN', flagColors: ['#FF9933', '#FFFFFF', '#138808'] },
@@ -19,14 +19,24 @@ const COUNTRIES = [
   { name: 'Germany', code: '+49', iso: 'DE', flagColors: ['#000000', '#DD0000', '#FFCE00'] },
   { name: 'France', code: '+33', iso: 'FR', flagColors: ['#0055A4', '#FFFFFF', '#EF4135'] },
   { name: 'Italy', code: '+39', iso: 'IT', flagColors: ['#009246', '#FFFFFF', '#CE2B37'] },
+  { name: 'Spain', code: '+34', iso: 'ES', flagColors: ['#AA151B', '#F1BF00', '#AA151B'] },
+  { name: 'Japan', code: '+81', iso: 'JP', flagColors: ['#FFFFFF', '#BC002D', '#FFFFFF'] },
+  { name: 'South Korea', code: '+82', iso: 'KR', flagColors: ['#FFFFFF', '#CD2E3A', '#0047A0'] },
+  { name: 'Saudi Arabia', code: '+966', iso: 'SA', flagColors: ['#006C35', '#FFFFFF'] },
+  { name: 'Qatar', code: '+974', iso: 'QA', flagColors: ['#FFFFFF', '#8A1538'] },
+  { name: 'Kuwait', code: '+965', iso: 'KW', flagColors: ['#007A3D', '#FFFFFF', '#CE1126', '#000000'] },
+  { name: 'Netherlands', code: '+31', iso: 'NL', flagColors: ['#AE1C28', '#FFFFFF', '#21468B'] },
+  { name: 'Switzerland', code: '+41', iso: 'CH', flagColors: ['#FF0000', '#FFFFFF', '#FF0000'] },
+  { name: 'Ireland', code: '+353', iso: 'IE', flagColors: ['#169B62', '#FFFFFF', '#FF883E'] },
+  { name: 'Hong Kong', code: '+852', iso: 'HK', flagColors: ['#DE2910', '#FFFFFF'] },
 ];
 
 const FlagBadge = ({ country, size = 'small' }: { country: typeof COUNTRIES[number]; size?: 'small' | 'large' }) => {
   const isLarge = size === 'large';
   return (
-    <div className={`relative overflow-hidden border border-neutral-200 dark:border-white/10 shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.1)] flex items-center justify-center ${
-      isLarge ? "w-[24px] h-[16px] rounded-[3px]" : "w-[18px] h-[12px] rounded-[2px]"
-    } bg-neutral-100 dark:bg-white/5`}>
+    <div className={`relative overflow-hidden border border-black/10 dark:border-white/20 shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.1)] flex items-center justify-center ${
+      isLarge ? "w-[32px] h-[22px] rounded-md" : "w-[24px] h-[16px] rounded-[4px]"
+    } bg-black/5 dark:bg-white/10`}>
       {/* Fallback Stripe Design */}
       <div className="absolute inset-0 flex opacity-75 pointer-events-none">
         {country.flagColors.map((color, idx) => (
@@ -39,7 +49,7 @@ const FlagBadge = ({ country, size = 'small' }: { country: typeof COUNTRIES[numb
       </div>
       <span 
         className="absolute text-white font-black uppercase tracking-wider drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.65)] select-none z-10"
-        style={{ fontSize: isLarge ? '6px' : '4.5px' }}
+        style={{ fontSize: isLarge ? '8px' : '6.5px' }}
       >
         {country.iso}
       </span>
@@ -57,32 +67,26 @@ const FlagBadge = ({ country, size = 'small' }: { country: typeof COUNTRIES[numb
 };
 
 export default function LoginPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const { resolvedTheme } = useTheme();
 
-  const [settings, setSettings] = useState<any>(null);
-
-  useEffect(() => {
-    fetch("/api/admin/settings")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && !data.error) {
-          setSettings(data);
-        }
-      })
-      .catch((err) => console.error("Error loading settings:", err));
-  }, []);
-
-  // Flow State
   const [step, setStep] = useState<"PHONE" | "NAME" | "OTP">("PHONE");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [country, setCountry] = useState(COUNTRIES[0]);
   const [showPicker, setShowPicker] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [errors, setErrors] = useState<{ phone?: string; otp?: string; name?: string }>({});
+
+  const filteredCountries = COUNTRIES.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.code.includes(searchQuery) ||
+    c.iso.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -99,6 +103,7 @@ export default function LoginPage() {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowPicker(false);
+        setSearchQuery("");
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -126,8 +131,6 @@ export default function LoginPage() {
 
   const handleContinuePhone = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
-
     let cleaned = phone.replace(/\D/g, "");
     const countryDigits = country.code.replace(/\D/g, "");
     
@@ -187,8 +190,6 @@ export default function LoginPage() {
 
   const handleContinueName = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
-
     if (!name.trim()) {
       setErrors({ name: "Tell us your name" });
       return;
@@ -251,8 +252,6 @@ export default function LoginPage() {
   };
 
   const handleLogin = async (codeOverride?: string) => {
-    if (loading) return;
-
     const finalOtp = codeOverride || otp.join("");
     if (finalOtp.length < 6 || !/^\d{6}$/.test(finalOtp)) {
       setErrors({ otp: "Enter 6-digit OTP" });
@@ -271,17 +270,12 @@ export default function LoginPage() {
         phone: fullPhone, 
         otp: finalOtp, 
         name: name.trim(), 
-        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : "Web Browser",
         redirect: false, 
         callbackUrl 
       });
 
       if (result?.error) {
-        if (result.error === "CredentialsSignin") {
-          setError("Incorrect verification code. Please check and try again.");
-        } else {
-          setError(result.error);
-        }
+        setError("Invalid OTP. Try 123456.");
       } else if (result?.ok) {
         router.replace(callbackUrl);
       }
@@ -293,7 +287,6 @@ export default function LoginPage() {
   };
 
   const handleResendOTP = async () => {
-    if (loading) return;
     setLoading(true);
     setError("");
     const cleaned = phone.replace(/\D/g, "");
@@ -311,355 +304,254 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = () => { signIn("google", { callbackUrl }); };
+  const handleAppleSignIn = () => { signIn("apple", { callbackUrl }); };
+
   return (
-    <div className="relative min-h-[100dvh] w-full flex flex-col items-center justify-between bg-white dark:bg-black text-black dark:text-white overflow-hidden py-10 px-6 font-mono transition-colors duration-500 select-none">
-      
-      {/* ─── DYNAMIC BACKGROUND STREETWEAR OVERLAYS ─── */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden select-none">
-        {settings?.loginBgVideo ? (
-          <>
-            {/* Desktop Video Background */}
-            <video
-              src={settings.loginBgVideo}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className={`w-full h-full object-cover ${settings.loginBgVideoMobile ? 'hidden md:block' : 'block'}`}
-            />
-            {/* Mobile Video Background */}
-            {settings.loginBgVideoMobile && (
-              <video
-                src={settings.loginBgVideoMobile}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="w-full h-full object-cover md:hidden"
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/75 to-black dark:block hidden" />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-white/85 to-white dark:hidden block" />
-          </>
-        ) : settings?.loginBgImage ? (
-          <>
-            {/* Desktop Custom Image Background */}
-            <Image
-              src={settings.loginBgImage}
-              alt="Login Background"
-              fill
-              className={`object-cover object-center ${settings.loginBgImageMobile ? 'hidden md:block' : 'block'}`}
-              priority
-            />
-            {/* Mobile Custom Image Background */}
-            {settings.loginBgImageMobile && (
-              <Image
-                src={settings.loginBgImageMobile}
-                alt="Login Background Mobile"
-                fill
-                className="object-cover object-center md:hidden"
-                priority
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/75 to-black dark:block hidden" />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-white/85 to-white dark:hidden block" />
-          </>
-        ) : (
-          /* Default Fallback static layouts */
-          <>
-            {/* Dark theme: Atmospheric low exposure models */}
-            <div className="absolute inset-0 hidden dark:block opacity-45">
-              <Image 
-                src="https://images.unsplash.com/photo-1617137968427-85924c800a22?q=80&w=1000&auto=format&fit=crop" 
-                alt="Streetwear Background Dark" 
-                fill 
-                className="object-cover object-top filter grayscale contrast-125 brightness-[0.7]"
-                priority
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/75 to-black" />
+    <div className="login-page-root">
+      {/* Subtle background texture lines (light mode) / dark gradient (dark mode) */}
+      <div className="login-page-bg" />
+
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+        className="login-card"
+      >
+        {/* Inner glass reflection */}
+        <div className="login-card-reflection" />
+
+        {/* ─── Brand Header ─── */}
+        <div className="login-brand">
+          <motion.div
+            initial={{ scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.15, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="login-logo-wrap"
+          >
+            <div className="login-logo">
+              <Image src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain dark:invert" priority />
             </div>
-            
-            {/* Light theme: Soft styled models */}
-            <div className="absolute inset-0 dark:hidden opacity-10">
-              <Image 
-                src="https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=1000&auto=format&fit=crop"
-                alt="Streetwear Background Light" 
-                fill 
-                className="object-cover object-top filter grayscale opacity-90"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-white/85 to-white" />
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Ambient decorative radial glow (Dark theme only) */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full bg-neutral-900/10 dark:bg-violet-600/[0.03] blur-[120px] pointer-events-none z-0" />
-
-      {/* ─── HEADER (Brand Name) ─── */}
-      <header className="relative z-10 w-full flex justify-center pt-2">
-        <h1 className="text-[12px] font-medium tracking-[0.35em] uppercase text-black/95 dark:text-white/95 font-rocaston leading-none">
-          ZICA BELLA
-        </h1>
-      </header>
-
-      {/* ─── MAIN CONTENT CONTAINER ─── */}
-      <main className="relative z-10 w-full max-w-[340px] flex flex-col justify-center flex-1 my-6">
-        
-        {/* Dynamic Titles based on Sign-in Step */}
-        <div className="space-y-1 mb-8">
-          <AnimatePresence mode="wait">
-            {step === "PHONE" && (
-              <motion.div
-                key="phone-title"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <span className="font-serif text-[42px] font-light tracking-tight text-black dark:text-white block leading-none">
-                  enter
-                </span>
-                <span className="font-serif italic text-[42px] font-light tracking-tight text-black dark:text-white block leading-none mt-1">
-                  your world.
-                </span>
-                <p className="text-[10.5px] font-mono tracking-[0.08em] text-neutral-500 dark:text-neutral-400 mt-5 leading-relaxed font-medium">
-                  Luxury streetwear<br />designed for the bold.
-                </p>
-              </motion.div>
-            )}
-            
-            {step === "NAME" && (
-              <motion.div
-                key="name-title"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <span className="font-serif text-[42px] font-light tracking-tight text-black dark:text-white block leading-none">
-                  create
-                </span>
-                <span className="font-serif italic text-[42px] font-light tracking-tight text-black dark:text-white block leading-none mt-1">
-                  your profile.
-                </span>
-                <p className="text-[10.5px] font-mono tracking-[0.08em] text-neutral-500 dark:text-neutral-400 mt-5 leading-relaxed font-medium">
-                  Tell us your name<br />to begin the journey.
-                </p>
-              </motion.div>
-            )}
-
-            {step === "OTP" && (
-              <motion.div
-                key="otp-title"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <span className="font-serif text-[42px] font-light tracking-tight text-black dark:text-white block leading-none">
-                  verify
-                </span>
-                <span className="font-serif italic text-[42px] font-light tracking-tight text-black dark:text-white block leading-none mt-1">
-                  your access.
-                </span>
-                <p className="text-[10.5px] font-mono tracking-[0.08em] text-neutral-500 dark:text-neutral-400 mt-5 leading-relaxed font-medium">
-                  Enter the verification code<br />sent to your device.
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          </motion.div>
+          <motion.h1
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25, duration: 0.6 }}
+            className="login-brand-name"
+          >
+            ZICA BELLA
+          </motion.h1>
         </div>
 
-        {/* Form Area */}
-        <div className="space-y-5">
+        {/* ─── Dynamic Multi-Step Forms ─── */}
+        <div className="login-form-area">
           <AnimatePresence mode="wait">
-            
-            {/* Step 1: Phone Input View */}
+            {/* ══════════ STEP 1: PHONE ══════════ */}
             {step === "PHONE" && (
-              <motion.form 
-                key="phone-view"
-                initial={{ opacity: 0, y: 10 }}
+              <motion.form
+                key="phone-step"
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 onSubmit={handleContinuePhone}
-                className="space-y-4 font-mono"
+                className="login-step-form"
               >
-                <p className="text-neutral-500 dark:text-neutral-400 text-[10.5px] font-normal leading-normal mb-1 font-mono">
-                  Enter your mobile number and we'll send you a one-time password.
-                </p>
+                {/* Heading */}
+                <div className="login-step-heading">
+                  <h2 className="login-title">Welcome</h2>
+                  <p className="login-subtitle">Continue with your mobile number</p>
+                </div>
 
-                <div className="space-y-2 font-mono">
-                  <div className={`relative flex items-center h-12 w-full border rounded-[8px] bg-transparent transition-all px-3.5 ${
-                    errors.phone 
-                      ? 'border-red-500/40 ring-1 ring-red-500/10' 
-                      : 'border-neutral-200 dark:border-neutral-800 focus-within:border-neutral-950 dark:focus-within:border-white/40'
-                  }`}>
+                {/* Phone Input Row */}
+                <div className="login-input-group">
+                  <div className={`login-phone-row ${errors.phone ? 'login-phone-row--error' : ''}`}>
                     {/* Country Code Selector */}
-                    <div className="relative" ref={dropdownRef}>
-                      <button 
-                        type="button" 
+                    <div className="login-country-selector" ref={dropdownRef}>
+                      <button
+                        type="button"
                         onClick={() => setShowPicker(!showPicker)}
-                        className="flex items-center gap-1 pr-2.5 mr-2 border-r border-neutral-200 dark:border-neutral-800 text-[11px] font-bold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50/50 dark:hover:bg-white/5 transition-all outline-none font-mono"
+                        className="login-country-btn"
                       >
-                        <FlagBadge country={country} />
-                        <ChevronDown className={`w-3.5 h-3.5 text-neutral-400 transition-transform duration-300 ${showPicker ? 'rotate-180' : ''}`} />
+                        <FlagBadge country={country} size="large" />
+                        <span className="login-country-code">{country.code}</span>
+                        <ChevronDown className={`login-chevron ${showPicker ? 'login-chevron--open' : ''}`} />
                       </button>
 
                       <AnimatePresence>
                         {showPicker && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: -5, scale: 0.98 }} 
-                            animate={{ opacity: 1, y: 0, scale: 1 }} 
-                            exit={{ opacity: 0, y: -5, scale: 0.98 }} 
-                            transition={{ duration: 0.15 }}
-                            className="absolute top-full left-0 mt-2 w-[240px] bg-white/70 dark:bg-black/55 backdrop-blur-xl rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.25)] z-50 border border-white/20 dark:border-white/10 overflow-hidden flex flex-col font-mono"
-                            style={{ maxHeight: '230px' }}
+                          <motion.div
+                            initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                            transition={{ duration: 0.18 }}
+                            className="login-dropdown"
                           >
-                            <div className="px-3.5 pt-3 pb-1.5 text-[8px] font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 font-mono">SELECT REGION</div>
-                            
-                            {/* Dropdown list */}
-                            <div className="overflow-y-auto max-h-[180px] py-1 custom-scrollbar">
-                              {COUNTRIES.map((c, idx) => (
-                                <button 
-                                  key={`${c.iso}-${idx}`} 
-                                  type="button"
-                                  onClick={() => { setCountry(c); setShowPicker(false); }}
-                                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors duration-150 ${
-                                    country.iso === c.iso 
-                                      ? 'bg-black/5 dark:bg-white/15 text-neutral-900 dark:text-white' 
-                                      : 'text-neutral-600 dark:text-neutral-350 hover:bg-black/[0.03] dark:hover:bg-white/5'
-                                  }`}
-                                >
-                                  <FlagBadge country={c} />
-                                  <span className="text-[10px] font-bold flex-1 uppercase tracking-wider font-mono">{c.name}</span>
-                                  <span className="text-[9px] font-bold text-neutral-400 dark:text-white/30 font-mono">{c.code}</span>
-                                </button>
-                              ))}
+                            <div className="login-dropdown-header">SELECT REGION</div>
+
+                            {/* Search */}
+                            <div className="login-dropdown-search">
+                              <Search className="login-dropdown-search-icon" />
+                              <input
+                                type="text"
+                                placeholder="Search country or code..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="login-dropdown-search-input"
+                                onClick={(e) => e.stopPropagation()}
+                                autoFocus
+                              />
+                            </div>
+
+                            {/* List */}
+                            <div className="login-dropdown-list custom-scrollbar">
+                              {filteredCountries.length === 0 ? (
+                                <div className="login-dropdown-empty">No countries found</div>
+                              ) : (
+                                filteredCountries.map((c, idx) => (
+                                  <button
+                                    key={`${c.iso}-${idx}`}
+                                    type="button"
+                                    onClick={() => { setCountry(c); setShowPicker(false); setSearchQuery(""); }}
+                                    className={`login-dropdown-item ${country.iso === c.iso ? 'login-dropdown-item--active' : ''}`}
+                                  >
+                                    <FlagBadge country={c} />
+                                    <span className="login-dropdown-item-name">{c.name}</span>
+                                    <span className="login-dropdown-item-code">{c.code}</span>
+                                  </button>
+                                ))
+                              )}
                             </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
 
-                    {/* Country Code Prefix */}
-                    <span className="text-[13px] font-bold tracking-widest text-neutral-800 dark:text-white font-mono pl-1 select-none pr-1">
-                      {country.code}
-                    </span>
+                    {/* Separator */}
+                    <div className="login-phone-separator" />
 
-                    {/* Mobile Input */}
-                    <input 
-                      type="tel" 
-                      placeholder="Enter mobile number" 
-                      value={phone} 
+                    {/* Phone Input */}
+                    <input
+                      type="tel"
+                      placeholder="Enter Mobile Number"
+                      value={phone}
                       onChange={(e) => handlePhoneChange(e.target.value)}
-                      className="flex-1 bg-transparent text-[13px] font-bold tracking-widest text-neutral-800 dark:text-white outline-none pl-1 border-none focus:ring-0 font-mono"
-                      autoFocus 
+                      className="login-phone-input"
+                      autoFocus
                       required
                     />
                   </div>
-                  {errors.phone && (
-                    <p className="text-[10px] font-bold text-red-500/90 ml-1 tracking-wide font-mono">{errors.phone}</p>
-                  )}
+                  {errors.phone && <p className="login-field-error">{errors.phone}</p>}
                 </div>
 
-                <button 
-                  type="submit" 
+                {/* Security message */}
+                <div className="login-security-msg">
+                  <ShieldCheck className="login-security-icon" />
+                  <span>We&apos;ll send a secure verification code to continue.</span>
+                </div>
+
+                {/* Continue Button */}
+                <button
+                  type="submit"
                   disabled={loading || phone.length < 7}
-                  className="w-full h-12 text-[10px] tracking-[0.25em] font-bold uppercase rounded-[6px] bg-black dark:bg-white text-white dark:text-black hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none shadow-md shadow-black/5 font-mono"
+                  className="login-continue-btn"
                 >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>SEND OTP <span className="text-xs font-mono">→</span></>
-                  )}
+                  <span className="login-continue-text">
+                    {loading ? <Loader2 className="login-spinner" /> : "Continue"}
+                  </span>
+                  {!loading && <ArrowRight className="login-continue-arrow" />}
                 </button>
+
+                {/* Terms */}
+                <div className="login-terms">
+                  <span>By continuing, you agree to our</span>
+                  <span>
+                    <a href="/policies/terms" className="login-terms-link">Terms &amp; Conditions</a>
+                    {" "}and{" "}
+                    <a href="/policies/privacy" className="login-terms-link">Privacy Policy</a>
+                  </span>
+                </div>
               </motion.form>
             )}
 
-            {/* Step 2: Name Entry View */}
+            {/* ══════════ STEP 2: NAME ══════════ */}
             {step === "NAME" && (
-              <motion.form 
-                key="name-view"
-                initial={{ opacity: 0, y: 10 }}
+              <motion.form
+                key="name-step"
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 onSubmit={handleContinueName}
-                className="space-y-4 font-mono"
+                className="login-step-form"
               >
-                <p className="text-neutral-455 dark:text-neutral-400 text-[10.5px] leading-normal mb-1 font-mono">
-                  Please provide your name to register an account with Zica Bella.
-                </p>
+                <div className="login-step-heading">
+                  <h2 className="login-title">Welcome</h2>
+                  <p className="login-subtitle">What&apos;s your name?</p>
+                </div>
 
-                <div className="space-y-2 font-mono">
-                  <div className={`flex h-12 border rounded-[8px] bg-transparent overflow-hidden px-4 items-center transition-all ${
-                    errors.name 
-                      ? 'border-red-500/40 ring-1 ring-red-500/10' 
-                      : 'border-neutral-250 dark:border-neutral-800 focus-within:border-neutral-900 dark:focus-within:border-white/40'
-                  }`}>
-                    <input 
-                      type="text" 
-                      placeholder="Your Name" 
-                      value={name} 
+                <div className="login-input-group">
+                  <div className={`login-name-row ${errors.name ? 'login-phone-row--error' : ''}`}>
+                    <input
+                      type="text"
+                      placeholder="Your Name"
+                      value={name}
                       onChange={(e) => { setName(e.target.value); if (errors.name) setErrors({}); }}
-                      className="w-full bg-transparent text-[13px] font-bold text-neutral-850 dark:text-white outline-none border-none focus:ring-0 placeholder:text-neutral-400 dark:placeholder:text-white/20 font-mono"
-                      autoFocus 
+                      className="login-name-input"
+                      autoFocus
                       autoComplete="off"
                       required
                     />
                   </div>
-                  {errors.name && (
-                    <p className="text-[10px] font-bold text-red-500/90 ml-1 tracking-wide font-mono">{errors.name}</p>
-                  )}
+                  {errors.name && <p className="login-field-error">{errors.name}</p>}
                 </div>
 
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={loading || !name.trim()}
-                  className="w-full h-12 text-[11px] tracking-[0.25em] font-bold uppercase rounded-[6px] bg-black text-white dark:bg-white dark:text-black hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none shadow-md shadow-black/5 font-mono"
+                  className="login-continue-btn"
                 >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>CREATE ACCOUNT &rarr;</>
-                  )}
+                  <span className="login-continue-text">
+                    {loading ? <Loader2 className="login-spinner" /> : "Create Account"}
+                  </span>
+                  {!loading && <ArrowRight className="login-continue-arrow" />}
                 </button>
 
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setStep("PHONE")}
-                  className="w-full flex items-center justify-center gap-1.5 text-center text-[9px] text-neutral-450 dark:text-neutral-550 hover:text-neutral-900 dark:hover:text-white transition-colors tracking-[0.18em] uppercase font-bold pt-2 font-mono"
+                  className="login-back-btn"
                 >
-                  Back to Phone
+                  ← Back to Phone
                 </button>
               </motion.form>
             )}
 
-            {/* Step 3: OTP Verification View */}
+            {/* ══════════ STEP 3: OTP ══════════ */}
             {step === "OTP" && (
-              <motion.form 
-                key="otp-view"
-                initial={{ opacity: 0, y: 10 }}
+              <motion.form
+                key="otp-step"
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
-                className="space-y-5 font-mono"
+                className="login-step-form"
               >
-                <p className="text-neutral-455 dark:text-neutral-400 text-[10.5px] leading-relaxed mb-1 font-mono">
-                  We have sent a verification code to:<br/>
-                  <span className="text-neutral-850 dark:text-white font-bold tracking-wider font-mono">{country.code} {phone.slice(0,3)}••••{phone.slice(-3)}</span>
-                </p>
+                <div className="login-step-heading" style={{ textAlign: 'center' }}>
+                  <h2 className="login-title">Verify</h2>
+                  <p className="login-subtitle">
+                    Enter the code sent to<br />
+                    <strong className="login-phone-display">{country.code} {phone.slice(0,3)}••••{phone.slice(-3)}</strong>
+                  </p>
+                </div>
 
-                <div className="space-y-2 font-mono">
-                  <div className="flex justify-between gap-1.5 text-center font-mono">
+                <div className="login-otp-group">
+                  <div className="login-otp-boxes">
                     {otp.map((digit, i) => (
-                      <div 
-                        key={i} 
-                        className={`w-10 h-11 rounded-xl border flex items-center justify-center bg-transparent overflow-hidden ${
-                          digit 
-                            ? "border-neutral-400 dark:border-white/35 bg-neutral-50 dark:bg-white/[0.04]" 
-                            : "border-neutral-255 dark:border-neutral-800"
-                        }`}
+                      <div
+                        key={i}
+                        className={`login-otp-box ${digit ? 'login-otp-box--filled' : ''}`}
                       >
                         <input
                           ref={(el) => { if (el) otpRefs.current[i] = el; }}
@@ -671,119 +563,877 @@ export default function LoginPage() {
                           onChange={(e) => handleOtpChange(e.target.value, i)}
                           onKeyDown={(e) => handleOtpKeyDown(e, i)}
                           placeholder="•"
-                          className="w-full h-full text-center text-[15px] font-bold bg-transparent text-neutral-850 dark:text-white outline-none placeholder:text-neutral-200 dark:placeholder:text-white/10 font-mono"
+                          className="login-otp-input"
                           autoFocus={i === 0}
-                          selectTextOnFocus
                         />
                       </div>
                     ))}
                   </div>
-                  {errors.otp && (
-                    <p className="text-[10px] font-bold text-red-500/90 text-center tracking-wide font-mono">{errors.otp}</p>
-                  )}
+                  {errors.otp && <p className="login-field-error" style={{ textAlign: 'center' }}>{errors.otp}</p>}
                 </div>
 
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={loading || otp.join("").length < 6}
-                  className="w-full h-12 text-[11px] tracking-[0.25em] font-bold uppercase rounded-[6px] bg-black text-white dark:bg-white dark:text-black hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none shadow-md shadow-black/5 font-mono"
+                  className="login-continue-btn"
                 >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>VERIFY &rarr;</>
-                  )}
+                  <span className="login-continue-text">
+                    {loading ? <Loader2 className="login-spinner" /> : "Verify"}
+                  </span>
+                  {!loading && <ArrowRight className="login-continue-arrow" />}
                 </button>
 
-                <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] pt-1 px-1 font-mono">
-                  <button 
-                    type="button" 
+                <div className="login-otp-actions">
+                  <button
+                    type="button"
                     onClick={() => { setStep("PHONE"); setOtp(["", "", "", "", "", ""]); }}
-                    className="text-neutral-450 dark:text-neutral-550 hover:text-neutral-900 dark:hover:text-white transition-colors font-mono"
+                    className="login-otp-action-btn"
                   >
                     Edit Phone
                   </button>
-                  <button 
-                    type="button" 
-                    onClick={handleResendOTP} 
+                  <button
+                    type="button"
+                    onClick={handleResendOTP}
                     disabled={loading}
-                    className="text-neutral-450 dark:text-neutral-550 hover:text-neutral-900 dark:hover:text-white transition-colors disabled:opacity-30 font-mono"
+                    className="login-otp-action-btn"
                   >
                     Resend OTP
                   </button>
                 </div>
               </motion.form>
             )}
-
           </AnimatePresence>
         </div>
 
         {/* Global Error Banner */}
         {error && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }} 
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center text-[10px] font-semibold tracking-wide py-2.5 px-3 rounded-xl leading-normal border text-red-500 bg-red-500/5 border-red-500/10 mt-6"
+            className="login-error-banner"
           >
             {error}
           </motion.div>
         )}
+      </motion.div>
 
-      </main>
+      {/* ─── Scoped Styles ─── */}
+      <style jsx global>{`
+        /* =============================================
+           LOGIN PAGE — SCOPED STYLES
+           Light: elegant white/off-white glass
+           Dark: premium pure black glass
+           ============================================= */
 
-      {/* ─── FOOTER (Trust Badges & Footnotes) ─── */}
-      <footer className="relative z-10 w-full max-w-[340px] flex flex-col items-center">
-        
-        {/* Trust Badges */}
-        <div className="w-full grid grid-cols-3 gap-2 border-t border-neutral-150 dark:border-neutral-900 pt-6 mt-2">
-          {/* SECURE Login */}
-          <div className="flex flex-col items-center text-center">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center border border-neutral-200/60 dark:border-white/[0.04] bg-neutral-50/50 dark:bg-white/[0.01] mb-1 text-neutral-450 dark:text-neutral-550">
-              <Lock className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[8px] font-bold tracking-[0.18em] text-neutral-800 dark:text-neutral-200 uppercase leading-none">SECURE</span>
-            <span className="text-[7.5px] font-light text-neutral-400 dark:text-neutral-500 mt-1 leading-none">Login</span>
-          </div>
-          
-          {/* VERIFIED Safe & Fast */}
-          <div className="flex flex-col items-center text-center border-x border-neutral-100 dark:border-neutral-900 px-1">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center border border-neutral-200/60 dark:border-white/[0.04] bg-neutral-50/50 dark:bg-white/[0.01] mb-1 text-neutral-450 dark:text-neutral-550">
-              <Shield className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[8px] font-bold tracking-[0.18em] text-neutral-800 dark:text-neutral-200 uppercase leading-none">VERIFIED</span>
-            <span className="text-[7.5px] font-light text-neutral-400 dark:text-neutral-500 mt-1 leading-none">Safe & Fast</span>
-          </div>
+        .login-page-root {
+          min-height: 100dvh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px 20px;
+          position: relative;
+          overflow: hidden;
+          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+        }
 
-          {/* PREMIUM Experience */}
-          <div className="flex flex-col items-center text-center">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center border border-neutral-200/60 dark:border-white/[0.04] bg-neutral-50/50 dark:bg-white/[0.01] mb-1 text-neutral-450 dark:text-neutral-550">
-              <Box className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[8px] font-bold tracking-[0.18em] text-neutral-800 dark:text-neutral-200 uppercase leading-none">PREMIUM</span>
-            <span className="text-[7.5px] font-light text-neutral-400 dark:text-neutral-500 mt-1 leading-none">Experience</span>
-          </div>
-        </div>
+        /* ── Background ── */
+        .login-page-bg {
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          background: 
+            radial-gradient(ellipse at 30% 20%, rgba(245, 245, 247, 0.9) 0%, transparent 60%),
+            radial-gradient(ellipse at 70% 80%, rgba(232, 232, 237, 0.7) 0%, transparent 50%),
+            linear-gradient(180deg, #fafafa 0%, #f2f2f5 50%, #eaeaef 100%);
+        }
 
-        {/* Terms & Privacy Policies footnote */}
-        <div className="flex flex-col items-center text-center mt-8 space-y-4 px-4 font-mono">
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-[280px]">
-            By continuing, you agree to our{" "}
-            <Link href="/policies/terms-of-service" className="underline underline-offset-4 font-bold text-black dark:text-white">
-              Terms & Conditions
-            </Link>{" "}
-            and{" "}
-            <Link href="/policies/privacy-policy" className="underline underline-offset-4 font-bold text-black dark:text-white">
-              Privacy Policies
-            </Link>
-            .
-          </p>
-          <span className="text-[6px] text-neutral-300 dark:text-white/10 font-bold uppercase tracking-[0.25em] pt-1">
-            SECURED ARCHIVAL PROTOCOL v2.5
-          </span>
-        </div>
+        .dark .login-page-bg {
+          background:
+            radial-gradient(ellipse at 30% 20%, rgba(20, 20, 30, 0.8) 0%, transparent 60%),
+            radial-gradient(ellipse at 70% 80%, rgba(10, 10, 18, 0.6) 0%, transparent 50%),
+            linear-gradient(180deg, #0a0a0a 0%, #050505 50%, #000000 100%);
+        }
 
-      </footer>
+        /* ── Card ── */
+        .login-card {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 400px;
+          padding: 48px 32px 40px;
+          border-radius: 36px;
+          background: rgba(255, 255, 255, 0.72);
+          backdrop-filter: blur(40px) saturate(180%);
+          -webkit-backdrop-filter: blur(40px) saturate(180%);
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 0 0 0.5px rgba(255, 255, 255, 0.5) inset,
+            0 20px 60px -10px rgba(0, 0, 0, 0.06),
+            0 1px 3px rgba(0, 0, 0, 0.04);
+          display: flex;
+          flex-direction: column;
+          gap: 32px;
+          overflow: hidden;
+        }
 
+        .dark .login-card {
+          background: rgba(18, 18, 22, 0.75);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow:
+            0 0 0 0.5px rgba(255, 255, 255, 0.06) inset,
+            0 20px 60px -10px rgba(0, 0, 0, 0.6),
+            0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .login-card-reflection {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(165deg, rgba(255,255,255,0.06) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.02) 100%);
+          pointer-events: none;
+          border-radius: 36px;
+        }
+
+        .dark .login-card-reflection {
+          background: linear-gradient(165deg, rgba(255,255,255,0.04) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.01) 100%);
+        }
+
+        /* ── Brand ── */
+        .login-brand {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .login-logo-wrap {
+          display: flex;
+          justify-content: center;
+        }
+
+        .login-logo {
+          position: relative;
+          width: 64px;
+          height: 64px;
+        }
+
+        .login-brand-name {
+          font-family: 'Rocaston', -apple-system, sans-serif;
+          font-size: 15px;
+          font-weight: 500;
+          letter-spacing: 0.35em;
+          color: #000;
+          text-transform: uppercase;
+        }
+
+        .dark .login-brand-name {
+          color: #fff;
+        }
+
+        /* ── Form Area ── */
+        .login-form-area {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .login-step-form {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+
+        /* ── Headings ── */
+        .login-step-heading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .login-title {
+          font-size: 32px;
+          font-weight: 400;
+          letter-spacing: -0.01em;
+          color: #000;
+          line-height: 1.2;
+          font-family: 'Georgia', 'Times New Roman', serif;
+        }
+
+        .dark .login-title {
+          color: #fff;
+        }
+
+        .login-subtitle {
+          font-size: 14px;
+          font-weight: 400;
+          color: rgba(0, 0, 0, 0.45);
+          line-height: 1.4;
+        }
+
+        .dark .login-subtitle {
+          color: rgba(255, 255, 255, 0.45);
+        }
+
+        /* ── Input Group ── */
+        .login-input-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        /* ── Phone Row ── */
+        .login-phone-row {
+          display: flex;
+          align-items: center;
+          height: 56px;
+          border-radius: 28px;
+          background: rgba(0, 0, 0, 0.02);
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          padding: 4px 4px 4px 16px;
+          transition: all 0.25s ease;
+          overflow: visible;
+        }
+
+        .dark .login-phone-row {
+          background: rgba(255, 255, 255, 0.04);
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .login-phone-row:focus-within {
+          border-color: rgba(0, 0, 0, 0.18);
+          box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .dark .login-phone-row:focus-within {
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+        }
+
+        .login-phone-row--error {
+          border-color: rgba(220, 38, 38, 0.5) !important;
+        }
+
+        /* ── Country Selector ── */
+        .login-country-selector {
+          position: relative;
+          flex-shrink: 0;
+        }
+
+        .login-country-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 4px 6px 0;
+          background: none;
+          border: none;
+          cursor: pointer;
+          outline: none;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .login-country-code {
+          font-size: 15px;
+          font-weight: 600;
+          color: #000;
+          letter-spacing: 0.02em;
+        }
+
+        .dark .login-country-code {
+          color: #fff;
+        }
+
+        .login-chevron {
+          width: 14px;
+          height: 14px;
+          color: rgba(0, 0, 0, 0.3);
+          transition: transform 0.25s ease;
+          flex-shrink: 0;
+        }
+
+        .dark .login-chevron {
+          color: rgba(255, 255, 255, 0.3);
+        }
+
+        .login-chevron--open {
+          transform: rotate(180deg);
+        }
+
+        /* ── Country Dropdown ── */
+        .login-dropdown {
+          position: absolute;
+          top: calc(100% + 10px);
+          left: -16px;
+          width: 280px;
+          max-height: 320px;
+          background: rgba(255, 255, 255, 0.97);
+          backdrop-filter: blur(40px) saturate(180%);
+          -webkit-backdrop-filter: blur(40px) saturate(180%);
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          border-radius: 20px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+          z-index: 100;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .dark .login-dropdown {
+          background: rgba(22, 22, 26, 0.97);
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-dropdown-header {
+          padding: 14px 18px 6px;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.15em;
+          color: rgba(0, 0, 0, 0.3);
+          text-transform: uppercase;
+        }
+
+        .dark .login-dropdown-header {
+          color: rgba(255, 255, 255, 0.3);
+        }
+
+        .login-dropdown-search {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 4px 14px 10px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .dark .login-dropdown-search {
+          border-bottom-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .login-dropdown-search-icon {
+          width: 14px;
+          height: 14px;
+          color: rgba(0, 0, 0, 0.3);
+          flex-shrink: 0;
+        }
+
+        .dark .login-dropdown-search-icon {
+          color: rgba(255, 255, 255, 0.3);
+        }
+
+        .login-dropdown-search-input {
+          flex: 1;
+          background: rgba(0, 0, 0, 0.03);
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          border-radius: 10px;
+          padding: 6px 10px;
+          font-size: 12px !important;
+          font-weight: 500;
+          color: #000;
+          outline: none;
+        }
+
+        .dark .login-dropdown-search-input {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 0.08);
+          color: #fff;
+        }
+
+        .login-dropdown-search-input::placeholder {
+          color: rgba(0, 0, 0, 0.3);
+        }
+
+        .dark .login-dropdown-search-input::placeholder {
+          color: rgba(255, 255, 255, 0.3);
+        }
+
+        .login-dropdown-list {
+          overflow-y: auto;
+          max-height: 220px;
+          padding: 4px 0;
+        }
+
+        .login-dropdown-empty {
+          padding: 24px 18px;
+          text-align: center;
+          font-size: 12px;
+          color: rgba(0, 0, 0, 0.35);
+          font-weight: 500;
+        }
+
+        .dark .login-dropdown-empty {
+          color: rgba(255, 255, 255, 0.35);
+        }
+
+        .login-dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+          padding: 10px 18px;
+          border: none;
+          background: none;
+          text-align: left;
+          cursor: pointer;
+          transition: background 0.15s;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .login-dropdown-item:hover {
+          background: rgba(0, 0, 0, 0.04);
+        }
+
+        .dark .login-dropdown-item:hover {
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .login-dropdown-item--active {
+          background: rgba(0, 0, 0, 0.03);
+        }
+
+        .dark .login-dropdown-item--active {
+          background: rgba(255, 255, 255, 0.04);
+        }
+
+        .login-dropdown-item-name {
+          flex: 1;
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        .dark .login-dropdown-item-name {
+          color: rgba(255, 255, 255, 0.7);
+        }
+
+        .login-dropdown-item--active .login-dropdown-item-name {
+          color: #000;
+        }
+
+        .dark .login-dropdown-item--active .login-dropdown-item-name {
+          color: #fff;
+        }
+
+        .login-dropdown-item-code {
+          font-size: 11px;
+          font-weight: 600;
+          color: rgba(0, 0, 0, 0.3);
+        }
+
+        .dark .login-dropdown-item-code {
+          color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* ── Separator ── */
+        .login-phone-separator {
+          width: 1px;
+          height: 24px;
+          background: rgba(0, 0, 0, 0.1);
+          margin: 0 12px;
+          flex-shrink: 0;
+        }
+
+        .dark .login-phone-separator {
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* ── Phone Input ── */
+        .login-phone-input {
+          flex: 1;
+          background: none;
+          border: none;
+          outline: none;
+          font-size: 15px !important;
+          font-weight: 400;
+          color: #000;
+          letter-spacing: 0.01em;
+          padding: 0;
+          min-width: 0;
+        }
+
+        .dark .login-phone-input {
+          color: #fff;
+        }
+
+        .login-phone-input::placeholder {
+          color: rgba(0, 0, 0, 0.3);
+          font-weight: 400;
+        }
+
+        .dark .login-phone-input::placeholder {
+          color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* ── Name Row ── */
+        .login-name-row {
+          display: flex;
+          align-items: center;
+          height: 56px;
+          border-radius: 28px;
+          background: rgba(0, 0, 0, 0.02);
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          padding: 4px 20px;
+          transition: all 0.25s ease;
+        }
+
+        .dark .login-name-row {
+          background: rgba(255, 255, 255, 0.04);
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .login-name-row:focus-within {
+          border-color: rgba(0, 0, 0, 0.18);
+          box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .dark .login-name-row:focus-within {
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+        }
+
+        .login-name-input {
+          flex: 1;
+          background: none;
+          border: none;
+          outline: none;
+          font-size: 15px !important;
+          font-weight: 500;
+          color: #000;
+          padding: 0;
+        }
+
+        .dark .login-name-input {
+          color: #fff;
+        }
+
+        .login-name-input::placeholder {
+          color: rgba(0, 0, 0, 0.3);
+          font-weight: 400;
+        }
+
+        .dark .login-name-input::placeholder {
+          color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* ── Security Message ── */
+        .login-security-msg {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 400;
+          color: rgba(0, 0, 0, 0.5);
+          padding: 0 4px;
+        }
+
+        .dark .login-security-msg {
+          color: rgba(255, 255, 255, 0.45);
+        }
+
+        .login-security-icon {
+          width: 18px;
+          height: 18px;
+          flex-shrink: 0;
+          color: rgba(0, 0, 0, 0.4);
+        }
+
+        .dark .login-security-icon {
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* ── Continue Button ── */
+        .login-continue-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0;
+          width: 100%;
+          height: 56px;
+          border-radius: 28px;
+          background: rgba(0, 0, 0, 0.04);
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          cursor: pointer;
+          position: relative;
+          transition: all 0.25s ease;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .dark .login-continue-btn {
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .login-continue-btn:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.07);
+          border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .dark .login-continue-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .login-continue-btn:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+
+        .login-continue-btn:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+          pointer-events: none;
+        }
+
+        .login-continue-text {
+          font-size: 16px;
+          font-weight: 500;
+          color: #000;
+          letter-spacing: 0.01em;
+          display: flex;
+          align-items: center;
+        }
+
+        .dark .login-continue-text {
+          color: #fff;
+        }
+
+        .login-continue-arrow {
+          width: 20px;
+          height: 20px;
+          color: #000;
+          position: absolute;
+          right: 20px;
+        }
+
+        .dark .login-continue-arrow {
+          color: #fff;
+        }
+
+        .login-spinner {
+          width: 20px;
+          height: 20px;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        /* ── Terms ── */
+        .login-terms {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          font-size: 12px;
+          font-weight: 400;
+          color: rgba(0, 0, 0, 0.4);
+          text-align: center;
+          line-height: 1.5;
+        }
+
+        .dark .login-terms {
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .login-terms-link {
+          color: #000;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+          font-weight: 500;
+          transition: opacity 0.2s;
+        }
+
+        .dark .login-terms-link {
+          color: #fff;
+        }
+
+        .login-terms-link:hover {
+          opacity: 0.7;
+        }
+
+        /* ── Field Error ── */
+        .login-field-error {
+          font-size: 11px;
+          font-weight: 600;
+          color: #dc2626;
+          padding-left: 16px;
+          margin: 0;
+        }
+
+        /* ── Back Button ── */
+        .login-back-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          color: rgba(0, 0, 0, 0.4);
+          transition: color 0.2s;
+          padding: 8px;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .dark .login-back-btn {
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .login-back-btn:hover {
+          color: #000;
+        }
+
+        .dark .login-back-btn:hover {
+          color: #fff;
+        }
+
+        /* ── OTP ── */
+        .login-otp-group {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .login-otp-boxes {
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+        }
+
+        .login-otp-box {
+          width: 48px;
+          height: 52px;
+          border-radius: 14px;
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          background: rgba(0, 0, 0, 0.02);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          overflow: hidden;
+        }
+
+        .dark .login-otp-box {
+          border-color: rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.04);
+        }
+
+        .login-otp-box--filled {
+          border-color: #000;
+        }
+
+        .dark .login-otp-box--filled {
+          border-color: #fff;
+        }
+
+        .login-otp-input {
+          width: 100%;
+          height: 100%;
+          text-align: center;
+          font-size: 18px !important;
+          font-weight: 700;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: #000;
+          padding: 0;
+        }
+
+        .dark .login-otp-input {
+          color: #fff;
+        }
+
+        .login-otp-input::placeholder {
+          color: rgba(0, 0, 0, 0.12);
+        }
+
+        .dark .login-otp-input::placeholder {
+          color: rgba(255, 255, 255, 0.12);
+        }
+
+        .login-otp-actions {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 4px;
+        }
+
+        .login-otp-action-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgba(0, 0, 0, 0.4);
+          transition: color 0.2s;
+          padding: 6px 2px;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .dark .login-otp-action-btn {
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .login-otp-action-btn:hover {
+          color: #000;
+        }
+
+        .dark .login-otp-action-btn:hover {
+          color: #fff;
+        }
+
+        .login-otp-action-btn:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+
+        .login-phone-display {
+          color: #000;
+          font-weight: 600;
+        }
+
+        .dark .login-phone-display {
+          color: #fff;
+        }
+
+        /* ── Error Banner ── */
+        .login-error-banner {
+          text-align: center;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 10px 16px;
+          border-radius: 14px;
+          color: #dc2626;
+          background: rgba(220, 38, 38, 0.06);
+          border: 1px solid rgba(220, 38, 38, 0.12);
+        }
+
+        .dark .login-error-banner {
+          background: rgba(220, 38, 38, 0.08);
+          border-color: rgba(220, 38, 38, 0.15);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+          .login-card {
+            padding: 40px 24px 32px;
+            border-radius: 28px;
+            max-width: 100%;
+          }
+
+          .login-title {
+            font-size: 28px;
+          }
+
+          .login-dropdown {
+            width: 260px;
+            left: -12px;
+          }
+        }
+      `}</style>
     </div>
   );
 }
