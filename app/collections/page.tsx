@@ -77,7 +77,7 @@ export default async function CollectionsPage() {
                   }}
                 >
                   <div className="flex justify-between items-center">
-                    <h2 className="text-[14px] font-bold tracking-[0.3em] uppercase text-white/95 font-heading" style={{ fontFamily: "'HeadingPro', sans-serif" }}>
+                    <h2 className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/95 font-heading" style={{ fontFamily: "'HeadingPro', sans-serif" }}>
                       {collection.title}
                     </h2>
                     <div className="w-8 h-[1px] bg-white/30 group-hover:w-12 transition-all duration-700" />

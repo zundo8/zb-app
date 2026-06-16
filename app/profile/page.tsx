@@ -31,6 +31,8 @@ import {
   X,
   RotateCcw,
   AlertCircle,
+  Heart,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useBookmarks } from "@/lib/bookmark-context";
@@ -325,69 +327,54 @@ export default function ProfilePage() {
           {/* Ambient glow */}
           <div className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-100" style={{ background: "radial-gradient(ellipse at 30% 0%, rgba(var(--foreground),0.03) 0%, transparent 70%)" }} />
 
-          <div className="flex items-center gap-5 relative z-10">
-            {/* Avatar */}
-            <div className="relative shrink-0">
-              <div className="w-20 h-20 rounded-[1.5rem] border border-foreground/10 overflow-hidden relative group/img bg-foreground/[0.02]">
-                {uploading && (
-                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-20 backdrop-blur-sm">
-                    <Loader2 className="w-5 h-5 text-foreground animate-spin" />
-                  </div>
-                )}
-                {customer?.image || session.user?.image ? (
-                  <img src={customer?.image || session.user?.image || ""} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <User className="w-8 h-8 text-foreground/30" />
-                  </div>
-                )}
+          <div className="flex items-center justify-between gap-4 relative z-10">
+            <div className="flex items-center gap-5 min-w-0">
+              {/* Avatar */}
+              <div className="relative shrink-0">
+                <div className="w-20 h-20 rounded-[1.75rem] border border-foreground/10 overflow-hidden relative group/img bg-foreground/[0.02]">
+                  {uploading && (
+                    <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-20 backdrop-blur-sm">
+                      <Loader2 className="w-5 h-5 text-foreground animate-spin" />
+                    </div>
+                  )}
+                  {customer?.image || session.user?.image ? (
+                    <img src={customer?.image || session.user?.image || ""} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <User className="w-8 h-8 text-foreground/30" />
+                    </div>
+                  )}
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                </div>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 bg-foreground/0 group-hover/img:bg-foreground/10 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-all"
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center border border-foreground/10 shadow-lg text-foreground hover:bg-foreground/5 active:scale-95 transition-all z-10"
+                  aria-label="Change photo"
                 >
-                  <Camera className="w-4 h-4 text-foreground/70" />
+                  <Edit2 className="w-3.5 h-3.5 text-foreground" />
                 </button>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-xl bg-foreground flex items-center justify-center border-2 border-background shadow-lg">
-                <Sparkles className="w-2.5 h-2.5 text-background" />
+
+              {/* Info */}
+              <div className="min-w-0">
+                <h1 className="text-[18px] font-bold tracking-tight text-foreground truncate leading-tight">{name}</h1>
+                {email && (
+                  <p className="text-[11px] text-foreground/40 font-medium truncate tracking-wide mt-1.5">{email}</p>
+                )}
               </div>
             </div>
 
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <h1 className="text-[17px] font-bold tracking-tight text-foreground truncate leading-tight flex-1 mr-2">{name}</h1>
-                <button 
-                  onClick={() => {
-                    setIsEditingProfile(!isEditingProfile);
-                    setEditName(customer?.name || "");
-                  }} 
-                  className="p-1 text-foreground/40 hover:text-foreground/70 transition-colors"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              {email && (
-                <p className="text-[10px] text-foreground/50 truncate tracking-wide mt-0.5">{email}</p>
-              )}
-              <div className="flex items-center gap-3 mt-1.5">
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-foreground/80">{customer?.followersCount || 0}</span>
-                  <span className="text-[10px] text-foreground/35 font-medium">Followers</span>
-                </div>
-                <div className="w-1 h-1 rounded-full bg-foreground/10" />
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-foreground/80">{customer?.followingCount || 0}</span>
-                  <span className="text-[10px] text-foreground/35 font-medium">Following</span>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <span className="px-2.5 py-1 rounded-full text-[7px] font-bold uppercase tracking-widest border border-foreground/10 text-foreground/60 bg-foreground/[0.02]">
-                  Silver Member
-                </span>
-              </div>
-            </div>
+            {/* Edit Profile Button on far right */}
+            <button 
+              onClick={() => {
+                setIsEditingProfile(!isEditingProfile);
+                setEditName(customer?.name || "");
+              }} 
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-zinc-900 border border-foreground/10 shadow-sm text-foreground/75 hover:text-foreground hover:bg-foreground/5 active:scale-95 transition-all shrink-0"
+              aria-label="Edit Profile"
+            >
+              <Edit2 className="w-3.5 h-3.5 text-foreground" />
+            </button>
           </div>
 
           {/* Edit Profile Form */}
@@ -429,43 +416,58 @@ export default function ProfilePage() {
           </AnimatePresence>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-2 mt-5 relative z-10">
+          <div className="grid grid-cols-3 mt-6 pt-5 border-t border-foreground/5 relative z-10">
             {[
-              { label: "Orders", value: totalOrders, icon: ShoppingBag },
-              { label: "Total Spent", value: `₹${totalSpent.toLocaleString("en-IN")}`, icon: TrendingUp },
-              { label: "Credits", value: storeCredits > 0 ? `₹${storeCredits}` : "—", icon: Star },
-            ].map(({ label, value, icon: Icon }) => (
+              { label: "ORDERS", value: totalOrders, icon: ShoppingBag },
+              { label: "WISHLIST", value: bookmarks.length, icon: Heart },
+              { label: "STORE CREDIT", value: storeCredits > 0 ? `₹${storeCredits.toLocaleString("en-IN")}` : "₹0", icon: Wallet },
+            ].map(({ label, value, icon: Icon }, index) => (
               <div
                 key={label}
-                className="flex flex-col items-center justify-center py-3 rounded-[1rem] glass-panel border-foreground/5 bg-foreground/[0.01] hover:bg-foreground/[0.03]"
+                className={`flex flex-col items-center justify-center relative py-2 ${
+                  index < 2 ? "after:content-[''] after:absolute after:right-0 after:top-1/4 after:h-1/2 after:w-[1px] after:bg-foreground/10" : ""
+                }`}
               >
-                <Icon className="w-3.5 h-3.5 text-foreground/20 mb-1.5" />
-                <p className="text-[11px] font-bold text-foreground/80 leading-none">{value}</p>
-                <p className="text-[7px] font-medium text-foreground/20 uppercase tracking-wide mt-0.5">{label}</p>
+                <Icon className="w-5 h-5 text-foreground mb-1.5" strokeWidth={1.25} />
+                <p className="text-[8px] font-bold text-foreground/40 tracking-wider mb-2">{label}</p>
+                <p className="text-[14px] font-black text-foreground leading-none">{value}</p>
               </div>
             ))}
           </div>
         </motion.div>
 
         {/* ─── Tab Switcher ─── */}
-        <div className="flex rounded-[1rem] p-1 mb-4 glass-panel border-foreground/5 bg-foreground/[0.01] overflow-x-auto scrollbar-none snap-x">
+        {/* ─── Tab Switcher ─── */}
+        <div className="flex rounded-[1.5rem] mb-6 border border-foreground/5 bg-foreground/[0.01] relative p-1.5 overflow-hidden">
           {([
-            { id: "orders", label: "Orders" },
-            { id: "returns", label: "Returns" },
-            { id: "wishlist", label: "Wishlist" },
-            { id: "addresses", label: "Addresses" },
-            { id: "info", label: "Account" }
-          ] as const).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex-1 min-w-[75px] py-2 rounded-[0.75rem] text-[8px] font-bold uppercase tracking-[0.1em] transition-all snap-start ${
-                tab === t.id ? "bg-foreground text-background font-bold shadow-lg" : "text-foreground/40 hover:text-foreground/65"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+            { id: "orders", label: "Orders", icon: ShoppingBag },
+            { id: "returns", label: "Returns", icon: RotateCcw },
+            { id: "wishlist", label: "Wishlist", icon: Heart },
+            { id: "addresses", label: "Addresses", icon: MapPin },
+            { id: "info", label: "Account", icon: User }
+          ] as const).map((t) => {
+            const isActive = tab === t.id;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className="flex-1 flex flex-col items-center justify-center py-2 relative transition-colors duration-300"
+              >
+                <Icon className={`w-4 h-4 mb-1 transition-colors ${isActive ? "text-foreground" : "text-foreground/45"}`} strokeWidth={1.5} />
+                <span className={`text-[9px] font-medium tracking-tight transition-colors ${isActive ? "text-foreground font-semibold" : "text-foreground/45"}`}>
+                  {t.label}
+                </span>
+                {isActive && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-[20%] right-[20%] h-[2.5px] bg-foreground rounded-full"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* ─── Tab Content ─── */}
@@ -604,46 +606,48 @@ export default function ProfilePage() {
 
           {tab === "orders" && (
             <motion.div key="orders" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
-              <div className="flex items-center justify-between mb-3 px-1">
-                <span className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Order History</span>
-                <Link href="/orders" className="flex items-center gap-1 text-[8px] font-bold text-foreground/60 hover:text-foreground/80 transition-colors">
-                  All <ArrowUpRight className="w-3 h-3" />
+              <div className="flex items-center justify-between mb-3.5 px-1">
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/45">Order History</span>
+                <Link href="/orders" className="flex items-center gap-1 text-[9px] font-bold text-foreground/75 hover:text-foreground transition-colors">
+                  All Orders <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
 
               {customer?.orders && customer.orders.length > 0 ? (
-                <div className="space-y-2">
+                <div className="rounded-[1.5rem] border border-foreground/5 bg-foreground/[0.01] overflow-hidden divide-y divide-foreground/5 shadow-sm">
                   {customer.orders.slice(0, 5).map((order: any, idx: number) => (
-                    <Link key={order.id} href={`/orders/${order.id}`}>
+                    <Link key={order.id} href={`/orders/${order.id}`} className="block">
                       <motion.div
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.07 }}
-                        className="flex items-center gap-4 p-4 rounded-[1.25rem] glass-panel border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] hover:bg-foreground/[0.03] transition-all group"
+                        transition={{ delay: idx * 0.05 }}
+                        className="flex items-center justify-between p-4 hover:bg-foreground/[0.02] transition-all group"
                       >
-                        <div className="w-11 h-11 rounded-[0.75rem] bg-foreground/[0.02] border border-foreground/5 flex items-center justify-center shrink-0 overflow-hidden">
-                          {order.items?.[0]?.image ? (
-                            <img src={order.items[0].image} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <Package className="w-4 h-4 text-foreground/10" />
-                          )}
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="w-12 h-12 rounded-[0.75rem] bg-foreground/[0.02] border border-foreground/5 flex items-center justify-center shrink-0 overflow-hidden">
+                            {order.items?.[0]?.image ? (
+                              <img src={order.items[0].image} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <Package className="w-5 h-5 text-foreground/10" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-foreground/80 truncate">
+                              {order.orderNumber 
+                                ? (order.orderNumber.startsWith('#') ? order.orderNumber : `#${order.orderNumber}`)
+                                : (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') 
+                                    ? (order.shopifyOrderId.startsWith('#') ? order.shopifyOrderId : `#${order.shopifyOrderId}`)
+                                    : `#ZB${order.id.slice(-6).toUpperCase()}`)}
+                            </p>
+                            <p className="flex items-center gap-1 text-[9px] text-foreground/40 mt-1">
+                              <Clock className="w-3 h-3 text-foreground/30" />
+                              {new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-foreground/80 truncate">
-                            {order.orderNumber 
-                              ? (order.orderNumber.startsWith('#') ? order.orderNumber : `#${order.orderNumber}`)
-                              : (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') 
-                                  ? (order.shopifyOrderId.startsWith('#') ? order.shopifyOrderId : `#${order.shopifyOrderId}`)
-                                  : `#ZB${order.id.slice(-6).toUpperCase()}`)}
-                          </p>
-                          <p className="flex items-center gap-1 text-[8px] text-foreground/40 mt-0.5">
-                            <Clock className="w-2.5 h-2.5" />
-                            {new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-[11px] font-bold text-foreground/85">₹{order.totalPrice.toLocaleString("en-IN")}</p>
-                          <ChevronRight className="w-3 h-3 ml-auto mt-0.5 text-foreground/20 group-hover:text-foreground/60 transition-colors" />
+                        <div className="flex items-center gap-3 shrink-0 ml-4">
+                          <p className="text-[12px] font-bold text-foreground/85">₹{order.totalPrice.toLocaleString("en-IN")}</p>
+                          <ChevronRight className="w-3.5 h-3.5 text-foreground/25 group-hover:text-foreground/60 transition-colors" />
                         </div>
                       </motion.div>
                     </Link>

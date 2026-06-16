@@ -270,8 +270,8 @@ export default function StorefrontSettingsPage() {
   const [allCollections, setAllCollections] = useState<any[]>([]);
 
   useEffect(() => {
-    // Explicitly target zicabella.com configurations (same as web-store storefront)
-    fetch('/api/admin/settings?shop=zicabella.com')
+    // Query canonical settings (defaults to 8tiahf-bk.myshopify.com)
+    fetch('/api/admin/settings')
       .then(r => r.json())
       .then(data => {
         setSettings(data);
@@ -311,8 +311,8 @@ export default function StorefrontSettingsPage() {
         'homepageCollection', 'homepageProducts'
     ];
 
-    // Pass shopDomain explicitly to route to target the correct record in PATCH
-    const partialUpdate: any = { shopId: settings.id, shopDomain: 'zicabella.com' };
+    // Pass shopDomain from loaded settings to target the correct record in PATCH (fallback to 8tiahf-bk.myshopify.com)
+    const partialUpdate: any = { shopId: settings.id, shopDomain: settings.shopDomain || '8tiahf-bk.myshopify.com' };
     storefrontKeys.forEach(key => {
         if (settings[key] !== undefined) partialUpdate[key] = settings[key];
     });

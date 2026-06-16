@@ -94,6 +94,12 @@ function envSettings() {
     communityAgeRestricted: true,
     communityWhatsAppEnabled: true,
     footerLogo3dUrl: 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
+    homepageCollection: '',
+    homepageProducts: '',
+    loginBgImage: '',
+    loginBgVideo: '',
+    loginBgImageMobile: '',
+    loginBgVideoMobile: '',
   };
 }
 
@@ -247,6 +253,10 @@ export async function GET(req: Request) {
       footerLogo3dUrl: s.footerLogo3dUrl || 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
       homepageCollection: s.homepageCollection || '',
       homepageProducts: s.homepageProducts || '',
+      loginBgImage: s.loginBgImage || '',
+      loginBgVideo: s.loginBgVideo || '',
+      loginBgImageMobile: s.loginBgImageMobile || '',
+      loginBgVideoMobile: s.loginBgVideoMobile || '',
       claudeApiKey: s.claudeApiKey || '',
       claudeWebhookSecret: s.claudeWebhookSecret || '',
       openaiApiKey: s.openaiApiKey || process.env.OPENAI_API_KEY || '',
@@ -329,7 +339,8 @@ export async function PATCH(req: Request) {
       'communityMinOrders', 'communityAgeRestricted', 'communityWhatsAppEnabled',
       'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems',
       'homepageCollection', 'homepageProducts',
-      'footerLogo3dUrl', 'claudeApiKey', 'claudeWebhookSecret', 'openaiApiKey', 'openaiWebhookSecret'
+      'footerLogo3dUrl', 'claudeApiKey', 'claudeWebhookSecret', 'openaiApiKey', 'openaiWebhookSecret',
+      'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile'
     ] as const;
 
     const booleanKeys = [

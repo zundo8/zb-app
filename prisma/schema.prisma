@@ -100,6 +100,10 @@ model Shop {
   claudeWebhookSecret      String?
   openaiApiKey             String?
   openaiWebhookSecret      String?
+  loginBgImage             String?
+  loginBgVideo             String?
+  loginBgImageMobile       String?
+  loginBgVideoMobile       String?
   homepageCollection       String?    @default("")
   homepageProducts         String?    @default("")
   customers                Customer[]
@@ -1207,11 +1211,13 @@ model WebStoreOrder {
   paymentMethod      String   @map("payment_method")
   razorpayOrderId    String?  @map("razorpay_order_id")
   razorpayPaymentId  String?  @map("razorpay_payment_id")
-  fulfillmentStatus  String   @default("unfulfilled") @map("fulfillment_status")
-  trackingNumber     String?  @map("tracking_number")
-  trackingUrl        String?  @map("tracking_url")
-  notes              String?
-  source             String   @default("web")
+  codUpfrontPaid       Decimal  @default(0) @map("cod_upfront_paid") @db.Decimal(10, 2)
+  codUpfrontPaymentId  String?  @map("cod_upfront_payment_id")
+  fulfillmentStatus    String   @default("unfulfilled") @map("fulfillment_status")
+  trackingNumber       String?  @map("tracking_number")
+  trackingUrl          String?  @map("tracking_url")
+  notes                String?
+  source               String   @default("web")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -1256,6 +1262,14 @@ model WebStoreCoupon {
   validUntil     DateTime  @map("valid_until")
   isActive       Boolean   @default(true) @map("is_active")
   createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Advanced settings
+  applicability        String    @default("ALL") @map("applicability") // "ALL", "PREPAID_ONLY", "COD_ONLY", "CUSTOM_RATES"
+  prepaidDiscountType  String    @default("percentage") @map("prepaid_discount_type")
+  prepaidDiscountValue Decimal   @default(0) @map("prepaid_discount_value") @db.Decimal(10, 2)
+  codDiscountType      String    @default("percentage") @map("cod_discount_type")
+  codDiscountValue     Decimal   @default(0) @map("cod_discount_value") @db.Decimal(10, 2)
+  applyAsStoreCredit   Boolean   @default(false) @map("apply_as_store_credit")
 
   @@map("web_store_coupons")
 }

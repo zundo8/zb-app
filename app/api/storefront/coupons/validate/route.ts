@@ -10,7 +10,7 @@ import prisma from "@/lib/db";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { code, subtotal } = body;
+    const { code, subtotal, paymentMethod } = body;
 
     if (!code || typeof code !== "string") {
       return NextResponse.json({
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     }
 
     // Check usage limit
-    if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+    if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
       return NextResponse.json({
         valid: false,
         discount: 0,
@@ -68,31 +68,76 @@ export async function POST(req: Request) {
     }
 
     // Check minimum order amount
-    if (coupon.minOrderAmount && subtotal < coupon.minOrderAmount) {
+    const minOrderVal = Number(coupon.minOrderValue || 0);
+    if (minOrderVal > 0 && subtotal < minOrderVal) {
       return NextResponse.json({
         valid: false,
         discount: 0,
         discountType: "",
-        message: `Minimum order of ₹${coupon.minOrderAmount.toLocaleString("en-IN")} required.`,
+        message: `Minimum order of ₹${minOrderVal.toLocaleString("en-IN")} required.`,
       });
+    }
+
+    // Check payment method applicability
+    const isCOD = paymentMethod?.toUpperCase() === "COD";
+
+    if (coupon.applicability === "PREPAID_ONLY" && isCOD) {
+      return NextResponse.json({
+        valid: false,
+        discount: 0,
+        discountType: "",
+        message: "This coupon is only valid for prepaid orders.",
+      });
+    }
+
+    if (coupon.applicability === "COD_ONLY" && !isCOD) {
+      return NextResponse.json({
+        valid: false,
+        discount: 0,
+        discountType: "",
+        message: "This coupon is only valid for COD orders.",
+      });
+    }
+
+    // Determine discount rates based on payment method
+    let currentDiscountType = coupon.discountType;
+    let currentDiscountValue = Number(coupon.discountValue);
+
+    if (coupon.applicability === "PREPAID_ONLY" || (coupon.applicability === "CUSTOM_RATES" && !isCOD)) {
+      currentDiscountType = coupon.prepaidDiscountType;
+      currentDiscountValue = Number(coupon.prepaidDiscountValue);
+    } else if (coupon.applicability === "COD_ONLY" || (coupon.applicability === "CUSTOM_RATES" && isCOD)) {
+      currentDiscountType = coupon.codDiscountType;
+      currentDiscountValue = Number(coupon.codDiscountValue);
     }
 
     // Calculate discount
     let discount = 0;
-    if (coupon.discountType === "percentage") {
-      discount = Math.round((subtotal * coupon.discountValue) / 100);
+    if (currentDiscountType === "percentage") {
+      discount = Math.round((subtotal * currentDiscountValue) / 100);
     } else {
-      discount = Math.min(coupon.discountValue, subtotal);
+      discount = Math.min(currentDiscountValue, subtotal);
+    }
+
+    // Format display message
+    let displayMessage = "";
+    if (coupon.applyAsStoreCredit) {
+      displayMessage = currentDiscountType === "percentage"
+        ? `₹${discount.toLocaleString("en-IN")} Store Credit cashback will be added!`
+        : `₹${currentDiscountValue.toLocaleString("en-IN")} Store Credit cashback will be added!`;
+    } else {
+      displayMessage = currentDiscountType === "percentage"
+        ? `${currentDiscountValue}% off applied!`
+        : `₹${currentDiscountValue.toLocaleString("en-IN")} off applied!`;
     }
 
     return NextResponse.json({
       valid: true,
       discount,
-      discountType: coupon.discountType,
+      discountType: currentDiscountType,
       couponId: coupon.id,
-      message: coupon.discountType === "percentage"
-        ? `${coupon.discountValue}% off applied!`
-        : `₹${coupon.discountValue.toLocaleString("en-IN")} off applied!`,
+      applyAsStoreCredit: coupon.applyAsStoreCredit,
+      message: displayMessage,
     });
   } catch (error: any) {
     console.error("[Coupon Validate API] Error:", error.message);

@@ -64,6 +64,16 @@ export async function POST(req: Request) {
     try {
       const verifyResult = await SmsService.sendVerification(normalizedPhone);
       if (verifyResult) {
+        // Log to database
+        await prisma.appLogin.create({
+          data: {
+            phone: normalizedPhone,
+            status: "OTP_SENT",
+            ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+            userAgent: req.headers.get("user-agent") || "Web Browser"
+          }
+        }).catch(console.error);
+
         return NextResponse.json({ 
           success: true, 
           message: "Verification code sent via Twilio Verify",
@@ -103,6 +113,17 @@ export async function POST(req: Request) {
     try {
       const message = `Your Zica Bella verification code is: ${otp}. Valid for 10 minutes. Do not share this code.`;
       await SmsService.sendSms(normalizedPhone, message);
+
+      // Log success
+      await prisma.appLogin.create({
+        data: {
+          phone: normalizedPhone,
+          status: "OTP_SENT",
+          ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+          userAgent: req.headers.get("user-agent") || "Web Browser"
+        }
+      }).catch(console.error);
+
     } catch (smsError: any) {
       console.error("Failed to send SMS:", smsError);
       // Clean up the OTP since we couldn't send it
@@ -110,6 +131,16 @@ export async function POST(req: Request) {
         where: { phone: normalizedPhone, code: otp }
       }).catch(() => {});
       
+      // Log failure
+      await prisma.appLogin.create({
+        data: {
+          phone: normalizedPhone,
+          status: "OTP_FAILED",
+          ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+          userAgent: req.headers.get("user-agent") || "Web Browser"
+        }
+      }).catch(console.error);
+
       return NextResponse.json(
         { error: "Failed to send verification code. Please check your phone number and try again." }, 
         { status: 500 }

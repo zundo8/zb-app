@@ -43,7 +43,13 @@ export async function POST(request: Request) {
       usageLimit,
       validFrom,
       validUntil,
-      isActive
+      isActive,
+      applicability,
+      prepaidDiscountType,
+      prepaidDiscountValue,
+      codDiscountType,
+      codDiscountValue,
+      applyAsStoreCredit
     } = body;
 
     if (!code || !discountType || !discountValue || !validFrom || !validUntil) {
@@ -72,6 +78,12 @@ export async function POST(request: Request) {
         validFrom: new Date(validFrom),
         validUntil: new Date(validUntil),
         isActive: isActive !== undefined ? isActive : true,
+        applicability: applicability || "ALL",
+        prepaidDiscountType: prepaidDiscountType || "percentage",
+        prepaidDiscountValue: parseFloat(prepaidDiscountValue || 0),
+        codDiscountType: codDiscountType || "percentage",
+        codDiscountValue: parseFloat(codDiscountValue || 0),
+        applyAsStoreCredit: applyAsStoreCredit !== undefined ? applyAsStoreCredit : false,
       },
     });
 

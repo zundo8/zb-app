@@ -132,7 +132,8 @@ export async function getShopSettings() {
     'collectionsMedia', 'footerVideo', 'footerLogo3dUrl', 'mainMenuHandle', 'secondaryMenuHandle', 'showTreeText',
     'enabledCollectionsHeader', 'enabledCollectionsPage', 'enabledCollectionsMenu', 'featuredMediaImage',
     'kineticMeshProducts', 'kineticMeshTitle', 'showCommunity', 'communityAgeRestricted',
-    'communityMinOrders', 'communityWhatsAppEnabled'
+    'communityMinOrders', 'communityWhatsAppEnabled',
+    'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile'
   ];
 
   try {
@@ -219,6 +220,10 @@ export async function getShopSettings() {
         ringCarouselItems: true,
         ringCarouselTitle: true,
         showRingCarousel: true,
+        loginBgImage: true,
+        loginBgVideo: true,
+        loginBgImageMobile: true,
+        loginBgVideoMobile: true,
       }
     }) as any;
   }

@@ -11,7 +11,7 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { address, paymentMethod, items, total, subtotal, codFee, razorpay, couponCode, couponDiscount } = body;
+    const { address, paymentMethod, items, total, subtotal, codFee, razorpay, couponCode, couponDiscount, applyAsStoreCredit, cashbackAmount } = body;
 
     const shop = await prisma.shop.findFirst();
     if (!shop) {
@@ -406,6 +406,45 @@ export async function POST(req: Request) {
       }
     });
 
+    // Increment coupon usedCount if coupon was applied
+    if (couponCode) {
+      try {
+        await prisma.webStoreCoupon.update({
+          where: { code: couponCode.toUpperCase().trim() },
+          data: { usedCount: { increment: 1 } },
+        });
+        console.log(`[Checkout] Successfully incremented usage for coupon: ${couponCode}`);
+      } catch (couponUsageErr: any) {
+        console.error(`[Checkout] Failed to increment usedCount for coupon: ${couponCode}`, couponUsageErr.message);
+      }
+    }
+
+    // Issue cashback if coupon is store-credit rebate
+    if (couponCode && applyAsStoreCredit && Number(cashbackAmount) > 0) {
+      try {
+        await prisma.$transaction([
+          prisma.customer.update({
+            where: { id: localCustomer.id },
+            data: {
+              storeCredits: { increment: parseFloat(String(cashbackAmount)) }
+            }
+          }),
+          prisma.storeCredit.create({
+            data: {
+              customerId: localCustomer.id,
+              amount: parseFloat(String(cashbackAmount)),
+              type: "COUPON_REBATE",
+              description: `Cashback for applying coupon code ${couponCode.toUpperCase()}`,
+              orderId: localOrder.id
+            }
+          })
+        ]);
+        console.log(`[Checkout Store Credit] Successfully credited ₹${cashbackAmount} to customer ${localCustomer.id}`);
+      } catch (storeCreditErr: any) {
+        console.error("[Checkout Store Credit] Failed to issue cashback:", storeCreditErr.message);
+      }
+    }
+
     // Also create a WebStoreOrder for the web-store dashboard integration
     let webStoreOrder: any = null;
     try {
@@ -433,10 +472,12 @@ export async function POST(req: Request) {
           discountCode: couponCode || null,
           discountAmount: Number(couponDiscount) || 0,
           totalAmount: total,
-          paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
+          paymentStatus: paymentMethod === "COD" ? "cod_upfront_paid" : "paid",
           paymentMethod: paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay",
           razorpayOrderId: razorpay?.razorpay_order_id || null,
           razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+          codUpfrontPaid: paymentMethod === "COD" ? codFee : 0,
+          codUpfrontPaymentId: paymentMethod === "COD" ? (razorpay?.razorpay_payment_id || null) : null,
           fulfillmentStatus: "unfulfilled",
           notes: `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid: ${razorpay?.razorpay_payment_id || 'N/A'})` : "Paid via Razorpay"} from Web Store | Shopify: ${shopifyOrderId} | Local: ${localOrder.id}`,
           source: "web"

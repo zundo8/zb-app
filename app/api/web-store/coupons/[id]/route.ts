@@ -25,7 +25,13 @@ export async function PATCH(
       usageLimit,
       validFrom,
       validUntil,
-      isActive
+      isActive,
+      applicability,
+      prepaidDiscountType,
+      prepaidDiscountValue,
+      codDiscountType,
+      codDiscountValue,
+      applyAsStoreCredit
     } = body;
 
     const coupon = await prisma.webStoreCoupon.findUnique({
@@ -45,6 +51,12 @@ export async function PATCH(
     if (validFrom !== undefined) data.validFrom = new Date(validFrom);
     if (validUntil !== undefined) data.validUntil = new Date(validUntil);
     if (isActive !== undefined) data.isActive = isActive;
+    if (applicability !== undefined) data.applicability = applicability;
+    if (prepaidDiscountType !== undefined) data.prepaidDiscountType = prepaidDiscountType;
+    if (prepaidDiscountValue !== undefined) data.prepaidDiscountValue = parseFloat(prepaidDiscountValue);
+    if (codDiscountType !== undefined) data.codDiscountType = codDiscountType;
+    if (codDiscountValue !== undefined) data.codDiscountValue = parseFloat(codDiscountValue);
+    if (applyAsStoreCredit !== undefined) data.applyAsStoreCredit = applyAsStoreCredit;
 
     const updatedCoupon = await prisma.webStoreCoupon.update({
       where: { id: params.id },

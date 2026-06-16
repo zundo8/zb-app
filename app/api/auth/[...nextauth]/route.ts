@@ -99,12 +99,14 @@ export const authOptions: AuthOptions = {
         phone: { label: "Phone", type: "text" },
         otp: { label: "OTP", type: "text" },
         name: { label: "Name", type: "text" },
+        userAgent: { label: "UserAgent", type: "text" },
       },
       async authorize(credentials) {
         try {
           const providedOtp = String(credentials?.otp || "").trim();
           const providedPhone = String(credentials?.phone || "").trim();
           const providedName = String(credentials?.name || "").trim();
+          const providedUserAgent = String(credentials?.userAgent || "Web Browser").trim();
 
           // Validate OTP format
           if (!/^\d{6}$/.test(providedOtp)) {
@@ -156,6 +158,16 @@ export const authOptions: AuthOptions = {
 
           if (!isVerified) {
             console.warn(`[AUTH] Invalid OTP attempt: Received "${providedOtp}" for phone: ${providedPhone}`);
+            
+            // Log failed verification attempt
+            await prisma.appLogin.create({
+              data: {
+                phone: fullPhone,
+                status: "OTP_INVALID",
+                userAgent: providedUserAgent
+              }
+            }).catch(console.error);
+
             throw new Error("Invalid or expired OTP");
           }
 
@@ -204,9 +216,19 @@ export const authOptions: AuthOptions = {
 
           // Safety fallback to prevent .id crash if DB is still returning null (mock state)
           const shopId = (shop as any)?.id || 'default_shop_id';
+          let isNewAccount = false;
 
           if (shopifyCustomer) {
             console.log(`[AUTH] Syncing data for Shopify Customer: ${shopifyCustomer.id}`);
+            
+            // Check if local customer exists first
+            const existingLocal = await prisma.customer.findFirst({
+              where: { shopifyId: String(shopifyCustomer.id) }
+            });
+            if (!existingLocal) {
+              isNewAccount = true;
+            }
+
             customer = await prisma.customer.upsert({
               where: { shopifyId: String(shopifyCustomer.id) },
               create: {
@@ -258,6 +280,7 @@ export const authOptions: AuthOptions = {
             }
           } else if (!customer) {
             console.log(`[AUTH] No Shopify record and no local record. Creating guest for ${fullPhone}.`);
+            isNewAccount = true;
             customer = await prisma.customer.create({
               data: {
                 phone: fullPhone,
@@ -278,6 +301,15 @@ export const authOptions: AuthOptions = {
           }
 
           if (!customer) return null;
+
+          // Successful log in / Registration log
+          await prisma.appLogin.create({
+            data: {
+              phone: fullPhone,
+              status: isNewAccount ? "ACCOUNT_CREATED" : "LOGGED_IN",
+              userAgent: providedUserAgent
+            }
+          }).catch(console.error);
 
           return {
             id: customer.id,

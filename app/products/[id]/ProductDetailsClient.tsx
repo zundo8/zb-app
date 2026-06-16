@@ -1034,10 +1034,14 @@ function FullScreenGallery({
 }: FullScreenGalleryProps) {
   const [localActiveImg, setLocalActiveImg] = useState(initialImg);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomEnabled, setZoomEnabled] = useState(false);
   const galleryScrollRef = useRef<HTMLDivElement>(null);
+  const transformRef = useRef<any>(null);
+  const lastTap = useRef<number>(0);
 
   useEffect(() => {
     setIsZoomed(false);
+    setZoomEnabled(false);
   }, [localActiveImg]);
 
   // Align horizontal gallery scroll to clicked image index on mount
@@ -1058,6 +1062,31 @@ function FullScreenGallery({
       startTransition(() => {
         onImageChange(index);
       });
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) {
+      setZoomEnabled(true);
+    } else {
+      const now = Date.now();
+      const DOUBLE_TAP_DELAY = 300;
+      if (now - lastTap.current < DOUBLE_TAP_DELAY) {
+        if (!zoomEnabled) {
+          setZoomEnabled(true);
+          setTimeout(() => {
+            if (transformRef.current) {
+              transformRef.current.zoomIn(1.5);
+            }
+          }, 50);
+        } else {
+          if (transformRef.current) {
+            transformRef.current.resetTransform();
+          }
+          setZoomEnabled(false);
+        }
+      }
+      lastTap.current = now;
     }
   };
 
@@ -1097,6 +1126,8 @@ function FullScreenGallery({
             <div key={`gallery-${img.src || i}`} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center p-2">
               {i === localActiveImg ? (
                 <TransformWrapper
+                  ref={transformRef}
+                  disabled={!zoomEnabled}
                   initialScale={1}
                   minScale={1}
                   maxScale={4}
@@ -1106,10 +1137,16 @@ function FullScreenGallery({
                   onTransformed={(ref) => {
                     const currentScale = ref.state.scale;
                     setIsZoomed(currentScale > 1);
+                    if (currentScale <= 1) {
+                      setZoomEnabled(false);
+                    }
                   }}
                 >
                   <TransformComponent wrapperClass="!w-full !h-full flex items-center justify-center" contentClass="!w-full !h-full flex items-center justify-center">
-                    <div className="relative w-full h-[80dvh] cursor-zoom-in">
+                    <div 
+                      className="relative w-full h-[80dvh] cursor-zoom-in"
+                      onTouchStart={handleTouchStart}
+                    >
                       <Image 
                         src={img.src || "/zb-logo-220px.png"} 
                         alt={product.title} 

@@ -20,7 +20,11 @@ import {
   Save,
   Sparkles,
   ExternalLink,
-  Settings
+  Settings,
+  Banknote,
+  ShieldCheck,
+  DollarSign,
+  Package
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,15 +35,24 @@ interface LineItem {
   image_url: string;
   quantity: number;
   price: number;
+  size?: string;
 }
 
 interface Address {
-  line1: string;
+  // Support both formats from checkout
+  name?: string;
+  phone?: string;
+  email?: string;
+  houseNo?: string;
+  street?: string;
+  landmark?: string;
+  line1?: string;
   line2?: string;
-  city: string;
-  state: string;
-  pincode: string;
-  country: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  pincode?: string;
+  country?: string;
 }
 
 interface Order {
@@ -59,6 +72,8 @@ interface Order {
   paymentMethod: string;
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
+  codUpfrontPaid?: number;
+  codUpfrontPaymentId?: string;
   fulfillmentStatus: string;
   trackingNumber?: string;
   trackingUrl?: string;
@@ -172,7 +187,9 @@ export default function WebStoreOrderDetail() {
   const getPaymentBadge = (status: string) => {
     switch (status) {
       case "paid":
-        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Paid</span>;
+        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle className="w-3.5 h-3.5" /> Paid</span>;
+      case "cod_upfront_paid":
+        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Banknote className="w-3.5 h-3.5" /> COD Upfront Paid</span>;
       case "failed":
         return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">Failed</span>;
       case "refunded":
@@ -180,6 +197,35 @@ export default function WebStoreOrderDetail() {
       default:
         return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Pending</span>;
     }
+  };
+
+  /* ─── Address display helper (handles both old and new formats) ─── */
+  const renderAddress = (addr: Address) => {
+    // New checkout format: houseNo, street, landmark
+    if (addr.houseNo || addr.street) {
+      return (
+        <div className="space-y-1 text-[12px] pt-2 text-foreground/75 font-medium">
+          {addr.houseNo && <p>{addr.houseNo}</p>}
+          {addr.street && <p>{addr.street}</p>}
+          {addr.landmark && <p className="text-foreground/50">{addr.landmark}</p>}
+          <p>
+            {addr.city}{addr.city && addr.state ? ", " : ""}{addr.state}{(addr.city || addr.state) && (addr.zip || addr.pincode) ? " - " : ""}{addr.zip || addr.pincode}
+          </p>
+          {addr.country && <p>{addr.country}</p>}
+        </div>
+      );
+    }
+    // Old format: line1, line2, or flat street format
+    return (
+      <div className="space-y-1 text-[12px] pt-2 text-foreground/75 font-medium">
+        {addr.line1 && <p>{addr.line1}</p>}
+        {addr.line2 && <p>{addr.line2}</p>}
+        <p>
+          {addr.city}{addr.city && addr.state ? ", " : ""}{addr.state}{(addr.city || addr.state) && (addr.zip || addr.pincode) ? " - " : ""}{addr.zip || addr.pincode}
+        </p>
+        {addr.country && <p>{addr.country}</p>}
+      </div>
+    );
   };
 
   if (loading) {
@@ -196,6 +242,10 @@ export default function WebStoreOrderDetail() {
   }
 
   if (!order) return null;
+
+  const isCOD = order.paymentMethod === "cod";
+  const codUpfront = Number(order.codUpfrontPaid || 0);
+  const balanceDue = isCOD ? Number(order.totalAmount) - codUpfront : 0;
 
   return (
     <div className="space-y-8">
@@ -224,6 +274,69 @@ export default function WebStoreOrderDetail() {
         </div>
       </div>
 
+      {/* ═══ Payment Collected Banner ═══ */}
+      <div className={`glass rounded-[2rem] border p-6 ${
+        isCOD ? "border-amber-500/20 bg-amber-500/[0.02]" : "border-emerald-500/20 bg-emerald-500/[0.02]"
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+              isCOD ? "bg-amber-500/10" : "bg-emerald-500/10"
+            }`}>
+              <DollarSign className={`w-6 h-6 ${isCOD ? "text-amber-400" : "text-emerald-400"}`} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                Payment Collected
+                {(codUpfront > 0 || !isCOD) && <ShieldCheck className="w-4 h-4 text-emerald-400" />}
+              </h3>
+              <p className="text-[11px] text-foreground/50 mt-0.5">
+                {isCOD
+                  ? `Cash on Delivery — ₹${codUpfront} upfront fee collected via Razorpay`
+                  : "Full payment collected via Razorpay"
+                }
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            {isCOD ? (
+              <>
+                <div className="text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">Upfront Paid</p>
+                  <p className="text-xl font-black text-amber-400">{formatCurrency(codUpfront)}</p>
+                </div>
+                <div className="w-[1px] h-10 bg-foreground/10" />
+                <div className="text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">Due at Delivery</p>
+                  <p className="text-xl font-black text-foreground/70">{formatCurrency(balanceDue)}</p>
+                </div>
+                <div className="w-[1px] h-10 bg-foreground/10" />
+                <div className="text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">Order Total</p>
+                  <p className="text-xl font-black text-foreground">{formatCurrency(Number(order.totalAmount))}</p>
+                </div>
+              </>
+            ) : (
+              <div className="text-center">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">Amount Paid</p>
+                <p className="text-2xl font-black text-emerald-400">{formatCurrency(Number(order.totalAmount))}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* COD upfront payment ID */}
+        {isCOD && order.codUpfrontPaymentId && (
+          <div className="mt-3 pt-3 border-t border-foreground/5">
+            <p className="text-[10px] text-foreground/40 font-medium">
+              <span className="font-bold uppercase tracking-wider">Upfront Payment ID:</span>{" "}
+              <span className="font-mono text-amber-400">{order.codUpfrontPaymentId}</span>
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Main Grid content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -233,7 +346,7 @@ export default function WebStoreOrderDetail() {
           {/* Order items list */}
           <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-6">
             <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-amber-500" /> Line Items ({order.items.length})
+              <Package className="w-4 h-4 text-amber-500" /> Line Items ({order.items.length})
             </h3>
             
             <div className="divide-y divide-foreground/5">
@@ -253,16 +366,23 @@ export default function WebStoreOrderDetail() {
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>
                       <h4 className="text-[12px] font-bold text-foreground truncate">{item.title}</h4>
-                      <p className="text-[10px] text-foreground/40 mt-1 font-mono uppercase tracking-wider">
-                        Variant: {item.variant_id || "default"}
-                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {item.size && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/50 bg-foreground/5 px-1.5 py-0.5 rounded">
+                            Size: {item.size}
+                          </span>
+                        )}
+                        <span className="text-[9px] text-foreground/40 font-mono uppercase tracking-wider">
+                          ID: {item.variant_id || item.product_id || "—"}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center justify-between text-[11px] mt-1">
                       <span className="text-foreground/50 font-medium">
                         Qty: {item.quantity}
                       </span>
                       <span className="font-bold text-foreground">
-                        {formatCurrency(item.price)} each
+                        {formatCurrency(item.price * item.quantity)}
                       </span>
                     </div>
                   </div>
@@ -274,29 +394,41 @@ export default function WebStoreOrderDetail() {
           {/* Pricing summary */}
           <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-4">
             <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-amber-500" /> Payment & Billing Summary
+              <CreditCard className="w-4 h-4 text-amber-500" /> Billing Summary
             </h3>
             
             <div className="space-y-2 text-[12px] pt-2">
               <div className="flex justify-between text-foreground/60 font-medium">
                 <span>Subtotal</span>
-                <span>{formatCurrency(order.subtotal)}</span>
+                <span>{formatCurrency(Number(order.subtotal))}</span>
               </div>
               <div className="flex justify-between text-foreground/60 font-medium">
-                <span>Shipping Charges</span>
-                <span>{formatCurrency(order.shippingCharge)}</span>
+                <span>Shipping</span>
+                <span>{formatCurrency(Number(order.shippingCharge))}</span>
               </div>
               {order.discountCode && (
                 <div className="flex justify-between text-emerald-400 font-semibold">
-                  <span className="flex items-center gap-1">Discount Code ({order.discountCode})</span>
-                  <span>-{formatCurrency(order.discountAmount)}</span>
+                  <span className="flex items-center gap-1">Discount ({order.discountCode})</span>
+                  <span>-{formatCurrency(Number(order.discountAmount))}</span>
+                </div>
+              )}
+              {isCOD && codUpfront > 0 && (
+                <div className="flex justify-between text-amber-400 font-semibold">
+                  <span>COD Upfront Fee (Collected)</span>
+                  <span>{formatCurrency(codUpfront)}</span>
                 </div>
               )}
               <div className="h-[1px] bg-foreground/5 my-2" />
               <div className="flex justify-between text-[14px] font-extrabold text-foreground">
                 <span>Grand Total</span>
-                <span>{formatCurrency(order.totalAmount)}</span>
+                <span>{formatCurrency(Number(order.totalAmount))}</span>
               </div>
+              {isCOD && (
+                <div className="flex justify-between text-[12px] font-bold text-foreground/50 mt-1">
+                  <span>Remaining Due at Delivery</span>
+                  <span>{formatCurrency(balanceDue)}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -306,7 +438,7 @@ export default function WebStoreOrderDetail() {
             {/* Customer Details */}
             <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-4">
               <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-                <User className="w-4 h-4 text-amber-500" /> Customer Profile
+                <User className="w-4 h-4 text-amber-500" /> Customer
               </h3>
               <div className="space-y-3 text-[12px] pt-2">
                 <div className="flex items-center gap-2.5">
@@ -331,16 +463,9 @@ export default function WebStoreOrderDetail() {
             {/* Shipping Address */}
             <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-4">
               <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-amber-500" /> Shipping Destination
+                <MapPin className="w-4 h-4 text-amber-500" /> Shipping Address
               </h3>
-              <div className="space-y-1.5 text-[12px] pt-2 text-foreground/75 font-medium">
-                <p>{order.shippingAddress.line1}</p>
-                {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
-                <p>
-                  {order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.pincode}
-                </p>
-                <p>{order.shippingAddress.country}</p>
-              </div>
+              {renderAddress(order.shippingAddress)}
             </div>
           </div>
         </div>
@@ -366,6 +491,7 @@ export default function WebStoreOrderDetail() {
                 >
                   <option value="pending" className="bg-[#0e0e0e]">Pending</option>
                   <option value="paid" className="bg-[#0e0e0e]">Paid</option>
+                  <option value="cod_upfront_paid" className="bg-[#0e0e0e]">COD Upfront Paid</option>
                   <option value="failed" className="bg-[#0e0e0e]">Failed</option>
                   <option value="refunded" className="bg-[#0e0e0e]">Refunded</option>
                 </select>
@@ -420,9 +546,9 @@ export default function WebStoreOrderDetail() {
 
               {/* Internal Notes */}
               <div className="space-y-2">
-                <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">Internal Order Notes</label>
+                <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">Internal Notes</label>
                 <textarea
-                  placeholder="Add details about packaging, special discounts, returns, etc."
+                  placeholder="Packaging notes, special instructions, etc."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
@@ -435,25 +561,31 @@ export default function WebStoreOrderDetail() {
                 disabled={updating}
                 className="w-full py-3 px-4 rounded-xl font-bold bg-amber-500 text-black hover:opacity-95 transition-opacity flex items-center justify-center gap-2 mt-4"
               >
-                <Save className="w-4 h-4" /> {updating ? "Saving Changes..." : "Save Order Configuration"}
+                <Save className="w-4 h-4" /> {updating ? "Saving..." : "Save Changes"}
               </button>
             </form>
           </div>
 
-          {/* Integration metadata (Razorpay/web logs) */}
+          {/* Integration metadata */}
           <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-4 text-xs">
             <h3 className="text-sm font-bold text-foreground font-inter flex items-center gap-2">
-              <FileText className="w-4 h-4 text-amber-500" /> Integration Parameters
+              <FileText className="w-4 h-4 text-amber-500" /> Integration Data
             </h3>
             
-            <div className="space-y-2 pt-2 text-[11px] font-mono text-foreground/60 leading-relaxed break-all">
+            <div className="space-y-3 pt-2 text-[11px] font-mono text-foreground/60 leading-relaxed break-all">
               <div>
                 <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Order ID</span>
                 {order.id}
               </div>
               <div>
-                <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Order Source</span>
+                <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Source</span>
                 <span className="text-amber-500 font-bold uppercase">{order.source} storefront</span>
+              </div>
+              <div>
+                <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Payment Method</span>
+                <span className={`font-bold uppercase ${order.paymentMethod === "cod" ? "text-amber-400" : "text-emerald-400"}`}>
+                  {order.paymentMethod === "cod" ? "Cash on Delivery" : "Razorpay (Prepaid)"}
+                </span>
               </div>
               {order.razorpayOrderId && (
                 <div>
@@ -465,6 +597,12 @@ export default function WebStoreOrderDetail() {
                 <div>
                   <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Razorpay Payment ID</span>
                   {order.razorpayPaymentId}
+                </div>
+              )}
+              {order.codUpfrontPaymentId && (
+                <div>
+                  <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">COD Upfront Payment ID</span>
+                  <span className="text-amber-400">{order.codUpfrontPaymentId}</span>
                 </div>
               )}
             </div>

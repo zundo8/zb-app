@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -9,12 +9,16 @@ import {
   Truck,
   Clock,
   AlertCircle,
-  MoreHorizontal,
   ChevronRight,
   Sparkles,
   Calendar,
   X,
-  ShoppingBag
+  ShoppingBag,
+  CreditCard,
+  Banknote,
+  TrendingUp,
+  DollarSign,
+  Package
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -30,6 +34,10 @@ interface Order {
   paymentMethod: string;
   fulfillmentStatus: string;
   createdAt: string;
+  codUpfrontPaid?: number;
+  codUpfrontPaymentId?: string;
+  subtotal?: number;
+  discountAmount?: number;
 }
 
 export default function WebStoreOrdersList() {
@@ -71,6 +79,21 @@ export default function WebStoreOrdersList() {
     const timeout = setTimeout(fetchOrders, 300);
     return () => clearTimeout(timeout);
   }, [search, paymentStatus, fulfillmentStatus, paymentMethod, startDate, endDate]);
+
+  /* ═══ Summary Stats ═══ */
+  const stats = useMemo(() => {
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+    const codOrders = orders.filter(o => o.paymentMethod === "cod");
+    const prepaidOrders = orders.filter(o => o.paymentMethod === "razorpay");
+    const totalCollected = orders.reduce((sum, o) => {
+      if (o.paymentMethod === "cod") {
+        return sum + Number(o.codUpfrontPaid || 0);
+      }
+      return sum + Number(o.totalAmount || 0);
+    }, 0);
+    return { totalOrders, totalRevenue, codOrders: codOrders.length, prepaidOrders: prepaidOrders.length, totalCollected };
+  }, [orders]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -146,7 +169,17 @@ export default function WebStoreOrdersList() {
     }
   };
 
-  const getPaymentBadge = (status: string) => {
+  const getPaymentBadge = (status: string, method?: string, codUpfront?: number) => {
+    if (status === "cod_upfront_paid" || (method === "cod" && codUpfront && codUpfront > 0)) {
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <Banknote className="w-3 h-3" /> COD
+          </span>
+          <span className="text-[9px] font-bold text-emerald-400 pl-1">₹{codUpfront || 99} paid ✓</span>
+        </div>
+      );
+    }
     switch (status) {
       case "paid":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Paid</span>;
@@ -159,6 +192,13 @@ export default function WebStoreOrdersList() {
     }
   };
 
+  const getCollectedAmount = (order: Order) => {
+    if (order.paymentMethod === "cod") {
+      return Number(order.codUpfrontPaid || 0);
+    }
+    return Number(order.totalAmount || 0);
+  };
+
   const clearFilters = () => {
     setSearch("");
     setPaymentStatus("all");
@@ -169,7 +209,7 @@ export default function WebStoreOrdersList() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Title */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-inter flex items-center gap-2">
@@ -180,12 +220,31 @@ export default function WebStoreOrdersList() {
         </p>
       </div>
 
+      {/* ═══ Summary Stats ═══ */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: "Total Orders", value: stats.totalOrders, icon: Package, color: "text-foreground" },
+          { label: "Total Revenue", value: formatCurrency(stats.totalRevenue), icon: TrendingUp, color: "text-emerald-400" },
+          { label: "Collected", value: formatCurrency(stats.totalCollected), icon: DollarSign, color: "text-sky-400" },
+          { label: "COD Orders", value: stats.codOrders, icon: Banknote, color: "text-amber-400" },
+          { label: "Prepaid", value: stats.prepaidOrders, icon: CreditCard, color: "text-purple-400" },
+        ].map((stat) => (
+          <div key={stat.label} className="glass rounded-2xl border border-foreground/5 p-4 flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <stat.icon className={`w-3.5 h-3.5 ${stat.color}`} />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">{stat.label}</span>
+            </div>
+            <span className={`text-lg font-extrabold ${stat.color}`}>{stat.value}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Filters bar */}
-      <div className="glass rounded-[2rem] border border-foreground/5 p-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="glass rounded-[2rem] border border-foreground/5 p-5 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-4.5 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/35" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/35" />
             <input
               type="text"
               placeholder="Search order #, customer, email..."
@@ -196,53 +255,48 @@ export default function WebStoreOrdersList() {
           </div>
 
           {/* Payment status filter */}
-          <div>
-            <select
-              value={paymentStatus}
-              onChange={(e) => setPaymentStatus(e.target.value)}
-              className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
-            >
-              <option value="all" className="bg-[#0e0e0e]">All Payment Statuses</option>
-              <option value="pending" className="bg-[#0e0e0e]">Pending</option>
-              <option value="paid" className="bg-[#0e0e0e]">Paid</option>
-              <option value="failed" className="bg-[#0e0e0e]">Failed</option>
-              <option value="refunded" className="bg-[#0e0e0e]">Refunded</option>
-            </select>
-          </div>
+          <select
+            value={paymentStatus}
+            onChange={(e) => setPaymentStatus(e.target.value)}
+            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
+          >
+            <option value="all" className="bg-[#0e0e0e]">All Payment Statuses</option>
+            <option value="pending" className="bg-[#0e0e0e]">Pending</option>
+            <option value="paid" className="bg-[#0e0e0e]">Paid</option>
+            <option value="cod_upfront_paid" className="bg-[#0e0e0e]">COD Upfront Paid</option>
+            <option value="failed" className="bg-[#0e0e0e]">Failed</option>
+            <option value="refunded" className="bg-[#0e0e0e]">Refunded</option>
+          </select>
 
           {/* Fulfillment filter */}
-          <div>
-            <select
-              value={fulfillmentStatus}
-              onChange={(e) => setFulfillmentStatus(e.target.value)}
-              className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
-            >
-              <option value="all" className="bg-[#0e0e0e]">All Fulfillment Statuses</option>
-              <option value="unfulfilled" className="bg-[#0e0e0e]">Unfulfilled</option>
-              <option value="processing" className="bg-[#0e0e0e]">Processing</option>
-              <option value="shipped" className="bg-[#0e0e0e]">Shipped</option>
-              <option value="delivered" className="bg-[#0e0e0e]">Delivered</option>
-              <option value="returned" className="bg-[#0e0e0e]">Returned</option>
-            </select>
-          </div>
+          <select
+            value={fulfillmentStatus}
+            onChange={(e) => setFulfillmentStatus(e.target.value)}
+            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
+          >
+            <option value="all" className="bg-[#0e0e0e]">All Fulfillment</option>
+            <option value="unfulfilled" className="bg-[#0e0e0e]">Unfulfilled</option>
+            <option value="processing" className="bg-[#0e0e0e]">Processing</option>
+            <option value="shipped" className="bg-[#0e0e0e]">Shipped</option>
+            <option value="delivered" className="bg-[#0e0e0e]">Delivered</option>
+            <option value="returned" className="bg-[#0e0e0e]">Returned</option>
+          </select>
 
           {/* Payment Method filter */}
-          <div>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
-            >
-              <option value="all" className="bg-[#0e0e0e]">All Payment Methods</option>
-              <option value="razorpay" className="bg-[#0e0e0e]">Razorpay</option>
-              <option value="cod" className="bg-[#0e0e0e]">Cash On Delivery (COD)</option>
-            </select>
-          </div>
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
+          >
+            <option value="all" className="bg-[#0e0e0e]">All Methods</option>
+            <option value="razorpay" className="bg-[#0e0e0e]">Razorpay (Prepaid)</option>
+            <option value="cod" className="bg-[#0e0e0e]">Cash On Delivery</option>
+          </select>
         </div>
 
-        {/* Extended filters (dates + clear) */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-foreground/[0.03]">
-          <div className="flex items-center gap-3 flex-wrap">
+        {/* Date range + clear */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-foreground/[0.03]">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-wider flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5" /> Date Range
             </span>
@@ -291,7 +345,7 @@ export default function WebStoreOrdersList() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-foreground/5 text-[10px] font-bold text-foreground/40 uppercase tracking-wider">
-                  <th className="py-4 px-6 w-12">
+                  <th className="py-4 px-5 w-12">
                     <input
                       type="checkbox"
                       checked={selectedIds.length === orders.length && orders.length > 0}
@@ -299,25 +353,27 @@ export default function WebStoreOrdersList() {
                       className="rounded border-foreground/15 bg-transparent text-amber-500 focus:ring-0 focus:ring-offset-0 w-4 h-4"
                     />
                   </th>
-                  <th className="py-4 px-3">Order Number</th>
-                  <th className="py-4 px-4">Date</th>
-                  <th className="py-4 px-4">Customer</th>
-                  <th className="py-4 px-4">Payment</th>
-                  <th className="py-4 px-4">Fulfillment</th>
-                  <th className="py-4 px-4">Method</th>
-                  <th className="py-4 px-4 text-right">Total</th>
-                  <th className="py-4 px-6 w-12 text-center">Actions</th>
+                  <th className="py-4 px-3">Order</th>
+                  <th className="py-4 px-3">Date</th>
+                  <th className="py-4 px-3">Customer</th>
+                  <th className="py-4 px-3">Payment</th>
+                  <th className="py-4 px-3">Fulfillment</th>
+                  <th className="py-4 px-3">Method</th>
+                  <th className="py-4 px-3 text-right">Total</th>
+                  <th className="py-4 px-3 text-right">Collected</th>
+                  <th className="py-4 px-5 w-12 text-center"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-foreground/5">
                 {orders.map((order) => {
                   const isChecked = selectedIds.includes(order.id);
+                  const collected = getCollectedAmount(order);
                   return (
                     <tr
                       key={order.id}
                       className={`group hover:bg-foreground/[0.01] transition-colors ${isChecked ? "bg-amber-500/[0.02]" : ""}`}
                     >
-                      <td className="py-4 px-6">
+                      <td className="py-4 px-5">
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -330,24 +386,38 @@ export default function WebStoreOrdersList() {
                           {order.orderNumber}
                         </Link>
                       </td>
-                      <td className="py-4 px-4 text-[11px] text-foreground/60">{formatDate(order.createdAt)}</td>
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-3 text-[11px] text-foreground/60">{formatDate(order.createdAt)}</td>
+                      <td className="py-4 px-3">
                         <div className="flex flex-col min-w-0">
                           <span className="text-[12px] font-semibold text-foreground truncate">{order.customerName}</span>
                           <span className="text-[9px] text-foreground/40 mt-0.5 truncate">{order.customerEmail}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-4">{getPaymentBadge(order.paymentStatus)}</td>
-                      <td className="py-4 px-4">{getFulfillmentBadge(order.fulfillmentStatus)}</td>
-                      <td className="py-4 px-4">
-                        <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-foreground/60 bg-foreground/5 px-2 py-0.5 rounded border border-foreground/5">
-                          {order.paymentMethod}
+                      <td className="py-4 px-3">{getPaymentBadge(order.paymentStatus, order.paymentMethod, order.codUpfrontPaid)}</td>
+                      <td className="py-4 px-3">{getFulfillmentBadge(order.fulfillmentStatus)}</td>
+                      <td className="py-4 px-3">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider font-mono px-2 py-0.5 rounded border ${
+                          order.paymentMethod === "cod"
+                            ? "text-amber-400 bg-amber-500/5 border-amber-500/15"
+                            : "text-foreground/60 bg-foreground/5 border-foreground/5"
+                        }`}>
+                          {order.paymentMethod === "cod" ? "COD" : "PREPAID"}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-right text-[12px] font-bold text-foreground">
-                        {formatCurrency(order.totalAmount)}
+                      <td className="py-4 px-3 text-right text-[12px] font-bold text-foreground">
+                        {formatCurrency(Number(order.totalAmount))}
                       </td>
-                      <td className="py-4 px-6 text-center">
+                      <td className="py-4 px-3 text-right">
+                        <span className={`text-[12px] font-bold ${
+                          order.paymentMethod === "cod" ? "text-amber-400" : "text-emerald-400"
+                        }`}>
+                          {formatCurrency(collected)}
+                        </span>
+                        {order.paymentMethod === "cod" && collected > 0 && (
+                          <span className="block text-[8px] text-emerald-400/70 font-semibold">upfront ✓</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-5 text-center">
                         <Link
                           href={`/web-store/orders/${order.id}`}
                           className="w-8 h-8 rounded-xl flex items-center justify-center bg-foreground/5 text-foreground/50 hover:bg-foreground/10 hover:text-foreground transition-all"
@@ -402,6 +472,7 @@ export default function WebStoreOrdersList() {
                   <option value="">Mark Payment...</option>
                   <option value="paid">Paid</option>
                   <option value="pending">Pending</option>
+                  <option value="cod_upfront_paid">COD Upfront Paid</option>
                   <option value="failed">Failed</option>
                   <option value="refunded">Refunded</option>
                 </select>

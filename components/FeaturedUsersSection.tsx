@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import NextImage from "next/image";
-import { Star, MessageCircle, Heart, Upload } from "lucide-react";
+import { Star, MessageCircle, Heart, Upload, Instagram } from "lucide-react";
 
 interface FeaturedUser {
   id: string;
@@ -49,7 +49,7 @@ export default function FeaturedUsersSection({
       <section className="py-4 px-4">
         <div className="flex gap-5 overflow-x-hidden pb-4">
           {[1, 2, 3].map(i => (
-            <div key={i} className="min-w-[260px] shrink-0 aspect-[3/4.2] rounded-[2rem] bg-foreground/[0.03] animate-pulse" />
+            <div key={i} className="min-w-[200px] md:min-w-[280px] shrink-0 aspect-[9/16] rounded-[2rem] bg-foreground/[0.03] animate-pulse" />
           ))}
         </div>
       </section>
@@ -64,7 +64,7 @@ export default function FeaturedUsersSection({
       </div>
 
       <div className="relative group">
-        <div className="flex gap-5 overflow-x-auto pb-8 hide-scrollbar snap-x px-4 -mx-4 items-center">
+        <div className="flex gap-3 md:gap-6 overflow-x-auto pb-8 hide-scrollbar snap-x px-4 -mx-4 items-start">
           {users.length > 0 ? (
             users.map((user) => {
               const avgRating = user.reviews.length > 0 
@@ -74,28 +74,27 @@ export default function FeaturedUsersSection({
               return (
                 <div 
                   key={user.id} 
-                  className={`min-w-[260px] snap-center group ${user.instagramUrl ? 'cursor-pointer' : ''}`}
+                  className={`w-[calc((100vw-56px)/3)] md:w-[calc((100%-48px)/3)] md:max-w-[340px] md:flex-1 shrink-0 snap-center group flex flex-col gap-2.5 ${user.instagramUrl ? 'cursor-pointer' : ''}`}
                   onClick={() => {
                      if (user.instagramUrl) {
                         window.open(user.instagramUrl, '_blank', 'noopener,noreferrer');
                      }
                   }}
                 >
-                  <div className="relative aspect-[3/4.2] rounded-[2rem] overflow-hidden bg-foreground/[0.02] border border-foreground/[0.06] shadow-xl transition-all duration-700 active:scale-95">
+                  <div className="relative aspect-[9/16] rounded-[2rem] overflow-hidden bg-foreground/[0.02] border border-foreground/[0.06] shadow-md transition-all duration-300">
                     <NextImage 
                       src={user.imageUrl || "/zb-logo-220px.png"} 
                       alt={user.name} 
                       fill 
-                      className="object-cover transition-transform duration-[2000ms] ease-out group-hover:scale-110"
+                      className="object-cover"
                     />
-                    
-                     {/* Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
-                    
-                    <div className="absolute inset-x-0 bottom-0 p-6">
-                      <span className="text-[10px] font-bold text-white tracking-[0.15em] uppercase">{user.name}</span>
-                    </div>
-
+                  </div>
+                  
+                  {/* Clean, minimal name text below card */}
+                  <div className="text-center">
+                    <span className="text-[8px] md:text-[10px] font-bold text-foreground/60 tracking-[0.25em] uppercase select-none">
+                      {user.name}
+                    </span>
                   </div>
                 </div>
               );
@@ -110,19 +109,23 @@ export default function FeaturedUsersSection({
           {/* Upload / Add Yours Card */}
           {onUploadClick && (
             <div 
-              className="min-w-[260px] snap-center group cursor-pointer"
+              className="w-[calc((100vw-56px)/3)] md:w-[calc((100%-48px)/3)] md:max-w-[340px] md:flex-1 shrink-0 snap-center group cursor-pointer flex flex-col gap-2.5"
               onClick={onUploadClick}
             >
-              <div className="relative aspect-[3/4.2] rounded-[2rem] overflow-hidden bg-foreground/[0.03] border border-dashed border-foreground/15 flex flex-col items-center justify-center transition-all duration-500 hover:bg-foreground/[0.05] hover:border-foreground/30 active:scale-95">
-                <div className="w-16 h-16 rounded-full bg-foreground/5 flex items-center justify-center mb-4 transition-transform duration-500 group-hover:scale-110">
-                  <Upload className="w-7 h-7 text-foreground/40" />
+              <div className="relative aspect-[9/16] rounded-[2rem] overflow-hidden bg-foreground/[0.02] border border-dashed border-foreground/15 flex flex-col items-center justify-center transition-all duration-300">
+                <div className="w-8 h-8 md:w-16 md:h-16 rounded-full bg-foreground/5 flex items-center justify-center mb-1">
+                  <Upload className="w-4 h-4 md:w-7 md:h-7 text-foreground/40" />
                 </div>
-                <div className="text-center px-6">
-                  <p className="text-[12px] font-bold text-foreground/80 tracking-widest uppercase mb-1">Add Yours</p>
-                  <p className="text-[9px] text-foreground/40 font-medium leading-relaxed">
-                    Publish your look to the visual collective
+                <div className="text-center px-1 md:px-6">
+                  <p className="text-[6px] md:text-[9px] text-foreground/30 font-medium leading-normal max-w-[200px]">
+                    Publish Look
                   </p>
                 </div>
+              </div>
+              <div className="text-center">
+                <span className="text-[8px] md:text-[10px] font-bold text-foreground/60 tracking-[0.25em] uppercase select-none">
+                  Add Yours
+                </span>
               </div>
             </div>
           )}

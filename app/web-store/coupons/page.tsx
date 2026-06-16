@@ -31,6 +31,12 @@ interface Coupon {
   validUntil: string;
   isActive: boolean;
   createdAt: string;
+  applicability: string;
+  prepaidDiscountType: string;
+  prepaidDiscountValue: number;
+  codDiscountType: string;
+  codDiscountValue: number;
+  applyAsStoreCredit: boolean;
 }
 
 export default function WebStoreCouponsList() {
@@ -48,6 +54,15 @@ export default function WebStoreCouponsList() {
   const [validFrom, setValidFrom] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [isActive, setIsActive] = useState(true);
+  
+  // Advanced coupon states
+  const [applicability, setApplicability] = useState("ALL"); // ALL, PREPAID_ONLY, COD_ONLY, CUSTOM_RATES
+  const [prepaidDiscountType, setPrepaidDiscountType] = useState("percentage");
+  const [prepaidDiscountValue, setPrepaidDiscountValue] = useState("");
+  const [codDiscountType, setCodDiscountType] = useState("percentage");
+  const [codDiscountValue, setCodDiscountValue] = useState("");
+  const [applyAsStoreCredit, setApplyAsStoreCredit] = useState(false);
+  
   const [submitLoading, setSubmitLoading] = useState(false);
 
   const fetchCoupons = async () => {
@@ -78,6 +93,12 @@ export default function WebStoreCouponsList() {
     setValidFrom("");
     setValidUntil("");
     setIsActive(true);
+    setApplicability("ALL");
+    setPrepaidDiscountType("percentage");
+    setPrepaidDiscountValue("");
+    setCodDiscountType("percentage");
+    setCodDiscountValue("");
+    setApplyAsStoreCredit(false);
     setIsModalOpen(true);
   };
 
@@ -99,6 +120,12 @@ export default function WebStoreCouponsList() {
     setValidFrom(formatToInputDate(coupon.validFrom));
     setValidUntil(formatToInputDate(coupon.validUntil));
     setIsActive(coupon.isActive);
+    setApplicability(coupon.applicability || "ALL");
+    setPrepaidDiscountType(coupon.prepaidDiscountType || "percentage");
+    setPrepaidDiscountValue(String(coupon.prepaidDiscountValue || 0));
+    setCodDiscountType(coupon.codDiscountType || "percentage");
+    setCodDiscountValue(String(coupon.codDiscountValue || 0));
+    setApplyAsStoreCredit(!!coupon.applyAsStoreCredit);
     setIsModalOpen(true);
   };
 
@@ -139,8 +166,21 @@ export default function WebStoreCouponsList() {
 
   const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code || !discountType || !discountValue || !validFrom || !validUntil) {
+    if (!code || !validFrom || !validUntil) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (applicability === "ALL" && (!discountType || !discountValue)) {
+      toast.error("Please specify a general discount value.");
+      return;
+    }
+    if ((applicability === "PREPAID_ONLY" || applicability === "CUSTOM_RATES") && (!prepaidDiscountType || !prepaidDiscountValue)) {
+      toast.error("Please specify a prepaid discount value.");
+      return;
+    }
+    if ((applicability === "COD_ONLY" || applicability === "CUSTOM_RATES") && (!codDiscountType || !codDiscountValue)) {
+      toast.error("Please specify a COD discount value.");
       return;
     }
 
@@ -149,6 +189,10 @@ export default function WebStoreCouponsList() {
       const method = editingCoupon ? "PATCH" : "POST";
       const endpoint = editingCoupon ? `/api/web-store/coupons/${editingCoupon.id}` : "/api/web-store/coupons";
 
+      // If we are not in 'ALL', default general discount to 0
+      const finalDiscountType = discountType || "percentage";
+      const finalDiscountValue = applicability === "ALL" ? discountValue : "0";
+
       const res = await fetch(endpoint, {
         method,
         headers: {
@@ -156,13 +200,19 @@ export default function WebStoreCouponsList() {
         },
         body: JSON.stringify({
           code,
-          discountType,
-          discountValue,
+          discountType: finalDiscountType,
+          discountValue: finalDiscountValue,
           minOrderValue,
           usageLimit: usageLimit || null,
           validFrom,
           validUntil,
           isActive,
+          applicability,
+          prepaidDiscountType: prepaidDiscountType || "percentage",
+          prepaidDiscountValue: (applicability === "PREPAID_ONLY" || applicability === "CUSTOM_RATES") ? prepaidDiscountValue : "0",
+          codDiscountType: codDiscountType || "percentage",
+          codDiscountValue: (applicability === "COD_ONLY" || applicability === "CUSTOM_RATES") ? codDiscountValue : "0",
+          applyAsStoreCredit,
         }),
       });
 
@@ -208,7 +258,7 @@ export default function WebStoreCouponsList() {
             Coupons & Promos <Sparkles className="w-5 h-5 text-amber-500" />
           </h1>
           <p className="text-[12px] text-foreground/50 mt-1">
-            Configure percentages or fixed discounts, minimum values, validity periods, and usage limits.
+            Configure percentages or fixed discounts, payment method rules, store credits, validity periods, and usage limits.
           </p>
         </div>
         
@@ -241,12 +291,12 @@ export default function WebStoreCouponsList() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto font-semibold text-xs">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-foreground/5 text-[10px] font-bold text-foreground/40 uppercase tracking-wider">
                   <th className="py-4 px-6">Promo Code</th>
-                  <th className="py-4 px-4">Discount</th>
+                  <th className="py-4 px-4">Applicability / Reward</th>
                   <th className="py-4 px-4">Min. Criteria</th>
                   <th className="py-4 px-4">Usages</th>
                   <th className="py-4 px-4">Validity Range</th>
@@ -265,16 +315,63 @@ export default function WebStoreCouponsList() {
                       </span>
                     </td>
                     <td className="py-4 px-4 text-[12px] font-bold text-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        {coupon.discountType === "percentage" ? (
-                          <><Percent className="w-3.5 h-3.5 text-amber-500" /> {coupon.discountValue}% Off</>
-                        ) : (
-                          <><DollarSign className="w-3.5 h-3.5 text-amber-500" /> {formatCurrency(coupon.discountValue)} Off</>
-                        )}
-                      </span>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="inline-flex items-center gap-1.5">
+                          {(!coupon.applicability || coupon.applicability === "ALL") && (
+                            <>
+                              {coupon.discountType === "percentage" ? (
+                                <><Percent className="w-3.5 h-3.5 text-amber-500" /> {coupon.discountValue}% Off</>
+                              ) : (
+                                <><DollarSign className="w-3.5 h-3.5 text-amber-500" /> {formatCurrency(Number(coupon.discountValue))} Off</>
+                              )}
+                            </>
+                          )}
+                          {coupon.applicability === "PREPAID_ONLY" && (
+                            <>
+                              {coupon.prepaidDiscountType === "percentage" ? (
+                                <><Percent className="w-3.5 h-3.5 text-sky-400" /> {coupon.prepaidDiscountValue}% Off</>
+                              ) : (
+                                <><DollarSign className="w-3.5 h-3.5 text-sky-400" /> {formatCurrency(Number(coupon.prepaidDiscountValue))} Off</>
+                              )}
+                            </>
+                          )}
+                          {coupon.applicability === "COD_ONLY" && (
+                            <>
+                              {coupon.codDiscountType === "percentage" ? (
+                                <><Percent className="w-3.5 h-3.5 text-amber-600" /> {coupon.codDiscountValue}% Off</>
+                              ) : (
+                                <><DollarSign className="w-3.5 h-3.5 text-amber-600" /> {formatCurrency(Number(coupon.codDiscountValue))} Off</>
+                              )}
+                            </>
+                          )}
+                          {coupon.applicability === "CUSTOM_RATES" && (
+                            <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Custom Payment Rates</span>
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-1">
+                          {(!coupon.applicability || coupon.applicability === "ALL") && (
+                            <span className="text-[9px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wide">All Methods</span>
+                          )}
+                          {coupon.applicability === "PREPAID_ONLY" && (
+                            <span className="text-[9px] bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wide">Prepaid Only</span>
+                          )}
+                          {coupon.applicability === "COD_ONLY" && (
+                            <span className="text-[9px] bg-amber-600/10 text-amber-500 px-2 py-0.5 rounded-md font-bold uppercase tracking-wide">COD Only</span>
+                          )}
+                          {coupon.applicability === "CUSTOM_RATES" && (
+                            <span className="text-[9px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-md font-medium">
+                              Prepaid: {coupon.prepaidDiscountValue}{coupon.prepaidDiscountType === "percentage" ? "%" : "₹"} | COD: {coupon.codDiscountValue}{coupon.codDiscountType === "percentage" ? "%" : "₹"}
+                            </span>
+                          )}
+                          {coupon.applyAsStoreCredit && (
+                            <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wide">Store Credit Reward</span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="py-4 px-4 text-[11px] font-medium text-foreground/60">
-                      {coupon.minOrderValue > 0 ? `Orders above ${formatCurrency(coupon.minOrderValue)}` : "No min criteria"}
+                      {coupon.minOrderValue > 0 ? `Orders above ${formatCurrency(Number(coupon.minOrderValue))}` : "No min criteria"}
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex flex-col">
@@ -346,7 +443,7 @@ export default function WebStoreCouponsList() {
                   <h3 className="text-base font-bold text-foreground font-inter">
                     {editingCoupon ? "Edit Discount Coupon" : "Add Discount Coupon"}
                   </h3>
-                  <p className="text-[10px] text-foreground/40 mt-1">Configure code parameters, percentage rates, and usage caps.</p>
+                  <p className="text-[10px] text-foreground/40 mt-1">Configure applicability, custom rates, cashback credits, and usage rules.</p>
                 </div>
                 <button
                   onClick={() => setIsModalOpen(false)}
@@ -373,34 +470,119 @@ export default function WebStoreCouponsList() {
                   />
                 </div>
 
-                {/* Discount Type & Value */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">Discount Type</label>
-                    <select
-                      value={discountType}
-                      onChange={(e) => setDiscountType(e.target.value)}
-                      className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
-                    >
-                      <option value="percentage" className="bg-[#0e0e0e]">Percentage (%)</option>
-                      <option value="fixed" className="bg-[#0e0e0e]">Fixed Amount (₹)</option>
-                    </select>
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">
-                      Discount Value {discountType === "percentage" ? "(%)" : "(₹)"}
-                    </label>
-                    <input
-                      type="number"
-                      placeholder={discountType === "percentage" ? "e.g. 20" : "e.g. 500"}
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(e.target.value)}
-                      className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
-                      required
-                    />
-                  </div>
+                {/* Applicability Rules */}
+                <div className="space-y-1.5">
+                  <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">Payment Method Applicability</label>
+                  <select
+                    value={applicability}
+                    onChange={(e) => setApplicability(e.target.value)}
+                    className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="ALL" className="bg-[#0e0e0e]">All Payment Methods</option>
+                    <option value="PREPAID_ONLY" className="bg-[#0e0e0e]">Prepaid Only (Card / UPI)</option>
+                    <option value="COD_ONLY" className="bg-[#0e0e0e]">Cash On Delivery (COD) Only</option>
+                    <option value="CUSTOM_RATES" className="bg-[#0e0e0e]">Custom Rates (Different for Prepaid & COD)</option>
+                  </select>
                 </div>
+
+                {/* General Discount Inputs (Applicability == ALL) */}
+                {applicability === "ALL" && (
+                  <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-amber-500/[0.02] border border-amber-500/10">
+                    <div className="space-y-1.5">
+                      <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">Discount Type</label>
+                      <select
+                        value={discountType}
+                        onChange={(e) => setDiscountType(e.target.value)}
+                        className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="percentage" className="bg-[#0e0e0e]">Percentage (%)</option>
+                        <option value="fixed" className="bg-[#0e0e0e]">Fixed Amount (₹)</option>
+                      </select>
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">
+                        Discount Value {discountType === "percentage" ? "(%)" : "(₹)"}
+                      </label>
+                      <input
+                        type="number"
+                        placeholder={discountType === "percentage" ? "e.g. 20" : "e.g. 500"}
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(e.target.value)}
+                        className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
+                        required={applicability === "ALL"}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Prepaid Discount Inputs (Applicability == PREPAID_ONLY or CUSTOM_RATES) */}
+                {(applicability === "PREPAID_ONLY" || applicability === "CUSTOM_RATES") && (
+                  <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-sky-500/[0.02] border border-sky-500/10">
+                    <div className="col-span-2 text-[10px] font-bold text-sky-400 uppercase tracking-wider">
+                      Prepaid Discount Rules
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">Prepaid Discount Type</label>
+                      <select
+                        value={prepaidDiscountType}
+                        onChange={(e) => setPrepaidDiscountType(e.target.value)}
+                        className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="percentage" className="bg-[#0e0e0e]">Percentage (%)</option>
+                        <option value="fixed" className="bg-[#0e0e0e]">Fixed Amount (₹)</option>
+                      </select>
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">
+                        Prepaid Value {prepaidDiscountType === "percentage" ? "(%)" : "(₹)"}
+                      </label>
+                      <input
+                        type="number"
+                        placeholder={prepaidDiscountType === "percentage" ? "e.g. 15" : "e.g. 300"}
+                        value={prepaidDiscountValue}
+                        onChange={(e) => setPrepaidDiscountValue(e.target.value)}
+                        className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* COD Discount Inputs (Applicability == COD_ONLY or CUSTOM_RATES) */}
+                {(applicability === "COD_ONLY" || applicability === "CUSTOM_RATES") && (
+                  <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-amber-500/[0.02] border border-amber-500/10">
+                    <div className="col-span-2 text-[10px] font-bold text-amber-500 uppercase tracking-wider">
+                      COD Discount Rules
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">COD Discount Type</label>
+                      <select
+                        value={codDiscountType}
+                        onChange={(e) => setCodDiscountType(e.target.value)}
+                        className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="percentage" className="bg-[#0e0e0e]">Percentage (%)</option>
+                        <option value="fixed" className="bg-[#0e0e0e]">Fixed Amount (₹)</option>
+                      </select>
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">
+                        COD Value {codDiscountType === "percentage" ? "(%)" : "(₹)"}
+                      </label>
+                      <input
+                        type="number"
+                        placeholder={codDiscountType === "percentage" ? "e.g. 5" : "e.g. 100"}
+                        value={codDiscountValue}
+                        onChange={(e) => setCodDiscountValue(e.target.value)}
+                        className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Min order criteria & Usage limit */}
                 <div className="grid grid-cols-2 gap-4">
@@ -450,6 +632,22 @@ export default function WebStoreCouponsList() {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Reward as Store Credit Toggle */}
+                <div className="flex items-center justify-between p-4 bg-foreground/[0.02] border border-foreground/5 rounded-2xl">
+                  <div>
+                    <span className="text-[12px] font-bold text-foreground">Reward as Store Credit Cashback</span>
+                    <p className="text-[10px] text-foreground/40 mt-1">
+                      Instead of reducing checkout total, this issues the discount value as store credit to the customer balance.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={applyAsStoreCredit}
+                    onChange={(e) => setApplyAsStoreCredit(e.target.checked)}
+                    className="rounded text-amber-500 bg-transparent border-foreground/20 focus:ring-0 focus:ring-offset-0 w-5 h-5 cursor-pointer"
+                  />
                 </div>
 
                 {/* Active Toggle status */}

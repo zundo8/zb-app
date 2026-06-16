@@ -75,6 +75,10 @@ interface SettingsData {
   footerLogo3dUrl: string;
   homepageCollection: string;
   homepageProducts: string;
+  loginBgImage: string;
+  loginBgVideo: string;
+  loginBgImageMobile: string;
+  loginBgVideoMobile: string;
 }
 
 function SettingsRow({
@@ -271,8 +275,8 @@ export default function WebStorefrontSettingsPage() {
   const [allCollections, setAllCollections] = useState<any[]>([]);
 
   useEffect(() => {
-    // Explicitly target zicabella.com configurations
-    fetch('/api/admin/settings?shop=zicabella.com')
+    // Query canonical settings (defaults to 8tiahf-bk.myshopify.com)
+    fetch('/api/admin/settings')
       .then(r => r.json())
       .then(data => {
         setSettings(data);
@@ -309,11 +313,12 @@ export default function WebStorefrontSettingsPage() {
         'enabledCollectionsPage', 'enabledCollectionsMenu',
         'flipbookImage', 'flipbookImageMobile', 'flipbookVideo', 'flipbookVideoMobile', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
         'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl',
-        'homepageCollection', 'homepageProducts'
+        'homepageCollection', 'homepageProducts',
+        'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile'
     ];
 
-    // Pass shopDomain explicitly to route to target the correct record in PATCH
-    const partialUpdate: any = { shopId: settings.id, shopDomain: 'zicabella.com' };
+    // Pass shopDomain from loaded settings to target the correct record in PATCH (fallback to 8tiahf-bk.myshopify.com)
+    const partialUpdate: any = { shopId: settings.id, shopDomain: settings.shopDomain || '8tiahf-bk.myshopify.com' };
     storefrontKeys.forEach(key => {
         if (settings[key] !== undefined) partialUpdate[key] = settings[key];
     });
@@ -425,6 +430,22 @@ export default function WebStorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Footer 3D Logo" icon={Monitor} description="GLB model for footer logo">
              <InputField value={settings.footerLogo3dUrl!} onChange={set('footerLogo3dUrl')} placeholder="https://...glb" />
+          </SettingsRow>
+        </SettingsGroup>
+
+        {/* Login Page Media */}
+        <SettingsGroup title="Login Page Media" icon={Layers}>
+          <SettingsRow label="Login Background Image (Desktop)" icon={ImageIcon} description="Desktop login background image link">
+             <MediaPicker value={settings.loginBgImage!} onChange={set('loginBgImage')} label="Login Background Image (Desktop)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Login Background Video (Desktop)" icon={Video} description="Desktop login background MP4 link">
+             <MediaPicker value={settings.loginBgVideo!} onChange={set('loginBgVideo')} label="Login Background Video (Desktop)" type="video" />
+          </SettingsRow>
+          <SettingsRow label="Login Background Image (Mobile)" icon={ImageIcon} description="Mobile login background image link">
+             <MediaPicker value={settings.loginBgImageMobile!} onChange={set('loginBgImageMobile')} label="Login Background Image (Mobile)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Login Background Video (Mobile)" icon={Video} description="Mobile login background MP4 link">
+             <MediaPicker value={settings.loginBgVideoMobile!} onChange={set('loginBgVideoMobile')} label="Login Background Video (Mobile)" type="video" />
           </SettingsRow>
         </SettingsGroup>
 

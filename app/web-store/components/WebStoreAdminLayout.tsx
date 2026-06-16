@@ -18,7 +18,8 @@ import {
   User,
   LogOut,
   Settings,
-  Sparkles
+  Sparkles,
+  History
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -70,6 +71,7 @@ export default function WebStoreAdminLayout({ children, user }: WebStoreAdminLay
     { name: "Overview", href: "/web-store", icon: LayoutDashboard },
     { name: "Web Store Orders", href: "/web-store/orders", icon: ShoppingBag },
     { name: "Web Store Customers", href: "/web-store/customers", icon: Users },
+    { name: "Login Logs", href: "/web-store/logins", icon: History },
     { name: "Banners / CMS", href: "/web-store/banners", icon: ImageIcon },
     { name: "Coupons", href: "/web-store/coupons", icon: Tag },
   ];
