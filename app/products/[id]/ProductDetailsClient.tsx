@@ -528,7 +528,7 @@ export default function ProductDetailsClient({
       {/* ─── MOBILE VIEW (sm and below) ─── */}
       <div className="md:hidden">
         {/* Mobile View Gallery Carousel - Native Horizontal Swiping */}
-        <div className="px-4 pt-16">
+        <div className="px-2 pt-16">
           <div className="relative w-full aspect-[4/5] overflow-hidden bg-foreground/[0.02] rounded-[2rem] border border-black/5 dark:border-white/10 shadow-lg">
             <div 
               ref={scrollRef}
@@ -576,7 +576,7 @@ export default function ProductDetailsClient({
         </div>
 
         {/* Thumbnails Navigation */}
-        <div className="relative px-4 pb-2 mt-3 flex justify-center">
+        <div className="relative px-2 pb-2 mt-3 flex justify-center">
           <div className="flex overflow-x-auto gap-2 py-2 hide-scrollbar snap-x justify-start sm:justify-center items-center w-full">
             {allImages.map((img, i) => (
               <button
