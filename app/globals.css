@@ -466,7 +466,7 @@
 }
 
 .dark .liquid-glass-body::before {
-  background: radial-gradient(ellipse at 20% 0%, #0d0d1a 0%, #000000 50%, #070714 100%) !important;
+  background: #000000 !important;
 }
 
 /* ── Primary Glass Surface ── */

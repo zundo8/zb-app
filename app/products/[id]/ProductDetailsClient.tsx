@@ -292,7 +292,7 @@ export default function ProductDetailsClient({
           <div className="col-span-6 sticky top-28 space-y-6 flex flex-col items-center w-full">
             <div 
               onClick={() => setIsGalleryOpen(true)}
-              className="relative aspect-[4/5] w-full max-w-[520px] rounded-[2rem] overflow-hidden border border-foreground/5 shadow-2xl bg-foreground/[0.01] cursor-zoom-in hover:brightness-95 transition-all duration-300"
+              className="relative aspect-[3/4] w-full max-w-[520px] rounded-xl overflow-hidden border border-foreground/5 shadow-2xl bg-foreground/[0.01] cursor-zoom-in hover:brightness-95 transition-all duration-300"
             >
               <Image
                 src={allImages[activeImg]?.src || "/zb-logo-220px.png"}
@@ -528,8 +528,8 @@ export default function ProductDetailsClient({
       {/* ─── MOBILE VIEW (sm and below) ─── */}
       <div className="md:hidden">
         {/* Mobile View Gallery Carousel - Native Horizontal Swiping */}
-        <div className="px-2 pt-16">
-          <div className="relative w-full aspect-[4/5] overflow-hidden bg-foreground/[0.02] rounded-[2rem] border border-black/5 dark:border-white/10 shadow-lg">
+        <div className="px-0 pt-16">
+          <div className="relative w-full aspect-[3/4] overflow-hidden bg-foreground/[0.02] rounded-b-xl border-b border-black/5 dark:border-white/10 shadow-md">
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
