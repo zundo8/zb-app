@@ -85,24 +85,7 @@ export default function ProductDetailsClient({
     };
   }, [isGalleryOpen]);
 
-  // Align horizontal gallery scroll to clicked image index on modal mount
-  useEffect(() => {
-    if (isGalleryOpen && galleryScrollRef.current) {
-      isScrolling.current = true;
-      const index = activeImg;
-      // Use clientWidth or window.innerWidth to determine scroll width
-      const width = galleryScrollRef.current.clientWidth || window.innerWidth;
-      galleryScrollRef.current.scrollLeft = index * width;
-      setTimeout(() => {
-        isScrolling.current = false;
-      }, 150);
-    }
-  }, [isGalleryOpen]);
 
-
-  // Refs for scroll sync — avoids fragile querySelector
-  const bgScrollRef = useRef<HTMLDivElement>(null);
-  const galleryScrollRef = useRef<HTMLDivElement>(null);
 
   const { add: addToCart } = useCart();
   const { toggleBookmark, isBookmarked, setIsOpen } = useBookmarks();
@@ -1035,59 +1018,168 @@ function FullScreenGallery({
   const [localActiveImg, setLocalActiveImg] = useState(initialImg);
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomEnabled, setZoomEnabled] = useState(false);
-  const galleryScrollRef = useRef<HTMLDivElement>(null);
-  const transformRef = useRef<any>(null);
+  const transformRefs = useRef<Record<number, any>>({});
   const lastTap = useRef<number>(0);
 
+  // Manual swipe state — avoids native scroll conflicts with react-zoom-pan-pinch
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const touchCurrentX = useRef(0);
+  const isSwiping = useRef(false);
+  const isVerticalScroll = useRef(false);
+  const touchStartTime = useRef(0);
+  const isPinching = useRef(false);
+
+  // Reset zoom when switching images
   useEffect(() => {
     setIsZoomed(false);
     setZoomEnabled(false);
+    // Reset transform for previous active image
+    Object.values(transformRefs.current).forEach((ref: any) => {
+      if (ref?.resetTransform) {
+        try { ref.resetTransform(); } catch (e) { /* ignore */ }
+      }
+    });
   }, [localActiveImg]);
 
-  // Align horizontal gallery scroll to clicked image index on mount
-  useEffect(() => {
-    if (galleryScrollRef.current) {
-      const width = galleryScrollRef.current.clientWidth || window.innerWidth;
-      galleryScrollRef.current.scrollLeft = initialImg * width;
-    }
-  }, [initialImg]);
+  const goToImage = (index: number) => {
+    if (index < 0 || index >= allImages.length || index === localActiveImg || isAnimating) return;
+    setIsAnimating(true);
+    setLocalActiveImg(index);
+    setSwipeOffset(0);
+    startTransition(() => {
+      onImageChange(index);
+    });
+    setTimeout(() => setIsAnimating(false), 350);
+  };
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (isZoomed) return;
-    const target = e.currentTarget;
-    const width = target.clientWidth || window.innerWidth;
-    const index = Math.round(target.scrollLeft / width);
-    if (localActiveImg !== index && index >= 0 && index < allImages.length) {
-      setLocalActiveImg(index);
-      startTransition(() => {
-        onImageChange(index);
-      });
+  // Touch handlers for manual swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) {
+      // Multi-touch = pinch to zoom
+      isPinching.current = true;
+      setZoomEnabled(true);
+      isSwiping.current = false;
+      return;
+    }
+
+    isPinching.current = false;
+    isVerticalScroll.current = false;
+
+    // Double-tap detection for zoom toggle
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+    if (now - lastTap.current < DOUBLE_TAP_DELAY) {
+      // Double tap
+      if (!zoomEnabled) {
+        setZoomEnabled(true);
+        const activeRef = transformRefs.current[localActiveImg];
+        setTimeout(() => {
+          if (activeRef?.zoomIn) {
+            activeRef.zoomIn(1.5);
+          }
+        }, 50);
+      } else {
+        const activeRef = transformRefs.current[localActiveImg];
+        if (activeRef?.resetTransform) {
+          activeRef.resetTransform();
+        }
+        setZoomEnabled(false);
+        setIsZoomed(false);
+      }
+      lastTap.current = 0; // Reset to avoid triple tap
+      return;
+    }
+    lastTap.current = now;
+
+    // Single touch — prepare for potential swipe
+    if (!isZoomed) {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      touchCurrentX.current = e.touches[0].clientX;
+      touchStartTime.current = Date.now();
+      isSwiping.current = false; // Will be set true once direction is confirmed
     }
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length > 1) {
-      setZoomEnabled(true);
-    } else {
-      const now = Date.now();
-      const DOUBLE_TAP_DELAY = 300;
-      if (now - lastTap.current < DOUBLE_TAP_DELAY) {
-        if (!zoomEnabled) {
-          setZoomEnabled(true);
-          setTimeout(() => {
-            if (transformRef.current) {
-              transformRef.current.zoomIn(1.5);
-            }
-          }, 50);
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isPinching.current || isZoomed || e.touches.length > 1) return;
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = currentX - touchStartX.current;
+    const deltaY = currentY - touchStartY.current;
+
+    // Determine scroll direction on first significant move
+    if (!isSwiping.current && !isVerticalScroll.current) {
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+      if (absDeltaX > 8 || absDeltaY > 8) {
+        if (absDeltaX > absDeltaY) {
+          isSwiping.current = true;
         } else {
-          if (transformRef.current) {
-            transformRef.current.resetTransform();
-          }
-          setZoomEnabled(false);
+          isVerticalScroll.current = true;
+          return;
         }
+      } else {
+        return; // Not enough movement yet
       }
-      lastTap.current = now;
     }
+
+    if (isVerticalScroll.current) return;
+
+    if (isSwiping.current) {
+      e.preventDefault();
+      touchCurrentX.current = currentX;
+
+      // Add resistance at edges
+      let offset = deltaX;
+      if ((localActiveImg === 0 && deltaX > 0) || (localActiveImg === allImages.length - 1 && deltaX < 0)) {
+        offset = deltaX * 0.3; // Rubber band effect
+      }
+      setSwipeOffset(offset);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (isPinching.current) {
+      isPinching.current = false;
+      return;
+    }
+
+    if (!isSwiping.current || isZoomed) {
+      isSwiping.current = false;
+      return;
+    }
+
+    const deltaX = touchCurrentX.current - touchStartX.current;
+    const elapsed = Date.now() - touchStartTime.current;
+    const velocity = Math.abs(deltaX) / elapsed;
+    const threshold = window.innerWidth * 0.2;
+    const isQuickSwipe = velocity > 0.4 && Math.abs(deltaX) > 30;
+
+    if (deltaX < -threshold || (isQuickSwipe && deltaX < 0)) {
+      // Swipe left → next image
+      if (localActiveImg < allImages.length - 1) {
+        goToImage(localActiveImg + 1);
+      } else {
+        setSwipeOffset(0);
+      }
+    } else if (deltaX > threshold || (isQuickSwipe && deltaX > 0)) {
+      // Swipe right → previous image
+      if (localActiveImg > 0) {
+        goToImage(localActiveImg - 1);
+      } else {
+        setSwipeOffset(0);
+      }
+    } else {
+      // Snap back
+      setSwipeOffset(0);
+    }
+
+    isSwiping.current = false;
   };
 
   return (
@@ -1111,50 +1203,56 @@ function FullScreenGallery({
         </button>
       </div>
 
-      {/* Gallery Main Carousel */}
-      <div className="flex-1 relative overflow-hidden flex items-center justify-center w-full">
+      {/* Gallery Main Carousel — manual touch-based swipe */}
+      <div
+        className="flex-1 relative overflow-hidden flex items-center justify-center w-full"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <div
-          ref={galleryScrollRef}
-          className={`w-full h-full flex hide-scrollbar ${isZoomed ? "overflow-hidden" : "overflow-x-auto snap-x snap-mandatory"}`}
-          style={{ 
-            scrollSnapType: isZoomed ? 'none' : 'x mandatory',
-            touchAction: isZoomed ? 'none' : 'pan-x pan-y'
+          className="w-full h-full flex will-change-transform"
+          style={{
+            transform: `translateX(calc(-${localActiveImg * 100}% + ${swipeOffset}px))`,
+            transition: isSwiping.current ? 'none' : 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           }}
-          onScroll={handleScroll}
         >
           {allImages.map((img, i) => (
-            <div key={`gallery-${img.src || i}`} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center p-2">
-              {i === localActiveImg ? (
+            <div key={`gallery-${img.src || i}`} className="w-full h-full flex-shrink-0 flex items-center justify-center p-2">
+              {Math.abs(i - localActiveImg) <= 1 ? (
                 <TransformWrapper
-                  ref={transformRef}
-                  disabled={!zoomEnabled}
+                  ref={(ref: any) => { if (ref) transformRefs.current[i] = ref; }}
+                  disabled={i !== localActiveImg || !zoomEnabled}
                   initialScale={1}
                   minScale={1}
                   maxScale={4}
-                  doubleClick={{ step: 1.5 }}
-                  wheel={{ wheelDisabled: false }}
-                  panning={{ disabled: !isZoomed }}
+                  doubleClick={{ disabled: true }}
+                  wheel={{ wheelDisabled: true }}
+                  panning={{ disabled: !isZoomed || i !== localActiveImg }}
                   onTransformed={(ref) => {
+                    if (i !== localActiveImg) return;
                     const currentScale = ref.state.scale;
-                    setIsZoomed(currentScale > 1);
-                    if (currentScale <= 1) {
+                    setIsZoomed(currentScale > 1.05);
+                    if (currentScale <= 1.05) {
                       setZoomEnabled(false);
                     }
                   }}
                 >
-                  <TransformComponent wrapperClass="!w-full !h-full flex items-center justify-center" contentClass="!w-full !h-full flex items-center justify-center">
-                    <div 
-                      className="relative w-full h-[80dvh] cursor-zoom-in"
-                      onTouchStart={handleTouchStart}
-                    >
+                  <TransformComponent 
+                    wrapperClass="!w-full !h-full flex items-center justify-center" 
+                    contentClass="!w-full !h-full flex items-center justify-center"
+                    wrapperStyle={{ touchAction: isZoomed && i === localActiveImg ? 'none' : 'pan-y' }}
+                  >
+                    <div className="relative w-full h-[80dvh] cursor-zoom-in">
                       <Image 
                         src={img.src || "/zb-logo-220px.png"} 
                         alt={product.title} 
                         fill 
-                        className="object-contain" 
+                        className="object-contain pointer-events-none" 
                         sizes="100vw"
-                        priority
+                        priority={i === localActiveImg}
                         onError={handleImageError}
+                        draggable={false}
                       />
                     </div>
                   </TransformComponent>
@@ -1165,9 +1263,10 @@ function FullScreenGallery({
                     src={img.src || "/zb-logo-220px.png"} 
                     alt={product.title} 
                     fill 
-                    className="object-contain" 
+                    className="object-contain pointer-events-none" 
                     sizes="100vw"
                     onError={handleImageError}
+                    draggable={false}
                   />
                 </div>
               )}
@@ -1182,11 +1281,8 @@ function FullScreenGallery({
           <button
             key={`gal-thumb-${i}`}
             onClick={() => {
-              if (isZoomed) return;
-              if (galleryScrollRef.current) {
-                const width = galleryScrollRef.current.clientWidth || window.innerWidth;
-                galleryScrollRef.current.scrollTo({ left: i * width, behavior: 'smooth' });
-              }
+              if (isZoomed || isAnimating) return;
+              goToImage(i);
             }}
             className={`w-1 h-1 rounded-full transition-all duration-500 ${localActiveImg === i ? "w-4 bg-white" : "bg-white/20"}`}
           />
@@ -1195,3 +1291,4 @@ function FullScreenGallery({
     </motion.div>
   );
 }
+
