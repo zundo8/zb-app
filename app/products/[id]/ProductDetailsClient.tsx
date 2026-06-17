@@ -454,10 +454,10 @@ export default function ProductDetailsClient({
 
       {/* Recommended & Curated Pairs Row — full-width edge-to-edge */}
       {shuffledRecommended.length > 0 && (
-        <div className="hidden md:block bg-background text-foreground py-12 border-t border-border/50 w-full overflow-hidden">
+        <div className="hidden md:block bg-background text-foreground py-6 border-t border-border/50 w-full overflow-hidden">
           <div className="flex items-center justify-between mb-5 px-4">
             <h2 className="text-[11px] uppercase tracking-[0.2em] font-heading text-foreground font-bold">
-              CURATED PAIR(S)
+              CURATED PAIRS
             </h2>
             <div className="flex items-center gap-4">
               <button 
@@ -837,10 +837,10 @@ export default function ProductDetailsClient({
 
             {/* Mobile Curated Pairs — edge-to-edge, minimal gaps */}
             {shuffledRecommended.length > 0 && (
-              <div className="bg-background text-foreground py-8 mt-6 w-full overflow-hidden border-t border-border/50">
+              <div className="bg-background text-foreground py-4 mt-2 w-full overflow-hidden border-t border-border/50">
                 <div className="flex items-center justify-between px-4 mb-4">
                   <h2 className="text-[11px] uppercase tracking-[0.2em] font-heading text-foreground font-bold">
-                    CURATED PAIR(S)
+                    CURATED PAIRS
                   </h2>
                   <div className="flex items-center gap-4">
                     <button 
@@ -862,7 +862,7 @@ export default function ProductDetailsClient({
                 
                 <div 
                   ref={curatedScrollMobileRef}
-                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-1.5 px-4"
+                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-[2px] px-4"
                   style={{ 
                       scrollbarWidth: "none", 
                       msOverflowStyle: "none", 
