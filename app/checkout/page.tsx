@@ -57,7 +57,7 @@ type DBAddress = {
   isDefault: boolean;
 };
 
-type PaymentMethod = "UPI" | "CARD" | "COD";
+type PaymentMethod = "UPI" | "CARD" | "COD" | "PAYLATER" | "EMI";
 
 /* ─── Validation helpers ────────────────────────────────────── */
 const BLOCKED_CHARS = /[`~!@#$%^&*()_+={}[\]|\\:;"'<>?/]/g;
@@ -89,6 +89,9 @@ export default function CheckoutPage() {
   // Saved addresses
   const [savedAddresses, setSavedAddresses] = useState<DBAddress[]>([]);
   const [selectedSavedId, setSelectedSavedId] = useState<string>("");
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [upiId, setUpiId] = useState("");
+  const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
 
   useEffect(() => {
     if (items.length > 0 && !initiatedPixel) {
@@ -173,29 +176,33 @@ export default function CheckoutPage() {
       fetch("/api/customer/addresses")
         .then(res => res.json())
         .then(data => {
-          if (data.addresses) {
+          if (data.addresses && data.addresses.length > 0) {
             setSavedAddresses(data.addresses);
-            const def = data.addresses.find((a: DBAddress) => a.isDefault);
-            if (def) {
-              setSelectedSavedId(def.id);
-              // Parse saved address into new fields
-              const parts = def.address1?.split(",").map((s: string) => s.trim()) || [];
-              setAddress({
-                name: def.name || "",
-                email: def.email || "",
-                phone: def.phone || "",
-                houseNo: parts[0] || def.address1 || "",
-                street: parts.slice(1).join(", ") || def.address2 || "",
-                landmark: def.address2 && !parts[1] ? def.address2 : "",
-                city: def.city || "",
-                state: def.state || "",
-                zip: def.zip || "",
-                country: def.country || "India",
-              });
-            }
+            const def = data.addresses.find((a: DBAddress) => a.isDefault) || data.addresses[0];
+            setSelectedSavedId(def.id);
+            // Parse saved address into new fields
+            const parts = def.address1?.split(",").map((s: string) => s.trim()) || [];
+            setAddress({
+              name: def.name || "",
+              email: def.email || "",
+              phone: def.phone || "",
+              houseNo: parts[0] || def.address1 || "",
+              street: parts.slice(1).join(", ") || def.address2 || "",
+              landmark: def.address2 && !parts[1] ? def.address2 : "",
+              city: def.city || "",
+              state: def.state || "",
+              zip: def.zip || "",
+              country: def.country || "India",
+            });
+            setShowAddressForm(false);
+          } else {
+            setShowAddressForm(true);
           }
         })
-        .catch(err => console.error("Error loading addresses:", err));
+        .catch(err => {
+          console.error("Error loading addresses:", err);
+          setShowAddressForm(true);
+        });
     }
   }, [status]);
 
@@ -215,6 +222,7 @@ export default function CheckoutPage() {
       country: addr.country || "India",
     });
     setAddressErrors({});
+    setShowAddressForm(false);
   };
 
   const validateAddress = (): boolean => {
@@ -412,7 +420,7 @@ export default function CheckoutPage() {
           name: address.name,
           email: address.email,
           contact: address.phone,
-          method: (paymentMethod === "UPI" || paymentMethod === "COD") ? "upi" : "card",
+          method: (paymentMethod === "UPI" || paymentMethod === "COD") ? "upi" : paymentMethod === "CARD" ? "card" : paymentMethod === "PAYLATER" ? "paylater" : paymentMethod === "EMI" ? "emi" : undefined,
         },
         theme: {
           color: "#000000",
@@ -426,28 +434,73 @@ export default function CheckoutPage() {
         },
       };
 
-      // Configure display blocks for UPI or Card
+      // Configure display blocks for UPI, Card, PayLater, or EMI
       if (paymentMethod === "UPI" || paymentMethod === "COD") {
-        options.config = {
-          display: {
-            blocks: {
-              upi: {
-                name: "Pay via UPI",
-                instruments: [
-                  {
-                    method: "upi",
-                    flows: isMobile ? ["intent", "collect"] : ["qr", "collect"],
-                    apps: isMobile ? ["google_pay", "phonepe", "paytm"] : undefined,
-                  }
-                ]
+        if (selectedUpiApp) {
+          options.config = {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Direct UPI App",
+                  instruments: [
+                    {
+                      method: "upi",
+                      flows: ["intent"],
+                      apps: [selectedUpiApp],
+                    }
+                  ]
+                }
+              },
+              sequence: ["block.upi"],
+              preferences: {
+                show_default_blocks: false
               }
-            },
-            sequence: ["block.upi"],
-            preferences: {
-              show_default_blocks: false
             }
-          }
-        };
+          };
+        } else if (upiId) {
+          options.prefill.vpa = upiId;
+          options.config = {
+            display: {
+              blocks: {
+                upi: {
+                  name: "UPI Collect Request",
+                  instruments: [
+                    {
+                      method: "upi",
+                      flows: ["collect"],
+                      vpa: upiId,
+                    }
+                  ]
+                }
+              },
+              sequence: ["block.upi"],
+              preferences: {
+                show_default_blocks: false
+              }
+            }
+          };
+        } else {
+          options.config = {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay via UPI",
+                  instruments: [
+                    {
+                      method: "upi",
+                      flows: isMobile ? ["intent", "collect"] : ["qr", "collect"],
+                      apps: isMobile ? ["google_pay", "phonepe", "paytm"] : undefined,
+                    }
+                  ]
+                }
+              },
+              sequence: ["block.upi"],
+              preferences: {
+                show_default_blocks: false
+              }
+            }
+          };
+        }
       } else if (paymentMethod === "CARD") {
         options.config = {
           display: {
@@ -462,6 +515,44 @@ export default function CheckoutPage() {
               }
             },
             sequence: ["block.card"],
+            preferences: {
+              show_default_blocks: false
+            }
+          }
+        };
+      } else if (paymentMethod === "PAYLATER") {
+        options.config = {
+          display: {
+            blocks: {
+              paylater: {
+                name: "Pay Later",
+                instruments: [
+                  {
+                    method: "paylater"
+                  }
+                ]
+              }
+            },
+            sequence: ["block.paylater"],
+            preferences: {
+              show_default_blocks: false
+            }
+          }
+        };
+      } else if (paymentMethod === "EMI") {
+        options.config = {
+          display: {
+            blocks: {
+              emi: {
+                name: "EMI Options",
+                instruments: [
+                  {
+                    method: "emi"
+                  }
+                ]
+              }
+            },
+            sequence: ["block.emi"],
             preferences: {
               show_default_blocks: false
             }
@@ -544,7 +635,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* Saved Addresses list */}
-              {savedAddresses.length > 0 && (
+              {savedAddresses.length > 0 && !showAddressForm && (
                 <div className="mb-3">
                   <p className="text-[8px] font-bold uppercase tracking-widest text-foreground/45 mb-1.5">Saved Addresses</p>
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
@@ -584,6 +675,7 @@ export default function CheckoutPage() {
                           landmark: "", city: "", state: "", zip: "", country: "India",
                         });
                         setAddressErrors({});
+                        setShowAddressForm(true);
                       }}
                       className="snap-start shrink-0 p-3 rounded-2xl border border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] flex flex-col items-center justify-center gap-0.5 w-[100px] text-center"
                     >
@@ -594,163 +686,228 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              <form onSubmit={handleAddressSubmit} className="flex-1 flex flex-col">
-                <div className="grid grid-cols-1 gap-2.5 flex-1">
-                  {/* Full Name */}
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Full Name"
-                      aria-label="Full Name"
-                      required
-                      value={address.name}
-                      onChange={(e) => updateField("name", e.target.value)}
-                      className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.name ? "border-red-500/40" : ""}`}
-                    />
-                    {addressErrors.name && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.name}</p>}
+              {/* Selected Address Display Card when form is hidden */}
+              {!showAddressForm && selectedSavedId && (
+                <div className="glass-panel p-5 rounded-[2rem] border border-foreground/10 bg-foreground/[0.01] flex flex-col gap-4 mb-4 shadow-sm animate-in fade-in duration-300">
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-foreground/45">Deliver to</p>
+                    <p className="text-sm font-extrabold tracking-tight">{address.name}</p>
+                    <p className="text-[11px] text-foreground/60 leading-relaxed font-medium">
+                      {address.houseNo}, {address.street}
+                      {address.landmark ? `, ${address.landmark}` : ""}
+                    </p>
+                    <p className="text-[11px] text-foreground/60 leading-relaxed font-semibold">
+                      {address.city}, {address.state} — {address.zip}
+                    </p>
+                    <p className="text-[10px] text-foreground/50 font-bold uppercase tracking-wider flex items-center gap-1 pt-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-foreground/35" />
+                      +91 {address.phone.replace("+91", "").replace("+91", "")}
+                    </p>
                   </div>
+                  
+                  <div className="flex flex-col gap-2 pt-2 border-t border-foreground/5">
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="glass-cta w-full py-4 text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
+                    >
+                      Deliver to this Address
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSavedId("");
+                        setAddress({
+                          name: "", email: "", phone: "", houseNo: "", street: "",
+                          landmark: "", city: "", state: "", zip: "", country: "India",
+                        });
+                        setAddressErrors({});
+                        setShowAddressForm(true);
+                      }}
+                      className="glass-button w-full py-3 text-[8px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add New Address
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                  {/* Email + Phone */}
-                  <div className="grid grid-cols-2 gap-2.5">
+              {showAddressForm && (
+                <form onSubmit={handleAddressSubmit} className="flex-1 flex flex-col animate-in fade-in duration-300">
+                  {savedAddresses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const def = savedAddresses.find((a: DBAddress) => a.id === selectedSavedId) || savedAddresses[0];
+                        if (def) {
+                          handleSelectSavedAddress(def);
+                        }
+                        setShowAddressForm(false);
+                      }}
+                      className="glass-button w-full py-3 text-[8px] font-bold uppercase tracking-widest text-foreground/50 mb-3"
+                    >
+                      Back to Saved Addresses
+                    </button>
+                  )}
+                  <div className="grid grid-cols-1 gap-2.5 flex-1">
+                    {/* Full Name */}
                     <div>
                       <input
-                        type="email"
-                        placeholder="Email"
-                        aria-label="Email"
+                        type="text"
+                        placeholder="Full Name"
+                        aria-label="Full Name"
                         required
-                        value={address.email}
-                        onChange={(e) => updateField("email", e.target.value)}
-                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.email ? "border-red-500/40" : ""}`}
+                        value={address.name}
+                        onChange={(e) => updateField("name", e.target.value)}
+                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.name ? "border-red-500/40" : ""}`}
                       />
-                      {addressErrors.email && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.email}</p>}
+                      {addressErrors.name && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.name}</p>}
                     </div>
+
+                    {/* Email + Phone */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          aria-label="Email"
+                          required
+                          value={address.email}
+                          onChange={(e) => updateField("email", e.target.value)}
+                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.email ? "border-red-500/40" : ""}`}
+                        />
+                        {addressErrors.email && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.email}</p>}
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-foreground/35 font-semibold pointer-events-none">+91</span>
+                        <input
+                          type="tel"
+                          placeholder="Mobile"
+                          aria-label="Mobile Number"
+                          required
+                          value={address.phone}
+                          onChange={(e) => updateField("phone", e.target.value)}
+                          className={`glass-input w-full pl-9 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.phone ? "border-red-500/40" : ""}`}
+                        />
+                        {addressErrors.phone && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.phone}</p>}
+                      </div>
+                    </div>
+
+                    {/* House No + Street */}
+                    <div className="grid grid-cols-5 gap-2.5">
+                      <div className="col-span-2">
+                        <div className="relative">
+                          <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
+                          <input
+                            type="text"
+                            placeholder="House / Flat No."
+                            aria-label="House or Flat Number"
+                            required
+                            value={address.houseNo}
+                            onChange={(e) => updateField("houseNo", e.target.value, true)}
+                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.houseNo ? "border-red-500/40" : ""}`}
+                          />
+                        </div>
+                        {addressErrors.houseNo && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.houseNo}</p>}
+                      </div>
+                      <div className="col-span-3">
+                        <div className="relative">
+                          <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
+                          <input
+                            type="text"
+                            placeholder="Street / Road / Area"
+                            aria-label="Street, Road, or Area"
+                            required
+                            value={address.street}
+                            onChange={(e) => updateField("street", e.target.value, true)}
+                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.street ? "border-red-500/40" : ""}`}
+                          />
+                        </div>
+                        {addressErrors.street && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.street}</p>}
+                      </div>
+                    </div>
+
+                    {/* Landmark */}
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-foreground/35 font-semibold pointer-events-none">+91</span>
-                      <input
-                        type="tel"
-                        placeholder="Mobile"
-                        aria-label="Mobile Number"
-                        required
-                        value={address.phone}
-                        onChange={(e) => updateField("phone", e.target.value)}
-                        className={`glass-input w-full pl-9 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.phone ? "border-red-500/40" : ""}`}
-                      />
-                      {addressErrors.phone && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.phone}</p>}
-                    </div>
-                  </div>
-
-                  {/* House No + Street */}
-                  <div className="grid grid-cols-5 gap-2.5">
-                    <div className="col-span-2">
-                      <div className="relative">
-                        <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
-                        <input
-                          type="text"
-                          placeholder="House / Flat No."
-                          aria-label="House or Flat Number"
-                          required
-                          value={address.houseNo}
-                          onChange={(e) => updateField("houseNo", e.target.value, true)}
-                          className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.houseNo ? "border-red-500/40" : ""}`}
-                        />
-                      </div>
-                      {addressErrors.houseNo && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.houseNo}</p>}
-                    </div>
-                    <div className="col-span-3">
-                      <div className="relative">
-                        <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
-                        <input
-                          type="text"
-                          placeholder="Street / Road / Area"
-                          aria-label="Street, Road, or Area"
-                          required
-                          value={address.street}
-                          onChange={(e) => updateField("street", e.target.value, true)}
-                          className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.street ? "border-red-500/40" : ""}`}
-                        />
-                      </div>
-                      {addressErrors.street && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.street}</p>}
-                    </div>
-                  </div>
-
-                  {/* Landmark */}
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
-                    <input
-                      type="text"
-                      placeholder="Landmark (Optional)"
-                      aria-label="Landmark"
-                      value={address.landmark}
-                      onChange={(e) => updateField("landmark", e.target.value, true)}
-                      className="glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl"
-                    />
-                  </div>
-
-                  {/* PIN + City */}
-                  <div className="grid grid-cols-5 gap-2.5">
-                    <div className="col-span-2 relative">
+                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
                       <input
                         type="text"
-                        placeholder="PIN Code"
-                        aria-label="PIN Code"
-                        required
-                        maxLength={6}
-                        value={address.zip}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                          updateField("zip", val);
-                        }}
-                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl font-mono tracking-wider ${addressErrors.zip ? "border-red-500/40" : ""}`}
+                        placeholder="Landmark (Optional)"
+                        aria-label="Landmark"
+                        value={address.landmark}
+                        onChange={(e) => updateField("landmark", e.target.value, true)}
+                        className="glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl"
                       />
-                      {zipLoading && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-foreground/30" />
-                      )}
-                      {addressErrors.zip && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.zip}</p>}
                     </div>
-                    <div className="col-span-3">
-                      <input
-                        type="text"
-                        placeholder="City"
-                        aria-label="City"
+
+                    {/* PIN + City */}
+                    <div className="grid grid-cols-5 gap-2.5">
+                      <div className="col-span-2 relative">
+                        <input
+                          type="text"
+                          placeholder="PIN Code"
+                          aria-label="PIN Code"
+                          required
+                          maxLength={6}
+                          value={address.zip}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                            updateField("zip", val);
+                          }}
+                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl font-mono tracking-wider ${addressErrors.zip ? "border-red-500/40" : ""}`}
+                        />
+                        {zipLoading && (
+                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-foreground/30" />
+                        )}
+                        {addressErrors.zip && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.zip}</p>}
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="text"
+                          placeholder="City"
+                          aria-label="City"
+                          required
+                          value={address.city}
+                          onChange={(e) => updateField("city", e.target.value)}
+                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.city ? "border-red-500/40" : ""}`}
+                        />
+                        {addressErrors.city && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.city}</p>}
+                      </div>
+                    </div>
+
+                    {/* State dropdown */}
+                    <div>
+                      <select
                         required
-                        value={address.city}
-                        onChange={(e) => updateField("city", e.target.value)}
-                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.city ? "border-red-500/40" : ""}`}
-                      />
-                      {addressErrors.city && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.city}</p>}
+                        value={address.state}
+                        onChange={(e) => updateField("state", e.target.value)}
+                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl appearance-none cursor-pointer ${
+                          !address.state ? "text-foreground/40" : ""
+                        } ${addressErrors.state ? "border-red-500/40" : ""}`}
+                      >
+                        <option value="" disabled>Select State</option>
+                        {INDIAN_STATES.map(s => (
+                          <option key={s} value={s} className="bg-[#0e0e0e] text-foreground">{s}</option>
+                        ))}
+                      </select>
+                      {addressErrors.state && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.state}</p>}
                     </div>
                   </div>
 
-                  {/* State dropdown */}
-                  <div>
-                    <select
-                      required
-                      value={address.state}
-                      onChange={(e) => updateField("state", e.target.value)}
-                      className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl appearance-none cursor-pointer ${
-                        !address.state ? "text-foreground/40" : ""
-                      } ${addressErrors.state ? "border-red-500/40" : ""}`}
+                  {/* CTA */}
+                  <div className="pt-4 mt-auto">
+                    <button
+                      type="submit"
+                      className="glass-cta w-full py-4 text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
                     >
-                      <option value="" disabled>Select State</option>
-                      {INDIAN_STATES.map(s => (
-                        <option key={s} value={s} className="bg-[#0e0e0e] text-foreground">{s}</option>
-                      ))}
-                    </select>
-                    {addressErrors.state && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.state}</p>}
+                      Continue to Payment
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                </div>
-
-                {/* CTA */}
-                <div className="pt-4 mt-auto">
-                  <button
-                    type="submit"
-                    className="glass-cta w-full py-4 text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
-                  >
-                    Continue to Payment
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </form>
+                </form>
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -781,11 +938,19 @@ export default function CheckoutPage() {
                   {[
                     { id: "UPI" as PaymentMethod, icon: Smartphone, label: "UPI Payment", desc: "GPay, PhonePe, Paytm & more", accent: "text-emerald-400" },
                     { id: "CARD" as PaymentMethod, icon: CreditCard, label: "Card Payment", desc: "Visa, Mastercard, RuPay", accent: "text-sky-400" },
+                    { id: "PAYLATER" as PaymentMethod, icon: Sparkles, label: "Pay Later", desc: "Simpl, LazyPay, ICICI & more", accent: "text-purple-400" },
+                    { id: "EMI" as PaymentMethod, icon: Tag, label: "EMI Options", desc: "Credit/Debit card & Cardless EMIs", accent: "text-pink-400" },
                     { id: "COD" as PaymentMethod, icon: Banknote, label: "Cash on Delivery", desc: "₹99 upfront processing fee", accent: "text-amber-400" },
                   ].map((method) => (
                     <button
                       key={method.id}
-                      onClick={() => setPaymentMethod(method.id)}
+                      onClick={() => {
+                        setPaymentMethod(method.id);
+                        if (method.id !== "UPI") {
+                          setSelectedUpiApp("");
+                          setUpiId("");
+                        }
+                      }}
                       className={`w-full p-3.5 text-left rounded-2xl transition-all flex items-center gap-3 border ${
                         paymentMethod === method.id 
                           ? "bg-foreground text-background border-transparent scale-[1.01]" 
@@ -807,6 +972,87 @@ export default function CheckoutPage() {
                     </button>
                   ))}
                 </div>
+
+                {/* Custom UPI Options (Only when UPI is selected) */}
+                <AnimatePresence>
+                  {paymentMethod === "UPI" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: "auto", marginTop: 8 }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      className="overflow-hidden space-y-3"
+                    >
+                      <div className="glass-panel p-4 rounded-2xl border border-foreground/10 bg-foreground/[0.01] space-y-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[8px] font-bold text-foreground/50 uppercase tracking-widest">Select UPI App</span>
+                          <span className="text-[7px] text-foreground/30 uppercase tracking-wider font-semibold">Launch directly to complete payment</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-4 gap-2">
+                          {[
+                            { id: "google_pay", name: "GPay", color: "from-blue-500/10 to-green-500/10 border-blue-500/20 text-blue-400" },
+                            { id: "phonepe", name: "PhonePe", color: "from-purple-500/10 to-indigo-500/10 border-purple-500/20 text-purple-400" },
+                            { id: "paytm", name: "Paytm", color: "from-sky-500/10 to-blue-500/10 border-sky-500/20 text-sky-400" },
+                            { id: "bhim", name: "BHIM", color: "from-orange-500/10 to-green-500/10 border-orange-500/20 text-orange-400" },
+                          ].map((app) => (
+                            <button
+                              key={app.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedUpiApp(app.id);
+                                setUpiId("");
+                              }}
+                              className={`relative p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all duration-300 ${
+                                selectedUpiApp === app.id
+                                  ? "bg-foreground text-background border-transparent scale-[1.02]"
+                                  : "glass-panel text-foreground border-foreground/5 hover:border-foreground/15 hover:bg-foreground/[0.02]"
+                              }`}
+                            >
+                              <span className="text-[10px] font-bold tracking-tight">{app.name}</span>
+                              {selectedUpiApp === app.id && (
+                                <span className="absolute -top-1 -right-1 bg-foreground text-background rounded-full p-0.5 animate-in scale-in duration-200">
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-background fill-foreground" />
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center gap-2 my-1">
+                          <div className="h-[1px] bg-foreground/5 flex-1" />
+                          <span className="text-[7px] font-bold text-foreground/20 uppercase tracking-widest">or</span>
+                          <div className="h-[1px] bg-foreground/5 flex-1" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[8px] font-bold text-foreground/50 uppercase tracking-widest">Enter UPI ID (VPA)</span>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="e.g., mobile@upi or username@okhdfcbank"
+                              value={upiId}
+                              onChange={(e) => {
+                                setUpiId(e.target.value);
+                                setSelectedUpiApp("");
+                              }}
+                              className="glass-input w-full px-3.5 py-2.5 text-[11px] rounded-xl pr-10 font-medium tracking-wide placeholder:text-foreground/25"
+                            />
+                            {upiId && (
+                              <button
+                                type="button"
+                                onClick={() => setUpiId("")}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/45 hover:text-foreground/75 p-0.5"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
 
                 {/* ═══ Coupon Code ═══ */}
                 <div className="glass-panel p-3 space-y-2 border border-foreground/5 rounded-2xl">
