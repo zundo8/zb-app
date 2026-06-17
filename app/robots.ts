@@ -1,4 +1,4 @@
-import { MetadataRoute } from 'next';
+import type { MetadataRoute } from 'next'
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -6,23 +6,31 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/api/', '/checkout/', '/admin/', '/cart/', '/dashboard/', '/portal/', '/unauthorized/'],
-      },
-      {
-        userAgent: [
-          'GPTBot',
-          'ChatGPT-User',
-          'ClaudeBot',
-          'Claude-Web',
-          'Google-Extended',
-          'Anthropic-AI',
-          'PerplexityBot',
-          'Applebot-Extended'
+        disallow: [
+          '/api/',
+          '/checkout/',
+          '/account/',
+          '/cart',
+          '/_next/',
+          '/admin',
         ],
-        allow: '/',
-        disallow: ['/api/', '/checkout/', '/admin/', '/cart/', '/dashboard/', '/portal/', '/unauthorized/'],
-      }
+      },
+      // Explicitly allow all known AI crawlers
+      { userAgent: 'GPTBot', allow: '/' },
+      { userAgent: 'ChatGPT-User', allow: '/' },
+      { userAgent: 'ClaudeBot', allow: '/' },
+      { userAgent: 'Claude-Web', allow: '/' },
+      { userAgent: 'PerplexityBot', allow: '/' },
+      { userAgent: 'Applebot', allow: '/' },
+      { userAgent: 'Amazonbot', allow: '/' },
+      { userAgent: 'cohere-ai', allow: '/' },
+      { userAgent: 'Google-Extended', allow: '/' },
+      { userAgent: 'Bingbot', allow: '/' },
+      { userAgent: 'DuckDuckBot', allow: '/' },
+      { userAgent: 'Baiduspider', allow: '/' },
+      { userAgent: 'YandexBot', allow: '/' },
     ],
     sitemap: 'https://zicabella.com/sitemap.xml',
-  };
+    host: 'https://zicabella.com',
+  }
 }

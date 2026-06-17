@@ -3,6 +3,13 @@ import prisma from '@/lib/db';
 
 export async function POST(req: Request) {
   try {
+    const authHeader = req.headers.get('authorization');
+    const secret = process.env.DELHIVERY_WEBHOOK_SECRET;
+
+    if (!secret || !authHeader || authHeader !== `Bearer ${secret}`) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const payload = await req.json();
     console.log('[Delhivery Webhook] Received:', payload);
 

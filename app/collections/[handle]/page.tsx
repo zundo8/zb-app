@@ -6,45 +6,57 @@ import { Metadata } from "next";
 import CollectionHeaderClient from "@/components/CollectionHeaderClient";
 import CollectionFilters from "@/components/CollectionFilters";
 import CollectionProductGrid from "@/components/CollectionProductGrid";
+import { CollectionJsonLd } from "@/components/seo/CollectionJsonLd";
+import { Breadcrumb } from "@/components/seo/Breadcrumb";
+import { CategorySEOContent } from "@/components/seo/CategorySEOContent";
 
 export const revalidate = 3600; // ISR: revalidate every 1 hour
 
-export async function generateMetadata({ params }: { params: { handle: string } }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: { handle: string }
+}): Promise<Metadata> {
   const { collection } = await fetchCollectionByHandle(params.handle, 1).catch(() => ({ collection: null }));
-  if (!collection) {
-    return {
-      title: "Collection Not Found - Zica Bella",
-    };
-  }
 
-  const title = `${collection.title} Collection | Premium Streetwear - Zica Bella`;
-  const plainDesc = collection.body_html
-    ? collection.body_html.replace(/<[^>]*>/g, '').slice(0, 160) + '...'
-    : `Explore the exclusive ${collection.title} series at Zica Bella. India's #1 premium luxury streetwear label and fastest growing fashion app.`;
+  const titleMap: Record<string, string> = {
+    'graphic-tees': 'Best Graphic Tees in India | Zica Bella',
+    'tshirts-under-5000': 'Best T-Shirts Under ₹5000 | Zica Bella',
+    'oversized-tees': 'Oversized T-Shirts for Men & Women | Zica Bella',
+  };
 
-  const image = collection.image?.src || "/zb-logo-220px.png";
+  const descMap: Record<string, string> = {
+    'graphic-tees':
+      'Shop the best graphic tees in India. Premium prints, ethically crafted, starting at ₹799. Free shipping above ₹999.',
+    'tshirts-under-5000':
+      'Discover the best t-shirts under ₹5000 in India. Zica Bella graphic tees, oversized fits, and statement fashion — all under budget.',
+    'oversized-tees':
+      'Oversized t-shirts for men and women. Crafted in India with premium cotton and bold graphics.',
+  };
+
+  const title = titleMap[params.handle] ?? `${collection?.title ?? params.handle} | Zica Bella`;
+  const description =
+    descMap[params.handle] ??
+    `Shop ${collection?.title ?? params.handle} at Zica Bella. Crafted in India · Worn with Intent.`;
 
   return {
     title,
-    description: plainDesc,
-    keywords: `${collection.title}, streetwear collection, zica bella, premium apparel, limited capsule drop`,
+    description,
+    alternates: {
+      canonical: `https://zicabella.com/collections/${params.handle}`,
+    },
     openGraph: {
       title,
-      description: plainDesc,
-      type: "website",
-      url: `https://zicabella.com/collections/${collection.handle}`,
-      images: [
-        {
-          url: image,
-          alt: collection.title,
-        }
-      ],
+      description,
+      url: `https://zicabella.com/collections/${params.handle}`,
+      type: 'website',
+      images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella' }],
     },
     twitter: {
-      card: "summary_large_image",
+      card: 'summary_large_image',
       title,
-      description: plainDesc,
-      images: [image],
+      description,
+      images: ['/og-image.jpg'],
     },
   };
 }
@@ -111,34 +123,35 @@ export default async function CollectionPage({
     return 0;
   });
 
+  const collectionLdData = {
+    title: collection.title,
+    slug: collection.handle,
+    description: collection.body_html ? collection.body_html.replace(/<[^>]*>/g, '') : undefined,
+    products: products.map(p => ({
+      name: p.title,
+      slug: p.handle,
+      price: parseFloat(p.variants?.[0]?.price || "0"),
+      image: p.images?.[0]?.src || p.image?.src || undefined
+    }))
+  };
+
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "CollectionPage",
-            "name": collection.title,
-            "url": `https://zicabella.com/collections/${collection.handle}`,
-            "description": collection.body_html ? collection.body_html.replace(/<[^>]*>/g, '') : `Shop the ${collection.title} collection at Zica Bella.`,
-            "image": collection.image?.src || "https://zicabella.com/zb-logo-220px.png",
-            "mainEntity": {
-              "@type": "ItemList",
-              "itemListElement": products.map((product, index) => ({
-                "@type": "ListItem",
-                "position": index + 1,
-                "url": `https://zicabella.com/products/${product.handle}`,
-                "name": product.title,
-                "image": product.images?.[0]?.src || product.image?.src || "https://zicabella.com/zb-logo-220px.png"
-              }))
-            }
-          })
-        }}
-      />
+      <CollectionJsonLd collection={collectionLdData} />
       <div className="min-h-screen pt-12">
         {/* Header & Filters — contained width */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-header">
+          {/* Visual Breadcrumb */}
+          <div className="mb-4">
+            <Breadcrumb
+              items={[
+                { name: 'Home', url: '/' },
+                { name: 'Collections', url: '/collections' },
+                { name: collection.title, url: `/collections/${collection.handle}` },
+              ]}
+            />
+          </div>
+
           {/* Collection selector */}
           <div className="mb-4">
             <CollectionHeaderClient 
@@ -154,12 +167,17 @@ export default async function CollectionPage({
         </div>
 
         {/* Product Grid — edge-to-edge, minimal gaps */}
-        <div className="relative z-10 w-full pb-32">
+        <div className="relative z-10 w-full pb-16">
           <CollectionProductGrid
             products={products}
             viewMode={viewMode}
             selectedSize={selectedSize}
           />
+        </div>
+
+        {/* GEO/SEO content block */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32 text-foreground">
+          <CategorySEOContent slug={params.handle as any} />
         </div>
       </div>
     </>

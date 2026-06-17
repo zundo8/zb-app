@@ -27,6 +27,10 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: '*.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: 'db.zicabella.com',
       }
     ],
   },
@@ -44,17 +48,19 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
           {
-            key: 'X-Frame-Options',
-            value: 'DENY',
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
@@ -85,6 +91,30 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, Accept' },
         ],
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: '/shop',
+        destination: '/collections',
+        permanent: true,
+      },
+      {
+        source: '/products',
+        destination: '/collections',
+        permanent: true,
+      },
+      {
+        source: '/graphic-tees',
+        destination: '/collections/graphic-tees',
+        permanent: true,
+      },
+      {
+        source: '/tshirts-under-5000',
+        destination: '/collections/tshirts-under-5000',
+        permanent: true,
       },
     ];
   }

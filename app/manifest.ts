@@ -1,32 +1,48 @@
-import { MetadataRoute } from 'next';
+import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Zica Bella | India's & World's #1 Luxury Streetwear Brand & App",
-    short_name: "Zica Bella",
-    description: "Shop Zica Bella - India's leading luxury streetwear fashion label. Discover custom oversized tees, heavyweight hoodies, premium denim, and limited collections.",
-    start_url: "/",
-    display: "standalone",
-    background_color: "#000000",
-    theme_color: "#000000",
+    name: 'Zica Bella — Crafted in India · Worn with Intent',
+    short_name: 'Zica Bella',
+    description:
+      'Shop premium graphic tees and fashion under ₹5000. Crafted in India.',
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#0a0a0a',
+    theme_color: '#0a0a0a',
+    orientation: 'portrait',
+    categories: ['shopping', 'fashion', 'lifestyle'],
+    lang: 'en-IN',
+    dir: 'ltr',
     icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
       {
-        src: "/favicon.ico",
-        sizes: "any",
-        type: "image/x-icon",
+        src: '/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
       },
-      {
-        src: "/zb-logo-220px.png",
-        sizes: "220x220",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/zb-logo-220px.png",
-        sizes: "220x220",
-        type: "image/png",
-        purpose: "maskable",
-      }
     ],
-  };
+    screenshots: [
+      {
+        src: '/screenshot-home.jpg',
+        sizes: '1280x720',
+        type: 'image/jpeg',
+        label: 'Zica Bella Home',
+      },
+    ],
+    shortcuts: [
+      {
+        name: 'Graphic Tees',
+        url: '/collections/graphic-tees',
+        description: 'Shop graphic tees',
+      },
+      {
+        name: 'Tees Under ₹5000',
+        url: '/collections/tshirts-under-5000',
+        description: 'Best tees under ₹5000',
+      },
+    ],
+  }
 }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Poppins } from "next/font/google";
 import localFont from "next/font/local";
 import Script from "next/script";
@@ -9,6 +9,9 @@ import StorefrontFooter from "@/components/StorefrontFooter";
 import { Toaster } from "sonner";
 import MetaPixelTracker from "@/components/MetaPixelTracker";
 import { NavigationProgress } from "@/components/ui/NavigationProgress";
+import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
+import { WebsiteJsonLd } from "@/components/seo/WebsiteJsonLd";
+import { Analytics } from "@/components/seo/Analytics";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -33,71 +36,108 @@ const poppins = Poppins({
   display: "swap",
 });
 
-export const viewport = {
-  width: "device-width",
+export const viewport: Viewport = {
+  width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" }
-  ],
+  themeColor: '#0a0a0a',
 };
 
 export const metadata: Metadata = {
-  title: "Zica Bella | India's & World's #1 Luxury Streetwear Brand & Fastest Growing Fashion App",
-  description: "Zica Bella is the world's fastest-growing luxury streetwear label and India's #1 rated clothing brand. Shop custom heavyweight hoodies, oversized tees, premium denim, and exclusive collections. Experience virtual 3D fits and high-end streetwear.",
-  keywords: "streetwear brand india, luxury clothing brand, premium streetwear, zica bella, best shopping site india, oversized tees, heavy hoodies, streetwear denims, indian streetwear, high-end fashion india, shopping site india, top clothing brand india, worlds fastest growing fashion app, number one clothing brand india, most rated streetwear brand, premium streetwear clothing india",
-  metadataBase: new URL("https://zicabella.com"),
+  metadataBase: new URL('https://zicabella.com'),
+  title: {
+    default: 'Zica Bella — Crafted in India · Worn with Intent',
+    template: '%s | Zica Bella',
+  },
+  description:
+    'Shop premium Indian graphic tees, oversized t-shirts, and statement fashion under ₹5000. Crafted in India, worn with intent. Free shipping above ₹999.',
+  keywords: [
+    'graphic tees India',
+    'best t-shirts under 5000',
+    'Indian fashion brand',
+    'oversized tees online',
+    'premium tshirts India',
+    'Zica Bella',
+    'D2C fashion India',
+    'graphic tshirts under 5k',
+    'buy graphic tees online India',
+    'crafted in India fashion',
+  ],
+  authors: [{ name: 'Zica Bella', url: 'https://zicabella.com' }],
+  creator: 'Zica Bella',
+  publisher: 'Zica Bella',
+  category: 'Fashion & Apparel',
+  classification: 'D2C Fashion, Indian Apparel, Graphic Tees',
   robots: {
     index: true,
     follow: true,
+    nocache: false,
     googleBot: {
       index: true,
       follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
+      noimageindex: false,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
     },
   },
   openGraph: {
-    type: "website",
-    locale: "en_IN",
-    url: "https://zicabella.com",
-    title: "Zica Bella | India's & World's #1 Luxury Streetwear Brand & Fastest Growing Fashion App",
-    description: "Discover Zica Bella, the world's fastest-growing luxury streetwear label and India's #1 rated shopping site & app. Shop our heavyweight hoodies, oversized tees, and premium denims.",
-    siteName: "Zica Bella",
+    type: 'website',
+    locale: 'en_IN',
+    url: 'https://zicabella.com',
+    siteName: 'Zica Bella',
+    title: 'Zica Bella — Crafted in India · Worn with Intent',
+    description:
+      'Premium Indian graphic tees and fashion under ₹5000. Free shipping above ₹999.',
     images: [
       {
-        url: "/zb-logo-220px.png",
+        url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: "Zica Bella Premium Streetwear",
-      }
+        alt: 'Zica Bella — Crafted in India · Worn with Intent',
+        type: 'image/jpeg',
+      },
     ],
   },
   twitter: {
-    card: "summary_large_image",
-    title: "Zica Bella | India's & World's #1 Luxury Streetwear Brand & Fastest Growing Fashion App",
-    description: "Discover Zica Bella, the world's fastest-growing luxury streetwear label and India's #1 rated shopping site & app. Shop our heavyweight hoodies, oversized tees, and premium denims.",
-    images: ["/zb-logo-220px.png"],
+    card: 'summary_large_image',
+    title: 'Zica Bella — Crafted in India · Worn with Intent',
+    description: 'Premium Indian graphic tees and fashion under ₹5000.',
+    images: ['/og-image.jpg'],
+    creator: '@zicabella',
+    site: '@zicabella',
   },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Zica Bella",
+  alternates: {
+    canonical: 'https://zicabella.com',
+    languages: {
+      'en-IN': 'https://zicabella.com',
+    },
   },
   icons: {
     icon: [
-      { url: '/favicon.ico' },
-      { url: '/icon.png', type: 'image/png' },
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: [
-      { url: '/apple-icon.png' },
-    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+    shortcut: '/favicon.ico',
   },
+  manifest: '/manifest.webmanifest',
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ?? '',
+    other: {
+      'msvalidate.01': process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION ?? '',
+    },
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'Zica Bella',
+    statusBarStyle: 'black-translucent',
+  },
+  formatDetection: { telephone: false },
 };
+
 
 export default function RootLayout({
   children,
@@ -156,6 +196,8 @@ export default function RootLayout({
         />
       </head>
       <body className={`${geistSans.variable} ${inter.variable} ${poppins.variable} antialiased`}>
+        <OrganizationJsonLd />
+        <WebsiteJsonLd />
         <NavigationProgress />
         {/* Meta Pixel Script */}
         <Script id="fb-pixel" strategy="afterInteractive">
@@ -179,6 +221,7 @@ export default function RootLayout({
             <Toaster position="top-right" richColors />
           </LayoutWrapper>
         </Providers>
+        <Analytics />
       </body>
     </html>
   );

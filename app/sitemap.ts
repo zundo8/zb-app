@@ -1,76 +1,93 @@
-import { MetadataRoute } from 'next';
-import { fetchProducts, fetchCollections } from '@/lib/shopify-admin';
-import prisma from '@/lib/db';
+import { MetadataRoute } from 'next'
+import { fetchProducts, fetchCollections } from '@/lib/shopify-admin'
+import prisma from '@/lib/db'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://zicabella.com';
+  const baseUrl = 'https://zicabella.com'
 
-  // Fetch all collections, products, and policies concurrently
   const [products, collections, policies] = await Promise.all([
     fetchProducts(250).catch(() => []),
     fetchCollections(250).catch(() => []),
     prisma.policy.findMany({ select: { handle: true, updatedAt: true } }).catch(() => [])
-  ]);
+  ])
 
-  const staticUrls = [
+  const staticPages: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
       lastModified: new Date(),
-      changeFrequency: 'daily' as const,
+      changeFrequency: 'daily',
       priority: 1.0,
-    },
-    {
-      url: `${baseUrl}/search`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
     },
     {
       url: `${baseUrl}/collections`,
       lastModified: new Date(),
-      changeFrequency: 'weekly' as const,
+      changeFrequency: 'daily',
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/faq`,
+      url: `${baseUrl}/collections/graphic-tees`,
       lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.5,
+      changeFrequency: 'daily',
+      priority: 0.95,
+    },
+    {
+      url: `${baseUrl}/collections/tshirts-under-5000`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.95,
+    },
+    {
+      url: `${baseUrl}/collections/oversized-tees`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.9,
     },
     {
       url: `${baseUrl}/story`,
       lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.7,
+      changeFrequency: 'monthly',
+      priority: 0.6,
     },
     {
       url: `${baseUrl}/support`,
       lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.6,
+      changeFrequency: 'monthly',
+      priority: 0.5,
     },
-  ];
+    {
+      url: `${baseUrl}/blogs`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/faq`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+  ]
 
-  const productUrls = products.map((product) => ({
-    url: `${baseUrl}/products/${product.handle}`,
-    lastModified: new Date(product.updated_at || Date.now()),
-    changeFrequency: 'daily' as const,
-    priority: 0.8,
-  }));
-
-  const collectionUrls = collections.map((collection) => ({
-    url: `${baseUrl}/collections/${collection.handle}`,
-    lastModified: new Date(collection.updated_at || Date.now()),
-    changeFrequency: 'daily' as const,
+  const productPages: MetadataRoute.Sitemap = products.map((p) => ({
+    url: `${baseUrl}/products/${p.handle}`,
+    lastModified: p.updated_at ? new Date(p.updated_at) : new Date(),
+    changeFrequency: 'weekly' as const,
     priority: 0.85,
-  }));
+  }))
 
-  const policyUrls = policies.map((policy) => ({
+  const collectionPages: MetadataRoute.Sitemap = collections.map((c) => ({
+    url: `${baseUrl}/collections/${c.handle}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly' as const,
+    priority: 0.9,
+  }))
+
+  const policyPages: MetadataRoute.Sitemap = policies.map((policy) => ({
     url: `${baseUrl}/policies/${policy.handle}`,
     lastModified: new Date(policy.updatedAt || Date.now()),
     changeFrequency: 'monthly' as const,
     priority: 0.4,
-  }));
+  }))
 
-  return [...staticUrls, ...productUrls, ...collectionUrls, ...policyUrls];
+  return [...staticPages, ...productPages, ...collectionPages, ...policyPages]
 }
