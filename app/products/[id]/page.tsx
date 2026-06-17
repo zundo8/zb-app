@@ -136,7 +136,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
   return (
     <>
       <ProductJsonLd product={productLdData} />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 md:pt-28 pb-2 relative z-20 text-foreground">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 md:pt-28 pb-0 md:pb-2 relative z-20 text-foreground">
         <Breadcrumb
           items={[
             { name: 'Home', url: '/' },

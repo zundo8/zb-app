@@ -285,14 +285,14 @@ export default function ProductDetailsClient({
   return (
     <>
       {/* ─── DESKTOP VIEW (md and up) ─── */}
-      <div className="hidden md:block min-h-screen pt-28 pb-20 px-6 max-w-7xl mx-auto relative z-10 text-foreground product-page">
+      <div className="hidden md:block min-h-screen pt-4 pb-20 px-6 max-w-7xl mx-auto relative z-10 text-foreground product-page">
         <div className="grid grid-cols-12 gap-10 items-start">
           
           {/* Left Column: Media Gallery */}
           <div className="col-span-6 sticky top-28 space-y-6 flex flex-col items-center w-full">
             <div 
               onClick={() => setIsGalleryOpen(true)}
-              className="relative aspect-[4/5] w-full max-w-[450px] rounded-3xl overflow-hidden border border-foreground/5 shadow-2xl bg-foreground/[0.01] cursor-zoom-in hover:brightness-95 transition-all duration-300"
+              className="relative aspect-[4/5] w-full max-w-[520px] rounded-[2rem] overflow-hidden border border-foreground/5 shadow-2xl bg-foreground/[0.01] cursor-zoom-in hover:brightness-95 transition-all duration-300"
             >
               <Image
                 src={allImages[activeImg]?.src || "/zb-logo-220px.png"}
@@ -311,8 +311,10 @@ export default function ProductDetailsClient({
                 <button
                   key={`gal-desk-${i}`}
                   onClick={() => setActiveImg(i)}
-                  className={`relative w-14 h-14 rounded-xl overflow-hidden border transition-all duration-500 shadow-md ${
-                    activeImg === i ? "border-foreground scale-105 shadow-lg" : "border-foreground/10 opacity-60 hover:opacity-100"
+                  className={`relative w-14 h-14 rounded-[12px] overflow-hidden border transition-all duration-300 shadow-sm outline-none ${
+                    activeImg === i 
+                      ? "border-foreground scale-105 shadow-md ring-2 ring-foreground/20" 
+                      : "border-foreground/10 hover:border-foreground/30 hover:scale-[1.02]"
                   }`}
                 >
                   <Image src={img.src} alt={`${product.title} - View ${i + 1}`} fill className="object-cover" sizes="80px" />
@@ -526,48 +528,50 @@ export default function ProductDetailsClient({
       {/* ─── MOBILE VIEW (sm and below) ─── */}
       <div className="md:hidden">
         {/* Mobile View Gallery Carousel - Native Horizontal Swiping */}
-        <div className="relative w-full aspect-[4/5] overflow-hidden bg-foreground/[0.02] rounded-b-[1rem]">
-          <div 
-            ref={scrollRef}
-            onScroll={handleScroll}
-            className="w-full h-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth"
-            style={{ 
-              scrollSnapType: 'x mandatory',
-              WebkitOverflowScrolling: "touch"
-            }}
-          >
-            {allImages.map((img, i) => (
-              <div 
-                key={`mobile-gal-${i}`} 
-                className="w-full h-full flex-shrink-0 snap-center relative cursor-zoom-in"
-                onClick={() => {
-                  setActiveImg(i);
-                  setIsGalleryOpen(true);
-                }}
-              >
-                <Image
-                  src={img.src || "/zb-logo-220px.png"}
-                  alt={product.title}
-                  fill
-                  className="object-cover"
-                  priority={i === 0}
-                  sizes="100vw"
-                  onError={handleImageError}
-                />
-              </div>
-            ))}
-          </div>
+        <div className="px-4 pt-16">
+          <div className="relative w-full aspect-[4/5] overflow-hidden bg-foreground/[0.02] rounded-[2rem] border border-black/5 dark:border-white/10 shadow-lg">
+            <div 
+              ref={scrollRef}
+              onScroll={handleScroll}
+              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth"
+              style={{ 
+                scrollSnapType: 'x mandatory',
+                WebkitOverflowScrolling: "touch"
+              }}
+            >
+              {allImages.map((img, i) => (
+                <div 
+                  key={`mobile-gal-${i}`} 
+                  className="w-full h-full flex-shrink-0 snap-center relative cursor-zoom-in"
+                  onClick={() => {
+                    setActiveImg(i);
+                    setIsGalleryOpen(true);
+                  }}
+                >
+                  <Image
+                    src={img.src || "/zb-logo-220px.png"}
+                    alt={product.title}
+                    fill
+                    className="object-cover"
+                    priority={i === 0}
+                    sizes="100vw"
+                    onError={handleImageError}
+                  />
+                </div>
+              ))}
+            </div>
 
-          {/* Dot Indicators */}
-          <div className="absolute bottom-4 inset-x-0 flex justify-center gap-1.5 z-10">
-            {allImages.map((_, i) => (
-              <div 
-                key={`dot-${i}`}
-                className={`w-1 h-1 rounded-full transition-all duration-300 ${
-                  activeImg === i ? "w-4 bg-white" : "bg-white/45"
-                }`}
-              />
-            ))}
+            {/* Dot Indicators */}
+            <div className="absolute bottom-4 inset-x-0 flex justify-center gap-1.5 z-10">
+              {allImages.map((_, i) => (
+                <div 
+                  key={`dot-${i}`}
+                  className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                    activeImg === i ? "w-4 bg-white" : "bg-white/45"
+                  }`}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -586,10 +590,10 @@ export default function ProductDetailsClient({
                     });
                   }
                 }}
-                className={`relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 snap-center border transition-all duration-300 shadow-sm outline-none ${
+                className={`relative w-16 h-16 rounded-[12px] overflow-hidden flex-shrink-0 snap-center border transition-all duration-300 shadow-sm outline-none ${
                     activeImg === i 
-                    ? "border-foreground scale-105 ring-1 ring-foreground/20" 
-                    : "border-foreground/10 opacity-60 hover:opacity-100"
+                    ? "border-foreground scale-105 ring-2 ring-foreground/20" 
+                    : "border-foreground/10 hover:border-foreground/30 hover:scale-[1.02]"
                 }`}
               >
                 <Image 

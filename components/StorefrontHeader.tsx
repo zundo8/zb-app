@@ -80,6 +80,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
   const getPageTitle = () => {
     if (!pathname) return "ZICABELLA";
     if (isHome) return "ZICABELLA";
+    if (pathname.startsWith("/products/")) return "ZICABELLA";
     if (pathname.startsWith("/orders/") && orderNumberOverride) {
       return orderNumberOverride;
     }
@@ -90,52 +91,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
     return title;
   };
 
-  const isProductPage = pathname?.startsWith("/products/");
 
-  if (isProductPage) {
-    return (
-      <>
-        {/* Floating Back Button (Top Left) */}
-        <div className="fixed top-4 left-4 z-50 pointer-events-auto">
-          <button 
-            onClick={handleBack}
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.25)] text-foreground/60 hover:text-foreground hover:bg-white/80 dark:hover:bg-black/80 active:scale-90 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
-            aria-label="Back"
-          >
-            <ChevronLeft strokeWidth={1.25} className="w-5 h-5 -ml-0.5" />
-          </button>
-        </div>
-
-        {/* Floating Actions (Top Right) */}
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 pointer-events-auto">
-          {mounted && (
-            <button 
-              onClick={() => setTheme(isDark ? "light" : "dark")}
-              aria-label="Toggle Theme"
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.25)] text-foreground/60 hover:text-foreground hover:bg-white/80 dark:hover:bg-black/80 active:scale-90 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
-            >
-              {isDark ? <Sun strokeWidth={1.25} className="w-4 h-4" /> : <Moon strokeWidth={1.25} className="w-4 h-4" />}
-            </button>
-          )}
-          <button 
-            onClick={() => setIsCartOpen(true)}
-            aria-label="Cart"
-            className="relative w-9 h-9 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.25)] text-foreground/60 hover:text-foreground hover:bg-white/80 dark:hover:bg-black/80 active:scale-90 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
-          >
-            <ShoppingBag strokeWidth={1.25} className="w-4 h-4" />
-            {count > 0 && (
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-foreground rounded-full animate-pulse" />
-            )}
-          </button>
-        </div>
-
-        {/* Drawers */}
-        <MenuDrawer isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
-        <BookmarkDrawer isOpen={isBookmarkOpen} onClose={() => setIsBookmarkOpen(false)} />
-      </>
-    );
-  }
 
   return (
     <>

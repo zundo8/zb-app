@@ -9,7 +9,7 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
   return (
     <>
       <BreadcrumbJsonLd items={items} />
-      <nav aria-label="Breadcrumb" className="breadcrumb-nav">
+      <nav aria-label="Breadcrumb" className="breadcrumb-nav hidden md:block">
         <ol
           itemScope
           itemType="https://schema.org/BreadcrumbList"
