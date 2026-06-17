@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { requireSuperAdmin, handleAuthError } from "@/lib/auth/rbac";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     await requireSuperAdmin();
