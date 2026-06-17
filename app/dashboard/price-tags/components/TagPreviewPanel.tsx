@@ -1,0 +1,199 @@
+'use client'
+
+import React, { useRef, useState, useCallback } from 'react'
+import { Download, Printer, CheckSquare, Square, Loader2, Wifi } from 'lucide-react'
+import PriceTagCard from './PriceTagCard'
+import { downloadTagsPDF } from '../utils/pdfExport'
+import type { TagData } from '../utils/skuGenerator'
+import { toast } from 'sonner'
+
+interface TagPreviewPanelProps {
+  tags: TagData[]
+}
+
+export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
+  const printAreaRef = useRef<HTMLDivElement>(null)
+  const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set())
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+
+  const toggleSelect = useCallback((index: number) => {
+    setSelectedIndexes((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }, [])
+
+  const selectAll = useCallback(() => {
+    setSelectedIndexes(new Set(tags.map((_, i) => i)))
+  }, [tags])
+
+  const deselectAll = useCallback(() => {
+    setSelectedIndexes(new Set())
+  }, [])
+
+  const handleDownloadAll = useCallback(async () => {
+    if (!printAreaRef.current) return
+    setIsDownloading(true)
+    try {
+      const tagElements = Array.from(
+        printAreaRef.current.querySelectorAll('.price-tag-card')
+      ) as HTMLElement[]
+      await downloadTagsPDF(tagElements)
+      toast.success('PDF downloaded successfully!')
+    } catch (err: any) {
+      toast.error(`PDF download failed: ${err.message}`)
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [])
+
+  const handleDownloadSelected = useCallback(async () => {
+    if (!printAreaRef.current || selectedIndexes.size === 0) {
+      toast.error('No tags selected')
+      return
+    }
+    setIsDownloading(true)
+    try {
+      const allTagElements = Array.from(
+        printAreaRef.current.querySelectorAll('.price-tag-card')
+      ) as HTMLElement[]
+      const selectedElements = allTagElements.filter((_, i) => selectedIndexes.has(i))
+      await downloadTagsPDF(selectedElements, `zicabella-selected-tags-${Date.now()}.pdf`)
+      toast.success(`${selectedElements.length} tags downloaded as PDF!`)
+    } catch (err: any) {
+      toast.error(`PDF download failed: ${err.message}`)
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [selectedIndexes])
+
+  const handlePrint = useCallback(() => {
+    toast.info('Print dialog opening...')
+    window.print()
+  }, [])
+
+  const handleConnectPrinter = useCallback(() => {
+    toast.info(
+      "Use your printer's dialog to select the connected printer. Set paper size to A4 or label size as needed.",
+      { duration: 6000 }
+    )
+    setTimeout(() => {
+      window.print()
+    }, 500)
+  }, [])
+
+  if (tags.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center py-20">
+        <div className="w-20 h-20 rounded-3xl bg-foreground/[0.03] border border-foreground/[0.05] flex items-center justify-center mb-6">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-foreground/15">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+        </div>
+        <h3 className="text-[13px] font-semibold text-foreground/60 mb-1">No Tags Generated</h3>
+        <p className="text-[10px] text-foreground/30 max-w-[250px]">
+          Select a product and generate tags to see them here. Each tag will include a unique SKU and QR code.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Action Bar */}
+      <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-foreground/[0.06]">
+        <button
+          onClick={handleDownloadAll}
+          disabled={isDownloading}
+          className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40"
+        >
+          {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Download All PDF
+        </button>
+
+        <button
+          onClick={handleDownloadSelected}
+          disabled={isDownloading || selectedIndexes.size === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97] disabled:opacity-40"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Selected ({selectedIndexes.size})
+        </button>
+
+        <button
+          onClick={handlePrint}
+          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97]"
+        >
+          <Printer className="w-3.5 h-3.5" />
+          Print
+        </button>
+
+        <button
+          onClick={handleConnectPrinter}
+          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97]"
+        >
+          <Wifi className="w-3.5 h-3.5" />
+          Connect Printer
+        </button>
+
+        <div className="flex-1" />
+
+        {/* Select controls */}
+        <button
+          onClick={() => {
+            setSelectMode(!selectMode)
+            if (selectMode) deselectAll()
+          }}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[9px] font-semibold uppercase tracking-[0.1em] transition-all ${
+            selectMode
+              ? 'bg-foreground/10 text-foreground border border-foreground/20'
+              : 'bg-foreground/[0.03] text-foreground/50 border border-foreground/[0.05] hover:bg-foreground/[0.06]'
+          }`}
+        >
+          {selectMode ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
+          Select
+        </button>
+
+        {selectMode && (
+          <button
+            onClick={selectedIndexes.size === tags.length ? deselectAll : selectAll}
+            className="px-3 py-2 bg-foreground/[0.03] border border-foreground/[0.05] text-foreground/60 rounded-lg text-[9px] font-semibold uppercase tracking-[0.1em] hover:bg-foreground/[0.06] transition-all"
+          >
+            {selectedIndexes.size === tags.length ? 'Deselect All' : 'Select All'}
+          </button>
+        )}
+      </div>
+
+      {/* Tag count */}
+      <p className="text-[9px] text-foreground/40 uppercase tracking-[0.15em] font-medium">
+        {tags.length} tag{tags.length !== 1 ? 's' : ''} generated
+        {tags.length > 0 && ` • SKU: ${tags[0].sku} → ${tags[tags.length - 1].sku}`}
+      </p>
+
+      {/* Tag Grid */}
+      <div
+        id="price-tags-print-area"
+        ref={printAreaRef}
+        className="flex flex-wrap gap-3 justify-start"
+      >
+        {tags.map((tag, i) => (
+          <PriceTagCard
+            key={tag.sku}
+            tag={tag}
+            selected={selectedIndexes.has(i)}
+            onToggleSelect={() => toggleSelect(i)}
+            showCheckbox={selectMode}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}

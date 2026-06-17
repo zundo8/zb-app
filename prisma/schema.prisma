@@ -108,6 +108,9 @@ model Shop {
   loginBgImageDark         String?
   loginBgImageLightMobile  String?
   loginBgImageDarkMobile   String?
+  featuredMediaLink        String?
+  collectionsMediaLink     String?
+  flipbookLink             String?
   homepageCollection       String?    @default("")
   homepageProducts         String?    @default("")
   customers                Customer[]

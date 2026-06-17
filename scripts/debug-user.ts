@@ -35,6 +35,8 @@ async function main() {
   console.log('Role:', user?.role);
   console.log('IsActive:', user?.isActive);
   console.log('NeedsPasswordChange:', user?.needsPasswordChange);
+  console.log('FailedLoginAttempts:', user?.failedLoginAttempts);
+  console.log('LockUntil:', user?.lockUntil);
   console.log('Permissions Count:', user?.permissions.length);
   console.log('PasswordHash StartsWith:', user?.passwordHash.substring(0, 10));
   

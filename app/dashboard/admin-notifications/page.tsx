@@ -140,6 +140,14 @@ function timeAgo(date: string) {
 
 function getNotificationLink(module: string | null, action: string, targetId: string | null): string | null {
   const m = (module || "").toUpperCase();
+  const act = (action || "").toUpperCase();
+  if (m.includes("RETURNS_EXCHANGES") || m.includes("RETURN") || m.includes("EXCHANGE")) {
+    if (act.includes("RETURN")) return `/dashboard/returns`;
+    if (act.includes("EXCHANGE")) return `/dashboard/exchanges`;
+  }
+  if (m.includes("SUPPORT")) return `/dashboard/support`;
+  if (m.includes("MARKETING")) return `/dashboard/notifications`;
+  if (m.includes("INTEGRATION")) return `/dashboard/app-logins`;
   if (m.includes("ORDER") && targetId) return `/dashboard/orders/${targetId}`;
   if (m.includes("PRODUCT") && targetId) return `/dashboard/products`;
   if (m.includes("CUSTOMER") && targetId) return `/dashboard/customers`;
@@ -160,9 +168,12 @@ function extractSummary(metadata: any): string {
     }
   }
   // Try to extract meaningful text from metadata
-  if (metadata.description) return metadata.description;
+  const parts: string[] = [];
+  if (metadata.summary) parts.push(metadata.summary);
+  if (metadata.description) parts.push(metadata.description);
+  if (parts.length > 0) return parts.join(" · ");
+
   if (metadata.message) return metadata.message;
-  if (metadata.summary) return metadata.summary;
   if (metadata.details) return typeof metadata.details === "string" ? metadata.details : JSON.stringify(metadata.details);
   if (metadata.name) return `Name: ${metadata.name}`;
   if (metadata.title) return `Title: ${metadata.title}`;
@@ -220,6 +231,7 @@ export default function AdminNotificationsPage() {
         toast.success("All notifications marked as read");
         setUnreadCount(0);
         setLastReadAt(new Date().toISOString());
+        fetchNotifications();
       }
     } catch {
       toast.error("Failed to mark as read");

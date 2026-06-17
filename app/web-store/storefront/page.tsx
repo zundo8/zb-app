@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Save, CheckCircle, RefreshCw,
   Layout, ImageIcon, Video, Monitor, Globe, Navigation,
-  Sparkles, Layers, MessageSquare, Info, Loader2, Upload, X
+  Sparkles, Layers, MessageSquare, Info, Loader2, Upload, X, Link as LinkIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -43,6 +43,8 @@ interface SettingsData {
   featuredMediaImage: string;
   featuredMediaMobile: string;
   featuredMediaImageMobile: string;
+  featuredMediaLink: string;
+  collectionsMediaLink: string;
   collectionsMedia: string;
   collectionsMediaMobile: string;
   footerVideo: string;
@@ -69,6 +71,7 @@ interface SettingsData {
   flipbookTitle: string;
   flipbookTag: string;
   flipbookDesc: string;
+  flipbookLink: string;
   showRingCarousel: boolean;
   ringCarouselTitle: string;
   ringCarouselItems: string;
@@ -309,6 +312,8 @@ export default function WebStorefrontSettingsPage() {
         'showBrand', 'showShippingReturn', 'showCare', 'showSizeFit', 'showDetails',
         'pdpBackground', 'instagramUrl', 'appleUrl', 'spotifyUrl', 'youtubeUrl',
         'featuredMedia', 'featuredMediaImage', 'featuredMediaMobile', 'featuredMediaImageMobile',
+        'featuredMediaLink',
+        'collectionsMediaLink',
         'collectionsMedia', 'collectionsMediaMobile', 'footerVideo', 'footerVideoMobile',
         'mainMenuHandle', 'secondaryMenuHandle', 'showTreeText', 'showCommunity',
         'communityTitle', 'communitySubtitle', 'spotlightTitle', 'spotlightSubtitle',
@@ -316,6 +321,7 @@ export default function WebStorefrontSettingsPage() {
         'kineticMeshTitle', 'kineticMeshProducts', 'enabledCollectionsHeader', 
         'enabledCollectionsPage', 'enabledCollectionsMenu',
         'flipbookImage', 'flipbookImageMobile', 'flipbookVideo', 'flipbookVideoMobile', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
+        'flipbookLink',
         'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl',
         'homepageCollection', 'homepageProducts',
         'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile',
@@ -415,6 +421,18 @@ export default function WebStorefrontSettingsPage() {
           <SettingsRow label="Collections Video (Mobile)" icon={Video} description="Mobile collection background (portrait)">
              <MediaPicker value={settings.collectionsMediaMobile!} onChange={set('collectionsMediaMobile')} label="Collections Video (Mobile)" type="video" />
           </SettingsRow>
+          <SettingsRow label="Collections Media Link" icon={LinkIcon} description="Collection page to open on clicking above-collection section">
+             <select 
+               value={settings.collectionsMediaLink || ''} 
+               onChange={e => set('collectionsMediaLink')(e.target.value)}
+               className="w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground outline-none transition-colors"
+             >
+               <option value="">No link (disabled)</option>
+               {allCollections.map(c => (
+                 <option key={c.id} value={c.handle}>{c.title}</option>
+               ))}
+             </select>
+          </SettingsRow>
           <SettingsRow label="Featured Media Image (Desktop)" icon={ImageIcon} description="Desktop featured image fallback">
              <MediaPicker value={settings.featuredMediaImage!} onChange={set('featuredMediaImage')} label="Featured Media Image (Desktop)" type="image" />
           </SettingsRow>
@@ -432,6 +450,18 @@ export default function WebStorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Featured Media Subtitle" description="Secondary overlay text">
              <InputField value={settings.blueprintSubtitle!} onChange={set('blueprintSubtitle')} placeholder="e.g. Technique & Motion" />
+          </SettingsRow>
+          <SettingsRow label="Featured Media Link" icon={LinkIcon} description="Collection page to open on click">
+             <select 
+               value={settings.featuredMediaLink || ''} 
+               onChange={e => set('featuredMediaLink')(e.target.value)}
+               className="w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground outline-none transition-colors"
+             >
+               <option value="">No link (disabled)</option>
+               {allCollections.map(c => (
+                 <option key={c.id} value={c.handle}>{c.title}</option>
+               ))}
+             </select>
           </SettingsRow>
           <SettingsRow label="Footer 3D Logo" icon={Monitor} description="GLB model for footer logo">
              <InputField value={settings.footerLogo3dUrl!} onChange={set('footerLogo3dUrl')} placeholder="https://...glb" />
@@ -586,6 +616,18 @@ export default function WebStorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Description" description="Supporting technical text">
              <InputField value={settings.flipbookDesc!} onChange={set('flipbookDesc')} placeholder="Technical description..." />
+          </SettingsRow>
+          <SettingsRow label="Collection Link" icon={LinkIcon} description="Collection page to open on click">
+             <select 
+               value={settings.flipbookLink || ''} 
+               onChange={e => set('flipbookLink')(e.target.value)}
+               className="w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground outline-none transition-colors"
+             >
+               <option value="">No link (disabled)</option>
+               {allCollections.map(c => (
+                 <option key={c.id} value={c.handle}>{c.title}</option>
+               ))}
+             </select>
           </SettingsRow>
         </SettingsGroup>
 

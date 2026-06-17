@@ -12,9 +12,39 @@ export async function GET() {
     });
     const lastReadAt = readRecord?.lastReadAt || new Date(0);
 
-    const unreadCount = await prisma.auditLog.count({
-      where: { timestamp: { gt: lastReadAt } },
-    });
+    // Count all unread events across all systems
+    const [
+      auditUnread,
+      orderUnread,
+      returnUnread,
+      exchangeUnread,
+      customerUnread,
+      ticketUnread,
+      pushUnread,
+      scanUnread,
+      loginUnread,
+    ] = await Promise.all([
+      prisma.auditLog.count({ where: { timestamp: { gt: lastReadAt } } }),
+      prisma.order.count({ where: { createdAt: { gt: lastReadAt } } }),
+      prisma.returnRequest.count({ where: { createdAt: { gt: lastReadAt } } }),
+      prisma.exchangeRequest.count({ where: { createdAt: { gt: lastReadAt } } }),
+      prisma.customer.count({ where: { createdAt: { gt: lastReadAt } } }),
+      prisma.supportTicket.count({ where: { createdAt: { gt: lastReadAt } } }),
+      prisma.notificationSend.count({ where: { createdAt: { gt: lastReadAt } } }),
+      prisma.scanRecord.count({ where: { createdAt: { gt: lastReadAt } } }),
+      prisma.appLogin.count({ where: { createdAt: { gt: lastReadAt } } }),
+    ]);
+
+    const unreadCount =
+      auditUnread +
+      orderUnread +
+      returnUnread +
+      exchangeUnread +
+      customerUnread +
+      ticketUnread +
+      pushUnread +
+      scanUnread +
+      loginUnread;
 
     return NextResponse.json({ unreadCount });
   } catch (error) {

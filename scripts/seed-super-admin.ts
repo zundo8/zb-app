@@ -63,6 +63,8 @@ async function main() {
         role: 'SUPER_ADMIN',
         isActive: true,
         needsPasswordChange: false,
+        failedLoginAttempts: 0,
+        lockUntil: null,
       },
       create: {
         email: email.toLowerCase().trim(),
@@ -71,6 +73,8 @@ async function main() {
         role: 'SUPER_ADMIN',
         isActive: true,
         needsPasswordChange: false,
+        failedLoginAttempts: 0,
+        lockUntil: null,
       }
     });
 

@@ -76,7 +76,9 @@ export async function GET() {
       media: {
         featured: nullIfEmpty(s.featuredMedia),
         featuredImage: nullIfEmpty(s.featuredMediaImage),
+        featuredLink: nullIfEmpty(s.featuredMediaLink),
         collections: nullIfEmpty(s.collectionsMedia),
+        collectionsLink: nullIfEmpty(s.collectionsMediaLink),
         footer: nullIfEmpty(s.footerVideo),
         footerLogo3dUrl: s.footerLogo3dUrl || 'https://cdn.shopify.com/3d/models/faaab5221b0b704c/Zicabella-logo-new22.glb',
       },

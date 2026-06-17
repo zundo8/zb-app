@@ -145,6 +145,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Inventory", href: "/dashboard/inventory", icon: BoxSelect, module: 'INVENTORY' },
     { name: "Scanner", href: "/dashboard/inventory/scanner", icon: ScanLine, module: 'INVENTORY' },
     { name: "Scanner Records", href: "/dashboard/scanner-records", icon: FileText, module: 'INVENTORY' },
+    { name: "Price Tags", href: "/dashboard/price-tags", icon: Tag, module: 'INVENTORY' },
     { name: "Returns", href: "/dashboard/returns", icon: Undo2, module: 'RETURNS_EXCHANGES' },
     { name: "Exchanges", href: "/dashboard/exchanges", icon: ArrowLeftRight, module: 'RETURNS_EXCHANGES' },
     { name: "Logistics", href: "/dashboard/logistics", icon: Truck, module: 'LOGISTICS' },

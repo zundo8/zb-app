@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Save, CheckCircle, RefreshCw,
   Layout, ImageIcon, Video, Monitor, Globe, Navigation,
-  Sparkles, Layers, MessageSquare, Info, Loader2, Upload, X
+  Sparkles, Layers, MessageSquare, Info, Loader2, Upload, X, Link as LinkIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -42,6 +42,8 @@ interface SettingsData {
   featuredMediaImage: string;
   featuredMediaMobile: string;
   featuredMediaImageMobile: string;
+  featuredMediaLink: string;
+  collectionsMediaLink: string;
   collectionsMedia: string;
   collectionsMediaMobile: string;
   footerVideo: string;
@@ -68,6 +70,7 @@ interface SettingsData {
   flipbookTitle: string;
   flipbookTag: string;
   flipbookDesc: string;
+  flipbookLink: string;
   showRingCarousel: boolean;
   ringCarouselTitle: string;
   ringCarouselItems: string;
@@ -99,13 +102,13 @@ function SettingsRow({
     <div className="flex flex-col md:flex-row md:items-center justify-between py-5 border-b border-foreground/[0.05] last:border-0 gap-4 md:gap-0">
       <div className="flex items-center gap-4">
         {Icon && (
-          <div className="w-8 h-8 rounded-md bg-foreground/[0.02] flex items-center justify-center text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 border border-foreground/[0.05]">
+          <div className="w-8 h-8 rounded-md bg-foreground/[0.02] flex items-center justify-center text-foreground/60 border border-foreground/[0.05]">
             <Icon className="w-4 h-4" />
           </div>
         )}
         <div className="flex flex-col">
           <span className="text-[12px] font-medium text-foreground tracking-tight mb-0.5">{label}</span>
-          {description && <span className="text-[9px] text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 uppercase tracking-widest">{description}</span>}
+          {description && <span className="text-[9px] text-foreground/50 uppercase tracking-widest">{description}</span>}
         </div>
       </div>
       <div className="flex-1 w-full md:max-w-md flex justify-end">
@@ -148,8 +151,8 @@ function SettingsGroup({ title, children, icon: Icon }: { title?: string; childr
     >
       {title && (
         <div className="flex items-center gap-2 px-6">
-           {Icon && <Icon className="w-3.5 h-3.5 text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40" />}
-           <h3 className="text-[9px] font-semibold uppercase tracking-widest text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50">{title}</h3>
+           {Icon && <Icon className="w-3.5 h-3.5 text-foreground/50" />}
+           <h3 className="text-[9px] font-semibold uppercase tracking-widest text-foreground/50">{title}</h3>
         </div>
       )}
       <div className="bg-background border border-foreground/[0.05] rounded-xl px-6 py-2 shadow-sm relative overflow-hidden">
@@ -232,9 +235,9 @@ function MediaPicker({
         />
         <label className="shrink-0 flex items-center justify-center w-10 h-10 rounded-md bg-foreground/5 border border-foreground/10 cursor-pointer hover:bg-foreground/10 transition-colors">
           {isUploading ? (
-            <RefreshCw className="w-4 h-4 animate-spin text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40" />
+            <RefreshCw className="w-4 h-4 animate-spin text-foreground/60" />
           ) : (
-            <Upload className="w-4 h-4 text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40" />
+            <Upload className="w-4 h-4 text-foreground/60" />
           )}
           <input type="file" className="hidden" accept={type === 'image' ? "image/*" : "video/*"} onChange={handleUpload} />
         </label>
@@ -308,6 +311,8 @@ export default function StorefrontSettingsPage() {
         'showBrand', 'showShippingReturn', 'showCare', 'showSizeFit', 'showDetails',
         'pdpBackground', 'instagramUrl', 'appleUrl', 'spotifyUrl', 'youtubeUrl',
         'featuredMedia', 'featuredMediaImage', 'featuredMediaMobile', 'featuredMediaImageMobile',
+        'featuredMediaLink',
+        'collectionsMediaLink',
         'collectionsMedia', 'collectionsMediaMobile', 'footerVideo', 'footerVideoMobile',
         'mainMenuHandle', 'secondaryMenuHandle', 'showTreeText', 'showCommunity',
         'communityTitle', 'communitySubtitle', 'spotlightTitle', 'spotlightSubtitle',
@@ -315,6 +320,7 @@ export default function StorefrontSettingsPage() {
         'kineticMeshTitle', 'kineticMeshProducts', 'enabledCollectionsHeader', 
         'enabledCollectionsPage', 'enabledCollectionsMenu',
         'flipbookImage', 'flipbookImageMobile', 'flipbookVideo', 'flipbookVideoMobile', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
+        'flipbookLink',
         'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl',
         'homepageCollection', 'homepageProducts',
         'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile',
@@ -347,8 +353,8 @@ export default function StorefrontSettingsPage() {
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-      <Loader2 className="w-5 h-5 text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40 animate-spin" />
-      <span className="text-[10px] font-medium uppercase tracking-widest text-foreground/80 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/80 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/60 dark:text-foreground/40">Loading Storefront...</span>
+      <Loader2 className="w-5 h-5 text-foreground/50 animate-spin" />
+      <span className="text-[10px] font-medium uppercase tracking-widest text-foreground/50">Loading Storefront...</span>
     </div>
   );
 
@@ -366,8 +372,8 @@ export default function StorefrontSettingsPage() {
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
             Storefront
           </h1>
-          <p className="text-[11px] text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 tracking-wide max-w-xl">
-            Content curation and visual configuration.
+          <p className="text-[11px] text-foreground/50 tracking-wide max-w-xl">
+            Content curation and visual configuration for both the mobile app and web storefront.
           </p>
         </div>
         
@@ -411,6 +417,18 @@ export default function StorefrontSettingsPage() {
           <SettingsRow label="Collections Video (Mobile)" icon={Video} description="Mobile collection background (portrait)">
              <MediaPicker value={settings.collectionsMediaMobile!} onChange={set('collectionsMediaMobile')} label="Collections Video (Mobile)" type="video" />
           </SettingsRow>
+          <SettingsRow label="Collections Media Link" icon={LinkIcon} description="Collection page to open on clicking above-collection section">
+             <select 
+               value={settings.collectionsMediaLink || ''} 
+               onChange={e => set('collectionsMediaLink')(e.target.value)}
+               className="w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground outline-none transition-colors"
+             >
+               <option value="">No link (disabled)</option>
+               {allCollections.map(c => (
+                 <option key={c.id} value={c.handle}>{c.title}</option>
+               ))}
+             </select>
+          </SettingsRow>
           <SettingsRow label="Featured Media Image (Desktop)" icon={ImageIcon} description="Desktop featured image fallback">
              <MediaPicker value={settings.featuredMediaImage!} onChange={set('featuredMediaImage')} label="Featured Media Image (Desktop)" type="image" />
           </SettingsRow>
@@ -428,6 +446,18 @@ export default function StorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Featured Media Subtitle" description="Secondary overlay text">
              <InputField value={settings.blueprintSubtitle!} onChange={set('blueprintSubtitle')} placeholder="e.g. Technique & Motion" />
+          </SettingsRow>
+          <SettingsRow label="Featured Media Link" icon={LinkIcon} description="Collection page to open on click">
+             <select 
+               value={settings.featuredMediaLink || ''} 
+               onChange={e => set('featuredMediaLink')(e.target.value)}
+               className="w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground outline-none transition-colors"
+             >
+               <option value="">No link (disabled)</option>
+               {allCollections.map(c => (
+                 <option key={c.id} value={c.handle}>{c.title}</option>
+               ))}
+             </select>
           </SettingsRow>
           <SettingsRow label="Footer 3D Logo" icon={Monitor} description="GLB model for footer logo">
              <InputField value={settings.footerLogo3dUrl!} onChange={set('footerLogo3dUrl')} placeholder="https://...glb" />
@@ -501,8 +531,8 @@ export default function StorefrontSettingsPage() {
         {/* HOMEPAGE PRODUCTS CURATION */}
         <SettingsGroup title="Homepage Products" icon={Sparkles}>
           <div className="px-4 py-3 bg-foreground/[0.02] rounded-md border border-foreground/[0.05] flex items-center gap-3 mt-1">
-             <Info className="w-4 h-4 text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 shrink-0" />
-             <p className="text-[10px] font-medium text-foreground/70 uppercase tracking-widest">
+             <Info className="w-4 h-4 text-foreground/50 shrink-0" />
+             <p className="text-[10px] font-medium text-foreground/50 uppercase tracking-widest">
                 Configure the main 12-product grid on your storefront and mobile app.
              </p>
           </div>
@@ -526,9 +556,9 @@ export default function StorefrontSettingsPage() {
         {/* SPOTLIGHT SECTION */}
         <SettingsGroup title="Spotlight Section (Streetwear)" icon={Sparkles}>
           <div className="px-4 py-3 bg-foreground/[0.02] rounded-md border border-foreground/[0.05] flex items-center gap-3 mt-1">
-             <Info className="w-4 h-4 text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 shrink-0" />
-             <p className="text-[10px] font-medium text-foreground/70 uppercase tracking-widest">
-                Configure the "Authentic Streetwear" grid.
+             <Info className="w-4 h-4 text-foreground/50 shrink-0" />
+             <p className="text-[10px] font-medium text-foreground/50 uppercase tracking-widest">
+                Configure the &quot;Authentic Streetwear&quot; grid.
              </p>
           </div>
           <SettingsRow label="Section Title">
@@ -557,8 +587,8 @@ export default function StorefrontSettingsPage() {
         {/* 3D PAPER TEAR (FLIPBOOK) */}
         <SettingsGroup title="Feature Section" icon={Sparkles}>
           <div className="px-4 py-3 bg-foreground/[0.02] rounded-md border border-foreground/[0.05] flex items-center gap-3 mt-1">
-             <Info className="w-4 h-4 text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 shrink-0" />
-             <p className="text-[10px] font-medium text-foreground/70 uppercase tracking-widest">
+             <Info className="w-4 h-4 text-foreground/50 shrink-0" />
+             <p className="text-[10px] font-medium text-foreground/50 uppercase tracking-widest">
                 Configure the scroll reveal section.
              </p>
           </div>
@@ -583,13 +613,25 @@ export default function StorefrontSettingsPage() {
           <SettingsRow label="Description" description="Supporting technical text">
              <InputField value={settings.flipbookDesc!} onChange={set('flipbookDesc')} placeholder="Technical description..." />
           </SettingsRow>
+          <SettingsRow label="Collection Link" icon={LinkIcon} description="Collection page to open on click">
+             <select 
+               value={settings.flipbookLink || ''} 
+               onChange={e => set('flipbookLink')(e.target.value)}
+               className="w-full bg-foreground/[0.02] px-3 py-2.5 rounded-md border border-foreground/[0.05] focus:border-foreground/20 text-right text-[11px] font-medium text-foreground outline-none transition-colors"
+             >
+               <option value="">No link (disabled)</option>
+               {allCollections.map(c => (
+                 <option key={c.id} value={c.handle}>{c.title}</option>
+               ))}
+             </select>
+          </SettingsRow>
         </SettingsGroup>
 
         {/* RING CAROUSEL */}
         <SettingsGroup title="Ring Collection Carousel" icon={Sparkles}>
           <div className="px-4 py-3 bg-foreground/[0.02] rounded-md border border-foreground/[0.05] flex items-center gap-3 mt-1">
-             <Info className="w-4 h-4 text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 shrink-0" />
-             <p className="text-[10px] font-medium text-foreground/70 uppercase tracking-widest">
+             <Info className="w-4 h-4 text-foreground/50 shrink-0" />
+             <p className="text-[10px] font-medium text-foreground/50 uppercase tracking-widest">
                 Configure the minimal ring carousel.
              </p>
           </div>
@@ -638,9 +680,9 @@ export default function StorefrontSettingsPage() {
                 <div className="flex items-center justify-between border-b border-foreground/[0.03] pb-2">
                    <div>
                       <p className="text-[11px] font-semibold text-foreground tracking-tight">Header Navigation</p>
-                      <span className="text-[8px] text-foreground/70 dark:text-foreground/50 uppercase tracking-widest font-normal">Links displayed in web header</span>
+                      <span className="text-[8px] text-foreground/45 uppercase tracking-widest">Links displayed in web header</span>
                    </div>
-                   <span className="text-[9px] font-semibold text-foreground/70 dark:text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsHeader).length} Selected</span>
+                   <span className="text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsHeader).length} Selected</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                    {allCollections.map(c => {
@@ -653,7 +695,7 @@ export default function StorefrontSettingsPage() {
                                const next = active ? current.filter((h: any) => h !== c.handle) : [...current, c.handle];
                                set('enabledCollectionsHeader')(JSON.stringify(next));
                             }}
-                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/70 dark:text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
                          >
                             {c.title}
                          </button>
@@ -667,9 +709,9 @@ export default function StorefrontSettingsPage() {
                 <div className="flex items-center justify-between border-b border-foreground/[0.03] pb-2">
                    <div>
                       <p className="text-[11px] font-semibold text-foreground tracking-tight">Homepage Carousel</p>
-                      <span className="text-[8px] text-foreground/70 dark:text-foreground/50 uppercase tracking-widest font-normal">Collections displayed in homepage sliders</span>
+                      <span className="text-[8px] text-foreground/45 uppercase tracking-widest">Collections displayed in homepage sliders</span>
                    </div>
-                   <span className="text-[9px] font-semibold text-foreground/70 dark:text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsPage).length} Selected</span>
+                   <span className="text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsPage).length} Selected</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                    {allCollections.map(c => {
@@ -682,7 +724,7 @@ export default function StorefrontSettingsPage() {
                                const next = active ? current.filter((h: any) => h !== c.handle) : [...current, c.handle];
                                set('enabledCollectionsPage')(JSON.stringify(next));
                             }}
-                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/70 dark:text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
                          >
                             {c.title}
                          </button>
@@ -696,9 +738,9 @@ export default function StorefrontSettingsPage() {
                 <div className="flex items-center justify-between border-b border-foreground/[0.03] pb-2">
                    <div>
                       <p className="text-[11px] font-semibold text-foreground tracking-tight">Mobile & Footer Menu</p>
-                      <span className="text-[8px] text-foreground/70 dark:text-foreground/50 uppercase tracking-widest font-normal">Quick links in sidebar and footer</span>
+                      <span className="text-[8px] text-foreground/45 uppercase tracking-widest">Quick links in sidebar and footer</span>
                    </div>
-                   <span className="text-[9px] font-semibold text-foreground/70 dark:text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsMenu).length} Selected</span>
+                   <span className="text-[9px] font-semibold text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsMenu).length} Selected</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                    {allCollections.map(c => {
@@ -711,7 +753,7 @@ export default function StorefrontSettingsPage() {
                                const next = active ? current.filter((h: any) => h !== c.handle) : [...current, c.handle];
                                set('enabledCollectionsMenu')(JSON.stringify(next));
                             }}
-                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/70 dark:text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
                          >
                             {c.title}
                          </button>
@@ -727,7 +769,7 @@ export default function StorefrontSettingsPage() {
       <div className="text-center pt-8">
          <div className="inline-flex items-center gap-2 px-4 py-2 border border-foreground/[0.05] rounded-md bg-background shadow-sm">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[9px] font-semibold uppercase tracking-widest text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50">Storefront Active</span>
+            <span className="text-[9px] font-semibold uppercase tracking-widest text-foreground/50">Storefront Active</span>
          </div>
       </div>
     </motion.div>

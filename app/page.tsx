@@ -116,10 +116,14 @@ export default async function Home() {
   const archiveSubtitle = nullIfEmpty(s?.archiveSubtitle);
   const collectionsMedia = s?.collectionsMedia;
   const collectionsMediaMobile = s?.collectionsMediaMobile;
+  const collectionsMediaLink = s?.collectionsMediaLink || '';
   const featuredMedia  = s?.featuredMedia;
   const featuredMediaImage = s?.featuredMediaImage;
   const featuredMediaMobile = s?.featuredMediaMobile;
   const featuredMediaImageMobile = s?.featuredMediaImageMobile;
+  const featuredMediaLink = s?.featuredMediaLink || '';
+  const blueprintTitle = nullIfEmpty(s?.blueprintTitle);
+  const blueprintSubtitle = nullIfEmpty(s?.blueprintSubtitle);
   const footerVideo    = s?.footerVideo;
   const footerVideoMobile = s?.footerVideoMobile;
   
@@ -138,6 +142,7 @@ export default async function Home() {
   const flipbookTitle  = nullIfEmpty(s?.flipbookTitle);
   const flipbookTag    = nullIfEmpty(s?.flipbookTag);
   const flipbookDesc   = nullIfEmpty(s?.flipbookDesc);
+  const flipbookLink   = s?.flipbookLink || '';
   
   const showRingCarousel = s?.showRingCarousel ?? true;
   const ringCarouselTitle = nullIfEmpty(s?.ringCarouselTitle);
@@ -253,26 +258,42 @@ export default async function Home() {
         </section>
 
         {/* ─── ABOVE-COLLECTION MEDIA ─── */}
-        {(collectionsMedia || collectionsMediaMobile) && (
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 mb-6">
-            <section className="render-deferred-media relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[1.25rem] overflow-hidden shadow-lg border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
-              {collectionsMedia && (
-                <div className="hidden md:block absolute inset-0 w-full h-full">
-                  <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
-                </div>
-              )}
-              {collectionsMediaMobile ? (
-                <div className="md:hidden absolute inset-0 w-full h-full">
-                  <LazyVideo src={collectionsMediaMobile} className="w-full h-full object-cover opacity-80" />
-                </div>
-              ) : collectionsMedia ? (
-                <div className="md:hidden absolute inset-0 w-full h-full">
-                  <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
-                </div>
-              ) : null}
-            </section>
-          </div>
-        )}
+        {(collectionsMedia || collectionsMediaMobile) && (() => {
+          const hasLink = collectionsMediaLink && collectionsMediaLink.trim() !== '';
+          const Wrapper = hasLink ? Link : 'div';
+          const wrapperProps = hasLink ? { href: `/collections/${collectionsMediaLink}` } : {};
+          return (
+            <div className="w-full mb-6">
+              <Wrapper
+                {...wrapperProps as any}
+                className={`render-deferred-media relative block w-full overflow-hidden shadow-lg border-y border-foreground/[0.03] dark:border-white/[0.04] aspect-[9/16] md:aspect-[21/9] md:h-[80vh] md:aspect-auto ${hasLink ? 'cursor-pointer' : ''}`}
+                aria-label={hasLink ? `Collections curation - Open collection ${collectionsMediaLink}` : 'Collections curation'}
+                itemScope
+                itemType="https://schema.org/CollectionPage"
+              >
+                {hasLink && <meta itemProp="url" content={`/collections/${collectionsMediaLink}`} />}
+                <meta itemProp="name" content="Collections Curation Media" />
+                {hasLink && (
+                  <span className="sr-only">Browse our {collectionsMediaLink} collection</span>
+                )}
+                {collectionsMedia && (
+                  <div className="hidden md:block absolute inset-0 w-full h-full">
+                    <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
+                  </div>
+                )}
+                {collectionsMediaMobile ? (
+                  <div className="md:hidden absolute inset-0 w-full h-full">
+                    <LazyVideo src={collectionsMediaMobile} className="w-full h-full object-cover opacity-80" />
+                  </div>
+                ) : collectionsMedia ? (
+                  <div className="md:hidden absolute inset-0 w-full h-full">
+                    <LazyVideo src={collectionsMedia} className="w-full h-full object-cover opacity-80" />
+                  </div>
+                ) : null}
+              </Wrapper>
+            </div>
+          );
+        })()}
 
         {/* ─── GLASS DIVIDER ─── */}
         <div className="glass-divider my-4 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8" />
@@ -311,7 +332,8 @@ export default async function Home() {
             videoUrlMobile={flipbookVideoMobile}
             title={flipbookTitle} 
             tag={flipbookTag} 
-            desc={flipbookDesc} 
+            desc={flipbookDesc}
+            link={flipbookLink}
           />
         </div>
 
@@ -324,58 +346,134 @@ export default async function Home() {
 
         {/* ─── FEATURED MEDIA / BLUEPRINT ─── */}
         {s?.showBlueprint && (featuredMedia || featuredMediaImage || featuredMediaMobile || featuredMediaImageMobile) && (
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 mb-6">
-            {/* Desktop View (Landscape) */}
-            <section className="render-deferred-media hidden md:block relative w-full aspect-[21/9] rounded-[1.5rem] overflow-hidden group shadow-xl border border-foreground/[0.04] dark:border-white/[0.05]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
-              {featuredMedia ? (
-                <LazyVideo
-                  src={featuredMedia}
-                  fallbackImage={featuredMediaImage || "/section-image1.PNG"}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                />
-              ) : (
-                <NextImage
-                  src={featuredMediaImage || "/section-image1.PNG"}
-                  alt="Blueprint Media"
-                  fill
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                  onError={handleImageError}
-                />
-              )}
-            </section>
+          <div className="w-full mb-6">
+            {/* Desktop View (Landscape - Full Width) */}
+            {(() => {
+              const hasLink = featuredMediaLink && featuredMediaLink.trim() !== '';
+              const hasText = blueprintTitle || blueprintSubtitle;
+              const Wrapper = hasLink ? Link : 'div';
+              const wrapperProps = hasLink ? { href: `/collections/${featuredMediaLink}` } : {};
+              return (
+                <>
+                  <Wrapper
+                    {...wrapperProps as any}
+                    className={`render-deferred-media hidden md:block relative w-full overflow-hidden group shadow-xl border-y border-foreground/[0.03] dark:border-white/[0.04] aspect-[21/9] md:h-[80vh] md:aspect-auto ${hasLink ? 'cursor-pointer' : ''}`}
+                    aria-label={hasLink ? `Featured collection - Open collection ${featuredMediaLink}` : 'Featured collection'}
+                    itemScope
+                    itemType="https://schema.org/CollectionPage"
+                  >
+                    {hasLink && <meta itemProp="url" content={`/collections/${featuredMediaLink}`} />}
+                    {blueprintTitle && <meta itemProp="name" content={blueprintTitle} />}
+                    {blueprintSubtitle && <meta itemProp="description" content={blueprintSubtitle} />}
+                    {hasLink && (
+                      <span className="sr-only">Browse our {blueprintTitle || featuredMediaLink} collection</span>
+                    )}
+                    {featuredMedia ? (
+                      <LazyVideo
+                        src={featuredMedia}
+                        fallbackImage={featuredMediaImage || "/section-image1.PNG"}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                      />
+                    ) : (
+                      <NextImage
+                        src={featuredMediaImage || "/section-image1.PNG"}
+                        alt="Featured Media"
+                        fill
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                        onError={handleImageError}
+                      />
+                    )}
+                    {/* Gradient overlay for text */}
+                    {hasText && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none z-10" />
+                    )}
+                    {/* Text overlay */}
+                    {hasText && (
+                      <div className="absolute inset-0 z-20 flex items-end p-12 lg:p-16">
+                        <div className="max-w-xl space-y-3">
+                          {blueprintSubtitle && (
+                            <span className="inline-block text-[9px] font-bold text-white/50 uppercase tracking-[0.3em]">
+                              {blueprintSubtitle}
+                            </span>
+                          )}
+                          {blueprintTitle && (
+                            <h3 className="font-heading text-2xl md:text-3xl lg:text-4xl font-black uppercase tracking-[0.06em] text-white leading-none">
+                              {blueprintTitle}
+                            </h3>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </Wrapper>
 
-            {/* Mobile View (Portrait) */}
-            <section className="render-deferred-media md:hidden relative w-full aspect-[4/5] rounded-[1.5rem] overflow-hidden group shadow-xl" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
-              {featuredMediaMobile ? (
-                <LazyVideo
-                  src={featuredMediaMobile}
-                  fallbackImage={featuredMediaImageMobile || featuredMediaImage || "/section-image1.PNG"}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                />
-              ) : (featuredMediaImageMobile || featuredMediaImage) ? (
-                <NextImage
-                  src={featuredMediaImageMobile || featuredMediaImage || "/section-image1.PNG"}
-                  alt="Blueprint Media Mobile"
-                  fill
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                  onError={handleImageError}
-                />
-              ) : featuredMedia ? (
-                <LazyVideo
-                  src={featuredMedia}
-                  fallbackImage={featuredMediaImage || "/section-image1.PNG"}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                />
-              ) : (
-                <NextImage
-                  src="/section-image1.PNG"
-                  alt="Blueprint Media Fallback"
-                  fill
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
-                  onError={handleImageError}
-                />
-              )}
-            </section>
+                  {/* Mobile View (Portrait - Full Width) */}
+                  <Wrapper
+                    {...wrapperProps as any}
+                    className={`render-deferred-media block md:hidden relative w-full overflow-hidden group shadow-xl border-y border-foreground/[0.03] dark:border-white/[0.04] aspect-[9/16] ${hasLink ? 'cursor-pointer' : ''}`}
+                    aria-label={hasLink ? `Featured collection - Open collection ${featuredMediaLink}` : 'Featured collection'}
+                    itemScope
+                    itemType="https://schema.org/CollectionPage"
+                  >
+                    {hasLink && <meta itemProp="url" content={`/collections/${featuredMediaLink}`} />}
+                    {blueprintTitle && <meta itemProp="name" content={blueprintTitle} />}
+                    {blueprintSubtitle && <meta itemProp="description" content={blueprintSubtitle} />}
+                    {hasLink && (
+                      <span className="sr-only">Browse our {blueprintTitle || featuredMediaLink} collection</span>
+                    )}
+                    {featuredMediaMobile ? (
+                      <LazyVideo
+                        src={featuredMediaMobile}
+                        fallbackImage={featuredMediaImageMobile || featuredMediaImage || "/section-image1.PNG"}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                      />
+                    ) : (featuredMediaImageMobile || featuredMediaImage) ? (
+                      <NextImage
+                        src={featuredMediaImageMobile || featuredMediaImage || "/section-image1.PNG"}
+                        alt="Featured Media Mobile"
+                        fill
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                        onError={handleImageError}
+                      />
+                    ) : featuredMedia ? (
+                      <LazyVideo
+                        src={featuredMedia}
+                        fallbackImage={featuredMediaImage || "/section-image1.PNG"}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                      />
+                    ) : (
+                      <NextImage
+                        src="/section-image1.PNG"
+                        alt="Featured Media Fallback"
+                        fill
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                        onError={handleImageError}
+                      />
+                    )}
+                    {/* Gradient overlay for text */}
+                    {hasText && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none z-10" />
+                    )}
+                    {/* Text overlay */}
+                    {hasText && (
+                      <div className="absolute inset-0 z-20 flex items-end p-6 sm:p-8">
+                        <div className="max-w-md space-y-2">
+                          {blueprintSubtitle && (
+                            <span className="inline-block text-[8px] font-bold text-white/50 uppercase tracking-[0.3em]">
+                              {blueprintSubtitle}
+                            </span>
+                          )}
+                          {blueprintTitle && (
+                            <h3 className="font-heading text-lg sm:text-xl font-black uppercase tracking-[0.06em] text-white leading-none">
+                              {blueprintTitle}
+                            </h3>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </Wrapper>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -410,8 +508,8 @@ export default async function Home() {
 
         {/* ─── FOOTER VIDEO ─── */}
         {(footerVideo || footerVideoMobile) && (
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 my-4">
-            <section className="render-deferred-media relative w-full aspect-[9/16] md:aspect-[21/9] rounded-[2rem] overflow-hidden group shadow-2xl border border-foreground/[0.03] dark:border-white/[0.04]" style={{ border: "1px solid rgba(255,255,255,0.03)" }}>
+          <div className="w-full my-4">
+            <section className="render-deferred-media relative w-full aspect-[9/16] md:aspect-[21/9] overflow-hidden group shadow-2xl border-y border-foreground/[0.03] dark:border-white/[0.04]">
               {footerVideo && (
                 <div className="hidden md:block absolute inset-0 w-full h-full">
                   <LazyVideo
