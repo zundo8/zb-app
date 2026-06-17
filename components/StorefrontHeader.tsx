@@ -16,6 +16,13 @@ import { useTheme } from "next-themes";
 export default function StorefrontHeader({ collections: initialCollections = [] }: { collections?: any[] }) {
   const router = useRouter();
   const pathname = usePathname();
+  const handleBack = useCallback(() => {
+    if (typeof window !== "undefined" && document.referrer && document.referrer.startsWith(window.location.origin)) {
+      router.back();
+    } else {
+      router.push("/");
+    }
+  }, [router]);
   const { count } = useCart();
   const { bookmarks, isOpen: isBookmarkOpen, setIsOpen: setIsBookmarkOpen } = useBookmarks();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -91,7 +98,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
         {/* Floating Back Button (Top Left) */}
         <div className="fixed top-4 left-4 z-50 pointer-events-auto">
           <button 
-            onClick={() => router.back()}
+            onClick={handleBack}
             className="w-9 h-9 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.25)] text-foreground/60 hover:text-foreground hover:bg-white/80 dark:hover:bg-black/80 active:scale-90 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
             aria-label="Back"
           >
@@ -251,7 +258,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
         <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.3)] pointer-events-auto active:scale-[0.98] transition-all">
           {!isHome && (
             <button 
-              onClick={() => router.back()}
+              onClick={handleBack}
               className="w-7 h-7 flex items-center justify-center rounded-full text-foreground/70 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all mr-0.5"
               aria-label="Back"
             >

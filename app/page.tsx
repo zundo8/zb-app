@@ -53,22 +53,6 @@ export default async function Home() {
     shop = await prisma.shop.findFirst().catch(() => null);
   }
 
-  const [collections, policies] = await Promise.all([
-    fetchEnabledCollections('header', 'zicabella.com').catch(() => []),
-    fetchPolicies().catch(() => []),
-  ]);
-
-  // Fetch banners from WebStoreBanner table
-  let banners: any[] = [];
-  try {
-    banners = await prisma.webStoreBanner.findMany({
-      where: { isActive: true },
-      orderBy: { position: "asc" },
-    });
-  } catch (e) {
-    // Silently handle - banners are optional
-  }
-
   const s = (shop as any) || {
     heroTitle: "Redefine The Standard",
     showHeroText: true,
@@ -82,26 +66,36 @@ export default async function Home() {
     spotlightSubtitle: "Luxury Indian streetwear for modern men."
   };
 
-  let products: ShopifyProduct[] = [];
-  try {
-    if (s.homepageProducts && s.homepageProducts.trim()) {
-      const { fetchProductById } = await import("@/lib/shopify-admin");
-      const ids = s.homepageProducts.split(',').map((id: string) => id.trim()).filter(Boolean);
-      const fetched = await Promise.all(
-        ids.map((id: string) => fetchProductById(id).catch(() => null))
-      );
-      products = fetched.filter((p): p is ShopifyProduct => p !== null);
-    } else if (s.homepageCollection && s.homepageCollection.trim()) {
-      const { fetchCollectionByHandle } = await import("@/lib/shopify-admin");
-      const result = await fetchCollectionByHandle(s.homepageCollection, 24);
-      products = result.products;
-    } else {
-      products = await fetchProducts(24);
-    }
-  } catch (err) {
-    console.error("Error fetching homepage products:", err);
-    products = await fetchProducts(24).catch(() => [] as ShopifyProduct[]);
-  }
+  // Concurrently fetch all independent assets to optimize TTFB and speed up the homepage loading
+  const [collections, policies, banners, products] = await Promise.all([
+    fetchEnabledCollections('header', 'zicabella.com').catch(() => []),
+    fetchPolicies().catch(() => []),
+    prisma.webStoreBanner.findMany({
+      where: { isActive: true },
+      orderBy: { position: "asc" },
+    }).catch(() => [] as any[]),
+    (async () => {
+      try {
+        if (s.homepageProducts && s.homepageProducts.trim()) {
+          const { fetchProductById } = await import("@/lib/shopify-admin");
+          const ids = s.homepageProducts.split(',').map((id: string) => id.trim()).filter(Boolean);
+          const fetched = await Promise.all(
+            ids.map((id: string) => fetchProductById(id).catch(() => null))
+          );
+          return fetched.filter((p): p is ShopifyProduct => p !== null);
+        } else if (s.homepageCollection && s.homepageCollection.trim()) {
+          const { fetchCollectionByHandle } = await import("@/lib/shopify-admin");
+          const result = await fetchCollectionByHandle(s.homepageCollection, 24);
+          return result.products;
+        } else {
+          return await fetchProducts(24);
+        }
+      } catch (err) {
+        console.error("Error fetching homepage products:", err);
+        return await fetchProducts(24).catch(() => [] as ShopifyProduct[]);
+      }
+    })()
+  ]);
 
   const nullIfEmpty = (val: string | null | undefined): string | null => {
     if (val === undefined || val === null) return null;

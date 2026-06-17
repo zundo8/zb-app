@@ -857,7 +857,7 @@ export default function ProductDetailsClient({
                 
                 <div 
                   ref={curatedScrollMobileRef}
-                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-[2px]"
+                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-3 px-4"
                   style={{ 
                       scrollbarWidth: "none", 
                       msOverflowStyle: "none", 
@@ -874,7 +874,7 @@ export default function ProductDetailsClient({
                     return (
                       <div 
                         key={`mobile-pair-${p.id}-${idx}`}
-                        className="min-w-[85vw] w-[85vw] snap-center flex flex-col group cursor-pointer"
+                        className="min-w-[80vw] w-[80vw] snap-start flex flex-col group cursor-pointer"
                         onClick={(e) => { 
                           if (isCuratedDragging) e.preventDefault(); 
                           else router.push(`/products/${p.handle}`);

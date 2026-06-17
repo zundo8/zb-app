@@ -104,6 +104,10 @@ model Shop {
   loginBgVideo             String?
   loginBgImageMobile       String?
   loginBgVideoMobile       String?
+  loginBgImageLight        String?
+  loginBgImageDark         String?
+  loginBgImageLightMobile  String?
+  loginBgImageDarkMobile   String?
   homepageCollection       String?    @default("")
   homepageProducts         String?    @default("")
   customers                Customer[]

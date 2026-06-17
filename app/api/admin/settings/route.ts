@@ -100,6 +100,10 @@ function envSettings() {
     loginBgVideo: '',
     loginBgImageMobile: '',
     loginBgVideoMobile: '',
+    loginBgImageLight: '',
+    loginBgImageDark: '',
+    loginBgImageLightMobile: '',
+    loginBgImageDarkMobile: '',
   };
 }
 
@@ -257,6 +261,10 @@ export async function GET(req: Request) {
       loginBgVideo: s.loginBgVideo || '',
       loginBgImageMobile: s.loginBgImageMobile || '',
       loginBgVideoMobile: s.loginBgVideoMobile || '',
+      loginBgImageLight: s.loginBgImageLight || '',
+      loginBgImageDark: s.loginBgImageDark || '',
+      loginBgImageLightMobile: s.loginBgImageLightMobile || '',
+      loginBgImageDarkMobile: s.loginBgImageDarkMobile || '',
       claudeApiKey: s.claudeApiKey || '',
       claudeWebhookSecret: s.claudeWebhookSecret || '',
       openaiApiKey: s.openaiApiKey || process.env.OPENAI_API_KEY || '',
@@ -340,7 +348,8 @@ export async function PATCH(req: Request) {
       'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems',
       'homepageCollection', 'homepageProducts',
       'footerLogo3dUrl', 'claudeApiKey', 'claudeWebhookSecret', 'openaiApiKey', 'openaiWebhookSecret',
-      'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile'
+      'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile',
+      'loginBgImageLight', 'loginBgImageDark', 'loginBgImageLightMobile', 'loginBgImageDarkMobile'
     ] as const;
 
     const booleanKeys = [

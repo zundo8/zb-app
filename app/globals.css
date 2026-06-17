@@ -948,3 +948,636 @@ body.gallery-open [class*="fixed z-50"],
 body.gallery-open .fixed.z-50 {
   display: none !important;
 }
+
+/* =============================================
+   LOGIN PAGE — IMMERSIVE REDESIGN
+   Full-screen hero image + form below. OTP only.
+   Always dark regardless of system theme.
+   ============================================= */
+
+.zb-login-root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.dark .zb-login-root,
+.light .zb-login-root {
+  background: #000;
+}
+
+/* Force login to always use dark look regardless of system theme */
+.zb-login-root,
+.zb-login-root * {
+  color-scheme: dark;
+}
+
+/* ── Hero Section ── */
+.zb-login-hero {
+  position: relative;
+  width: 100%;
+  height: 52vh;
+  min-height: 320px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.zb-login-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.zb-login-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0,0,0,0) 0%,
+    rgba(0,0,0,0.15) 40%,
+    rgba(0,0,0,0.6) 75%,
+    rgba(0,0,0,0.95) 100%
+  );
+  z-index: 1;
+}
+
+/* Brand on hero */
+.zb-login-brand-over {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+}
+
+.zb-login-logo-container {
+  position: relative;
+  width: 140px;
+  height: 40px;
+}
+
+/* Hero text */
+.zb-login-hero-text {
+  position: absolute;
+  bottom: 28px;
+  left: 24px;
+  right: 24px;
+  z-index: 5;
+}
+
+.zb-login-hero-title {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 42px;
+  font-weight: 300;
+  line-height: 1.05;
+  color: #fff;
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+.zb-login-hero-title em {
+  font-style: italic;
+  color: rgba(255,255,255,0.55);
+}
+
+.zb-login-hero-desc {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.5;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+/* ── Form Section ── */
+.zb-login-form-section {
+  flex: 1;
+  background: #000;
+  padding: 28px 24px 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dark .zb-login-form-section,
+.light .zb-login-form-section {
+  background: #000;
+}
+
+.zb-login-step {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Tab */
+.zb-login-tab {
+  display: flex;
+  gap: 0;
+}
+
+.zb-login-tab-item {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.9);
+  padding-bottom: 10px;
+  border-bottom: 2px solid rgba(255,255,255,0.6);
+  text-transform: uppercase;
+}
+
+/* Instruction text */
+.zb-login-instruction {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Phone row */
+.zb-login-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zb-login-phone-row {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 0 14px;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.zb-login-phone-row:focus-within {
+  border-color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08);
+}
+
+.zb-login-phone-row--error {
+  border-color: rgba(220, 38, 38, 0.6) !important;
+}
+
+/* Country code selector */
+.zb-login-cc-selector {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.zb-login-cc-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zb-login-cc-flag {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.zb-login-cc-chevron {
+  width: 12px;
+  height: 12px;
+  color: rgba(255,255,255,0.35);
+  transition: transform 0.2s ease;
+}
+
+.zb-login-cc-chevron--open {
+  transform: rotate(180deg);
+}
+
+.zb-login-cc-code {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  flex-shrink: 0;
+}
+
+/* Country dropdown — minimal */
+.zb-login-cc-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: -14px;
+  width: 220px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: rgba(20,20,24,0.97);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  box-shadow: 0 -12px 40px rgba(0,0,0,0.5);
+  z-index: 100;
+  padding: 6px 0;
+}
+
+.zb-login-cc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zb-login-cc-item:active,
+.zb-login-cc-item:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.zb-login-cc-item--active {
+  background: rgba(255,255,255,0.04);
+}
+
+.zb-login-cc-item-flag {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.zb-login-cc-item-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0.02em;
+}
+
+.zb-login-cc-item-code {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Phone input */
+.zb-login-phone-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 15px !important;
+  font-weight: 400;
+  color: #fff;
+  padding: 0;
+  min-width: 0;
+  letter-spacing: 0.02em;
+}
+
+.zb-login-phone-input::placeholder {
+  color: rgba(255,255,255,0.3);
+}
+
+/* Name input */
+.zb-login-name-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 15px !important;
+  font-weight: 500;
+  color: #fff;
+  padding: 0;
+}
+
+.zb-login-name-input::placeholder {
+  color: rgba(255,255,255,0.3);
+}
+
+/* SEND OTP Button */
+.zb-login-send-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 50px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zb-login-send-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.22);
+}
+
+.zb-login-send-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.zb-login-send-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.zb-login-send-text {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+}
+
+.zb-login-send-arrow {
+  width: 16px;
+  height: 16px;
+}
+
+.zb-login-spinner {
+  width: 18px;
+  height: 18px;
+  animation: zb-spin 1s linear infinite;
+}
+
+@keyframes zb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* OR */
+.zb-login-or {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.05em;
+}
+
+/* Security note */
+.zb-login-security-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  text-align: center;
+}
+
+.zb-login-security-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: rgba(255,255,255,0.3);
+}
+
+/* Trust badges */
+.zb-login-trust-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 0 4px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.zb-login-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zb-login-trust-icon {
+  width: 18px;
+  height: 18px;
+  color: rgba(255,255,255,0.3);
+  flex-shrink: 0;
+}
+
+.zb-login-trust-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.7);
+  text-transform: uppercase;
+}
+
+.zb-login-trust-sub {
+  display: block;
+  font-size: 9px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.03em;
+}
+
+/* Policy links */
+.zb-login-policies {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 0;
+}
+
+.zb-login-policy-link {
+  font-size: 11px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.35);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.2s;
+}
+
+.zb-login-policy-link:hover {
+  color: rgba(255,255,255,0.7);
+}
+
+.zb-login-policy-dot {
+  font-size: 8px;
+  color: rgba(255,255,255,0.2);
+}
+
+/* Field error */
+.zb-login-field-error {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ef4444;
+  padding-left: 4px;
+  margin: 0;
+}
+
+/* Back button */
+.zb-login-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.35);
+  transition: color 0.2s;
+  padding: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zb-login-back-btn:hover {
+  color: rgba(255,255,255,0.7);
+}
+
+/* OTP */
+.zb-login-otp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zb-login-otp-boxes {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.zb-login-otp-box {
+  width: 46px;
+  height: 50px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.zb-login-otp-box--filled {
+  border-color: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.08);
+}
+
+.zb-login-otp-input {
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  font-size: 18px !important;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  padding: 0;
+}
+
+.zb-login-otp-input::placeholder {
+  color: rgba(255,255,255,0.15);
+}
+
+.zb-login-otp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.zb-login-otp-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.35);
+  transition: color 0.2s;
+  padding: 6px 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zb-login-otp-action-btn:hover {
+  color: rgba(255,255,255,0.7);
+}
+
+.zb-login-otp-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.zb-login-phone-display {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Error banner */
+.zb-login-error-banner {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 10px;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  margin-top: 12px;
+}
+
+/* ── Login Desktop / Responsive ── */
+@media (min-width: 640px) {
+  .zb-login-root {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #0a0a0a;
+  }
+
+  .dark .zb-login-root,
+  .light .zb-login-root {
+    background: #0a0a0a;
+  }
+
+  .zb-login-hero {
+    border-radius: 24px 24px 0 0;
+    height: 380px;
+    max-width: 420px;
+  }
+
+  .zb-login-form-section {
+    max-width: 420px;
+    border-radius: 0 0 24px 24px;
+    border-left: 1px solid rgba(255,255,255,0.06);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+}
+
+@media (max-width: 380px) {
+  .zb-login-hero-title {
+    font-size: 34px;
+  }
+
+  .zb-login-trust-row {
+    gap: 8px;
+  }
+
+  .zb-login-trust-label {
+    font-size: 9px;
+  }
+}
