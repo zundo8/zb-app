@@ -630,13 +630,17 @@ export default function StorefrontSettingsPage() {
           </SettingsRow>
         </SettingsGroup>
 
-        {/* Navigation Architecure */}
-        <SettingsGroup title="Header Navigation" icon={Navigation}>
-          <div className="pt-2 pb-4">
-             <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                   <p className="text-[10px] font-semibold text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 uppercase tracking-widest px-1">Selected Collections</p>
-                   <span className="text-[9px] font-semibold text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsHeader).length} Collections</span>
+        {/* Navigation Architecture */}
+        <SettingsGroup title="Navigation & Collection Placements" icon={Navigation}>
+          <div className="pt-2 pb-4 space-y-6">
+             {/* Header Navigation */}
+             <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-foreground/[0.03] pb-2">
+                   <div>
+                      <p className="text-[11px] font-semibold text-foreground tracking-tight">Header Navigation</p>
+                      <span className="text-[8px] text-foreground/70 dark:text-foreground/50 uppercase tracking-widest font-normal">Links displayed in web header</span>
+                   </div>
+                   <span className="text-[9px] font-semibold text-foreground/70 dark:text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsHeader).length} Selected</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                    {allCollections.map(c => {
@@ -649,7 +653,65 @@ export default function StorefrontSettingsPage() {
                                const next = active ? current.filter((h: any) => h !== c.handle) : [...current, c.handle];
                                set('enabledCollectionsHeader')(JSON.stringify(next));
                             }}
-                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/70 dark:text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/70 dark:text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
+                         >
+                            {c.title}
+                         </button>
+                      );
+                   })}
+                </div>
+             </div>
+
+             {/* Homepage Carousel Collections */}
+             <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-foreground/[0.03] pb-2">
+                   <div>
+                      <p className="text-[11px] font-semibold text-foreground tracking-tight">Homepage Carousel</p>
+                      <span className="text-[8px] text-foreground/70 dark:text-foreground/50 uppercase tracking-widest font-normal">Collections displayed in homepage sliders</span>
+                   </div>
+                   <span className="text-[9px] font-semibold text-foreground/70 dark:text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsPage).length} Selected</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                   {allCollections.map(c => {
+                      const active = safeParseArray(settings.enabledCollectionsPage).includes(c.handle);
+                      return (
+                         <button 
+                            key={c.id}
+                            onClick={() => {
+                               const current = safeParseArray(settings.enabledCollectionsPage);
+                               const next = active ? current.filter((h: any) => h !== c.handle) : [...current, c.handle];
+                               set('enabledCollectionsPage')(JSON.stringify(next));
+                            }}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/70 dark:text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
+                         >
+                            {c.title}
+                         </button>
+                      );
+                   })}
+                </div>
+             </div>
+
+             {/* Mobile & Footer Collections */}
+             <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-foreground/[0.03] pb-2">
+                   <div>
+                      <p className="text-[11px] font-semibold text-foreground tracking-tight">Mobile & Footer Menu</p>
+                      <span className="text-[8px] text-foreground/70 dark:text-foreground/50 uppercase tracking-widest font-normal">Quick links in sidebar and footer</span>
+                   </div>
+                   <span className="text-[9px] font-semibold text-foreground/70 dark:text-foreground/50 uppercase tracking-widest">{safeParseArray(settings.enabledCollectionsMenu).length} Selected</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                   {allCollections.map(c => {
+                      const active = safeParseArray(settings.enabledCollectionsMenu).includes(c.handle);
+                      return (
+                         <button 
+                            key={c.id}
+                            onClick={() => {
+                               const current = safeParseArray(settings.enabledCollectionsMenu);
+                               const next = active ? current.filter((h: any) => h !== c.handle) : [...current, c.handle];
+                               set('enabledCollectionsMenu')(JSON.stringify(next));
+                            }}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/70 dark:text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
                          >
                             {c.title}
                          </button>

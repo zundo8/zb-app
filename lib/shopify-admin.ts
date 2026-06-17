@@ -423,14 +423,29 @@ export async function fetchEnabledCollections(location: 'header' | 'page' | 'men
   const allCollections = await fetchCollections();
   
   try {
-    const shop = await prisma.shop.findFirst({
-      where: shopDomain ? { domain: shopDomain } : undefined,
+    const shop = (shopDomain ? await prisma.shop.findUnique({
+      where: { domain: shopDomain },
       select: {
         enabledCollectionsHeader: true,
         enabledCollectionsPage: true,
         enabledCollectionsMenu: true
       }
-    });
+    }) : null)
+      ?? await prisma.shop.findUnique({
+        where: { domain: '8tiahf-bk.myshopify.com' },
+        select: {
+          enabledCollectionsHeader: true,
+          enabledCollectionsPage: true,
+          enabledCollectionsMenu: true
+        }
+      })
+      ?? await prisma.shop.findFirst({
+        select: {
+          enabledCollectionsHeader: true,
+          enabledCollectionsPage: true,
+          enabledCollectionsMenu: true
+        }
+      });
 
     if (!shop) {
       console.log(`[Shopify Admin] No shop config found for ${shopDomain || 'default'}, returning all ${allCollections.length} collections`);

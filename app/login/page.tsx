@@ -70,7 +70,7 @@ export default function LoginPage() {
 
   // Fetch login bg images from admin settings
   useEffect(() => {
-    fetch("/api/admin/settings")
+    fetch("/api/app/settings")
       .then(r => r.json())
       .then(data => {
         if (data.loginBgImageLight) setLoginBgLight(data.loginBgImageLight);
