@@ -47,11 +47,20 @@ export default function LoginPage() {
   const [loginBgDark, setLoginBgDark] = useState("");
   const [loginBgLightMobile, setLoginBgLightMobile] = useState("");
   const [loginBgDarkMobile, setLoginBgDarkMobile] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { 
+    setMounted(true); 
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -88,9 +97,9 @@ export default function LoginPage() {
   }, []);
 
   const isDark = mounted ? resolvedTheme === 'dark' : true;
-  const bgImage = isDark
-    ? (loginBgDark || "/load-image-2.jpg")
-    : (loginBgLight || "/load-image-2.jpg");
+  const bgImage = isMobile
+    ? (isDark ? (loginBgDarkMobile || loginBgDark || "/load-image-2.jpg") : (loginBgLightMobile || loginBgLight || "/load-image-2.jpg"))
+    : (isDark ? (loginBgDark || "/load-image-2.jpg") : (loginBgLight || "/load-image-2.jpg"));
 
   const handlePhoneChange = (value: string) => {
     const digitsOnly = value.replace(/\D/g, "");

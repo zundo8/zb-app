@@ -61,7 +61,7 @@ export default async function CollectionPage({
     48
   );
   
-  const allCollections = await fetchEnabledCollections('page', 'zicabella.com');
+  const allCollections = await fetchEnabledCollections('page');
 
   if (!collection) notFound();
  

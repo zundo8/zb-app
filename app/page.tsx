@@ -68,7 +68,7 @@ export default async function Home() {
 
   // Concurrently fetch all independent assets to optimize TTFB and speed up the homepage loading
   const [collections, policies, banners, products] = await Promise.all([
-    fetchEnabledCollections('header', 'zicabella.com').catch(() => []),
+    fetchEnabledCollections('page').catch(() => []),
     fetchPolicies().catch(() => []),
     prisma.webStoreBanner.findMany({
       where: { isActive: true },

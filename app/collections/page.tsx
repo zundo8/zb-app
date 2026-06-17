@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default async function CollectionsPage() {
-  const collections = await fetchEnabledCollections('page', 'zicabella.com');
+  const collections = await fetchEnabledCollections('page');
 
   return (
     <div className="min-h-screen bg-background pt-16">
