@@ -247,15 +247,76 @@ export default function ProductDetailsClient({
     { id: 'brand', label: 'Brand', show: (shopSettings?.showBrand ?? true) && !!getMeta('BRAND') },
   ].filter(t => t.show);
 
-  // Client-side randomization for Recommended Products
+  // Client-side randomization and categorization for Recommended Products
   const [shuffledRecommended, setShuffledRecommended] = useState<ShopifyProduct[]>([]);
 
   useEffect(() => {
     if (recommendedProducts.length > 0) {
-      const shuffled = [...recommendedProducts].sort(() => Math.random() - 0.5);
-      setShuffledRecommended(shuffled);
+      // Helper function to check if a product is a T-Shirt (or top/shirt)
+      const isTShirt = (p: ShopifyProduct) => {
+        const type = (p.product_type || "").toLowerCase();
+        const title = (p.title || "").toLowerCase();
+        const tags = (p.tags || "").toLowerCase();
+        return (
+          type.includes("t-shirt") || type.includes("tee") || type.includes("shirt") || type.includes("top") ||
+          title.includes("t-shirt") || title.includes("t shirt") || title.includes("tee") || title.includes("shirt") || title.includes("top") ||
+          tags.includes("t-shirt") || tags.includes("t shirt") || tags.includes("tee") || tags.includes("shirt") || tags.includes("top")
+        );
+      };
+
+      // Helper function to check if a product is Jeans (or bottom/pant/denim/trouser)
+      const isJeans = (p: ShopifyProduct) => {
+        const type = (p.product_type || "").toLowerCase();
+        const title = (p.title || "").toLowerCase();
+        const tags = (p.tags || "").toLowerCase();
+        return (
+          type.includes("jeans") || type.includes("jean") || type.includes("denim") || type.includes("pant") || type.includes("trouser") || type.includes("bottom") ||
+          title.includes("jeans") || title.includes("jean") || title.includes("denim") || title.includes("pant") || title.includes("trouser") || title.includes("bottom") ||
+          tags.includes("jeans") || tags.includes("jean") || tags.includes("denim") || tags.includes("pant") || tags.includes("trouser") || tags.includes("bottom")
+        );
+      };
+
+      const currentIsTShirt = isTShirt(product);
+      const currentIsJeans = isJeans(product);
+
+      let oppositeType: ShopifyProduct[] = [];
+      let sameType: ShopifyProduct[] = [];
+      let others: ShopifyProduct[] = [];
+
+      recommendedProducts.forEach((p) => {
+        if (currentIsTShirt) {
+          if (isJeans(p)) {
+            oppositeType.push(p);
+          } else if (isTShirt(p)) {
+            sameType.push(p);
+          } else {
+            others.push(p);
+          }
+        } else if (currentIsJeans) {
+          if (isTShirt(p)) {
+            oppositeType.push(p);
+          } else if (isJeans(p)) {
+            sameType.push(p);
+          } else {
+            others.push(p);
+          }
+        } else {
+          others.push(p);
+        }
+      });
+
+      // Shuffle helper
+      const shuffle = (arr: ShopifyProduct[]) => [...arr].sort(() => Math.random() - 0.5);
+
+      const shuffledOpposite = shuffle(oppositeType);
+      const shuffledSameType = shuffle(sameType);
+      const shuffledOthers = shuffle(others);
+
+      // Show opposite category first, then others, then same category
+      const finalShuffled = [...shuffledOpposite, ...shuffledOthers, ...shuffledSameType];
+      setShuffledRecommended(finalShuffled);
     }
-  }, [recommendedProducts]);
+  }, [recommendedProducts, product]);
 
   // Curated Pairs Carousel Logic - Mirroring RingCarouselSection smoothness
   const curatedScrollRef = useRef<HTMLDivElement>(null);

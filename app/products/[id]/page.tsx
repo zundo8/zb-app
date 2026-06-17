@@ -80,7 +80,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
     fetchProductByHandle(params.id).catch(() => null),
     prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } }).catch(() => null)
       .then(s => s || prisma.shop.findFirst().catch(() => null)),
-    fetchProducts(8).catch(() => []),
+    fetchProducts(50).catch(() => []),
     fetchCollections().catch(() => [])
   ]);
 
