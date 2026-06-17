@@ -17,7 +17,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
   const [isMobileApp, setIsMobileApp] = useState(false);
   
   useEffect(() => {
-    fetch("/api/shopify/collections?usage=header")
+    fetch("/api/shopify/collections?location=header")
       .then(res => res.json())
       .then(data => setCollections(data))
       .catch(err => console.error("Error fetching collections for header:", err));
