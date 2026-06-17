@@ -711,11 +711,20 @@ export async function fetchProductMetafields(productId: string): Promise<Shopify
   return data.metafields;
 }
 
+const gidCache = new Map<string, { url: string; timestamp: number }>();
+const GID_CACHE_TTL = 1 * 60 * 60 * 1000; // 1 hour TTL
+
 /**
  * Resolve a Shopify GID (Video, MediaImage, etc.) to a public URL using GraphQL.
  */
 export async function resolveShopifyGid(gid: string): Promise<string | null> {
   if (!gid || !gid.startsWith('gid://shopify/')) return null;
+
+  const now = Date.now();
+  const cached = gidCache.get(gid);
+  if (cached && (now - cached.timestamp < GID_CACHE_TTL)) {
+    return cached.url;
+  }
 
   try {
     const query = `
@@ -742,9 +751,15 @@ export async function resolveShopifyGid(gid: string): Promise<string | null> {
     const data = await shopifyGraphqlFetch<any>(query, { id: gid });
     const node = data?.node;
 
-    if (node?.image?.url) return node.image.url;
-    if (node?.sources?.[0]?.url) return node.sources[0].url;
-    if (node?.url) return node.url;
+    let resolvedUrl: string | null = null;
+    if (node?.image?.url) resolvedUrl = node.image.url;
+    else if (node?.sources?.[0]?.url) resolvedUrl = node.sources[0].url;
+    else if (node?.url) resolvedUrl = node.url;
+
+    if (resolvedUrl) {
+      gidCache.set(gid, { url: resolvedUrl, timestamp: now });
+      return resolvedUrl;
+    }
 
     return null;
   } catch (e) {

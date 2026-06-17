@@ -42,10 +42,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized: not your order' }, { status: 403, headers: corsHeaders });
     }
 
-    // Only allow cancellation if order is not already processed/shipped
+    // Only allow cancellation if order is not already processed/shipped/fulfilled
     const status = (order.status || '').toLowerCase();
-    if (status === 'approved' || status === 'shipped' || status === 'delivered') {
-      return NextResponse.json({ error: 'Order cannot be cancelled after approval' }, { status: 400, headers: corsHeaders });
+    const fulfillmentStatus = (order.fulfillmentStatus || '').toLowerCase();
+    const deliveryStatus = (order.deliveryStatus || '').toLowerCase();
+
+    if (
+      fulfillmentStatus === 'fulfilled' ||
+      fulfillmentStatus === 'shipped' ||
+      deliveryStatus === 'shipped' ||
+      deliveryStatus === 'delivered' ||
+      status === 'shipped' ||
+      status === 'delivered'
+    ) {
+      return NextResponse.json({ error: 'Order cannot be cancelled after fulfillment or shipment' }, { status: 400, headers: corsHeaders });
     }
 
     // 1. Update local database
@@ -61,7 +71,15 @@ export async function POST(req: Request) {
       }
     });
 
-    // 2. Try to cancel in Shopify if shopifyOrderId exists
+    // 2. Trigger Auto Refund Service
+    try {
+      const { processOrderRefund } = await import('@/lib/services/refundService');
+      await processOrderRefund(orderId);
+    } catch (refundErr) {
+      console.error('[Cancel Order Route] Refund processing error:', refundErr);
+    }
+
+    // 3. Try to cancel in Shopify if shopifyOrderId exists
     if (order.shopifyOrderId) {
       try {
         await cancelShopifyOrder(order.shopifyOrderId.replace(/^#/, ''), reason || 'customer');

@@ -227,11 +227,13 @@ export default function OrderDetailsPage() {
   const canCancel = useMemo(() => {
     if (!order) return false;
     const s = (order.status || '').toLowerCase();
-    return (
-      (order.paymentMethod === 'COD' && s === 'awaiting_approval') ||
-      s === 'payment_pending' ||
-      s === 'pending'
-    ) && !isDelivered && !['payment_failed', 'failed'].includes(s);
+    const f = (order.fulfillmentStatus || '').toLowerCase();
+    
+    if (s.includes('cancel') || ['payment_failed', 'failed'].includes(s)) {
+      return false;
+    }
+    
+    return (f === 'unfulfilled' || f === 'pending' || f === '') && !isDelivered;
   }, [order, isDelivered]);
 
   if (loading) {

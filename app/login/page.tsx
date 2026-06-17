@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Loader2, ChevronDown, ShieldCheck, BadgeCheck, Gem } from "lucide-react";
+import { ArrowRight, Loader2, ChevronDown, ShieldCheck, BadgeCheck, Gem, Sun, Moon } from "lucide-react";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 
@@ -29,7 +29,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   const [step, setStep] = useState<"PHONE" | "NAME" | "OTP">("PHONE");
@@ -288,328 +288,337 @@ export default function LoginPage() {
 
   return (
     <div className="zb-login-root">
-      {/* ─── Background Image with Gradient Overlay ─── */}
-      <div className="zb-login-hero">
-        {bgImage && (
-          <img
-            src={bgImage}
-            alt=""
-            className="zb-login-hero-img"
+      <div className="zb-login-container">
+        {/* ─── Background Image with Vignette Overlay ─── */}
+        <div className="zb-login-hero-wrap">
+          {bgImage && (
+            <motion.img
+              key={bgImage}
+              src={bgImage}
+              alt=""
+              initial={{ scale: 1.05, opacity: 0 }}
+              animate={{ 
+                scale: [1.05, 1.12, 1.05],
+                opacity: 1
+              }}
+              transition={{
+                scale: {
+                  duration: 25,
+                  repeat: Infinity,
+                  repeatType: "reverse",
+                  ease: "easeInOut"
+                },
+                opacity: { duration: 0.8 }
+              }}
+              className="zb-login-hero-img"
+            />
+          )}
+          {/* Ambient luxury glow orb behind the model */}
+          <div 
+            className="absolute top-1/4 right-1/4 w-64 h-64 rounded-full blur-[80px] pointer-events-none mix-blend-screen opacity-60 dark:opacity-40 animate-pulse" 
+            style={{ 
+              background: 'radial-gradient(circle, rgba(212,175,55,0.15) 0%, rgba(120,40,200,0.08) 50%, transparent 100%)',
+              animationDuration: '8s'
+            }} 
           />
-        )}
-        <div className="zb-login-hero-overlay" />
-        
-        {/* Brand Name on Image */}
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6 }}
-          className="zb-login-brand-over"
-        >
-          <div className="zb-login-logo-container">
-            <Image src="/zb-logo-220px.png" alt="Zica Bella" fill className="object-contain" style={{ filter: 'invert(1)' }} priority />
-          </div>
-        </motion.div>
+          <div className="zb-login-hero-overlay" />
+        </div>
 
-        {/* Hero Text on Image */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.7 }}
-          className="zb-login-hero-text"
-        >
-          <h1 className="zb-login-hero-title">
-            enter<br />
-            <em>your world.</em>
-          </h1>
-          <p className="zb-login-hero-desc">
-            Luxury streetwear<br />designed for the bold.
-          </p>
-        </motion.div>
-      </div>
-
-      {/* ─── Form Section ─── */}
-      <div className="zb-login-form-section">
-        <AnimatePresence mode="wait">
-          {/* ══════════ STEP 1: PHONE ══════════ */}
-          {step === "PHONE" && (
-            <motion.form
-              key="phone-step"
-              initial={{ opacity: 0, y: 14 }}
+        {/* Middle Section: Form Content */}
+        <div className="zb-login-form-section">
+          {/* Only show hero narrative text if on PHONE or NAME step, to save space for OTP input */}
+          {(step === "PHONE" || step === "NAME") && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              onSubmit={handleContinuePhone}
-              className="zb-login-step"
+              transition={{ delay: 0.2, duration: 0.6 }}
+              className="zb-login-hero-text"
             >
-              {/* Tab Indicator */}
-              <div className="zb-login-tab">
-                <div className="zb-login-tab-item zb-login-tab-active">
-                  PHONE / OTP
-                </div>
-              </div>
-
-              <p className="zb-login-instruction">
-                Enter your mobile number and we&apos;ll<br />send you a one-time password.
+              <h1 className="zb-login-hero-title">
+                enter<br />
+                <em>your world.</em>
+              </h1>
+              <p className="zb-login-hero-desc">
+                Luxury streetwear<br />designed for the bold.
               </p>
-
-              {/* Phone Input Row */}
-              <div className="zb-login-input-wrap">
-                <div className={`zb-login-phone-row ${errors.phone ? 'zb-login-phone-row--error' : ''}`}>
-                  {/* Country Code Selector */}
-                  <div className="zb-login-cc-selector" ref={dropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setShowPicker(!showPicker)}
-                      className="zb-login-cc-btn"
-                    >
-                      <span className="zb-login-cc-flag">{country.flag}</span>
-                      <ChevronDown className={`zb-login-cc-chevron ${showPicker ? 'zb-login-cc-chevron--open' : ''}`} />
-                    </button>
-
-                    <AnimatePresence>
-                      {showPicker && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                          transition={{ duration: 0.15 }}
-                          className="zb-login-cc-dropdown"
-                        >
-                          {COUNTRIES.map((c, idx) => (
-                            <button
-                              key={`${c.iso}-${idx}`}
-                              type="button"
-                              onClick={() => { setCountry(c); setShowPicker(false); }}
-                              className={`zb-login-cc-item ${country.iso === c.iso ? 'zb-login-cc-item--active' : ''}`}
-                            >
-                              <span className="zb-login-cc-item-flag">{c.flag}</span>
-                              <span className="zb-login-cc-item-name">{c.name}</span>
-                              <span className="zb-login-cc-item-code">{c.code}</span>
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  <span className="zb-login-cc-code">{country.code}</span>
-
-                  <input
-                    type="tel"
-                    placeholder="Enter mobile number"
-                    value={phone}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
-                    className="zb-login-phone-input"
-                    autoFocus
-                    required
-                  />
-                </div>
-                {errors.phone && <p className="zb-login-field-error">{errors.phone}</p>}
-              </div>
-
-              {/* SEND OTP Button */}
-              <button
-                type="submit"
-                disabled={loading || phone.length < 7}
-                className="zb-login-send-btn"
-              >
-                <span className="zb-login-send-text">
-                  {loading ? <Loader2 className="zb-login-spinner" /> : <>SEND OTP <ArrowRight className="zb-login-send-arrow" /></>}
-                </span>
-              </button>
-
-              {/* OR */}
-              <div className="zb-login-or">OR</div>
-
-              {/* Security message */}
-              <div className="zb-login-security-note">
-                <ShieldCheck className="zb-login-security-icon" />
-                <span>We&apos;ll send a secure verification code to continue.</span>
-              </div>
-
-              {/* Trust Badges */}
-              <div className="zb-login-trust-row">
-                <div className="zb-login-trust-item">
-                  <ShieldCheck className="zb-login-trust-icon" />
-                  <div>
-                    <span className="zb-login-trust-label">SECURE</span>
-                    <span className="zb-login-trust-sub">Login</span>
-                  </div>
-                </div>
-                <div className="zb-login-trust-item">
-                  <BadgeCheck className="zb-login-trust-icon" />
-                  <div>
-                    <span className="zb-login-trust-label">VERIFIED</span>
-                    <span className="zb-login-trust-sub">Safe &amp; Fast</span>
-                  </div>
-                </div>
-                <div className="zb-login-trust-item">
-                  <Gem className="zb-login-trust-icon" />
-                  <div>
-                    <span className="zb-login-trust-label">PREMIUM</span>
-                    <span className="zb-login-trust-sub">Experience</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Policy Links */}
-              <div className="zb-login-policies">
-                <a href="/policies/privacy-policy" className="zb-login-policy-link">Privacy Policy</a>
-                <span className="zb-login-policy-dot">•</span>
-                <a href="/policies/terms-of-service" className="zb-login-policy-link">Terms &amp; Conditions</a>
-              </div>
-            </motion.form>
+            </motion.div>
           )}
 
-          {/* ══════════ STEP 2: NAME ══════════ */}
-          {step === "NAME" && (
-            <motion.form
-              key="name-step"
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              onSubmit={handleContinueName}
-              className="zb-login-step"
-            >
-              <div className="zb-login-tab">
-                <div className="zb-login-tab-item zb-login-tab-active">
-                  YOUR NAME
-                </div>
-              </div>
-
-              <p className="zb-login-instruction">
-                What&apos;s your name?<br />This helps us personalise your experience.
-              </p>
-
-              <div className="zb-login-input-wrap">
-                <div className={`zb-login-phone-row ${errors.name ? 'zb-login-phone-row--error' : ''}`}>
-                  <input
-                    type="text"
-                    placeholder="Your Name"
-                    value={name}
-                    onChange={(e) => { setName(e.target.value); if (errors.name) setErrors({}); }}
-                    className="zb-login-name-input"
-                    autoFocus
-                    autoComplete="off"
-                    required
-                  />
-                </div>
-                {errors.name && <p className="zb-login-field-error">{errors.name}</p>}
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || !name.trim()}
-                className="zb-login-send-btn"
+          <AnimatePresence mode="wait">
+            {/* ══════════ STEP 1: PHONE ══════════ */}
+            {step === "PHONE" && (
+              <motion.form
+                key="phone-step"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -14 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                onSubmit={handleContinuePhone}
+                className="zb-login-step"
               >
-                <span className="zb-login-send-text">
-                  {loading ? <Loader2 className="zb-login-spinner" /> : <>CREATE ACCOUNT <ArrowRight className="zb-login-send-arrow" /></>}
-                </span>
-              </button>
+                <p className="zb-login-instruction">
+                  Enter your mobile number and we&apos;ll<br />send you a one-time password.
+                </p>
 
-              <button
-                type="button"
-                onClick={() => setStep("PHONE")}
-                className="zb-login-back-btn"
-              >
-                ← Back to Phone
-              </button>
-            </motion.form>
-          )}
+                {/* Phone Input Row */}
+                <div className="zb-login-input-wrap">
+                  <div className={`zb-login-phone-row ${errors.phone ? 'zb-login-phone-row--error' : ''}`}>
+                    {/* Country Code Selector */}
+                    <div className="zb-login-cc-selector" ref={dropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowPicker(!showPicker)}
+                        className="zb-login-cc-btn"
+                      >
+                        <span className="zb-login-cc-flag">{country.flag}</span>
+                        <ChevronDown className={`zb-login-cc-chevron ${showPicker ? 'zb-login-cc-chevron--open' : ''}`} />
+                      </button>
 
-          {/* ══════════ STEP 3: OTP ══════════ */}
-          {step === "OTP" && (
-            <motion.form
-              key="otp-step"
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
-              className="zb-login-step"
-            >
-              <div className="zb-login-tab">
-                <div className="zb-login-tab-item zb-login-tab-active">
-                  VERIFY OTP
-                </div>
-              </div>
-
-              <p className="zb-login-instruction" style={{ textAlign: 'center' }}>
-                Enter the code sent to<br />
-                <strong className="zb-login-phone-display">{country.code} {phone.slice(0,3)}••••{phone.slice(-3)}</strong>
-              </p>
-
-              <div className="zb-login-otp-group">
-                <div className="zb-login-otp-boxes">
-                  {otp.map((digit, i) => (
-                    <div
-                      key={i}
-                      className={`zb-login-otp-box ${digit ? 'zb-login-otp-box--filled' : ''}`}
-                    >
-                      <input
-                        ref={(el) => { if (el) otpRefs.current[i] = el; }}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        value={digit}
-                        onChange={(e) => handleOtpChange(e.target.value, i)}
-                        onKeyDown={(e) => handleOtpKeyDown(e, i)}
-                        placeholder="•"
-                        className="zb-login-otp-input"
-                        autoFocus={i === 0}
-                      />
+                      <AnimatePresence>
+                        {showPicker && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                            transition={{ duration: 0.15 }}
+                            className="zb-login-cc-dropdown"
+                          >
+                            {COUNTRIES.map((c, idx) => (
+                              <button
+                                key={`${c.iso}-${idx}`}
+                                type="button"
+                                onClick={() => { setCountry(c); setShowPicker(false); }}
+                                className={`zb-login-cc-item ${country.iso === c.iso ? 'zb-login-cc-item--active' : ''}`}
+                              >
+                                <span className="zb-login-cc-item-flag">{c.flag}</span>
+                                <span className="zb-login-cc-item-name">{c.name}</span>
+                                <span className="zb-login-cc-item-code">{c.code}</span>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                  ))}
+
+                    <span className="zb-login-cc-code">{country.code}</span>
+
+                    <input
+                      type="tel"
+                      placeholder="Enter mobile number"
+                      value={phone}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      className="zb-login-phone-input"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                  {errors.phone && <p className="zb-login-field-error">{errors.phone}</p>}
                 </div>
-                {errors.otp && <p className="zb-login-field-error" style={{ textAlign: 'center' }}>{errors.otp}</p>}
-              </div>
 
-              <button
-                type="submit"
-                disabled={loading || otp.join("").length < 6}
-                className="zb-login-send-btn"
+                {/* SEND OTP Button */}
+                <button
+                  type="submit"
+                  disabled={loading || phone.length < 7}
+                  className="zb-login-send-btn"
+                >
+                  <span className="zb-login-send-text">
+                    {loading ? <Loader2 className="zb-login-spinner" /> : <>SEND OTP <ArrowRight className="zb-login-send-arrow" /></>}
+                  </span>
+                </button>
+
+                {/* Security message */}
+                <div className="zb-login-security-note">
+                  <ShieldCheck className="zb-login-security-icon" />
+                  <span>We&apos;ll send a secure verification code to continue.</span>
+                </div>
+              </motion.form>
+            )}
+
+            {/* ══════════ STEP 2: NAME ══════════ */}
+            {step === "NAME" && (
+              <motion.form
+                key="name-step"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -14 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                onSubmit={handleContinueName}
+                className="zb-login-step"
               >
-                <span className="zb-login-send-text">
-                  {loading ? <Loader2 className="zb-login-spinner" /> : <>VERIFY <ArrowRight className="zb-login-send-arrow" /></>}
-                </span>
-              </button>
+                <div className="zb-login-tab">
+                  <div className="zb-login-tab-item zb-login-tab-active">
+                    YOUR NAME
+                  </div>
+                </div>
 
-              <div className="zb-login-otp-actions">
+                <p className="zb-login-instruction">
+                  What&apos;s your name?<br />This helps us personalise your experience.
+                </p>
+
+                <div className="zb-login-input-wrap">
+                  <div className={`zb-login-phone-row ${errors.name ? 'zb-login-phone-row--error' : ''}`}>
+                    <input
+                      type="text"
+                      placeholder="Your Name"
+                      value={name}
+                      onChange={(e) => { setName(e.target.value); if (errors.name) setErrors({}); }}
+                      className="zb-login-name-input"
+                      autoFocus
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
+                  {errors.name && <p className="zb-login-field-error">{errors.name}</p>}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || !name.trim()}
+                  className="zb-login-send-btn"
+                >
+                  <span className="zb-login-send-text">
+                    {loading ? <Loader2 className="zb-login-spinner" /> : <>CREATE ACCOUNT <ArrowRight className="zb-login-send-arrow" /></>}
+                  </span>
+                </button>
+
                 <button
                   type="button"
-                  onClick={() => { setStep("PHONE"); setOtp(["", "", "", "", "", ""]); }}
-                  className="zb-login-otp-action-btn"
+                  onClick={() => setStep("PHONE")}
+                  className="zb-login-back-btn"
                 >
-                  Edit Phone
+                  ← Back to Phone
                 </button>
+              </motion.form>
+            )}
+
+            {/* ══════════ STEP 3: OTP ══════════ */}
+            {step === "OTP" && (
+              <motion.form
+                key="otp-step"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -14 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
+                className="zb-login-step"
+              >
+                <div className="zb-login-tab">
+                  <div className="zb-login-tab-item zb-login-tab-active">
+                    VERIFY OTP
+                  </div>
+                </div>
+
+                <p className="zb-login-instruction" style={{ textAlign: 'center' }}>
+                  Enter the code sent to<br />
+                  <strong className="zb-login-phone-display">{country.code} {phone.slice(0,3)}••••{phone.slice(-3)}</strong>
+                </p>
+
+                <div className="zb-login-otp-group">
+                  <div className="zb-login-otp-boxes">
+                    {otp.map((digit, i) => (
+                      <div
+                        key={i}
+                        className={`zb-login-otp-box ${digit ? 'zb-login-otp-box--filled' : ''}`}
+                      >
+                        <input
+                          ref={(el) => { if (el) otpRefs.current[i] = el; }}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={6}
+                          value={digit}
+                          onChange={(e) => handleOtpChange(e.target.value, i)}
+                          onKeyDown={(e) => handleOtpKeyDown(e, i)}
+                          placeholder="•"
+                          className="zb-login-otp-input"
+                          autoFocus={i === 0}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {errors.otp && <p className="zb-login-field-error" style={{ textAlign: 'center' }}>{errors.otp}</p>}
+                </div>
+
                 <button
-                  type="button"
-                  onClick={handleResendOTP}
-                  disabled={loading}
-                  className="zb-login-otp-action-btn"
+                  type="submit"
+                  disabled={loading || otp.join("").length < 6}
+                  className="zb-login-send-btn"
                 >
-                  Resend OTP
+                  <span className="zb-login-send-text">
+                    {loading ? <Loader2 className="zb-login-spinner" /> : <>VERIFY <ArrowRight className="zb-login-send-arrow" /></>}
+                  </span>
                 </button>
-              </div>
-            </motion.form>
+
+                <div className="zb-login-otp-actions">
+                  <button
+                    type="button"
+                    onClick={() => { setStep("PHONE"); setOtp(["", "", "", "", "", ""]); }}
+                    className="zb-login-otp-action-btn"
+                  >
+                    Edit Phone
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResendOTP}
+                    disabled={loading}
+                    className="zb-login-otp-action-btn"
+                  >
+                    Resend OTP
+                  </button>
+                </div>
+              </motion.form>
+            )}
+
+            {/* Name/OTP steps are the only remaining steps */}
+          </AnimatePresence>
+
+          {/* Global Error Banner */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="zb-login-error-banner"
+            >
+              {error}
+            </motion.div>
           )}
-        </AnimatePresence>
+        </div>
 
-        {/* Global Error Banner */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="zb-login-error-banner"
-          >
-            {error}
-          </motion.div>
-        )}
+        {/* Bottom Section: Trust Badges & Policies */}
+        <div className="zb-login-form-section" style={{ marginTop: 'auto', borderTop: 'none', padding: '0' }}>
+          {/* Trust Badges */}
+          <div className="zb-login-trust-row">
+            <div className="zb-login-trust-item">
+              <ShieldCheck className="zb-login-trust-icon" />
+              <div>
+                <span className="zb-login-trust-label">SECURE</span>
+                <span className="zb-login-trust-sub">Login</span>
+              </div>
+            </div>
+            <div className="zb-login-trust-item">
+              <BadgeCheck className="zb-login-trust-icon" />
+              <div>
+                <span className="zb-login-trust-label">VERIFIED</span>
+                <span className="zb-login-trust-sub">Safe &amp; Fast</span>
+              </div>
+            </div>
+            <div className="zb-login-trust-item">
+              <Gem className="zb-login-trust-icon" />
+              <div>
+                <span className="zb-login-trust-label">PREMIUM</span>
+                <span className="zb-login-trust-sub">Experience</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Policy Links */}
+          <div className="zb-login-policies">
+            <a href="/policies/privacy-policy" className="zb-login-policy-link">Privacy Policy</a>
+            <span className="zb-login-policy-dot">•</span>
+            <a href="/policies/terms-of-service" className="zb-login-policy-link">Terms &amp; Conditions</a>
+          </div>
+        </div>
       </div>
-
     </div>
   );
 }

@@ -494,6 +494,7 @@ export default function ProductDetailsClient({
                       fill 
                       className="object-cover group-hover:scale-[1.03] transition-transform duration-700" 
                       sizes="400px"
+                      loading="lazy"
                     />
                   </div>
                   <div className="flex items-center justify-between border-t border-black/[0.03] dark:border-white/[0.03] p-3.5">
@@ -857,7 +858,7 @@ export default function ProductDetailsClient({
                 
                 <div 
                   ref={curatedScrollMobileRef}
-                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-3 px-4"
+                  className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth gap-1.5 px-4"
                   style={{ 
                       scrollbarWidth: "none", 
                       msOverflowStyle: "none", 
@@ -887,7 +888,7 @@ export default function ProductDetailsClient({
                             fill 
                             className="object-cover" 
                             sizes="300px" 
-                            quality={95} 
+                            loading="lazy"
                             onError={handleImageError}
                           />
                         </div>

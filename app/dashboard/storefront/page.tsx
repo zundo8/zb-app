@@ -74,6 +74,14 @@ interface SettingsData {
   footerLogo3dUrl: string;
   homepageCollection: string;
   homepageProducts: string;
+  loginBgImage: string;
+  loginBgVideo: string;
+  loginBgImageMobile: string;
+  loginBgVideoMobile: string;
+  loginBgImageLight: string;
+  loginBgImageDark: string;
+  loginBgImageLightMobile: string;
+  loginBgImageDarkMobile: string;
 }
 
 function SettingsRow({
@@ -308,7 +316,9 @@ export default function StorefrontSettingsPage() {
         'enabledCollectionsPage', 'enabledCollectionsMenu',
         'flipbookImage', 'flipbookImageMobile', 'flipbookVideo', 'flipbookVideoMobile', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
         'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl',
-        'homepageCollection', 'homepageProducts'
+        'homepageCollection', 'homepageProducts',
+        'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile',
+        'loginBgImageLight', 'loginBgImageDark', 'loginBgImageLightMobile', 'loginBgImageDarkMobile'
     ];
 
     // Pass shopDomain from loaded settings to target the correct record in PATCH (fallback to 8tiahf-bk.myshopify.com)
@@ -421,6 +431,38 @@ export default function StorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Footer 3D Logo" icon={Monitor} description="GLB model for footer logo">
              <InputField value={settings.footerLogo3dUrl!} onChange={set('footerLogo3dUrl')} placeholder="https://...glb" />
+          </SettingsRow>
+        </SettingsGroup>
+
+        {/* Login Page Media */}
+        <SettingsGroup title="Login Page Media" icon={Layers}>
+          <SettingsRow label="Login Background Image (Desktop)" icon={ImageIcon} description="Desktop login background image link">
+             <MediaPicker value={settings.loginBgImage!} onChange={set('loginBgImage')} label="Login Background Image (Desktop)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Login Background Video (Desktop)" icon={Video} description="Desktop login background MP4 link">
+             <MediaPicker value={settings.loginBgVideo!} onChange={set('loginBgVideo')} label="Login Background Video (Desktop)" type="video" />
+          </SettingsRow>
+          <SettingsRow label="Login Background Image (Mobile)" icon={ImageIcon} description="Mobile login background image link">
+             <MediaPicker value={settings.loginBgImageMobile!} onChange={set('loginBgImageMobile')} label="Login Background Image (Mobile)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Login Background Video (Mobile)" icon={Video} description="Mobile login background MP4 link">
+             <MediaPicker value={settings.loginBgVideoMobile!} onChange={set('loginBgVideoMobile')} label="Login Background Video (Mobile)" type="video" />
+          </SettingsRow>
+        </SettingsGroup>
+
+        {/* Login Page Theme Images */}
+        <SettingsGroup title="Login Page Theme Images" icon={Layers}>
+          <SettingsRow label="Light Theme Image (Desktop)" icon={ImageIcon} description="Login background for light mode on desktop">
+             <MediaPicker value={settings.loginBgImageLight!} onChange={set('loginBgImageLight')} label="Light Theme Image (Desktop)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Dark Theme Image (Desktop)" icon={ImageIcon} description="Login background for dark mode on desktop">
+             <MediaPicker value={settings.loginBgImageDark!} onChange={set('loginBgImageDark')} label="Dark Theme Image (Desktop)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Light Theme Image (Mobile)" icon={ImageIcon} description="Login background for light mode on mobile">
+             <MediaPicker value={settings.loginBgImageLightMobile!} onChange={set('loginBgImageLightMobile')} label="Light Theme Image (Mobile)" type="image" />
+          </SettingsRow>
+          <SettingsRow label="Dark Theme Image (Mobile)" icon={ImageIcon} description="Login background for dark mode on mobile">
+             <MediaPicker value={settings.loginBgImageDarkMobile!} onChange={set('loginBgImageDarkMobile')} label="Dark Theme Image (Mobile)" type="image" />
           </SettingsRow>
         </SettingsGroup>
 

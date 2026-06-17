@@ -30,7 +30,8 @@ export async function POST(req: Request) {
       case 'orders/create':
       case 'orders/paid':
       case 'orders/fulfilled':
-        await handleOrderWebhook(shop, payload);
+      case 'orders/cancelled':
+        await handleOrderWebhook(shop, payload, topic);
         break;
       case 'refunds/create':
         await handleRefundWebhook(shop, payload);
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
   }
 }
 
-async function handleOrderWebhook(shop: string, orderData: any) {
+async function handleOrderWebhook(shop: string, orderData: any, topic?: string) {
   let shopRecord = await prisma.shop.findUnique({ where: { domain: shop } });
   if (!shopRecord) {
      shopRecord = await prisma.shop.create({ data: { domain: shop, accessToken: 'dummy_for_webhook' }});
@@ -109,13 +110,22 @@ async function handleOrderWebhook(shop: string, orderData: any) {
     }
   }
 
+  const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp');
+  let finalStatus = isMobileAppOrder ? 'approved' : 'active';
+  
+  if (topic === 'orders/cancelled' || orderData.cancelled_at) {
+    finalStatus = 'cancelled';
+    deliveryStatus = 'cancelled';
+    orderData.fulfillment_status = 'cancelled';
+  }
+
   const order = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.id.toString() },
     create: {
       shopId: shopRecord.id,
       shopifyOrderId: orderData.id.toString(),
       customerId: dbCustomer.id,
-      status: 'active',
+      status: finalStatus,
       totalPrice: parseFloat(orderData.total_price || '0'),
       subtotalPrice: parseFloat(orderData.subtotal_price || '0'),
       totalTax: parseFloat(orderData.total_tax || '0'),
@@ -131,6 +141,7 @@ async function handleOrderWebhook(shop: string, orderData: any) {
       createdAt: orderDate
     },
     update: {
+      status: finalStatus,
       totalPrice: parseFloat(orderData.total_price || '0'),
       subtotalPrice: parseFloat(orderData.subtotal_price || '0'),
       totalTax: parseFloat(orderData.total_tax || '0'),
@@ -145,6 +156,15 @@ async function handleOrderWebhook(shop: string, orderData: any) {
       tags: orderData.tags || null,
     }
   });
+
+  if (finalStatus === 'cancelled') {
+    try {
+      const { processOrderRefund } = await import('@/lib/services/refundService');
+      await processOrderRefund(order.id);
+    } catch (refundErr) {
+      console.error(`[Webhook Route] Refund failed for order ${order.id}:`, refundErr);
+    }
+  }
 
   if (orderData.line_items) {
     const shopifyItemIds = orderData.line_items.map((item: any) => item.id.toString());

@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { verifyShopifyWebhook } from '@/lib/shopify-webhooks';
 import { sendOrderStatus } from '@/lib/whatsapp/templates';
 import { getWhatsAppSetting } from '@/lib/whatsapp/logger';
+import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,32 @@ export async function POST(req) {
     if (payload.cancelled_at) {
       status = 'Cancelled';
       extraInfo = 'Your order has been cancelled. Any refund due will be processed shortly.';
+      
+      // Update local database order status to cancelled and trigger refund
+      try {
+        const orderIdStr = String(payload.id);
+        const existingOrder = await prisma.order.findUnique({
+          where: { shopifyOrderId: orderIdStr }
+        });
+        if (existingOrder && existingOrder.status !== 'cancelled') {
+          await prisma.order.update({
+            where: { id: existingOrder.id },
+            data: {
+              status: 'cancelled',
+              paymentStatus: existingOrder.paymentStatus === 'paid' ? 'paid' : 'cancelled',
+              fulfillmentStatus: 'cancelled',
+              deliveryStatus: 'cancelled',
+              updatedAt: new Date()
+            }
+          });
+          console.log(`[Shopify Orders Updated Webhook] Order ${existingOrder.id} marked cancelled in DB`);
+          
+          const { processOrderRefund } = await import('@/lib/services/refundService');
+          await processOrderRefund(existingOrder.id);
+        }
+      } catch (dbErr) {
+        console.error('[Shopify Orders Updated Webhook] DB update or refund failed:', dbErr);
+      }
     } else if (fulfillmentStatus === 'fulfilled') {
       status = 'Shipped';
       extraInfo = 'Your tracking details will follow in a separate message shortly.';

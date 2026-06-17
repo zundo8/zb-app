@@ -63,14 +63,16 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
   // Resolve metafield GIDs to URLs
   if (product?.metafields) {
-    for (const meta of product.metafields) {
-      if (meta.value && typeof meta.value === 'string' && meta.value.startsWith('gid://shopify/')) {
-        const resolvedUrl = await resolveShopifyGid(meta.value);
-        if (resolvedUrl) {
-          meta.value = resolvedUrl;
+    await Promise.all(
+      product.metafields.map(async (meta) => {
+        if (meta.value && typeof meta.value === 'string' && meta.value.startsWith('gid://shopify/')) {
+          const resolvedUrl = await resolveShopifyGid(meta.value);
+          if (resolvedUrl) {
+            meta.value = resolvedUrl;
+          }
         }
-      }
-    }
+      })
+    );
   }
 
   if (!product) {

@@ -62,6 +62,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       data: body,
     });
 
+    // Trigger auto refund if order status was set to cancelled
+    if (body.status === 'cancelled') {
+      try {
+        const { processOrderRefund } = await import('@/lib/services/refundService');
+        await processOrderRefund(id);
+      } catch (refundErr) {
+        console.error('[Admin Order PATCH] Refund processing failed:', refundErr);
+      }
+    }
+
     // Send push notification if status changed
     if (oldOrder && updated.customerId) {
       const statusChanged = body.status && body.status !== oldOrder.status;

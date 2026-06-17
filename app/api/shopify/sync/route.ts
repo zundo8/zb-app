@@ -231,6 +231,15 @@ export async function POST() {
             },
           });
 
+          if (finalStatus === 'cancelled') {
+            try {
+              const { processOrderRefund } = await import('@/lib/services/refundService');
+              await processOrderRefund(order.id);
+            } catch (refundErr) {
+              console.error(`[Sync Route] Refund failed for order ${order.id}:`, refundErr);
+            }
+          }
+
           // Delete old line items that do not match Shopify's IDs
           const shopifyItemIds = o.line_items.map((item: any) => String(item.id));
           await prisma.orderItem.deleteMany({
