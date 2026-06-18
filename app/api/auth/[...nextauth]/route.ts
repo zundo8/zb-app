@@ -110,7 +110,7 @@ export const authOptions: AuthOptions = {
 
           // Validate OTP format
           if (!/^\d{6}$/.test(providedOtp)) {
-            throw new Error("OTP must be exactly 6 digits");
+            return null;
           }
 
           const phoneDigits = providedPhone.replace(/\D/g, "");
@@ -160,10 +160,10 @@ export const authOptions: AuthOptions = {
           }
 
           if (!isVerified) {
-            console.warn(`[AUTH] Invalid OTP attempt: Received "${providedOtp}" for phone: ${providedPhone}`);
+            console.warn(`[AUTH] Invalid OTP attempt for phone: ${fullPhone}`);
             
-            // Log failed verification attempt
-            await prisma.appLogin.create({
+            // Log failed verification attempt (non-blocking)
+            prisma.appLogin.create({
               data: {
                 phone: fullPhone,
                 status: "OTP_INVALID",
@@ -171,57 +171,25 @@ export const authOptions: AuthOptions = {
               }
             }).catch(console.error);
 
-            // Return null instead of throwing to prevent NextAuth client redirect error
             return null;
           }
 
-          console.log(`[AUTH] --- ATTEMPT --- phone: ${fullPhone}, normalized: ${normalizedPhone}, otp: ${providedOtp}`);
+          console.log(`[AUTH] OTP verified for ${fullPhone}`);
 
-          // ALWAYS search in Shopify
-          console.log(`[AUTH] Searching Shopify for ${fullPhone}...`);
-          let shopifyCustomer = null;
-          try {
-            shopifyCustomer = await searchCustomerByPhone(fullPhone);
-            if (!shopifyCustomer) {
-              shopifyCustomer = await searchCustomerByPhone(phoneDigits);
-            }
-            if (!shopifyCustomer) {
-              shopifyCustomer = await searchCustomerByPhone(normalizedPhone);
-            }
-            console.log(`[AUTH] Shopify Customer found: ${shopifyCustomer ? 'YES (ID: ' + shopifyCustomer.id + ')' : 'NO'}`);
-          } catch (e: any) {
-            console.error("[AUTH] Shopify search unexpected error:", e.message);
-          }
-
-          // Try to find local customer by phone, email, or Shopify ID
-          const searchConditions: any[] = [
-            { phone: fullPhone },
-            { phone: phoneDigits },
-            { phone: { contains: normalizedPhone } },
-            { shopifyId: { contains: normalizedPhone } }
-          ];
-
-          if (shopifyCustomer) {
-            searchConditions.push({ shopifyId: String(shopifyCustomer.id) });
-            if (shopifyCustomer.email) {
-              searchConditions.push({ email: shopifyCustomer.email });
-            }
-            if (shopifyCustomer.phone) {
-              searchConditions.push({ phone: shopifyCustomer.phone });
-            }
-          }
-
+          // ── FAST PATH: Look up local customer first ──
+          // This returns a response in ~20ms for existing users
           let customer = await prisma.customer.findFirst({
             where: {
-              OR: searchConditions
+              OR: [
+                { phone: fullPhone },
+                { phone: phoneDigits },
+                { phone: { contains: normalizedPhone } },
+              ]
             }
           });
-          
-          console.log(`[AUTH] Local customer found: ${customer ? 'YES (ID: ' + customer.id + ')' : 'NO'}`);
 
           let shop = await prisma.shop.findFirst();
           if (!shop) {
-            console.log("[AUTH] No shop found, creating default shop...");
             shop = await prisma.shop.create({
               data: {
                 domain: process.env.SHOPIFY_STORE_DOMAIN || "8tiahf-bk.myshopify.com",
@@ -229,169 +197,231 @@ export const authOptions: AuthOptions = {
               }
             });
           }
-
-          // Safety fallback to prevent .id crash if DB is still returning null (mock state)
           const shopId = (shop as any)?.id || 'default_shop_id';
-          let isNewAccount = false;
-          let syncSuccess = false;
 
-          try {
-            if (shopifyCustomer) {
-              console.log(`[AUTH] Syncing data for Shopify Customer: ${shopifyCustomer.id}`);
-              
-              if (customer) {
-                // Update existing local customer (matches by email, phone, or Shopify ID)
-                console.log(`[AUTH] Updating existing local customer ${customer.id} with Shopify ID: ${shopifyCustomer.id}`);
-                customer = await prisma.customer.update({
-                  where: { id: customer.id },
-                  data: {
-                    shopifyId: String(shopifyCustomer.id),
-                    email: shopifyCustomer.email || customer.email || undefined,
-                    name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || customer.name || "User",
-                    phone: shopifyCustomer.phone || customer.phone || fullPhone,
-                    ordersCount: shopifyCustomer.orders_count || customer.ordersCount,
-                    totalSpent: parseFloat(shopifyCustomer.total_spent || "0") || customer.totalSpent,
-                  }
-                });
-              } else {
-                // No local customer exists. Create/upsert by shopifyId to be safe.
-                const existingLocal = await prisma.customer.findFirst({
-                  where: { shopifyId: String(shopifyCustomer.id) }
-                });
-                if (!existingLocal) {
-                  isNewAccount = true;
-                }
+          if (customer) {
+            // ── EXISTING USER: Return immediately, sync Shopify in background ──
+            console.log(`[AUTH] Fast-path: existing customer ${customer.id}`);
 
-                customer = await prisma.customer.upsert({
-                  where: { shopifyId: String(shopifyCustomer.id) },
-                  create: {
-                    shopifyId: String(shopifyCustomer.id),
-                    shopId: shopId,
-                    email: shopifyCustomer.email,
-                    name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || shopifyCustomer.email?.split("@")[0] || "User",
-                    phone: shopifyCustomer.phone || fullPhone,
-                    ordersCount: shopifyCustomer.orders_count || 0,
-                    totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
-                  },
-                  update: {
-                    email: shopifyCustomer.email || undefined,
-                    name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
-                    phone: shopifyCustomer.phone || undefined,
-                    ordersCount: shopifyCustomer.orders_count,
-                    totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
-                  }
-                });
-              }
-              syncSuccess = true;
-
-              // Import customer addresses from Shopify to local DB
-              if (shopifyCustomer.addresses && Array.isArray(shopifyCustomer.addresses)) {
-                for (const addr of shopifyCustomer.addresses) {
-                  const a = addr as any;
-                  const existingAddr = await prisma.address.findFirst({
-                    where: {
-                      customerId: customer.id,
-                      address1: a.address1,
-                      city: a.city,
-                      zip: a.zip
-                    }
-                  });
-
-                  if (!existingAddr) {
-                    await prisma.address.create({
-                      data: {
-                        customerId: customer.id,
-                        name: `${a.first_name || ""} ${a.last_name || ""}`.trim() || customer.name || "User",
-                        phone: a.phone || customer.phone || fullPhone,
-                        address1: a.address1,
-                        address2: a.address2 || "",
-                        city: a.city,
-                        state: a.province || "",
-                        zip: a.zip,
-                        country: a.country || "India",
-                        isDefault: a.default || false
-                      }
-                    }).catch(console.error);
-                  }
-                }
-              }
-
-              // Sync orders synchronously for this login
-              try {
-                const shopifyOrders = await fetchOrdersByCustomerId(String(shopifyCustomer.id));
-                console.log(`[AUTH] Found ${shopifyOrders.length} Shopify orders. Upserting...`);
-                for (const o of shopifyOrders) {
-                  await prisma.order.upsert({
-                    where: { shopifyOrderId: String(o.id) },
-                    create: {
-                      shopId: shopId,
-                      shopifyOrderId: String(o.id),
-                      customerId: customer.id,
-                      status: 'active',
-                      totalPrice: parseFloat(o.total_price || '0'),
-                      currency: o.currency || 'INR',
-                      paymentStatus: o.financial_status || 'pending',
-                      fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
-                      createdAt: new Date(o.created_at),
-                    },
-                    update: {
-                      status: 'active',
-                      totalPrice: parseFloat(o.total_price || '0'),
-                      paymentStatus: o.financial_status || 'pending',
-                      fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
-                    }
-                  });
-                }
-              } catch (orderSyncError) {
-                console.error("[AUTH] Order sync error:", orderSyncError);
-              }
-            }
-          } catch (syncError: any) {
-            console.error("[AUTH] Shopify sync/upsert error, falling back to local database:", syncError.message);
-          }
-
-          if (!customer) {
-            // Find existing local customer by phone
-            customer = await prisma.customer.findFirst({
-              where: {
-                OR: [
-                  { phone: fullPhone },
-                  { phone: phoneDigits },
-                  { phone: { contains: normalizedPhone } }
-                ]
-              }
-            });
-
-            if (!customer) {
-              console.log(`[AUTH] No local record found. Creating guest for ${fullPhone}.`);
-              isNewAccount = true;
-              customer = await prisma.customer.create({
-                data: {
-                  phone: fullPhone,
-                  shopId: shopId,
-                  shopifyId: `otp_${Date.now()}`,
-                  name: providedName || "New User",
-                },
-              });
-            }
-          } else if (!syncSuccess) {
-            // If local customer existed but Shopify sync failed
-            console.log(`[AUTH] Using local customer: ${customer.id}`);
+            // Update name if provided and missing
             if (providedName && (!customer.name || customer.name === "New User" || customer.name === "User")) {
               customer = await prisma.customer.update({
                 where: { id: customer.id },
                 data: { name: providedName },
               });
             }
+
+            // Log success (non-blocking)
+            prisma.appLogin.create({
+              data: { phone: fullPhone, status: "LOGGED_IN", userAgent: providedUserAgent }
+            }).catch(console.error);
+
+            // ── BACKGROUND: Shopify sync (non-blocking, fire-and-forget) ──
+            const bgCustomerId = customer.id;
+            const bgCustomerPhone = customer.phone;
+            const bgCustomerName = customer.name;
+            (async () => {
+              try {
+                // Parallel Shopify search across phone formats
+                const results = await Promise.all([
+                  searchCustomerByPhone(fullPhone).catch(() => null),
+                  searchCustomerByPhone(phoneDigits).catch(() => null),
+                  searchCustomerByPhone(normalizedPhone).catch(() => null),
+                ]);
+                const shopifyCustomer = results.find(r => r !== null) || null;
+
+                if (!shopifyCustomer) {
+                  console.log(`[AUTH-BG] No Shopify customer found for ${fullPhone}`);
+                  return;
+                }
+
+                console.log(`[AUTH-BG] Syncing Shopify customer ${shopifyCustomer.id} for local ${bgCustomerId}`);
+
+                // Update local customer with Shopify data
+                await prisma.customer.update({
+                  where: { id: bgCustomerId },
+                  data: {
+                    shopifyId: String(shopifyCustomer.id),
+                    email: shopifyCustomer.email || undefined,
+                    name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
+                    phone: shopifyCustomer.phone || undefined,
+                    ordersCount: shopifyCustomer.orders_count || 0,
+                    totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+                  }
+                }).catch(e => console.error("[AUTH-BG] Customer update error:", e.message));
+
+                // Import addresses
+                if (shopifyCustomer.addresses && Array.isArray(shopifyCustomer.addresses)) {
+                  for (const addr of shopifyCustomer.addresses) {
+                    const a = addr as any;
+                    const exists = await prisma.address.findFirst({
+                      where: { customerId: bgCustomerId, address1: a.address1, city: a.city, zip: a.zip }
+                    });
+                    if (!exists) {
+                      await prisma.address.create({
+                        data: {
+                          customerId: bgCustomerId,
+                          name: `${a.first_name || ""} ${a.last_name || ""}`.trim() || bgCustomerName || "User",
+                          phone: a.phone || bgCustomerPhone || fullPhone,
+                          address1: a.address1, address2: a.address2 || "",
+                          city: a.city, state: a.province || "", zip: a.zip,
+                          country: a.country || "India", isDefault: a.default || false
+                        }
+                      }).catch(console.error);
+                    }
+                  }
+                }
+
+                // Import orders
+                try {
+                  const shopifyOrders = await fetchOrdersByCustomerId(String(shopifyCustomer.id));
+                  for (const o of shopifyOrders) {
+                    await prisma.order.upsert({
+                      where: { shopifyOrderId: String(o.id) },
+                      create: {
+                        shopId: shopId, shopifyOrderId: String(o.id), customerId: bgCustomerId,
+                        status: 'active', totalPrice: parseFloat(o.total_price || '0'),
+                        currency: o.currency || 'INR', paymentStatus: o.financial_status || 'pending',
+                        fulfillmentStatus: o.fulfillment_status || 'unfulfilled', createdAt: new Date(o.created_at),
+                      },
+                      update: {
+                        status: 'active', totalPrice: parseFloat(o.total_price || '0'),
+                        paymentStatus: o.financial_status || 'pending',
+                        fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+                      }
+                    }).catch(e => console.error("[AUTH-BG] Order upsert error:", e.message));
+                  }
+                  console.log(`[AUTH-BG] Synced ${shopifyOrders.length} orders for customer ${bgCustomerId}`);
+                } catch (orderErr) {
+                  console.error("[AUTH-BG] Order sync error:", orderErr);
+                }
+              } catch (bgError: any) {
+                console.error("[AUTH-BG] Background sync error:", bgError.message);
+              }
+            })();
+
+            return {
+              id: customer.id,
+              name: customer.name ?? "User",
+              email: customer.email ?? undefined,
+              phone: customer.phone,
+              image: (customer as any).image ?? undefined,
+            };
           }
 
-          if (!customer) return null;
+          // ── NEW USER PATH: No local customer found ──
+          console.log(`[AUTH] New user path for ${fullPhone}`);
 
-          // Successful log in / Registration log
-          await prisma.appLogin.create({
+          // Search Shopify in parallel (all formats at once)
+          let shopifyCustomer = null;
+          try {
+            const results = await Promise.all([
+              searchCustomerByPhone(fullPhone).catch(() => null),
+              searchCustomerByPhone(phoneDigits).catch(() => null),
+              searchCustomerByPhone(normalizedPhone).catch(() => null),
+            ]);
+            shopifyCustomer = results.find(r => r !== null) || null;
+            console.log(`[AUTH] Shopify Customer found: ${shopifyCustomer ? 'YES (ID: ' + shopifyCustomer.id + ')' : 'NO'}`);
+          } catch (e: any) {
+            console.error("[AUTH] Shopify search error:", e.message);
+          }
+
+          if (shopifyCustomer) {
+            // Create/upsert local customer from Shopify data
+            try {
+              customer = await prisma.customer.upsert({
+                where: { shopifyId: String(shopifyCustomer.id) },
+                create: {
+                  shopifyId: String(shopifyCustomer.id),
+                  shopId: shopId,
+                  email: shopifyCustomer.email,
+                  name: providedName || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || "User",
+                  phone: shopifyCustomer.phone || fullPhone,
+                  ordersCount: shopifyCustomer.orders_count || 0,
+                  totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+                },
+                update: {
+                  email: shopifyCustomer.email || undefined,
+                  name: providedName || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
+                  phone: shopifyCustomer.phone || undefined,
+                  ordersCount: shopifyCustomer.orders_count,
+                  totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+                }
+              });
+
+              // Background: sync addresses and orders
+              const bgCustId = customer.id;
+              const bgCustPhone = customer.phone;
+              const bgCustName = customer.name;
+              const bgShopifyCust = shopifyCustomer;
+              (async () => {
+                try {
+                  // Import addresses
+                  if (bgShopifyCust.addresses && Array.isArray(bgShopifyCust.addresses)) {
+                    for (const addr of bgShopifyCust.addresses) {
+                      const a = addr as any;
+                      const exists = await prisma.address.findFirst({
+                        where: { customerId: bgCustId, address1: a.address1, city: a.city, zip: a.zip }
+                      });
+                      if (!exists) {
+                        await prisma.address.create({
+                          data: {
+                            customerId: bgCustId,
+                            name: `${a.first_name || ""} ${a.last_name || ""}`.trim() || bgCustName || "User",
+                            phone: a.phone || bgCustPhone || fullPhone,
+                            address1: a.address1, address2: a.address2 || "",
+                            city: a.city, state: a.province || "", zip: a.zip,
+                            country: a.country || "India", isDefault: a.default || false
+                          }
+                        }).catch(console.error);
+                      }
+                    }
+                  }
+                  // Import orders
+                  const shopifyOrders = await fetchOrdersByCustomerId(String(bgShopifyCust.id));
+                  for (const o of shopifyOrders) {
+                    await prisma.order.upsert({
+                      where: { shopifyOrderId: String(o.id) },
+                      create: {
+                        shopId: shopId, shopifyOrderId: String(o.id), customerId: bgCustId,
+                        status: 'active', totalPrice: parseFloat(o.total_price || '0'),
+                        currency: o.currency || 'INR', paymentStatus: o.financial_status || 'pending',
+                        fulfillmentStatus: o.fulfillment_status || 'unfulfilled', createdAt: new Date(o.created_at),
+                      },
+                      update: {
+                        status: 'active', totalPrice: parseFloat(o.total_price || '0'),
+                        paymentStatus: o.financial_status || 'pending',
+                        fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+                      }
+                    }).catch(e => console.error("[AUTH-BG] Order upsert error:", e.message));
+                  }
+                  console.log(`[AUTH-BG] New user: synced ${shopifyOrders.length} orders for ${bgCustId}`);
+                } catch (bgErr) {
+                  console.error("[AUTH-BG] New user sync error:", bgErr);
+                }
+              })();
+            } catch (syncError: any) {
+              console.error("[AUTH] Shopify upsert error:", syncError.message);
+            }
+          }
+
+          // Fallback: create a guest customer if nothing matched
+          if (!customer) {
+            customer = await prisma.customer.create({
+              data: {
+                phone: fullPhone,
+                shopId: shopId,
+                shopifyId: `otp_${Date.now()}`,
+                name: providedName || "New User",
+              },
+            });
+          }
+
+          // Log success (non-blocking)
+          prisma.appLogin.create({
             data: {
               phone: fullPhone,
-              status: isNewAccount ? "ACCOUNT_CREATED" : "LOGGED_IN",
+              status: "ACCOUNT_CREATED",
               userAgent: providedUserAgent
             }
           }).catch(console.error);
@@ -405,7 +435,7 @@ export const authOptions: AuthOptions = {
           };
         } catch (error: any) {
           console.error("[AUTH] OTP authorize error:", error);
-          return null; // Return null instead of throwing to prevent NextAuth redirect crashes
+          return null;
         }
       },
     }),

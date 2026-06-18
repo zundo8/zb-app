@@ -299,7 +299,7 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
                     <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                       {/* Column 1 */}
                       <div className="space-y-4">
-                        <Link href="/story" className="flex items-center gap-3 group">
+                        <Link href={findPolicyPath("about", "/policies/about-us")} className="flex items-center gap-3 group">
                           <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
                             <Info className="w-3.5 h-3.5" />
                           </div>
@@ -314,6 +314,15 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
                           </div>
                           <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
                             Contact
+                          </span>
+                        </Link>
+
+                        <Link href={findPolicyPath("contact-information", "/policies/contact-information")} className="flex items-center gap-3 group">
+                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                            <MapPin className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                            Contact Information
                           </span>
                         </Link>
 

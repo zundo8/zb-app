@@ -51,6 +51,7 @@ export default function LoginPage() {
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => { 
     setMounted(true); 
@@ -243,12 +244,16 @@ export default function LoginPage() {
   };
 
   const handleLogin = async (codeOverride?: string) => {
+    // Prevent double-submission (auto-submit + form submit racing)
+    if (isSubmittingRef.current) return;
+
     const finalOtp = codeOverride || otp.join("");
     if (finalOtp.length < 6 || !/^\d{6}$/.test(finalOtp)) {
       setErrors({ otp: "Enter 6-digit OTP" });
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
     setError("");
     setErrors({});
@@ -266,7 +271,7 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError("Invalid OTP. Try 123456.");
+        setError("Invalid OTP. Please check the code and try again.");
       } else if (result?.ok) {
         router.replace(callbackUrl);
       }
@@ -274,6 +279,7 @@ export default function LoginPage() {
       setError("Verification failed. Please try again.");
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

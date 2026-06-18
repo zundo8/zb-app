@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   Mail,
   MapPin,
@@ -18,7 +18,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 function SupportPageContent() {
   const { data: session, status } = useSession();
-  const searchParams = useSearchParams();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<'form' | 'chat'>('form');
@@ -63,22 +62,31 @@ function SupportPageContent() {
     }
   }, [status, session]);
 
+  const [urlParams, setUrlParams] = useState<{ tab: string | null; orderId: string | null }>({ tab: null, orderId: null });
+
+  // Parse URL search parameters on mount (prevents Suspense de-optimization/loader lag)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const orderId = params.get('orderId');
+      setUrlParams({ tab, orderId });
+
+      if (tab === 'chat') {
+        setActiveTab('chat');
+      }
+    }
+  }, []);
+
   // Load session or handle tab parameter
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    const orderIdParam = searchParams.get('orderId');
-
-    if (tabParam === 'chat') {
-      setActiveTab('chat');
-    }
-
     if (status === 'authenticated' && session?.user) {
       const customerId = (session as any)?.customer?.id || (session?.user as any)?.id;
       if (customerId) {
-        handleLoadOrCreateTicket(customerId, orderIdParam);
+        handleLoadOrCreateTicket(customerId, urlParams.orderId, urlParams.tab);
       }
     }
-  }, [status, session, searchParams]);
+  }, [status, session, urlParams]);
 
   // Fetch active messages or polling for chat
   useEffect(() => {
@@ -89,7 +97,7 @@ function SupportPageContent() {
     }
   }, [activeTab, ticketId]);
 
-  const handleLoadOrCreateTicket = async (customerId: string, orderIdParam: string | null) => {
+  const handleLoadOrCreateTicket = async (customerId: string, orderIdParam: string | null, tabParam: string | null = null) => {
     setFetchingTicket(true);
     try {
       const res = await fetch(`/api/support/tickets?customerId=${customerId}&status=OPEN`);
@@ -99,7 +107,7 @@ function SupportPageContent() {
         setTicketId(activeTicket.id);
         setChatMessages(activeTicket.messages || []);
       } else {
-        const shouldAutoCreate = searchParams.get('tab') === 'chat' || orderIdParam;
+        const shouldAutoCreate = tabParam === 'chat' || orderIdParam;
         if (shouldAutoCreate) {
           const subject = orderIdParam
             ? `Order Support #${orderIdParam.slice(-8).toUpperCase()}`
@@ -538,14 +546,5 @@ function SupportPageContent() {
 }
 
 export default function SupportPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 space-y-4">
-        <Loader2 className="w-6 h-6 animate-spin text-foreground/20" />
-        <p className="text-[8px] text-foreground/30 font-black uppercase tracking-[0.3em]">Loading Support...</p>
-      </div>
-    }>
-      <SupportPageContent />
-    </Suspense>
-  );
+  return <SupportPageContent />;
 }
