@@ -265,12 +265,12 @@ export default function LoginPage() {
       const result = await signIn("otp", { 
         phone: fullPhone, 
         otp: finalOtp, 
-        name: name.trim(), 
+        name: (name || "").trim(), 
         redirect: false, 
         callbackUrl 
       });
 
-      if (result?.error) {
+      if (result?.error || !result?.ok) {
         setError("Invalid OTP. Please check the code and try again.");
         setLoading(false);
         isSubmittingRef.current = false;
