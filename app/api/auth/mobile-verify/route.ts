@@ -58,6 +58,15 @@ export async function POST(req: Request) {
         const verifyCheck = await SmsService.checkVerification(phone, otp);
         if (verifyCheck === true) {
           isVerified = true;
+          // Cache the verified code locally so that duplicate calls
+          // hit the DB fast-path instead of Twilio (single-use codes).
+          await prisma.verificationCode.create({
+            data: {
+              phone: phone,
+              code: otp,
+              expiresAt: new Date(Date.now() + 2 * 60 * 1000), // 2 min TTL
+            }
+          }).catch(e => console.log("[Mobile Verify] Cache verified OTP:", e.message));
         }
       } catch (err: any) {
         console.log("[Mobile Verify] Twilio Verify check failed/skipped:", err.message);

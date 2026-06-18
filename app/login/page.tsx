@@ -52,6 +52,8 @@ export default function LoginPage() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isSubmittingRef = useRef(false);
+  const loginSucceededRef = useRef(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => { 
     setMounted(true); 
@@ -218,7 +220,7 @@ export default function LoginPage() {
       const nextIdx = Math.min(startIndex + digits.length, 5);
       otpRefs.current[nextIdx]?.focus();
 
-      if (newOtp.every(d => d !== "") && newOtp.join("").length === 6) {
+      if (newOtp.every(d => d !== "") && newOtp.join("").length === 6 && !isSubmittingRef.current && !loginSucceededRef.current) {
         handleLogin(newOtp.join(""));
       }
       return;
@@ -232,7 +234,7 @@ export default function LoginPage() {
       otpRefs.current[index + 1]?.focus();
     }
 
-    if (newOtp.every(d => d !== "") && index === 5 && cleanedVal) {
+    if (newOtp.every(d => d !== "") && index === 5 && cleanedVal && !isSubmittingRef.current && !loginSucceededRef.current) {
       handleLogin(newOtp.join(""));
     }
   };
@@ -244,8 +246,8 @@ export default function LoginPage() {
   };
 
   const handleLogin = async (codeOverride?: string) => {
-    // Prevent double-submission (auto-submit + form submit racing)
-    if (isSubmittingRef.current) return;
+    // Prevent double-submission: block if already submitting or if a previous login succeeded
+    if (isSubmittingRef.current || loginSucceededRef.current) return;
 
     const finalOtp = codeOverride || otp.join("");
     if (finalOtp.length < 6 || !/^\d{6}$/.test(finalOtp)) {
@@ -275,8 +277,11 @@ export default function LoginPage() {
         setLoading(false);
         isSubmittingRef.current = false;
       } else if (result?.ok) {
-        // Successful login: do a hard redirect to refresh layout sessions (server components)
-        window.location.href = callbackUrl;
+        // Lock the form permanently — no more submissions allowed
+        loginSucceededRef.current = true;
+        setRedirecting(true);
+        // Hard redirect to refresh server-side sessions
+        window.location.replace(callbackUrl);
       }
     } catch (err) {
       setError("Verification failed. Please try again.");
@@ -516,7 +521,7 @@ export default function LoginPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -14 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
+                onSubmit={(e) => { e.preventDefault(); if (!isSubmittingRef.current && !loginSucceededRef.current) handleLogin(); }}
                 className="zb-login-step"
               >
                 <div className="zb-login-tab">
@@ -549,6 +554,7 @@ export default function LoginPage() {
                           placeholder="•"
                           className="zb-login-otp-input"
                           autoFocus={i === 0}
+                          disabled={redirecting}
                         />
                       </div>
                     ))}
@@ -558,11 +564,11 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || otp.join("").length < 6}
+                  disabled={loading || redirecting || otp.join("").length < 6}
                   className="zb-login-send-btn"
                 >
                   <span className="zb-login-send-text">
-                    {loading ? <Loader2 className="zb-login-spinner" /> : <>VERIFY <ArrowRight className="zb-login-send-arrow" /></>}
+                    {redirecting ? <><Loader2 className="zb-login-spinner" /> Logging in…</> : loading ? <Loader2 className="zb-login-spinner" /> : <>VERIFY <ArrowRight className="zb-login-send-arrow" /></>}
                   </span>
                 </button>
 
