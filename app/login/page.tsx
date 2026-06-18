@@ -272,12 +272,14 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError("Invalid OTP. Please check the code and try again.");
+        setLoading(false);
+        isSubmittingRef.current = false;
       } else if (result?.ok) {
-        router.replace(callbackUrl);
+        // Successful login: do a hard redirect to refresh layout sessions (server components)
+        window.location.href = callbackUrl;
       }
     } catch (err) {
       setError("Verification failed. Please try again.");
-    } finally {
       setLoading(false);
       isSubmittingRef.current = false;
     }
