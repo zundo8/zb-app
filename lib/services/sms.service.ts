@@ -32,7 +32,11 @@ export const SmsService = {
     }
 
     if (!activeClient) {
-      console.error('[SmsService] Twilio client not initialized.');
+      console.warn('[SmsService] Twilio client not initialized.');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEV FALLBACK] SMS to ${to}: ${body}`);
+        return { sid: 'mock_sid' };
+      }
       throw new Error('Twilio service is not configured correctly.');
     }
 

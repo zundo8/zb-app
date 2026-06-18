@@ -42,12 +42,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
     }
 
-    // Rate limit check
-    if (!checkRateLimit(digits.slice(-10))) {
-      return NextResponse.json(
-        { error: "Too many OTP requests. Please try again in a few minutes." }, 
-        { status: 429 }
-      );
+    // Rate limit check: skip in development or for demo number
+    if (process.env.NODE_ENV === "production" && digits.slice(-10) !== "9999999999") {
+      if (!checkRateLimit(digits.slice(-10))) {
+        return NextResponse.json(
+          { error: "Too many OTP requests. Please try again in a few minutes." }, 
+          { status: 429 }
+        );
+      }
     }
 
     // Special case: Demo User Bypass
@@ -152,7 +154,8 @@ export async function POST(req: Request) {
       message: "OTP sent successfully",
       provider: "sms",
       // Mask the phone number in the response
-      phone: normalizedPhone.slice(0, 4) + "****" + normalizedPhone.slice(-4)
+      phone: normalizedPhone.slice(0, 4) + "****" + normalizedPhone.slice(-4),
+      ...(process.env.NODE_ENV === "development" ? { _devOtp: otp } : {})
     });
   } catch (error: any) {
     console.error("Send OTP error:", error);
