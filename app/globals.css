@@ -1669,7 +1669,7 @@ body.gallery-open .fixed.z-50 {
 }
 
 /* ── Login Desktop / Responsive ── */
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .zb-login-root {
     align-items: center;
     justify-content: center;
@@ -1729,9 +1729,9 @@ body.gallery-open .fixed.z-50 {
 }
 
 /* ── Immersive Spacing and Spacing Gap Reducer for Mobile ── */
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .zb-login-root {
-    padding: 44px 20px 20px !important; /* Reduced from 82px to pull content up */
+    padding: 108px 20px 20px !important; /* Pushes content down below mobile floating header */
     justify-content: flex-start !important;
   }
   

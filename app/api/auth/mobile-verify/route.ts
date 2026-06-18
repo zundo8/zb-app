@@ -40,13 +40,15 @@ export async function POST(req: Request) {
       });
 
       if (verification) {
-        const ageInMs = Date.now() - new Date(verification.createdAt).getTime();
-        // Valid within a 15 minutes window
-        if (ageInMs < 15 * 60 * 1000) {
+        const now = new Date();
+        // Check if code has expired
+        if (now < new Date(verification.expiresAt)) {
           isVerified = true;
-          // Delete the used code to prevent reuse
-          await prisma.verificationCode.delete({
-            where: { id: verification.id }
+          // Set expiresAt to 15 seconds in the future to allow duplicate concurrent requests
+          // but prevent reuse after that.
+          await prisma.verificationCode.update({
+            where: { id: verification.id },
+            data: { expiresAt: new Date(Date.now() + 15 * 1000) }
           }).catch(console.error);
         }
       }

@@ -65,11 +65,31 @@ export default function LoginPage() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const safeRedirect = (url: string) => {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      window.location.replace(url);
+    } else {
+      router.replace(url);
+    }
+  };
+
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace(callbackUrl);
+      safeRedirect(callbackUrl);
     }
-  }, [status, router, callbackUrl]);
+  }, [status, callbackUrl]);
+
+  // Set initial error from search params (NextAuth redirects)
+  useEffect(() => {
+    const errorParam = searchParams?.get("error");
+    if (errorParam) {
+      if (errorParam === "CredentialsSignin") {
+        setError("Invalid verification code. Please check the code and try again.");
+      } else {
+        setError(errorParam);
+      }
+    }
+  }, [searchParams]);
 
   // Fetch login bg images from admin settings
   useEffect(() => {

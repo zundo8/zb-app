@@ -139,13 +139,15 @@ export const authOptions: AuthOptions = {
             });
 
             if (verification) {
-              const ageInMs = Date.now() - new Date(verification.createdAt).getTime();
-              // Valid within a 15 minutes window
-              if (ageInMs < 15 * 60 * 1000) {
+              const now = new Date();
+              // Check if code has expired
+              if (now < new Date(verification.expiresAt)) {
                 isVerified = true;
-                // Delete the used code to prevent reuse
-                await prisma.verificationCode.delete({
-                  where: { id: verification.id }
+                // Set expiresAt to 15 seconds in the future to allow duplicate concurrent requests
+                // but prevent reuse after that.
+                await prisma.verificationCode.update({
+                  where: { id: verification.id },
+                  data: { expiresAt: new Date(Date.now() + 15 * 1000) }
                 }).catch(console.error);
               }
             }
@@ -317,9 +319,9 @@ export const authOptions: AuthOptions = {
             return {
               id: customer.id,
               name: customer.name ?? "User",
-              email: customer.email ?? undefined,
+              email: customer.email ?? null,
               phone: customer.phone,
-              image: (customer as any).image ?? undefined,
+              image: (customer as any).image ?? null,
             };
           }
 
@@ -443,9 +445,9 @@ export const authOptions: AuthOptions = {
           return {
             id: customer.id,
             name: customer.name ?? "User",
-            email: customer.email ?? undefined,
+            email: customer.email ?? null,
             phone: customer.phone,
-            image: (customer as any).image ?? undefined,
+            image: (customer as any).image ?? null,
           };
         } catch (error: any) {
           console.error("[AUTH] OTP authorize error:", error);
@@ -503,10 +505,10 @@ export const authOptions: AuthOptions = {
 
           return {
             id: customer.id,
-            name: customer.name,
-            email: customer.email,
-            phone: customer.phone,
-            image: (customer as any).image,
+            name: customer.name ?? "User",
+            email: customer.email ?? null,
+            phone: customer.phone ?? null,
+            image: (customer as any).image ?? null,
           };
         } catch (error: any) {
           console.error("[AUTH] Shopify authorize error:", error);
@@ -628,12 +630,12 @@ export const authOptions: AuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as any).role || "CUSTOMER";
-        token.permissions = (user as any).permissions;
+        token.permissions = (user as any).permissions ?? null;
         token.loginTime = Math.floor(Date.now() / 1000);
-        token.needsPasswordChange = (user as any).needsPasswordChange;
-        token.phone = (user as any).phone;
-        token.email = (user as any).email;
-        token.image = (user as any).image;
+        token.needsPasswordChange = (user as any).needsPasswordChange ?? null;
+        token.phone = (user as any).phone ?? null;
+        token.email = (user as any).email ?? null;
+        token.image = (user as any).image ?? null;
       }
 
       // Absolute 8-hour limit for admins
@@ -649,21 +651,21 @@ export const authOptions: AuthOptions = {
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).permissions = token.permissions;
-        (session.user as any).needsPasswordChange = token.needsPasswordChange;
-        (session.user as any).phone = token.phone;
-        (session.user as any).email = token.email || session.user.email;
-        (session.user as any).image = token.image || session.user.image;
+        (session.user as any).id = token.id ?? null;
+        (session.user as any).role = token.role ?? "CUSTOMER";
+        (session.user as any).permissions = token.permissions ?? null;
+        (session.user as any).needsPasswordChange = token.needsPasswordChange ?? null;
+        (session.user as any).phone = token.phone ?? null;
+        (session.user as any).email = token.email || session.user.email || null;
+        (session.user as any).image = token.image || session.user.image || null;
         
         // Populate session.customer object to match frontend usage
         (session as any).customer = {
-          id: token.id,
-          phone: token.phone,
-          email: token.email || session.user.email,
-          name: session.user.name,
-          image: token.image || session.user.image
+          id: token.id ?? null,
+          phone: token.phone ?? null,
+          email: token.email || session.user.email || null,
+          name: session.user.name ?? "User",
+          image: token.image || session.user.image || null
         };
       }
       return session;
