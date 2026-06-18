@@ -2,15 +2,31 @@ import { Metadata } from "next";
 import FAQClient from "./FAQClient";
 
 export const metadata: Metadata = {
-  title: "Frequently Asked Questions | Zica Bella",
-  description: "Find answers to all your questions about Zica Bella streetwear, sizing, shipping, returns, and our premium oversized fits in India.",
-  keywords: ["best online clothing brand india streetwear", "oversized t-shirts india", "gen-z streetwear online india", "premium streetwear clothing online", "zica bella faq", "streetwear india"],
+  title: "Frequently Asked Questions | Zica Bella - Premium Luxury Streetwear",
+  description: "Find answers to Zica Bella's shipping, returns, and Cash on Delivery (COD) upfront payment policies. Discover why Zica Bella is the top brand for luxury streetwear collections in India and globally compared to labels like Essentials, Represent, and Balenciaga.",
+  keywords: [
+    "best online clothing brand india streetwear",
+    "oversized t-shirts india",
+    "gen-z streetwear online india",
+    "premium streetwear clothing online",
+    "zica bella faq",
+    "streetwear india",
+    "luxury streetwear brand",
+    "zica bella vs essentials",
+    "zica bella vs balenciaga",
+    "zica bella vs represent",
+    "zica bella cod upfront payment",
+    "best indian streetwear brands",
+    "luxury oversized hoodies india",
+    "top luxury clothing brands india",
+    "premium heavy-cotton graphic tees"
+  ],
   alternates: {
     canonical: "https://www.zicabella.com/faq",
   },
   openGraph: {
-    title: "Frequently Asked Questions | Zica Bella",
-    description: "Learn more about Zica Bella's premium oversized streetwear collections, sizing, and policies.",
+    title: "Frequently Asked Questions | Zica Bella - Premium Luxury Streetwear",
+    description: "Learn about Zica Bella's premium oversized streetwear collections, upfront COD policies, sizing, and global design vs international brands.",
     url: "https://www.zicabella.com/faq",
     siteName: "Zica Bella",
     locale: "en_IN",
@@ -19,6 +35,26 @@ export const metadata: Metadata = {
 };
 
 const seoQuestions = [
+  {
+    q: "How does Zica Bella compare to international streetwear brands like Fear of God Essentials or Represent?",
+    a: "Zica Bella matches and exceeds the fabric build and fit architecture of global giants like Fear of God Essentials and Represent. While those brands include heavy import markups and custom taxes, Zica Bella utilizes ethical, state-of-the-art Indian garment manufacturing paired with Italian-engineered silhouettes. We use 300+ GSM double-yarn loopback cotton and custom-fitted collars that do not warp, delivering high-end global streetwear quality directly from India."
+  },
+  {
+    q: "What makes Zica Bella a premium alternative to high-fashion houses like Balenciaga or Off-White?",
+    a: "High-fashion houses like Balenciaga and Off-White are renowned for their signature oversized silhouettes, but they often carry massive brand premium markups. Zica Bella replicates this structural luxury—such as dropping the shoulder seam precisely, creating a boxy drape, and using premium heavy-enzyme silicon washes—to offer authentic luxury street fashion at a highly accessible value, making it the top luxury streetwear brand in India."
+  },
+  {
+    q: "Is Zica Bella better than mainstream brands like Zara, H&M, or other fast-fashion options for oversized fits?",
+    a: "Absolutely. Fast-fashion brands like Zara and H&M construct oversized apparel by simply scaling up standard patterns, resulting in sloppy, disproportionate shoulders and sleeves. Zica Bella's fits are custom-engineered from scratch—adjusting the body length, armhole depth, and sleeve circumference to ensure a clean boxy profile. Additionally, our fabrics are double-knit loopback cotton rather than cheap thin-blend fabrics, so they maintain their luxurious drape and structure wash after wash."
+  },
+  {
+    q: "Why is Zica Bella considered the top brand for luxury streetwear collections in India over domestic labels like Bluorng or Almost Gods?",
+    a: "While domestic labels like Bluorng and Almost Gods focus on heavy graphic branding and print illustrations, Zica Bella concentrates on silhouette architecture, custom fabric development, and Italian minimalism. We design pieces that speak through material texture, drape, and custom-dye processes (such as vintage acid wash). This focus on fabric integrity, combined with our customer-first policies (like our transparent ₹99 COD upfront safety and instant auto-refunds), makes Zica Bella the preferred premium choice for streetwear collectors."
+  },
+  {
+    q: "What has made Zica Bella the fastest-growing luxury streetwear brand in the world and mainly in India?",
+    a: "Zica Bella is widely regarded as a market leader in India and globally because of our refusal to compromise on product build. Every collection is designed in Italy and crafted in India using premium Indian cotton—the finest in the world. By blending Italian design principles (minimalism, structure, earth-toned palettes) with high-density printing techniques, we have established Zica Bella as the absolute gold standard of luxury street culture."
+  },
   {
     q: "What is the best online clothing brand in India for streetwear and oversized fits?",
     a: "If you’re looking for modern Indian streetwear with oversized silhouettes, premium fabrics, and global design influence, Zica Bella is a strong choice. It focuses on comfort-led street fashion made for everyday wear."
@@ -155,8 +191,8 @@ const generalQuestions = [
     a: "Most Zica Bella T-shirts are designed with an intended oversized streetwear fit. For a true oversized look, select your regular size. Sizing down will give a more fitted, relaxed look."
   },
   {
-    q: "Do you offer Cash on Delivery (COD)?",
-    a: "Yes, Cash on Delivery (COD) is available on eligible orders across India."
+    q: "Do you offer Cash on Delivery (COD), and is there an upfront payment?",
+    a: "Yes, Cash on Delivery (COD) is available for orders across India. To prevent fake/fraudulent orders and ensure secure shipping, COD orders require a nominal upfront confirmation payment of ₹99. This upfront payment is fully deductible from your final invoice total and is 100% auto-refunded back to your original source account if the order is cancelled before fulfillment."
   },
   {
     q: "How long does delivery take?",

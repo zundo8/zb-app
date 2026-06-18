@@ -250,67 +250,24 @@ function SupportPageContent() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          {/* Contact Info Panel */}
-          <motion.div
-            initial={{ opacity: 0, x: -25 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="lg:col-span-1 space-y-4"
-          >
-            <div className="p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] dark:bg-white/[0.01] backdrop-blur-3xl shadow-2xl relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-b from-foreground/[0.02] to-transparent pointer-events-none" />
-
-              <h2 className="text-sm font-bold mb-6 uppercase tracking-widest text-foreground/85">Get In Touch</h2>
-
-              <div className="space-y-6">
-
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5 text-foreground/70">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">Email Support</p>
-                    <p className="text-foreground/80 text-sm font-medium">support@zicabella.com</p>
-                    <p className="text-foreground/40 text-xs mt-1">Average response within 24h</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5 text-foreground/70">
-                    <MapPin className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">HQ Location</p>
-                    <p className="text-foreground/80 text-sm font-medium">Noida, India</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 p-5 rounded-2xl bg-blue-500/[0.02] border border-blue-500/10">
-                <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-1">Knowledge Base</p>
-                <p className="text-foreground/50 text-xs leading-relaxed">
-                  Have quick queries? Look at our <a href="/faq" className="text-foreground border-b border-foreground/20 hover:border-foreground transition-colors">FAQ section</a> first.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
           {/* Interaction Card Area */}
           <motion.div
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-            className="lg:col-span-2"
+            className="lg:col-span-2 order-1 lg:order-2"
           >
-            <div className="h-full min-h-[420px] md:min-h-[560px] rounded-2xl md:rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] dark:bg-white/[0.01] backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col relative">
-              <div className="absolute inset-0 bg-gradient-to-b from-foreground/[0.01] to-transparent pointer-events-none" />
-
+            <div className="apple-glass-capsule h-full min-h-[460px] md:min-h-[560px] flex flex-col relative overflow-hidden">
+              <div className="apple-glass-sweep-glow" />
               {/* Tab Navigation */}
-              <div className="flex border-b border-foreground/5 p-2 bg-foreground/[0.01] relative z-10">
+              <div className="flex border-b border-foreground/5 p-2 bg-foreground/[0.01] relative z-10 gap-1.5">
                 <button
                   onClick={() => setActiveTab('form')}
-                  className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'form' ? 'bg-foreground/5 text-foreground border border-foreground/5' : 'text-foreground/40 hover:text-foreground/75'
-                    }`}
+                  className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                    activeTab === 'form' 
+                      ? 'bg-foreground/10 text-foreground shadow-sm border border-foreground/10' 
+                      : 'text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.02]'
+                  }`}
                 >
                   Message Us
                 </button>
@@ -324,8 +281,11 @@ function SupportPageContent() {
                       }
                     }
                   }}
-                  className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'chat' ? 'bg-foreground/5 text-foreground border border-foreground/5' : 'text-foreground/40 hover:text-foreground/75'
-                    }`}
+                  className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                    activeTab === 'chat' 
+                      ? 'bg-foreground/10 text-foreground shadow-sm border border-foreground/10' 
+                      : 'text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.02]'
+                  }`}
                 >
                   Live Chat
                 </button>
@@ -362,7 +322,7 @@ function SupportPageContent() {
                               type="text"
                               value={formData.name}
                               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                              className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
+                              className="glass-input w-full px-4 py-3 md:px-5 md:py-3.5 focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
                               placeholder="Enter your name"
                             />
                           </div>
@@ -374,7 +334,7 @@ function SupportPageContent() {
                               type="email"
                               value={formData.email}
                               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                              className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
+                              className="glass-input w-full px-4 py-3 md:px-5 md:py-3.5 focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
                               placeholder="Enter your email"
                             />
                           </div>
@@ -387,7 +347,7 @@ function SupportPageContent() {
                             type="text"
                             value={formData.subject}
                             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                            className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
+                            className="glass-input w-full px-4 py-3 md:px-5 md:py-3.5 focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
                             placeholder="Reason for inquiry"
                           />
                         </div>
@@ -399,7 +359,7 @@ function SupportPageContent() {
                             rows={4}
                             value={formData.message}
                             onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                            className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-3 focus:outline-none focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground resize-none"
+                            className="glass-input w-full px-4 py-3 md:px-5 md:py-3 focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground resize-none"
                             placeholder="Detail your request..."
                           />
                         </div>
@@ -474,7 +434,7 @@ function SupportPageContent() {
                       ) : (
                         <div className="flex-1 flex flex-col h-full justify-between">
                           {/* Messages list */}
-                          <div className="flex-1 space-y-4 pb-4 overflow-y-auto h-[320px] md:h-[380px] pr-2 custom-scrollbar">
+                          <div className="flex-1 space-y-4 pb-4 overflow-y-auto h-[40dvh] min-h-[250px] lg:h-[380px] pr-2 custom-scrollbar">
                             {chatMessages.length === 0 ? (
                               <div className="flex items-center justify-center h-32 text-foreground/35 text-xs font-medium">
                                 Support session initialized. How can we help?
@@ -521,7 +481,7 @@ function SupportPageContent() {
                               value={newMessage}
                               onChange={(e) => setNewMessage(e.target.value)}
                               placeholder="Type a message..."
-                              className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-2xl pl-5 pr-14 py-4 focus:outline-none focus:border-foreground/20 transition-all text-xs text-foreground placeholder:text-foreground/30"
+                              className="glass-input w-full pl-5 pr-14 py-4 focus:border-foreground/20 transition-all text-xs text-foreground placeholder:text-foreground/30"
                             />
                             <button
                               type="submit"
@@ -539,6 +499,50 @@ function SupportPageContent() {
               </div>
             </div>
           </motion.div>
+
+          {/* Contact Info Panel */}
+          <motion.div
+            initial={{ opacity: 0, x: -25 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="lg:col-span-1 space-y-4 order-2 lg:order-1"
+          >
+            <div className="apple-glass-capsule p-6 md:p-8 relative overflow-hidden">
+              <div className="apple-glass-sweep-glow" />
+              <h2 className="text-sm font-bold mb-6 uppercase tracking-widest text-foreground/85">Get In Touch</h2>
+
+              <div className="space-y-6">
+
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5 text-foreground/70">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">Email Support</p>
+                    <p className="text-foreground/80 text-sm font-medium">support@zicabella.com</p>
+                    <p className="text-foreground/40 text-xs mt-1">Average response within 24h</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5 text-foreground/70">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">HQ Location</p>
+                    <p className="text-foreground/80 text-sm font-medium">Noida, India</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 p-5 rounded-2xl bg-blue-500/[0.02] border border-blue-500/10">
+                <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-1">Knowledge Base</p>
+                <p className="text-foreground/50 text-xs leading-relaxed">
+                  Have quick queries? Look at our <a href="/faq" className="text-foreground border-b border-foreground/20 hover:border-foreground transition-colors">FAQ section</a> first.
+                </p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </main>
     </div>
@@ -546,5 +550,13 @@ function SupportPageContent() {
 }
 
 export default function SupportPage() {
-  return <SupportPageContent />;
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-foreground/50" />
+      </div>
+    }>
+      <SupportPageContent />
+    </Suspense>
+  );
 }
