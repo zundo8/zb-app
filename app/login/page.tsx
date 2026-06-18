@@ -105,7 +105,10 @@ export default function LoginPage() {
     : (isDark ? (loginBgDark || "/load-image-2.jpg") : (loginBgLight || "/load-image-2.jpg"));
 
   const handlePhoneChange = (value: string) => {
-    const digitsOnly = value.replace(/\D/g, "");
+    let digitsOnly = value.replace(/\D/g, "");
+    if (digitsOnly.startsWith("0")) {
+      digitsOnly = digitsOnly.slice(1);
+    }
     setPhone(digitsOnly);
     if (errors.phone) setErrors({});
   };
@@ -141,6 +144,9 @@ export default function LoginPage() {
   const handleContinuePhone = async (e: React.FormEvent) => {
     e.preventDefault();
     let cleaned = phone.replace(/\D/g, "");
+    if (cleaned.startsWith("0")) {
+      cleaned = cleaned.slice(1);
+    }
     const countryDigits = country.code.replace(/\D/g, "");
     
     if (cleaned.startsWith(countryDigits) && cleaned.length > 10) {
@@ -207,7 +213,10 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     setErrors({});
-    const cleaned = phone.replace(/\D/g, "");
+    let cleaned = phone.replace(/\D/g, "");
+    if (cleaned.startsWith("0")) {
+      cleaned = cleaned.slice(1);
+    }
     const fullPhone = country.code + cleaned;
 
     try {
@@ -275,7 +284,10 @@ export default function LoginPage() {
     setError("");
     setErrors({});
 
-    const cleaned = phone.replace(/\D/g, "");
+    let cleaned = phone.replace(/\D/g, "");
+    if (cleaned.startsWith("0")) {
+      cleaned = cleaned.slice(1);
+    }
     const fullPhone = country.code + cleaned;
 
     try {
@@ -288,7 +300,11 @@ export default function LoginPage() {
       });
 
       if (result?.error || !result?.ok) {
-        setError("Invalid OTP. Please check the code and try again.");
+        if (result?.error === "CredentialsSignin") {
+          setError("Invalid OTP. Please check the code and try again.");
+        } else {
+          setError(result?.error || "Login failed. Please check the code and try again.");
+        }
         setLoading(false);
         isSubmittingRef.current = false;
       } else if (result?.ok) {
@@ -308,7 +324,10 @@ export default function LoginPage() {
   const handleResendOTP = async () => {
     setLoading(true);
     setError("");
-    const cleaned = phone.replace(/\D/g, "");
+    let cleaned = phone.replace(/\D/g, "");
+    if (cleaned.startsWith("0")) {
+      cleaned = cleaned.slice(1);
+    }
     const fullPhone = country.code + cleaned;
 
     try {
@@ -626,7 +645,7 @@ export default function LoginPage() {
         </div>
 
         {/* Bottom Section: Trust Badges & Policies */}
-        <div className="zb-login-form-section" style={{ marginTop: 'auto', borderTop: 'none', padding: '0' }}>
+        <div className="zb-login-form-section zb-login-footer-section">
           {/* Trust Badges */}
           <div className="zb-login-trust-row">
             <div className="zb-login-trust-item">

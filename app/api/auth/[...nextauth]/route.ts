@@ -128,7 +128,11 @@ export const authOptions: AuthOptions = {
           if (!isVerified) {
             const verification = await prisma.verificationCode.findFirst({
               where: {
-                phone: { contains: normalizedPhone },
+                OR: [
+                  { phone: providedPhone },
+                  { phone: fullPhone },
+                  { phone: { contains: normalizedPhone } }
+                ],
                 code: providedOtp
               },
               orderBy: { createdAt: 'desc' }
@@ -627,6 +631,9 @@ export const authOptions: AuthOptions = {
         token.permissions = (user as any).permissions;
         token.loginTime = Math.floor(Date.now() / 1000);
         token.needsPasswordChange = (user as any).needsPasswordChange;
+        token.phone = (user as any).phone;
+        token.email = (user as any).email;
+        token.image = (user as any).image;
       }
 
       // Absolute 8-hour limit for admins
@@ -646,6 +653,18 @@ export const authOptions: AuthOptions = {
         (session.user as any).role = token.role;
         (session.user as any).permissions = token.permissions;
         (session.user as any).needsPasswordChange = token.needsPasswordChange;
+        (session.user as any).phone = token.phone;
+        (session.user as any).email = token.email || session.user.email;
+        (session.user as any).image = token.image || session.user.image;
+        
+        // Populate session.customer object to match frontend usage
+        (session as any).customer = {
+          id: token.id,
+          phone: token.phone,
+          email: token.email || session.user.email,
+          name: session.user.name,
+          image: token.image || session.user.image
+        };
       }
       return session;
     },

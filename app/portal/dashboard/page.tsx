@@ -26,14 +26,14 @@ export default function PortalDashboard() {
 
     // Use session email or phone to fetch orders
     const email = session?.user?.email;
-    const phone = (session as any)?.customer?.phone;
+    const phone = (session as any)?.customer?.phone || (session?.user as any)?.phone;
     
     const shopDomain =
       process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN || "8tiahf-bk.myshopify.com";
 
     const fetchOrders = async () => {
       try {
-        const query = email ? `email=${encodeURIComponent(email)}` : `phone=${encodeURIComponent(phone)}`;
+        const query = email ? `email=${encodeURIComponent(email)}` : `phone=${encodeURIComponent(phone || "")}`;
         const res = await fetch(`/api/portal/orders?${query}&shopDomain=${shopDomain}`);
         const data = await res.json();
         if (res.ok) {
