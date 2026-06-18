@@ -111,7 +111,8 @@ export async function POST(req: Request) {
     const shopId = shop.id;
 
     // ── FAST PATH: Look up local customer first ──
-    let customer = await prisma.customer.findFirst({
+    // Prioritize canonical customers with valid shopifyId (not starting with otp_ or mobile_)
+    let customers = await prisma.customer.findMany({
       where: {
         OR: [
           { phone: fullPhone },
@@ -121,6 +122,10 @@ export async function POST(req: Request) {
       },
       include: { communityMember: true }
     });
+
+    let customer = customers.find(c => c.shopifyId && !c.shopifyId.startsWith("otp_") && !c.shopifyId.startsWith("mobile_"))
+      || customers[0]
+      || null;
 
     if (customer) {
       // ── EXISTING USER: Return immediately ──
@@ -167,17 +172,36 @@ export async function POST(req: Request) {
           if (!shopifyCustomer) return;
 
           console.log(`[Mobile Verify-BG] Syncing Shopify customer ${shopifyCustomer.id}`);
-          await prisma.customer.update({
-            where: { id: bgCustomerId },
-            data: {
-              shopifyId: String(shopifyCustomer.id),
-              email: shopifyCustomer.email || undefined,
-              name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
-              phone: shopifyCustomer.phone || undefined,
-              ordersCount: shopifyCustomer.orders_count || 0,
-              totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+          try {
+            await prisma.customer.update({
+              where: { id: bgCustomerId },
+              data: {
+                shopifyId: String(shopifyCustomer.id),
+                email: shopifyCustomer.email || undefined,
+                name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
+                phone: shopifyCustomer.phone || undefined,
+                ordersCount: shopifyCustomer.orders_count || 0,
+                totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+              }
+            });
+          } catch (e: any) {
+            // Handle unique constraint violation on shopifyId defensively
+            if (e.code === 'P2002' && (e.meta?.target?.includes('shopifyId') || JSON.stringify(e).includes('shopifyId'))) {
+              console.warn(`[Mobile Verify-BG] Unique constraint on shopifyId for customer ${bgCustomerId}. Retrying sync without shopifyId...`);
+              await prisma.customer.update({
+                where: { id: bgCustomerId },
+                data: {
+                  email: shopifyCustomer.email || undefined,
+                  name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
+                  phone: shopifyCustomer.phone || undefined,
+                  ordersCount: shopifyCustomer.orders_count || 0,
+                  totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+                }
+              }).catch(err => console.error("[Mobile Verify-BG] Retry sync failed:", err.message));
+            } else {
+              console.error("[Mobile Verify-BG] Update error:", e.message || e);
             }
-          }).catch(e => console.error("[Mobile Verify-BG] Update error:", e.message));
+          }
 
           // Import addresses
           if (shopifyCustomer.addresses && Array.isArray(shopifyCustomer.addresses)) {
