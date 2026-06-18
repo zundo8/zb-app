@@ -247,7 +247,7 @@ export default function PolicyClient({ activePolicy, allPolicies }: PolicyClient
         </div>
 
         {/* ─── Header: Brand Title & Document Details ─── */}
-        <div className="zb-login-form-section mt-6">
+        <div className="zb-login-form-section mt-6 relative z-30">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -265,7 +265,7 @@ export default function PolicyClient({ activePolicy, allPolicies }: PolicyClient
 
           {/* Minimal Dropdown Selector (matches country selector style) */}
           <div className="zb-login-tab mt-6 pb-2" ref={dropdownRef}>
-            <div className="relative">
+            <div className="relative z-50">
               <button
                 type="button"
                 onClick={() => setShowPicker(!showPicker)}
@@ -284,23 +284,22 @@ export default function PolicyClient({ activePolicy, allPolicies }: PolicyClient
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.97 }}
                     transition={{ duration: 0.15 }}
-                    className="zb-login-cc-dropdown w-64"
+                    className="zb-policy-dropdown w-64"
                     style={{ bottom: "auto", top: "calc(100% + 8px)" }}
                   >
                     {allPolicies.map((p) => (
-                      <button
+                      <Link
                         key={p.handle}
-                        type="button"
+                        href={`/policies/${p.handle}`}
                         onClick={() => {
                           setShowPicker(false);
-                          router.push(`/policies/${p.handle}`);
                         }}
                         className={`zb-login-cc-item py-3 ${activePolicy.handle === p.handle ? "zb-login-cc-item--active font-bold" : ""}`}
                       >
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-left">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-left w-full block">
                           {p.title.replace(/\s*\(.*\)\s*/, "")}
                         </span>
-                      </button>
+                      </Link>
                     ))}
                   </motion.div>
                 )}
@@ -333,46 +332,8 @@ export default function PolicyClient({ activePolicy, allPolicies }: PolicyClient
           </div>
         </motion.div>
 
-        {/* ─── Bottom Section: Trust Row & Copyright ─── */}
-        <div className="zb-login-form-section mt-auto">
-          {/* Trust Badges */}
-          <div className="zb-login-trust-row border-t border-foreground/5 dark:border-white/5 pt-6">
-            <div className="zb-login-trust-item">
-              <ShieldCheck className="zb-login-trust-icon" />
-              <div>
-                <span className="zb-login-trust-label">SECURE</span>
-                <span className="zb-login-trust-sub">Browse</span>
-              </div>
-            </div>
-            <div className="zb-login-trust-item">
-              <BadgeCheck className="zb-login-trust-icon" />
-              <div>
-                <span className="zb-login-trust-label">OFFICIAL</span>
-                <span className="zb-login-trust-sub">Zica Bella Page</span>
-              </div>
-            </div>
-            <div className="zb-login-trust-item">
-              <Gem className="zb-login-trust-icon" />
-              <div>
-                <span className="zb-login-trust-label">PREMIUM</span>
-                <span className="zb-login-trust-sub">Legal Terms</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Copyright and policy links */}
-          <div className="zb-login-policies border-t border-foreground/5 dark:border-white/5 pt-6 pb-2">
-            <a href="/" className="zb-login-policy-link">Home</a>
-            <span className="zb-login-policy-dot">•</span>
-            <a href="/support" className="zb-login-policy-link">Support Center</a>
-          </div>
-
-          <div className="text-center pb-4 mt-2">
-            <p className="text-[7.5px] font-semibold uppercase tracking-[0.3em] text-foreground/15 dark:text-white/20">
-              © 2026 Zica Bella · Luxury Streetwear · Designed in Italy · Crafted in India
-            </p>
-          </div>
-        </div>
+        {/* Minimal Bottom Padding */}
+        <div className="w-full pt-10 pb-6 mt-auto" />
 
       </div>
     </div>
