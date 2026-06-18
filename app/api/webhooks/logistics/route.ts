@@ -8,6 +8,7 @@
  */
 
 import { NextResponse, NextRequest } from 'next/server';
+import * as crypto from 'crypto';
 import prisma from '@/lib/db';
 import { validateWebhookSignature } from '@/lib/services/logistics';
 
@@ -32,12 +33,74 @@ function normalizeStatus(rawStatus: string): string {
   return STATUS_MAP[rawStatus] || rawStatus.toLowerCase().replace(/\s+/g, '_');
 }
 
+interface ShipmentDetail {
+  AWB?: string;
+  tracking_number?: string;
+  awb?: string;
+  waybill?: string;
+  shipment_id?: string;
+  ReferenceNo?: string;
+  status?: string;
+  current_status?: string;
+  shipment_status?: string;
+  timestamp?: string;
+  event_time?: string;
+  scanned_date?: string;
+  location?: string;
+  current_location?: string;
+  city?: string;
+  description?: string;
+  activity?: string;
+  status_description?: string;
+  Status?: {
+    Status?: string;
+    StatusType?: string;
+    StatusDateTime?: string;
+    PickUpDate?: string;
+    StatusLocation?: string;
+    Instructions?: string;
+  };
+  estimated_delivery?: string;
+  etd?: string;
+}
+
+interface WebhookPayload extends ShipmentDetail {
+  Shipment?: ShipmentDetail;
+}
+
+/**
+ * Logs a webhook event to the webhook_logs table for audit/debugging.
+ * Uses raw SQL since the table is not modeled in Prisma.
+ * Silently catches errors if the table doesn't exist yet.
+ */
+async function logToWebhookLogs(
+  source: string,
+  payload: string,
+  status: string
+): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "webhook_logs" ("id", "source", "payload", "status", "created_at") VALUES ($1, $2, $3, $4, NOW())`,
+      crypto.randomUUID(),
+      source,
+      payload.substring(0, 10000),
+      status
+    );
+  } catch (err) {
+    // webhook_logs table may not exist yet — log warning but don't fail the webhook
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn('[Webhook] Could not write to webhook_logs:', errMsg.substring(0, 150));
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
-    const signature = req.headers.get('x-webhook-signature') ||
-                      req.headers.get('x-shiprocket-signature') ||
-                      req.headers.get('x-delhivery-signature') || '';
+    const signature =
+      req.headers.get('authorization') ||
+      req.headers.get('x-webhook-signature') ||
+      req.headers.get('x-shiprocket-signature') ||
+      req.headers.get('x-delhivery-signature') || '';
 
     // Validate webhook signature
     const webhookSecret = process.env.DELHIVERY_WEBHOOK_SECRET || '';
@@ -49,8 +112,20 @@ export async function POST(req: NextRequest) {
       secret = shop?.webhookSecret || '';
     }
 
+    // Parse payload early to assist provider detection
+    let earlyPayload: { Shipment?: unknown } | null = null;
+    try { earlyPayload = JSON.parse(rawBody) as { Shipment?: unknown }; } catch {}
+
+    // Detect provider: Delhivery sends Bearer token in Authorization header
+    const isDelhivery =
+      !!req.headers.get('authorization') ||
+      !!req.headers.get('x-delhivery-signature') ||
+      !!earlyPayload?.Shipment;
+
+    const provider = isDelhivery ? 'delhivery' : 'generic';
+
     if (secret && signature) {
-      const isValid = validateWebhookSignature(rawBody, signature, secret);
+      const isValid = validateWebhookSignature(rawBody, signature, secret, provider);
       if (!isValid) {
         console.error('[Webhook] Invalid logistics signature — rejecting');
         return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 });
@@ -62,15 +137,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse the payload
-    let payload: any;
+    let payload: WebhookPayload;
     try {
-      payload = JSON.parse(rawBody);
+      payload = JSON.parse(rawBody) as WebhookPayload;
     } catch {
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
     // Handle nested Shipment structure (Delhivery default format)
-    let shipmentData = payload;
+    let shipmentData: ShipmentDetail = payload;
     if (payload.Shipment) {
       shipmentData = payload.Shipment;
     }
@@ -127,25 +202,30 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Find and update shipment
+    // FIX 2: Expanded AWB field lookup — check trackingNumber and awb on Shipment,
+    // plus delhivery_awb on the related Order, to handle AWBs stored under any column.
     const shipment = await prisma.shipment.findFirst({
       where: {
         OR: [
           { trackingNumber },
           { awb: trackingNumber },
+          { order: { delhivery_awb: trackingNumber } },
         ],
       },
       include: { order: { include: { customer: true } } },
     });
 
+    // FIX 1: Graceful handling for unknown AWBs — return 200 instead of 404
     if (!shipment) {
-      console.warn(`[Webhook] No shipment found for: ${trackingNumber}`);
-      // Still mark event as processed to avoid retries
+      console.warn(`[Webhook] No shipment found for AWB: ${trackingNumber} — skipping gracefully`);
+      // Mark event as processed to avoid retries
       await prisma.webhookEvent.update({
         where: { id: webhookEvent.id },
         data: { processed: true, processedAt: new Date() },
       });
-      return NextResponse.json({ error: 'Shipment not found', tracking_number: trackingNumber }, { status: 404 });
+      // Log to webhook_logs with skipped status
+      await logToWebhookLogs('delhivery', rawBody, 'skipped_unknown_awb');
+      return NextResponse.json({ success: true, message: 'AWB not tracked' }, { status: 200 });
     }
 
     // Append event to scan history
@@ -158,9 +238,14 @@ export async function POST(req: NextRequest) {
     });
 
     // Update shipment
-    const updateData: any = {
+    const updateData: {
+      status: string;
+      currentLocation: string;
+      events: string;
+      estimatedDelivery?: Date;
+    } = {
       status: normalizedStatus,
-      currentLocation: location || shipment.currentLocation,
+      currentLocation: location || shipment.currentLocation || '',
       events: JSON.stringify(existingEvents),
     };
     if (estimatedDelivery) {
@@ -176,6 +261,9 @@ export async function POST(req: NextRequest) {
       data: { processed: true, processedAt: new Date() },
     });
 
+    // Log successful processing to webhook_logs
+    await logToWebhookLogs('delhivery', rawBody, 'processed');
+
     console.log(`[Webhook] ✅ Updated shipment ${shipment.id} → ${normalizedStatus}`);
 
     // TODO: Trigger push notification for key events
@@ -190,7 +278,7 @@ export async function POST(req: NextRequest) {
       orderId: shipment.orderId,
       status: normalizedStatus,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Webhook] Logistics webhook error:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }

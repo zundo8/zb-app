@@ -8,6 +8,7 @@
  */
 
 import prisma from '@/lib/db';
+import * as crypto from 'crypto';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -798,16 +799,29 @@ export async function testConnection(): Promise<{ success: boolean; provider: st
 
 /**
  * Validate a webhook signature from the logistics partner.
+ * Delhivery uses a plain Bearer token — direct string comparison.
+ * Shiprocket / generic providers use HMAC-SHA256 signature verification.
  */
 export function validateWebhookSignature(
   payload: string,
   signature: string,
-  secret: string
+  secret: string,
+  provider: 'delhivery' | 'shiprocket' | 'generic' = 'generic'
 ): boolean {
   if (!secret || !signature) return false;
 
   try {
-    const crypto = require('crypto');
+    // Delhivery uses plain Bearer token — direct string comparison
+    if (provider === 'delhivery') {
+      const incoming = signature.replace(/^Bearer\s+/i, '').trim();
+      const expected = secret.trim();
+      return crypto.timingSafeEqual(
+        Buffer.from(incoming.padEnd(64)),
+        Buffer.from(expected.padEnd(64))
+      );
+    }
+
+    // Shiprocket / generic — HMAC-SHA256
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(payload)
