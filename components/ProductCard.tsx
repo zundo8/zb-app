@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ShopifyProduct } from "@/lib/shopify-admin";
-import { handleImageError } from "./ImagePlaceholder";
+import ProductCardImage from "./ProductCardImage";
 
 // Lazy-load modal to avoid SSR issues
 const QuickAddModal = dynamic(() => import("./QuickAddModal"), { ssr: false });
@@ -20,7 +19,6 @@ interface Props {
 export default function ProductCard({ product, priority = false, selectedSize }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  const image = product.images?.[0]?.src || "/zb-logo-220px.png";
   const variant = product.variants?.[0];
   const price = variant?.price || "0";
   const compareAtPrice = variant?.compare_at_price;
@@ -58,33 +56,14 @@ export default function ProductCard({ product, priority = false, selectedSize }:
           )}
         </div>
 
-        {/* Image */}
-        <Link href={`/products/${productSlug}`} className="block">
-          <div 
-            className="relative w-full rounded-none overflow-hidden mb-1.5 transition-all duration-500 bg-foreground/[0.02]"
-            style={{ aspectRatio: "3 / 5.2" }}
-          >
-            <Image
-              src={image}
-              alt={product.title}
-              fill
-              priority={priority}
-              onError={handleImageError}
-              sizes="(max-width: 768px) 50vw, 360px"
-              className={`object-cover transition-all duration-[800ms] ease-out ${!isSoldOut ? "group-hover:scale-[1.03]" : ""}`}
-              style={isSoldOut ? { filter: "grayscale(0.4)" } : image === "/zb-logo-220px.png" ? { objectFit: "contain", padding: "25%", opacity: 0.3 } : {}}
-            />
-            {/* Hover subtle overlay */}
-            {!isSoldOut && (
-              <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                style={{
-                  background: "linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.1) 100%)",
-                }}
-              />
-            )}
-          </div>
-        </Link>
+        {/* Image — carousel, hover reveal, progressive loading */}
+        <ProductCardImage
+          images={product.images || []}
+          title={product.title}
+          priority={priority}
+          isSoldOut={isSoldOut}
+          productSlug={productSlug}
+        />
 
         {/* Info row with "+" button */}
         <div className="flex justify-between items-center leading-tight px-1.5 py-2">
