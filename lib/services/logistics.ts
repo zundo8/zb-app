@@ -656,7 +656,7 @@ export async function createReturnShipment(
               return_add: process.env.WAREHOUSE_ADDRESS || '',
               products_desc: 'Return Items',
               order_date: new Date().toISOString(),
-              total_amount: String(returnOrder?.priceDifference || '0'),
+              total_amount: String(returnOrder?.refundAmount || '0'),
               seller_add: process.env.WAREHOUSE_ADDRESS || '',
               seller_name: 'Zica Bella',
               quantity: '1',

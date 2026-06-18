@@ -43,7 +43,7 @@ export async function POST(req: Request) {
         parameters: [
           { type: 'text', text: order.customer.name || 'Valued Customer' },
           { type: 'text', text: order.shopifyOrderId || order.id },
-          { type: 'text', text: `₹${order.totalAmount}` }
+          { type: 'text', text: `₹${(order as any).totalAmount || (order as any).totalPrice || 0}` }
         ]
       },
       {

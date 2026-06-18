@@ -977,7 +977,7 @@ body.gallery-open .fixed.z-50 {
   --zb-login-dropdown-hover: rgba(255, 255, 255, 0.06);
   --zb-login-shadow: rgba(0, 0, 0, 0.5);
 
-  min-height: 100dvh;
+  min-height: 100vh; /* Changed from 100dvh to prevent layout shifting on mobile when keyboard opens */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -986,6 +986,14 @@ body.gallery-open .fixed.z-50 {
   position: relative;
   overflow-x: hidden;
   padding: 82px 20px 20px;
+}
+
+.zb-login-container {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 102px);
+  position: relative;
+  z-index: 1;
 }
 
 .light .zb-login-root {
@@ -1289,7 +1297,7 @@ body.gallery-open .fixed.z-50 {
   background: none;
   border: none;
   outline: none;
-  font-size: 15px !important;
+  font-size: 16px !important; /* Changed from 15px !important to prevent iOS/Safari zoom on focus */
   font-weight: 400;
   color: var(--zb-login-text);
   padding: 0;
@@ -1307,7 +1315,7 @@ body.gallery-open .fixed.z-50 {
   background: none;
   border: none;
   outline: none;
-  font-size: 15px !important;
+  font-size: 16px !important; /* Changed from 15px !important to prevent iOS/Safari zoom on focus */
   font-weight: 500;
   color: var(--zb-login-text);
   padding: 0;

@@ -6,14 +6,15 @@ interface CarouselReturn {
   currentIndex: number;
   isSwiping: boolean;
   trackStyle: React.CSSProperties;
-  onTouchStart: (e: any) => void;
-  onTouchMove: (e: any) => void;
+  onTouchStart: (e: TouchEvent) => void;
+  onTouchMove: (e: TouchEvent) => void;
   onTouchEnd: () => void;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;
   onMouseLeave: () => void;
   onTransitionEnd: () => void;
+  goToIndex: (index: number, shouldAnimate?: boolean) => void;
 }
 
 export function useProductCardCarousel(
@@ -31,6 +32,18 @@ export function useProductCardCarousel(
   const [animate, setAnimate] = useState(true);
 
   const disabled = imageCount <= 1;
+
+  const goToIndex = useCallback((index: number, shouldAnimate: boolean = true) => {
+    if (disabled) return;
+    const boundedIndex = Math.max(0, Math.min(imageCount - 1, index));
+    setAnimate(shouldAnimate);
+    setCurrentIndex(boundedIndex);
+    setOffset(0);
+    deltaX.current = 0;
+    dragging.current = false;
+    swiping.current = false;
+    setIsSwiping(false);
+  }, [disabled, imageCount]);
 
   const begin = useCallback((x: number, y: number) => {
     if (disabled) return;
@@ -56,7 +69,8 @@ export function useProductCardCarousel(
     if (Math.abs(deltaX.current) > 30) {
       setCurrentIndex(prev => {
         const dir = deltaX.current < 0 ? 1 : -1;
-        return ((prev + dir) % imageCount + imageCount) % imageCount;
+        const nextIndex = prev + dir;
+        return Math.max(0, Math.min(imageCount - 1, nextIndex));
       });
     }
     setOffset(0); deltaX.current = 0;
@@ -64,13 +78,13 @@ export function useProductCardCarousel(
   }, [disabled, imageCount]);
 
   // touchstart: passive — just record coordinates, no preventDefault
-  const onTouchStart = useCallback((e: any) => {
+  const onTouchStart = useCallback((e: TouchEvent) => {
     const t = e.touches?.[0];
     if (t) begin(t.clientX, t.clientY);
   }, [begin]);
 
   // touchmove: preventDefault ONLY when horizontal swipe confirmed
-  const onTouchMove = useCallback((e: any) => {
+  const onTouchMove = useCallback((e: TouchEvent) => {
     const t = e.touches?.[0];
     if (t) {
       move(t.clientX, t.clientY);
@@ -98,5 +112,6 @@ export function useProductCardCarousel(
     onTouchStart, onTouchMove, onTouchEnd: end,
     onMouseDown, onMouseMove, onMouseUp: end, onMouseLeave: end,
     onTransitionEnd,
+    goToIndex,
   };
 }

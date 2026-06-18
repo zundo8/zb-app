@@ -16,13 +16,12 @@ export async function POST(req: Request) {
         customer: {
           include: {
             orders: {
-              select: { status: true, totalAmount: true }
+              select: { status: true, totalPrice: true }
             },
             returns: true
           }
         },
         items: true,
-        shippingAddress: true,
       }
     });
 
@@ -31,14 +30,24 @@ export async function POST(req: Request) {
     }
 
     // Prepare data for Claude
-    const historicalOrders = order.customer.orders.length;
-    const cancelledOrders = order.customer.orders.filter(o => o.status === 'cancelled').length;
-    const rtoOrders = order.customer.orders.filter(o => o.status === 'rto').length;
-    const returnsCount = order.customer.returns.length;
+    const o = order as any;
+    const historicalOrders = o.customer?.orders?.length || 0;
+    const cancelledOrders = (o.customer?.orders || []).filter((x: any) => x.status === 'cancelled').length;
+    const rtoOrders = (o.customer?.orders || []).filter((x: any) => x.status === 'rto').length;
+    const returnsCount = o.customer?.returns?.length || 0;
+    
+    let parsedAddress: any = {};
+    if (o.shippingAddress) {
+      try {
+        parsedAddress = JSON.parse(o.shippingAddress);
+      } catch {
+        parsedAddress = { raw: o.shippingAddress };
+      }
+    }
     
     const contextData = {
-      orderValue: order.totalAmount,
-      itemsCount: order.items.length,
+      orderValue: o.totalAmount || o.totalPrice,
+      itemsCount: o.items?.length || 0,
       customerHistory: {
         totalOrders: historicalOrders,
         cancelled: cancelledOrders,
@@ -46,8 +55,8 @@ export async function POST(req: Request) {
         returns: returnsCount,
         isNewCustomer: historicalOrders <= 1
       },
-      shippingCity: order.shippingAddress?.city,
-      shippingState: order.shippingAddress?.state,
+      shippingCity: parsedAddress.city || parsedAddress.raw || '',
+      shippingState: parsedAddress.state || '',
     };
 
     const prompt = `

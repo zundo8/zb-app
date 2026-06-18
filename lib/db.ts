@@ -85,7 +85,7 @@ const prismaClientSingleton = () => {
       console.error('[DB] Unexpected error on idle client', err);
     });
 
-    const adapter = new PrismaPg(pool);
+    const adapter = new PrismaPg(pool as any);
 
     const client = new PrismaClient({
       adapter,
@@ -151,8 +151,6 @@ export async function getShopSettings() {
       select: {
         id: true,
         domain: true,
-        name: true,
-        email: true,
         heroTitle: true,
         heroSubtitle: true,
         heroVideo: true,

@@ -212,20 +212,20 @@ function SupportPageContent() {
 
       {/* Background Animated Gradient Blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-blue-500/5 blur-[140px] animate-pulse" style={{ animationDuration: '8s' }} />
-        <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-purple-500/5 blur-[140px] animate-pulse delay-1000" style={{ animationDuration: '10s' }} />
+        <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-blue-500/5 blur-[140px] md:animate-pulse" style={{ animationDuration: '8s' }} />
+        <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-purple-500/5 blur-[140px] md:animate-pulse delay-1000" style={{ animationDuration: '10s' }} />
       </div>
 
-      <main className={`relative z-10 max-w-7xl mx-auto px-4 md:px-8 ${isMobileApp ? 'pt-4 pb-12' : 'pt-24 md:pt-32 pb-24'}`}>
+      <main className={`relative z-10 max-w-7xl mx-auto px-4 md:px-8 ${isMobileApp ? 'pt-4 pb-12' : 'pt-20 md:pt-32 pb-24'}`}>
 
         {/* Title Identity */}
         {!isMobileApp && (
-          <div className="text-center mb-12">
+          <div className="text-center mb-6 md:mb-12">
             <motion.h1
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="text-4xl md:text-5xl font-bold tracking-tighter mb-3 bg-gradient-to-b from-foreground to-foreground/45 bg-clip-text text-transparent"
+              className="text-3xl md:text-5xl font-bold tracking-tighter mb-2 bg-gradient-to-b from-foreground to-foreground/45 bg-clip-text text-transparent"
             >
               SUPPORT CENTER
             </motion.h1>
@@ -233,7 +233,7 @@ function SupportPageContent() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.5 }}
               transition={{ delay: 0.2 }}
-              className="text-foreground/60 text-xs md:text-sm uppercase tracking-[0.25em]"
+              className="text-foreground/60 text-[10px] md:text-sm uppercase tracking-[0.25em]"
             >
               How can we assist you today?
             </motion.p>
@@ -249,7 +249,7 @@ function SupportPageContent() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="lg:col-span-1 space-y-4"
           >
-            <div className="p-6 md:p-8 rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] dark:bg-white/[0.01] backdrop-blur-3xl shadow-2xl relative overflow-hidden">
+            <div className="p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] dark:bg-white/[0.01] backdrop-blur-3xl shadow-2xl relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-b from-foreground/[0.02] to-transparent pointer-events-none" />
 
               <h2 className="text-sm font-bold mb-6 uppercase tracking-widest text-foreground/85">Get In Touch</h2>
@@ -294,7 +294,7 @@ function SupportPageContent() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
             className="lg:col-span-2"
           >
-            <div className="h-full min-h-[500px] md:min-h-[560px] rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] dark:bg-white/[0.01] backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col relative">
+            <div className="h-full min-h-[420px] md:min-h-[560px] rounded-2xl md:rounded-[2rem] border border-foreground/5 bg-foreground/[0.01] dark:bg-white/[0.01] backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col relative">
               <div className="absolute inset-0 bg-gradient-to-b from-foreground/[0.01] to-transparent pointer-events-none" />
 
               {/* Tab Navigation */}
@@ -324,7 +324,7 @@ function SupportPageContent() {
               </div>
 
               {/* Interaction Content Area */}
-              <div className="flex-1 p-5 md:p-8 flex flex-col relative z-10">
+              <div className="flex-1 p-4 md:p-8 flex flex-col relative z-10">
 
                 <AnimatePresence mode="wait">
 
@@ -354,7 +354,7 @@ function SupportPageContent() {
                               type="text"
                               value={formData.name}
                               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                              className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-sm text-foreground"
+                              className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
                               placeholder="Enter your name"
                             />
                           </div>
@@ -366,7 +366,7 @@ function SupportPageContent() {
                               type="email"
                               value={formData.email}
                               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                              className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-sm text-foreground"
+                              className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
                               placeholder="Enter your email"
                             />
                           </div>
@@ -379,7 +379,7 @@ function SupportPageContent() {
                             type="text"
                             value={formData.subject}
                             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                            className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-2xl px-5 py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-sm text-foreground"
+                            className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-3.5 focus:outline-none focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground"
                             placeholder="Reason for inquiry"
                           />
                         </div>
@@ -391,7 +391,7 @@ function SupportPageContent() {
                             rows={4}
                             value={formData.message}
                             onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                            className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-2xl px-5 py-3 focus:outline-none focus:border-foreground/20 transition-all text-sm text-foreground resize-none"
+                            className="w-full bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/10 dark:border-white/10 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-3 focus:outline-none focus:border-foreground/20 transition-all text-xs md:text-sm text-foreground resize-none"
                             placeholder="Detail your request..."
                           />
                         </div>
@@ -399,7 +399,7 @@ function SupportPageContent() {
                         <button
                           disabled={loading}
                           type="submit"
-                          className="w-full py-4 rounded-2xl bg-foreground text-background font-bold text-xs uppercase tracking-widest hover:bg-foreground/90 transition-all active:scale-[0.98] disabled:opacity-50 flex justify-center items-center gap-2 mt-2 shadow-lg shadow-black/5"
+                          className="w-full py-3 md:py-4 rounded-xl md:rounded-2xl bg-foreground text-background font-bold text-[10px] md:text-xs uppercase tracking-widest hover:bg-foreground/90 transition-all active:scale-[0.98] disabled:opacity-50 flex justify-center items-center gap-2 mt-2 shadow-lg shadow-black/5"
                         >
                           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-3.5 h-3.5" /> Submit Support Request</>}
                         </button>
@@ -533,18 +533,6 @@ function SupportPageContent() {
           </motion.div>
         </div>
       </main>
-
-      {/* footer */}
-      {!isMobileApp && (
-        <footer className="relative z-10 border-t border-foreground/5 py-10 px-6 bg-background">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="text-lg font-black tracking-[0.4em] text-foreground">ZICA BELLA</div>
-            <p className="text-foreground/20 text-[9px] uppercase tracking-[0.3em]">
-              © 2026 Zica Bella Private Limited. All rights reserved.
-            </p>
-          </div>
-        </footer>
-      )}
     </div>
   );
 }

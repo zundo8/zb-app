@@ -8,9 +8,9 @@ const store = new Map<string, { count: number; resetAt: number }>();
 // Clean up stale entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [key, val] of store) {
+  store.forEach((val, key) => {
     if (now > val.resetAt) store.delete(key);
-  }
+  });
 }, 5 * 60 * 1000);
 
 export function rateLimit(

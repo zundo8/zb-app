@@ -32,7 +32,7 @@ export async function uploadToStorage(buffer: Buffer, mimeType: string, original
         'apikey': supabaseKey,
         'Content-Type': mimeType,
       },
-      body: buffer,
+      body: new Uint8Array(buffer),
     });
 
     if (!res.ok) {

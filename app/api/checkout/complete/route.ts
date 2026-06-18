@@ -556,6 +556,45 @@ export async function POST(req: Request) {
         }
     });
 
+    // Save shipping address to Address table if it doesn't exist
+    try {
+      const existingAddr = await prisma.address.findFirst({
+        where: {
+          customerId: localCustomer.id,
+          address1: address.street,
+          city: address.city,
+          zip: address.zip,
+          phone: address.phone || ""
+        }
+      });
+
+      if (!existingAddr) {
+        // Find if they have any addresses to see if this is the first (and thus default)
+        const addressesCount = await prisma.address.count({
+          where: { customerId: localCustomer.id }
+        });
+
+        await prisma.address.create({
+          data: {
+            customerId: localCustomer.id,
+            name: address.name,
+            phone: address.phone || "",
+            email: address.email || "",
+            address1: address.street,
+            address2: address.apartment || "",
+            city: address.city,
+            state: address.state,
+            zip: address.zip,
+            country: address.country || "India",
+            isDefault: addressesCount === 0
+          }
+        });
+        console.log(`[Checkout] Saved new shipping address for customer: ${localCustomer.id}`);
+      }
+    } catch (addrErr: any) {
+      console.error("[Checkout] Error saving shipping address to Address table:", addrErr.message);
+    }
+
     try {
         await updateCustomer(shopifyCustomerId, {
             first_name: address.name.split(' ')[0],

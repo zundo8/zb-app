@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/db';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
 import { resolvedSMTP } from '@/lib/mailer';
@@ -169,7 +170,7 @@ export async function GET(request: NextRequest) {
         take: 20
       });
 
-      const formattedFallback = dbLogs.map(log => ({
+      const formattedFallback = dbLogs.map((log: any) => ({
         id: log.id,
         from: log.sentBy === 'admin-dashboard' ? `Atelier Sent <${log.recipientEmail}>` : log.recipientEmail,
         subject: log.subject,

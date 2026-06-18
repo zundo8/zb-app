@@ -29,33 +29,38 @@ export async function POST(req: Request) {
       isVerified = true;
     }
 
-    // 1. Try Twilio Verify check first
-    try {
-      const verifyCheck = await SmsService.checkVerification(phone, otp);
-      if (verifyCheck === true) {
-        isVerified = true;
-      }
-    } catch (err: any) {
-      console.log("[Mobile Verify] Twilio Verify check failed/skipped:", err.message);
-    }
-
-    // 2. Fallback to local DB check if not verified by Twilio Verify
+    // 1. Try local DB check first (instantaneous, timezone desync-safe)
     if (!isVerified) {
       const verification = await prisma.verificationCode.findFirst({
         where: {
           phone: { contains: normalizedPhone },
-          code: otp,
-          expiresAt: { gt: new Date() }
+          code: otp
         },
         orderBy: { createdAt: 'desc' }
       });
 
       if (verification) {
-        isVerified = true;
-        // Delete the used code to prevent reuse
-        await prisma.verificationCode.delete({
-          where: { id: verification.id }
-        }).catch(console.error);
+        const ageInMs = Date.now() - new Date(verification.createdAt).getTime();
+        // Valid within a 15 minutes window
+        if (ageInMs < 15 * 60 * 1000) {
+          isVerified = true;
+          // Delete the used code to prevent reuse
+          await prisma.verificationCode.delete({
+            where: { id: verification.id }
+          }).catch(console.error);
+        }
+      }
+    }
+
+    // 2. Fallback to Twilio Verify check if not verified by local DB
+    if (!isVerified) {
+      try {
+        const verifyCheck = await SmsService.checkVerification(phone, otp);
+        if (verifyCheck === true) {
+          isVerified = true;
+        }
+      } catch (err: any) {
+        console.log("[Mobile Verify] Twilio Verify check failed/skipped:", err.message);
       }
     }
 
@@ -104,31 +109,110 @@ export async function POST(req: Request) {
       console.error("Shopify search error:", e);
     }
 
-    let customer;
+    // Try to find local customer by phone, email, or Shopify ID
+    const searchConditions: any[] = [
+      { phone: fullPhone },
+      { phone: phoneDigits },
+      { phone: { contains: normalizedPhone } }
+    ];
 
     if (shopifyCustomer) {
-      // Sync local DB with Shopify data
-      customer = await prisma.customer.upsert({
-        where: { shopifyId: String(shopifyCustomer.id) },
-        create: {
-          shopifyId: String(shopifyCustomer.id),
-          shopId: shop.id,
-          email: shopifyCustomer.email,
-          name: name || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || "User",
-          phone: shopifyCustomer.phone || fullPhone,
-          ordersCount: shopifyCustomer.orders_count || 0,
-          totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
-        },
-        update: {
-          email: shopifyCustomer.email || undefined,
-          name: name || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
-          phone: shopifyCustomer.phone || undefined,
-          ordersCount: shopifyCustomer.orders_count || 0,
-          totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
-        },
-        include: { communityMember: true }
-      });
-    } else {
+      searchConditions.push({ shopifyId: String(shopifyCustomer.id) });
+      if (shopifyCustomer.email) {
+        searchConditions.push({ email: shopifyCustomer.email });
+      }
+      if (shopifyCustomer.phone) {
+        searchConditions.push({ phone: shopifyCustomer.phone });
+      }
+    }
+
+    let customer = await prisma.customer.findFirst({
+      where: {
+        OR: searchConditions
+      },
+      include: { communityMember: true }
+    });
+
+    let syncSuccess = false;
+
+    try {
+      if (shopifyCustomer) {
+        // Sync local DB with Shopify data
+        if (customer) {
+          console.log(`[Mobile Verify] Updating local customer ${customer.id} with Shopify ID: ${shopifyCustomer.id}`);
+          customer = await prisma.customer.update({
+            where: { id: customer.id },
+            data: {
+              shopifyId: String(shopifyCustomer.id),
+              email: shopifyCustomer.email || customer.email || undefined,
+              name: name || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || customer.name || "User",
+              phone: shopifyCustomer.phone || customer.phone || fullPhone,
+              ordersCount: shopifyCustomer.orders_count || customer.ordersCount,
+              totalSpent: parseFloat(shopifyCustomer.total_spent || "0") || customer.totalSpent,
+            },
+            include: { communityMember: true }
+          });
+        } else {
+          customer = await prisma.customer.upsert({
+            where: { shopifyId: String(shopifyCustomer.id) },
+            create: {
+              shopifyId: String(shopifyCustomer.id),
+              shopId: shop.id,
+              email: shopifyCustomer.email,
+              name: name || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || "User",
+              phone: shopifyCustomer.phone || fullPhone,
+              ordersCount: shopifyCustomer.orders_count || 0,
+              totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+            },
+            update: {
+              email: shopifyCustomer.email || undefined,
+              name: name || `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
+              phone: shopifyCustomer.phone || undefined,
+              ordersCount: shopifyCustomer.orders_count || 0,
+              totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
+            },
+            include: { communityMember: true }
+          });
+        }
+        syncSuccess = true;
+
+        // Import customer addresses from Shopify to local DB
+        if (shopifyCustomer.addresses && Array.isArray(shopifyCustomer.addresses)) {
+          for (const addr of shopifyCustomer.addresses) {
+            const a = addr as any;
+            const existingAddr = await prisma.address.findFirst({
+              where: {
+                customerId: customer.id,
+                address1: a.address1,
+                city: a.city,
+                zip: a.zip
+              }
+            });
+
+            if (!existingAddr) {
+              await prisma.address.create({
+                data: {
+                  customerId: customer.id,
+                  name: `${a.first_name || ""} ${a.last_name || ""}`.trim() || customer.name || "User",
+                  phone: a.phone || customer.phone || fullPhone,
+                  address1: a.address1,
+                  address2: a.address2 || "",
+                  city: a.city,
+                  state: a.province || "",
+                  zip: a.zip,
+                  country: a.country || "India",
+                  isDefault: a.default || false
+                }
+              }).catch(console.error);
+            }
+          }
+        }
+      }
+    } catch (syncError: any) {
+      console.error("[Mobile Verify] Shopify customer sync/upsert error, falling back to local database:", syncError.message);
+    }
+
+    if (!customer) {
       // Look for a local-only customer
       customer = await prisma.customer.findFirst({
         where: { 
@@ -154,6 +238,15 @@ export async function POST(req: Request) {
         });
       } else if (name) {
         // Update existing customer name if provided
+        customer = await prisma.customer.update({
+          where: { id: customer.id },
+          data: { name },
+          include: { communityMember: true }
+        });
+      }
+    } else if (!syncSuccess) {
+      if (name) {
+        // Update name if sync failed but user entered a new name
         customer = await prisma.customer.update({
           where: { id: customer.id },
           data: { name },

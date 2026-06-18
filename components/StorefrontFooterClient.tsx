@@ -313,7 +313,7 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
                             <Mail className="w-3.5 h-3.5" />
                           </div>
                           <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Contact Information
+                            Contact
                           </span>
                         </Link>
 

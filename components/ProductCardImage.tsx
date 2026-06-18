@@ -45,18 +45,21 @@ export default function ProductCardImage({
   const count = imageSrcs.length;
   const fallback = "/zb-logo-220px.png";
   const firstSrc = imageSrcs[0] || fallback;
-  const secondSrc = count >= 2 ? imageSrcs[1] : null;
   const hasMultiple = count > 1;
 
-  // ── Hover / scroll-reveal state (independent of carousel) ──
-  const [hoverActive, setHoverActive] = useState(false);
+  // ── Hover / timer state (synchronized with carousel index) ──
   const containerRef = useRef<HTMLDivElement>(null);
   const isTouchActive = useRef(false);
-  const touchTimeout = useRef<any>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset hover when swipe starts — passed as callback to carousel hook
+  // Clear timer when swipe starts — passed as callback to carousel hook
   const onSwipeStart = useCallback(() => {
-    setHoverActive(false);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setIsHovered(false);
   }, []);
 
   // ── Carousel hook ──
@@ -72,6 +75,7 @@ export default function ProductCardImage({
     onMouseUp,
     onMouseLeave,
     onTransitionEnd,
+    goToIndex,
   } = useProductCardCarousel(count, onSwipeStart);
 
   // Helper to dynamically check if the client device is a mobile/touch interface
@@ -83,14 +87,52 @@ export default function ProductCardImage({
   // ── Desktop hover handlers ──
   const handleMouseEnter = useCallback(() => {
     if (!hasMultiple || checkIsMobile() || isTouchActive.current) return;
-    setHoverActive(true);
-  }, [hasMultiple, checkIsMobile]);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setIsHovered(true);
+    goToIndex(1, false); // Instantly translate underlying track to index 1 under the hood
+  }, [hasMultiple, checkIsMobile, goToIndex]);
 
   const handleMouseLeave = useCallback(() => {
     if (checkIsMobile() || isTouchActive.current) return;
-    setHoverActive(false);
     onMouseLeave(); // also ends any active drag
-  }, [checkIsMobile, onMouseLeave]);
+    if (!hasMultiple) return;
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHovered(false);
+      goToIndex(0, false); // Instantly shift underlying track back to 0 under the hood
+    }, 2000);
+  }, [checkIsMobile, hasMultiple, onMouseLeave, goToIndex]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setIsHovered(false);
+    onMouseDown(e);
+  }, [onMouseDown]);
+
+  const handleMouseUp = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    onMouseUp();
+  }, [onMouseUp]);
+
+  // Cleanup hover timers on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // ── Touch handlers attached via useEffect (non-passive touchmove support) ──
   useEffect(() => {
@@ -99,36 +141,23 @@ export default function ProductCardImage({
 
     const handleTouchStart = (e: TouchEvent) => {
       isTouchActive.current = true;
-      // Delay touch-reveal to avoid vertical scroll/swipe conflict or brief tap flickering
-      touchTimeout.current = setTimeout(() => {
-        setHoverActive(true);
-      }, 120);
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      setIsHovered(false);
       onTouchStart(e);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (touchTimeout.current) {
-        clearTimeout(touchTimeout.current);
-        touchTimeout.current = null;
-      }
       onTouchMove(e);
     };
 
     const handleTouchEnd = () => {
-      if (touchTimeout.current) {
-        clearTimeout(touchTimeout.current);
-        touchTimeout.current = null;
-      }
-      setHoverActive(false);
       onTouchEnd();
     };
 
     const handleTouchCancel = () => {
-      if (touchTimeout.current) {
-        clearTimeout(touchTimeout.current);
-        touchTimeout.current = null;
-      }
-      setHoverActive(false);
       onTouchEnd();
     };
 
@@ -138,9 +167,6 @@ export default function ProductCardImage({
     el.addEventListener("touchcancel", handleTouchCancel, { passive: true });
 
     return () => {
-      if (touchTimeout.current) {
-        clearTimeout(touchTimeout.current);
-      }
       el.removeEventListener("touchstart", handleTouchStart);
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("touchend", handleTouchEnd);
@@ -182,9 +208,6 @@ export default function ProductCardImage({
   const isFallback = firstSrc === fallback;
   const sizesAttr = "(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw";
 
-  // Should we show the second-image crossfade? Only when hovering, not mid-swipe, and at first image
-  const showSecondImage = hoverActive && hasMultiple && !isSwiping && currentIndex === 0;
-
   // Intercept click to prevent navigation during swipes/drags
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -210,24 +233,16 @@ export default function ProductCardImage({
         style={{ aspectRatio: "3 / 5.2", contain: "layout style paint" }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onMouseDown={hasMultiple ? onMouseDown : undefined}
+        onMouseDown={hasMultiple ? handleMouseDown : undefined}
         onMouseMove={hasMultiple ? onMouseMove : undefined}
-        onMouseUp={hasMultiple ? onMouseUp : undefined}
+        onMouseUp={hasMultiple ? handleMouseUp : undefined}
       >
         {hasMultiple ? (
           <>
             {/* ─── Carousel track (base layer) ─── */}
             <div
               className="absolute inset-0 z-[1] flex"
-              style={{
-                ...trackStyle,
-                opacity: showSecondImage ? 0 : 1,
-                transition: showSecondImage
-                  ? "opacity 300ms ease"
-                  : trackStyle.transition
-                    ? `${trackStyle.transition}, opacity 300ms ease`
-                    : "opacity 300ms ease",
-              }}
+              style={trackStyle}
               onTransitionEnd={onTransitionEnd}
             >
               {imageSrcs.map((src, idx) => {
@@ -281,36 +296,26 @@ export default function ProductCardImage({
               })}
             </div>
 
-            {/* ─── Second-image hover/scroll-reveal layer ─── */}
-            {secondSrc && (
+            {/* ─── Premium Hover Zoom Overlay ─── */}
+            {imageSrcs[1] && (
               <div
-                className="absolute inset-0 z-[2]"
+                className="absolute inset-0 z-[2] pointer-events-none overflow-hidden"
                 style={{
-                  opacity: showSecondImage ? 1 : 0,
-                  transition: "opacity 300ms ease",
-                  pointerEvents: "none",
+                  opacity: isHovered && !isSwiping ? 1 : 0,
+                  transform: isHovered && !isSwiping ? "scale(1.03)" : "scale(1)",
+                  transition: isSwiping
+                    ? "none"
+                    : "opacity 400ms cubic-bezier(0.16, 1, 0.3, 1), transform 400ms cubic-bezier(0.16, 1, 0.3, 1)",
                 }}
               >
-                {/* Blur placeholder for second image */}
-                {!loadedImages.has(1) && (
-                  <img
-                    src={blurUrl(secondSrc)}
-                    alt=""
-                    aria-hidden
-                    draggable={false}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    style={{ filter: "blur(8px)", transform: "scale(1.05)" }}
-                  />
-                )}
                 <Image
-                  src={secondSrc}
+                  src={imageSrcs[1]}
                   alt={`${title} - alternate view`}
                   fill
                   loading="lazy"
                   quality={60}
                   sizes={sizesAttr}
                   onError={handleImageError}
-                  onLoad={() => handleImageLoad(1)}
                   className="object-cover"
                   style={isSoldOut ? { filter: "grayscale(0.4)" } : {}}
                 />

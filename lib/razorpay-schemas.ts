@@ -8,7 +8,7 @@ export const CreateOrderSchema = z.object({
   amount: z.number().positive('Amount must be positive'),
   currency: z.string().length(3).default('INR'),
   receipt: z.string().max(40).optional(),
-  notes: z.record(z.string()).optional(),
+  notes: z.record(z.string(), z.string()).optional(),
 });
 
 export const VerifyPaymentSchema = z.object({
@@ -26,7 +26,7 @@ export const CapturePaymentSchema = z.object({
 export const RefundSchema = z.object({
   paymentId: z.string().min(1, 'Missing paymentId'),
   amount: z.number().positive().optional(),
-  notes: z.record(z.string()).optional(),
+  notes: z.record(z.string(), z.string()).optional(),
 });
 
 export type CreateOrderInput = z.infer<typeof CreateOrderSchema>;

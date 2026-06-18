@@ -50,7 +50,6 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import supabase from '@/lib/supabase'
 import { generateSKUPrefix, generateSKU, type TagData } from '../utils/skuGenerator'
 import QRCode from 'qrcode'
 
@@ -115,14 +114,13 @@ export function usePriceTags() {
     setIsLoadingProducts(true)
     setError(null)
     try {
-      const { data, error: sbError } = await supabase
-        .from('Product')
-        .select('id, title, price, featuredImage, sku, barcode')
-        .order('title', { ascending: true })
+      const response = await fetch('/api/admin/price-tags/products')
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
 
-      if (sbError) throw sbError
-
-      const mappedProducts: ShopifyProduct[] = (data || []).map((row: any) => ({
+      const mappedProducts: ShopifyProduct[] = (data.products || []).map((row: any) => ({
         id: row.id,
         title: row.title,
         handle: '',
@@ -153,18 +151,15 @@ export function usePriceTags() {
     }
   }, [])
 
-
   const fetchBatches = useCallback(async () => {
     setIsLoadingBatches(true)
     try {
-      const { data, error: sbError } = await supabase
-        .from('price_tag_batches')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50)
-
-      if (sbError) throw sbError
-      setBatches((data as BatchRecord[]) || [])
+      const response = await fetch('/api/admin/price-tags/batches')
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      setBatches((data.batches as BatchRecord[]) || [])
     } catch (err: any) {
       console.error('Failed to load batches:', err)
     } finally {
@@ -184,14 +179,23 @@ export function usePriceTags() {
         size: params.size,
       })
 
-      // Atomic counter increment via Supabase RPC
-      const { data: endCounter, error: rpcError } = await supabase.rpc('increment_sku_counter', {
-        p_variant_key: skuPrefix,
-        p_quantity: params.quantity,
+      // Atomic counter increment via server-side endpoint
+      const incrementRes = await fetch('/api/admin/price-tags/batches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'increment-counter',
+          skuPrefix,
+          quantity: params.quantity,
+        }),
       })
 
-      if (rpcError) throw new Error(`SKU counter error: ${rpcError.message}`)
+      if (!incrementRes.ok) {
+        const errData = await incrementRes.json()
+        throw new Error(`SKU counter error: ${errData.error || incrementRes.statusText}`)
+      }
 
+      const { endCounter } = await incrementRes.json()
       const endCounterNum = endCounter as number
       const startCounter = endCounterNum - params.quantity + 1
       const mfgDate = `${String(params.mfgMonth).padStart(2, '0')}/${params.mfgYear}`
@@ -220,21 +224,27 @@ export function usePriceTags() {
         })
       }
 
-      // Save batch to Supabase
-      const { error: insertError } = await supabase.from('price_tag_batches').insert({
-        batch_number: params.batchNumber,
-        product_id: params.productId,
-        product_name: params.productName,
-        generic_name: params.genericName,
-        mrp: params.mrp,
-        size: params.size,
-        quantity: params.quantity,
-        sku_prefix: skuPrefix,
-        tags_generated: generatedTags,
+      // Save batch to Server DB
+      const saveRes = await fetch('/api/admin/price-tags/batches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save-batch',
+          batchNumber: params.batchNumber,
+          productId: params.productId,
+          productName: params.productName,
+          genericName: params.genericName,
+          mrp: params.mrp,
+          size: params.size,
+          quantity: params.quantity,
+          skuPrefix,
+          tagsGenerated: generatedTags,
+        }),
       })
 
-      if (insertError) {
-        console.error('Batch save error:', insertError)
+      if (!saveRes.ok) {
+        const errData = await saveRes.json()
+        console.error('Batch save error:', errData.error)
         // Don't throw — tags are already generated, just warn
       }
 
