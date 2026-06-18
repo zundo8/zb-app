@@ -4,7 +4,6 @@ import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useProductCardCarousel } from "@/hooks/useProductCardCarousel";
-import { useSharedIntersectionObserver } from "@/hooks/useSharedIntersectionObserver";
 import { handleImageError } from "./ImagePlaceholder";
 
 // 1×1 transparent gray pixel — universal blur placeholder fallback
@@ -53,6 +52,7 @@ export default function ProductCardImage({
   const [hoverActive, setHoverActive] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isTouchActive = useRef(false);
+  const touchTimeout = useRef<any>(null);
 
   // Reset hover when swipe starts — passed as callback to carousel hook
   const onSwipeStart = useCallback(() => {
@@ -92,12 +92,6 @@ export default function ProductCardImage({
     onMouseLeave(); // also ends any active drag
   }, [checkIsMobile, onMouseLeave]);
 
-  // ── Mobile scroll-reveal via shared IntersectionObserver ──
-  useSharedIntersectionObserver(containerRef, (isIntersecting) => {
-    if (!hasMultiple || !checkIsMobile()) return;
-    setHoverActive(isIntersecting);
-  });
-
   // ── Touch handlers attached via useEffect (non-passive touchmove support) ──
   useEffect(() => {
     const el = containerRef.current;
@@ -105,25 +99,52 @@ export default function ProductCardImage({
 
     const handleTouchStart = (e: TouchEvent) => {
       isTouchActive.current = true;
+      // Delay touch-reveal to avoid vertical scroll/swipe conflict or brief tap flickering
+      touchTimeout.current = setTimeout(() => {
+        setHoverActive(true);
+      }, 120);
       onTouchStart(e);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
+      if (touchTimeout.current) {
+        clearTimeout(touchTimeout.current);
+        touchTimeout.current = null;
+      }
       onTouchMove(e);
     };
 
     const handleTouchEnd = () => {
+      if (touchTimeout.current) {
+        clearTimeout(touchTimeout.current);
+        touchTimeout.current = null;
+      }
+      setHoverActive(false);
+      onTouchEnd();
+    };
+
+    const handleTouchCancel = () => {
+      if (touchTimeout.current) {
+        clearTimeout(touchTimeout.current);
+        touchTimeout.current = null;
+      }
+      setHoverActive(false);
       onTouchEnd();
     };
 
     el.addEventListener("touchstart", handleTouchStart, { passive: true });
     el.addEventListener("touchmove", handleTouchMove, { passive: false });
     el.addEventListener("touchend", handleTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", handleTouchCancel, { passive: true });
 
     return () => {
+      if (touchTimeout.current) {
+        clearTimeout(touchTimeout.current);
+      }
       el.removeEventListener("touchstart", handleTouchStart);
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("touchend", handleTouchEnd);
+      el.removeEventListener("touchcancel", handleTouchCancel);
     };
   }, [hasMultiple, onTouchStart, onTouchMove, onTouchEnd]);
 
