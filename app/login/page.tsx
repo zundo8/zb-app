@@ -110,6 +110,21 @@ export default function LoginPage() {
     if (errors.phone) setErrors({});
   };
 
+  const handleInputBlur = () => {
+    // Reset window scroll when keyboard closes on mobile browsers
+    setTimeout(() => {
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        activeEl.getAttribute('contenteditable') === 'true'
+      );
+      if (!isInputFocused) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
   const sendOTP = async (fullPhone: string) => {
     const res = await fetch("/api/auth/send-otp", {
       method: "POST",
@@ -429,6 +444,7 @@ export default function LoginPage() {
                       placeholder="Enter mobile number"
                       value={phone}
                       onChange={(e) => handlePhoneChange(e.target.value)}
+                      onBlur={handleInputBlur}
                       className="zb-login-phone-input"
                       autoFocus
                       required
@@ -484,6 +500,7 @@ export default function LoginPage() {
                       placeholder="Your Name"
                       value={name}
                       onChange={(e) => { setName(e.target.value); if (errors.name) setErrors({}); }}
+                      onBlur={handleInputBlur}
                       className="zb-login-name-input"
                       autoFocus
                       autoComplete="off"
@@ -551,6 +568,7 @@ export default function LoginPage() {
                           value={digit}
                           onChange={(e) => handleOtpChange(e.target.value, i)}
                           onKeyDown={(e) => handleOtpKeyDown(e, i)}
+                          onBlur={handleInputBlur}
                           placeholder="•"
                           className="zb-login-otp-input"
                           autoFocus={i === 0}
