@@ -82,6 +82,14 @@ async function shopifyCustomerLogin(email: string, password: string) {
   return customerData?.data?.customer;
 }
 
+function getCustomerImageProxy(customerId: string, imageStr: string | null): string | null {
+  if (!imageStr) return null;
+  if (imageStr.startsWith("data:") || imageStr.length > 2048) {
+    return `/api/customers/avatar?id=${customerId}`;
+  }
+  return imageStr;
+}
+
 export const authOptions: AuthOptions = {
   providers: [
     GoogleProvider({
@@ -344,7 +352,7 @@ export const authOptions: AuthOptions = {
               name: customer.name ?? "User",
               email: customer.email ?? null,
               phone: customer.phone,
-              image: (customer as any).image ?? null,
+              image: getCustomerImageProxy(customer.id, (customer as any).image ?? null),
             };
           }
 
@@ -470,7 +478,7 @@ export const authOptions: AuthOptions = {
             name: customer.name ?? "User",
             email: customer.email ?? null,
             phone: customer.phone,
-            image: (customer as any).image ?? null,
+            image: getCustomerImageProxy(customer.id, (customer as any).image ?? null),
           };
         } catch (error: any) {
           console.error("[AUTH] OTP authorize error:", error);
@@ -531,7 +539,7 @@ export const authOptions: AuthOptions = {
             name: customer.name ?? "User",
             email: customer.email ?? null,
             phone: customer.phone ?? null,
-            image: (customer as any).image ?? null,
+            image: getCustomerImageProxy(customer.id, (customer as any).image ?? null),
           };
         } catch (error: any) {
           console.error("[AUTH] Shopify authorize error:", error);
@@ -649,20 +657,54 @@ export const authOptions: AuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
-        token.id = user.id;
-        token.role = (user as any).role || "CUSTOMER";
-        token.permissions = (user as any).permissions ?? null;
+        // Default role
+        let role = "CUSTOMER";
+        let permissions = null;
+        let phone = (user as any).phone ?? null;
+        let id = user.id;
+        let image = (user as any).image ?? null;
+        let email = (user as any).email ?? null;
+
+        // If OAuth login, match and get local DB customer details
+        if (account && (account.provider === "google" || account.provider === "apple") && email) {
+          const customer = await prisma.customer.findFirst({
+            where: { email }
+          });
+          if (customer) {
+            id = customer.id;
+            phone = customer.phone || null;
+            image = customer.image || null;
+          }
+        } else if ((user as any).role) {
+          // If admin/staff login, preserve role and permissions
+          role = (user as any).role;
+          permissions = (user as any).permissions ?? null;
+        }
+
+        token.id = id;
+        token.role = role;
+        token.permissions = permissions;
         token.loginTime = Math.floor(Date.now() / 1000);
         token.needsPasswordChange = (user as any).needsPasswordChange ?? null;
-        token.phone = (user as any).phone ?? null;
-        token.email = (user as any).email ?? null;
-        const rawImage = (user as any).image ?? null;
-        if (rawImage && (rawImage.startsWith("data:") || rawImage.length > 2048)) {
-          token.image = `/api/customers/avatar?id=${user.id}`;
-        } else {
-          token.image = rawImage;
+        token.phone = phone;
+        token.email = email;
+        
+        // Proxy and normalize image / picture to prevent large base64 strings in the token
+        const proxiedImage = getCustomerImageProxy(id, image);
+        token.image = proxiedImage;
+        token.picture = proxiedImage;
+      }
+
+      // Safeguard: sanitize token properties on every execution (e.g. session/active checks)
+      const customerId = token.id || token.sub;
+      if (customerId) {
+        for (const key of ['picture', 'image']) {
+          const val = token[key];
+          if (typeof val === 'string' && (val.startsWith('data:') || val.length > 2048)) {
+            token[key] = `/api/customers/avatar?id=${customerId}`;
+          }
         }
       }
 
