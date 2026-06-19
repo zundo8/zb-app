@@ -1,8 +1,10 @@
-import { searchProducts, fetchCollections } from "@/lib/shopify-admin";
-import { Search, ArrowRight } from "lucide-react";
+import { searchProducts, fetchCollections, fetchProducts } from "@/lib/shopify-admin";
+import { Search } from "lucide-react";
 import { ShopifyProduct } from "@/lib/shopify-admin";
+import SearchResultsClient from "@/components/SearchResultsClient";
 import ProductCard from "@/components/ProductCard";
 import Link from "next/link";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +20,10 @@ export default async function SearchPage({
   const minPrice = parseFloat(searchParams.min || "0");
   const maxPrice = parseFloat(searchParams.max || "999999");
 
-  const [productsRaw, collections] = await Promise.all([
+  const [productsRaw, collections, trendingProducts] = await Promise.all([
     query ? searchProducts(query, 48).catch(() => [] as ShopifyProduct[]) : Promise.resolve([] as ShopifyProduct[]),
     fetchCollections().catch(() => [] as any[]),
+    !query ? fetchProducts(12).catch(() => [] as ShopifyProduct[]) : Promise.resolve([] as ShopifyProduct[]),
   ]);
 
   let products = productsRaw.filter((p) => {
@@ -38,20 +41,23 @@ export default async function SearchPage({
     <div className="min-h-screen">
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32 pt-28">
 
-        {/* ── Search Bar ── */}
-        <form method="GET" action="/search" className="mb-10 max-w-xl mx-auto">
-          <div className="glass-liquid relative flex items-center rounded-2xl overflow-hidden shadow-lg border border-foreground/5">
-            <Search className="absolute left-4 w-4 h-4 text-foreground/30 pointer-events-none" />
+        {/* ── Search Bar Area ── */}
+        <form method="GET" action="/search" className="mb-12 max-w-xl mx-auto">
+          <div className="glass-liquid relative flex items-center rounded-2xl overflow-hidden shadow-md border border-foreground/[0.08] focus-within:border-foreground/25 focus-within:shadow-xl hover:border-foreground/15 transition-all duration-300">
+            <Search className="absolute left-5 w-4 h-4 text-foreground/35 pointer-events-none transition-colors" />
             <input
               name="q"
               defaultValue={query}
               placeholder="Search Zica Bella…"
               autoFocus={!query}
               autoComplete="off"
-              className="w-full pl-11 pr-4 py-4 bg-transparent text-sm text-foreground placeholder-foreground/30 focus:outline-none"
+              className="w-full pl-12 pr-16 py-[18px] bg-transparent text-sm text-foreground placeholder-foreground/30 focus:outline-none font-light tracking-wide"
             />
             {query && (
-              <Link href="/search" className="absolute right-3 px-2 py-1 text-[8px] uppercase tracking-widest text-foreground/30 hover:text-foreground/60 transition-colors">
+              <Link 
+                href="/search" 
+                className="absolute right-4 px-3 py-1.5 text-[8.5px] uppercase tracking-widest font-semibold text-foreground/45 hover:text-foreground/85 rounded-xl bg-foreground/[0.03] border border-foreground/[0.06] hover:bg-foreground/[0.08] active:scale-95 transition-all"
+              >
                 Clear
               </Link>
             )}
@@ -59,7 +65,7 @@ export default async function SearchPage({
 
           {/* Sort filters */}
           {query && products.length > 0 && (
-            <div className="flex gap-2 mt-3 flex-wrap justify-center">
+            <div className="flex gap-2 mt-4 flex-wrap justify-center animate-fade-up">
               {[
                 { label: "Relevance", value: "relevance" },
                 { label: "Price ↑",   value: "price-asc" },
@@ -70,10 +76,10 @@ export default async function SearchPage({
                    type="submit"
                    name="sort"
                    value={opt.value}
-                   className={`px-3.5 py-1.5 rounded-full text-[9px] uppercase tracking-widest transition-all ${
+                   className={`px-4 py-1.5 rounded-full text-[8.5px] uppercase tracking-widest transition-all duration-200 active:scale-95 ${
                      sortBy === opt.value
                        ? "bg-foreground text-background font-bold shadow-md"
-                       : "glass-button text-foreground/50 border border-foreground/5"
+                       : "glass-button text-foreground/45 border border-foreground/5 hover:border-foreground/15 hover:text-foreground/75"
                    }`}
                 >
                   {opt.label}
@@ -83,52 +89,34 @@ export default async function SearchPage({
           )}
         </form>
 
-        {/* ── Results header ── */}
-        {query && (
-          <div className="flex justify-between items-baseline mb-6 max-w-6xl mx-auto px-1">
-            <h1 className="text-[11px] font-medium text-foreground/60 uppercase tracking-widest">
-              &ldquo;{query}&rdquo;
-            </h1>
-            <p className="text-[9px] text-foreground/30 uppercase tracking-widest">
-              {products.length} {products.length === 1 ? "result" : "results"}
-            </p>
-          </div>
-        )}
-
-        {/* ── Product Grid ── */}
-        {products.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-6 gap-y-8 md:gap-y-12 max-w-6xl mx-auto">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        )}
-
-        {/* ── No results ── */}
-        {query && products.length === 0 && (
-          <div className="text-center py-20 flex flex-col items-center gap-4">
-            <div className="glass-panel w-14 h-14 rounded-full flex items-center justify-center">
+        {/* ── Product List Section ── */}
+        {products.length > 0 ? (
+          <SearchResultsClient products={products} query={query} />
+        ) : query ? (
+          /* ── No results ── */
+          <div className="text-center py-24 flex flex-col items-center gap-5 animate-fade-up">
+            <div className="glass-panel w-16 h-16 rounded-full flex items-center justify-center border border-foreground/5 shadow-md">
               <Search className="w-5 h-5 text-foreground/20" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.3em] text-foreground/40">No results for &ldquo;{query}&rdquo;</p>
-              <p className="text-[9px] text-foreground/20 mt-1.5 uppercase tracking-widest">Try a different term or browse below</p>
+              <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.25em] text-foreground/45">No results for &ldquo;{query}&rdquo;</p>
+              <p className="text-[8.5px] sm:text-[9.5px] text-foreground/20 mt-1.5 uppercase tracking-widest">Try a different term or browse below</p>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* ── Empty state — show trending + collections ── */}
+        {/* ── Empty state — show trending + collections + products ── */}
         {!query && (
-          <div className="max-w-4xl mx-auto mt-6">
-            {/* Trending */}
-            <div className="mb-10">
-              <p className="glass-label mb-3">Trending Searches</p>
-              <div className="flex flex-wrap gap-2.5">
+          <div className="max-w-4xl mx-auto mt-6 animate-fade-up">
+            {/* 1. Trending Searches */}
+            <div className="mb-14 text-center md:text-left">
+              <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-4">Trending Searches</p>
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                 {TRENDING.map((term) => (
                   <Link
                     key={term}
                     href={`/search?q=${encodeURIComponent(term)}`}
-                    className="glass-button px-4 py-2 rounded-xl text-[9px] uppercase tracking-widest text-foreground/60 hover:text-foreground/90 border border-foreground/5 shadow-md hover:border-foreground/10 active:scale-95 transition-all"
+                    className="glass-button px-5 py-2.5 rounded-full text-[8.5px] uppercase tracking-widest text-foreground/55 hover:text-foreground border border-foreground/5 shadow-sm hover:border-foreground/12 active:scale-95 transition-all duration-200 hover:bg-foreground/[0.01]"
                   >
                     {term}
                   </Link>
@@ -136,22 +124,46 @@ export default async function SearchPage({
               </div>
             </div>
 
-            {/* Collections */}
+            {/* 2. Explore Collections Media Grid/Slider */}
             {collections.length > 0 && (
-              <div>
-                <p className="glass-label mb-3">Explore Collections</p>
-                <div className="flex flex-col gap-0">
-                  {collections.slice(0, 10).map((c: any) => (
+              <div className="mb-14">
+                <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-4 pl-1">Explore Collections</p>
+                <div className="flex overflow-x-auto gap-2.5 pb-4 px-1 snap-x hide-scrollbar scroll-smooth">
+                  {collections.filter(c => c.image?.src).slice(0, 8).map((c: any) => (
                     <Link
                       key={c.id}
                       href={`/collections/${c.handle}`}
-                      className="group flex items-center justify-between py-4 border-b border-foreground/5"
+                      className="group relative min-w-[200px] sm:min-w-[240px] aspect-[4/3] rounded-2xl overflow-hidden border border-foreground/[0.04] bg-foreground/[0.02] shadow-sm hover:shadow-md snap-start transition-all duration-500"
                     >
-                      <span className="text-[13px] font-light uppercase tracking-[0.06em] text-foreground/50 group-hover:text-foreground/80 transition-colors">
-                        {c.title}
-                      </span>
-                      <ArrowRight className="w-3.5 h-3.5 text-foreground/10 opacity-0 group-hover:opacity-100 group-hover:text-foreground/40 transition-all transform group-hover:translate-x-1 duration-300" />
+                      <Image
+                        src={c.image?.src}
+                        alt={c.title}
+                        fill
+                        className="object-cover group-hover:scale-[1.03] transition-transform duration-700"
+                        sizes="(max-width: 768px) 250px, 350px"
+                      />
+                      {/* Dark Overlay with Liquid Text */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent flex flex-col justify-end p-4">
+                        <span className="text-[8px] font-mono font-light text-white/40 tracking-[0.22em] uppercase mb-0.5">
+                          Collection
+                        </span>
+                        <h4 className="text-[10.5px] sm:text-xs font-light uppercase tracking-widest text-white">
+                          {c.title}
+                        </h4>
+                      </div>
                     </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 3. New Arrivals (Product Grid) */}
+            {trendingProducts.length > 0 && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-foreground/30 mb-4 pl-1">New Arrivals</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[3px] px-[2px] md:px-0">
+                  {trendingProducts.slice(0, 8).map((p) => (
+                    <ProductCard key={p.id} product={p} />
                   ))}
                 </div>
               </div>

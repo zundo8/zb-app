@@ -188,30 +188,23 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
         {/* Add Button */}
         <div className="px-5 pb-10">
           {(() => {
-            let isVariantSoldOut = false;
-            
-            if (selectedSize) {
-              const variant = product.variants?.find(v => v.option1 === selectedSize);
-              isVariantSoldOut = (variant?.inventory_quantity || 0) <= 0;
-            } else {
-              isVariantSoldOut = product.variants ? !product.variants.some(v => (v.inventory_quantity || 0) > 0) : true;
-            }
+            const isAllVariantsSoldOut = product.variants ? !product.variants.some(v => (v.inventory_quantity || 0) > 0) : true;
             
             return (
               <button
                 onClick={handleAdd}
-                disabled={added || isVariantSoldOut}
+                disabled={added || isAllVariantsSoldOut}
                 className={`w-full py-3.5 rounded-2xl text-[9px] font-light uppercase tracking-[0.4em] transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 ${
                   added
                     ? "bg-foreground text-background border border-foreground/20"
-                    : isVariantSoldOut
+                    : isAllVariantsSoldOut
                       ? "bg-foreground/10 text-foreground/30 cursor-not-allowed"
                       : "bg-foreground text-background hover:opacity-90"
                 }`}
               >
                 {added ? (
                   <><Check className="w-3.5 h-3.5" /> Added</>
-                ) : isVariantSoldOut ? (
+                ) : isAllVariantsSoldOut ? (
                   "Sold Out"
                 ) : (
                   <><ShoppingBag className="w-3.5 h-3.5" /> Add to Bag</>

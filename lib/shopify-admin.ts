@@ -527,6 +527,7 @@ export interface ShopifyProduct {
     values: string[];
   }[];
   metafields?: ShopifyMetafield[];
+  video?: string | null;
 }
 
 export interface ShopifyMetafield {
@@ -964,6 +965,12 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
                 }
               }
             }
+            productVideo: metafield(namespace: "custom", key: "product_video") {
+              value
+            }
+            productVideo2: metafield(namespace: "custom", key: "product-video") {
+              value
+            }
           }
         }
       }
@@ -975,7 +982,22 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
     const data = await shopifyGraphqlFetch<any>(graphqlQuery, { query: q, limit });
 
     if (data?.products?.edges?.length > 0) {
-      const products = data.products.edges.map(({ node }: any) => mapGraphQLNode(node));
+      const products = await Promise.all(
+        data.products.edges.map(async ({ node }: any) => {
+          const p = mapGraphQLNode(node);
+          const rawVideo = node.productVideo?.value || node.productVideo2?.value || null;
+          if (rawVideo) {
+            if (rawVideo.startsWith('gid://shopify/')) {
+              p.video = await resolveShopifyGid(rawVideo).catch(() => null);
+            } else {
+              p.video = rawVideo;
+            }
+          } else {
+            p.video = null;
+          }
+          return p;
+        })
+      );
 
       // Filter to only products that actually match the query
       const matching = products.filter((p: ShopifyProduct) => productRelevancyScore(p, lq) > 0);
@@ -1001,10 +1023,32 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
       const scored = allProducts
         .map(p => ({ product: p, score: productRelevancyScore(p, lq) }))
         .filter(item => item.score > 0)
-        .sort((a, b) => b.score - a.score);
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
 
-      console.log(`[Search] REST fallback: ${scored.length} matches out of ${allProducts.length} products for "${q}"`);
-      return scored.map(item => item.product).slice(0, limit);
+      const resolved = await Promise.all(
+        scored.map(async ({ product: p }) => {
+          try {
+            const metafields = await fetchProductMetafields(p.id.toString()).catch(() => []);
+            const videoMeta = metafields.find(m => m.namespace === 'custom' && (m.key === 'product_video' || m.key === 'product-video'));
+            if (videoMeta?.value) {
+              if (videoMeta.value.startsWith('gid://shopify/')) {
+                p.video = await resolveShopifyGid(videoMeta.value).catch(() => null);
+              } else {
+                p.video = videoMeta.value;
+              }
+            } else {
+              p.video = null;
+            }
+          } catch (e) {
+            p.video = null;
+          }
+          return p;
+        })
+      );
+
+      console.log(`[Search] REST fallback: ${resolved.length} matches out of ${allProducts.length} products for "${q}"`);
+      return resolved;
     } catch (restError) {
       console.error('[Search] REST fallback also failed:', restError);
       return [];

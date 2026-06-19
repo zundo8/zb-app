@@ -218,8 +218,11 @@ export default function ProductDetailsClient({
 
   const initialPrice = product.variants?.[0]?.price || "0.00";
   const comparePrice = product.variants?.[0]?.compare_at_price;
-  const activeVariant = product.variants?.find(v => v.option1 === selectedSize) || product.variants?.[0];
-  const isVariantSoldOut = activeVariant ? (activeVariant.inventory_quantity || 0) <= 0 : true;
+  const isAllVariantsSoldOut = product.variants ? !product.variants.some(v => (v.inventory_quantity || 0) > 0) : true;
+  const activeVariant = selectedSize ? product.variants?.find(v => v.option1 === selectedSize) : null;
+  const isVariantSoldOut = selectedSize 
+    ? (activeVariant ? (activeVariant.inventory_quantity || 0) <= 0 : true)
+    : isAllVariantsSoldOut;
   const productVideoUrl = getMeta('product-video');
   const sizeChartImageUrl = getMeta('size-chart-image');
   
@@ -458,12 +461,12 @@ export default function ProductDetailsClient({
             <div className="space-y-2 pt-1">
               <button
                 onClick={handleAddToBag}
-                disabled={isAdded || isVariantSoldOut}
+                disabled={isAdded || isAllVariantsSoldOut}
                 className="w-full py-3 flex items-center justify-center text-[9px] font-bold uppercase tracking-[0.2em] transition-all active:scale-[0.99] rounded-lg bg-foreground/5 border border-foreground/10 hover:bg-foreground/10 hover:border-foreground/20 text-foreground/90 disabled:opacity-40 disabled:pointer-events-none"
               >
-                {isAdded ? "Added to Bag!" : isVariantSoldOut ? "Sold Out" : "Add to Bag"}
+                {isAdded ? "Added to Bag!" : isAllVariantsSoldOut ? "Sold Out" : "Add to Bag"}
               </button>
-              {!isVariantSoldOut && (
+              {!isAllVariantsSoldOut && (
                 <button
                   onClick={handleBuyNow}
                   disabled={isCheckingOut}
@@ -763,14 +766,16 @@ export default function ProductDetailsClient({
 
                 <div className="flex flex-col gap-2 mt-0.5">
                   {(() => {
-                    const variant = product.variants?.find(v => v.option1 === selectedSize) || product.variants?.[0];
-                    const isVariantSoldOut = (variant?.inventory_quantity || 0) <= 0;
+                    const activeVariant = selectedSize ? product.variants?.find(v => v.option1 === selectedSize) : null;
+                    const isVariantSoldOut = selectedSize 
+                      ? (activeVariant ? (activeVariant.inventory_quantity || 0) <= 0 : true)
+                      : (product.variants ? !product.variants.some(v => (v.inventory_quantity || 0) > 0) : true);
                     
                     return (
                       <>
                         <button
                           onClick={handleAddToBag}
-                          disabled={isAdded || isVariantSoldOut}
+                          disabled={isAdded || isAllVariantsSoldOut}
                           className="w-full py-3.5 flex items-center justify-center text-[9px] font-bold uppercase tracking-[0.25em] transition-all active:scale-[0.99] glass-button rounded-xl bg-foreground/5 border-foreground/10 hover:bg-foreground/10 hover:border-foreground/20 text-foreground/90 disabled:opacity-40 disabled:pointer-events-none"
                         >
                           <AnimatePresence mode="wait">
@@ -784,7 +789,7 @@ export default function ProductDetailsClient({
                               >
                                 Added to Bag!
                               </motion.span>
-                            ) : isVariantSoldOut ? (
+                            ) : isAllVariantsSoldOut ? (
                               <motion.span
                                 key="soldout"
                                 initial={{ opacity: 0, y: 5 }}
@@ -804,7 +809,7 @@ export default function ProductDetailsClient({
                             )}
                           </AnimatePresence>
                         </button>
-                        {!isVariantSoldOut && (
+                        {!isAllVariantsSoldOut && (
                           <button
                             onClick={handleBuyNow}
                             disabled={isCheckingOut}
