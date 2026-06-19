@@ -866,6 +866,7 @@ function productRelevancyScore(p: ShopifyProduct, lq: string): number {
   const tags = (p.tags || '').toLowerCase();
   const vendor = (p.vendor || '').toLowerCase();
   const handle = (p.handle || '').toLowerCase();
+  const desc = (p.body_html || '').toLowerCase();
 
   // Title matches (highest priority)
   if (title === lq) score += 100;
@@ -884,6 +885,22 @@ function productRelevancyScore(p: ShopifyProduct, lq: string): number {
 
   // Vendor matches
   if (vendor.includes(lq)) score += 10;
+
+  // Description matches
+  if (desc.includes(lq)) score += 15;
+
+  // Term-level matching for multi-word queries
+  const terms = lq.split(/\s+/).filter(t => t.length >= 2);
+  if (terms.length > 0) {
+    terms.forEach(term => {
+      if (title.includes(term)) score += 20;
+      if (tags.includes(term)) score += 10;
+      if (type.includes(term)) score += 8;
+      if (handle.includes(term)) score += 6;
+      if (vendor.includes(term)) score += 3;
+      if (desc.includes(term)) score += 5;
+    });
+  }
 
   return score;
 }

@@ -211,15 +211,18 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
       <div className="flex md:hidden fixed top-4 left-4 right-4 z-50 items-center justify-between pointer-events-none transition-all duration-300">
         
         {/* Left: Glass Pill with Menu & Title */}
-        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.3)] pointer-events-auto active:scale-[0.98] transition-all">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.3)] pointer-events-auto active:scale-[0.98] transition-all">
           {!isHome && (
-            <button 
-              onClick={handleBack}
-              className="w-7 h-7 flex items-center justify-center rounded-full text-foreground/70 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all mr-0.5"
-              aria-label="Back"
-            >
-              <ChevronLeft strokeWidth={1.75} className="w-3.5 h-3.5" />
-            </button>
+            <>
+              <button 
+                onClick={handleBack}
+                className="w-7 h-7 flex items-center justify-center rounded-full text-foreground/70 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all"
+                aria-label="Back"
+              >
+                <ChevronLeft strokeWidth={1.75} className="w-3.5 h-3.5" />
+              </button>
+              <div className="w-[1px] h-3 bg-foreground/15 dark:bg-white/15 self-center" />
+            </>
           )}
           <button 
             onClick={() => setIsMenuOpen(true)}
@@ -229,6 +232,8 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
             <ChevronDown strokeWidth={1.75} className="w-3.5 h-3.5" />
           </button>
           
+          <div className="w-[1px] h-3 bg-foreground/15 dark:bg-white/15 self-center" />
+
           <Link href="/" className="flex items-center pr-2 pl-1">
             <span className="text-[9px] font-rocaston tracking-[0.22em] text-foreground font-semibold uppercase pt-0.5">
               {getPageTitle()}
