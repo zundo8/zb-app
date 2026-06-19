@@ -6,10 +6,11 @@ import { VolumeX, Volume2 } from "lucide-react";
 interface HeroVideoProps {
   src: string;
   mobileSrc?: string;
+  poster?: string;
   showControlOnly?: boolean;
 }
 
-export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: HeroVideoProps) {
+export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = false }: HeroVideoProps) {
   const [isMuted, setIsMuted] = useState(true);
   const [isInView, setIsInView] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -72,7 +73,7 @@ export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: H
           loop
           playsInline
           preload={mounted ? "auto" : "metadata"}
-          poster="/zb-logo-220px.png"
+          poster={poster || undefined}
           className="w-full h-full object-cover transition-all duration-700"
           suppressHydrationWarning
         />

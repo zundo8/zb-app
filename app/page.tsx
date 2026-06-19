@@ -155,10 +155,10 @@ export default async function Home() {
       <div className="hidden md:block absolute top-[180vh] right-1/4 translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-foreground/[0.02] blur-[150px] pointer-events-none z-0" />
 
       {/* ═══ HERO: Full-screen ═══ */}
-      <section className="relative w-full h-[100dvh] md:h-screen overflow-hidden min-h-[500px]">
+      <section className="relative w-full h-[100dvh] md:h-screen overflow-hidden min-h-[500px] bg-black">
         {/* Background video */}
         {heroVideo ? (
-          <HeroVideo src={heroVideo} mobileSrc={heroVideoMobile} />
+          <HeroVideo src={heroVideo} mobileSrc={heroVideoMobile} poster={s?.heroImage || undefined} />
         ) : (
           <NextImage src={heroImage} alt="Hero" fill priority className="object-cover" onError={handleImageError} />
         )}
