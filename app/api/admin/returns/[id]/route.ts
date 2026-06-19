@@ -38,9 +38,76 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const returnItemUpdateData: any = { status: status.toUpperCase() };
 
     if (lowerStatus === 'refunded') {
-      updateData.actualRefund = refundAmount || returnRequest.estimatedRefund;
+      const actualRefundAmount = refundAmount || returnRequest.actualRefund || returnRequest.estimatedRefund;
+      updateData.actualRefund = actualRefundAmount;
       returnItemUpdateData.refundStatus = 'COMPLETED';
-      returnItemUpdateData.refundAmount = refundAmount || returnRequest.estimatedRefund;
+      returnItemUpdateData.refundAmount = actualRefundAmount;
+
+      // Check if refund needs to go to Razorpay (original method)
+      const isOriginalMethod = returnRequest.returns.some(r => r.refundMethod === 'original_method') || 
+                               !returnRequest.returns.some(r => r.storeCreditAmount && r.storeCreditAmount > 0);
+
+      if (isOriginalMethod && actualRefundAmount > 0) {
+        const order = returnRequest.order;
+        const paymentId = order.razorpayPaymentId;
+        
+        if (paymentId) {
+          try {
+            console.log(`[AdminRefund] Initiating Razorpay refund of ₹${actualRefundAmount} for payment ${paymentId}`);
+            
+            const isMock = paymentId.startsWith('pay_mock_') || 
+                           (order.razorpayOrderId && order.razorpayOrderId.startsWith('order_mock_'));
+            
+            if (isMock) {
+              console.warn(`[AdminRefund] Processing MOCK refund for mock payment ${paymentId}`);
+              await prisma.payment.create({
+                data: {
+                  orderId: order.id,
+                  customerId: order.customerId,
+                  amount: actualRefundAmount,
+                  type: 'refund',
+                  status: 'completed',
+                  gateway: 'razorpay'
+                }
+              });
+            } else {
+              const { resolveRazorpayCredentials } = await import('@/lib/razorpay-credentials');
+              const Razorpay = (await import('razorpay')).default;
+              const creds = await resolveRazorpayCredentials();
+              const razorpayInstance = new Razorpay({ key_id: creds.key_id, key_secret: creds.key_secret });
+              
+              const amountInPaise = Math.round(actualRefundAmount * 100);
+              const refund = await razorpayInstance.payments.refund(paymentId, {
+                amount: amountInPaise,
+                notes: {
+                  returnRequestId: returnRequest.id,
+                  orderId: order.id,
+                  reason: 'Customer Return'
+                }
+              });
+              
+              console.log(`[AdminRefund] Razorpay refund successful! Refund ID: ${refund.id}`);
+              
+              await prisma.payment.create({
+                data: {
+                  orderId: order.id,
+                  customerId: order.customerId,
+                  amount: actualRefundAmount,
+                  type: 'refund',
+                  status: 'completed',
+                  gateway: 'razorpay'
+                }
+              });
+            }
+          } catch (refundErr: any) {
+            console.error(`[AdminRefund] Razorpay refund failed:`, refundErr);
+            const errMsg = refundErr?.error?.description || refundErr?.message || 'Unknown error';
+            return NextResponse.json({ error: `Refund failed on Razorpay: ${errMsg}. Please check credentials or transaction status.` }, { status: 500 });
+          }
+        } else {
+          console.warn(`[AdminRefund] Return request ${returnRequestId} wants original method refund but order has no razorpayPaymentId.`);
+        }
+      }
     }
 
     const updatedReturnRequest = await prisma.$transaction(async (tx) => {

@@ -98,7 +98,7 @@ const ChatBubble = memo(function ChatBubble({ msg, index }: { msg: any; index: n
           className={`px-3.5 py-2.5 md:px-4 md:py-3 rounded-2xl ${isUser
             ? 'bg-foreground/[0.06] text-foreground border border-foreground/8 rounded-tr-md'
             : 'bg-foreground text-background rounded-tl-md font-medium'
-          } ${msg._optimistic ? 'opacity-70' : ''}`}
+            } ${msg._optimistic ? 'opacity-70' : ''}`}
         >
           <p className="text-[11px] md:text-xs leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
         </div>
@@ -419,11 +419,10 @@ function SupportPageContent() {
               <div className="flex border-b border-foreground/5 p-1.5 md:p-2 bg-foreground/[0.01] relative z-10 gap-1 md:gap-1.5 shrink-0">
                 <button
                   onClick={() => setActiveTab('form')}
-                  className={`flex-1 py-2.5 md:py-3 px-3 md:px-4 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-bold uppercase tracking-widest transition-all tap-target ${
-                    activeTab === 'form' 
-                      ? 'bg-foreground/10 text-foreground shadow-sm border border-foreground/10' 
+                  className={`flex-1 py-2.5 md:py-3 px-3 md:px-4 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-bold uppercase tracking-widest transition-all tap-target ${activeTab === 'form'
+                      ? 'bg-foreground/10 text-foreground shadow-sm border border-foreground/10'
                       : 'text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.02]'
-                  }`}
+                    }`}
                 >
                   <span className="flex items-center justify-center gap-1.5">
                     <Mail className="w-3 h-3 md:w-3.5 md:h-3.5" />
@@ -432,11 +431,10 @@ function SupportPageContent() {
                 </button>
                 <button
                   onClick={handleChatTabClick}
-                  className={`flex-1 py-2.5 md:py-3 px-3 md:px-4 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-bold uppercase tracking-widest transition-all tap-target ${
-                    activeTab === 'chat' 
-                      ? 'bg-foreground/10 text-foreground shadow-sm border border-foreground/10' 
+                  className={`flex-1 py-2.5 md:py-3 px-3 md:px-4 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-bold uppercase tracking-widest transition-all tap-target ${activeTab === 'chat'
+                      ? 'bg-foreground/10 text-foreground shadow-sm border border-foreground/10'
                       : 'text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.02]'
-                  }`}
+                    }`}
                 >
                   <span className="flex items-center justify-center gap-1.5">
                     <MessageSquare className="w-3 h-3 md:w-3.5 md:h-3.5" />
@@ -680,7 +678,7 @@ function SupportPageContent() {
                   <div className="min-w-0">
                     <p className="text-[9px] text-foreground/30 uppercase tracking-widest mb-0.5">Email Support</p>
                     <p className="text-foreground/80 text-sm font-medium truncate">support@zicabella.com</p>
-                    <p className="text-foreground/40 text-[10px] md:text-xs mt-1">Average response within 24h</p>
+                    <p className="text-foreground/40 text-[10px] md:text-xs mt-1">Average response within 01h</p>
                   </div>
                 </div>
 

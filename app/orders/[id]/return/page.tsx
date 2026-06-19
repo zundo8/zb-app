@@ -34,6 +34,7 @@ export default function ReturnRequestPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [refundMethod, setRefundMethod] = useState<"original_method" | "store_credit">("original_method");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -108,7 +109,8 @@ export default function ReturnRequestPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId: order.id,
-          returnItems: returnItemsPayload
+          returnItems: returnItemsPayload,
+          refundMethod: refundMethod
         })
       });
 
@@ -251,6 +253,40 @@ export default function ReturnRequestPage() {
               </motion.div>
             );
           })}
+        </div>
+
+        {/* Refund Method Selection */}
+        <div className="mt-6 rounded-2xl glass-panel p-6 border border-foreground/[0.05] space-y-4">
+          <div>
+            <h3 className="text-[11px] font-bold text-foreground uppercase tracking-widest">Refund Preference</h3>
+            <p className="text-[10px] text-foreground/45 mt-1 leading-relaxed">Select how you want to be refunded once your return is processed.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={() => setRefundMethod("original_method")}
+              className={`flex-1 p-4 rounded-xl border text-left transition-all ${
+                refundMethod === "original_method"
+                  ? "bg-foreground/[0.03] border-foreground/30 text-foreground"
+                  : "border-foreground/5 text-foreground/40 hover:border-foreground/10"
+              }`}
+            >
+              <p className="text-[11px] font-bold uppercase tracking-wider">Original Payment Method</p>
+              <p className="text-[9px] text-foreground/40 mt-1.5 leading-relaxed">Funds are reversed directly to your source account (Credit/Debit Card, UPI, net banking, or Razorpay wallet).</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setRefundMethod("store_credit")}
+              className={`flex-1 p-4 rounded-xl border text-left transition-all ${
+                refundMethod === "store_credit"
+                  ? "bg-foreground/[0.03] border-foreground/30 text-foreground"
+                  : "border-foreground/5 text-foreground/40 hover:border-foreground/10"
+              }`}
+            >
+              <p className="text-[11px] font-bold uppercase tracking-wider">Store Credit (Fastest)</p>
+              <p className="text-[9px] text-foreground/40 mt-1.5 leading-relaxed">Added instantly as a store balance to your account wallet once your return is approved. Recommended.</p>
+            </button>
+          </div>
         </div>
 
         {/* Error */}

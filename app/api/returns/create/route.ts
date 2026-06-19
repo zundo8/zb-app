@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { orderId, userId: bodyUserId, returnItems } = body;
+    const { orderId, userId: bodyUserId, returnItems, refundMethod } = body;
 
     if (!resolvedUserId) {
       const authHeader = req.headers.get('authorization');
@@ -85,6 +85,7 @@ export async function POST(req: Request) {
         reason: returnItem.reason,
         status: "REQUESTED",
         refundAmount: itemRefund,
+        refundMethod: refundMethod || "original_method",
         comments: returnItem.comments
       });
     }
@@ -104,7 +105,8 @@ export async function POST(req: Request) {
             sku: item.sku,
             reason: item.comments ? `${item.reason} - ${item.comments}` : item.reason,
             status: item.status,
-            refundAmount: item.refundAmount
+            refundAmount: item.refundAmount,
+            refundMethod: item.refundMethod
           }))
         }
       },

@@ -379,6 +379,12 @@ export default function ReturnDetailPage() {
                 <span className="text-[10px] text-foreground/50">Estimated Refund</span>
                 <span className="text-[12px] font-semibold text-foreground">₹{(data.estimatedRefund || returnItems.reduce((a: number, i: any) => a + (i.refundAmount || 0), 0)).toLocaleString("en-IN")}</span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-foreground/50">Customer Preference</span>
+                <span className="text-[10px] font-semibold text-foreground uppercase tracking-widest">
+                  {returnItems[0]?.refundMethod === "store_credit" ? "Store Credit" : "Original Method"}
+                </span>
+              </div>
               {data.actualRefund != null && (
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] text-foreground/50">Actual Refund</span>
@@ -399,7 +405,12 @@ export default function ReturnDetailPage() {
               {currentStatus === "pending_approval" && (
                 <>
                   <button
-                    onClick={() => { setShowRefundModal(true); setRefundAmount(String(data.estimatedRefund || returnItems.reduce((a: number, i: any) => a + (i.refundAmount || 0), 0))); }}
+                    onClick={() => {
+                      const pref = returnItems[0]?.refundMethod === "store_credit" ? "store_credit" : "original_method";
+                      setRefundType(pref);
+                      setShowRefundModal(true);
+                      setRefundAmount(String(data.estimatedRefund || returnItems.reduce((a: number, i: any) => a + (i.refundAmount || 0), 0)));
+                    }}
                     disabled={!!actionLoading}
                     className="w-full py-2.5 bg-foreground text-background rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                   >

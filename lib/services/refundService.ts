@@ -36,18 +36,9 @@ export async function processOrderRefund(orderId: string) {
       return { success: true, message: 'Already refunded' };
     }
 
-    // 4. Determine payment ID to refund
-    const paymentId = order.razorpayPaymentId;
-    if (!paymentId) {
-      console.log(`[AutoRefund] Order ${orderId} has no razorpayPaymentId. No online payment to refund.`);
-      return { success: true, message: 'No payment ID to refund' };
-    }
-
-    // 5. Determine refund amount
-    let refundAmount = 0;
-    const isCod = order.paymentMethod?.toUpperCase() === 'COD';
+    // 4. Determine payment method and find linked WebStoreOrder to get exact values if available
+    const isCod = order.paymentMethod?.toUpperCase() === 'COD' || order.paymentMethod?.toLowerCase().includes('cash');
     
-    // Find linked WebStoreOrder to get exact values if available
     let webStoreOrder = null;
     if (order.razorpayOrderId) {
       webStoreOrder = await prisma.webStoreOrder.findFirst({
@@ -60,9 +51,21 @@ export async function processOrderRefund(orderId: string) {
       });
     }
 
+    const paymentId = isCod 
+      ? (webStoreOrder?.codUpfrontPaymentId || order.razorpayPaymentId) 
+      : order.razorpayPaymentId;
+
+    if (!paymentId) {
+      console.log(`[AutoRefund] Order ${orderId} has no payment transaction ID (razorpayPaymentId or codUpfrontPaymentId). No online payment to refund.`);
+      return { success: true, message: 'No payment ID to refund' };
+    }
+
+    // 5. Determine refund amount
+    let refundAmount = 0;
     if (isCod) {
       // For COD, refund the upfront fee (typically Rs 99)
-      refundAmount = webStoreOrder ? Number(webStoreOrder.codUpfrontPaid) : 99;
+      const upfrontPaid = webStoreOrder ? Number(webStoreOrder.codUpfrontPaid) : 0;
+      refundAmount = upfrontPaid > 0 ? upfrontPaid : 99;
     } else {
       // For Prepaid, refund the total price
       refundAmount = order.totalPrice;
@@ -76,7 +79,9 @@ export async function processOrderRefund(orderId: string) {
     console.log(`[AutoRefund] Processing refund of ₹${refundAmount} for payment ${paymentId} (Order: ${orderId}, Method: ${order.paymentMethod})`);
 
     // Support mock orders/payments in test mode
-    const isMock = paymentId.startsWith('pay_mock_') || (order.razorpayOrderId && order.razorpayOrderId.startsWith('order_mock_'));
+    const isMock = paymentId.startsWith('pay_mock_') || 
+                   (order.razorpayOrderId && order.razorpayOrderId.startsWith('order_mock_')) ||
+                   (webStoreOrder?.razorpayOrderId && webStoreOrder.razorpayOrderId.startsWith('order_mock_'));
     
     if (isMock) {
       console.warn(`[AutoRefund] Processing MOCK refund for mock payment ${paymentId}`);

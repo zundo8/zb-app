@@ -9,7 +9,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const returnRequest = await prisma.returnRequest.findUnique({
       where: { id },
-      include: { returns: true }
+      include: { 
+        returns: true,
+        order: {
+          include: {
+            customer: true
+          }
+        }
+      }
     });
 
     if (!returnRequest) {
@@ -36,7 +43,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           status: "APPROVED",
           refundAmount: isStoreCredit ? 0 : refundAmount,
           storeCreditAmount: isStoreCredit ? refundAmount : 0,
-          refundStatus: "COMPLETED"
+          refundStatus: isStoreCredit ? "COMPLETED" : "PENDING",
+          refundMethod: isStoreCredit ? "store_credit" : "original_method"
         }
       });
 
