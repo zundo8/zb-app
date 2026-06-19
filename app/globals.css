@@ -1750,3 +1750,222 @@ body.gallery-open .fixed.z-50 {
     height: 18vh !important;
   }
 }
+
+/* ============================================
+   SUPPORT PAGE — PERFORMANCE-OPTIMIZED STYLES
+   Mobile-first glass effects with reduced GPU load
+   ============================================ */
+
+/* ── Support page root layout ── */
+.support-page-root {
+  contain: layout style;
+}
+
+/* ── Background blobs — lightweight on mobile, animated on desktop ── */
+.support-bg-layer {
+  will-change: auto;
+  contain: strict;
+}
+
+.support-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.support-blob-1 {
+  top: -15%;
+  left: -15%;
+  width: 50%;
+  height: 50%;
+  background: radial-gradient(circle, hsl(var(--foreground) / 0.03) 0%, transparent 70%);
+}
+
+.support-blob-2 {
+  bottom: -15%;
+  right: -15%;
+  width: 50%;
+  height: 50%;
+  background: radial-gradient(circle, hsl(var(--foreground) / 0.02) 0%, transparent 70%);
+}
+
+/* Only animate blobs on desktop — saves mobile GPU/battery */
+@media (min-width: 769px) and (prefers-reduced-motion: no-preference) {
+  .support-blob-1 {
+    animation: support-blob-drift 10s ease-in-out infinite alternate;
+  }
+  .support-blob-2 {
+    animation: support-blob-drift 12s ease-in-out infinite alternate-reverse;
+  }
+}
+
+@keyframes support-blob-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(2%, 3%) scale(1.05); }
+}
+
+/* ── Support Glass Card — Apple-level frost, mobile-optimized ── */
+.support-glass-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1.5px solid rgba(0, 0, 0, 0.1);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 8px 24px -4px rgba(0, 0, 0, 0.1),
+    0 2px 8px -2px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.06);
+  /* Mobile: reduced blur for faster rendering */
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  overflow: hidden;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+/* Desktop: full Apple-level frost */
+@media (min-width: 769px) {
+  .support-glass-card {
+    border-radius: 1.75rem;
+    backdrop-filter: blur(28px) saturate(190%) contrast(100%);
+    -webkit-backdrop-filter: blur(28px) saturate(190%) contrast(100%);
+    box-shadow:
+      0 12px 32px -6px rgba(0, 0, 0, 0.15),
+      0 4px 12px -2px rgba(0, 0, 0, 0.08),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.1);
+  }
+}
+
+.dark .support-glass-card {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1.5px solid rgba(0, 0, 0, 0.35);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 12px 36px -8px rgba(0, 0, 0, 0.5),
+    0 4px 12px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.25);
+}
+
+@media (min-width: 769px) {
+  .dark .support-glass-card {
+    backdrop-filter: blur(28px) saturate(210%) contrast(100%);
+    -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(100%);
+    box-shadow:
+      0 18px 45px -12px rgba(0, 0, 0, 0.65),
+      0 8px 18px -6px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Glass sheen overlay — CSS pseudo, no extra DOM node */
+.support-glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dark .support-glass-card::before {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0%, transparent 55%);
+}
+
+/* ── Entrance Animations — CSS only, GPU-promoted ── */
+.support-pre-mount {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.support-mounted {
+  animation: support-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes support-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Tab content entrance */
+.support-tab-enter {
+  animation: support-tab-in 0.25s ease-out both;
+}
+
+@keyframes support-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Chat message entrance */
+.support-msg-enter {
+  animation: support-msg-in 0.2s ease-out both;
+}
+
+@keyframes support-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Chat scroll container — GPU layer promotion ── */
+.support-chat-scroll {
+  will-change: scroll-position;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  max-height: calc(100dvh - 380px);
+  min-height: 120px;
+}
+
+/* On very small mobile screens, allow more chat space */
+@media (max-width: 480px) {
+  .support-chat-scroll {
+    max-height: calc(100dvh - 340px);
+  }
+}
+
+/* ── Quick action hover effect ── */
+.support-quick-action {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ── Reduced motion: disable all animations ── */
+@media (prefers-reduced-motion: reduce) {
+  .support-mounted,
+  .support-tab-enter,
+  .support-msg-enter {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .support-blob-1,
+  .support-blob-2 {
+    animation: none !important;
+  }
+}
