@@ -135,6 +135,17 @@ export default function ProductCardImage({
   }, []);
 
   // ── Touch handlers attached via useEffect (non-passive touchmove support) ──
+  // Stable refs to avoid re-attaching listeners on every render
+  const onTouchStartRef = useRef(onTouchStart);
+  const onTouchMoveRef = useRef(onTouchMove);
+  const onTouchEndRef = useRef(onTouchEnd);
+
+  useEffect(() => {
+    onTouchStartRef.current = onTouchStart;
+    onTouchMoveRef.current = onTouchMove;
+    onTouchEndRef.current = onTouchEnd;
+  }, [onTouchStart, onTouchMove, onTouchEnd]);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !hasMultiple) return;
@@ -146,19 +157,19 @@ export default function ProductCardImage({
         hoverTimeoutRef.current = null;
       }
       setIsHovered(false);
-      onTouchStart(e);
+      onTouchStartRef.current(e);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      onTouchMove(e);
+      onTouchMoveRef.current(e);
     };
 
     const handleTouchEnd = () => {
-      onTouchEnd();
+      onTouchEndRef.current();
     };
 
     const handleTouchCancel = () => {
-      onTouchEnd();
+      onTouchEndRef.current();
     };
 
     el.addEventListener("touchstart", handleTouchStart, { passive: true });
@@ -172,7 +183,7 @@ export default function ProductCardImage({
       el.removeEventListener("touchend", handleTouchEnd);
       el.removeEventListener("touchcancel", handleTouchCancel);
     };
-  }, [hasMultiple, onTouchStart, onTouchMove, onTouchEnd]);
+  }, [hasMultiple]); // Only re-attach when hasMultiple changes — handlers use stable refs
 
   // ── Progressive loading: lazy preload pipeline ──
   const loadedSet = useRef(new Set<number>());
@@ -230,7 +241,11 @@ export default function ProductCardImage({
       <div
         ref={containerRef}
         className="relative w-full rounded-none overflow-hidden mb-1.5 transition-all duration-500 bg-foreground/[0.02] select-none"
-        style={{ aspectRatio: "3 / 5.2", contain: "layout style paint" }}
+        style={{
+          aspectRatio: "3 / 5.2",
+          contain: "layout style paint",
+          touchAction: hasMultiple ? "pan-y pinch-zoom" : "auto",
+        }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseDown={hasMultiple ? handleMouseDown : undefined}
@@ -372,23 +387,7 @@ export default function ProductCardImage({
           />
         )}
 
-        {/* ─── Dot indicator ─── */}
-        {hasMultiple && (
-          <div className="absolute bottom-1.5 left-0 right-0 z-[4] flex justify-center gap-[3px] pointer-events-none">
-            {imageSrcs.map((_, idx) => (
-              <span
-                key={idx}
-                className="block rounded-full transition-opacity duration-200"
-                style={{
-                  width: 3,
-                  height: 3,
-                  backgroundColor: "white",
-                  opacity: idx === currentIndex ? 1 : 0.3,
-                }}
-              />
-            ))}
-          </div>
-        )}
+        {/* Dots removed — clean minimal design */}
       </div>
     </Link>
   );
