@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
-import { fetchProductById } from "@/lib/shopify-admin";
+import { fetchProductById, shopifyFetch, ShopifyProduct } from "@/lib/shopify-admin";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 
@@ -76,10 +76,29 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' }
     });
 
+    // Extract all shopify product IDs
+    const shopifyProductIds = wishlistItems
+      .map(item => item.product.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//, ''))
+      .filter(id => !!id);
+
+    let shopifyProducts: ShopifyProduct[] = [];
+    if (shopifyProductIds.length > 0) {
+      try {
+        const data = await shopifyFetch<{ products: ShopifyProduct[] }>("products.json", {
+          ids: shopifyProductIds.join(",")
+        });
+        shopifyProducts = data.products || [];
+      } catch (e) {
+        console.error("Failed to fetch wishlist products from Shopify:", e);
+      }
+    }
+
     // Map to a more useful format for the app
-    const items = wishlistItems.map(item => ({
-      ...item,
-      product: {
+    const items = wishlistItems.map(item => {
+      const cleanId = item.product.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//, '');
+      const shopifyProduct = shopifyProducts.find(p => String(p.id) === cleanId);
+
+      const productData: any = {
         ...item.product,
         // Ensure id is the GID if that's what the app expects for keys
         id: item.product.shopifyProductId.startsWith('gid://') 
@@ -99,8 +118,52 @@ export async function GET(req: Request) {
         ],
         isSoldOut: false,
         isOnSale: false,
+      };
+
+      if (shopifyProduct) {
+        productData.title = shopifyProduct.title;
+        productData.handle = shopifyProduct.handle;
+        if (shopifyProduct.image?.src) {
+          productData.image = { src: shopifyProduct.image.src };
+        }
+        if (shopifyProduct.images && shopifyProduct.images.length > 0) {
+          productData.images = shopifyProduct.images.map(img => ({ src: img.src }));
+        }
+        if (shopifyProduct.options) {
+          productData.options = shopifyProduct.options.map(opt => ({
+            id: String(opt.id),
+            name: opt.name,
+            position: opt.position,
+            values: opt.values
+          }));
+        }
+        if (shopifyProduct.variants && shopifyProduct.variants.length > 0) {
+          productData.variants = shopifyProduct.variants.map(v => ({
+            id: `gid://shopify/ProductVariant/${v.id}`,
+            price: String(v.price || '0'),
+            title: v.title,
+            option1: v.option1 || '',
+            option2: v.option2 || '',
+            option3: v.option3 || '',
+            compareAtPrice: v.compare_at_price ? String(v.compare_at_price) : null,
+            inventoryQuantity: v.inventory_quantity,
+            inventoryManagement: v.inventory_management,
+            isSoldOut: v.inventory_management && v.inventory_quantity <= 0
+          }));
+        }
+        
+        // Handle isSoldOut check for the product (all variants sold out)
+        productData.isSoldOut = shopifyProduct.variants?.every(v => v.inventory_management && v.inventory_quantity <= 0) || false;
+        
+        // Check if product is on sale
+        productData.isOnSale = shopifyProduct.variants?.some(v => v.compare_at_price && parseFloat(v.compare_at_price) > parseFloat(v.price)) || false;
       }
-    }));
+
+      return {
+        ...item,
+        product: productData
+      };
+    });
 
     return NextResponse.json({ items });
   } catch (error) {

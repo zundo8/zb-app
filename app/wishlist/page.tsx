@@ -8,34 +8,43 @@ import { useBookmarks } from "@/lib/bookmark-context";
 import { useCart } from "@/lib/cart-context";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import dynamic from "next/dynamic";
+
+const QuickAddModal = dynamic(() => import("@/components/QuickAddModal"), { ssr: false });
 
 export default function WishlistPage() {
   const { bookmarks, removeBookmark } = useBookmarks();
   const { add: addToCart } = useCart();
   const [isLoaded, setIsLoaded] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   useEffect(() => {
     setIsLoaded(true);
   }, []);
 
   const handleQuickAdd = (product: any) => {
-    const variant = product.variants?.[0];
-    if (!variant) {
-      toast.error("This product is currently unavailable");
-      return;
+    const variants = product.variants || [];
+    if (variants.length <= 1) {
+      const variant = variants[0];
+      if (!variant) {
+        toast.error("This product is currently unavailable");
+        return;
+      }
+
+      addToCart({
+        productId: product.id.toString(),
+        handle: product.handle,
+        variantId: variant.id.toString(),
+        title: product.title,
+        size: variant.option1 === "Default Title" ? null : (variant.option1 || null),
+        price: variant.price,
+        image: product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png"
+      });
+
+      toast.success(`${product.title} added to bag`);
+    } else {
+      setSelectedProduct(product);
     }
-
-    addToCart({
-      productId: product.id.toString(),
-      handle: product.handle,
-      variantId: variant.id.toString(),
-      title: product.title,
-      size: variant.option1 || null,
-      price: variant.price,
-      image: product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png"
-    });
-
-    toast.success(`${product.title} added to bag`);
   };
 
   const handleRemove = (product: any) => {
@@ -154,6 +163,12 @@ export default function WishlistPage() {
           </div>
         )}
       </div>
+      {selectedProduct && (
+        <QuickAddModal 
+          product={selectedProduct} 
+          onClose={() => setSelectedProduct(null)} 
+        />
+      )}
     </>
   );
 }

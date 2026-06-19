@@ -682,7 +682,7 @@ export default function ProfilePage() {
                     <Link key={item.id} href={`/products/${item.handle}`}>
                       <div className="aspect-[4/5] rounded-[1.25rem] overflow-hidden relative group border border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01]">
                         <img
-                          src={item.image?.src || "/zb-logo-220px.png"}
+                          src={item.image?.src || item.images?.[0]?.src || "/zb-logo-220px.png"}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                           alt={item.title}
                         />

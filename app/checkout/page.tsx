@@ -159,6 +159,8 @@ export default function CheckoutPage() {
   const [couponValid, setCouponValid] = useState(false);
   const [applyAsStoreCredit, setApplyAsStoreCredit] = useState(false);
   const [cashbackAmount, setCashbackAmount] = useState(0);
+  const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
+  const [isManualCoupon, setIsManualCoupon] = useState(false);
   
   const total = subtotal - (applyAsStoreCredit ? 0 : couponDiscount) + (paymentMethod === "COD" ? codFee : 0) + shipping;
 
@@ -281,10 +283,15 @@ export default function CheckoutPage() {
     setStep(2);
   };
 
-  const handleApplyCoupon = async (overrideCode?: string, currentPaymentMethod?: string) => {
+  const handleApplyCoupon = async (overrideCode?: string, currentPaymentMethod?: string, isAuto = false) => {
     const codeToValidate = overrideCode !== undefined ? overrideCode : couponCode;
     const paymentMethodToValidate = currentPaymentMethod !== undefined ? currentPaymentMethod : paymentMethod;
     if (!codeToValidate.trim()) return;
+
+    if (!isAuto) {
+      setIsManualCoupon(true);
+    }
+
     setCouponLoading(true);
     setCouponMessage("");
     
@@ -316,18 +323,25 @@ export default function CheckoutPage() {
         setCouponValid(false);
         setApplyAsStoreCredit(false);
         setCashbackAmount(0);
+        if (!isAuto) {
+          setIsManualCoupon(false);
+        }
       }
     } catch {
       setCouponMessage("Unable to validate coupon.");
       setCouponValid(false);
       setApplyAsStoreCredit(false);
       setCashbackAmount(0);
+      if (!isAuto) {
+        setIsManualCoupon(false);
+      }
     } finally {
       setCouponLoading(false);
     }
   };
 
   const handleRemoveCoupon = () => {
+    setIsManualCoupon(true);
     setCouponCode("");
     setCouponDiscount(0);
     setCouponMessage("");
@@ -336,12 +350,122 @@ export default function CheckoutPage() {
     setCashbackAmount(0);
   };
 
-  // Re-validate coupon when payment method changes
+  // Fetch active coupons from storefront active API
   useEffect(() => {
-    if (couponValid && couponCode) {
-      handleApplyCoupon(couponCode, paymentMethod);
+    const fetchActiveCoupons = async () => {
+      try {
+        const res = await fetch("/api/storefront/coupons/active");
+        if (res.ok) {
+          const data = await res.json();
+          setActiveCoupons(data.coupons || []);
+        }
+      } catch (err) {
+        console.error("Failed to load active coupons:", err);
+      }
+    };
+    fetchActiveCoupons();
+  }, []);
+
+  // Client-side local evaluation helper for ranking coupons
+  const calculateCouponDiscount = useCallback((coupon: any, subtotalAmount: number, payMethod: string) => {
+    const isCOD = payMethod === "COD";
+    
+    // check minimum order value
+    if (subtotalAmount < Number(coupon.minOrderValue || 0)) {
+      return { discount: 0, eligible: false, message: "Min order amount not met", type: "", value: 0, applyAsStoreCredit: false };
     }
-  }, [paymentMethod]);
+    
+    // check payment method applicability
+    if (coupon.applicability === "PREPAID_ONLY" && isCOD) {
+      return { discount: 0, eligible: false, message: "Only valid for prepaid orders", type: "", value: 0, applyAsStoreCredit: false };
+    }
+    if (coupon.applicability === "COD_ONLY" && !isCOD) {
+      return { discount: 0, eligible: false, message: "Only valid for COD orders", type: "", value: 0, applyAsStoreCredit: false };
+    }
+    
+    let currentDiscountType = coupon.discountType;
+    let currentDiscountValue = Number(coupon.discountValue);
+
+    if (coupon.applicability === "PREPAID_ONLY" || (coupon.applicability === "CUSTOM_RATES" && !isCOD)) {
+      currentDiscountType = coupon.prepaidDiscountType;
+      currentDiscountValue = Number(coupon.prepaidDiscountValue);
+    } else if (coupon.applicability === "COD_ONLY" || (coupon.applicability === "CUSTOM_RATES" && isCOD)) {
+      currentDiscountType = coupon.codDiscountType;
+      currentDiscountValue = Number(coupon.codDiscountValue);
+    }
+
+    let calculatedDiscount = 0;
+    if (currentDiscountType === "percentage") {
+      calculatedDiscount = Math.round((subtotalAmount * currentDiscountValue) / 100);
+    } else {
+      calculatedDiscount = Math.min(currentDiscountValue, subtotalAmount);
+    }
+
+    return { 
+      discount: calculatedDiscount, 
+      eligible: true, 
+      type: currentDiscountType,
+      value: currentDiscountValue,
+      applyAsStoreCredit: !!coupon.applyAsStoreCredit
+    };
+  }, []);
+
+  // Automatic coupon application logic
+  useEffect(() => {
+    if (activeCoupons.length === 0 || isManualCoupon) return;
+
+    const ranked = activeCoupons
+      .map(coupon => ({
+        coupon,
+        calc: calculateCouponDiscount(coupon, subtotal, paymentMethod)
+      }))
+      .filter(item => item.calc.eligible && item.calc.discount > 0)
+      .sort((a, b) => {
+        const immediateA = a.calc.applyAsStoreCredit ? 0 : a.calc.discount;
+        const immediateB = b.calc.applyAsStoreCredit ? 0 : b.calc.discount;
+        if (immediateA !== immediateB) {
+          return immediateB - immediateA;
+        }
+        const cashbackA = a.calc.applyAsStoreCredit ? a.calc.discount : 0;
+        const cashbackB = b.calc.applyAsStoreCredit ? b.calc.discount : 0;
+        return cashbackB - cashbackA;
+      });
+
+    const best = ranked[0];
+    if (best) {
+      setCouponCode(best.coupon.code);
+      setCouponValid(true);
+      setApplyAsStoreCredit(best.coupon.applyAsStoreCredit);
+      if (best.coupon.applyAsStoreCredit) {
+        setCouponDiscount(0);
+        setCashbackAmount(best.calc.discount);
+      } else {
+        setCouponDiscount(best.calc.discount);
+        setCashbackAmount(0);
+      }
+      
+      const displayMessage = best.coupon.applyAsStoreCredit
+        ? `₹${best.calc.discount.toLocaleString("en-IN")} Store Credit cashback will be added!`
+        : best.calc.type === "percentage"
+          ? `${best.calc.value}% off applied automatically!`
+          : `₹${best.calc.value.toLocaleString("en-IN")} off applied automatically!`;
+      setCouponMessage(displayMessage);
+    } else {
+      setCouponCode("");
+      setCouponDiscount(0);
+      setCouponMessage("");
+      setCouponValid(false);
+      setApplyAsStoreCredit(false);
+      setCashbackAmount(0);
+    }
+  }, [activeCoupons, subtotal, paymentMethod, isManualCoupon, calculateCouponDiscount]);
+
+  // Re-validate coupon when payment method changes (only for manually applied/pinned coupons)
+  useEffect(() => {
+    if (isManualCoupon && couponValid && couponCode) {
+      handleApplyCoupon(couponCode, paymentMethod, false);
+    }
+  }, [paymentMethod, isManualCoupon]);
 
   const handlePlaceOrder = async () => {
     setLoading(true);
@@ -1055,18 +1179,30 @@ export default function CheckoutPage() {
 
 
                 {/* ═══ Coupon Code ═══ */}
-                <div className="glass-panel p-3 space-y-2 border border-foreground/5 rounded-2xl">
-                  <div className="flex items-center gap-1.5">
-                    <Tag className="w-3 h-3 text-foreground/45" />
-                    <span className="text-[8px] font-bold text-foreground/60 uppercase tracking-widest">Discount Code</span>
+                <div className="glass-panel p-3.5 space-y-3.5 border border-foreground/5 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Tag className="w-3 h-3 text-foreground/45" />
+                      <span className="text-[8px] font-bold text-foreground/60 uppercase tracking-widest">Discount Code</span>
+                    </div>
+                    {isManualCoupon && (couponValid || couponCode) && (
+                      <button 
+                        onClick={() => setIsManualCoupon(false)} 
+                        className="text-[7px] text-foreground/40 hover:text-foreground/60 font-bold uppercase tracking-wider transition-colors"
+                      >
+                        Reset to Auto
+                      </button>
+                    )}
                   </div>
                   
                   {couponValid ? (
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-foreground/[0.04] border border-foreground/10">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        <span className="text-[10px] font-bold text-foreground/80">{couponCode.toUpperCase()}</span>
-                        <span className="text-[8px] text-foreground/40">— {couponMessage}</span>
+                        <div>
+                          <span className="text-[10px] font-extrabold text-foreground tracking-wide">{couponCode.toUpperCase()}</span>
+                          <p className="text-[8px] text-foreground/50 font-medium leading-none mt-0.5">{couponMessage}</p>
+                        </div>
                       </div>
                       <button onClick={handleRemoveCoupon} className="text-foreground/30 hover:text-foreground/60 p-0.5">
                         <X className="w-3 h-3" />
@@ -1080,20 +1216,114 @@ export default function CheckoutPage() {
                         aria-label="Discount Code"
                         value={couponCode}
                         onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                        className="glass-input flex-1 px-3 py-2 text-[11px] uppercase tracking-wider rounded-xl"
+                        className="glass-input flex-1 px-3 py-2.5 text-[11px] uppercase tracking-wider rounded-xl"
                       />
                       <button
-                        onClick={handleApplyCoupon}
+                        onClick={() => handleApplyCoupon()}
                         disabled={couponLoading || !couponCode.trim()}
-                        className="glass-button px-3 py-2 text-[9px] font-bold uppercase tracking-widest disabled:opacity-30 rounded-xl"
+                        className="glass-button px-4 py-2.5 text-[9px] font-bold uppercase tracking-widest disabled:opacity-30 rounded-xl"
                       >
-                        {couponLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+                        {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
                       </button>
                     </div>
                   )}
                   
                   {couponMessage && !couponValid && (
-                    <p className="text-[9px] text-foreground/40 font-semibold">{couponMessage}</p>
+                    <p className="text-[9px] text-rose-400 font-semibold">{couponMessage}</p>
+                  )}
+
+                  {/* ═══ Available Offers Panel ═══ */}
+                  {activeCoupons.length > 0 && (
+                    <div className="pt-2 border-t border-foreground/5 space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                        <span className="text-[7.5px] font-bold text-foreground/50 uppercase tracking-widest">Available Offers</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto pr-1 scrollbar-thin">
+                        {activeCoupons.map((coupon) => {
+                          const isCOD = paymentMethod === "COD";
+                          let benefitText = "";
+                          let val = 0;
+                          let type = "";
+                          
+                          if (coupon.applicability === "ALL") {
+                            val = Number(coupon.discountValue);
+                            type = coupon.discountType;
+                          } else if (coupon.applicability === "PREPAID_ONLY" || (coupon.applicability === "CUSTOM_RATES" && !isCOD)) {
+                            val = Number(coupon.prepaidDiscountValue);
+                            type = coupon.prepaidDiscountType;
+                          } else if (coupon.applicability === "COD_ONLY" || (coupon.applicability === "CUSTOM_RATES" && isCOD)) {
+                            val = Number(coupon.codDiscountValue);
+                            type = coupon.codDiscountType;
+                          }
+                          
+                          if (type === "percentage") {
+                            benefitText = `${val}% Off`;
+                          } else {
+                            benefitText = `₹${val} Off`;
+                          }
+
+                          if (coupon.applyAsStoreCredit) {
+                            benefitText = `${benefitText} Cashback`;
+                          }
+
+                          const isEligible = subtotal >= Number(coupon.minOrderValue);
+                          const isMethodApplicable = 
+                            coupon.applicability === "ALL" ||
+                            (isCOD && (coupon.applicability === "COD_ONLY" || coupon.applicability === "CUSTOM_RATES")) ||
+                            (!isCOD && (coupon.applicability === "PREPAID_ONLY" || coupon.applicability === "CUSTOM_RATES"));
+
+                          const isApplied = couponValid && couponCode.toUpperCase() === coupon.code.toUpperCase();
+
+                          return (
+                            <div 
+                              key={coupon.id} 
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                                isApplied 
+                                  ? "bg-emerald-500/[0.03] border-emerald-500/20 text-foreground" 
+                                  : !isEligible || !isMethodApplicable
+                                  ? "bg-foreground/[0.005] border-foreground/5 opacity-40"
+                                  : "bg-foreground/[0.015] border-foreground/5 hover:border-foreground/10 text-foreground"
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <span className="font-mono text-[9px] font-extrabold text-foreground px-2 py-0.5 bg-foreground/5 border border-foreground/5 rounded-lg uppercase tracking-wide">
+                                    {coupon.code}
+                                  </span>
+                                  {isApplied && (
+                                    <span className="text-[7px] bg-emerald-500/10 text-emerald-400 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+                                      {isManualCoupon ? "Applied" : "Auto-Applied"}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[9px] font-bold text-foreground/80 leading-tight">
+                                  {benefitText} {coupon.applyAsStoreCredit ? "credited as cashback" : "instantly at checkout"}
+                                </p>
+                                <p className="text-[7.5px] text-foreground/35 mt-0.5 font-medium">
+                                  {Number(coupon.minOrderValue) > 0 ? `Valid on orders above ₹${Number(coupon.minOrderValue).toLocaleString()}` : "No minimum requirement"}
+                                  {coupon.applicability === "PREPAID_ONLY" && " • Prepaid only"}
+                                  {coupon.applicability === "COD_ONLY" && " • COD only"}
+                                </p>
+                              </div>
+                              
+                              {isEligible && isMethodApplicable && !isApplied && (
+                                <button
+                                  onClick={() => {
+                                    setCouponCode(coupon.code);
+                                    setIsManualCoupon(true);
+                                    handleApplyCoupon(coupon.code, paymentMethod, false);
+                                  }}
+                                  className="px-2 py-1.5 rounded-lg text-[8px] font-bold uppercase tracking-wider bg-foreground text-background hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+                                >
+                                  Apply
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
 

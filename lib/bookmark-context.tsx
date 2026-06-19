@@ -62,7 +62,7 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 // Add local-only items to the database
-                const localOnly = prev.filter(p => !dbProducts.some(db => db.id.toString() === p.id.toString()));
+                const localOnly = prev.filter(p => !dbProducts.some((db: any) => db.id.toString() === p.id.toString()));
                 for (const p of localOnly) {
                   fetch("/api/wishlist", {
                     method: "POST",
@@ -115,13 +115,13 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
   }, [bookmarks]);
 
   const toggleBookmark = useCallback((product: ShopifyProduct) => {
-    let action: "add" | "remove" = "add";
+    const isCurrentlyBookmarked = bookmarks.some((p) => p.id.toString() === product.id.toString());
+    const action = isCurrentlyBookmarked ? "remove" : "add";
+
     setBookmarks((prev) => {
-      if (prev.find((p) => p.id === product.id)) {
-        action = "remove";
-        return prev.filter((p) => p.id !== product.id);
+      if (isCurrentlyBookmarked) {
+        return prev.filter((p) => p.id.toString() !== product.id.toString());
       }
-      action = "add";
       return [...prev, product];
     });
 
@@ -131,11 +131,11 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           productId: product.id.toString(), 
-          action: action === "remove" ? "remove" : "add" 
+          action: action
         })
       }).catch(err => console.error("Failed to toggle bookmark in DB:", err));
     }
-  }, [status]);
+  }, [bookmarks, status]);
 
   return (
     <BookmarkContext.Provider value={{ bookmarks, addBookmark, removeBookmark, isBookmarked, toggleBookmark, isOpen, setIsOpen }}>
