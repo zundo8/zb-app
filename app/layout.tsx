@@ -221,7 +221,7 @@ export default function RootLayout({
         <Providers>
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}
-            <Toaster position="top-right" richColors />
+            <Toaster position="top-right" />
           </LayoutWrapper>
         </Providers>
         <Analytics />
