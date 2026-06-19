@@ -124,16 +124,23 @@ export async function POST(req: NextRequest) {
 
     const provider = isDelhivery ? 'delhivery' : 'generic';
 
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.headers.get('x-real-ip') ||
+      '127.0.0.1';
+
     if (secret && signature) {
       const isValid = validateWebhookSignature(rawBody, signature, secret, provider);
       if (!isValid) {
-        console.error('[Webhook] Invalid logistics signature — rejecting');
-        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 });
+        console.error(`[Webhook] Invalid logistics signature from IP ${ip} at ${new Date().toISOString()} — rejecting with 401`);
+        await logToWebhookLogs('delhivery', `IP: ${ip} | RawBody: ${rawBody}`, 'unauthorized_signature_mismatch');
+        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
       }
     } else if (!signature && secret) {
       // Secret configured but no signature sent — reject
-      console.error('[Webhook] No signature provided but webhook secret is configured');
-      return NextResponse.json({ error: 'Missing webhook signature' }, { status: 400 });
+      console.error(`[Webhook] No signature provided from IP ${ip} at ${new Date().toISOString()} but webhook secret is configured`);
+      await logToWebhookLogs('delhivery', `IP: ${ip} | RawBody: ${rawBody}`, 'unauthorized_missing_signature');
+      return NextResponse.json({ error: 'Missing webhook signature' }, { status: 401 });
     }
 
     // Parse the payload

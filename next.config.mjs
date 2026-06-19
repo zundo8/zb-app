@@ -92,6 +92,23 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, Accept' },
         ],
       },
+      {
+        // HSTS — force HTTPS for 2 years
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+        ],
+      },
+      {
+        // CSP for admin dashboard routes
+        source: '/dashboard/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdn.shopify.com; img-src 'self' data: blob: https://cdn.shopify.com https://*.supabase.co https://images.unsplash.com; connect-src 'self' https://*.supabase.co https://cdn.shopify.com https://api.razorpay.com; frame-src 'self' https://api.razorpay.com;",
+          },
+        ],
+      },
     ];
   },
   async redirects() {

@@ -58,12 +58,17 @@ export async function requirePermission(module: Module, action: "view" | "edit" 
  * Standard error handler for RBAC utility throws.
  */
 export function handleAuthError(error: any) {
-  if (error.message === "401") {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message === "401") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (error.message === "403") {
+  if (message === "403") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  console.error("RBAC Error:", error);
+  if (process.env.NODE_ENV === "development") {
+    console.error("RBAC Error:", error);
+  } else {
+    console.error("RBAC Error:", message);
+  }
   return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
 }

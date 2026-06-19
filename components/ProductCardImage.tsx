@@ -217,7 +217,7 @@ export default function ProductCardImage({
   }, [count]);
 
   const isFallback = firstSrc === fallback;
-  const sizesAttr = "(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw";
+  const sizesAttr = "(max-width: 768px) 50vw, 25vw";
 
   // Intercept click to prevent navigation during swipes/drags
   const handleClick = useCallback(
@@ -290,8 +290,10 @@ export default function ProductCardImage({
                         fill
                         loading={idx === 0 && priority ? undefined : "lazy"}
                         priority={idx === 0 && priority}
-                        quality={60}
+                        quality={75}
                         sizes={sizesAttr}
+                        placeholder={isFallback ? undefined : "blur"}
+                        blurDataURL={isFallback ? undefined : blurUrl(src)}
                         draggable={false}
                         onError={handleImageError}
                         onLoad={
@@ -328,8 +330,10 @@ export default function ProductCardImage({
                   alt={`${title} - alternate view`}
                   fill
                   loading="lazy"
-                  quality={60}
+                  quality={75}
                   sizes={sizesAttr}
+                  placeholder="blur"
+                  blurDataURL={blurUrl(imageSrcs[1])}
                   onError={handleImageError}
                   className="object-cover"
                   style={isSoldOut ? { filter: "grayscale(0.4)" } : {}}
@@ -360,8 +364,10 @@ export default function ProductCardImage({
               alt={title}
               fill
               priority={priority}
-              quality={60}
+              quality={75}
               sizes={sizesAttr}
+              placeholder={isFallback ? undefined : "blur"}
+              blurDataURL={isFallback ? undefined : blurUrl(firstSrc)}
               onError={handleImageError}
               onLoad={onFirstLoad}
               className={`object-cover transition-all duration-[800ms] ease-out ${!isSoldOut ? "group-hover:scale-[1.03]" : ""}`}

@@ -75,10 +75,11 @@ export async function shopifyFetch<T>(endpoint: string, params?: Record<string, 
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
     const res = await fetch(url.toString(), {
       method: 'GET',
       headers: await headers(),
-      cache: 'no-store',
+      cache: isBuild ? 'force-cache' : 'no-store',
     });
 
     if (res.ok) {

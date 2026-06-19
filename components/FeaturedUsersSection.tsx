@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import NextImage from "next/image";
-import { Star, MessageCircle, Heart, Upload, Instagram } from "lucide-react";
+import { Star, Upload, Instagram } from "lucide-react";
 
 interface FeaturedUser {
   id: string;
@@ -18,49 +17,23 @@ export default function FeaturedUsersSection({
   title = "FEATURED LOOKS", 
   subtitle = "COMMUNITY",
   allFeatured = false,
-  onUploadClick
+  onUploadClick,
+  users: prefetchedUsers,
 }: { 
   showCommunity?: boolean;
   title?: string;
   subtitle?: string;
   allFeatured?: boolean;
   onUploadClick?: () => void;
+  /** Pre-fetched users data from server — eliminates client-side fetch on mobile */
+  users?: FeaturedUser[];
 }) {
-  const [users, setUsers] = useState<FeaturedUser[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!showCommunity) {
-      setLoading(false);
-      return;
-    }
-    const url = allFeatured ? "/api/featured-users" : "/api/featured-users?isTopFeatured=true";
-    fetch(url, { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.users) setUsers(data.users);
-      })
-      .finally(() => setLoading(false));
-  }, [showCommunity, allFeatured]);
+  const users = prefetchedUsers || [];
 
   if (!showCommunity) return null;
-  if (loading) {
-    return (
-      <section className="py-2 px-2">
-        <div className="flex gap-2 md:gap-3 overflow-x-hidden pb-4">
-          {[1, 2, 3].map(i => (
-            <div 
-              key={i} 
-              className="w-[calc((100vw-36px)/3)] md:w-[calc((100%-24px)/3)] md:max-w-[360px] shrink-0 aspect-[9/16] rounded-xl bg-foreground/[0.03] animate-pulse" 
-            />
-          ))}
-        </div>
-      </section>
-    );
-  }
 
   return (
-    <section className="mt-2 mb-4 px-2 overflow-hidden">
+    <section className="mt-2 mb-4 px-2 overflow-hidden min-h-[300px]">
       <div className="text-center mb-5">
         <h2 className="font-heading text-[7.5px] md:text-[8.5px] tracking-[0.4em] text-muted-foreground/30 mb-1 uppercase" style={{ fontFamily: "'HeadingPro', sans-serif" }}>{subtitle}</h2>
         <p className="font-heading text-[13px] md:text-[15px] tracking-[0.22em] text-foreground uppercase opacity-80 font-medium" style={{ fontFamily: "'HeadingPro', sans-serif" }}>{title}</p>

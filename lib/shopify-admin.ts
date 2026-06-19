@@ -34,10 +34,11 @@ async function shopifyFetchPage<T>(urlStr: string): Promise<{ data: T; nextPageU
   const MAX_RETRIES = 3;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
     const res = await fetch(urlStr, {
       method: 'GET',
       headers: await headers(),
-      cache: 'no-store',
+      cache: isBuild ? 'force-cache' : 'no-store',
     });
 
     if (res.status === 429) {
@@ -95,11 +96,12 @@ export async function shopifyGraphqlFetch<T>(query: string, variables?: any): Pr
   const { domain } = await getShopConfig();
   const url = `https://${domain}/admin/api/${API_VERSION}/graphql.json`;
   
+  const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
   const res = await fetch(url, {
     method: 'POST',
     headers: await headers(),
     body: JSON.stringify({ query, variables }),
-    cache: 'no-store',
+    cache: isBuild ? 'force-cache' : 'no-store',
   });
 
   if (!res.ok) {

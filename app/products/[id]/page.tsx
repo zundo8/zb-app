@@ -8,7 +8,7 @@ import { Metadata } from "next";
 import { ProductJsonLd } from "@/components/seo/ProductJsonLd";
 import { Breadcrumb } from "@/components/seo/Breadcrumb";
 
-export const revalidate = 900; // ISR: revalidate every 15 minutes
+export const revalidate = 60; // ISR: revalidate every 60 seconds
 
 export async function generateMetadata({
   params,

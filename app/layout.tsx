@@ -12,6 +12,7 @@ import { NavigationProgress } from "@/components/ui/NavigationProgress";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 import { WebsiteJsonLd } from "@/components/seo/WebsiteJsonLd";
 import { Analytics } from "@/components/seo/Analytics";
+import "@/lib/auth/env-check";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -45,7 +46,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL('https://zicabella.com'),
   title: {
-    default: 'Zica Bella — Crafted in India · Worn with Intent',
+    default: 'Zica Bella | Graphic Tees & Apparel — India\'s D2C Fashion Brand',
     template: '%s | Zica Bella',
   },
   description:
@@ -151,11 +152,13 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://cdn.shopify.com" />
         <link rel="preconnect" href="https://flagcdn.com" />
-        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
+        <link rel="preconnect" href="https://db.zicabella.com" />
+        <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
+        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
         <Script
           type="module"
           src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
         />
         <script
           type="application/ld+json"

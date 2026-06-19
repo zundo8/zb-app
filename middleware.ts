@@ -14,6 +14,52 @@ export default withAuth(
     // Allow public API routes for the React Native app
     if (pathname.startsWith('/api/app/')) return NextResponse.next();
 
+    // CSRF protection for mutation routes (POST, PUT, DELETE) on admin APIs
+    if (["POST", "PUT", "DELETE"].includes(req.method)) {
+      const origin = req.headers.get("origin");
+      const referer = req.headers.get("referer");
+      const host = req.headers.get("host") || "";
+
+      if (process.env.NODE_ENV === "production") {
+        if (origin) {
+          try {
+            const originHost = new URL(origin).host;
+            if (originHost !== host) {
+              return new NextResponse(JSON.stringify({ error: "CSRF validation failed: Origin mismatch" }), {
+                status: 403,
+                headers: { "Content-Type": "application/json" }
+              });
+            }
+          } catch {
+            return new NextResponse(JSON.stringify({ error: "CSRF validation failed: Invalid Origin" }), {
+              status: 403,
+              headers: { "Content-Type": "application/json" }
+            });
+          }
+        } else if (referer) {
+          try {
+            const refererHost = new URL(referer).host;
+            if (refererHost !== host) {
+              return new NextResponse(JSON.stringify({ error: "CSRF validation failed: Referer mismatch" }), {
+                status: 403,
+                headers: { "Content-Type": "application/json" }
+              });
+            }
+          } catch {
+            return new NextResponse(JSON.stringify({ error: "CSRF validation failed: Invalid Referer" }), {
+              status: 403,
+              headers: { "Content-Type": "application/json" }
+            });
+          }
+        } else {
+          return new NextResponse(JSON.stringify({ error: "CSRF validation failed: Missing origin/referer headers" }), {
+            status: 403,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+      }
+    }
+
     // Super Admin bypasses all checks
     if (token?.role === "SUPER_ADMIN") return NextResponse.next();
 

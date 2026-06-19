@@ -10,7 +10,7 @@ import { CollectionJsonLd } from "@/components/seo/CollectionJsonLd";
 import { Breadcrumb } from "@/components/seo/Breadcrumb";
 import { CategorySEOContent } from "@/components/seo/CategorySEOContent";
 
-export const revalidate = 3600; // ISR: revalidate every 1 hour
+export const revalidate = 300; // ISR: revalidate every 5 minutes
 
 export async function generateMetadata({
   params,

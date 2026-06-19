@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import NextImage from "next/image";
 import { ShopifyProduct } from "@/lib/shopify-admin";
@@ -9,47 +8,20 @@ export default function SpotlightSection({
   title = "AUTHENTIC STREETWEAR", 
   subtitle = "Luxury Indian streetwear for modern men. Redefining bold everyday style.",
   collection = "tshirts",
-  productIds = ""
+  productIds = "",
+  products: prefetchedProducts,
 }: { 
   title?: string; 
   subtitle?: string; 
   collection?: string;
   productIds?: string;
+  /** Pre-fetched products from server — eliminates client-side fetch on mobile */
+  products?: ShopifyProduct[];
 }) {
-  const [products, setProducts] = useState<ShopifyProduct[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // If specific product IDs are provided, fetch them; otherwise fetch by collection
-    const url = productIds && productIds.trim() 
-      ? `/api/shopify/products?ids=${encodeURIComponent(productIds)}`
-      : `/api/shopify/products?pageSize=6&collection=${collection || 'tshirts'}`;
-
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        if (data.products) setProducts(data.products);
-      })
-      .finally(() => setLoading(false));
-  }, [collection, productIds]);
-
-  if (loading) {
-    return (
-      <section className="mt-16 mb-20 px-4">
-        <div className="grid grid-cols-3 gap-x-2 gap-y-10 animate-pulse">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="flex flex-col items-center gap-4">
-              <div className="aspect-square w-full rounded-2xl bg-foreground/5" />
-              <div className="h-2 w-16 bg-foreground/5 rounded" />
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
+  const products = prefetchedProducts || [];
 
   return (
-    <section className="mt-16 mb-20 px-4">
+    <section className="mt-16 mb-20 px-4 min-h-[400px]">
       <div className="text-center mb-12">
         <h2 className="font-heading text-[22px] tracking-[0.2em] text-foreground mb-4 uppercase">{title}</h2>
         <p className="text-[10px] text-muted-foreground max-w-[280px] mx-auto leading-relaxed tracking-wider font-extralight uppercase opacity-40">
@@ -70,6 +42,9 @@ export default function SpotlightSection({
                   src={product.images[0].src} 
                   alt={product.title} 
                   fill 
+                  sizes="(max-width: 768px) 33vw, 25vw"
+                  quality={75}
+                  loading="lazy"
                   className="object-cover group-hover/item:scale-105 transition-all duration-1000 ease-out"
                 />
               ) : (

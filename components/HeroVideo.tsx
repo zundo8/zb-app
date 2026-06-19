@@ -60,6 +60,7 @@ export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: H
     <div 
       className="absolute inset-0 w-full h-full cursor-pointer group/hero"
       onClick={toggle}
+      suppressHydrationWarning
     >
       {!showControlOnly && (
         <video
@@ -70,8 +71,10 @@ export default function HeroVideo({ src, mobileSrc, showControlOnly = false }: H
           muted
           loop
           playsInline
-          preload="auto"
+          preload={mounted ? "auto" : "metadata"}
+          poster="/zb-logo-220px.png"
           className="w-full h-full object-cover transition-all duration-700"
+          suppressHydrationWarning
         />
       )}
       

@@ -1,7 +1,8 @@
-import { fetchProducts, fetchEnabledCollections, fetchPolicies } from "@/lib/shopify-admin";
+import { fetchProducts, fetchEnabledCollections, fetchPolicies, fetchCollectionByHandle } from "@/lib/shopify-admin";
 import prisma from "@/lib/db";
 import NextImage from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 import { ChevronRight, Instagram, Youtube, Music2, Disc } from "lucide-react";
 import CollectionCarousel from "@/components/CollectionCarousel";
 import ProductCard from "@/components/ProductCard";
@@ -14,7 +15,7 @@ import SpotlightSection from "@/components/SpotlightSection";
 import LazyVideo from "@/components/LazyVideo";
 import { handleImageError } from "@/components/ImagePlaceholder";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 120; // ISR: revalidate every 2 minutes
 
 export default async function Home() {
   let shop: any = null;
@@ -67,7 +68,8 @@ export default async function Home() {
   };
 
   // Concurrently fetch all independent assets to optimize TTFB and speed up the homepage loading
-  const [collections, policies, banners, products] = await Promise.all([
+  // Now includes server-side prefetch of Featured Users, Spotlight products, and Ring Carousel items
+  const [collections, policies, banners, products, featuredUsers, spotlightProducts, ringItems] = await Promise.all([
     fetchEnabledCollections('page').catch(() => []),
     fetchPolicies().catch(() => []),
     prisma.webStoreBanner.findMany({
@@ -84,7 +86,6 @@ export default async function Home() {
           );
           return fetched.filter((p): p is ShopifyProduct => p !== null);
         } else if (s.homepageCollection && s.homepageCollection.trim()) {
-          const { fetchCollectionByHandle } = await import("@/lib/shopify-admin");
           const result = await fetchCollectionByHandle(s.homepageCollection, 24);
           return result.products;
         } else {
@@ -94,7 +95,63 @@ export default async function Home() {
         console.error("Error fetching homepage products:", err);
         return await fetchProducts(24).catch(() => [] as ShopifyProduct[]);
       }
-    })()
+    })(),
+    // Pre-fetch Featured Users (was previously client-side fetch in FeaturedUsersSection)
+    (async () => {
+      if (!s?.showCommunity) return [];
+      try {
+        const users = await prisma.featuredUser.findMany({
+          where: { status: 'APPROVED', isTopFeatured: true },
+          include: { reviews: true },
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+        });
+        return users;
+      } catch (e) {
+        console.error("Error fetching featured users:", e);
+        return [];
+      }
+    })(),
+    // Pre-fetch Spotlight products (was previously client-side fetch in SpotlightSection)
+    (async () => {
+      try {
+        const spotlightProductIds = s?.spotlightProducts;
+        const spotlightCollection = s?.spotlightCollection || 'tshirts';
+        if (spotlightProductIds && spotlightProductIds.trim()) {
+          const { fetchProductById } = await import("@/lib/shopify-admin");
+          const ids = spotlightProductIds.split(',').map((id: string) => id.trim()).filter(Boolean);
+          const fetched = await Promise.all(ids.map((id: string) => fetchProductById(id).catch(() => null)));
+          return fetched.filter((p): p is ShopifyProduct => p !== null);
+        } else {
+          const result = await fetchCollectionByHandle(spotlightCollection, 6);
+          return result.products || [];
+        }
+      } catch (e) {
+        console.error("Error fetching spotlight products:", e);
+        return [];
+      }
+    })(),
+    // Pre-fetch Ring Carousel items (was previously client-side fetch in RingCarouselSection)
+    (async () => {
+      try {
+        const config = s?.ringCarouselItems || "[]";
+        const parsed = JSON.parse(config);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        // Fallback: fetch from accessories collection
+        const result = await fetchCollectionByHandle('accessories', 12);
+        return (result.products || []).map((p: ShopifyProduct) => ({
+          id: p.id?.toString(),
+          image: p.images?.[0]?.src || '',
+          link: `/products/${p.handle || p.id}`,
+          title: p.title,
+          price: p.variants?.[0]?.price,
+          handle: p.handle || p.id?.toString(),
+        })).filter((r: any) => r.image);
+      } catch (e) {
+        console.error("Error fetching ring carousel items:", e);
+        return [];
+      }
+    })(),
   ]);
 
   const nullIfEmpty = (val: string | null | undefined): string | null => {
@@ -146,16 +203,15 @@ export default async function Home() {
   
   const showRingCarousel = s?.showRingCarousel ?? true;
   const ringCarouselTitle = nullIfEmpty(s?.ringCarouselTitle);
-  const ringCarouselItems = s?.ringCarouselItems || "[]";
 
   return (
-    <div className="relative home-page max-w-full">
+    <div className="relative home-page max-w-full overflow-x-hidden">
       {/* Ambient background glows — desktop only to save mobile GPU */}
       <div className="hidden md:block absolute top-[80vh] left-1/4 -translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-foreground/[0.03] blur-[150px] pointer-events-none z-0" />
       <div className="hidden md:block absolute top-[180vh] right-1/4 translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-foreground/[0.02] blur-[150px] pointer-events-none z-0" />
 
       {/* ═══ HERO: Full-screen ═══ */}
-      <section className="relative w-full h-[100dvh] md:h-screen overflow-hidden">
+      <section className="relative w-full h-[100dvh] md:h-screen overflow-hidden min-h-[500px]">
         {/* Background video */}
         {heroVideo ? (
           <HeroVideo src={heroVideo} mobileSrc={heroVideoMobile} />
@@ -206,7 +262,7 @@ export default async function Home() {
 
         {/* ─── BANNERS (from admin CMS) ─── */}
         {banners.length > 0 && (
-          <section className="mb-4 pt-2 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <section className="mb-4 pt-2 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[120px]">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {banners.map((banner: any) => (
                 <Link key={banner.id} href={banner.ctaLink || "#"} className="block">
@@ -215,6 +271,9 @@ export default async function Home() {
                       src={banner.mobileImageUrl || banner.imageUrl}
                       alt={banner.title || "Banner"}
                       fill
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      quality={75}
+                      loading="lazy"
                       className="object-cover group-hover:scale-105 transition-transform duration-700"
                       onError={handleImageError}
                     />
@@ -249,7 +308,7 @@ export default async function Home() {
         )}
 
         {/* ─── PRODUCT GRID 1 ─── */}
-        <section className="mb-6 w-full px-[2px] md:px-1">
+        <section className="mb-6 w-full px-[2px] md:px-1 min-h-[300px]">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[4px]">
             {products.slice(0, 4).map((p: ShopifyProduct, idx: number) => (
               <ProductCard key={p.id} product={p} priority={idx < 4} />
@@ -299,7 +358,7 @@ export default async function Home() {
         <div className="glass-divider my-4 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8" />
 
         {/* ─── COLLECTIONS CAROUSEL ─── */}
-        <section className="render-deferred-carousel py-4 max-w-6xl mx-auto overflow-hidden px-3 sm:px-6 lg:px-8">
+        <section className="render-deferred-carousel py-4 max-w-6xl mx-auto overflow-hidden px-3 sm:px-6 lg:px-8 min-h-[200px]">
           {s?.showArchive && archiveTitle && (
             <div className="flex justify-center mb-3 px-4">
               <span className="glass-label">— {archiveTitle} —</span>
@@ -315,30 +374,35 @@ export default async function Home() {
         
         {/* ─── RING COLLECTION CAROUSEL ─── */}
         {showRingCarousel && (
-          <div className="render-deferred-carousel my-4 w-full">
-            <RingCarouselSection 
-              title={ringCarouselTitle} 
-              itemsConfig={ringCarouselItems} 
-            />
+          <div className="render-deferred-carousel my-4 w-full min-h-[200px]">
+            <Suspense fallback={<div className="w-full min-h-[200px]" />}>
+              <RingCarouselSection 
+                title={ringCarouselTitle || undefined} 
+                itemsConfig={s?.ringCarouselItems || undefined}
+                items={ringItems}
+              />
+            </Suspense>
           </div>
         )}
 
         {/* ─── 3D FLIPBOOK SECTION ─── */}
-        <div className="render-deferred-media my-4 w-full">
-          <FlipbookSection 
-            imgUrl={flipbookImage}
-            videoUrl={flipbookVideo}
-            imgUrlMobile={flipbookImageMobile}
-            videoUrlMobile={flipbookVideoMobile}
-            title={flipbookTitle} 
-            tag={flipbookTag} 
-            desc={flipbookDesc}
-            link={flipbookLink}
-          />
+        <div className="render-deferred-media my-4 w-full min-h-[300px]">
+          <Suspense fallback={<div className="w-full min-h-[300px]" />}>
+            <FlipbookSection 
+              imgUrl={flipbookImage || undefined}
+              videoUrl={flipbookVideo || undefined}
+              imgUrlMobile={flipbookImageMobile || undefined}
+              videoUrlMobile={flipbookVideoMobile || undefined}
+              title={flipbookTitle || undefined} 
+              tag={flipbookTag || undefined} 
+              desc={flipbookDesc || undefined}
+              link={flipbookLink || undefined}
+            />
+          </Suspense>
         </div>
 
         {/* ─── PRODUCT GRID 2 ─── */}
-        <section className="render-deferred-section mb-6 w-full px-[2px] md:px-1">
+        <section className="render-deferred-section mb-6 w-full px-[2px] md:px-1 min-h-[300px]">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[4px]">
             {products.slice(4, 8).map((p: ShopifyProduct) => <ProductCard key={p.id} product={p} />)}
           </div>
@@ -346,7 +410,7 @@ export default async function Home() {
 
         {/* ─── FEATURED MEDIA / BLUEPRINT ─── */}
         {s?.showBlueprint && (featuredMedia || featuredMediaImage || featuredMediaMobile || featuredMediaImageMobile) && (
-          <div className="w-full mb-6">
+          <div className="w-full mb-6 min-h-[300px]">
             {/* Desktop View (Landscape - Full Width) */}
             {(() => {
               const hasLink = featuredMediaLink && featuredMediaLink.trim() !== '';
@@ -379,6 +443,9 @@ export default async function Home() {
                         src={featuredMediaImage || "/section-image1.PNG"}
                         alt="Featured Media"
                         fill
+                        sizes="100vw"
+                        quality={75}
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
                         onError={handleImageError}
                       />
@@ -431,6 +498,9 @@ export default async function Home() {
                         src={featuredMediaImageMobile || featuredMediaImage || "/section-image1.PNG"}
                         alt="Featured Media Mobile"
                         fill
+                        sizes="100vw"
+                        quality={75}
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
                         onError={handleImageError}
                       />
@@ -445,6 +515,9 @@ export default async function Home() {
                         src="/section-image1.PNG"
                         alt="Featured Media Fallback"
                         fill
+                        sizes="100vw"
+                        quality={75}
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
                         onError={handleImageError}
                       />
@@ -481,35 +554,41 @@ export default async function Home() {
         <div className="glass-divider my-4 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8" />
 
         {/* ─── PRODUCT GRID 3 ─── */}
-        <section className="render-deferred-section mt-4 mb-6 w-full px-[2px] md:px-1">
+        <section className="render-deferred-section mt-4 mb-6 w-full px-[2px] md:px-1 min-h-[300px]">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[4px]">
             {products.slice(12, 16).map((p: ShopifyProduct) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
 
         {/* ─── AUTHENTIC STREETWEAR SECTION ─── */}
-        <div className="render-deferred-section my-4 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8">
-          <SpotlightSection 
-            title={s?.spotlightTitle || "AUTHENTIC STREETWEAR"} 
-            subtitle={s?.spotlightSubtitle} 
-            collection={s?.spotlightCollection}
-            productIds={s?.spotlightProducts}
-          />
+        <div className="render-deferred-section my-4 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[400px]">
+          <Suspense fallback={<div className="w-full min-h-[400px]" />}>
+            <SpotlightSection 
+              title={s?.spotlightTitle || "AUTHENTIC STREETWEAR"} 
+              subtitle={s?.spotlightSubtitle} 
+              collection={s?.spotlightCollection}
+              productIds={s?.spotlightProducts}
+              products={spotlightProducts}
+            />
+          </Suspense>
         </div>
 
         {/* ─── FEATURED LOOKS (COMMUNITY) ─── */}
-        <div className="render-deferred-section my-4 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8">
-          <FeaturedUsersSection
-            showCommunity={s?.showCommunity}
-            title={s?.communityTitle}
-            subtitle={s?.communitySubtitle}
-          />
+        <div className="render-deferred-section my-4 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[300px]">
+          <Suspense fallback={<div className="w-full min-h-[300px]" />}>
+            <FeaturedUsersSection
+              showCommunity={s?.showCommunity}
+              title={s?.communityTitle}
+              subtitle={s?.communitySubtitle}
+              users={featuredUsers}
+            />
+          </Suspense>
         </div>
 
         {/* ─── FOOTER VIDEO ─── */}
         {(footerVideo || footerVideoMobile) && (
           <div className="w-full my-4">
-            <section className="render-deferred-media relative w-full aspect-[9/16] md:aspect-[21/9] overflow-hidden group shadow-2xl border-y border-foreground/[0.03] dark:border-white/[0.04]">
+            <section className="render-deferred-media relative w-full aspect-[9/16] md:aspect-[21/9] overflow-hidden group shadow-2xl border-y border-foreground/[0.03] dark:border-white/[0.04] min-h-[300px]">
               {footerVideo && (
                 <div className="hidden md:block absolute inset-0 w-full h-full">
                   <LazyVideo

@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import NextImage from "next/image";
 import { handleImageError } from "./ImagePlaceholder";
 
 export interface RingItem {
@@ -18,79 +19,31 @@ export interface RingItem {
 interface RingCarouselSectionProps {
   title?: string;
   itemsConfig?: string;
+  /** Pre-fetched items from server — eliminates client-side fetch on mobile */
+  items?: RingItem[];
 }
 
-export default function RingCarouselSection({ title, itemsConfig }: RingCarouselSectionProps) {
+export default function RingCarouselSection({ title, itemsConfig, items: prefetchedItems }: RingCarouselSectionProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [items, setItems] = useState<RingItem[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (itemsConfig) {
-      try {
-        const parsed = JSON.parse(itemsConfig);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setItems(parsed);
-          setLoading(false);
-          return;
-        }
-      } catch (e) { /* fall through */ }
-    }
-
-    const fetchRings = async () => {
-      try {
-        let handle = "accessories";
-        if (itemsConfig && itemsConfig !== "[]") {
-          try {
-            const parsed = JSON.parse(itemsConfig);
-            if (Array.isArray(parsed) && parsed.length > 0) return;
-          } catch(e) {
-            handle = itemsConfig;
-          }
-        }
-        const res = await fetch(`/api/shopify/products?collection=${handle}&limit=12`);
-        if (res.ok) {
-          const data = await res.json();
-          let products = Array.isArray(data) ? data : data.products || [];
-          if (products.length === 0) {
-            const fallbackRes = await fetch("/api/shopify/products?limit=6");
-            if (fallbackRes.ok) {
-              const fallbackData = await fallbackRes.json();
-              products = Array.isArray(fallbackData) ? fallbackData : fallbackData.products || [];
-            }
-          }
-          if (products.length > 0) {
-            const mapped: RingItem[] = products.map((p: any) => ({
-              id: p.id?.toString() || `ring-${Math.random()}`,
-              image: p.images?.[0]?.src || p.image?.src || "",
-              link: `/products/${p.handle || p.id}`,
-              title: p.title,
-              price: p.variants?.[0]?.price,
-              handle: p.handle || p.id?.toString(),
-            })).filter((r: RingItem) => r.image);
-            if (mapped.length > 0) {
-              setItems(mapped.slice(0, 12));
-              setLoading(false);
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Failed to fetch ring products:", e);
+  // Use pre-fetched items if available, otherwise try parsing itemsConfig
+  let items: RingItem[] = prefetchedItems || [];
+  if (items.length === 0 && itemsConfig) {
+    try {
+      const parsed = JSON.parse(itemsConfig);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        items = parsed;
       }
-      setLoading(false);
-    };
-
-    fetchRings();
-  }, [itemsConfig]);
+    } catch { /* fall through */ }
+  }
 
   const scrollLeft = () => scrollRef.current?.scrollBy({ left: -300, behavior: "smooth" });
   const scrollRight = () => scrollRef.current?.scrollBy({ left: 300, behavior: "smooth" });
 
-  if (!loading && items.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
-    <section className="w-full py-8 md:py-12 relative z-10 overflow-hidden">
+    <section className="w-full py-8 md:py-12 relative z-10 overflow-hidden min-h-[200px]">
       {/* Centered Header container to align with standard padding */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
@@ -120,57 +73,53 @@ export default function RingCarouselSection({ title, itemsConfig }: RingCarousel
 
       {/* Carousel Wrapper - Full screen breakout */}
       <div className="w-full mt-2">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-5 h-5 animate-spin text-foreground/15" />
-          </div>
-        ) : (
-          <div className="relative group">
-            {/* Edge fades (desktop only on hover) */}
-            <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-background to-transparent z-20 pointer-events-none opacity-0 md:group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-background to-transparent z-20 pointer-events-none opacity-0 md:group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="relative group">
+          {/* Edge fades (desktop only on hover) */}
+          <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-background to-transparent z-20 pointer-events-none opacity-0 md:group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-background to-transparent z-20 pointer-events-none opacity-0 md:group-hover:opacity-100 transition-opacity duration-500" />
 
-            <div
-              ref={scrollRef}
-              className="flex gap-2.5 overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x ios-scroll hide-scrollbar"
-              style={{ 
-                WebkitOverflowScrolling: "touch",
-                paddingLeft: 'max(16px, calc((100vw - 1280px) / 2 + 24px))',
-                paddingRight: 'max(16px, calc((100vw - 1280px) / 2 + 24px))'
-              }}
-            >
-              {items.map((item, i) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: i * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                  className="snap-start shrink-0 w-[140px] h-[140px] sm:w-[160px] sm:h-[160px] md:w-[220px] md:h-[220px] lg:w-[260px] lg:h-[260px]"
+          <div
+            ref={scrollRef}
+            className="flex gap-2.5 overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x ios-scroll hide-scrollbar"
+            style={{ 
+              WebkitOverflowScrolling: "touch",
+              paddingLeft: 'max(16px, calc((100vw - 1280px) / 2 + 24px))',
+              paddingRight: 'max(16px, calc((100vw - 1280px) / 2 + 24px))'
+            }}
+          >
+            {items.map((item, i) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: i * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                className="snap-start shrink-0 w-[140px] h-[140px] sm:w-[160px] sm:h-[160px] md:w-[220px] md:h-[220px] lg:w-[260px] lg:h-[260px]"
+              >
+                <Link
+                  href={`/products/${item.handle || item.id}`}
+                  className="group/card block w-full h-full"
+                  prefetch={false}
                 >
-                  <Link
-                    href={`/products/${item.handle || item.id}`}
-                    className="group/card block w-full h-full"
-                    prefetch={false}
-                  >
-                    {/* Plain minimal card — image only, rounded-none for streetwear vibe */}
-                    <div className="w-full h-full rounded-none overflow-hidden relative bg-foreground/[0.03] transition-all duration-500 group-hover/card:bg-foreground/[0.05]">
-                      <img
-                        src={item.image}
-                        alt={item.title || "Accessory"}
-                        draggable={false}
-                        loading="lazy"
-                        onError={handleImageError}
-                        className="w-full h-full object-contain select-none p-3 md:p-5 group-hover/card:scale-105 transition-transform duration-700 ease-out"
-                      />
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-              <div className="shrink-0 w-1" />
-            </div>
+                  {/* Plain minimal card — image only, rounded-none for streetwear vibe */}
+                  <div className="w-full h-full rounded-none overflow-hidden relative bg-foreground/[0.03] transition-all duration-500 group-hover/card:bg-foreground/[0.05]">
+                    <NextImage
+                      src={item.image}
+                      alt={item.title || "Accessory"}
+                      fill
+                      sizes="(max-width: 640px) 140px, (max-width: 768px) 160px, (max-width: 1024px) 220px, 260px"
+                      quality={75}
+                      loading="lazy"
+                      className="object-contain select-none p-3 md:p-5 group-hover/card:scale-105 transition-transform duration-700 ease-out"
+                      onError={handleImageError}
+                    />
+                  </div>
+                </Link>
+              </motion.div>
+            ))}
+            <div className="shrink-0 w-1" />
           </div>
-        )}
+        </div>
       </div>
     </section>
   );
