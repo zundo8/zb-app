@@ -15,7 +15,7 @@ import SpotlightSection from "@/components/SpotlightSection";
 import LazyVideo from "@/components/LazyVideo";
 import { handleImageError } from "@/components/ImagePlaceholder";
 
-export const revalidate = 120; // ISR: revalidate every 2 minutes
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   let shop: any = null;
@@ -69,7 +69,7 @@ export default async function Home() {
 
   // Concurrently fetch all independent assets to optimize TTFB and speed up the homepage loading
   // Now includes server-side prefetch of Featured Users, Spotlight products, and Ring Carousel items
-  const [collections, policies, banners, products, featuredUsers, spotlightProducts, ringItems] = await Promise.all([
+  const [collections, policies, banners, products] = await Promise.all([
     fetchEnabledCollections('page').catch(() => []),
     fetchPolicies().catch(() => []),
     prisma.webStoreBanner.findMany({
@@ -94,62 +94,6 @@ export default async function Home() {
       } catch (err) {
         console.error("Error fetching homepage products:", err);
         return await fetchProducts(24).catch(() => [] as ShopifyProduct[]);
-      }
-    })(),
-    // Pre-fetch Featured Users (was previously client-side fetch in FeaturedUsersSection)
-    (async () => {
-      if (!s?.showCommunity) return [];
-      try {
-        const users = await prisma.featuredUser.findMany({
-          where: { status: 'APPROVED', isTopFeatured: true },
-          include: { reviews: true },
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-        });
-        return users;
-      } catch (e) {
-        console.error("Error fetching featured users:", e);
-        return [];
-      }
-    })(),
-    // Pre-fetch Spotlight products (was previously client-side fetch in SpotlightSection)
-    (async () => {
-      try {
-        const spotlightProductIds = s?.spotlightProducts;
-        const spotlightCollection = s?.spotlightCollection || 'tshirts';
-        if (spotlightProductIds && spotlightProductIds.trim()) {
-          const { fetchProductById } = await import("@/lib/shopify-admin");
-          const ids = spotlightProductIds.split(',').map((id: string) => id.trim()).filter(Boolean);
-          const fetched = await Promise.all(ids.map((id: string) => fetchProductById(id).catch(() => null)));
-          return fetched.filter((p): p is ShopifyProduct => p !== null);
-        } else {
-          const result = await fetchCollectionByHandle(spotlightCollection, 6);
-          return result.products || [];
-        }
-      } catch (e) {
-        console.error("Error fetching spotlight products:", e);
-        return [];
-      }
-    })(),
-    // Pre-fetch Ring Carousel items (was previously client-side fetch in RingCarouselSection)
-    (async () => {
-      try {
-        const config = s?.ringCarouselItems || "[]";
-        const parsed = JSON.parse(config);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        // Fallback: fetch from accessories collection
-        const result = await fetchCollectionByHandle('accessories', 12);
-        return (result.products || []).map((p: ShopifyProduct) => ({
-          id: p.id?.toString(),
-          image: p.images?.[0]?.src || '',
-          link: `/products/${p.handle || p.id}`,
-          title: p.title,
-          price: p.variants?.[0]?.price,
-          handle: p.handle || p.id?.toString(),
-        })).filter((r: any) => r.image);
-      } catch (e) {
-        console.error("Error fetching ring carousel items:", e);
-        return [];
       }
     })(),
   ]);
@@ -379,7 +323,6 @@ export default async function Home() {
               <RingCarouselSection 
                 title={ringCarouselTitle || undefined} 
                 itemsConfig={s?.ringCarouselItems || undefined}
-                items={ringItems}
               />
             </Suspense>
           </div>
@@ -568,7 +511,6 @@ export default async function Home() {
               subtitle={s?.spotlightSubtitle} 
               collection={s?.spotlightCollection}
               productIds={s?.spotlightProducts}
-              products={spotlightProducts}
             />
           </Suspense>
         </div>
@@ -580,7 +522,6 @@ export default async function Home() {
               showCommunity={s?.showCommunity}
               title={s?.communityTitle}
               subtitle={s?.communitySubtitle}
-              users={featuredUsers}
             />
           </Suspense>
         </div>

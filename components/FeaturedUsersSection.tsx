@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import NextImage from "next/image";
 import { Star, Upload, Instagram } from "lucide-react";
 
@@ -18,19 +19,50 @@ export default function FeaturedUsersSection({
   subtitle = "COMMUNITY",
   allFeatured = false,
   onUploadClick,
-  users: prefetchedUsers,
 }: { 
   showCommunity?: boolean;
   title?: string;
   subtitle?: string;
   allFeatured?: boolean;
   onUploadClick?: () => void;
-  /** Pre-fetched users data from server — eliminates client-side fetch on mobile */
-  users?: FeaturedUser[];
 }) {
-  const users = prefetchedUsers || [];
+  const [users, setUsers] = useState<FeaturedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!showCommunity) {
+      setLoading(false);
+      return;
+    }
+    const url = allFeatured ? "/api/featured-users" : "/api/featured-users?isTopFeatured=true";
+    fetch(url, { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.users) setUsers(data.users);
+      })
+      .finally(() => setLoading(false));
+  }, [showCommunity, allFeatured]);
 
   if (!showCommunity) return null;
+
+  if (loading) {
+    return (
+      <section className="mt-2 mb-4 px-2 overflow-hidden min-h-[300px]">
+        <div className="text-center mb-5 animate-pulse">
+          <div className="h-2 w-16 bg-foreground/5 rounded mx-auto mb-2" />
+          <div className="h-4 w-32 bg-foreground/5 rounded mx-auto" />
+        </div>
+        <div className="flex gap-2 md:gap-3 overflow-x-hidden pb-4 animate-pulse">
+          {[1, 2, 3].map(i => (
+            <div 
+              key={i} 
+              className="w-[calc((100vw-36px)/3)] md:w-[calc((100%-24px)/3)] md:max-w-[360px] shrink-0 aspect-[9/16] rounded-xl bg-foreground/[0.03]" 
+            />
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-2 mb-4 px-2 overflow-hidden min-h-[300px]">

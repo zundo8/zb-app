@@ -87,8 +87,16 @@ export async function GET(req: Request) {
           : `gid://shopify/Product/${item.product.shopifyProductId}`,
         // Map other fields to match FlatProduct
         price: String(item.product.price || '0'),
-        images: item.product.featuredImage ? [item.product.featuredImage] : [],
-        variants: [], // We don't store variants locally yet
+        image: item.product.featuredImage ? { src: item.product.featuredImage } : null,
+        images: item.product.featuredImage ? [{ src: item.product.featuredImage }] : [],
+        variants: [
+          {
+            id: `gid://shopify/ProductVariant/default_${item.product.shopifyProductId}`,
+            price: String(item.product.price || '0'),
+            title: 'Default Title',
+            option1: 'Default Title'
+          }
+        ],
         isSoldOut: false,
         isOnSale: false,
       }

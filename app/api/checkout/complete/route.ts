@@ -321,6 +321,7 @@ export async function POST(req: Request) {
     if (sOrder && sOrder.line_items) {
       for (const li of sOrder.line_items) {
         let dbProductId = null;
+        let image = null;
         if (li.product_id) {
           const shopifyProdId = String(li.product_id);
           const byShopifyId = await prisma.product.findUnique({
@@ -328,6 +329,18 @@ export async function POST(req: Request) {
           });
           if (byShopifyId) {
             dbProductId = byShopifyId.id;
+            image = byShopifyId.featuredImage;
+          }
+        }
+        // Fallback to request items mapping for image if not found in db product
+        if (!image) {
+          const matchingRequestItem = items.find((item: any) => {
+            const liVariantId = String(li.variant_id);
+            const reqVariantId = item.variantId ? String(item.variantId).split('/').pop() : '';
+            return liVariantId === reqVariantId || li.title === item.title;
+          });
+          if (matchingRequestItem) {
+            image = matchingRequestItem.image || null;
           }
         }
         resolvedItems.push({
@@ -336,7 +349,8 @@ export async function POST(req: Request) {
           title: li.title,
           quantity: li.quantity,
           price: parseFloat(li.price || '0'),
-          sku: li.sku || null
+          sku: li.sku || null,
+          image: image
         });
       }
     } else {
@@ -344,6 +358,7 @@ export async function POST(req: Request) {
       for (let index = 0; index < items.length; index++) {
         const item = items[index];
         let dbProductId = null;
+        let image = item.image || null;
         if (item.productId) {
           const cleanId = String(item.productId);
           const byShopifyId = await prisma.product.findUnique({
@@ -351,12 +366,14 @@ export async function POST(req: Request) {
           });
           if (byShopifyId) {
             dbProductId = byShopifyId.id;
+            if (!image) image = byShopifyId.featuredImage;
           } else {
             const byCuid = await prisma.product.findUnique({
               where: { id: cleanId }
             });
             if (byCuid) {
               dbProductId = byCuid.id;
+              if (!image) image = byCuid.featuredImage;
             }
           }
         }
@@ -366,7 +383,8 @@ export async function POST(req: Request) {
           title: item.title,
           quantity: item.quantity,
           price: parseFloat(item.price || '0'),
-          sku: item.variantId || item.productId || null
+          sku: item.variantId || item.productId || null,
+          image: image
         });
       }
     }
@@ -400,7 +418,8 @@ export async function POST(req: Request) {
             title: item.title,
             quantity: item.quantity,
             price: item.price,
-            sku: item.sku
+            sku: item.sku,
+            image: item.image
           }))
         }
       }

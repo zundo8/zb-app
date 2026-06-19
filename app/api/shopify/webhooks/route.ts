@@ -178,10 +178,12 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
     for (const item of orderData.line_items) {
       const shopifyProductId = item.product_id?.toString();
       let dbProductId = null;
+      let itemImage = null;
       
       if (shopifyProductId) {
         const prod = await prisma.product.findUnique({ where: { shopifyProductId } });
         dbProductId = prod?.id || null;
+        itemImage = prod?.featuredImage || null;
       }
 
       await prisma.orderItem.upsert({
@@ -193,12 +195,14 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
           title: item.title,
           quantity: item.quantity,
           price: parseFloat(item.price || '0'),
-          sku: item.sku || null
+          sku: item.sku || null,
+          image: itemImage || null
         },
         update: {
           quantity: item.quantity,
           price: parseFloat(item.price || '0'),
-          sku: item.sku || null
+          sku: item.sku || null,
+          image: itemImage || null
         }
       });
     }

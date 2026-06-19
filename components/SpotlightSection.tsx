@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import NextImage from "next/image";
 import { ShopifyProduct } from "@/lib/shopify-admin";
@@ -9,16 +10,47 @@ export default function SpotlightSection({
   subtitle = "Luxury Indian streetwear for modern men. Redefining bold everyday style.",
   collection = "tshirts",
   productIds = "",
-  products: prefetchedProducts,
 }: { 
   title?: string; 
   subtitle?: string; 
   collection?: string;
   productIds?: string;
-  /** Pre-fetched products from server — eliminates client-side fetch on mobile */
-  products?: ShopifyProduct[];
 }) {
-  const products = prefetchedProducts || [];
+  const [products, setProducts] = useState<ShopifyProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // If specific product IDs are provided, fetch them; otherwise fetch by collection
+    const url = productIds && productIds.trim() 
+      ? `/api/shopify/products?ids=${encodeURIComponent(productIds)}`
+      : `/api/shopify/products?pageSize=6&collection=${collection || 'tshirts'}`;
+
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        if (data.products) setProducts(data.products);
+      })
+      .finally(() => setLoading(false));
+  }, [collection, productIds]);
+
+  if (loading) {
+    return (
+      <section className="mt-16 mb-20 px-4 min-h-[400px]">
+        <div className="text-center mb-12 animate-pulse">
+          <div className="h-6 w-48 bg-foreground/5 rounded mx-auto mb-4" />
+          <div className="h-3 w-64 bg-foreground/5 rounded mx-auto" />
+        </div>
+        <div className="grid grid-cols-3 gap-x-2 gap-y-10 animate-pulse">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-4">
+              <div className="aspect-[3/4] w-full rounded-2xl bg-foreground/5" />
+              <div className="h-2 w-16 bg-foreground/5 rounded" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-16 mb-20 px-4 min-h-[400px]">

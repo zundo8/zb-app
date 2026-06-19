@@ -630,8 +630,8 @@ export default function ProfilePage() {
                       >
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="w-12 h-12 rounded-[0.75rem] bg-foreground/[0.02] border border-foreground/5 flex items-center justify-center shrink-0 overflow-hidden">
-                            {order.items?.[0]?.image ? (
-                              <img src={order.items[0].image} className="w-full h-full object-cover" alt="" />
+                            {order.items?.[0]?.image || order.items?.[0]?.product?.featuredImage ? (
+                              <img src={order.items[0].image || order.items[0].product?.featuredImage} className="w-full h-full object-cover" alt="" />
                             ) : (
                               <Package className="w-5 h-5 text-foreground/10" />
                             )}
