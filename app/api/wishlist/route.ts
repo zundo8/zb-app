@@ -2,8 +2,47 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import { fetchProductById } from "@/lib/shopify-admin";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 export const dynamic = "force-dynamic";
+
+async function getCustomerFromSessionOrToken(req: Request) {
+  let customer = null;
+
+  // 1. Try NextAuth session first (web)
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user) {
+      const userId = (session.user as any).id;
+      const email = session.user.email;
+      const phone = (session as any).customer?.phone || (session.user as any).phone;
+
+      const whereClause: any = { OR: [] };
+      if (userId) whereClause.OR.push({ id: userId });
+      if (email) whereClause.OR.push({ email });
+      if (phone) whereClause.OR.push({ phone });
+
+      if (whereClause.OR.length > 0) {
+        customer = await prisma.customer.findFirst({
+          where: whereClause
+        });
+      }
+    }
+  } catch (err) {
+    console.error("NextAuth session check error in wishlist:", err);
+  }
+
+  // 2. Try mobile Bearer token next
+  if (!customer) {
+    const auth = getAppAuthFromRequest(req);
+    if (auth) {
+      customer = await resolveAuthCustomer(auth);
+    }
+  }
+
+  return customer;
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -23,14 +62,9 @@ export async function GET(req: Request) {
     });
   }
 
-  const auth = getAppAuthFromRequest(req);
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const customer = await resolveAuthCustomer(auth);
+  const customer = await getCustomerFromSessionOrToken(req);
   if (!customer) {
-    return NextResponse.json({ error: "Customer identity could not be resolved" }, { status: 404 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -68,14 +102,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = getAppAuthFromRequest(req);
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const customer = await resolveAuthCustomer(auth);
+  const customer = await getCustomerFromSessionOrToken(req);
   if (!customer) {
-    return NextResponse.json({ error: "Customer identity could not be resolved" }, { status: 404 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -161,4 +190,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to update wishlist" }, { status: 500 });
   }
 }
-

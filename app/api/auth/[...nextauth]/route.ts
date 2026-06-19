@@ -322,8 +322,20 @@ export const authOptions: AuthOptions = {
                 // Import orders
                 try {
                   const shopifyOrders = await fetchOrdersByCustomerId(String(shopifyCustomer.id));
+                  
+                  // Fetch local products to build images and cuid lookup maps
+                  const localProducts = await prisma.product.findMany({
+                    select: { id: true, shopifyProductId: true, featuredImage: true }
+                  });
+                  const productImageMap = new Map<string, string>();
+                  const productCuidMap = new Map<string, string>();
+                  for (const lp of localProducts) {
+                    if (lp.featuredImage) productImageMap.set(lp.shopifyProductId, lp.featuredImage);
+                    productCuidMap.set(lp.shopifyProductId, lp.id);
+                  }
+
                   for (const o of shopifyOrders) {
-                    await prisma.order.upsert({
+                    const dbOrder = await prisma.order.upsert({
                       where: { shopifyOrderId: String(o.id) },
                       create: {
                         shopId: shopId, shopifyOrderId: String(o.id), customerId: bgCustomerId,
@@ -336,7 +348,44 @@ export const authOptions: AuthOptions = {
                         paymentStatus: o.financial_status || 'pending',
                         fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
                       }
-                    }).catch(e => console.error("[AUTH-BG] Order upsert error:", e.message));
+                    });
+
+                    // Sync Order Items
+                    if (o.line_items && Array.isArray(o.line_items)) {
+                      const shopifyItemIds = o.line_items.map((item: any) => String(item.id));
+                      await prisma.orderItem.deleteMany({
+                        where: {
+                          orderId: dbOrder.id,
+                          shopifyLineItemId: { notIn: shopifyItemIds }
+                        }
+                      }).catch(console.error);
+
+                      for (const item of o.line_items) {
+                        const shopifyProductId = item.product_id ? String(item.product_id) : null;
+                        const dbProductId = shopifyProductId ? productCuidMap.get(shopifyProductId) : null;
+                        const itemImage = shopifyProductId ? productImageMap.get(shopifyProductId) : null;
+
+                        await prisma.orderItem.upsert({
+                          where: { shopifyLineItemId: String(item.id) },
+                          create: {
+                            orderId: dbOrder.id,
+                            shopifyLineItemId: String(item.id),
+                            productId: dbProductId,
+                            title: item.title,
+                            quantity: item.quantity,
+                            price: parseFloat(item.price || '0'),
+                            sku: item.sku || null,
+                            image: itemImage || null,
+                          },
+                          update: {
+                            quantity: item.quantity,
+                            price: parseFloat(item.price || '0'),
+                            sku: item.sku || null,
+                            image: itemImage || null,
+                          }
+                        }).catch(e => console.error("[AUTH-BG] Order item upsert error:", e.message));
+                      }
+                    }
                   }
                   console.log(`[AUTH-BG] Synced ${shopifyOrders.length} orders for customer ${bgCustomerId}`);
                 } catch (orderErr) {
@@ -426,8 +475,20 @@ export const authOptions: AuthOptions = {
                   }
                   // Import orders
                   const shopifyOrders = await fetchOrdersByCustomerId(String(bgShopifyCust.id));
+                  
+                  // Fetch local products to build images and cuid lookup maps
+                  const localProducts = await prisma.product.findMany({
+                    select: { id: true, shopifyProductId: true, featuredImage: true }
+                  });
+                  const productImageMap = new Map<string, string>();
+                  const productCuidMap = new Map<string, string>();
+                  for (const lp of localProducts) {
+                    if (lp.featuredImage) productImageMap.set(lp.shopifyProductId, lp.featuredImage);
+                    productCuidMap.set(lp.shopifyProductId, lp.id);
+                  }
+
                   for (const o of shopifyOrders) {
-                    await prisma.order.upsert({
+                    const dbOrder = await prisma.order.upsert({
                       where: { shopifyOrderId: String(o.id) },
                       create: {
                         shopId: shopId, shopifyOrderId: String(o.id), customerId: bgCustId,
@@ -440,7 +501,44 @@ export const authOptions: AuthOptions = {
                         paymentStatus: o.financial_status || 'pending',
                         fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
                       }
-                    }).catch(e => console.error("[AUTH-BG] Order upsert error:", e.message));
+                    });
+
+                    // Sync Order Items
+                    if (o.line_items && Array.isArray(o.line_items)) {
+                      const shopifyItemIds = o.line_items.map((item: any) => String(item.id));
+                      await prisma.orderItem.deleteMany({
+                        where: {
+                          orderId: dbOrder.id,
+                          shopifyLineItemId: { notIn: shopifyItemIds }
+                        }
+                      }).catch(console.error);
+
+                      for (const item of o.line_items) {
+                        const shopifyProductId = item.product_id ? String(item.product_id) : null;
+                        const dbProductId = shopifyProductId ? productCuidMap.get(shopifyProductId) : null;
+                        const itemImage = shopifyProductId ? productImageMap.get(shopifyProductId) : null;
+
+                        await prisma.orderItem.upsert({
+                          where: { shopifyLineItemId: String(item.id) },
+                          create: {
+                            orderId: dbOrder.id,
+                            shopifyLineItemId: String(item.id),
+                            productId: dbProductId,
+                            title: item.title,
+                            quantity: item.quantity,
+                            price: parseFloat(item.price || '0'),
+                            sku: item.sku || null,
+                            image: itemImage || null,
+                          },
+                          update: {
+                            quantity: item.quantity,
+                            price: parseFloat(item.price || '0'),
+                            sku: item.sku || null,
+                            image: itemImage || null,
+                          }
+                        }).catch(e => console.error("[AUTH-BG] Order item upsert error:", e.message));
+                      }
+                    }
                   }
                   console.log(`[AUTH-BG] New user: synced ${shopifyOrders.length} orders for ${bgCustId}`);
                 } catch (bgErr) {

@@ -56,6 +56,11 @@ export default function ProfilePage() {
   const router = useRouter();
   const { bookmarks } = useBookmarks();
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [customer, setCustomer] = useState<any>(null);
   const [addresses, setAddresses] = useState<DBAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -419,7 +424,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-3 mt-6 pt-5 border-t border-foreground/5 relative z-10">
             {[
               { label: "ORDERS", value: totalOrders, icon: ShoppingBag },
-              { label: "WISHLIST", value: bookmarks.length, icon: Heart },
+              { label: "WISHLIST", value: mounted ? bookmarks.length : 0, icon: Heart },
               { label: "STORE CREDIT", value: storeCredits > 0 ? `₹${storeCredits.toLocaleString("en-IN")}` : "₹0", icon: Wallet },
             ].map(({ label, value, icon: Icon }, index) => (
               <div
@@ -671,7 +676,7 @@ export default function ProfilePage() {
                 </Link>
               </div>
 
-              {bookmarks.length > 0 ? (
+              {mounted && bookmarks.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2">
                   {bookmarks.slice(0, 6).map((item) => (
                     <Link key={item.id} href={`/products/${item.handle}`}>
