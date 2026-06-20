@@ -28,8 +28,7 @@ import {
   Banknote,
   Sparkles,
   Lock,
-  Sun,
-  Moon
+  Sun
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -809,10 +808,10 @@ export default function CheckoutPage() {
                         setAddressErrors({});
                         setShowAddressForm(true);
                       }}
-                      className="snap-start shrink-0 p-3 rounded-2xl border border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] flex flex-col items-center justify-center gap-0.5 w-[100px] text-center"
+                      className="snap-start shrink-0 p-3 rounded-2xl border border-foreground/10 hover:border-foreground/20 bg-foreground/[0.01] hover:bg-foreground/[0.03] dark:hover:bg-white/[0.03] backdrop-blur-md flex flex-col items-center justify-center gap-0.5 w-[100px] text-center transition-all"
                     >
-                      <Plus className="w-3 h-3 text-foreground/40" />
-                      <span className="text-[7px] font-bold uppercase tracking-widest text-foreground/50">New</span>
+                      <Plus className="w-3 h-3 text-foreground/45" />
+                      <span className="text-[7px] font-light uppercase tracking-widest text-foreground/55">New</span>
                     </button>
                   </div>
                 </div>
@@ -841,7 +840,7 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="w-full py-4 text-[9.5px] font-semibold uppercase tracking-[0.15em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+                      className="w-full h-11 text-[9.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-sm"
                     >
                       <span>Deliver to this Address</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -857,7 +856,7 @@ export default function CheckoutPage() {
                         setAddressErrors({});
                         setShowAddressForm(true);
                       }}
-                      className="w-full py-3.5 text-[8.5px] font-medium uppercase tracking-[0.15em] bg-foreground/[0.02] border border-dashed border-foreground/10 hover:bg-foreground/[0.04] active:scale-[0.98] rounded-full text-foreground/75 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
+                      className="w-full h-10 text-[8.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.015] dark:bg-white/[0.02] border border-dashed border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.04] dark:hover:bg-white/[0.04] active:scale-[0.98] rounded-full text-foreground/75 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
                     >
                       <Plus className="w-3 h-3" />
                       Add New Address
@@ -878,7 +877,7 @@ export default function CheckoutPage() {
                         }
                         setShowAddressForm(false);
                       }}
-                      className="w-full py-3 text-[8.5px] font-medium uppercase tracking-[0.15em] bg-foreground/[0.02] border border-foreground/5 hover:bg-foreground/[0.04] active:scale-[0.98] rounded-full text-foreground/50 transition-all flex items-center justify-center mb-3 whitespace-nowrap"
+                      className="w-full h-10 text-[8.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.015] dark:bg-white/[0.02] border border-foreground/5 dark:border-white/5 hover:bg-foreground/[0.04] dark:hover:bg-white/[0.04] active:scale-[0.98] rounded-full text-foreground/55 transition-all flex items-center justify-center mb-3 whitespace-nowrap"
                     >
                       Back to Saved Addresses
                     </button>
@@ -1032,7 +1031,7 @@ export default function CheckoutPage() {
                   <div className="pt-4 mt-auto">
                     <button
                       type="submit"
-                      className="w-full py-4 text-[9.5px] font-semibold uppercase tracking-[0.15em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+                      className="w-full h-11 text-[9.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-sm"
                     >
                       <span>Continue to Payment</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -1097,10 +1096,10 @@ export default function CheckoutPage() {
                             setUpiId("");
                           }
                         }}
-                        className={`py-2 px-1 text-[9px] font-extrabold uppercase tracking-wider rounded-lg text-center transition-all duration-300 ${
+                        className={`py-2 px-1 text-[8.5px] font-light uppercase tracking-[0.12em] rounded-lg text-center transition-all duration-300 border ${
                           isActive
-                            ? "bg-foreground text-background shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.15)] scale-[1.02]"
-                            : "text-foreground/40 hover:text-foreground hover:bg-foreground/[0.02]"
+                            ? "bg-foreground/[0.08] dark:bg-white/[0.1] border-foreground/15 dark:border-white/15 text-foreground scale-[1.02] font-normal"
+                            : "border-transparent text-foreground/40 hover:text-foreground hover:bg-foreground/[0.02]"
                         }`}
                       >
                         {method.label}
@@ -1188,7 +1187,7 @@ export default function CheckoutPage() {
                               }`}
                             >
                               {app.logo}
-                              <span className="text-[9px] font-bold tracking-wide text-foreground/50">{app.name}</span>
+                              <span className="text-[9px] font-light tracking-wide text-foreground/50">{app.name}</span>
                             </button>
                           );
                         })}
@@ -1288,7 +1287,7 @@ export default function CheckoutPage() {
                         type="button"
                         onClick={() => handleApplyCoupon()}
                         disabled={couponLoading || !couponCode.trim()}
-                        className="h-8 px-3 rounded-lg bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 text-foreground font-semibold text-[9.5px] uppercase tracking-[0.15em] hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] backdrop-blur-md active:scale-[0.98] disabled:opacity-30 transition-all flex items-center justify-center shrink-0 whitespace-nowrap"
+                        className="h-8 px-3 rounded-lg bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 text-foreground font-light text-[9.5px] uppercase tracking-[0.15em] hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] backdrop-blur-md active:scale-[0.98] disabled:opacity-30 transition-all flex items-center justify-center shrink-0 whitespace-nowrap"
                       >
                         {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
                       </button>
@@ -1353,13 +1352,13 @@ export default function CheckoutPage() {
                                 : "bg-foreground/[0.015] border-foreground/5 hover:border-foreground/10 hover:bg-foreground/[0.02]"
                             }`}
                           >
-                            <span className="font-mono text-[9px] font-black text-foreground bg-foreground/10 px-1.5 py-0.5 rounded uppercase tracking-wider self-start leading-none">
+                            <span className="font-mono text-[9px] font-light text-foreground bg-foreground/10 px-1.5 py-0.5 rounded uppercase tracking-wider self-start leading-none">
                               {coupon.code}
                             </span>
-                            <p className="text-[10px] font-black text-foreground/80 leading-tight mt-1">
+                            <p className="text-[10px] font-light text-foreground/80 leading-tight mt-1">
                               {benefitText} {coupon.applyAsStoreCredit ? "credited as cashback" : "instantly at checkout"}
                             </p>
-                            <p className="text-[7.5px] text-foreground/35 font-semibold mt-0.5">
+                            <p className="text-[7.5px] text-foreground/35 font-light mt-0.5">
                               {Number(coupon.minOrderValue) > 0 ? `On orders above ₹${Number(coupon.minOrderValue).toLocaleString("en-IN")}` : "No minimum limit"}
                             </p>
                           </button>
@@ -1384,17 +1383,17 @@ export default function CheckoutPage() {
                     onClick={handlePlaceOrder}
                     disabled={loading}
                     className={`w-full ${
-                      paymentMethod === "COD" ? "h-[72px]" : "h-16"
-                    } rounded-full bg-foreground/[0.03] dark:bg-white/[0.05] hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl border border-foreground/10 dark:border-white/10 text-foreground transition-all flex items-center justify-between pl-16 pr-3.5 disabled:opacity-50 shadow-sm`}
+                      paymentMethod === "COD" ? "h-14 pl-14" : "h-12 pl-12"
+                    } rounded-full bg-foreground/[0.03] dark:bg-white/[0.05] hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl border border-foreground/10 dark:border-white/10 text-foreground transition-all flex items-center justify-between pr-1.5 disabled:opacity-50 shadow-sm`}
                   >
                     {/* Center text */}
-                    <span className="text-[10px] sm:text-[10.5px] font-semibold tracking-[0.18em] uppercase text-center flex-1 whitespace-nowrap">
+                    <span className="text-[9.5px] font-light tracking-[0.16em] uppercase text-center flex-1 whitespace-nowrap">
                       {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
                     </span>
 
                     {/* Right chevron circle */}
                     <div className={`${
-                      paymentMethod === "COD" ? "w-13 h-13" : "w-12 h-12"
+                      paymentMethod === "COD" ? "w-11 h-11" : "w-9 h-9"
                     } rounded-full bg-foreground/5 dark:bg-white/10 flex items-center justify-center text-foreground shrink-0 transition-all`}>
                       {loading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
