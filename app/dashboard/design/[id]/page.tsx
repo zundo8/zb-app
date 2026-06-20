@@ -134,7 +134,7 @@ export default function DesignTaskDetailPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !task) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="w-10 h-10 animate-spin text-foreground/10" />

@@ -14,11 +14,11 @@ export interface WorkdriveItem {
 
 function getWorkdriveConfig() {
   return {
-    clientId: process.env.ZOHO_API_CLIENT_ID || "",
-    clientSecret: process.env.ZOHO_API_CLIENT_SECRET || "",
-    refreshToken: process.env.ZOHO_API_REFRESH_TOKEN || "",
-    apiBase: process.env.ZOHO_WORKDRIVE_API_BASE || "https://workdrive.zoho.in/api/v1",
-    authBase: process.env.ZOHO_WORKDRIVE_AUTH_BASE || "https://accounts.zoho.in",
+    clientId: process.env.ZOHO_WD_CLIENT_ID || process.env.ZOHO_API_CLIENT_ID || "",
+    clientSecret: process.env.ZOHO_WD_CLIENT_SECRET || process.env.ZOHO_API_CLIENT_SECRET || "",
+    refreshToken: process.env.ZOHO_WD_REFRESH_TOKEN || process.env.ZOHO_API_REFRESH_TOKEN || "",
+    apiBase: process.env.ZOHO_WD_API_BASE || process.env.ZOHO_WORKDRIVE_API_BASE || "https://www.zohoapis.in/workdrive/api/v1",
+    authBase: process.env.ZOHO_WD_ACCOUNTS_BASE || process.env.ZOHO_WORKDRIVE_AUTH_BASE || "https://accounts.zoho.in",
   };
 }
 

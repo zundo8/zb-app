@@ -675,7 +675,7 @@ export default function PendingTasksPage() {
 
       {/* Kanban / Card Layout */}
       <div className="px-1">
-        {loading ? (
+        {loading && tasks.length === 0 ? (
           <div className="py-24 flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-10 h-10 animate-spin text-foreground/10" />
             <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/20">Loading tasks</span>
