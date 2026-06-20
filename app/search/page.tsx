@@ -49,7 +49,7 @@ export default async function SearchPage({
 
   return (
     <div className="min-h-screen">
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32 pt-28">
+      <div className="relative z-10 max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 pb-32 pt-28">
         <SearchResultsClient
           initialProducts={products}
           query={query}

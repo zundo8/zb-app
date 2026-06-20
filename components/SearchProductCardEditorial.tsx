@@ -8,9 +8,9 @@ import { useCart } from "@/lib/cart-context";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import { handleImageError } from "./ImagePlaceholder";
 import { toast } from "sonner";
+import ProductCardImage from "./ProductCardImage";
 import dynamic from "next/dynamic";
 
-// Lazy-load modal to avoid SSR issues
 const QuickAddModal = dynamic(() => import("./QuickAddModal"), { ssr: false });
 
 interface EditorialProductMediaProps {
@@ -28,48 +28,14 @@ function EditorialProductMedia({
   productSlug,
   priority = false,
 }: EditorialProductMediaProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const imageList = images && images.length > 0 ? images : [{ id: 0, src: "/zb-logo-220px.png" }];
-
-  useEffect(() => {
-    if (imageList.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % imageList.length);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [imageList.length]);
-
   return (
-    <Link href={`/products/${productSlug}`} className="relative w-full h-full block">
-      {imageList.map((img, i) => {
-        const isActive = i === currentIndex;
-        return (
-          <div
-            key={`${img.src}-${i}`}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-              isActive ? "opacity-100 z-10" : "opacity-0 z-0"
-            }`}
-          >
-            <Image
-              src={img.src}
-              alt={title}
-              fill
-              sizes="(max-width: 1024px) 50vw, 400px"
-              priority={priority && i === 0}
-              className="object-cover group-hover:scale-[1.03] transition-transform duration-[2000ms] ease-out"
-              style={
-                isSoldOut
-                  ? { filter: "grayscale(0.4)" }
-                  : img.src === "/zb-logo-220px.png"
-                  ? { objectFit: "contain", padding: "25%", opacity: 0.3 }
-                  : {}
-              }
-              onError={handleImageError}
-            />
-          </div>
-        );
-      })}
-    </Link>
+    <ProductCardImage
+      images={images}
+      title={title}
+      isSoldOut={isSoldOut}
+      productSlug={productSlug}
+      priority={priority}
+    />
   );
 }
 

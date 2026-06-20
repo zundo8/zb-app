@@ -4,12 +4,13 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import ProductCard from "./ProductCard";
+import SearchProductCardEditorial from "./SearchProductCardEditorial";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useBookmarks } from "@/lib/bookmark-context";
 import { handleImageError } from "./ImagePlaceholder";
-import { Search, LayoutGrid, Menu, Bookmark, Plus } from "lucide-react";
+import { Search, LayoutGrid, Menu } from "lucide-react";
 import dynamic from "next/dynamic";
 
 // Lazy-load modal to avoid SSR issues
@@ -33,21 +34,21 @@ export default function SearchResultsClient({
   initialSortBy,
 }: Props) {
   const router = useRouter();
-  const { isBookmarked, toggleBookmark } = useBookmarks();
   const [searchTerm, setSearchTerm] = useState(query);
-  const [viewMode, setViewMode] = useState<"grid" | "editorial">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "editorial">("editorial");
   const [sortBy, setSortBy] = useState<string>(initialSortBy || "relevance");
   const [mounted, setMounted] = useState(false);
   const [activeModalProduct, setActiveModalProduct] = useState<ShopifyProduct | null>(null);
 
-  // Focus search input on mount if no query is present
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize view mode from localStorage safely after mount
+  // Initialize view mode from localStorage safely after mount, default to editorial
   useEffect(() => {
     const savedMode = localStorage.getItem("zb_search_view_mode");
     if (savedMode === "grid" || savedMode === "editorial") {
       setViewMode(savedMode);
+    } else {
+      setViewMode("editorial");
     }
     setMounted(true);
   }, []);
@@ -107,7 +108,6 @@ export default function SearchResultsClient({
   // Dynamic editorial banner values
   const { bannerTitle, bannerSubtitle, bannerImage } = useMemo(() => {
     if (query && sortedProducts.length > 0) {
-      // Find clean product type or use capitalized query
       const firstProd = sortedProducts[0];
       const title = query.toUpperCase();
       const rawDesc = firstProd.body_html ? firstProd.body_html.replace(/<[^>]*>/g, "").trim() : "";
@@ -115,10 +115,10 @@ export default function SearchResultsClient({
       const image = firstProd.images?.[0]?.src || "/zb-logo-220px.png";
       return { bannerTitle: title, bannerSubtitle: subtitle, bannerImage: image };
     }
-    // Default fallback banner details when there's no active query
+    // Default standby hero banner
     const defaultImage = trendingProducts[0]?.images?.[0]?.src || "/zb-logo-220px.png";
     return {
-      bannerTitle: "STREET EDIT",
+      bannerTitle: "SUMMER EDIT",
       bannerSubtitle: "Raw silhouettes, bold graphics, and uncompromising attitude. Made for movement, designed for impact.",
       bannerImage: defaultImage,
     };
@@ -132,21 +132,21 @@ export default function SearchResultsClient({
         title: "GRAPHIC REBELS",
         subtitle: "Loud prints. Louder energy.",
         query: "Graphic",
-        image: trendingProducts[1]?.images?.[0]?.src || "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=400&q=80",
+        image: trendingProducts[1]?.images?.[0]?.src || "/zb-logo-220px.png",
       },
       {
         id: "02",
         title: "OVERSIZED ESSENTIALS",
         subtitle: "Comfort that hits different.",
         query: "Oversized",
-        image: trendingProducts[2]?.images?.[0]?.src || "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=400&q=80",
+        image: trendingProducts[2]?.images?.[0]?.src || "/zb-logo-220px.png",
       },
       {
         id: "03",
         title: "BACK PRINTS THAT BITE",
         subtitle: "From subtle to savage.",
         query: "Back Print",
-        image: trendingProducts[3]?.images?.[0]?.src || "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?auto=format&fit=crop&w=400&q=80",
+        image: trendingProducts[3]?.images?.[0]?.src || "/zb-logo-220px.png",
       },
     ];
   }, [trendingProducts]);
@@ -156,7 +156,7 @@ export default function SearchResultsClient({
     if (query && sortedProducts.length > 0) {
       return sortedProducts;
     }
-    return trendingProducts.slice(0, 10);
+    return trendingProducts.slice(0, 12);
   }, [query, sortedProducts, trendingProducts]);
 
   const handleBannerClick = () => {
@@ -181,9 +181,9 @@ export default function SearchResultsClient({
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-1">
+    <div className="max-w-6xl mx-auto px-0 sm:px-1">
       {/* ── A. Unified Search Bar & Layout Toggles (Mock Reference) ── */}
-      <form onSubmit={handleSearchSubmit} className="mb-6 w-full max-w-xl mx-auto flex items-center gap-2">
+      <form onSubmit={handleSearchSubmit} className="mb-6 w-full max-w-xl mx-auto flex items-center gap-2 px-2">
         <div className="relative flex-1 flex items-center rounded-2xl overflow-hidden bg-foreground/[0.03] dark:bg-white/[0.03] border border-foreground/[0.08] dark:border-white/[0.08] focus-within:border-foreground/20 dark:focus-within:border-white/20 focus-within:bg-foreground/[0.01] transition-all duration-300 shadow-sm">
           <Search className="absolute left-4 w-4 h-4 text-foreground/35 pointer-events-none" />
           <input
@@ -235,14 +235,14 @@ export default function SearchResultsClient({
       </form>
 
       {/* ── B. Trending Searches Row ── */}
-      <div className="mb-10 text-center">
+      <div className="mb-8 text-center px-2">
         <p 
           className="text-[8px] font-mono tracking-[0.25em] text-foreground/35 uppercase mb-3"
           style={{ fontFamily: "var(--font-poppins), -apple-system, sans-serif" }}
         >
           Trending Searches
         </p>
-        <div className="flex flex-wrap gap-1.5 justify-center max-w-xl mx-auto px-2">
+        <div className="flex flex-wrap gap-1.5 justify-center max-w-xl mx-auto">
           {TRENDING.map((term) => (
             <button
               key={term}
@@ -256,7 +256,7 @@ export default function SearchResultsClient({
       </div>
 
       {/* ── C. Sliding Tab Selector (Grid View vs Editorial View) ── */}
-      <div className="relative flex w-full border-b border-foreground/5 dark:border-white/5 mb-8 max-w-xl mx-auto px-2">
+      <div className="relative flex w-full border-b border-foreground/5 dark:border-white/5 mb-8 max-w-xl mx-auto px-4">
         {[
           { id: "grid", label: "Grid View" },
           { id: "editorial", label: "Editorial View" },
@@ -283,21 +283,21 @@ export default function SearchResultsClient({
         })}
       </div>
 
-      {/* ── D. Sort Filters (Visible on results search) ── */}
+      {/* ── D. Sort Filters (Aligned scrollable row with proper descriptions) ── */}
       {query && sortedProducts.length > 0 && (
-        <div className="flex gap-1.5 mb-8 flex-wrap justify-center animate-fade-up max-w-xl mx-auto">
+        <div className="flex overflow-x-auto gap-2 mb-8 px-4 justify-center hide-scrollbar animate-fade-up max-w-xl mx-auto w-full">
           {[
             { label: "Relevance", value: "relevance" },
-            { label: "Price ↑", value: "price-asc" },
-            { label: "Price ↓", value: "price-desc" },
+            { label: "Price: Low - High", value: "price-asc" },
+            { label: "Price: High - Low", value: "price-desc" },
           ].map((opt) => (
             <button
               key={opt.value}
               onClick={() => handleSortChange(opt.value)}
-              className={`px-4.5 py-1.5 rounded-full text-[8.5px] uppercase tracking-widest transition-all duration-200 active:scale-95 ${
+              className={`px-4 py-2 rounded-full text-[8.5px] uppercase tracking-widest transition-all duration-200 active:scale-95 whitespace-nowrap flex-shrink-0 border ${
                 sortBy === opt.value
-                  ? "bg-foreground text-background dark:bg-white dark:text-black font-semibold shadow-sm"
-                  : "bg-foreground/[0.03] dark:bg-white/[0.03] text-foreground/45 dark:text-white/45 border border-foreground/5 hover:border-foreground/15 hover:text-foreground/75"
+                  ? "bg-foreground text-background dark:bg-white dark:text-black border-transparent font-medium shadow-sm"
+                  : "bg-foreground/[0.03] dark:bg-white/[0.03] text-foreground/45 dark:text-white/45 border-foreground/5 dark:border-white/5 hover:border-foreground/15 hover:text-foreground/75"
               }`}
             >
               {opt.label}
@@ -314,19 +314,19 @@ export default function SearchResultsClient({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full pb-16"
+          className="w-full pb-16 px-1.5"
         >
           {viewMode === "grid" ? (
             /* ==================== 1. GRID VIEW LAYOUT ==================== */
-            <div>
+            <div className="max-w-6xl mx-auto">
               {sortedProducts.length > 0 ? (
                 <div>
-                  <div className="flex justify-between items-center mb-6 px-1 max-w-6xl mx-auto">
+                  <div className="flex justify-between items-center mb-6 px-1">
                     <p className="text-[8.5px] sm:text-[9.5px] text-foreground/35 uppercase tracking-[0.2em]">
                       {sortedProducts.length} {sortedProducts.length === 1 ? "Result" : "Results"}
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[3px] px-[2px] md:px-1 max-w-6xl mx-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[3px]">
                     {sortedProducts.map((product, idx) => (
                       <ProductCard key={product.id} product={product} priority={idx < 4} />
                     ))}
@@ -348,9 +348,8 @@ export default function SearchResultsClient({
                   </div>
                 </div>
               ) : (
-                /* Empty state - Collections + Trending products list */
-                <div className="max-w-4xl mx-auto mt-4 text-left animate-fade-up">
-                  {/* Collections list */}
+                /* Empty state - Collections + New Arrivals */
+                <div className="max-w-6xl mx-auto mt-4 text-left animate-fade-up">
                   {collections.length > 0 && (
                     <div className="mb-12">
                       <p className="text-[8.5px] font-mono tracking-[0.25em] text-foreground/35 uppercase mb-4 pl-1">
@@ -387,13 +386,12 @@ export default function SearchResultsClient({
                     </div>
                   )}
 
-                  {/* Trending list */}
                   {trendingProducts.length > 0 && (
                     <div>
                       <p className="text-[8.5px] font-mono tracking-[0.25em] text-foreground/35 uppercase mb-4 pl-1">
                         New Arrivals
                       </p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[3px] px-[2px] md:px-0">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-[2px] md:gap-[3px]">
                         {trendingProducts.slice(0, 8).map((p) => (
                           <ProductCard key={p.id} product={p} />
                         ))}
@@ -404,34 +402,35 @@ export default function SearchResultsClient({
               )}
             </div>
           ) : (
-            /* ==================== 2. EDITORIAL VIEW LAYOUT (Mock Reference) ==================== */
-            <div className="max-w-xl mx-auto px-1 animate-fade-up">
-              {/* E1. Hero Banner Edit Card */}
-              <div className="w-full relative rounded-3xl overflow-hidden aspect-[16/9.5] sm:aspect-[21/9.5] bg-black border border-white/5 shadow-xl flex items-center p-6 sm:p-10 mb-8 group">
-                <div className="absolute right-0 top-0 bottom-0 w-3/5 h-full z-0 overflow-hidden">
+            /* ==================== 2. EDITORIAL VIEW LAYOUT ==================== */
+            <div className="max-w-6xl mx-auto animate-fade-up">
+              {/* E1. Hero Banner Edit Card (Sleek landscape card) */}
+              <div className="w-full relative rounded-3xl overflow-hidden aspect-[16/10] sm:aspect-[21/8.5] bg-black border border-white/5 shadow-xl flex items-center p-6 sm:p-12 mb-10 group">
+                <div className="absolute right-0 top-0 bottom-0 w-full sm:w-3/5 h-full z-0 overflow-hidden">
                   <Image
                     src={bannerImage}
                     alt={bannerTitle}
                     fill
-                    sizes="(max-width: 768px) 60vw, 400px"
+                    sizes="(max-width: 768px) 100vw, 60vw"
                     priority
-                    className="object-cover object-center group-hover:scale-[1.03] transition-transform duration-[4000ms] ease-out brightness-[0.5] sm:brightness-75"
+                    className="object-cover object-center group-hover:scale-[1.02] transition-transform duration-[4000ms] ease-out brightness-[0.5] sm:brightness-75"
                     onError={handleImageError}
                   />
                   <div className="absolute inset-0 bg-gradient-to-r from-black via-black/85 to-transparent z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10 sm:hidden" />
                 </div>
 
-                <div className="relative z-20 text-left max-w-[190px] sm:max-w-sm">
+                <div className="relative z-20 text-left max-w-[210px] sm:max-w-sm">
                   <span className="text-[7.5px] font-mono tracking-[0.35em] text-foreground/45 uppercase mb-1.5 block">
                     Search Edit
                   </span>
                   <h2 
-                    className="text-[22px] sm:text-[34px] uppercase tracking-[0.1em] text-white leading-tight mb-2.5 font-light"
+                    className="text-2xl sm:text-[36px] uppercase tracking-[0.1em] text-white leading-tight mb-2.5 font-light"
                     style={{ fontFamily: "var(--font-poppins), -apple-system, sans-serif" }}
                   >
                     {bannerTitle}
                   </h2>
-                  <p className="text-[9px] sm:text-[10px] text-white/50 leading-relaxed font-light mb-5 line-clamp-3">
+                  <p className="text-[9.5px] sm:text-[10.5px] text-white/50 leading-relaxed font-light mb-6 line-clamp-3">
                     {bannerSubtitle}
                   </p>
                   <button
@@ -444,175 +443,79 @@ export default function SearchResultsClient({
                 </div>
               </div>
 
-              {/* E2. Curated Stories List */}
-              <div className="mb-8 text-left">
-                <p 
-                  className="text-[8.5px] font-mono tracking-[0.25em] text-foreground/35 uppercase mb-3.5 pl-1"
-                  style={{ fontFamily: "var(--font-poppins), -apple-system, sans-serif" }}
-                >
-                  Curated Stories
-                </p>
-                <div className="flex gap-2.5 overflow-x-auto pb-4 px-1 snap-x hide-scrollbar">
-                  {curatedStoriesData.map((story) => (
-                    <div
-                      key={story.id}
-                      onClick={() => handleStoryClick(story.query)}
-                      className="group relative min-w-[145px] sm:min-w-[170px] aspect-[3/4.2] rounded-2xl overflow-hidden border border-foreground/[0.04] dark:border-white/[0.04] bg-foreground/[0.02] shadow-sm snap-start cursor-pointer transition-all duration-300 hover:shadow-md hover:border-foreground/[0.08]"
-                    >
-                      <Image
-                        src={story.image}
-                        alt={story.title}
-                        fill
-                        sizes="170px"
-                        className="object-cover brightness-[0.35] group-hover:scale-[1.03] transition-transform duration-700"
-                        onError={handleImageError}
-                      />
-                      <span className="absolute top-3.5 left-4 text-[8px] font-mono font-light text-white/40">
-                        {story.id}
-                      </span>
+              {/* E2. Curated Stories List (Only rendered on standby/minimal view) */}
+              {!query && (
+                <div className="mb-10 text-left max-w-4xl mx-auto">
+                  <p 
+                    className="text-[8.5px] font-mono tracking-[0.25em] text-foreground/35 uppercase mb-3.5 pl-1"
+                    style={{ fontFamily: "var(--font-poppins), -apple-system, sans-serif" }}
+                  >
+                    Curated Stories
+                  </p>
+                  <div className="flex gap-2.5 overflow-x-auto pb-4 px-1 snap-x hide-scrollbar">
+                    {curatedStoriesData.map((story) => (
+                      <div
+                        key={story.id}
+                        onClick={() => handleStoryClick(story.query)}
+                        className="group relative min-w-[145px] sm:min-w-[175px] aspect-[3/4.2] rounded-2xl overflow-hidden border border-foreground/[0.04] dark:border-white/[0.04] bg-foreground/[0.02] shadow-sm snap-start cursor-pointer transition-all duration-300 hover:shadow-md hover:border-foreground/[0.08]"
+                      >
+                        <Image
+                          src={story.image}
+                          alt={story.title}
+                          fill
+                          sizes="175px"
+                          className="object-cover brightness-[0.35] group-hover:scale-[1.03] transition-transform duration-700"
+                          onError={handleImageError}
+                        />
+                        <span className="absolute top-3.5 left-4 text-[8px] font-mono font-light text-white/40">
+                          {story.id}
+                        </span>
 
-                      <div className="absolute inset-x-3.5 bottom-3.5 flex flex-col items-start justify-end z-10 text-left">
-                        <h4 className="text-[9.5px] sm:text-[10.5px] font-sans font-semibold uppercase tracking-[0.14em] text-white/80 leading-tight mb-0.5 group-hover:text-white transition-colors">
-                          {story.title}
-                        </h4>
-                        <p className="text-[8px] text-white/45 font-light leading-snug">
-                          {story.subtitle}
-                        </p>
+                        <div className="absolute inset-x-3.5 bottom-3.5 flex flex-col items-start justify-end z-10 text-left">
+                          <h4 className="text-[9.5px] sm:text-[10.5px] font-sans font-semibold uppercase tracking-[0.14em] text-white/80 leading-tight mb-0.5 group-hover:text-white transition-colors">
+                            {story.title}
+                          </h4>
+                          <p className="text-[8px] text-white/45 font-light leading-snug">
+                            {story.subtitle}
+                          </p>
 
-                        <div className="w-5 h-5 rounded-lg border border-white/20 flex items-center justify-center text-white/70 group-hover:text-white group-hover:border-white/40 mt-3.5 transition-all active:scale-90">
-                          <span className="text-[8.5px]">→</span>
+                          <div className="w-5 h-5 rounded-lg border border-white/20 flex items-center justify-center text-white/70 group-hover:text-white group-hover:border-white/40 mt-3.5 transition-all active:scale-90">
+                            <span className="text-[8.5px]">→</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* E3. Editor's Picks Stack */}
-              <div id="editors-picks-section" className="text-left">
+              {/* E3. Editor's Picks Magazine layout blocks (using SearchProductCardEditorial) */}
+              <div id="editors-picks-section" className="text-left max-w-5xl mx-auto">
                 <p 
-                  className="text-[8.5px] font-mono tracking-[0.25em] text-foreground/35 uppercase mb-4 pl-1"
+                  className="text-[8.5px] font-mono tracking-[0.25em] text-foreground/35 uppercase mb-6 pl-1"
                   style={{ fontFamily: "var(--font-poppins), -apple-system, sans-serif" }}
                 >
-                  Editor's Picks
+                  {query ? "Search Results" : "Editor's Picks"}
                 </p>
 
                 {editorsPicksProducts.length > 0 ? (
-                  <div className="flex flex-col gap-3.5">
-                    {editorsPicksProducts.map((prod) => {
-                      const variant = prod.variants?.[0];
-                      const price = variant?.price || "0";
-                      const compareAtPrice = variant?.compare_at_price;
-                      const isOnSale = compareAtPrice && parseFloat(compareAtPrice) > parseFloat(price);
-                      const isSoldOut = prod.variants ? !prod.variants.some(v => (v.inventory_quantity || 0) > 0) : true;
-                      const slug = prod.handle || prod.id;
-                      const img = prod.images?.[0]?.src || "/zb-logo-220px.png";
-
-                      const rawDesc = prod.body_html ? prod.body_html.replace(/<[^>]*>/g, "").trim() : "";
-                      const description = rawDesc || "Washed to perfection. Built for everyday chaos.";
-                      const bookmarked = isBookmarked(prod.id.toString());
-
-                      return (
-                        <div
-                          key={prod.id}
-                          className={`flex gap-3.5 items-center bg-foreground/[0.01] dark:bg-white/[0.01] border border-foreground/[0.04] dark:border-white/[0.04] p-3 rounded-2xl hover:bg-foreground/[0.02] dark:hover:bg-white/[0.02] hover:border-foreground/[0.08] dark:hover:border-white/[0.08] transition-all relative ${
-                            isSoldOut ? "opacity-60" : ""
-                          }`}
-                        >
-                          {/* Image Box */}
-                          <Link
-                            href={`/products/${slug}`}
-                            className="w-24 sm:w-28 aspect-[3/4.4] rounded-xl overflow-hidden relative bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/[0.04] dark:border-white/[0.04] flex-shrink-0 group block"
-                          >
-                            <Image
-                              src={img}
-                              alt={prod.title}
-                              fill
-                              sizes="(max-width: 768px) 100px, 120px"
-                              className="object-cover group-hover:scale-[1.03] transition-transform duration-700"
-                              onError={handleImageError}
-                            />
-                            {isSoldOut && (
-                              <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
-                                <span className="text-[6.5px] font-bold uppercase tracking-widest text-white/90">Sold Out</span>
-                              </div>
-                            )}
-                          </Link>
-
-                          {/* Details Column */}
-                          <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch py-0.5">
-                            <div>
-                              <div className="flex justify-between items-start gap-2">
-                                <Link href={`/products/${slug}`} className="block text-left min-w-0 flex-1">
-                                  <h3 
-                                    className="text-[10px] sm:text-xs uppercase tracking-[0.14em] text-foreground/80 font-light truncate"
-                                    style={{ fontFamily: "var(--font-poppins), -apple-system, sans-serif" }}
-                                  >
-                                    {prod.title}
-                                  </h3>
-                                  {prod.product_type && (
-                                    <span className="text-[6.5px] font-mono text-foreground/30 dark:text-white/30 uppercase tracking-[0.2em] mt-0.5 block">
-                                      {prod.product_type}
-                                    </span>
-                                  )}
-                                </Link>
-
-                                <button
-                                  onClick={() => toggleBookmark(prod)}
-                                  className={`w-7 h-7 flex items-center justify-center rounded-lg hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors ${
-                                    bookmarked ? "text-foreground dark:text-white" : "text-foreground/35 dark:text-white/35"
-                                  }`}
-                                  aria-label={bookmarked ? "Remove bookmark" : "Add bookmark"}
-                                >
-                                  <Bookmark className={`w-3.5 h-3.5 ${bookmarked ? "fill-foreground dark:fill-white" : ""}`} />
-                                </button>
-                              </div>
-
-                              <div className="flex items-baseline gap-1.5 mt-1.5 text-left">
-                                <span className="text-[9.5px] font-mono text-foreground/75 dark:text-white/75 font-semibold">
-                                  ₹{parseFloat(price).toLocaleString("en-IN")}
-                                </span>
-                                {isOnSale && compareAtPrice && (
-                                  <span className="text-[8px] font-mono text-foreground/25 dark:text-white/25 line-through">
-                                    ₹{parseFloat(compareAtPrice).toLocaleString("en-IN")}
-                                  </span>
-                                )}
-                              </div>
-
-                              <p className="text-[9px] sm:text-[9.5px] text-foreground/40 dark:text-white/40 leading-relaxed font-light mt-2 line-clamp-2 text-left">
-                                {description}
-                              </p>
-                            </div>
-
-                            {/* Cart / Info CTA */}
-                            <div className="mt-3 flex gap-2 justify-start">
-                              {!isSoldOut ? (
-                                <button
-                                  onClick={() => setActiveModalProduct(prod)}
-                                  className="py-1 px-3 rounded-lg border border-foreground/[0.08] dark:border-white/[0.08] text-[8px] uppercase tracking-widest text-foreground/60 dark:text-white/60 hover:bg-foreground dark:hover:bg-white hover:text-background dark:hover:text-black transition-all active:scale-95 flex items-center gap-1 font-medium bg-background/50 dark:bg-black/50"
-                                >
-                                  <Plus className="w-2.5 h-2.5" />
-                                  <span>Add</span>
-                                </button>
-                              ) : (
-                                <span className="py-1 px-3 rounded-lg bg-foreground/5 dark:bg-white/5 text-foreground/25 dark:text-white/25 text-[8px] uppercase tracking-widest font-mono">
-                                  Sold Out
-                                </span>
-                              )}
-                              <Link
-                                href={`/products/${slug}`}
-                                className="py-1 px-3 rounded-lg border border-foreground/[0.08] dark:border-white/[0.08] text-[8px] uppercase tracking-widest text-foreground/50 dark:text-white/50 hover:text-foreground dark:hover:text-white hover:border-foreground/20 dark:hover:border-white/20 text-center transition-all active:scale-95 font-medium block"
-                              >
-                                Details
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="flex flex-col gap-12">
+                    {(() => {
+                      const chunks: ShopifyProduct[][] = [];
+                      for (let i = 0; i < editorsPicksProducts.length; i += 4) {
+                        chunks.push(editorsPicksProducts.slice(i, i + 4));
+                      }
+                      return chunks.map((chunk, idx) => (
+                        <SearchProductCardEditorial
+                          key={`editorial-chunk-${idx}`}
+                          chunk={chunk}
+                          index={idx}
+                          priority={idx === 0}
+                        />
+                      ));
+                    })()}
                   </div>
                 ) : (
-                  /* Editorial view empty state picks fallback */
                   <div className="text-center py-10 text-foreground/25 font-mono text-[9px] uppercase tracking-wider">
                     No matching editorial edits found
                   </div>
