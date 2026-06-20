@@ -45,8 +45,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { mfgFetch } from "@/lib/manufacturing/mfg-fetch";
 import { formatDateTimeIST } from "@/lib/manufacturing/ist";
-import WorkDriveGallery from "@/components/workdrive/WorkDriveGallery";
-import { supabase } from "@/lib/supabase";
+
 
 type TaskType = "MANUAL" | "PRODUCTION" | "VENDOR_SELECTION" | "VENDOR_SEARCH" | "DESIGN_SELECTION" | "DESIGN_APPROVAL";
 
@@ -262,9 +261,7 @@ export default function PendingTasksPage() {
 
   // Modals / Drawers state
   const [newOpen, setNewOpen] = useState(false);
-  const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [prodDrawerOpen, setProdDrawerOpen] = useState(false);
-  const [linkingFolder, setLinkingFolder] = useState(false);
 
   // Production Action inputs
   const [selectedProdTask, setSelectedProdTask] = useState<Task | null>(null);
@@ -277,11 +274,7 @@ export default function PendingTasksPage() {
     totalCharges: "",
   });
 
-  // Workflow transition
-  const [selectedWorkflowTask, setSelectedWorkflowTask] = useState<Task | null>(null);
-  const [workflowActionType, setWorkflowActionType] = useState<"PRODUCTION" | "VENDOR_SELECTION" | null>(null);
-  const [workflowQuantity, setWorkflowQuantity] = useState("100");
-  const [workflowLoading, setWorkflowLoading] = useState(false);
+
 
   const [newTask, setNewTask] = useState({
     title: "",
@@ -384,7 +377,7 @@ export default function PendingTasksPage() {
       const res = await mfgFetch(`/api/admin/manufacturing/tasks?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete task");
       showToast("Task deleted");
-      if (detailTask?.id === id) setDetailTask(null);
+
       loadTasks();
     } catch (e: any) {
       showToast(e.message, "err");
@@ -424,69 +417,7 @@ export default function PendingTasksPage() {
     }
   };
 
-  const handleWorkflowTransition = async () => {
-    if (!selectedWorkflowTask || !workflowActionType) return;
-    setWorkflowLoading(true);
-    try {
-      const transitionType = workflowActionType === "PRODUCTION" ? "SEND_TO_PRODUCTION" : "SEND_TO_VENDOR_SELECTION";
-      const res = await mfgFetch("/api/admin/manufacturing/tasks", {
-        method: "PATCH",
-        body: JSON.stringify({ id: selectedWorkflowTask.id, transition: transitionType, quantity: workflowQuantity }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Workflow transition failed");
-      showToast(data.message || "Process updated");
-      setSelectedWorkflowTask(null);
-      setWorkflowActionType(null);
-      loadTasks();
-    } catch (e: any) {
-      showToast(e.message, "err");
-    } finally {
-      setWorkflowLoading(false);
-    }
-  };
 
-  const linkWorkDriveFolder = async (taskId: string) => {
-    setLinkingFolder(true);
-    try {
-      const folderRes = await fetch("/api/workdrive/create-folder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `Task-${taskId}`,
-        }),
-      });
-      if (!folderRes.ok) throw new Error("Failed to create folder");
-      const folder = await folderRes.json();
-      if (folder.error) throw new Error(folder.error);
-
-      const teamId = process.env.ZOHO_WD_TEAM_ID || "";
-      const wsId = process.env.ZOHO_WD_WORKSPACE_ID || "";
-      const folderUrl = `https://workdrive.zoho.in/${teamId}/ws/${wsId}/folders/${folder.folderId}`;
-
-      // Update task with folder ID
-      const { error: dbErr } = await supabase
-        .from("pending_tasks")
-        .update({
-          workdrive_folder_id: folder.folderId,
-          workdrive_folder_name: folder.folderName,
-          workdrive_url: folderUrl,
-        })
-        .eq("id", taskId);
-
-      if (dbErr) throw dbErr;
-
-      showToast("WorkDrive folder linked");
-      loadTasks();
-      if (detailTask?.id === taskId) {
-        setDetailTask(prev => prev ? { ...prev, workdriveFolderId: folder.folderId, workdriveUrl: folderUrl } : null);
-      }
-    } catch (e: any) {
-      showToast(e.message, "err");
-    } finally {
-      setLinkingFolder(false);
-    }
-  };
 
   // ─── Filtering & Sorting ──────────────────
   const filteredTasks = tasks.filter(t => {
@@ -711,7 +642,7 @@ export default function PendingTasksPage() {
                         task={task}
                         onToggleStatus={updateTaskStatus}
                         onDelete={deleteTask}
-                        onOpen={setDetailTask}
+                        onOpen={(t) => router.push(`/dashboard/manufacturing/tasks/${t.id}`)}
                       />
                     ))}
                     {colTasks.length === 0 && (
@@ -733,252 +664,14 @@ export default function PendingTasksPage() {
                 task={task}
                 onToggleStatus={updateTaskStatus}
                 onDelete={deleteTask}
-                onOpen={setDetailTask}
+              onOpen={(t) => router.push(`/dashboard/manufacturing/tasks/${t.id}`)}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* ─── Detail Slide-Over Panel ─── */}
-      <AnimatePresence>
-        {detailTask && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setDetailTask(null)}
-              className="fixed inset-0 bg-background/60 backdrop-blur-sm z-[100]"
-            />
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-[600px] bg-background border-l border-foreground/10 z-[101] flex flex-col overflow-hidden shadow-2xl"
-            >
-              {/* Detail Header */}
-              <div className="flex items-center justify-between p-5 border-b border-foreground/5">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <PriorityBadge priority={detailTask.priority} />
-                    <TaskTypeBadge type={detailTask.type} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {detailTask.type !== "PRODUCTION" && (
-                    <button
-                      onClick={() => deleteTask(detailTask.id)}
-                      className="p-2 rounded-lg text-foreground/30 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setDetailTask(null)}
-                    className="p-2 rounded-lg text-foreground/40 hover:text-foreground hover:bg-foreground/5 transition-all"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
 
-              {/* Detail Content */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
-                <div>
-                  <h2 className="text-xl font-bold text-foreground tracking-tight leading-tight">
-                    {detailTask.title}
-                  </h2>
-                  {detailTask.description && (
-                    <p className="text-[13px] text-foreground/50 mt-2 leading-relaxed">{detailTask.description}</p>
-                  )}
-                </div>
-
-                {/* Meta */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-foreground/[0.02] rounded-xl p-3 border border-foreground/5">
-                    <div className="text-[9px] font-bold text-foreground/30 uppercase tracking-widest mb-1">Status</div>
-                    <div className="flex items-center gap-2">
-                      <StatusDot status={detailTask.status} />
-                      <span className="text-[12px] font-bold text-foreground">{detailTask.status}</span>
-                    </div>
-                  </div>
-                  <div className="bg-foreground/[0.02] rounded-xl p-3 border border-foreground/5">
-                    <div className="text-[9px] font-bold text-foreground/30 uppercase tracking-widest mb-1">Due</div>
-                    <span className="text-[12px] font-bold text-foreground">
-                      {detailTask.dueDate ? formatDateTimeIST(detailTask.dueDate).split(",")[0] : "No due date"}
-                    </span>
-                  </div>
-                  {detailTask.assignedTo && (
-                    <div className="bg-foreground/[0.02] rounded-xl p-3 border border-foreground/5">
-                      <div className="text-[9px] font-bold text-foreground/30 uppercase tracking-widest mb-1">Assigned</div>
-                      <span className="text-[12px] font-bold text-foreground">
-                        {detailTask.assignedTo.name || detailTask.assignedTo.email.split("@")[0]}
-                      </span>
-                    </div>
-                  )}
-                  {detailTask.batch && (
-                    <div className="bg-foreground/[0.02] rounded-xl p-3 border border-foreground/5">
-                      <div className="text-[9px] font-bold text-foreground/30 uppercase tracking-widest mb-1">Batch</div>
-                      <span className="text-[12px] font-bold text-foreground font-mono">{detailTask.batch.batchCode}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Deep Linking Redirect CTAs */}
-                {detailTask.type === "PRODUCTION" && detailTask.batchId && (
-                  <div className="bg-foreground/[0.02] border border-foreground/5 rounded-2xl p-4 space-y-3">
-                    <div className="text-[9.5px] font-bold text-foreground/30 uppercase tracking-[0.2em] leading-none">Redirect Link</div>
-                    <button
-                      onClick={() => {
-                        setDetailTask(null);
-                        router.push(`/dashboard/manufacturing/production?batchId=${detailTask.batchId}`);
-                      }}
-                      className="w-full py-3 bg-foreground text-background rounded-xl font-bold uppercase tracking-[0.15em] text-[10px] flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.97] shadow-lg shadow-foreground/5"
-                    >
-                      <Activity className="w-4 h-4" />
-                      Open in Production Tracker
-                    </button>
-                  </div>
-                )}
-                {(detailTask.type === "DESIGN_APPROVAL" || detailTask.type === "DESIGN_SELECTION") && (
-                  <div className="bg-foreground/[0.02] border border-foreground/5 rounded-2xl p-4 space-y-3">
-                    <div className="text-[9.5px] font-bold text-foreground/30 uppercase tracking-[0.2em] leading-none">Redirect Link</div>
-                    <button
-                      onClick={() => {
-                        setDetailTask(null);
-                        router.push(`/dashboard/manufacturing/designs?q=${encodeURIComponent(detailTask.designName || detailTask.title)}`);
-                      }}
-                      className="w-full py-3 bg-foreground text-background rounded-xl font-bold uppercase tracking-[0.15em] text-[10px] flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.97] shadow-lg shadow-foreground/5"
-                    >
-                      <PaletteIcon className="w-4 h-4" />
-                      Open in Design Studio
-                    </button>
-                  </div>
-                )}
-                {(detailTask.type === "VENDOR_SELECTION" || detailTask.type === "VENDOR_SEARCH") && (
-                  <div className="bg-foreground/[0.02] border border-foreground/5 rounded-2xl p-4 space-y-3">
-                    <div className="text-[9.5px] font-bold text-foreground/30 uppercase tracking-[0.2em] leading-none">Redirect Link</div>
-                    <button
-                      onClick={() => {
-                        setDetailTask(null);
-                        router.push(`/dashboard/manufacturing/vendors?search=${encodeURIComponent(detailTask.designName || detailTask.title)}`);
-                      }}
-                      className="w-full py-3 bg-foreground text-background rounded-xl font-bold uppercase tracking-[0.15em] text-[10px] flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.97] shadow-lg shadow-foreground/5"
-                    >
-                      <Building2 className="w-4 h-4" />
-                      Open in Vendor Directory
-                    </button>
-                  </div>
-                )}
-
-                {/* Quick Actions */}
-                {detailTask.status === "PENDING" && (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => updateTaskStatus(detailTask.id, "COMPLETED")}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500/20 transition-all"
-                    >
-                      <Check className="w-3 h-3" />
-                      Complete
-                    </button>
-                    {detailTask.type === "DESIGN_APPROVAL" && (
-                      <>
-                        <button
-                          onClick={async () => {
-                            const res = await mfgFetch("/api/admin/manufacturing/tasks", {
-                              method: "PATCH",
-                              body: JSON.stringify({ id: detailTask.id, approvalStatus: "APPROVED" }),
-                            });
-                            if (res.ok) { showToast("Design approved"); loadTasks(); }
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500/20 transition-all"
-                        >
-                          Approve Design
-                        </button>
-                        <button
-                          onClick={async () => {
-                            const res = await mfgFetch("/api/admin/manufacturing/tasks", {
-                              method: "PATCH",
-                              body: JSON.stringify({ id: detailTask.id, approvalStatus: "REJECTED" }),
-                            });
-                            if (res.ok) { showToast("Design rejected"); loadTasks(); }
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-rose-500/20 transition-all"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    {((detailTask.type === "DESIGN_APPROVAL" && detailTask.approvalStatus === "APPROVED") || detailTask.type === "DESIGN_SELECTION") && (
-                      <>
-                        <button
-                          onClick={() => { setSelectedWorkflowTask(detailTask); setWorkflowActionType("PRODUCTION"); setWorkflowQuantity("100"); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-foreground text-background rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm"
-                        >
-                          <Activity className="w-3 h-3" />
-                          To Production
-                        </button>
-                        <button
-                          onClick={() => { setSelectedWorkflowTask(detailTask); setWorkflowActionType("VENDOR_SELECTION"); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-background border border-foreground/10 text-foreground/80 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:text-foreground"
-                        >
-                          <Users className="w-3 h-3" />
-                          To Vendor
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* WorkDrive Gallery Section */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-foreground/50">
-                      Images & Files
-                    </h3>
-                    {!detailTask.workdriveFolderId && (
-                      <button
-                        onClick={() => linkWorkDriveFolder(detailTask.id)}
-                        disabled={linkingFolder}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-foreground/5 border border-foreground/10 text-foreground/60 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-foreground/10 transition-all disabled:opacity-50"
-                      >
-                        {linkingFolder ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderOpen className="w-3 h-3" />}
-                        Link WorkDrive Folder
-                      </button>
-                    )}
-                  </div>
-                  <WorkDriveGallery
-                    folderId={detailTask.workdriveFolderId || null}
-                    folderName={detailTask.title}
-                    allowUpload={true}
-                  />
-                  {detailTask.workdriveUrl && (
-                    <a
-                      href={detailTask.workdriveUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wider transition-colors"
-                    >
-                      <Link2 className="w-3 h-3" />
-                      Open in WorkDrive
-                    </a>
-                  )}
-                </div>
-
-                {/* Activity / Created */}
-                <div className="pt-4 border-t border-foreground/5">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-foreground/50 mb-2">Activity</h3>
-                  <div className="text-[11px] text-foreground/40 font-medium">
-                    Created {formatDateTimeIST(detailTask.createdAt)}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* ─── New Task Modal ─── */}
       <AnimatePresence>
@@ -1184,51 +877,7 @@ export default function PendingTasksPage() {
         )}
       </AnimatePresence>
 
-      {/* ─── Workflow Transition Modal ─── */}
-      <AnimatePresence>
-        {selectedWorkflowTask && workflowActionType && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md glass-card rounded-[2rem] border border-foreground/10 shadow-3xl p-6 space-y-4"
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-lg font-bold text-foreground uppercase tracking-tight">
-                    {workflowActionType === "PRODUCTION" ? "Send to Production" : "Forward to Vendor Selection"}
-                  </h2>
-                  <p className="text-[11px] text-foreground/40 mt-0.5">{selectedWorkflowTask.designName || selectedWorkflowTask.title}</p>
-                </div>
-                <button onClick={() => { setSelectedWorkflowTask(null); setWorkflowActionType(null); }} className="p-2 rounded-full hover:bg-foreground/5 text-foreground/40">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
 
-              {workflowActionType === "PRODUCTION" && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-[0.3em] text-foreground/40 ml-1">Production Quantity</label>
-                  <input
-                    value={workflowQuantity}
-                    onChange={(e) => setWorkflowQuantity(e.target.value)}
-                    type="number"
-                    className="w-full bg-background border border-foreground/10 rounded-xl px-4 py-3 text-[13px] font-medium text-foreground focus:outline-none focus:border-foreground/30"
-                  />
-                </div>
-              )}
-
-              <button
-                onClick={handleWorkflowTransition}
-                disabled={workflowLoading}
-                className="w-full px-4 py-3 bg-foreground text-background rounded-2xl text-[11px] font-bold uppercase tracking-wider hover:opacity-90 shadow-lg disabled:opacity-40 transition-all"
-              >
-                {workflowLoading ? "Processing..." : "Confirm"}
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }
