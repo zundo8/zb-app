@@ -84,6 +84,7 @@ const INDIAN_STATES = [
 ];
 
 export default function CheckoutPage() {
+  // Trigger cache bust for checkout bundle v1.0.4
   const { data: session, status } = useSession();
   const { items, subtotal, clear } = useCart();
   const router = useRouter();
