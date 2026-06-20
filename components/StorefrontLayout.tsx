@@ -15,8 +15,10 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
   const pathname = usePathname();
   const [collections, setCollections] = useState<any[]>([]);
   const [isMobileApp, setIsMobileApp] = useState(false);
+  const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
+    setMounted(true);
     fetch("/api/shopify/collections?location=header")
       .then(res => res.json())
       .then(data => setCollections(data))
@@ -35,7 +37,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
       <Suspense fallback={null}>
         <PageLoader />
       </Suspense>
-      {!isMobileApp && !pathname.startsWith("/checkout") && <StorefrontHeader collections={collections} />}
+      {!isMobileApp && (!mounted || !pathname.startsWith("/checkout")) && <StorefrontHeader collections={collections} />}
       
       {/* ── Main Content ── */}
       <div className="relative z-10 w-full overflow-x-hidden">
@@ -44,11 +46,13 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
 
       {/* ── Footer (passed from server) ── */}
       {!isMobileApp && 
-        pathname !== "/login" && 
-        pathname !== "/chat" && 
-        pathname !== "/support" && 
-        !pathname.startsWith("/checkout") && 
-        !pathname.startsWith("/payment") && 
+        (!mounted || (
+          pathname !== "/login" && 
+          pathname !== "/chat" && 
+          pathname !== "/support" && 
+          !pathname.startsWith("/checkout") && 
+          !pathname.startsWith("/payment")
+        )) && 
         footer}
     </div>
   );
