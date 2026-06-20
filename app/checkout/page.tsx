@@ -734,71 +734,16 @@ export default function CheckoutPage() {
     }
   }, [step, router]);
 
-  /* ═══════════════════ RENDER ═══════════════════════════════ */
   return (
-    <div className="min-h-[100dvh] relative bg-[#000000] text-foreground font-sans">
+    <div className="min-h-[100dvh] relative bg-background text-foreground font-sans">
       
-      <div className="relative z-10 max-w-xl mx-auto px-4 pt-20 pb-12 flex flex-col" style={{ minHeight: '100dvh' }}>
+      <div className="relative z-10 max-w-xl mx-auto px-4 pt-24 pb-12 flex flex-col" style={{ minHeight: '100dvh' }}>
         
         {/* Page Title & H1 */}
-        <div className="mb-8">
-          <p className="text-[8px] font-semibold uppercase tracking-[0.45em] text-white/45 mb-1.5 pl-0.5">YOUR PURCHASE</p>
+        <div className="mb-6">
+          <p className="text-[8.5px] font-semibold uppercase tracking-[0.45em] text-foreground/45 mb-1.5 pl-0.5">YOUR PURCHASE</p>
           <div className="flex items-center gap-3">
-            <h1 className="text-[26px] font-black tracking-tight text-white leading-none">Checkout</h1>
-            <span className="px-2.5 py-1 rounded-full text-[8.5px] font-extrabold bg-white/[0.06] border border-white/10 text-white/70 uppercase tracking-wider leading-none">
-              Step {step}/2
-            </span>
-          </div>
-        </div>
-
-        {/* Step Indicator / Progress Tracker */}
-        <div className="flex flex-col items-center mb-10 relative">
-          <div className="w-full flex items-center justify-between px-16 relative">
-            {/* Background Line */}
-            <div className="absolute top-5 left-[calc(4rem+20px)] right-[calc(4rem+20px)] h-[1px] bg-white/10 z-0" />
-            
-            {/* Active Line (only when step === 2) */}
-            {step === 2 && (
-              <div className="absolute top-5 left-[calc(4rem+20px)] right-[calc(4rem+20px)] h-[1.5px] bg-white z-0 shadow-[0_0_8px_rgba(255,255,255,0.5)] transition-all duration-500" />
-            )}
-
-            {/* Step 1 */}
-            <div className="flex flex-col items-center z-10 relative">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all duration-300 ${
-                step === 1 
-                  ? "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]" 
-                  : "bg-black text-white border-white/20"
-              }`}>
-                {step === 1 ? (
-                  <span className="text-[12px] font-black">1</span>
-                ) : (
-                  <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </div>
-              <span className={`text-[8.5px] font-bold tracking-[0.2em] mt-3.5 uppercase transition-colors ${
-                step === 1 ? "text-white" : "text-white/40"
-              }`}>
-                ADDRESS
-              </span>
-            </div>
-
-            {/* Step 2 */}
-            <div className="flex flex-col items-center z-10 relative">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all duration-300 ${
-                step === 2 
-                  ? "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]" 
-                  : "bg-black text-white/40 border-white/10"
-              }`}>
-                <span className="text-[12px] font-black">2</span>
-              </div>
-              <span className={`text-[8.5px] font-bold tracking-[0.2em] mt-3.5 uppercase transition-colors ${
-                step === 2 ? "text-white" : "text-white/40"
-              }`}>
-                PAYMENT
-              </span>
-            </div>
+            <h1 className="text-[26px] font-black tracking-tight text-foreground leading-none">Checkout</h1>
           </div>
         </div>
 
@@ -1097,7 +1042,6 @@ export default function CheckoutPage() {
               )}
             </motion.div>
           ) : (
-            /* REDESIGNED Step 2 Payment UI exactly matching your screenshots */
             <motion.div
               key="payment"
               initial={{ opacity: 0, x: 10 }}
@@ -1111,29 +1055,29 @@ export default function CheckoutPage() {
                 <div className="apple-glass-capsule p-4 rounded-2xl flex flex-col gap-3 mb-6">
                   {items.map((item) => (
                     <div key={item.id} className="flex gap-4 items-center">
-                      <div className="w-14 h-18 rounded-xl bg-white/[0.02] border border-white/10 overflow-hidden shrink-0 relative">
+                      <div className="w-14 h-18 rounded-xl bg-foreground/[0.02] border border-foreground/10 overflow-hidden shrink-0 relative">
                         {item.image ? (
-                          <Image src={item.image} fill className="w-full h-full object-cover animate-in fade-in duration-300" alt={item.title} sizes="56px" />
+                          <img src={item.image} className="w-full h-full object-cover animate-in fade-in duration-300" alt={item.title} />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/20 text-[8px] font-black">ZB</div>
+                          <div className="w-full h-full flex items-center justify-center text-foreground/20 text-[8px] font-black">ZB</div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-[12px] font-black text-white uppercase tracking-wider truncate leading-tight">{item.title}</h4>
-                        <p className="text-[9.5px] text-white/40 font-bold uppercase tracking-wider mt-1.5 leading-none">
+                        <h4 className="text-[12px] font-black text-foreground uppercase tracking-wider truncate leading-tight">{item.title}</h4>
+                        <p className="text-[9.5px] text-foreground/40 font-bold uppercase tracking-wider mt-1.5 leading-none">
                           Size: {item.size || "Free"} &nbsp;•&nbsp; Qty: {item.quantity}
                         </p>
                       </div>
-                      <span className="text-[12px] font-extrabold text-white shrink-0">₹{(parseFloat(item.price) * item.quantity).toLocaleString("en-IN")}</span>
+                      <span className="text-[12px] font-extrabold text-foreground shrink-0">₹{(parseFloat(item.price) * item.quantity).toLocaleString("en-IN")}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* Payment Method header label */}
-                <p className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-white/45 mb-3 pl-0.5">PAYMENT METHOD</p>
+                <p className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-foreground/45 mb-3 pl-0.5">PAYMENT METHOD</p>
                 
                 {/* Segment tabs */}
-                <div className="grid grid-cols-5 gap-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/5 mb-6">
+                <div className="grid grid-cols-5 gap-1.5 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-6">
                   {[
                     { id: "UPI" as PaymentMethod, label: "UPI" },
                     { id: "CARD" as PaymentMethod, label: "CARD" },
@@ -1155,8 +1099,8 @@ export default function CheckoutPage() {
                         }}
                         className={`py-2 px-1 text-[9px] font-extrabold uppercase tracking-wider rounded-lg text-center transition-all duration-300 ${
                           isActive
-                            ? "bg-white/[0.08] text-white border border-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.5)] scale-[1.02]"
-                            : "text-white/40 hover:text-white/60 hover:bg-white/[0.02]"
+                            ? "bg-foreground text-background shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.15)] scale-[1.02]"
+                            : "text-foreground/40 hover:text-foreground hover:bg-foreground/[0.02]"
                         }`}
                       >
                         {method.label}
@@ -1169,7 +1113,7 @@ export default function CheckoutPage() {
                 {paymentMethod === "UPI" && (
                   <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-300 mb-6">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[8px] font-extrabold text-white/40 uppercase tracking-widest pl-1 leading-none">ENTER UPI ID</label>
+                      <label className="text-[8px] font-extrabold text-foreground/40 uppercase tracking-widest pl-1 leading-none">ENTER UPI ID</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -1179,9 +1123,9 @@ export default function CheckoutPage() {
                             setUpiId(e.target.value);
                             setSelectedUpiApp("");
                           }}
-                          className="w-full h-12 px-4 pr-11 rounded-xl bg-[#090909] border border-white/5 text-white text-[12px] font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all tracking-wide"
+                          className="w-full h-12 px-4 pr-11 rounded-xl bg-foreground/[0.02] border border-foreground/5 text-foreground text-[12px] font-semibold placeholder:text-foreground/20 focus:border-foreground/20 focus:outline-none transition-all tracking-wide"
                         />
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none flex items-center justify-center">
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                           </svg>
@@ -1190,8 +1134,8 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="flex flex-col gap-2.5">
-                      <label className="text-[8px] font-extrabold text-white/40 uppercase tracking-widest pl-1 leading-none">OR PAY WITH</label>
-                      <div className="grid grid-cols-5 gap-1.5 text-center mt-1">
+                      <label className="text-[8px] font-extrabold text-foreground/40 uppercase tracking-widest pl-1 leading-none">OR PAY WITH</label>
+                      <div className="grid grid-cols-4 gap-1.5 text-center mt-1">
                         {[
                           { id: "google_pay", name: "GPay", logo: (
                             <div className="flex items-center justify-center gap-1 h-6 shrink-0">
@@ -1201,18 +1145,18 @@ export default function CheckoutPage() {
                                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                               </svg>
-                              <span className="text-[10px] font-black text-white tracking-tight pt-0.5">Pay</span>
+                              <span className="text-[10px] font-black text-foreground tracking-tight pt-0.5">Pay</span>
                             </div>
                           )},
                           { id: "phonepe", name: "PhonePe", logo: (
-                            <div className="flex items-center justify-center h-6 w-6 rounded-md bg-[#5f259f] shrink-0 mx-auto shadow-sm shadow-[#5f259f]/30">
-                              <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.36 12.3c-.29.41-.69.75-1.18.99-.49.24-1.05.36-1.68.36h-1v1.85H10v-6.3h2.5c.63 0 1.19.12 1.68.36.49.24.89.58 1.18.99.29.41.44.91.44 1.48 0 .56-.15 1.06-.44 1.47v-.11zm-1.86-2.58c-.24-.19-.57-.28-.99-.28h-.51v1.85h.51c.42 0 .75-.09.99-.28.24-.19.36-.45.36-.78 0-.32-.12-.58-.36-.76v.25z"/>
+                            <div className="flex items-center justify-center h-6 w-6 rounded-md bg-[#5f259f] shrink-0 mx-auto">
+                              <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
                               </svg>
                             </div>
                           )},
                           { id: "paytm", name: "Paytm", logo: (
-                            <div className="flex items-center justify-center h-6 w-11 bg-white rounded-md shrink-0 mx-auto border border-white/5">
+                            <div className="flex items-center justify-center h-6 w-11 bg-white rounded-md shrink-0 mx-auto border border-black/5">
                               <span className="text-[8.5px] font-black italic tracking-tighter leading-none">
                                 <span className="text-[#002e6e]">pay</span>
                                 <span className="text-[#00baf2]">tm</span>
@@ -1220,18 +1164,11 @@ export default function CheckoutPage() {
                             </div>
                           )},
                           { id: "bhim", name: "BHIM", logo: (
-                            <div className="flex items-center justify-center h-6 w-10 bg-[#e4e4e4] rounded-md shrink-0 mx-auto border border-white/5">
+                            <div className="flex items-center justify-center h-6 w-10 bg-[#e4e4e4] rounded-md shrink-0 mx-auto border border-black/5">
                               <span className="text-[7.5px] font-black tracking-tight leading-none text-black italic">
                                 <span className="text-orange-500">BH</span>
                                 <span className="text-green-600">IM</span>
                               </span>
-                            </div>
-                          )},
-                          { id: "more", name: "More", logo: (
-                            <div className="w-6 h-6 rounded-full bg-white/[0.08] border border-white/10 flex items-center justify-center gap-0.5 shrink-0 mx-auto">
-                              <span className="w-1 h-1 rounded-full bg-white" />
-                              <span className="w-1 h-1 rounded-full bg-white" />
-                              <span className="w-1 h-1 rounded-full bg-white" />
                             </div>
                           )}
                         ].map((app) => {
@@ -1251,7 +1188,7 @@ export default function CheckoutPage() {
                               }`}
                             >
                               {app.logo}
-                              <span className="text-[9px] font-bold tracking-wide text-white/50">{app.name}</span>
+                              <span className="text-[9px] font-bold tracking-wide text-foreground/50">{app.name}</span>
                             </button>
                           );
                         })}
@@ -1263,8 +1200,8 @@ export default function CheckoutPage() {
                 {/* Calculations Summary */}
                 <div className="apple-glass-capsule p-5 rounded-2xl flex flex-col gap-3 mb-6">
                   <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
-                    <span className="text-white/40">Subtotal</span>
-                    <span className="text-white/80">₹{subtotal.toLocaleString("en-IN")}</span>
+                    <span className="text-foreground/40">Subtotal</span>
+                    <span className="text-foreground/80">₹{subtotal.toLocaleString("en-IN")}</span>
                   </div>
                   
                   {couponDiscount > 0 && !applyAsStoreCredit && (
@@ -1283,38 +1220,38 @@ export default function CheckoutPage() {
 
                   {paymentMethod === "COD" && (
                     <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
-                      <span className="text-white/45">COD Fee</span>
-                      <span className="text-white/60">+ ₹{codFee}</span>
+                      <span className="text-foreground/45">COD Fee</span>
+                      <span className="text-foreground/60">+ ₹{codFee}</span>
                     </div>
                   )}
 
                   <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
-                    <span className="text-white/40">Shipping</span>
-                    <span className="text-white/80">FREE</span>
+                    <span className="text-foreground/40">Shipping</span>
+                    <span className="text-foreground/80">FREE</span>
                   </div>
 
-                  <div className="h-[1px] bg-white/5 my-1" />
+                  <div className="h-[1px] bg-foreground/5 my-1" />
 
                   {paymentMethod === "COD" ? (
                     <div className="flex flex-col gap-2.5">
                       <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
-                        <span className="text-white/40">Total</span>
-                        <span className="text-white/80">₹{total.toLocaleString("en-IN")}</span>
+                        <span className="text-foreground/40">Total</span>
+                        <span className="text-foreground/80">₹{total.toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
-                        <span className="text-white/40">Due at Delivery</span>
-                        <span className="text-white/80">₹{(total - codFee).toLocaleString("en-IN")}</span>
+                        <span className="text-foreground/40">Due at Delivery</span>
+                        <span className="text-foreground/80">₹{(total - codFee).toLocaleString("en-IN")}</span>
                       </div>
-                      <div className="h-[1px] bg-white/5 my-1" />
+                      <div className="h-[1px] bg-foreground/5 my-1" />
                       <div className="flex justify-between items-center">
-                        <span className="font-extrabold text-[10.5px] text-white/50 uppercase tracking-widest">Pay Now</span>
-                        <span className="text-xl font-black text-white tracking-tight leading-none">₹{codFee}</span>
+                        <span className="font-extrabold text-[10.5px] text-foreground/50 uppercase tracking-widest">Pay Now</span>
+                        <span className="text-xl font-black text-foreground tracking-tight leading-none">₹{codFee}</span>
                       </div>
                     </div>
                   ) : (
                     <div className="flex justify-between items-center">
-                      <span className="font-extrabold text-[10.5px] text-white/50 uppercase tracking-widest">Total</span>
-                      <span className="text-xl font-black text-white tracking-tight leading-none">₹{total.toLocaleString("en-IN")}</span>
+                      <span className="font-extrabold text-[10.5px] text-foreground/50 uppercase tracking-widest">Total</span>
+                      <span className="text-xl font-black text-foreground tracking-tight leading-none">₹{total.toLocaleString("en-IN")}</span>
                     </div>
                   )}
                 </div>
@@ -1322,17 +1259,17 @@ export default function CheckoutPage() {
                 {/* Apply Discount Banner */}
                 <div className="apple-glass-capsule p-4 rounded-2xl flex items-center justify-between gap-3 mb-6">
                   <div className="flex items-center gap-2.5">
-                    <Tag className="w-4.5 h-4.5 text-white/40" />
-                    <span className="text-[12px] font-bold text-white/80">Apply Discount</span>
+                    <Tag className="w-4.5 h-4.5 text-foreground/40" />
+                    <span className="text-[12px] font-bold text-foreground/80">Apply Discount</span>
                   </div>
                   
                   {couponValid ? (
-                    <div className="flex items-center gap-2 py-1 px-3 rounded-lg bg-white/10 border border-white/15 animate-in scale-in duration-300">
-                      <span className="text-[10px] font-black text-white uppercase tracking-wider">{couponCode}</span>
+                    <div className="flex items-center gap-2.5 py-1.5 px-3 rounded-full bg-foreground/[0.08] border border-foreground/10 animate-in scale-in duration-300">
+                      <span className="text-[10px] font-black text-foreground uppercase tracking-wider">{couponCode}</span>
                       <button
                         type="button"
                         onClick={handleRemoveCoupon}
-                        className="w-4 h-4 rounded-full bg-black/30 flex items-center justify-center hover:bg-black/50 text-white/60 hover:text-white"
+                        className="w-4 h-4 rounded-full bg-foreground/10 flex items-center justify-center hover:bg-foreground/20 text-foreground/60 hover:text-foreground"
                       >
                         <X className="w-2.5 h-2.5" />
                       </button>
@@ -1345,13 +1282,13 @@ export default function CheckoutPage() {
                         aria-label="Discount Code"
                         value={couponCode}
                         onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                        className="w-full h-8 px-2.5 rounded-lg bg-[#090909] border border-white/5 text-white text-[11px] font-mono tracking-wider placeholder:text-white/20 uppercase focus:border-white/20 focus:outline-none transition-all"
+                        className="w-full h-8 px-2.5 rounded-lg bg-foreground/[0.02] border border-foreground/5 text-foreground text-[11px] font-mono tracking-wider placeholder:text-foreground/20 uppercase focus:border-foreground/20 focus:outline-none transition-all"
                       />
                       <button
                         type="button"
                         onClick={() => handleApplyCoupon()}
                         disabled={couponLoading || !couponCode.trim()}
-                        className="h-8 px-3 rounded-lg bg-white text-black font-extrabold text-[9px] uppercase tracking-wider hover:bg-white/90 disabled:opacity-30 transition-all flex items-center justify-center shrink-0"
+                        className="h-8 px-3 rounded-lg bg-foreground text-background font-extrabold text-[9px] uppercase tracking-wider hover:opacity-90 disabled:opacity-30 transition-all flex items-center justify-center shrink-0"
                       >
                         {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
                       </button>
@@ -1364,7 +1301,7 @@ export default function CheckoutPage() {
                   <div className="flex flex-col gap-2 mb-6">
                     <div className="flex items-center gap-1.5 pl-1 mb-1 leading-none">
                       <Sparkles className="w-3.5 h-3.5 text-yellow-500 animate-pulse" />
-                      <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">Available Offers</span>
+                      <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">Available Offers</span>
                     </div>
                     <div className="flex gap-2.5 overflow-x-auto pb-3 scrollbar-none snap-x snap-mandatory">
                       {activeCoupons.map((coupon) => {
@@ -1412,17 +1349,17 @@ export default function CheckoutPage() {
                             }}
                             className={`snap-start shrink-0 p-3.5 rounded-xl border text-left w-[185px] flex flex-col gap-1.5 transition-all duration-300 ${
                               !isEligible || !isMethodApplicable
-                                ? "bg-white/[0.002] border-white/5 opacity-30 cursor-not-allowed"
-                                : "bg-white/[0.015] border-white/5 hover:border-white/10 hover:bg-white/[0.02]"
+                                ? "bg-foreground/[0.002] border-foreground/5 opacity-30 cursor-not-allowed"
+                                : "bg-foreground/[0.015] border-foreground/5 hover:border-foreground/10 hover:bg-foreground/[0.02]"
                             }`}
                           >
-                            <span className="font-mono text-[9px] font-black text-white bg-white/10 px-1.5 py-0.5 rounded uppercase tracking-wider self-start leading-none">
+                            <span className="font-mono text-[9px] font-black text-foreground bg-foreground/10 px-1.5 py-0.5 rounded uppercase tracking-wider self-start leading-none">
                               {coupon.code}
                             </span>
-                            <p className="text-[10px] font-black text-white/80 leading-tight mt-1">
+                            <p className="text-[10px] font-black text-foreground/80 leading-tight mt-1">
                               {benefitText} {coupon.applyAsStoreCredit ? "credited as cashback" : "instantly at checkout"}
                             </p>
-                            <p className="text-[7.5px] text-white/35 font-semibold mt-0.5">
+                            <p className="text-[7.5px] text-foreground/35 font-semibold mt-0.5">
                               {Number(coupon.minOrderValue) > 0 ? `On orders above ₹${Number(coupon.minOrderValue).toLocaleString("en-IN")}` : "No minimum limit"}
                             </p>
                           </button>
@@ -1446,20 +1383,15 @@ export default function CheckoutPage() {
                     type="button"
                     onClick={handlePlaceOrder}
                     disabled={loading}
-                    className="w-full h-16 rounded-full bg-white/[0.02] border border-white/10 hover:bg-white/[0.04] active:scale-[0.98] transition-all flex items-center justify-between p-1.5 disabled:opacity-50"
+                    className="w-full h-16 rounded-full bg-foreground text-background hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-between pl-16 pr-3 disabled:opacity-50 shadow-sm"
                   >
-                    {/* Left lock circle */}
-                    <div className="w-12 h-12 rounded-full bg-white/[0.04] border border-white/10 flex items-center justify-center text-white/80 shrink-0">
-                      <Lock className="w-4 h-4" strokeWidth={2} />
-                    </div>
-
                     {/* Center text */}
-                    <span className="text-[11.5px] font-black tracking-[0.2em] text-white uppercase text-center flex-1 px-3">
+                    <span className="text-[11.5px] font-black tracking-[0.2em] uppercase text-center flex-1">
                       {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
                     </span>
 
                     {/* Right chevron circle */}
-                    <div className="w-12 h-12 rounded-full bg-white/[0.04] border border-white/10 flex items-center justify-center text-white/80 shrink-0">
+                    <div className="w-12 h-12 rounded-full bg-background/10 flex items-center justify-center text-background shrink-0">
                       {loading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
@@ -1468,7 +1400,7 @@ export default function CheckoutPage() {
                     </div>
                   </button>
                   
-                  <div className="flex items-center justify-center gap-1.5 mt-4 text-white/20">
+                  <div className="flex items-center justify-center gap-1.5 mt-4 text-foreground/20">
                     <Lock className="w-3 h-3" />
                     <span className="text-[8px] font-bold uppercase tracking-[0.25em] leading-none">256-bit SSL secured transaction</span>
                   </div>
