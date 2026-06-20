@@ -27,9 +27,6 @@ import {
   Smartphone,
   Banknote,
   Sparkles,
-  User,
-  Mail,
-  Compass,
   Lock,
   Sun,
   Moon
@@ -84,7 +81,6 @@ const INDIAN_STATES = [
 ];
 
 export default function CheckoutPage() {
-  // Trigger cache bust for checkout bundle v1.0.4
   const { data: session, status } = useSession();
   const { items, subtotal, clear } = useCart();
   const router = useRouter();
@@ -742,52 +738,8 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-[100dvh] relative bg-[#000000] text-foreground font-sans">
       
-      <div className="relative z-10 max-w-xl mx-auto px-4 pt-4 pb-12 flex flex-col" style={{ minHeight: '100dvh' }}>
+      <div className="relative z-10 max-w-xl mx-auto px-4 pt-20 pb-12 flex flex-col" style={{ minHeight: '100dvh' }}>
         
-        {/* Custom Header Row */}
-        <div className="flex items-center justify-between mb-8 pt-2">
-          {/* Back button */}
-          <button
-            onClick={handleBackClick}
-            className="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-center text-white hover:bg-white/10 active:scale-95 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.1)]"
-            aria-label="Go back"
-          >
-            <ChevronLeft className="w-4 h-4 text-white/80" strokeWidth={2.5} />
-          </button>
-
-          {/* CHECKOUT Pill */}
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.1)]">
-            <ChevronDown className="w-4 h-4 text-white/60" strokeWidth={2.5} />
-            <span className="text-[9.5px] font-bold tracking-[0.25em] text-white uppercase pt-0.5">CHECKOUT</span>
-          </div>
-
-          {/* Right actions */}
-          <div className="flex items-center gap-3">
-            {/* Theme Toggle */}
-            {mounted && (
-              <button
-                onClick={() => setTheme(isDark ? "light" : "dark")}
-                className="w-10 h-10 rounded-full bg-white/[0.03] border border-white/10 flex items-center justify-center text-white hover:bg-white/10 active:scale-95 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.1)]"
-                aria-label="Toggle Theme"
-              >
-                {isDark ? (
-                  <Sun className="w-4 h-4 text-white/80" strokeWidth={1.75} />
-                ) : (
-                  <Moon className="w-4 h-4 text-white/80" strokeWidth={1.75} />
-                )}
-              </button>
-            )}
-            {/* Bag button */}
-            <Link
-              href="/cart"
-              className="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-center text-white hover:bg-white/10 active:scale-95 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.1)]"
-              aria-label="Open Cart"
-            >
-              <ShoppingBag className="w-4 h-4 text-white/80" strokeWidth={1.75} />
-            </Link>
-          </div>
-        </div>
-
         {/* Page Title & H1 */}
         <div className="mb-8">
           <p className="text-[8px] font-semibold uppercase tracking-[0.45em] text-white/45 mb-1.5 pl-0.5">YOUR PURCHASE</p>
@@ -852,160 +804,143 @@ export default function CheckoutPage() {
 
         <AnimatePresence mode="wait">
           {step === 1 ? (
+            /* ORIGINAL Step 1 Address Selection and form logic (fully reverted) */
             <motion.div
               key="address"
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
-              className="flex-1 flex flex-col"
+              className="flex flex-col"
+              style={{ minHeight: 'calc(100dvh - 160px)' }}
             >
-              {!showAddressForm ? (
-                <>
-                  {/* Address Headers */}
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <MapPin className="w-4 h-4 text-white/70" />
-                    <h2 className="text-[12.5px] font-black uppercase tracking-wider text-white">SHIPPING ADDRESS</h2>
-                  </div>
-                  <p className="text-white/35 text-[9.5px] font-bold uppercase tracking-wider mb-6">Select a saved address or add a new one</p>
+              <div className="space-y-0.5 mb-3">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-foreground/85 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-foreground/50" />
+                  Shipping Details
+                </h2>
+                <p className="text-foreground/40 text-[10px] font-medium uppercase tracking-wider">Where should we deliver?</p>
+              </div>
 
-                  {/* Saved Addresses horizontal list */}
-                  {savedAddresses.length > 0 && (
-                    <div className="mb-6">
-                      <p className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-white/45 mb-3 pl-0.5">SAVED ADDRESSES</p>
-                      <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
-                        {savedAddresses.map((addr) => {
-                          const isSelected = selectedSavedId === addr.id;
-                          return (
-                            <button
-                              key={addr.id}
-                              type="button"
-                              onClick={() => handleSelectSavedAddress(addr)}
-                              className={`snap-start shrink-0 w-[200px] text-left p-4 rounded-2xl border transition-all duration-300 relative ${
-                                isSelected
-                                  ? "border-white bg-white/[0.05] shadow-[0_0_20px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.15)]"
-                                  : "border-white/5 bg-white/[0.01] hover:border-white/10"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-[11px] font-black text-white truncate pr-1">{addr.name}</span>
-                                {isSelected && (
-                                  <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center shrink-0">
-                                    <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  </div>
-                                )}
-                              </div>
-                              <p className="text-[9px] text-white/50 leading-normal truncate">
-                                {addr.address1}
-                                {addr.address2 ? `, ${addr.address2}` : ""}
-                              </p>
-                              <p className="text-[9px] text-white/50 font-semibold mt-0.5">
-                                {addr.city}, {addr.state} {addr.zip}
-                              </p>
-                              <p className="text-[8.5px] text-white/40 font-bold uppercase tracking-wider mt-2.5">
-                                +91 {addr.phone.replace("+91", "").trim()}
-                              </p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Selected Address Display Card & Action CTA buttons */}
-                  {selectedSavedId && (
-                    <div className="apple-glass-capsule p-6 rounded-[2rem] flex flex-col gap-5 mb-6">
-                      <div className="space-y-3">
-                        <div className="inline-block px-2.5 py-1 rounded bg-white/[0.06] border border-white/10 text-[8px] font-extrabold text-white/50 uppercase tracking-widest leading-none">
-                          DELIVER TO
-                        </div>
-                        <h3 className="text-lg font-black text-white tracking-tight leading-none pt-0.5">{address.name}</h3>
-                        
-                        <div className="flex gap-3 items-start text-[11.5px] text-white/70 leading-relaxed font-medium">
-                          <Home className="w-4 h-4 text-white/40 shrink-0 mt-0.5" />
-                          <div>
-                            <p>{address.houseNo}, {address.street}</p>
-                            {address.landmark && <p className="text-white/50">{address.landmark}</p>}
-                            <p className="font-semibold text-white/80">{address.city}, {address.state} — {address.zip}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-3 items-center text-[11.5px] text-white/70 font-semibold">
-                          <Smartphone className="w-4 h-4 text-white/40 shrink-0" />
-                          <p>+91 {address.phone.replace("+91", "").trim()}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-                        {/* Deliver to this Address Button */}
-                        <button
-                          type="button"
-                          onClick={() => setStep(2)}
-                          className="w-full h-14 rounded-full bg-white text-black font-extrabold text-[10px] uppercase tracking-[0.15em] flex items-center justify-between px-6 hover:bg-white/95 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(255,255,255,0.1)]"
-                        >
-                          <span>DELIVER TO THIS ADDRESS</span>
-                          <div className="w-6 h-6 rounded-full bg-black/5 flex items-center justify-center">
-                            <ChevronRight className="w-3.5 h-3.5 text-black" strokeWidth={3} />
-                          </div>
-                        </button>
-
-                        {/* Add New Address Button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedSavedId("");
-                            setAddress({
-                              name: "", email: "", phone: "", houseNo: "", street: "",
-                              landmark: "", city: "", state: "", zip: "", country: "India",
-                            });
-                            setAddressErrors({});
-                            setShowAddressForm(true);
-                          }}
-                          className="w-full h-14 rounded-full bg-white/[0.03] border border-white/10 hover:border-white/15 text-white font-bold text-[10px] uppercase tracking-[0.15em] flex items-center justify-between px-6 active:scale-[0.98] transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-6 h-6 rounded-lg border border-dashed border-white/30 flex items-center justify-center">
-                              <Plus className="w-3 h-3 text-white/60" strokeWidth={2.5} />
-                            </div>
-                            <span>ADD NEW ADDRESS</span>
-                          </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-white/40" strokeWidth={2.5} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                /* New Address Entry Form UI */
-                <div className="flex-1 flex flex-col">
-                  {/* Address Headers */}
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <MapPin className="w-4 h-4 text-white/70" />
-                    <h2 className="text-[12.5px] font-black uppercase tracking-wider text-white">SHIPPING DETAILS</h2>
-                  </div>
-                  <p className="text-white/35 text-[9.5px] font-bold uppercase tracking-wider mb-6">Enter the address where you want your order delivered</p>
-
-                  <form onSubmit={handleAddressSubmit} className="flex-1 flex flex-col gap-3 animate-in fade-in duration-300">
-                    {savedAddresses.length > 0 && (
+              {/* Saved Addresses list */}
+              {savedAddresses.length > 0 && !showAddressForm && (
+                <div className="mb-3">
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-foreground/45 mb-1.5">Saved Addresses</p>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
+                    {savedAddresses.map((addr) => (
                       <button
+                        key={addr.id}
                         type="button"
-                        onClick={() => {
-                          const def = savedAddresses.find((a: DBAddress) => a.id === selectedSavedId) || savedAddresses[0];
-                          if (def) {
-                            handleSelectSavedAddress(def);
-                          }
-                          setShowAddressForm(false);
-                        }}
-                        className="w-full py-3 px-4 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/15 text-white/60 font-bold text-[9px] uppercase tracking-wider mb-2 transition-all"
+                        onClick={() => handleSelectSavedAddress(addr)}
+                        className={`snap-start shrink-0 w-[180px] text-left p-3 rounded-2xl border transition-all ${
+                          selectedSavedId === addr.id
+                            ? "border-foreground/30 bg-foreground/[0.04] shadow-[0_0_15px_rgba(var(--foreground),0.02)]"
+                            : "border-foreground/5 bg-foreground/[0.01] hover:border-foreground/10"
+                        }`}
                       >
-                        ← Back to Saved Addresses
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[10px] font-bold truncate pr-1">{addr.name}</span>
+                          {addr.isDefault && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[5px] font-bold uppercase tracking-wider bg-foreground text-background">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[8px] text-foreground/50 truncate">
+                          {addr.address1}{addr.address2 ? `, ${addr.address2}` : ""}
+                        </p>
+                        <p className="text-[8px] text-foreground/50 font-medium">
+                          {addr.city}, {addr.state}
+                        </p>
                       </button>
-                    )}
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSavedId("");
+                        setAddress({
+                          name: "", email: "", phone: "", houseNo: "", street: "",
+                          landmark: "", city: "", state: "", zip: "", country: "India",
+                        });
+                        setAddressErrors({});
+                        setShowAddressForm(true);
+                      }}
+                      className="snap-start shrink-0 p-3 rounded-2xl border border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01] flex flex-col items-center justify-center gap-0.5 w-[100px] text-center"
+                    >
+                      <Plus className="w-3 h-3 text-foreground/40" />
+                      <span className="text-[7px] font-bold uppercase tracking-widest text-foreground/50">New</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
+              {/* Selected Address Display Card when form is hidden */}
+              {!showAddressForm && selectedSavedId && (
+                <div className="glass-panel p-5 rounded-[2rem] border border-foreground/10 bg-foreground/[0.01] flex flex-col gap-4 mb-4 shadow-sm animate-in fade-in duration-300">
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-foreground/45">Deliver to</p>
+                    <p className="text-sm font-extrabold tracking-tight">{address.name}</p>
+                    <p className="text-[11px] text-foreground/60 leading-relaxed font-medium">
+                      {address.houseNo}, {address.street}
+                      {address.landmark ? `, ${address.landmark}` : ""}
+                    </p>
+                    <p className="text-[11px] text-foreground/60 leading-relaxed font-semibold">
+                      {address.city}, {address.state} — {address.zip}
+                    </p>
+                    <p className="text-[10px] text-foreground/50 font-bold uppercase tracking-wider flex items-center gap-1 pt-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-foreground/35" />
+                      +91 {address.phone.replace("+91", "").replace("+91", "")}
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2 pt-2 border-t border-foreground/5">
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="glass-cta w-full py-4 text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
+                    >
+                      Deliver to this Address
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSavedId("");
+                        setAddress({
+                          name: "", email: "", phone: "", houseNo: "", street: "",
+                          landmark: "", city: "", state: "", zip: "", country: "India",
+                        });
+                        setAddressErrors({});
+                        setShowAddressForm(true);
+                      }}
+                      className="glass-button w-full py-3 text-[8px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add New Address
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showAddressForm && (
+                <form onSubmit={handleAddressSubmit} className="flex-1 flex flex-col animate-in fade-in duration-300">
+                  {savedAddresses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const def = savedAddresses.find((a: DBAddress) => a.id === selectedSavedId) || savedAddresses[0];
+                        if (def) {
+                          handleSelectSavedAddress(def);
+                        }
+                        setShowAddressForm(false);
+                      }}
+                      className="glass-button w-full py-3 text-[8px] font-bold uppercase tracking-widest text-foreground/50 mb-3"
+                    >
+                      Back to Saved Addresses
+                    </button>
+                  )}
+                  <div className="grid grid-cols-1 gap-2.5 flex-1">
                     {/* Full Name */}
-                    <div className="relative">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30" />
+                    <div>
                       <input
                         type="text"
                         placeholder="Full Name"
@@ -1013,15 +948,14 @@ export default function CheckoutPage() {
                         required
                         value={address.name}
                         onChange={(e) => updateField("name", e.target.value)}
-                        className={`w-full h-13 pl-12 pr-4 rounded-xl bg-[#090909] border ${addressErrors.name ? "border-red-500/40" : "border-white/5"} text-white text-[13.5px] font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all`}
+                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.name ? "border-red-500/40" : ""}`}
                       />
-                      {addressErrors.name && <p className="text-[9px] text-red-400 mt-1 pl-1">{addressErrors.name}</p>}
+                      {addressErrors.name && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.name}</p>}
                     </div>
 
                     {/* Email + Phone */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30" />
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
                         <input
                           type="email"
                           placeholder="Email"
@@ -1029,85 +963,75 @@ export default function CheckoutPage() {
                           required
                           value={address.email}
                           onChange={(e) => updateField("email", e.target.value)}
-                          className={`w-full h-13 pl-12 pr-4 rounded-xl bg-[#090909] border ${addressErrors.email ? "border-red-500/40" : "border-white/5"} text-white text-[13.5px] font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all`}
+                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.email ? "border-red-500/40" : ""}`}
                         />
-                        {addressErrors.email && <p className="text-[9px] text-red-400 mt-1 pl-1">{addressErrors.email}</p>}
+                        {addressErrors.email && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.email}</p>}
                       </div>
                       <div className="relative">
-                        <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30" />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-foreground/35 font-semibold pointer-events-none">+91</span>
                         <input
                           type="tel"
-                          placeholder="Mobile Number"
+                          placeholder="Mobile"
                           aria-label="Mobile Number"
                           required
                           value={address.phone}
                           onChange={(e) => updateField("phone", e.target.value)}
-                          className={`w-full h-13 pl-12 pr-4 rounded-xl bg-[#090909] border ${addressErrors.phone ? "border-red-500/40" : "border-white/5"} text-white text-[13.5px] font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all`}
+                          className={`glass-input w-full pl-9 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.phone ? "border-red-500/40" : ""}`}
                         />
-                        {addressErrors.phone && <p className="text-[9px] text-red-400 mt-1 pl-1">{addressErrors.phone}</p>}
+                        {addressErrors.phone && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.phone}</p>}
                       </div>
                     </div>
 
-                    {/* House No */}
-                    <div className="relative">
-                      <Home className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30" />
-                      <input
-                        type="text"
-                        placeholder="House / Flat / Building"
-                        aria-label="House or Flat Number"
-                        required
-                        value={address.houseNo}
-                        onChange={(e) => updateField("houseNo", e.target.value, true)}
-                        className={`w-full h-13 pl-12 pr-4 rounded-xl bg-[#090909] border ${addressErrors.houseNo ? "border-red-500/40" : "border-white/5"} text-white text-[13.5px] font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all`}
-                      />
-                      {addressErrors.houseNo && <p className="text-[9px] text-red-400 mt-1 pl-1">{addressErrors.houseNo}</p>}
-                    </div>
-
-                    {/* Street */}
-                    <div className="relative">
-                      <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30 rotate-45" />
-                      <input
-                        type="text"
-                        placeholder="Street / Road / Area"
-                        aria-label="Street, Road, or Area"
-                        required
-                        value={address.street}
-                        onChange={(e) => updateField("street", e.target.value, true)}
-                        className={`w-full h-13 pl-12 pr-4 rounded-xl bg-[#090909] border ${addressErrors.street ? "border-red-500/40" : "border-white/5"} text-white text-[13.5px] font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all`}
-                      />
-                      {addressErrors.street && <p className="text-[9px] text-red-400 mt-1 pl-1">{addressErrors.street}</p>}
+                    {/* House No + Street */}
+                    <div className="grid grid-cols-5 gap-2.5">
+                      <div className="col-span-2">
+                        <div className="relative">
+                          <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
+                          <input
+                            type="text"
+                            placeholder="House / Flat No."
+                            aria-label="House or Flat Number"
+                            required
+                            value={address.houseNo}
+                            onChange={(e) => updateField("houseNo", e.target.value, true)}
+                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.houseNo ? "border-red-500/40" : ""}`}
+                          />
+                        </div>
+                        {addressErrors.houseNo && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.houseNo}</p>}
+                      </div>
+                      <div className="col-span-3">
+                        <div className="relative">
+                          <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
+                          <input
+                            type="text"
+                            placeholder="Street / Road / Area"
+                            aria-label="Street, Road, or Area"
+                            required
+                            value={address.street}
+                            onChange={(e) => updateField("street", e.target.value, true)}
+                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.street ? "border-red-500/40" : ""}`}
+                          />
+                        </div>
+                        {addressErrors.street && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.street}</p>}
+                      </div>
                     </div>
 
                     {/* Landmark */}
                     <div className="relative">
-                      <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30" />
+                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
                       <input
                         type="text"
                         placeholder="Landmark (Optional)"
                         aria-label="Landmark"
                         value={address.landmark}
                         onChange={(e) => updateField("landmark", e.target.value, true)}
-                        className="w-full h-13 pl-12 pr-4 rounded-xl bg-[#090909] border border-white/5 text-white text-[13.5px] font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all"
+                        className="glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl"
                       />
                     </div>
 
-                    {/* City + PIN Code */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="relative">
-                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30" />
-                        <input
-                          type="text"
-                          placeholder="City"
-                          aria-label="City"
-                          required
-                          value={address.city}
-                          onChange={(e) => updateField("city", e.target.value)}
-                          className={`w-full h-13 pl-12 pr-4 rounded-xl bg-[#090909] border ${addressErrors.city ? "border-red-500/40" : "border-white/5"} text-white text-[13.5px] font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all`}
-                        />
-                        {addressErrors.city && <p className="text-[9px] text-red-400 mt-1 pl-1">{addressErrors.city}</p>}
-                      </div>
-                      <div className="relative">
-                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30" />
+                    {/* PIN + City */}
+                    <div className="grid grid-cols-5 gap-2.5">
+                      <div className="col-span-2 relative">
                         <input
                           type="text"
                           placeholder="PIN Code"
@@ -1119,49 +1043,61 @@ export default function CheckoutPage() {
                             const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                             updateField("zip", val);
                           }}
-                          className={`w-full h-13 pl-12 pr-10 rounded-xl bg-[#090909] border ${addressErrors.zip ? "border-red-500/40" : "border-white/5"} text-white text-[13.5px] font-mono tracking-wider font-semibold placeholder:text-white/20 focus:border-white/20 focus:outline-none transition-all`}
+                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl font-mono tracking-wider ${addressErrors.zip ? "border-red-500/40" : ""}`}
                         />
                         {zipLoading && (
-                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-white/40" />
+                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-foreground/30" />
                         )}
-                        {addressErrors.zip && <p className="text-[9px] text-red-400 mt-1 pl-1">{addressErrors.zip}</p>}
+                        {addressErrors.zip && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.zip}</p>}
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="text"
+                          placeholder="City"
+                          aria-label="City"
+                          required
+                          value={address.city}
+                          onChange={(e) => updateField("city", e.target.value)}
+                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.city ? "border-red-500/40" : ""}`}
+                        />
+                        {addressErrors.city && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.city}</p>}
                       </div>
                     </div>
 
-                    {/* State selection */}
-                    <div className="relative">
-                      <Compass className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/30 pointer-events-none" />
+                    {/* State dropdown */}
+                    <div>
                       <select
                         required
                         value={address.state}
                         onChange={(e) => updateField("state", e.target.value)}
-                        className={`w-full h-13 pl-12 pr-10 rounded-xl bg-[#090909] border ${addressErrors.state ? "border-red-500/40" : "border-white/5"} text-white text-[13.5px] font-semibold appearance-none cursor-pointer focus:border-white/20 focus:outline-none transition-all`}
+                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl appearance-none cursor-pointer ${
+                          !address.state ? "text-foreground/40" : ""
+                        } ${addressErrors.state ? "border-red-500/40" : ""}`}
                       >
                         <option value="" disabled>Select State</option>
                         {INDIAN_STATES.map(s => (
-                          <option key={s} value={s} className="bg-[#0e0e0e] text-white">{s}</option>
+                          <option key={s} value={s} className="bg-[#0e0e0e] text-foreground">{s}</option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                      {addressErrors.state && <p className="text-[9px] text-red-400 mt-1 pl-1">{addressErrors.state}</p>}
+                      {addressErrors.state && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.state}</p>}
                     </div>
+                  </div>
 
-                    {/* Continue to Payment CTA */}
-                    <div className="pt-6 mt-auto">
-                      <button
-                        type="submit"
-                        className="w-full h-14 rounded-full bg-white text-black font-extrabold text-[10px] uppercase tracking-[0.15em] flex items-center justify-between px-8 hover:bg-white/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(255,255,255,0.1)]"
-                      >
-                        <span>CONTINUE TO PAYMENT</span>
-                        <ChevronRight className="w-4 h-4 text-black" strokeWidth={3} />
-                      </button>
-                    </div>
-                  </form>
-                </div>
+                  {/* CTA */}
+                  <div className="pt-4 mt-auto">
+                    <button
+                      type="submit"
+                      className="glass-cta w-full py-4 text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
+                    >
+                      Continue to Payment
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </form>
               )}
             </motion.div>
           ) : (
-            /* Step 2: Payment UI */
+            /* REDESIGNED Step 2 Payment UI exactly matching your screenshots */
             <motion.div
               key="payment"
               initial={{ opacity: 0, x: 10 }}
@@ -1171,7 +1107,7 @@ export default function CheckoutPage() {
             >
               <div className="flex-1 flex flex-col">
                 
-                {/* Product Preview Section */}
+                {/* Product Preview Card */}
                 <div className="apple-glass-capsule p-4 rounded-2xl flex flex-col gap-3 mb-6">
                   {items.map((item) => (
                     <div key={item.id} className="flex gap-4 items-center">
@@ -1193,10 +1129,10 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
-                {/* Payment Method Headers */}
+                {/* Payment Method header label */}
                 <p className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-white/45 mb-3 pl-0.5">PAYMENT METHOD</p>
                 
-                {/* Method selector horizontal tabs */}
+                {/* Segment tabs */}
                 <div className="grid grid-cols-5 gap-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/5 mb-6">
                   {[
                     { id: "UPI" as PaymentMethod, label: "UPI" },
@@ -1219,7 +1155,7 @@ export default function CheckoutPage() {
                         }}
                         className={`py-2 px-1 text-[9px] font-extrabold uppercase tracking-wider rounded-lg text-center transition-all duration-300 ${
                           isActive
-                            ? "bg-white text-black shadow-[0_2px_8px_rgba(255,255,255,0.1)] scale-[1.02]"
+                            ? "bg-white/[0.08] text-white border border-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.5)] scale-[1.02]"
                             : "text-white/40 hover:text-white/60 hover:bg-white/[0.02]"
                         }`}
                       >
@@ -1229,7 +1165,7 @@ export default function CheckoutPage() {
                   })}
                 </div>
 
-                {/* UPI ID / Direct Intent Apps block */}
+                {/* UPI details */}
                 {paymentMethod === "UPI" && (
                   <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-300 mb-6">
                     <div className="flex flex-col gap-1.5">
@@ -1255,30 +1191,47 @@ export default function CheckoutPage() {
 
                     <div className="flex flex-col gap-2.5">
                       <label className="text-[8px] font-extrabold text-white/40 uppercase tracking-widest pl-1 leading-none">OR PAY WITH</label>
-                      <div className="grid grid-cols-5 gap-1.5 text-center">
+                      <div className="grid grid-cols-5 gap-1.5 text-center mt-1">
                         {[
                           { id: "google_pay", name: "GPay", logo: (
-                            <svg className="w-5 h-5 mx-auto" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M17.848 10.744h-5.848v2.448h3.364c-.144.792-.616 1.464-1.296 1.92v1.584h2.1c1.224-1.128 1.932-2.796 1.932-4.788 0-.396-.036-.78-.108-1.164z" fill="#4285F4"/>
-                              <path d="M12 16.692c1.264 0 2.328-.42 3.104-1.14l-2.1-1.584c-.58.396-1.32.624-2.104.624-1.62 0-2.988-1.092-3.48-2.556H5.212v1.644c.828 1.644 2.532 2.76 4.5 2.76z" fill="#34A853"/>
-                              <path d="M8.52 12.036c-.12-.396-.192-.816-.192-1.248s.072-.852.192-1.248V7.896H5.212c-.408.816-.644 1.728-.644 2.704s.236 1.888.644 2.704l3.308-1.972z" fill="#FBBC05"/>
-                              <path d="M9.712 5.34c.684 0 1.308.24 1.788.696l1.344-1.344C11.972 3.84 10.968 3.3 9.712 3.3c-1.968 0-3.672 1.116-4.5 2.76l3.308 1.972c.492-1.464 1.86-2.556 3.48-2.556z" fill="#EA4335"/>
-                            </svg>
+                            <div className="flex items-center justify-center gap-1 h-6 shrink-0">
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
+                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                              </svg>
+                              <span className="text-[10px] font-black text-white tracking-tight pt-0.5">Pay</span>
+                            </div>
                           )},
                           { id: "phonepe", name: "PhonePe", logo: (
-                            <div className="w-5 h-5 mx-auto rounded bg-purple-600 flex items-center justify-center text-white text-[8px] font-black tracking-tight">PP</div>
+                            <div className="flex items-center justify-center h-6 w-6 rounded-md bg-[#5f259f] shrink-0 mx-auto shadow-sm shadow-[#5f259f]/30">
+                              <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.36 12.3c-.29.41-.69.75-1.18.99-.49.24-1.05.36-1.68.36h-1v1.85H10v-6.3h2.5c.63 0 1.19.12 1.68.36.49.24.89.58 1.18.99.29.41.44.91.44 1.48 0 .56-.15 1.06-.44 1.47v-.11zm-1.86-2.58c-.24-.19-.57-.28-.99-.28h-.51v1.85h.51c.42 0 .75-.09.99-.28.24-.19.36-.45.36-.78 0-.32-.12-.58-.36-.76v.25z"/>
+                              </svg>
+                            </div>
                           )},
                           { id: "paytm", name: "Paytm", logo: (
-                            <div className="w-5 h-5 mx-auto rounded bg-[#0f2a4a] flex items-center justify-center text-[#00baf2] text-[7px] font-extrabold tracking-tighter">paytm</div>
+                            <div className="flex items-center justify-center h-6 w-11 bg-white rounded-md shrink-0 mx-auto border border-white/5">
+                              <span className="text-[8.5px] font-black italic tracking-tighter leading-none">
+                                <span className="text-[#002e6e]">pay</span>
+                                <span className="text-[#00baf2]">tm</span>
+                              </span>
+                            </div>
                           )},
                           { id: "bhim", name: "BHIM", logo: (
-                            <div className="w-5 h-5 mx-auto rounded bg-gradient-to-r from-orange-400 to-green-500 flex items-center justify-center text-white text-[7px] font-black">BHIM</div>
+                            <div className="flex items-center justify-center h-6 w-10 bg-[#e4e4e4] rounded-md shrink-0 mx-auto border border-white/5">
+                              <span className="text-[7.5px] font-black tracking-tight leading-none text-black italic">
+                                <span className="text-orange-500">BH</span>
+                                <span className="text-green-600">IM</span>
+                              </span>
+                            </div>
                           )},
                           { id: "more", name: "More", logo: (
-                            <div className="w-5 h-5 mx-auto flex items-center justify-center gap-0.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
+                            <div className="w-6 h-6 rounded-full bg-white/[0.08] border border-white/10 flex items-center justify-center gap-0.5 shrink-0 mx-auto">
+                              <span className="w-1 h-1 rounded-full bg-white" />
+                              <span className="w-1 h-1 rounded-full bg-white" />
+                              <span className="w-1 h-1 rounded-full bg-white" />
                             </div>
                           )}
                         ].map((app) => {
@@ -1291,14 +1244,14 @@ export default function CheckoutPage() {
                                 setSelectedUpiApp(app.id);
                                 setUpiId("");
                               }}
-                              className={`py-2.5 px-1 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all duration-300 ${
-                                isSelected
-                                  ? "bg-white text-black border-transparent scale-[1.02] shadow-[0_4px_12px_rgba(255,255,255,0.15)]"
-                                  : "bg-white/[0.01] border-white/5 text-white/40 hover:border-white/10 hover:text-white"
+                              className={`flex flex-col items-center justify-center gap-1.5 py-1.5 transition-all duration-300 hover:scale-105 active:scale-95 ${
+                                selectedUpiApp === "" || isSelected
+                                  ? "opacity-100 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]"
+                                  : "opacity-35"
                               }`}
                             >
                               {app.logo}
-                              <span className="text-[9.5px] font-bold leading-none mt-0.5">{app.name}</span>
+                              <span className="text-[9px] font-bold tracking-wide text-white/50">{app.name}</span>
                             </button>
                           );
                         })}
@@ -1307,7 +1260,7 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Calculations Summary block */}
+                {/* Calculations Summary */}
                 <div className="apple-glass-capsule p-5 rounded-2xl flex flex-col gap-3 mb-6">
                   <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
                     <span className="text-white/40">Subtotal</span>
@@ -1406,7 +1359,7 @@ export default function CheckoutPage() {
                   )}
                 </div>
 
-                {/* Available Offers section when coupon is not applied */}
+                {/* Available Offers */}
                 {!couponValid && activeCoupons.length > 0 && (
                   <div className="flex flex-col gap-2 mb-6">
                     <div className="flex items-center gap-1.5 pl-1 mb-1 leading-none">
@@ -1487,23 +1440,30 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Secure Payment CTA row */}
+                {/* Secure Payment button */}
                 <div className="mt-auto pt-4 pb-8">
                   <button
                     type="button"
                     onClick={handlePlaceOrder}
                     disabled={loading}
-                    className="w-full h-16 rounded-full bg-white/[0.04] border border-white/10 hover:border-white/15 text-white font-extrabold text-[11.5px] uppercase tracking-[0.15em] flex items-center justify-between px-6 disabled:opacity-30 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] active:scale-[0.98]"
+                    className="w-full h-16 rounded-full bg-white/[0.02] border border-white/10 hover:bg-white/[0.04] active:scale-[0.98] transition-all flex items-center justify-between p-1.5 disabled:opacity-50"
                   >
-                    <div className="flex items-center gap-3">
-                      <Lock className="w-4 h-4 text-white/60" strokeWidth={2.5} />
-                      <span>{loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}</span>
+                    {/* Left lock circle */}
+                    <div className="w-12 h-12 rounded-full bg-white/[0.04] border border-white/10 flex items-center justify-center text-white/80 shrink-0">
+                      <Lock className="w-4 h-4" strokeWidth={2} />
                     </div>
-                    <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
+
+                    {/* Center text */}
+                    <span className="text-[11.5px] font-black tracking-[0.2em] text-white uppercase text-center flex-1 px-3">
+                      {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
+                    </span>
+
+                    {/* Right chevron circle */}
+                    <div className="w-12 h-12 rounded-full bg-white/[0.04] border border-white/10 flex items-center justify-center text-white/80 shrink-0">
                       {loading ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                        <ChevronRight className="w-5 h-5" strokeWidth={2.5} />
                       )}
                     </div>
                   </button>
