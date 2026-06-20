@@ -35,7 +35,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
       <Suspense fallback={null}>
         <PageLoader />
       </Suspense>
-      {!isMobileApp && <StorefrontHeader collections={collections} />}
+      {!isMobileApp && !pathname.startsWith("/checkout") && <StorefrontHeader collections={collections} />}
       
       {/* ── Main Content ── */}
       <div className="relative z-10 w-full overflow-x-hidden">
