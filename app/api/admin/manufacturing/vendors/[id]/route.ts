@@ -12,11 +12,31 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, address, mobile, category } = body;
+    const { 
+      name, 
+      address, 
+      mobile, 
+      category,
+      contactPerson,
+      email,
+      pricingNotes,
+      leadTimeDays,
+      remarks
+    } = body;
 
     const vendor = await prisma.mfgVendor.update({
       where: { id },
-      data: { name, address, mobile, category },
+      data: { 
+        name, 
+        address, 
+        mobile, 
+        category,
+        contactPerson: contactPerson || null,
+        email: email || null,
+        pricingNotes: pricingNotes || null,
+        leadTimeDays: leadTimeDays ? parseInt(String(leadTimeDays), 10) : null,
+        remarks: remarks || null
+      },
     });
 
     const actor = await getManufacturingActorName();

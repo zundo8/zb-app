@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const vendors = await prisma.mfgVendor.findMany({
+    const collections = await prisma.mfgCollection.findMany({
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json(vendors);
+    return NextResponse.json(collections);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -19,40 +19,24 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { 
-      name, 
-      address, 
-      mobile, 
-      category,
-      contactPerson,
-      email,
-      pricingNotes,
-      leadTimeDays,
-      remarks
-    } = body;
+    const { name, season, status } = body;
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    const vendor = await prisma.mfgVendor.create({
+    const collection = await prisma.mfgCollection.create({
       data: {
         name,
-        address,
-        mobile,
-        category,
-        contactPerson: contactPerson || null,
-        email: email || null,
-        pricingNotes: pricingNotes || null,
-        leadTimeDays: leadTimeDays ? parseInt(String(leadTimeDays), 10) : null,
-        remarks: remarks || null
+        season: season || null,
+        status: status || "ACTIVE",
       },
     });
 
     const actor = await getManufacturingActorName();
-    await logMfgAudit("MfgVendor", vendor.id, "CREATE", actor, { name, category });
+    await logMfgAudit("MfgCollection", collection.id, "CREATE", actor, { name, season });
 
-    return NextResponse.json(vendor);
+    return NextResponse.json(collection);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

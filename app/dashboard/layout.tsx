@@ -44,7 +44,10 @@ import {
   Wallet,
   Bot,
   GraduationCap,
-  Palette
+  Palette,
+  Factory,
+  FlaskConical,
+  BookOpen
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -174,13 +177,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   const manufacturingNav = [
+    { name: "Mfg Hub", href: "/dashboard/manufacturing", icon: Factory, module: 'MANUFACTURING' },
+    { name: "Design Assignments", href: "/dashboard/manufacturing/designs", icon: Palette, module: 'MANUFACTURING' },
+    { name: "Sample Queue", href: "/dashboard/manufacturing/samples", icon: FlaskConical, module: 'MANUFACTURING' },
     { name: "Pending Tasks", href: "/dashboard/manufacturing/tasks", icon: ClipboardList, module: 'MANUFACTURING' },
-    { name: "Design Studio", href: "/dashboard/design", icon: Palette, module: 'MANUFACTURING' },
     { name: "Production Tracker", href: "/dashboard/manufacturing/production", icon: TrendingUp, module: 'MANUFACTURING' },
     { name: "Fabric Inventory", href: "/dashboard/manufacturing/fabric", icon: Layers2, module: 'MANUFACTURING' },
     { name: "Fabric Movement", href: "/dashboard/manufacturing/movement", icon: ArrowDownUp, module: 'MANUFACTURING' },
-    { name: "Manufacturing Vendors", href: "/dashboard/manufacturing/vendors", icon: Building2, module: 'MANUFACTURING' },
+    { name: "Vendors", href: "/dashboard/manufacturing/vendors", icon: Building2, module: 'MANUFACTURING' },
     { name: "Cost Ledger", href: "/dashboard/manufacturing/costs", icon: Coins, module: 'MANUFACTURING' },
+    { name: "Knowledge Base", href: "/dashboard/manufacturing/knowledge-base", icon: BookOpen, module: 'MANUFACTURING' },
+    { name: "Team Performance", href: "/dashboard/manufacturing/employees", icon: Users, module: 'MANUFACTURING' },
+    { name: "Mfg Reports", href: "/dashboard/manufacturing/reports", icon: BarChart3, module: 'MANUFACTURING' },
   ];
 
   const marketingNav = [

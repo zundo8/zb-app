@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Plus, RefreshCw, LayoutGrid, Table2, ChevronDown, ChevronUp, Check, Search, Activity, ClipboardList } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { mfgFetch } from "@/lib/manufacturing/mfg-fetch";
@@ -181,6 +182,7 @@ function stageProgressIndex(stage: string): number {
 }
 
 export default function ProductionTrackerPage() {
+  const searchParams = useSearchParams();
   const [batches, setBatches] = useState<BatchRow[]>([]);
   const [fabrics, setFabrics] = useState<FabricOpt[]>([]);
   const [vendors, setVendors] = useState<{ id: string; name: string; category: string }[]>([]);
@@ -278,6 +280,14 @@ export default function ProductionTrackerPage() {
     const t = setTimeout(loadBatches, 280);
     return () => clearTimeout(t);
   }, [loadBatches]);
+
+  useEffect(() => {
+    const bId = searchParams.get("batchId");
+    if (bId) {
+      setDrawerId(bId);
+      setDrawerOpen(true);
+    }
+  }, [searchParams]);
 
   const toggleExpand = async (id: string) => {
     const next = !expanded[id];

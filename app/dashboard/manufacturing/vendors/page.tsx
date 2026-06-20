@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { 
   Loader2, Plus, RefreshCw, Trash2, Edit2, Phone, MapPin, Building2, Search, Check, 
   Briefcase, Globe, User, ShieldCheck, Heart, Zap, 
-  Scissors, Palette as PaletteIcon, Sparkles, Waves, Package, ClipboardList 
+  Scissors, Palette as PaletteIcon, Sparkles, Waves, Package, ClipboardList,
+  Mail, Clock, MessageSquare
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +20,11 @@ type Vendor = {
   category: string;
   createdAt: string;
   updatedAt: string;
+  contactPerson?: string | null;
+  email?: string | null;
+  pricingNotes?: string | null;
+  leadTimeDays?: number | null;
+  remarks?: string | null;
 };
 
 const CATEGORIES = [
@@ -51,11 +58,23 @@ const CAT_ICONS: Record<string, any> = {
 };
 
 export default function VendorsPage() {
+  const searchParams = useSearchParams();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const [q, setQ] = useState("");
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    const searchVal = searchParams.get("search");
+    if (searchVal) {
+      setQ(searchVal);
+    }
+    const catVal = searchParams.get("category");
+    if (catVal) {
+      setFilterCategory(catVal);
+    }
+  }, [searchParams]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -65,6 +84,11 @@ export default function VendorsPage() {
     mobile: "",
     category: "Fabric",
     customCategory: "",
+    contactPerson: "",
+    email: "",
+    pricingNotes: "",
+    leadTimeDays: "",
+    remarks: "",
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -120,7 +144,7 @@ export default function VendorsPage() {
       showToast(editingId ? "Vendor updated" : "Vendor added");
       setModalOpen(false);
       setEditingId(null);
-      setForm({ name: "", address: "", mobile: "", category: "Fabric", customCategory: "" });
+      setForm({ name: "", address: "", mobile: "", category: "Fabric", customCategory: "", contactPerson: "", email: "", pricingNotes: "", leadTimeDays: "", remarks: "" });
       loadVendors();
     } catch (e: any) {
       showToast(e.message, "err");
@@ -138,6 +162,11 @@ export default function VendorsPage() {
       mobile: v.mobile || "",
       category: isStandard ? v.category : "Other",
       customCategory: isStandard ? "" : v.category,
+      contactPerson: v.contactPerson || "",
+      email: v.email || "",
+      pricingNotes: v.pricingNotes || "",
+      leadTimeDays: v.leadTimeDays != null ? String(v.leadTimeDays) : "",
+      remarks: v.remarks || "",
     });
     setModalOpen(true);
   };
@@ -221,7 +250,7 @@ export default function VendorsPage() {
           <button
             onClick={() => {
               setEditingId(null);
-              setForm({ name: "", address: "", mobile: "", category: "Fabric", customCategory: "" });
+              setForm({ name: "", address: "", mobile: "", category: "Fabric", customCategory: "", contactPerson: "", email: "", pricingNotes: "", leadTimeDays: "", remarks: "" });
               setModalOpen(true);
             }}
             className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2 bg-foreground text-background rounded-xl text-[9px] font-bold uppercase tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-foreground/15"
@@ -326,14 +355,58 @@ export default function VendorsPage() {
                   </h3>
                   
                   <div className="space-y-2 flex-1 mb-4 relative z-10 border-t border-foreground/5 pt-3">
+                    {v.contactPerson && (
+                      <div className="flex items-center gap-2 text-[10px] font-medium text-foreground/50 tracking-tight">
+                        <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 border border-foreground/5">
+                          <User className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} />
+                        </div>
+                        <span className="truncate font-bold text-foreground/75">{v.contactPerson}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-[10px] font-medium text-foreground/50 tracking-tight">
-                      <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 border border-foreground/5"><Phone className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} /></div>
+                      <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 border border-foreground/5">
+                        <Phone className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} />
+                      </div>
                       <span className="truncate font-mono">{v.mobile || "N/A"}</span>
                     </div>
-                     <div className="flex items-start gap-2 text-[10px] font-medium text-foreground/50 tracking-tight leading-relaxed">
-                      <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 mt-0.5 border border-foreground/5"><MapPin className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} /></div>
+                    {v.email && (
+                      <div className="flex items-center gap-2 text-[10px] font-medium text-foreground/50 tracking-tight">
+                        <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 border border-foreground/5">
+                          <Mail className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} />
+                        </div>
+                        <span className="truncate font-mono">{v.email}</span>
+                      </div>
+                    )}
+                    <div className="flex items-start gap-2 text-[10px] font-medium text-foreground/50 tracking-tight leading-relaxed">
+                      <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 mt-0.5 border border-foreground/5">
+                        <MapPin className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} />
+                      </div>
                       <span className="line-clamp-2">{v.address || "No address"}</span>
                     </div>
+                    {v.leadTimeDays !== null && v.leadTimeDays !== undefined && (
+                      <div className="flex items-center gap-2 text-[10px] font-medium text-foreground/50 tracking-tight">
+                        <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 border border-foreground/5">
+                          <Clock className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} />
+                        </div>
+                        <span>Lead Time: <strong className="font-mono text-foreground/70">{v.leadTimeDays} days</strong></span>
+                      </div>
+                    )}
+                    {v.pricingNotes && (
+                      <div className="flex items-start gap-2 text-[10px] font-medium text-foreground/50 tracking-tight leading-relaxed">
+                        <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 mt-0.5 border border-foreground/5">
+                          <ClipboardList className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} />
+                        </div>
+                        <span className="line-clamp-2">Rates: {v.pricingNotes}</span>
+                      </div>
+                    )}
+                    {v.remarks && (
+                      <div className="flex items-start gap-2 text-[10px] font-medium text-foreground/50 tracking-tight leading-relaxed">
+                        <div className="w-6 h-6 rounded-md bg-foreground/[0.03] flex items-center justify-center shrink-0 mt-0.5 border border-foreground/5">
+                          <MessageSquare className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" strokeWidth={2.5} />
+                        </div>
+                        <span className="line-clamp-2 text-foreground/40 italic">"{v.remarks}"</span>
+                      </div>
+                    )}
                   </div>
   
                   <div className="flex gap-2 pt-3 border-t border-foreground/[0.03] relative z-10">
@@ -428,6 +501,61 @@ export default function VendorsPage() {
                     onChange={(e) => setForm({ ...form, address: e.target.value })}
                     rows={3}
                     placeholder="Street address, City, Pincode"
+                    className="w-full bg-background border border-foreground/10 rounded-xl px-4 py-3 text-[13px] font-medium text-foreground focus:outline-none focus:border-foreground/30 transition-all shadow-sm resize-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-foreground/60 ml-1">Contact Person</label>
+                  <input
+                    value={form.contactPerson}
+                    onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
+                    placeholder="e.g. John Doe"
+                    className="w-full bg-background border border-foreground/10 rounded-xl px-4 py-3 text-[13px] font-medium text-foreground focus:outline-none focus:border-foreground/30 transition-all shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-foreground/60 ml-1">Email</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="e.g. contact@vendor.com"
+                    className="w-full bg-background border border-foreground/10 rounded-xl px-4 py-3 text-[13px] font-medium text-foreground focus:outline-none focus:border-foreground/30 transition-all shadow-sm font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-foreground/60 ml-1">Lead Time (Days)</label>
+                  <input
+                    type="number"
+                    value={form.leadTimeDays}
+                    onChange={(e) => setForm({ ...form, leadTimeDays: e.target.value })}
+                    placeholder="e.g. 7"
+                    min="0"
+                    className="w-full bg-background border border-foreground/10 rounded-xl px-4 py-3 text-[13px] font-medium text-foreground focus:outline-none focus:border-foreground/30 transition-all shadow-sm font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-foreground/60 ml-1">Pricing / Rate Notes</label>
+                  <textarea
+                    value={form.pricingNotes}
+                    onChange={(e) => setForm({ ...form, pricingNotes: e.target.value })}
+                    rows={2}
+                    placeholder="e.g. Rs. 150/meter for GSM 200 cotton"
+                    className="w-full bg-background border border-foreground/10 rounded-xl px-4 py-3 text-[13px] font-medium text-foreground focus:outline-none focus:border-foreground/30 transition-all shadow-sm resize-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-foreground/60 ml-1">Remarks</label>
+                  <textarea
+                    value={form.remarks}
+                    onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+                    rows={2}
+                    placeholder="Additional details..."
                     className="w-full bg-background border border-foreground/10 rounded-xl px-4 py-3 text-[13px] font-medium text-foreground focus:outline-none focus:border-foreground/30 transition-all shadow-sm resize-none"
                   />
                 </div>

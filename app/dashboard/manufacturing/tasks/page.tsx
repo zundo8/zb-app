@@ -39,7 +39,9 @@ import {
   Filter,
   ArrowUpDown,
   Eye,
+  Building2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { mfgFetch } from "@/lib/manufacturing/mfg-fetch";
 import { formatDateTimeIST } from "@/lib/manufacturing/ist";
@@ -248,6 +250,7 @@ const STATUS_COLUMNS = [
 // ─── MAIN PAGE ────────────────────────────────
 
 export default function PendingTasksPage() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -822,6 +825,53 @@ export default function PendingTasksPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Deep Linking Redirect CTAs */}
+                {detailTask.type === "PRODUCTION" && detailTask.batchId && (
+                  <div className="bg-foreground/[0.02] border border-foreground/5 rounded-2xl p-4 space-y-3">
+                    <div className="text-[9.5px] font-bold text-foreground/30 uppercase tracking-[0.2em] leading-none">Redirect Link</div>
+                    <button
+                      onClick={() => {
+                        setDetailTask(null);
+                        router.push(`/dashboard/manufacturing/production?batchId=${detailTask.batchId}`);
+                      }}
+                      className="w-full py-3 bg-foreground text-background rounded-xl font-bold uppercase tracking-[0.15em] text-[10px] flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.97] shadow-lg shadow-foreground/5"
+                    >
+                      <Activity className="w-4 h-4" />
+                      Open in Production Tracker
+                    </button>
+                  </div>
+                )}
+                {(detailTask.type === "DESIGN_APPROVAL" || detailTask.type === "DESIGN_SELECTION") && (
+                  <div className="bg-foreground/[0.02] border border-foreground/5 rounded-2xl p-4 space-y-3">
+                    <div className="text-[9.5px] font-bold text-foreground/30 uppercase tracking-[0.2em] leading-none">Redirect Link</div>
+                    <button
+                      onClick={() => {
+                        setDetailTask(null);
+                        router.push(`/dashboard/manufacturing/designs?q=${encodeURIComponent(detailTask.designName || detailTask.title)}`);
+                      }}
+                      className="w-full py-3 bg-foreground text-background rounded-xl font-bold uppercase tracking-[0.15em] text-[10px] flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.97] shadow-lg shadow-foreground/5"
+                    >
+                      <PaletteIcon className="w-4 h-4" />
+                      Open in Design Studio
+                    </button>
+                  </div>
+                )}
+                {(detailTask.type === "VENDOR_SELECTION" || detailTask.type === "VENDOR_SEARCH") && (
+                  <div className="bg-foreground/[0.02] border border-foreground/5 rounded-2xl p-4 space-y-3">
+                    <div className="text-[9.5px] font-bold text-foreground/30 uppercase tracking-[0.2em] leading-none">Redirect Link</div>
+                    <button
+                      onClick={() => {
+                        setDetailTask(null);
+                        router.push(`/dashboard/manufacturing/vendors?search=${encodeURIComponent(detailTask.designName || detailTask.title)}`);
+                      }}
+                      className="w-full py-3 bg-foreground text-background rounded-xl font-bold uppercase tracking-[0.15em] text-[10px] flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.97] shadow-lg shadow-foreground/5"
+                    >
+                      <Building2 className="w-4 h-4" />
+                      Open in Vendor Directory
+                    </button>
+                  </div>
+                )}
 
                 {/* Quick Actions */}
                 {detailTask.status === "PENDING" && (

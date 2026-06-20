@@ -683,13 +683,20 @@ model MfgAuditLog {
 }
 
 model MfgVendor {
-  id        String   @id @default(cuid())
-  name      String
-  address   String?
-  mobile    String?
-  category  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String                    @id @default(cuid())
+  name            String
+  address         String?
+  mobile          String?
+  category        String
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  contactPerson   String?                   @map("contact_person")
+  email           String?
+  pricingNotes    String?                   @map("pricing_notes")
+  leadTimeDays    Int?                      @map("lead_time_days")
+  remarks         String?
+  samples         MfgSample[]
+  kbEntries       MfgProductKnowledgeBase[] @relation("KBVendor")
 }
 
 model MfgDesignTask {
@@ -1069,6 +1076,11 @@ model User {
   assignedMfgTasks         MfgTask[]        @relation("TaskAssignee")
   designTasksApproved      MfgDesignTask[]  @relation("DesignApprover")
   designTasksCreated       MfgDesignTask[]  @relation("DesignCreator")
+  mfgDesignAssignments    MfgDesignAssignment[] @relation("DesignAssignee")
+  mfgDesignAssignedBy     MfgDesignAssignment[] @relation("DesignAssigner")
+  mfgSamplesReviewed      MfgSample[]           @relation("SampleReviewer")
+  mfgKBDesigns            MfgProductKnowledgeBase[] @relation("KBDesigner")
+  mfgPerformanceEvents    MfgEmployeePerformance[]  @relation("EmployeePerf")
 }
 
 model Permission {
@@ -1343,5 +1355,145 @@ model WebStoreBanner {
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("web_store_banners")
+}
+
+model MfgCollection {
+  id          String   @id @default(cuid())
+  name        String
+  season      String?
+  status      String   @default("ACTIVE")  // ACTIVE | ARCHIVED
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  designs     MfgDesignAssignment[]
+
+  @@map("mfg_collections")
+}
+
+model MfgDesignAssignment {
+  id               String         @id @default(cuid())
+  collectionId     String         @map("collection_id")
+  collection       MfgCollection  @relation(fields: [collectionId], references: [id])
+  styleCode        String         @unique @map("style_code")
+  styleName        String         @map("style_name")
+  productCategory  String         @map("product_category")
+  assignedToId     String?        @map("assigned_to_id")
+  assignedTo       User?          @relation("DesignAssignee", fields: [assignedToId], references: [id])
+  assignedById     String?        @map("assigned_by_id")
+  assignedBy       User?          @relation("DesignAssigner", fields: [assignedById], references: [id])
+  assignmentDate   DateTime       @default(now()) @map("assignment_date")
+  submissionDeadline DateTime?    @map("submission_deadline")
+  priority         String         @default("MEDIUM")  // LOW | MEDIUM | HIGH | URGENT
+  status           String         @default("Not Started")
+  // Values: Not Started | In Progress | Submitted | Approved | Rejected
+  notes            String?
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  attachments      MfgDesignAttachment[]
+  samples          MfgSample[]
+
+  @@index([collectionId])
+  @@index([assignedToId])
+  @@map("mfg_design_assignments")
+}
+
+model MfgDesignAttachment {
+  id           String              @id @default(cuid())
+  assignmentId String              @map("assignment_id")
+  assignment   MfgDesignAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  type         String              // Reference Image | Mood Board | Design File | Tech Pack
+  fileUrl      String              @map("file_url")
+  fileName     String?             @map("file_name")
+  uploadedAt   DateTime            @default(now()) @map("uploaded_at")
+
+  @@map("mfg_design_attachments")
+}
+
+model MfgSample {
+  id                 String               @id @default(cuid())
+  designAssignmentId String               @map("design_assignment_id")
+  designAssignment   MfgDesignAssignment  @relation(fields: [designAssignmentId], references: [id])
+  styleCode          String               @map("style_code")
+  productName        String               @map("product_name")
+  fabricType         String?              @map("fabric_type")
+  gsm                String?
+  composition        String?
+  printingTechnique  String?              @map("printing_technique")
+  embroideryDetails  String?              @map("embroidery_details")
+  accessoriesUsed    String?              @map("accessories_used")
+  vendorId           String?              @map("vendor_id")
+  vendor             MfgVendor?           @relation(fields: [vendorId], references: [id])
+  remarks            String?
+  status             String               @default("Pending Review")
+  // Values: Pending Review | Approved | Rejected | Revision Required
+  submittedAt        DateTime             @default(now()) @map("submitted_at")
+  reviewedAt         DateTime?            @map("reviewed_at")
+  reviewedById       String?              @map("reviewed_by_id")
+  reviewedBy         User?                @relation("SampleReviewer", fields: [reviewedById], references: [id])
+  adminComments      String?              @map("admin_comments")
+  images             MfgSampleImage[]
+  revisions          MfgSampleRevision[]
+
+  @@index([designAssignmentId])
+  @@map("mfg_samples")
+}
+
+model MfgSampleImage {
+  id         String    @id @default(cuid())
+  sampleId   String    @map("sample_id")
+  sample     MfgSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  imageUrl   String    @map("image_url")
+  uploadedAt DateTime  @default(now()) @map("uploaded_at")
+
+  @@map("mfg_sample_images")
+}
+
+model MfgSampleRevision {
+  id               String    @id @default(cuid())
+  sampleId         String    @map("sample_id")
+  sample           MfgSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  revisionNumber   Int       @map("revision_number")
+  changeRequests   String    @map("change_requests")
+  designerResponse String?   @map("designer_response")
+  resubmissionDate DateTime? @map("resubmission_date")
+  approvalDate     DateTime? @map("approval_date")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@map("mfg_sample_revisions")
+}
+
+model MfgProductKnowledgeBase {
+  id               String     @id @default(cuid())
+  styleCode        String     @unique @map("style_code")
+  productName      String     @map("product_name")
+  designerId       String?    @map("designer_id")
+  designer         User?      @relation("KBDesigner", fields: [designerId], references: [id])
+  fabricUsed       String?    @map("fabric_used")
+  gsm              String?
+  composition      String?
+  printingTechnique String?   @map("printing_technique")
+  vendorId         String?    @map("vendor_id")
+  vendor           MfgVendor? @relation("KBVendor", fields: [vendorId], references: [id])
+  accessoriesUsed  String?    @map("accessories_used")
+  sampleImages     String[]   @map("sample_images")
+  productionNotes  String?    @map("production_notes")
+  approvalDate     DateTime?  @map("approval_date")
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  @@map("mfg_product_knowledge_base")
+}
+
+model MfgEmployeePerformance {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  user          User     @relation("EmployeePerf", fields: [userId], references: [id])
+  eventType     String   @map("event_type")
+  scoreDelta    Float    @map("score_delta")
+  referenceId   String?  @map("reference_id")
+  referenceType String?  @map("reference_type")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("mfg_employee_performance")
 }
 

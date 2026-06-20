@@ -1,13 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listFolderFiles } from '@/lib/workdrive/api'
 import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // 1. Check NextAuth Session
+  const adminSession = await getServerSession(authOptions)
+  let hasSession = !!adminSession?.user
+
+  // 2. Check Supabase Session if NextAuth is not present
+  if (!hasSession) {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      hasSession = true
+    }
+  }
+
+  if (!hasSession) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const folderId = req.nextUrl.searchParams.get('folderId')
   if (!folderId) return NextResponse.json({ error: 'folderId required' }, { status: 400 })

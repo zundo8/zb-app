@@ -14,6 +14,9 @@ import {
   FolderOpen,
   Plus,
   AlertCircle,
+  Folder,
+  FileText,
+  ArrowLeft,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -51,6 +54,8 @@ export default function WorkDriveGallery({
   compact = false,
   autoCreateFolderName,
 }: WorkDriveGalleryProps) {
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(folderId);
+  const [folderHistory, setFolderHistory] = useState<{ id: string; name: string }[]>([]);
   const [files, setFiles] = useState<WorkDriveFileItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,14 +67,20 @@ export default function WorkDriveGallery({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    setCurrentFolderId(folderId);
+    setFolderHistory([]);
+  }, [folderId]);
+
   const imageFiles = files.filter((f) => f.isImage);
+  const sortedItems = [...files].sort((a, b) => (b.isFolder ? 1 : 0) - (a.isFolder ? 1 : 0));
 
   const fetchFiles = useCallback(async () => {
-    if (!folderId) return;
+    if (!currentFolderId) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/workdrive/files?folderId=${folderId}`, {
+      const res = await fetch(`/api/workdrive/files?folderId=${currentFolderId}`, {
         credentials: "same-origin",
       });
       if (!res.ok) throw new Error(`Failed to load files: ${res.status}`);
@@ -81,7 +92,7 @@ export default function WorkDriveGallery({
     } finally {
       setLoading(false);
     }
-  }, [folderId]);
+  }, [currentFolderId]);
 
   useEffect(() => {
     fetchFiles();
@@ -114,9 +125,47 @@ export default function WorkDriveGallery({
     }
   };
 
+  const handleCreateNewFolder = async () => {
+    const name = prompt("Enter folder name:");
+    if (!name || !name.trim()) return;
+    setCreatingFolder(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/workdrive/create-folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parentFolderId: currentFolderId, name: name.trim() }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to create folder: ${res.status} — ${errText}`);
+      }
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      fetchFiles();
+    } catch (err: any) {
+      setError(err.message || "Failed to create folder");
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
+
+  const handleFolderClick = (id: string, name: string) => {
+    setFolderHistory((prev) => [...prev, { id: currentFolderId!, name: folderName || "Root" }]);
+    setCurrentFolderId(id);
+  };
+
+  const handleBack = () => {
+    const hist = [...folderHistory];
+    const prev = hist.pop();
+    setFolderHistory(hist);
+    setCurrentFolderId(prev ? prev.id : folderId);
+  };
+
   // ─── Upload ─────────────────────────────────
   const handleUpload = async (fileList: FileList | File[]) => {
-    if (!folderId) return;
+    const uploadFolderId = currentFolderId;
+    if (!uploadFolderId) return;
     setUploading(true);
     const filesToUpload = Array.from(fileList);
 
@@ -127,7 +176,7 @@ export default function WorkDriveGallery({
       try {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("folderId", folderId);
+        formData.append("folderId", uploadFolderId);
 
         setUploadProgress((prev) => ({ ...prev, [key]: 30 }));
 
@@ -310,8 +359,6 @@ export default function WorkDriveGallery({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
-              multiple
               className="hidden"
               onChange={(e) => e.target.files && handleUpload(e.target.files)}
             />
@@ -358,7 +405,7 @@ export default function WorkDriveGallery({
             className="absolute inset-0 bg-background/40 backdrop-blur-sm rounded-2xl z-50 flex flex-col items-center justify-center pointer-events-none"
           >
             <Upload className="w-10 h-10 text-amber-400 mb-2 animate-bounce" />
-            <p className="text-[12px] font-bold text-foreground">Drop images to upload</p>
+            <p className="text-[12px] font-bold text-foreground">Drop files to upload</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -371,7 +418,7 @@ export default function WorkDriveGallery({
             {folderName || "Gallery"}
           </h3>
           <span className="text-[10px] text-foreground/30 font-medium">
-            {imageFiles.length} image{imageFiles.length !== 1 ? "s" : ""}
+            {files.length} item{files.length !== 1 ? "s" : ""}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -385,17 +432,24 @@ export default function WorkDriveGallery({
           {allowUpload && (
             <>
               <button
+                onClick={handleCreateNewFolder}
+                disabled={creatingFolder}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-background border border-foreground/10 text-foreground rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-foreground/5 transition-all disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New Folder
+              </button>
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-foreground text-background rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-all disabled:opacity-50"
               >
-                <Upload className="w-3 h-3" />
+                <Upload className="w-3.5 h-3.5" />
                 Upload
               </button>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
                 multiple
                 className="hidden"
                 onChange={(e) => e.target.files && handleUpload(e.target.files)}
@@ -440,6 +494,22 @@ export default function WorkDriveGallery({
         )}
       </AnimatePresence>
 
+      {/* Breadcrumbs / Back button */}
+      {folderHistory.length > 0 && (
+        <div className="mb-4 flex items-center gap-2">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-foreground/5 hover:bg-foreground/10 text-foreground rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back
+          </button>
+          <span className="text-[10px] font-bold text-foreground/30 uppercase tracking-widest">
+            {folderHistory.map(h => h.name).join(" / ")} / Current
+          </span>
+        </div>
+      )}
+
       {/* Content */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -457,74 +527,122 @@ export default function WorkDriveGallery({
             onClick={fetchFiles}
             className="px-3.5 py-1.5 rounded-xl bg-foreground/5 text-foreground/60 text-[9px] font-bold uppercase tracking-wider hover:bg-foreground/10 transition-all flex items-center gap-1.5"
           >
-            <RefreshCw className="w-3 h-3" />
+            <RefreshCw className="w-3.5 h-3.5" />
             Retry
           </button>
         </div>
-      ) : imageFiles.length === 0 ? (
+      ) : files.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 rounded-2xl border border-dashed border-foreground/10 bg-foreground/[0.01]">
-          <ImageIcon className="w-10 h-10 text-foreground/10 mb-3" />
+          <FolderOpen className="w-10 h-10 text-foreground/10 mb-3" />
           <p className="text-[12px] font-bold text-foreground/30 uppercase tracking-widest">
-            No images yet
+            This folder is empty
           </p>
           {allowUpload && (
             <p className="text-[10px] text-foreground/20 mt-1">
-              Upload or drag images to get started
+              Upload files or create subfolders to get started
             </p>
           )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {imageFiles.map((file, i) => (
-            <motion.div
-              key={file.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.02 }}
-              className={`group relative aspect-square rounded-2xl overflow-hidden border-2 cursor-pointer transition-all duration-300 hover:shadow-xl ${
-                selectedFileId === file.id
-                  ? "border-amber-400 shadow-lg shadow-amber-400/20 ring-2 ring-amber-400/30"
-                  : "border-foreground/5 hover:border-foreground/20"
-              }`}
-              onClick={() => {
-                if (onFileSelect) {
-                  onFileSelect(file.id, file.name);
-                } else {
-                  openLightbox(i);
-                }
-              }}
-            >
-              <img
-                src={`/api/workdrive/image?fileId=${file.id}`}
-                alt={file.name}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                loading="lazy"
-              />
-
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 pointer-events-none">
-                <p className="text-[10px] font-mono text-white/80 truncate">
-                  {file.name}
-                </p>
-                <p className="text-[9px] text-white/50">
-                  {(file.size / 1024).toFixed(0)} KB
-                </p>
-              </div>
-
-              {/* Selection check */}
-              {onFileSelect && (
-                <div
-                  className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                    selectedFileId === file.id
-                      ? "bg-amber-400 text-black"
-                      : "bg-black/40 text-white/60 opacity-0 group-hover:opacity-100"
-                  }`}
+          {sortedItems.map((item) => {
+            if (item.isFolder) {
+              return (
+                <motion.div
+                  key={item.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleFolderClick(item.id, item.name)}
+                  className="aspect-square rounded-2xl border border-foreground/5 hover:border-foreground/20 bg-foreground/[0.02] hover:bg-foreground/[0.04] p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 relative group overflow-hidden"
                 >
-                  <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                  <Folder className="w-12 h-12 text-amber-500/70 group-hover:text-amber-500 transition-colors mb-3" />
+                  <span className="text-[11px] font-bold text-foreground/80 line-clamp-2 px-2 uppercase tracking-wide leading-tight text-center">
+                    {item.name}
+                  </span>
+                  <span className="text-[9px] text-foreground/30 uppercase tracking-wider mt-1">
+                    Directory
+                  </span>
+                </motion.div>
+              );
+            }
+
+            if (item.isImage) {
+              const imgIndex = imageFiles.findIndex((img) => img.id === item.id);
+              return (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`group relative aspect-square rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl ${
+                    selectedFileId === item.id
+                      ? "border-amber-400 shadow-lg shadow-amber-400/20 ring-2 ring-amber-400/30"
+                      : "border-foreground/5 hover:border-foreground/20"
+                  }`}
+                  onClick={() => {
+                    if (onFileSelect) {
+                      onFileSelect(item.id, item.name);
+                    } else {
+                      openLightbox(imgIndex >= 0 ? imgIndex : 0);
+                    }
+                  }}
+                >
+                  <img
+                    src={`/api/workdrive/image?fileId=${item.id}`}
+                    alt={item.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 pointer-events-none">
+                    <p className="text-[10px] font-mono text-white/80 truncate">
+                      {item.name}
+                    </p>
+                    <p className="text-[9px] text-white/50">
+                      {(item.size / 1024).toFixed(0)} KB
+                    </p>
+                  </div>
+                  {onFileSelect && (
+                    <div
+                      className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                        selectedFileId === item.id
+                          ? "bg-amber-400 text-black"
+                          : "bg-black/40 text-white/60 opacity-0 group-hover:opacity-100"
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                    </div>
+                  )}
+                </motion.div>
+              );
+            }
+
+            // Non-image File type
+            return (
+              <motion.div
+                key={item.id}
+                whileHover={{ scale: 1.02 }}
+                className="aspect-square rounded-2xl border border-foreground/5 hover:border-foreground/25 bg-foreground/[0.01] hover:bg-foreground/[0.03] p-4 flex flex-col items-center justify-center text-center relative group overflow-hidden transition-all duration-300"
+              >
+                <FileText className="w-12 h-12 text-indigo-400/70 group-hover:text-indigo-400 transition-colors mb-3" />
+                <span className="text-[10px] font-mono text-foreground/80 line-clamp-2 px-2 leading-tight text-center">
+                  {item.name}
+                </span>
+                <span className="text-[9px] text-foreground/30 uppercase tracking-widest mt-1">
+                  {(item.size / 1024).toFixed(0)} KB
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+                  <a
+                    href={`/api/workdrive/image?fileId=${item.id}`}
+                    download={item.name}
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all shadow-md active:scale-90"
+                    title="Download file"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
                 </div>
-              )}
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
