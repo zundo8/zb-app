@@ -841,9 +841,9 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="glass-cta w-full py-4 text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
+                      className="w-full py-4 text-[9.5px] font-semibold uppercase tracking-[0.15em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap"
                     >
-                      Deliver to this Address
+                      <span>Deliver to this Address</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                     <button
@@ -857,7 +857,7 @@ export default function CheckoutPage() {
                         setAddressErrors({});
                         setShowAddressForm(true);
                       }}
-                      className="glass-button w-full py-3 text-[8px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5"
+                      className="w-full py-3.5 text-[8.5px] font-medium uppercase tracking-[0.15em] bg-foreground/[0.02] border border-dashed border-foreground/10 hover:bg-foreground/[0.04] active:scale-[0.98] rounded-full text-foreground/75 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
                     >
                       <Plus className="w-3 h-3" />
                       Add New Address
@@ -878,7 +878,7 @@ export default function CheckoutPage() {
                         }
                         setShowAddressForm(false);
                       }}
-                      className="glass-button w-full py-3 text-[8px] font-bold uppercase tracking-widest text-foreground/50 mb-3"
+                      className="w-full py-3 text-[8.5px] font-medium uppercase tracking-[0.15em] bg-foreground/[0.02] border border-foreground/5 hover:bg-foreground/[0.04] active:scale-[0.98] rounded-full text-foreground/50 transition-all flex items-center justify-center mb-3 whitespace-nowrap"
                     >
                       Back to Saved Addresses
                     </button>
@@ -1032,9 +1032,9 @@ export default function CheckoutPage() {
                   <div className="pt-4 mt-auto">
                     <button
                       type="submit"
-                      className="glass-cta w-full py-4 text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
+                      className="w-full py-4 text-[9.5px] font-semibold uppercase tracking-[0.15em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap"
                     >
-                      Continue to Payment
+                      <span>Continue to Payment</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1288,7 +1288,7 @@ export default function CheckoutPage() {
                         type="button"
                         onClick={() => handleApplyCoupon()}
                         disabled={couponLoading || !couponCode.trim()}
-                        className="h-8 px-3 rounded-lg bg-foreground text-background font-extrabold text-[9px] uppercase tracking-wider hover:opacity-90 disabled:opacity-30 transition-all flex items-center justify-center shrink-0"
+                        className="h-8 px-3 rounded-lg bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 text-foreground font-semibold text-[9.5px] uppercase tracking-[0.15em] hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] backdrop-blur-md active:scale-[0.98] disabled:opacity-30 transition-all flex items-center justify-center shrink-0 whitespace-nowrap"
                       >
                         {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
                       </button>
@@ -1383,15 +1383,19 @@ export default function CheckoutPage() {
                     type="button"
                     onClick={handlePlaceOrder}
                     disabled={loading}
-                    className="w-full h-16 rounded-full bg-foreground text-background hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-between pl-16 pr-3 disabled:opacity-50 shadow-sm"
+                    className={`w-full ${
+                      paymentMethod === "COD" ? "h-[72px]" : "h-16"
+                    } rounded-full bg-foreground/[0.03] dark:bg-white/[0.05] hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl border border-foreground/10 dark:border-white/10 text-foreground transition-all flex items-center justify-between pl-16 pr-3.5 disabled:opacity-50 shadow-sm`}
                   >
                     {/* Center text */}
-                    <span className="text-[11.5px] font-black tracking-[0.2em] uppercase text-center flex-1">
+                    <span className="text-[10px] sm:text-[10.5px] font-semibold tracking-[0.18em] uppercase text-center flex-1 whitespace-nowrap">
                       {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
                     </span>
 
                     {/* Right chevron circle */}
-                    <div className="w-12 h-12 rounded-full bg-background/10 flex items-center justify-center text-background shrink-0">
+                    <div className={`${
+                      paymentMethod === "COD" ? "w-13 h-13" : "w-12 h-12"
+                    } rounded-full bg-foreground/5 dark:bg-white/10 flex items-center justify-center text-foreground shrink-0 transition-all`}>
                       {loading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
