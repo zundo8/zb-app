@@ -414,13 +414,14 @@ export default function OrderDetailsPage() {
                    className="flex items-center gap-4 p-3 rounded-2xl glass-panel"
                 >
                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-foreground/5 border border-foreground/5 flex-shrink-0">
-                      {item.product?.featuredImage ? (
-                        <img src={item.product.featuredImage} alt={item.title} className="w-full h-full object-cover" />
-                      ) : item.image ? (
-                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-foreground/5 text-foreground/20 font-black text-lg uppercase">{item.title[0]}</div>
-                      )}
+                      {(() => {
+                        const imageSrc = item.image || item.product?.featuredImage || (item.product?.images?.[0] as any)?.src || (item.product?.images?.[0] as any) || "";
+                        return imageSrc ? (
+                          <img src={imageSrc} alt={item.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-foreground/5 text-foreground/20 font-black text-lg uppercase">{item.title[0]}</div>
+                        );
+                      })()}
                    </div>
                    <div className="flex-1 min-w-0">
                       <h5 className="text-[10px] font-bold text-foreground/80 truncate uppercase tracking-tight">{item.title}</h5>

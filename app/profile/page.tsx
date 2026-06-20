@@ -66,6 +66,13 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"orders" | "returns" | "wishlist" | "addresses" | "info">("orders");
   
+  // Preferences settings
+  const [storeCreditPreference, setStoreCreditPreference] = useState(false);
+  const [emailOptedOut, setEmailOptedOut] = useState(false);
+  const [whatsappOptedOut, setWhatsappOptedOut] = useState(false);
+  const [smsOptedOut, setSmsOptedOut] = useState(false);
+  const [updatingPrefs, setUpdatingPrefs] = useState<Record<string, boolean>>({});
+
   // Profile editing
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState("");
@@ -138,6 +145,10 @@ export default function ProfilePage() {
           followingCount: socialData.followingCount
         });
         setEditName(profData.customer.name || "");
+        setStoreCreditPreference(profData.customer.storeCreditPreference ?? false);
+        setEmailOptedOut(profData.customer.emailOptedOut ?? false);
+        setWhatsappOptedOut(profData.customer.whatsappOptedOut ?? false);
+        setSmsOptedOut(profData.customer.smsOptedOut ?? false);
       }
     } catch (e) {
       console.error("Error fetching profile", e);
@@ -181,17 +192,35 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUpdateRegion = async (region: string) => {
-    setUpdatingRegion(true);
+  const handleTogglePreference = async (key: string, value: boolean) => {
+    // Optimistic UI updates
+    if (key === "storeCreditPreference") setStoreCreditPreference(value);
+    if (key === "emailOptedOut") setEmailOptedOut(value);
+    if (key === "whatsappOptedOut") setWhatsappOptedOut(value);
+    if (key === "smsOptedOut") setSmsOptedOut(value);
+
+    setUpdatingPrefs(prev => ({ ...prev, [key]: true }));
+
     try {
       const res = await fetch("/api/customer/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ region }),
+        body: JSON.stringify({ [key]: value }),
       });
-      if (res.ok) setCustomer({ ...customer, region });
+      if (!res.ok) {
+        throw new Error("Failed to save preference");
+      }
+      const data = await res.json();
+      setCustomer((prev: any) => ({ ...prev, [key]: data.customer[key] }));
+    } catch (e) {
+      console.error("Error updating user settings", e);
+      // Revert on error
+      if (key === "storeCreditPreference") setStoreCreditPreference(!value);
+      if (key === "emailOptedOut") setEmailOptedOut(!value);
+      if (key === "whatsappOptedOut") setWhatsappOptedOut(!value);
+      if (key === "smsOptedOut") setSmsOptedOut(!value);
     } finally {
-      setUpdatingRegion(false);
+      setUpdatingPrefs(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -520,8 +549,8 @@ export default function ProfilePage() {
                           {req.order?.items?.map((item: any, i: number) => (
                             <div key={i} className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-foreground/5 overflow-hidden shrink-0">
-                                {item.image ? (
-                                  <img src={item.image} className="w-full h-full object-cover" alt="" />
+                                {item.image || item.product?.featuredImage ? (
+                                  <img src={item.image || item.product?.featuredImage} className="w-full h-full object-cover" alt="" />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-[8px] text-foreground/20">ZB</div>
                                 )}
@@ -577,8 +606,8 @@ export default function ProfilePage() {
                           {req.order?.items?.map((item: any, i: number) => (
                             <div key={i} className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-foreground/5 overflow-hidden shrink-0">
-                                {item.image ? (
-                                  <img src={item.image} className="w-full h-full object-cover" alt="" />
+                                {item.image || item.product?.featuredImage ? (
+                                  <img src={item.image || item.product?.featuredImage} className="w-full h-full object-cover" alt="" />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-[8px] text-foreground/20">ZB</div>
                                 )}
@@ -630,8 +659,8 @@ export default function ProfilePage() {
                       >
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="w-12 h-12 rounded-[0.75rem] bg-foreground/[0.02] border border-foreground/5 flex items-center justify-center shrink-0 overflow-hidden">
-                            {order.items?.[0]?.image || order.items?.[0]?.product?.featuredImage ? (
-                              <img src={order.items[0].image || order.items[0].product?.featuredImage} className="w-full h-full object-cover" alt="" />
+                            {order.items?.[0]?.image || order.items?.[0]?.product?.featuredImage || (order.items?.[0]?.product?.images?.[0] as any)?.src ? (
+                              <img src={order.items[0].image || order.items[0].product?.featuredImage || (order.items[0].product?.images?.[0] as any)?.src} className="w-full h-full object-cover" alt="" />
                             ) : (
                               <Package className="w-5 h-5 text-foreground/10" />
                             )}
@@ -682,7 +711,7 @@ export default function ProfilePage() {
                     <Link key={item.id} href={`/products/${item.handle}`}>
                       <div className="aspect-[4/5] rounded-[1.25rem] overflow-hidden relative group border border-foreground/5 hover:border-foreground/10 bg-foreground/[0.01]">
                         <img
-                          src={item.image?.src || item.images?.[0]?.src || "/zb-logo-220px.png"}
+                          src={item.image?.src || item.images?.[0]?.src || (item as any).featuredImage || "/zb-logo-220px.png"}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                           alt={item.title}
                         />
@@ -838,33 +867,109 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Region Picker */}
+              {/* Account Preferences Settings */}
               <div className="rounded-[1.5rem] overflow-hidden glass-panel border-foreground/5 bg-foreground/[0.01]">
                 <div className="px-4 py-3 border-b border-foreground/5 bg-foreground/[0.02]">
-                  <p className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Region</p>
+                  <p className="text-[8px] font-semibold uppercase tracking-[0.3em] text-foreground/40">Preferences & Settings</p>
                 </div>
-                <div className="p-3 grid grid-cols-2 gap-2">
-                  {[
-                    { id: "IN", name: "India", flag: "🇮🇳" },
-                    { id: "GL", name: "Global", flag: "🌐" },
-                  ].map((r) => (
+                <div className="p-4 space-y-4">
+                  {/* Store Credit Preference */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/80">Refund to Store Credits</p>
+                      <p className="text-[8.5px] text-foreground/45 mt-0.5 leading-relaxed">
+                        Opt in to receive instant store credits for returned items instead of waiting for bank accounts refund.
+                      </p>
+                    </div>
                     <button
-                      key={r.id}
-                      onClick={() => handleUpdateRegion(r.id)}
-                      disabled={updatingRegion}
-                      className={`flex items-center justify-between px-4 py-3 rounded-[1rem] border transition-all text-left ${
-                        customer?.region === r.id
-                          ? "bg-foreground border-transparent text-background font-bold shadow-lg"
-                          : "border-foreground/5 text-foreground/50 hover:bg-foreground/[0.03] hover:text-foreground/85"
+                      onClick={() => handleTogglePreference("storeCreditPreference", !storeCreditPreference)}
+                      disabled={updatingPrefs["storeCreditPreference"]}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        storeCreditPreference ? "bg-foreground" : "bg-foreground/10"
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{r.flag}</span>
-                        <span className="text-[9px] font-bold uppercase tracking-wide">{r.name}</span>
-                      </div>
-                      {customer?.region === r.id && <Check className="w-3.5 h-3.5 text-background" />}
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
+                          storeCreditPreference ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
                     </button>
-                  ))}
+                  </div>
+
+                  <div className="h-[1px] bg-foreground/5" />
+
+                  {/* Email Preference */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/80">Email Marketing Alerts</p>
+                      <p className="text-[8.5px] text-foreground/45 mt-0.5 leading-relaxed">
+                        Subscribe to newsletters, new product releases, catalog updates, and exclusive events.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleTogglePreference("emailOptedOut", !emailOptedOut)}
+                      disabled={updatingPrefs["emailOptedOut"]}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        !emailOptedOut ? "bg-foreground" : "bg-foreground/10"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
+                          !emailOptedOut ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="h-[1px] bg-foreground/5" />
+
+                  {/* WhatsApp Preference */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/80">WhatsApp Notifications</p>
+                      <p className="text-[8.5px] text-foreground/45 mt-0.5 leading-relaxed">
+                        Receive instant shipment tracking details, delivery statuses, and updates on WhatsApp.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleTogglePreference("whatsappOptedOut", !whatsappOptedOut)}
+                      disabled={updatingPrefs["whatsappOptedOut"]}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        !whatsappOptedOut ? "bg-foreground" : "bg-foreground/10"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
+                          !whatsappOptedOut ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="h-[1px] bg-foreground/5" />
+
+                  {/* SMS Preference */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/80">SMS Alerts</p>
+                      <p className="text-[8.5px] text-foreground/45 mt-0.5 leading-relaxed">
+                        Get standard SMS notifications regarding your orders and delivery alerts.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleTogglePreference("smsOptedOut", !smsOptedOut)}
+                      disabled={updatingPrefs["smsOptedOut"]}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        !smsOptedOut ? "bg-foreground" : "bg-foreground/10"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
+                          !smsOptedOut ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 

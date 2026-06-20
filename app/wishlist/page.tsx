@@ -112,53 +112,58 @@ export default function WishlistPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
             <AnimatePresence>
-              {bookmarks.map((product) => (
-                <motion.div 
-                  key={product.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="group relative flex gap-5 p-4 rounded-[2rem] glass-panel border-foreground/5 bg-foreground/[0.01] hover:bg-foreground/[0.03] hover:border-foreground/10 transition-all duration-300"
-                >
-                  <Link href={`/products/${product.handle}`} className="shrink-0">
-                    <div className="relative w-28 h-36 rounded-2xl overflow-hidden border border-foreground/5 shadow-lg">
-                      <Image 
-                        src={product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png"} 
-                        alt={product.title} 
-                        fill 
-                        className="object-cover transition-transform duration-700 group-hover:scale-110" 
-                      />
+              {bookmarks.map((product) => {
+                const imageSrc = product.image?.src || product.images?.[0]?.src || (product as any).featuredImage || "/zb-logo-220px.png";
+                const price = parseFloat(product.variants?.[0]?.price || (product as any).price || "0").toLocaleString("en-IN");
+                return (
+                  <motion.div 
+                    key={product.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                    className="group relative flex gap-5 p-4 rounded-[2rem] glass-panel border-foreground/5 bg-foreground/[0.01] hover:bg-foreground/[0.02] hover:border-foreground/15 shadow-sm hover:shadow-[0_12px_25px_rgba(0,0,0,0.03)] dark:hover:shadow-[0_12px_25px_rgba(0,0,0,0.35)] transition-all duration-500"
+                  >
+                    <Link href={`/products/${product.handle}`} className="shrink-0">
+                      <div className="relative w-28 h-36 rounded-2xl overflow-hidden border border-foreground/5 shadow-md bg-foreground/[0.01]">
+                        <Image 
+                          src={imageSrc} 
+                          alt={product.title} 
+                          fill 
+                          className="object-cover transition-transform duration-700 group-hover:scale-105" 
+                        />
+                      </div>
+                    </Link>
+   
+                    <div className="flex-1 flex flex-col justify-between py-1">
+                      <div>
+                        <h3 className="text-[12px] font-bold uppercase tracking-wider text-foreground/90 mb-1 line-clamp-1">
+                          {product.title}
+                        </h3>
+                        <p className="text-[13px] font-semibold tracking-tight text-foreground/55">
+                          ₹{price}
+                        </p>
+                      </div>
+   
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleQuickAdd(product)}
+                          className="flex-1 py-3.5 rounded-xl bg-foreground text-background text-[9px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-md hover:brightness-95 active:scale-95 transition-all duration-300"
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          Add to Bag
+                        </button>
+                        <button 
+                          onClick={() => handleRemove(product)}
+                          className="p-3.5 rounded-xl bg-foreground/5 border border-foreground/5 text-foreground/45 hover:text-foreground hover:bg-foreground/10 transition-all duration-300 active:scale-90"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </Link>
- 
-                  <div className="flex-1 flex flex-col justify-between py-1">
-                    <div>
-                      <h3 className="text-[12px] font-bold uppercase tracking-tight text-foreground/90 mb-1 line-clamp-1">
-                        {product.title}
-                      </h3>
-                      <p className="text-[13px] font-medium tracking-tighter text-foreground/50">
-                        ₹{parseFloat(product.variants[0].price).toLocaleString("en-IN")}
-                      </p>
-                    </div>
- 
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => handleQuickAdd(product)}
-                        className="flex-1 py-3.5 rounded-xl bg-foreground text-background text-[9px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-lg hover:opacity-90 active:scale-95 transition-all animate-touch"
-                      >
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                        Add to Bag
-                      </button>
-                      <button 
-                        onClick={() => handleRemove(product)}
-                        className="p-3.5 rounded-xl bg-foreground/5 border border-foreground/5 text-foreground/40 hover:text-foreground hover:bg-foreground/10 transition-all active:scale-90 animate-touch"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
         )}

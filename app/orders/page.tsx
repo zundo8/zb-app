@@ -147,15 +147,18 @@ export default function OrdersPage() {
                   {/* Main Content */}
                   <div className="flex items-center gap-4">
                     <div className="flex -space-x-3.5">
-                      {orderItems.slice(0, 3).map((item: any, i: number) => (
-                        <div key={i} className="h-10 w-10 rounded-xl ring-2 ring-background bg-foreground/[0.02] flex items-center justify-center overflow-hidden border border-foreground/10 shadow-sm relative group-hover:scale-105 transition-transform">
-                          {item.image || item.product?.featuredImage ? (
-                            <img src={item.image || item.product?.featuredImage} alt="" className="object-cover w-full h-full opacity-80" />
-                          ) : (
-                            <span className="text-[10px] font-black text-foreground/10">{(item.title || 'ZB')[0]}</span>
-                          )}
-                        </div>
-                      ))}
+                      {orderItems.slice(0, 3).map((item: any, i: number) => {
+                        const imageSrc = item.image || item.product?.featuredImage || (item.product?.images?.[0] as any)?.src || (item.product?.images?.[0] as any) || "";
+                        return (
+                          <div key={i} className="h-10 w-10 rounded-xl ring-2 ring-background bg-foreground/[0.02] flex items-center justify-center overflow-hidden border border-foreground/10 shadow-sm relative group-hover:scale-105 transition-transform">
+                            {imageSrc ? (
+                              <img src={imageSrc} alt="" className="object-cover w-full h-full opacity-80" />
+                            ) : (
+                              <span className="text-[10px] font-black text-foreground/10">{(item.title || 'ZB')[0]}</span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold truncate tracking-tight text-foreground/90 leading-snug">

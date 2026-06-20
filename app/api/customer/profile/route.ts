@@ -29,7 +29,13 @@ export async function GET() {
       where: whereClause,
       include: {
         orders: {
-          include: { items: true },
+          include: {
+            items: {
+              include: {
+                product: true
+              }
+            }
+          },
           orderBy: { createdAt: "desc" },
           take: 5
         },
@@ -52,7 +58,17 @@ export async function GET() {
               totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
             },
             include: {
-              orders: { include: { items: true }, orderBy: { createdAt: "desc" }, take: 5 },
+              orders: {
+                include: {
+                  items: {
+                    include: {
+                      product: true
+                    }
+                  }
+                },
+                orderBy: { createdAt: "desc" },
+                take: 5
+              },
               communityMember: true
             }
           });
@@ -71,7 +87,13 @@ export async function GET() {
       where: { customerId: customer.id },
       include: {
         order: {
-          include: { items: true }
+          include: {
+            items: {
+              include: {
+                product: true
+              }
+            }
+          }
         }
       },
       orderBy: { createdAt: "desc" }
@@ -81,7 +103,13 @@ export async function GET() {
       where: { customerId: customer.id },
       include: {
         order: {
-          include: { items: true }
+          include: {
+            items: {
+              include: {
+                product: true
+              }
+            }
+          }
         }
       },
       orderBy: { createdAt: "desc" }
@@ -175,7 +203,7 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { name, region, image } = body;
+    const { name, region, image, storeCreditPreference, emailOptedOut, whatsappOptedOut, smsOptedOut } = body;
 
     const whereClause: any = { OR: [] };
     if (session.user.email) {
@@ -204,6 +232,10 @@ export async function PATCH(req: Request) {
         name: name !== undefined ? name : undefined,
         region: region !== undefined ? region : undefined,
         image: image !== undefined ? image : undefined,
+        storeCreditPreference: storeCreditPreference !== undefined ? storeCreditPreference : undefined,
+        emailOptedOut: emailOptedOut !== undefined ? emailOptedOut : undefined,
+        whatsappOptedOut: whatsappOptedOut !== undefined ? whatsappOptedOut : undefined,
+        smsOptedOut: smsOptedOut !== undefined ? smsOptedOut : undefined,
       }
     });
 
