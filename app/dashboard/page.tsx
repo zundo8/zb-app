@@ -63,7 +63,7 @@ export default function DashboardOverview() {
   const [syncing, setSyncing] = useState(false);
 
   const fetchStats = async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent && !stats) setLoading(true);
     try {
       const [ordersRes, productsRes, customersRes] = await Promise.all([
         fetch("/api/shopify/orders?limit=50"),
@@ -113,7 +113,7 @@ export default function DashboardOverview() {
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
   };
 

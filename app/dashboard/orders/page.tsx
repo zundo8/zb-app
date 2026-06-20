@@ -111,7 +111,7 @@ export default function OrdersPage() {
   const LIMIT = 50;
 
   const fetchOrders = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent && orders.length === 0) setLoading(true);
     try {
       let finalStatus = statusFilter;
       let finalPayment = paymentFilter;
@@ -132,9 +132,9 @@ export default function OrdersPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
-  }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab, page]);
+  }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab, page, orders.length]);
 
   useEffect(() => {
     setPage(1);

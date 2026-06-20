@@ -75,7 +75,7 @@ export default function ReturnsPage() {
   };
 
   const fetchReturns = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent && returns.length === 0) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
@@ -98,9 +98,9 @@ export default function ReturnsPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, returns.length]);
 
   useEffect(() => {
     fetchReturns(false);

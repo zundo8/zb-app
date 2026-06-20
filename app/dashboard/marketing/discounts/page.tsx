@@ -38,7 +38,7 @@ export default function DiscountsPage() {
 
   const fetchDiscounts = async (silent = false) => {
     try {
-      if (!silent) setLoading(true);
+      if (!silent && discounts.length === 0) setLoading(true);
       const res = await fetch("/api/discounts");
       const data = await res.json();
       if (data.success) {
@@ -47,7 +47,7 @@ export default function DiscountsPage() {
     } catch (err) {
       if (!silent) toast.error("Failed to load discounts");
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
   };
 
