@@ -28,7 +28,11 @@ import {
   Banknote,
   Sparkles,
   Lock,
-  Sun
+  Sun,
+  User,
+  Mail,
+  Globe,
+  Map
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -963,34 +967,39 @@ export default function CheckoutPage() {
                   <div className="grid grid-cols-1 gap-2.5 flex-1">
                     {/* Full Name */}
                     <div>
-                      <input
-                        type="text"
-                        placeholder="Full Name"
-                        aria-label="Full Name"
-                        required
-                        value={address.name}
-                        onChange={(e) => updateField("name", e.target.value)}
-                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.name ? "border-red-500/40" : ""}`}
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Full Name"
+                          aria-label="Full Name"
+                          required
+                          value={address.name}
+                          onChange={(e) => updateField("name", e.target.value)}
+                          className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.name ? "border-red-500/40" : ""}`}
+                        />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+                      </div>
                       {addressErrors.name && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.name}</p>}
                     </div>
 
                     {/* Email + Phone */}
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <input
-                          type="email"
-                          placeholder="Email"
-                          aria-label="Email"
-                          required
-                          value={address.email}
-                          onChange={(e) => updateField("email", e.target.value)}
-                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.email ? "border-red-500/40" : ""}`}
-                        />
+                        <div className="relative">
+                          <input
+                            type="email"
+                            placeholder="Email"
+                            aria-label="Email"
+                            required
+                            value={address.email}
+                            onChange={(e) => updateField("email", e.target.value)}
+                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.email ? "border-red-500/40" : ""}`}
+                          />
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+                        </div>
                         {addressErrors.email && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.email}</p>}
                       </div>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-foreground/35 font-semibold pointer-events-none">+91</span>
                         <input
                           type="tel"
                           placeholder="Mobile"
@@ -998,8 +1007,11 @@ export default function CheckoutPage() {
                           required
                           value={address.phone}
                           onChange={(e) => updateField("phone", e.target.value)}
-                          className={`glass-input w-full pl-9 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.phone ? "border-red-500/40" : ""}`}
+                          className={`glass-input w-full pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.phone ? "border-red-500/40" : ""}`}
+                          style={{ paddingLeft: "3.75rem" }}
                         />
+                        <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+                        <span className="absolute left-8 top-1/2 -translate-y-1/2 text-[11px] text-foreground/35 font-semibold pointer-events-none">+91</span>
                         {addressErrors.phone && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.phone}</p>}
                       </div>
                     </div>
@@ -1008,7 +1020,6 @@ export default function CheckoutPage() {
                     <div className="grid grid-cols-5 gap-2.5">
                       <div className="col-span-2">
                         <div className="relative">
-                          <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
                           <input
                             type="text"
                             placeholder="House / Flat No."
@@ -1018,12 +1029,12 @@ export default function CheckoutPage() {
                             onChange={(e) => updateField("houseNo", e.target.value, true)}
                             className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.houseNo ? "border-red-500/40" : ""}`}
                           />
+                          <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                         </div>
                         {addressErrors.houseNo && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.houseNo}</p>}
                       </div>
                       <div className="col-span-3">
                         <div className="relative">
-                          <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
                           <input
                             type="text"
                             placeholder="Street / Road / Area"
@@ -1033,6 +1044,7 @@ export default function CheckoutPage() {
                             onChange={(e) => updateField("street", e.target.value, true)}
                             className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.street ? "border-red-500/40" : ""}`}
                           />
+                          <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                         </div>
                         {addressErrors.street && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.street}</p>}
                       </div>
@@ -1040,7 +1052,6 @@ export default function CheckoutPage() {
 
                     {/* Landmark */}
                     <div className="relative">
-                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/25" />
                       <input
                         type="text"
                         placeholder="Landmark (Optional)"
@@ -1049,6 +1060,7 @@ export default function CheckoutPage() {
                         onChange={(e) => updateField("landmark", e.target.value, true)}
                         className="glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl"
                       />
+                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                     </div>
 
                     {/* PIN + City */}
@@ -1065,42 +1077,50 @@ export default function CheckoutPage() {
                             const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                             updateField("zip", val);
                           }}
-                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl font-mono tracking-wider ${addressErrors.zip ? "border-red-500/40" : ""}`}
+                          className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl font-mono tracking-wider ${addressErrors.zip ? "border-red-500/40" : ""}`}
                         />
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                         {zipLoading && (
                           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-foreground/30" />
                         )}
                         {addressErrors.zip && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.zip}</p>}
                       </div>
                       <div className="col-span-3">
-                        <input
-                          type="text"
-                          placeholder="City"
-                          aria-label="City"
-                          required
-                          value={address.city}
-                          onChange={(e) => updateField("city", e.target.value)}
-                          className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl ${addressErrors.city ? "border-red-500/40" : ""}`}
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="City"
+                            aria-label="City"
+                            required
+                            value={address.city}
+                            onChange={(e) => updateField("city", e.target.value)}
+                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.city ? "border-red-500/40" : ""}`}
+                          />
+                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+                        </div>
                         {addressErrors.city && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.city}</p>}
                       </div>
                     </div>
 
                     {/* State dropdown */}
                     <div>
-                      <select
-                        required
-                        value={address.state}
-                        onChange={(e) => updateField("state", e.target.value)}
-                        className={`glass-input w-full px-4 py-3 text-[12px] rounded-2xl appearance-none cursor-pointer ${
-                          !address.state ? "text-foreground/40" : ""
-                        } ${addressErrors.state ? "border-red-500/40" : ""}`}
-                      >
-                        <option value="" disabled>Select State</option>
-                        {INDIAN_STATES.map(s => (
-                          <option key={s} value={s} className="bg-[#0e0e0e] text-foreground">{s}</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <select
+                          required
+                          value={address.state}
+                          onChange={(e) => updateField("state", e.target.value)}
+                          className={`glass-input w-full pl-8 pr-10 py-3 text-[12px] rounded-2xl appearance-none cursor-pointer ${
+                            !address.state ? "text-foreground/40" : ""
+                          } ${addressErrors.state ? "border-red-500/40" : ""}`}
+                        >
+                          <option value="" disabled>Select State</option>
+                          {INDIAN_STATES.map(s => (
+                            <option key={s} value={s} className="bg-[#0e0e0e] text-foreground">{s}</option>
+                          ))}
+                        </select>
+                        <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+                      </div>
                       {addressErrors.state && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.state}</p>}
                     </div>
                   </div>
@@ -1136,22 +1156,22 @@ export default function CheckoutPage() {
                         {item.image ? (
                           <img src={item.image} className="w-full h-full object-cover animate-in fade-in duration-300" alt={item.title} />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-foreground/20 text-[8px] font-black">ZB</div>
+                          <div className="w-full h-full flex items-center justify-center text-foreground/20 text-[8px] font-light">ZB</div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-[12px] font-black text-foreground uppercase tracking-wider truncate leading-tight">{item.title}</h4>
-                        <p className="text-[9.5px] text-foreground/40 font-bold uppercase tracking-wider mt-1.5 leading-none">
+                        <h4 className="text-[11px] font-normal text-foreground/85 uppercase tracking-wide truncate leading-tight">{item.title}</h4>
+                        <p className="text-[9px] text-foreground/40 font-light uppercase tracking-wider mt-1.5 leading-none">
                           Size: {item.size || "Free"} &nbsp;•&nbsp; Qty: {item.quantity}
                         </p>
                       </div>
-                      <span className="text-[12px] font-extrabold text-foreground shrink-0">₹{(parseFloat(item.price) * item.quantity).toLocaleString("en-IN")}</span>
+                      <span className="text-[11.5px] font-normal text-foreground/80 shrink-0">₹{(parseFloat(item.price) * item.quantity).toLocaleString("en-IN")}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* Payment Method header label */}
-                <p className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-foreground/45 mb-3 pl-0.5">PAYMENT METHOD</p>
+                <p className="text-[8px] font-light uppercase tracking-[0.25em] text-foreground/45 mb-2 pl-0.5">PAYMENT METHOD</p>
                 
                 {/* Segment tabs */}
                 <div className="grid grid-cols-5 gap-1.5 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-6">
@@ -1190,7 +1210,7 @@ export default function CheckoutPage() {
                 {paymentMethod === "UPI" && (
                   <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-300 mb-6">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[8px] font-extrabold text-foreground/40 uppercase tracking-widest pl-1 leading-none">ENTER UPI ID</label>
+                      <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">ENTER UPI ID</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -1200,7 +1220,7 @@ export default function CheckoutPage() {
                             setUpiId(e.target.value);
                             setSelectedUpiApp("");
                           }}
-                          className="w-full h-12 px-4 pr-11 rounded-xl bg-foreground/[0.02] border border-foreground/5 text-foreground text-[12px] font-semibold placeholder:text-foreground/20 focus:border-foreground/20 focus:outline-none transition-all tracking-wide"
+                          className="w-full h-12 px-4 pr-11 rounded-xl bg-foreground/[0.02] border border-foreground/5 text-foreground text-[11px] font-light placeholder:text-foreground/20 focus:border-foreground/20 focus:outline-none transition-all tracking-wide"
                         />
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
@@ -1211,7 +1231,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="flex flex-col gap-2.5">
-                      <label className="text-[8px] font-extrabold text-foreground/40 uppercase tracking-widest pl-1 leading-none">OR PAY WITH</label>
+                      <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">OR PAY WITH</label>
                       <div className="grid grid-cols-4 gap-1.5 text-center mt-1">
                         {[
                           { id: "google_pay", name: "GPay", logo: (
@@ -1276,59 +1296,59 @@ export default function CheckoutPage() {
 
                 {/* Calculations Summary */}
                 <div className="apple-glass-capsule p-5 rounded-2xl flex flex-col gap-3 mb-6">
-                  <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
+                  <div className="flex justify-between items-center text-[9.5px] font-light uppercase tracking-wider">
                     <span className="text-foreground/40">Subtotal</span>
-                    <span className="text-foreground/80">₹{subtotal.toLocaleString("en-IN")}</span>
+                    <span className="text-foreground/75">₹{subtotal.toLocaleString("en-IN")}</span>
                   </div>
                   
                   {couponDiscount > 0 && !applyAsStoreCredit && (
-                    <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
-                      <span className="text-emerald-400">Discount ({couponCode})</span>
-                      <span className="text-emerald-400">- ₹{couponDiscount.toLocaleString("en-IN")}</span>
+                    <div className="flex justify-between items-center text-[9.5px] font-light uppercase tracking-wider">
+                      <span className="text-emerald-400/90">Discount ({couponCode})</span>
+                      <span className="text-emerald-400/90">- ₹{couponDiscount.toLocaleString("en-IN")}</span>
                     </div>
                   )}
 
                   {cashbackAmount > 0 && (
-                    <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
-                      <span className="text-emerald-400">Cashback ({couponCode})</span>
-                      <span className="text-emerald-400">+ ₹{cashbackAmount.toLocaleString("en-IN")}</span>
+                    <div className="flex justify-between items-center text-[9.5px] font-light uppercase tracking-wider">
+                      <span className="text-emerald-400/90">Cashback ({couponCode})</span>
+                      <span className="text-emerald-400/90">+ ₹{cashbackAmount.toLocaleString("en-IN")}</span>
                     </div>
                   )}
 
                   {paymentMethod === "COD" && (
-                    <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
+                    <div className="flex justify-between items-center text-[9.5px] font-light uppercase tracking-wider">
                       <span className="text-foreground/45">COD Fee</span>
                       <span className="text-foreground/60">+ ₹{codFee}</span>
                     </div>
                   )}
 
-                  <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
+                  <div className="flex justify-between items-center text-[9.5px] font-light uppercase tracking-wider">
                     <span className="text-foreground/40">Shipping</span>
-                    <span className="text-foreground/80">FREE</span>
+                    <span className="text-foreground/75">FREE</span>
                   </div>
 
                   <div className="h-[1px] bg-foreground/5 my-1" />
 
                   {paymentMethod === "COD" ? (
                     <div className="flex flex-col gap-2.5">
-                      <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
+                      <div className="flex justify-between items-center text-[9.5px] font-light uppercase tracking-wider">
                         <span className="text-foreground/40">Total</span>
-                        <span className="text-foreground/80">₹{total.toLocaleString("en-IN")}</span>
+                        <span className="text-foreground/75">₹{total.toLocaleString("en-IN")}</span>
                       </div>
-                      <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
+                      <div className="flex justify-between items-center text-[9.5px] font-light uppercase tracking-wider">
                         <span className="text-foreground/40">Due at Delivery</span>
-                        <span className="text-foreground/80">₹{(total - codFee).toLocaleString("en-IN")}</span>
+                        <span className="text-foreground/75">₹{(total - codFee).toLocaleString("en-IN")}</span>
                       </div>
                       <div className="h-[1px] bg-foreground/5 my-1" />
                       <div className="flex justify-between items-center">
-                        <span className="font-extrabold text-[10.5px] text-foreground/50 uppercase tracking-widest">Pay Now</span>
-                        <span className="text-xl font-black text-foreground tracking-tight leading-none">₹{codFee}</span>
+                        <span className="font-light text-[9.5px] text-foreground/45 uppercase tracking-widest">Pay Now</span>
+                        <span className="text-lg font-medium text-foreground tracking-tight leading-none">₹{codFee}</span>
                       </div>
                     </div>
                   ) : (
                     <div className="flex justify-between items-center">
-                      <span className="font-extrabold text-[10.5px] text-foreground/50 uppercase tracking-widest">Total</span>
-                      <span className="text-xl font-black text-foreground tracking-tight leading-none">₹{total.toLocaleString("en-IN")}</span>
+                      <span className="font-light text-[9.5px] text-foreground/45 uppercase tracking-widest">Total</span>
+                      <span className="text-lg font-medium text-foreground tracking-tight leading-none">₹{total.toLocaleString("en-IN")}</span>
                     </div>
                   )}
                 </div>
@@ -1337,12 +1357,12 @@ export default function CheckoutPage() {
                 <div className="apple-glass-capsule p-4 rounded-2xl flex items-center justify-between gap-3 mb-6">
                   <div className="flex items-center gap-2.5">
                     <Tag className="w-4.5 h-4.5 text-foreground/40" />
-                    <span className="text-[12px] font-bold text-foreground/80">Apply Discount</span>
+                    <span className="text-[11px] font-light text-foreground/75">Apply Discount</span>
                   </div>
                   
                   {couponValid ? (
                     <div className="flex items-center gap-2.5 py-1.5 px-3 rounded-full bg-foreground/[0.08] border border-foreground/10 animate-in scale-in duration-300">
-                      <span className="text-[10px] font-black text-foreground uppercase tracking-wider">{couponCode}</span>
+                      <span className="text-[9.5px] font-medium text-foreground uppercase tracking-wider">{couponCode}</span>
                       <button
                         type="button"
                         onClick={handleRemoveCoupon}
@@ -1359,7 +1379,7 @@ export default function CheckoutPage() {
                         aria-label="Discount Code"
                         value={couponCode}
                         onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                        className="w-full h-8 px-2.5 rounded-lg bg-foreground/[0.02] border border-foreground/5 text-foreground text-[11px] font-mono tracking-wider placeholder:text-foreground/20 uppercase focus:border-foreground/20 focus:outline-none transition-all"
+                        className="w-full h-8 px-2.5 rounded-lg bg-foreground/[0.02] border border-foreground/5 text-foreground text-[10px] font-mono tracking-wider placeholder:text-foreground/20 uppercase focus:border-foreground/20 focus:outline-none transition-all"
                       />
                       <button
                         type="button"
@@ -1378,7 +1398,7 @@ export default function CheckoutPage() {
                   <div className="flex flex-col gap-2 mb-6">
                     <div className="flex items-center gap-1.5 pl-1 mb-1 leading-none">
                       <Sparkles className="w-3.5 h-3.5 text-yellow-500 animate-pulse" />
-                      <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">Available Offers</span>
+                      <span className="text-[8px] font-light text-foreground/40 uppercase tracking-widest">Available Offers</span>
                     </div>
                     <div className="flex gap-2.5 overflow-x-auto pb-3 scrollbar-none snap-x snap-mandatory">
                       {activeCoupons.map((coupon) => {
