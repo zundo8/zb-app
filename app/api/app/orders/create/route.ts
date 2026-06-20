@@ -95,15 +95,19 @@ export async function POST(req: Request) {
       });
     }
 
+    const orderNumber = await allocateOrderNumber();
+
     // ─── Store Credit Redemption ───
     if (appliedStoreCredits > 0) {
-      if (customer.storeCredits < appliedStoreCredits) {
-        return jsonError('Insufficient store credits balance', 400);
+      try {
+        const { debitStoreCredits } = await import('@/lib/storeCreditsHelper');
+        await debitStoreCredits(customer.id, appliedStoreCredits, `#${orderNumber}`);
+      } catch (debitErr: any) {
+        return jsonError(debitErr.message, 400);
       }
     }
 
     const resolvedCustomerId = customer.id;
-    const orderNumber = await allocateOrderNumber();
     const now = new Date();
 
     const tags = [
@@ -225,23 +229,6 @@ export async function POST(req: Request) {
     if (existingOrder) {
       console.log(`[App API] Updating existing order ${existingOrder.id}...`);
       const updated = await prisma.$transaction(async (tx) => {
-        // 1. Deduct credits if not already deducted
-        if (appliedStoreCredits > 0) {
-          await tx.customer.update({
-            where: { id: customer!.id },
-            data: { storeCredits: { decrement: appliedStoreCredits } }
-          });
-          await tx.storeCredit.create({
-            data: {
-              customerId: customer!.id,
-              amount: -appliedStoreCredits,
-              type: 'DEBIT',
-              description: `Applied to order #${orderNumber}`,
-              orderId: existingOrder!.id
-            }
-          });
-        }
-
         // Also update or create corresponding MobileOrder record
         const mobileOrder = await tx.mobileOrder.findUnique({
           where: { orderNumber: orderNumber }
@@ -509,23 +496,6 @@ export async function POST(req: Request) {
           }
         }
       });
-
-      // 2. Deduct credits
-      if (appliedStoreCredits > 0) {
-        await tx.customer.update({
-          where: { id: customer!.id },
-          data: { storeCredits: { decrement: appliedStoreCredits } }
-        });
-        await tx.storeCredit.create({
-          data: {
-            customerId: customer!.id,
-            amount: -appliedStoreCredits,
-            type: 'DEBIT',
-            description: `Applied to order #${orderNumber}`,
-            orderId: order.id
-          }
-        });
-      }
 
       return order;
     });

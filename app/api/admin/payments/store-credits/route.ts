@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { voidAllExpiredCredits, voidExpiredCredits } from "@/lib/storeCreditsHelper";
 
 export async function GET(req: Request) {
   try {
@@ -10,12 +11,16 @@ export async function GET(req: Request) {
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
     if (customerId) {
+      await voidExpiredCredits(customerId);
       const history = await prisma.storeCredit.findMany({
         where: { customerId },
         orderBy: { createdAt: "desc" },
       });
       return NextResponse.json({ history });
     }
+
+    // Process expired credits for all customers
+    await voidAllExpiredCredits();
 
     const where: any = {};
     if (search) {
@@ -43,7 +48,27 @@ export async function GET(req: Request) {
 
     const total = await prisma.customer.count({ where });
 
-    return NextResponse.json({ customers, total });
+    // Calculate aggregated metrics for the overview panel
+    const aggregate = await prisma.customer.aggregate({
+      _sum: {
+        storeCredits: true,
+      },
+      _count: {
+        id: true,
+      },
+      where: {
+        storeCredits: {
+          gt: 0,
+        },
+      },
+    });
+
+    const overview = {
+      totalOutstanding: aggregate._sum.storeCredits || 0,
+      activeCustomers: aggregate._count.id || 0,
+    };
+
+    return NextResponse.json({ customers, total, overview });
   } catch (error: any) {
     console.error("Store Credit GET Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -33,8 +33,34 @@ export async function GET(req: Request) {
       ];
     }
 
-    // Fetch from both tables (fetching enough to combine and paginate)
-    const [payments, storeCredits] = await Promise.all([
+    // Build filter for Orders
+    const ordersWhere: any = {};
+    if (search) {
+      ordersWhere.OR = [
+        { id: { contains: search } },
+        { shopifyOrderId: { contains: search, mode: 'insensitive' } },
+        { customer: { name: { contains: search, mode: 'insensitive' } } },
+        { customer: { email: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    // Build filter for ReturnRequests
+    const returnRequestsWhere: any = {
+      status: "approved",
+      actualRefund: { not: null },
+    };
+    if (search) {
+      returnRequestsWhere.OR = [
+        { id: { contains: search } },
+        { reason: { contains: search, mode: 'insensitive' } },
+        { order: { shopifyOrderId: { contains: search, mode: 'insensitive' } } },
+        { order: { customer: { name: { contains: search, mode: 'insensitive' } } } },
+        { order: { customer: { email: { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
+
+    // Fetch from all four tables (fetching enough to combine and paginate)
+    const [payments, storeCredits, orders, returnRequests] = await Promise.all([
       prisma.payment.findMany({
         where: paymentsWhere,
         include: {
@@ -57,6 +83,32 @@ export async function GET(req: Request) {
         },
         orderBy: { createdAt: "desc" },
         take: limit + offset + 100,
+      }),
+      prisma.order.findMany({
+        where: ordersWhere,
+        include: {
+          customer: {
+            select: { name: true, email: true }
+          },
+          payments: true
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit + offset + 100,
+      }),
+      prisma.returnRequest.findMany({
+        where: returnRequestsWhere,
+        include: {
+          order: {
+            include: {
+              customer: {
+                select: { name: true, email: true }
+              }
+            }
+          },
+          returns: true
+        },
+        orderBy: { updatedAt: "desc" },
+        take: limit + offset + 100,
       })
     ]);
 
@@ -64,7 +116,7 @@ export async function GET(req: Request) {
     const formattedPayments = payments.map(p => ({
       id: p.id,
       source: 'payment',
-      type: p.type.toUpperCase(), // CAPTURE, REFUND, INITIAL, etc.
+      type: p.type.toUpperCase(), // CAPTURE, REFUND, etc.
       amount: p.amount,
       status: p.status.toUpperCase(),
       gateway: p.gateway || 'razorpay',
@@ -94,8 +146,54 @@ export async function GET(req: Request) {
       date: sc.createdAt,
     }));
 
+    // Format Return Requests (refunds to original method)
+    const formattedReturnRefunds = returnRequests
+      // Only include return requests that were refunded to original method (not store credit)
+      // to avoid duplication with store credit txns.
+      .filter(rr => rr.returns.some(r => r.refundMethod === 'original_method'))
+      .map(rr => ({
+        id: `ret_${rr.id}`,
+        source: 'refund',
+        type: 'REFUND',
+        amount: rr.actualRefund || rr.estimatedRefund,
+        status: 'SUCCESS',
+        gateway: rr.returns.find(r => r.refundMethod === 'original_method')?.refundMethod || 'gateway',
+        orderId: rr.order.shopifyOrderId,
+        customerId: rr.customerId,
+        customerName: rr.order.customer?.name || 'Unknown',
+        customerEmail: rr.order.customer?.email || '',
+        description: rr.reason || `Refund for return of order #${rr.order.shopifyOrderId}`,
+        date: rr.updatedAt,
+      }));
+
+    // Format Synced Orders (which do not have explicit Payment table logs)
+    const existingOrderIds = new Set(payments.map(p => p.orderId));
+    const formattedOrders = orders
+      .filter(o => !existingOrderIds.has(o.id) && o.payments.length === 0)
+      .map(o => ({
+        id: `ord_${o.id}`,
+        source: 'payment',
+        type: o.paymentStatus.toUpperCase() === 'REFUNDED' ? 'REFUND' : 'CAPTURE',
+        amount: o.totalPrice,
+        status: o.paymentStatus.toUpperCase() === 'PAID' ? 'SUCCESS' : o.paymentStatus.toUpperCase(),
+        gateway: o.paymentMethod || 'gateway',
+        orderId: o.shopifyOrderId,
+        customerId: o.customerId,
+        customerName: o.customer?.name || 'Guest',
+        customerEmail: o.customer?.email || '',
+        description: o.paymentStatus.toUpperCase() === 'REFUNDED'
+          ? `Refund for Order #${o.shopifyOrderId}`
+          : `Payment for Order #${o.shopifyOrderId}`,
+        date: o.createdAt,
+      }));
+
     // Combine and sort by date descending
-    let allTransactions = [...formattedPayments, ...formattedStoreCredits];
+    let allTransactions = [
+      ...formattedPayments, 
+      ...formattedStoreCredits, 
+      ...formattedReturnRefunds,
+      ...formattedOrders
+    ];
     allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Apply pagination offset & limit

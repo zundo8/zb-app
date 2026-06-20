@@ -62,8 +62,8 @@ export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  const fetchStats = async () => {
-    setLoading(true);
+  const fetchStats = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [ordersRes, productsRes, customersRes] = await Promise.all([
         fetch("/api/shopify/orders?limit=50"),
@@ -113,7 +113,7 @@ export default function DashboardOverview() {
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -191,6 +191,15 @@ export default function DashboardOverview() {
   useEffect(() => {
     fetchStats();
     fetchServiceSummary();
+  }, []);
+
+  useEffect(() => {
+    const handleSync = () => {
+      fetchStats(true);
+      fetchServiceSummary();
+    };
+    window.addEventListener("realtime-sync", handleSync);
+    return () => window.removeEventListener("realtime-sync", handleSync);
   }, []);
 
    if (loading) {
@@ -274,7 +283,7 @@ export default function DashboardOverview() {
         </div>
         <div className="flex items-center gap-2 lg:gap-3">
           <button
-            onClick={fetchStats}
+            onClick={() => fetchStats()}
             disabled={loading}
             className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 lg:px-5 py-2 lg:py-2.5 bg-background dark:bg-foreground/[0.03] border border-foreground/[0.08] rounded-xl text-[9px] lg:text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/60 hover:bg-foreground/[0.02] hover:text-foreground transition-all disabled:opacity-50 active:scale-95 shadow-sm"
           >

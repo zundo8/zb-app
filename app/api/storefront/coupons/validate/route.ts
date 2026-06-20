@@ -119,13 +119,31 @@ export async function POST(req: Request) {
       discount = Math.min(currentDiscountValue, subtotal);
     }
 
+    // Calculate cashback if enabled
+    let cashbackAmount = 0;
+    const isCashbackEnabled = !!coupon.cashbackEnabled;
+    if (isCashbackEnabled) {
+      const cbVal = Number(coupon.cashbackValue || 0);
+      if (coupon.cashbackType === "percentage") {
+        cashbackAmount = Math.round((subtotal * cbVal) / 100);
+      } else {
+        cashbackAmount = Math.min(cbVal, subtotal);
+      }
+    }
+
     // Format display message
     let displayMessage = "";
-    if (coupon.applyAsStoreCredit) {
+    if (isCashbackEnabled && !coupon.applyAsStoreCredit && discount > 0) {
+      // Double Discount
       displayMessage = currentDiscountType === "percentage"
-        ? `₹${discount.toLocaleString("en-IN")} Store Credit cashback will be added!`
-        : `₹${currentDiscountValue.toLocaleString("en-IN")} Store Credit cashback will be added!`;
+        ? `${currentDiscountValue}% instant off + ₹${cashbackAmount.toLocaleString("en-IN")} store credit cashback!`
+        : `₹${currentDiscountValue.toLocaleString("en-IN")} instant off + ₹${cashbackAmount.toLocaleString("en-IN")} store credit cashback!`;
+    } else if (coupon.applyAsStoreCredit || (isCashbackEnabled && discount === 0)) {
+      // Pure Cashback
+      const finalCashback = discount > 0 ? discount : cashbackAmount;
+      displayMessage = `₹${finalCashback.toLocaleString("en-IN")} Store Credit cashback will be added!`;
     } else {
+      // Pure Discount
       displayMessage = currentDiscountType === "percentage"
         ? `${currentDiscountValue}% off applied!`
         : `₹${currentDiscountValue.toLocaleString("en-IN")} off applied!`;
@@ -137,6 +155,10 @@ export async function POST(req: Request) {
       discountType: currentDiscountType,
       couponId: coupon.id,
       applyAsStoreCredit: coupon.applyAsStoreCredit,
+      cashbackEnabled: isCashbackEnabled,
+      cashbackType: coupon.cashbackType || "percentage",
+      cashbackValue: Number(coupon.cashbackValue || 0),
+      cashbackAmount: cashbackAmount,
       message: displayMessage,
     });
   } catch (error: any) {

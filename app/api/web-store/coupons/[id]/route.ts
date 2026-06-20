@@ -31,7 +31,10 @@ export async function PATCH(
       prepaidDiscountValue,
       codDiscountType,
       codDiscountValue,
-      applyAsStoreCredit
+      applyAsStoreCredit,
+      cashbackEnabled,
+      cashbackType,
+      cashbackValue
     } = body;
 
     const coupon = await prisma.webStoreCoupon.findUnique({
@@ -57,10 +60,34 @@ export async function PATCH(
     if (codDiscountType !== undefined) data.codDiscountType = codDiscountType;
     if (codDiscountValue !== undefined) data.codDiscountValue = parseFloat(codDiscountValue);
     if (applyAsStoreCredit !== undefined) data.applyAsStoreCredit = applyAsStoreCredit;
+    if (cashbackEnabled !== undefined) data.cashbackEnabled = !!cashbackEnabled;
+    if (cashbackType !== undefined) data.cashbackType = cashbackType;
+    if (cashbackValue !== undefined) data.cashbackValue = parseFloat(cashbackValue);
 
-    const updatedCoupon = await prisma.webStoreCoupon.update({
-      where: { id: params.id },
-      data,
+    const updatedCoupon = await prisma.$transaction(async (tx) => {
+      const uCoupon = await tx.webStoreCoupon.update({
+        where: { id: params.id },
+        data,
+      });
+
+      // Synchronize with Discount model
+      await tx.discount.updateMany({
+        where: { code: coupon.code },
+        data: {
+          code: uCoupon.code,
+          type: uCoupon.discountType,
+          value: Number(uCoupon.discountValue),
+          minOrderAmount: Number(uCoupon.minOrderValue),
+          endDate: uCoupon.validUntil,
+          usageLimit: uCoupon.usageLimit,
+          isActive: uCoupon.isActive,
+          cashbackEnabled: uCoupon.cashbackEnabled,
+          cashbackType: uCoupon.cashbackType,
+          cashbackValue: Number(uCoupon.cashbackValue),
+        },
+      });
+
+      return uCoupon;
     });
 
     return NextResponse.json({ success: true, coupon: updatedCoupon });
@@ -89,8 +116,16 @@ export async function DELETE(
       return NextResponse.json({ error: "Coupon not found" }, { status: 404 });
     }
 
-    await prisma.webStoreCoupon.delete({
-      where: { id: params.id },
+    await prisma.$transaction(async (tx) => {
+      // Delete matching discount by code
+      await tx.discount.deleteMany({
+        where: { code: coupon.code },
+      });
+
+      // Delete coupon
+      await tx.webStoreCoupon.delete({
+        where: { id: params.id },
+      });
     });
 
     return NextResponse.json({ success: true, message: "Coupon deleted successfully" });

@@ -34,6 +34,9 @@ export default function StoreCreditsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
+  const [overview, setOverview] = useState<{ totalOutstanding: number; activeCustomers: number } | null>(null);
+  const [filter, setFilter] = useState<"all" | "has_balance" | "no_balance">("all");
+  const [sortBy, setSortBy] = useState<"balance_desc" | "balance_asc" | "name_asc" | "name_desc">("balance_desc");
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -48,6 +51,7 @@ export default function StoreCreditsPage() {
         const data = await res.json();
         setCustomers(data.customers || []);
         setTotal(data.total || 0);
+        setOverview(data.overview || null);
       }
     } catch (err) {
       console.error(err);
@@ -55,6 +59,20 @@ export default function StoreCreditsPage() {
       setLoading(false);
     }
   }, []);
+
+  const filteredAndSortedCustomers = customers
+    .filter((c) => {
+      if (filter === "has_balance") return c.storeCredits > 0;
+      if (filter === "no_balance") return c.storeCredits === 0;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "balance_desc") return b.storeCredits - a.storeCredits;
+      if (sortBy === "balance_asc") return a.storeCredits - b.storeCredits;
+      if (sortBy === "name_asc") return (a.name || "").localeCompare(b.name || "");
+      if (sortBy === "name_desc") return (b.name || "").localeCompare(a.name || "");
+      return 0;
+    });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -138,18 +156,71 @@ export default function StoreCreditsPage() {
         </div>
       </div>
 
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="glass-card p-5 rounded-2xl border border-foreground/[0.05]">
+          <p className="text-[9px] font-bold text-foreground/40 uppercase tracking-[0.3em] mb-2">Total Outstanding Credits</p>
+          <p className="text-2xl font-bold tracking-tighter">₹{(overview?.totalOutstanding ?? 0).toLocaleString("en-IN")}</p>
+        </div>
+        <div className="glass-card p-5 rounded-2xl border border-foreground/[0.05]">
+          <p className="text-[9px] font-bold text-foreground/40 uppercase tracking-[0.3em] mb-2">Active Wallets (&gt; ₹0)</p>
+          <p className="text-2xl font-bold tracking-tighter">{overview?.activeCustomers ?? 0}</p>
+        </div>
+        <div className="glass-card p-5 rounded-2xl border border-foreground/[0.05]">
+          <p className="text-[9px] font-bold text-foreground/40 uppercase tracking-[0.3em] mb-2">Average Wallet Balance</p>
+          <p className="text-2xl font-bold tracking-tighter">
+            ₹{overview && overview.activeCustomers > 0 
+              ? Math.round(overview.totalOutstanding / overview.activeCustomers).toLocaleString("en-IN") 
+              : 0}
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Customer List */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/30" />
-            <input
-              type="text"
-              placeholder="Search by name, email or ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-background border border-foreground/[0.05] rounded-xl pl-10 pr-4 py-2.5 text-[11px] outline-none focus:border-foreground/10 transition-colors"
-            />
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/30" />
+              <input
+                type="text"
+                placeholder="Search by name, email or ID..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-background border border-foreground/[0.05] rounded-xl pl-10 pr-4 py-2.5 text-[11px] outline-none focus:border-foreground/10 transition-colors"
+              />
+            </div>
+            
+            <div className="flex items-center bg-background border border-foreground/[0.05] rounded-xl p-1 self-stretch shrink-0">
+              {[
+                { key: "all", label: "All" },
+                { key: "has_balance", label: "With Balance" },
+                { key: "no_balance", label: "No Balance" }
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setFilter(item.key as any)}
+                  className={`px-3 py-1.5 rounded-lg text-[9px] font-semibold uppercase tracking-widest transition-all whitespace-nowrap ${
+                    filter === item.key ? "bg-foreground text-background shadow-sm" : "text-foreground/40 hover:bg-foreground/5"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative group shrink-0">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-background border border-foreground/[0.05] hover:border-foreground/10 rounded-xl px-4 py-2 text-[9px] font-semibold uppercase tracking-widest text-foreground/40 hover:text-foreground/60 outline-none cursor-pointer transition-all"
+              >
+                <option value="balance_desc">Balance: High to Low</option>
+                <option value="balance_asc">Balance: Low to High</option>
+                <option value="name_asc">Name: A-Z</option>
+                <option value="name_desc">Name: Z-A</option>
+              </select>
+            </div>
           </div>
 
           <div className="bg-background border border-foreground/[0.05] rounded-xl overflow-hidden">
@@ -169,12 +240,12 @@ export default function StoreCreditsPage() {
                         <Loader2 className="w-5 h-5 animate-spin mx-auto text-foreground/20" />
                       </td>
                     </tr>
-                  ) : customers.length === 0 ? (
+                  ) : filteredAndSortedCustomers.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="px-5 py-12 text-center text-[10px] text-foreground/40 uppercase tracking-widest">No customers found</td>
                     </tr>
                   ) : (
-                    customers.map((c) => (
+                    filteredAndSortedCustomers.map((c) => (
                       <tr 
                         key={c.id} 
                         onClick={() => { setSelectedCustomer(c); fetchHistory(c.id); }}

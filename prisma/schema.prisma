@@ -574,43 +574,59 @@ model MfgFabricMovement {
 
 model MfgProductionBatch {
   id                   String                  @id @default(cuid())
-  batchCode            String                  @unique
-  productName          String
+  batchCode            String                  @unique @map("batch_code")
+  productName          String                  @map("product_name")
   quantity             Int
-  currentStage         String
-  washCostTotal        Float                   @default(0)
-  fabricId             String?
+  currentStage         String                  @map("current_stage")
+  washCostTotal        Float                   @default(0) @map("wash_cost_total")
+  fabricId             String?                 @map("fabric_id")
   notes                String?
-  estimatedCostPerUnit Float?
-  createdAt            DateTime                @default(now())
-  updatedAt            DateTime                @updatedAt
-  isCuttingDone        Boolean                 @default(false)
-  isEmbroideryDone     Boolean                 @default(false)
-  isPrintingDone       Boolean                 @default(false)
-  isSampleDone         Boolean                 @default(false)
-  isWashingDone        Boolean                 @default(false)
-  isStitchingDone      Boolean                 @default(false)
+  estimatedCostPerUnit Float?                  @map("estimated_cost_per_unit")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+  isCuttingDone        Boolean                 @default(false) @map("is_cutting_done")
+  isEmbroideryDone     Boolean                 @default(false) @map("is_embroidery_done")
+  isPrintingDone       Boolean                 @default(false) @map("is_printing_done")
+  isSampleDone         Boolean                 @default(false) @map("is_sample_done")
+  isWashingDone        Boolean                 @default(false) @map("is_washing_done")
+  isStitchingDone      Boolean                 @default(false) @map("is_stitching_done")
   batchNotes           MfgBatchNote[]
   movements            MfgFabricMovement[]
   miscExpenses         MfgMiscExpense[]
   fabric               MfgFabric?              @relation(fields: [fabricId], references: [id])
   stageLogs            MfgProductionStageLog[]
   tasks                MfgTask[]
+  workdriveFolderId    String?                 @map("workdrive_folder_id")
+  workdriveFolderName  String?                 @map("workdrive_folder_name")
+  workdriveUrl         String?                 @map("workdrive_url")
+
+  @@map("manufacturing_batches")
 }
 
 model MfgTask {
-  id            String              @id @default(cuid())
-  title         String
-  description   String?
-  status        String              @default("PENDING")
-  priority      String              @default("MEDIUM")
-  dueDate       DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  createdByName String              @default("Admin")
-  batchId       String?
-  batch         MfgProductionBatch? @relation(fields: [batchId], references: [id])
+  id                String              @id @default(cuid())
+  title             String
+  description       String?
+  status            String              @default("PENDING")
+  priority          String              @default("MEDIUM")
+  dueDate           DateTime?           @map("due_date")
+  completedAt       DateTime?           @map("completed_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  createdByName     String              @default("Admin") @map("created_by_name")
+  batchId           String?             @map("batch_id")
+  batch             MfgProductionBatch? @relation(fields: [batchId], references: [id])
+  type              String              @default("MANUAL")
+  assignedToId      String?             @map("assigned_to_id")
+  assignedTo        User?               @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  workdriveUrl      String?             @map("workdrive_url")
+  workdriveFolderId String?             @map("workdrive_folder_id")
+  workdriveFolderName String?           @map("workdrive_folder_name")
+  approvalStatus    String?             @map("approval_status")
+  designName        String?             @map("design_name")
+  designImage       String?             @map("design_image")
+
+  @@map("pending_tasks")
 }
 
 model MfgProductionStageLog {
@@ -676,16 +692,40 @@ model MfgVendor {
   updatedAt DateTime @updatedAt
 }
 
+model MfgDesignTask {
+  id                  String    @id @default(cuid())
+  title               String
+  description         String?
+  orderId             String?   @map("order_id")
+  status              String    @default("draft")
+  workdriveFolderId   String?   @map("workdrive_folder_id")
+  workdriveFolderName String?   @map("workdrive_folder_name")
+  approvedFileId      String?   @map("approved_file_id")
+  approvedById        String?   @map("approved_by")
+  approvedBy          User?     @relation("DesignApprover", fields: [approvedById], references: [id])
+  approvedAt          DateTime? @map("approved_at")
+  createdById         String?   @map("created_by")
+  createdBy           User?     @relation("DesignCreator", fields: [createdById], references: [id])
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([orderId])
+  @@map("design_tasks")
+}
+
 model StoreCredit {
-  id          String   @id @default(cuid())
-  customerId  String
-  amount      Float
-  type        String
-  description String
-  orderId     String?
-  returnId    String?
-  createdAt   DateTime @default(now())
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id              String    @id @default(cuid())
+  customerId      String
+  amount          Float
+  type            String
+  description     String
+  orderId         String?
+  returnId        String?
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime?
+  remainingAmount Float     @default(0)
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, createdAt])
 }
@@ -837,20 +877,23 @@ model CampaignAnalyticsEvent {
 }
 
 model Discount {
-  id             String    @id @default(cuid())
-  code           String    @unique
-  type           String    @default("percentage")
-  value          Float
-  minOrderAmount Float     @default(0)
-  maxDiscount    Float?
-  startDate      DateTime  @default(now())
-  endDate        DateTime?
-  usageLimit     Int?
-  usageCount     Int       @default(0)
-  isActive       Boolean   @default(true)
-  description    String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  code            String    @unique
+  type            String    @default("percentage")
+  value           Float
+  minOrderAmount  Float     @default(0)
+  maxDiscount     Float?
+  startDate       DateTime  @default(now())
+  endDate         DateTime?
+  usageLimit      Int?
+  usageCount      Int       @default(0)
+  isActive        Boolean   @default(true)
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  cashbackEnabled Boolean   @default(false)
+  cashbackType    String    @default("percentage")
+  cashbackValue   Float     @default(0)
 
   @@index([code])
   @@index([isActive])
@@ -1023,6 +1066,9 @@ model User {
   permissions         Permission[]
   creator             User?        @relation("UserCreator", fields: [createdBy], references: [id])
   createdUsers        User[]       @relation("UserCreator")
+  assignedMfgTasks         MfgTask[]        @relation("TaskAssignee")
+  designTasksApproved      MfgDesignTask[]  @relation("DesignApprover")
+  designTasksCreated       MfgDesignTask[]  @relation("DesignCreator")
 }
 
 model Permission {
@@ -1277,6 +1323,9 @@ model WebStoreCoupon {
   codDiscountType      String    @default("percentage") @map("cod_discount_type")
   codDiscountValue     Decimal   @default(0) @map("cod_discount_value") @db.Decimal(10, 2)
   applyAsStoreCredit   Boolean   @default(false) @map("apply_as_store_credit")
+  cashbackEnabled      Boolean   @default(false) @map("cashback_enabled")
+  cashbackType         String    @default("percentage") @map("cashback_type")
+  cashbackValue        Decimal   @default(0) @map("cashback_value") @db.Decimal(10, 2)
 
   @@map("web_store_coupons")
 }

@@ -37,6 +37,9 @@ interface Coupon {
   codDiscountType: string;
   codDiscountValue: number;
   applyAsStoreCredit: boolean;
+  cashbackEnabled?: boolean;
+  cashbackType?: string;
+  cashbackValue?: number;
 }
 
 export default function WebStoreCouponsList() {
@@ -62,6 +65,13 @@ export default function WebStoreCouponsList() {
   const [codDiscountType, setCodDiscountType] = useState("percentage");
   const [codDiscountValue, setCodDiscountValue] = useState("");
   const [applyAsStoreCredit, setApplyAsStoreCredit] = useState(false);
+  
+  // Cashback options
+  const [cashbackEnabled, setCashbackEnabled] = useState(false);
+  const [cashbackType, setCashbackType] = useState("percentage");
+  const [cashbackValue, setCashbackValue] = useState("");
+
+  const [filterType, setFilterType] = useState("all");
   
   const [submitLoading, setSubmitLoading] = useState(false);
 
@@ -99,6 +109,9 @@ export default function WebStoreCouponsList() {
     setCodDiscountType("percentage");
     setCodDiscountValue("");
     setApplyAsStoreCredit(false);
+    setCashbackEnabled(false);
+    setCashbackType("percentage");
+    setCashbackValue("");
     setIsModalOpen(true);
   };
 
@@ -126,6 +139,9 @@ export default function WebStoreCouponsList() {
     setCodDiscountType(coupon.codDiscountType || "percentage");
     setCodDiscountValue(String(coupon.codDiscountValue || 0));
     setApplyAsStoreCredit(!!coupon.applyAsStoreCredit);
+    setCashbackEnabled(!!coupon.cashbackEnabled);
+    setCashbackType(coupon.cashbackType || "percentage");
+    setCashbackValue(coupon.cashbackValue ? String(coupon.cashbackValue) : "");
     setIsModalOpen(true);
   };
 
@@ -213,6 +229,9 @@ export default function WebStoreCouponsList() {
           codDiscountType: codDiscountType || "percentage",
           codDiscountValue: (applicability === "COD_ONLY" || applicability === "CUSTOM_RATES") ? codDiscountValue : "0",
           applyAsStoreCredit,
+          cashbackEnabled,
+          cashbackType,
+          cashbackValue: cashbackEnabled ? cashbackValue : "0",
         }),
       });
 
@@ -249,6 +268,16 @@ export default function WebStoreCouponsList() {
     });
   };
 
+  const filteredCoupons = coupons.filter((coupon) => {
+    if (filterType === "cashback") {
+      return !!coupon.cashbackEnabled;
+    }
+    if (filterType === "double") {
+      return !!coupon.cashbackEnabled && Number(coupon.discountValue || 0) > 0;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-8">
       {/* Page Title */}
@@ -268,6 +297,20 @@ export default function WebStoreCouponsList() {
         >
           <Plus className="w-4 h-4" /> Create Coupon
         </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex justify-end gap-2 items-center text-xs">
+        <span className="text-foreground/45 font-bold uppercase tracking-wider text-[10px]">Filter Type:</span>
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          className="bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2 text-xs font-bold text-foreground focus:outline-none appearance-none cursor-pointer"
+        >
+          <option value="all" className="bg-[#0e0e0e] text-foreground">All Coupons</option>
+          <option value="cashback" className="bg-[#0e0e0e] text-foreground">Cashback Only</option>
+          <option value="double" className="bg-[#0e0e0e] text-foreground">Double Discounts</option>
+        </select>
       </div>
 
       {/* Coupons grid list */}
@@ -304,7 +347,7 @@ export default function WebStoreCouponsList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-foreground/5">
-                {coupons.map((coupon) => (
+                {filteredCoupons.map((coupon) => (
                   <tr
                     key={coupon.id}
                     className={`group hover:bg-foreground/[0.01] transition-colors ${!coupon.isActive ? "opacity-60" : ""}`}
@@ -366,6 +409,14 @@ export default function WebStoreCouponsList() {
                           )}
                           {coupon.applyAsStoreCredit && (
                             <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wide">Store Credit Reward</span>
+                          )}
+                          {coupon.cashbackEnabled && (
+                            <span className="text-[9px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wide">
+                              Cashback: {coupon.cashbackValue}{coupon.cashbackType === "percentage" ? "%" : "₹"}
+                            </span>
+                          )}
+                          {coupon.cashbackEnabled && Number(coupon.discountValue || 0) > 0 && (
+                            <span className="text-[9px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wide">Double Discount</span>
                           )}
                         </div>
                       </div>
@@ -632,6 +683,54 @@ export default function WebStoreCouponsList() {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Cashback Settings */}
+                <div className="p-4 rounded-2xl bg-amber-500/[0.02] border border-amber-500/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[12px] font-bold text-foreground">Enable Store Credits Cashback</span>
+                      <p className="text-[10px] text-foreground/40 mt-1">
+                        Optionally reward customers with store credit cashback (90-day expiry).
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={cashbackEnabled}
+                      onChange={(e) => setCashbackEnabled(e.target.checked)}
+                      className="rounded text-amber-500 bg-transparent border-foreground/20 focus:ring-0 focus:ring-offset-0 w-5 h-5 cursor-pointer"
+                    />
+                  </div>
+
+                  {cashbackEnabled && (
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-1.5">
+                        <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">Cashback Type</label>
+                        <select
+                          value={cashbackType}
+                          onChange={(e) => setCashbackType(e.target.value)}
+                          className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                        >
+                          <option value="percentage" className="bg-[#0e0e0e]">Percentage (%)</option>
+                          <option value="fixed" className="bg-[#0e0e0e]">Fixed Amount (₹)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">
+                          Cashback Value {cashbackType === "percentage" ? "(%)" : "(₹)"}
+                        </label>
+                        <input
+                          type="number"
+                          placeholder={cashbackType === "percentage" ? "e.g. 10" : "e.g. 200"}
+                          value={cashbackValue}
+                          onChange={(e) => setCashbackValue(e.target.value)}
+                          className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
+                          required={cashbackEnabled}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Reward as Store Credit Toggle */}

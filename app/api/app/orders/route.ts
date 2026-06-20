@@ -474,30 +474,16 @@ export async function POST(req: Request) {
     // 1. Handle Store Credits if applied
     let creditReduction = 0;
     if (appliedStoreCredits > 0) {
-      if ((customer.storeCredits || 0) < appliedStoreCredits) {
+      try {
+        const { debitStoreCredits } = await import('@/lib/storeCreditsHelper');
+        await debitStoreCredits(resolvedCustomerId, appliedStoreCredits, `mobile_purchase`);
+        creditReduction = appliedStoreCredits;
+      } catch (debitErr: any) {
         return NextResponse.json(
-          { success: false, error: 'Insufficient store credits' },
+          { success: false, error: debitErr.message },
           { status: 400, headers: corsHeaders }
         );
       }
-
-      creditReduction = appliedStoreCredits;
-
-      // Create transaction
-      await prisma.storeCredit.create({
-        data: {
-          customerId: resolvedCustomerId,
-          amount: -creditReduction,
-          type: 'DEBIT',
-          description: `Order Purchase - ${payment_method.toUpperCase()}`,
-        }
-      });
-
-      // Update customer balance
-      await prisma.customer.update({
-        where: { id: resolvedCustomerId },
-        data: { storeCredits: { decrement: creditReduction } }
-      });
     }
 
     // 2. Create order in Shopify

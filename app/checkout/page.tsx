@@ -323,12 +323,23 @@ export default function CheckoutPage() {
       if (data.valid) {
         setCouponValid(true);
         setApplyAsStoreCredit(!!data.applyAsStoreCredit);
-        if (data.applyAsStoreCredit) {
-          setCouponDiscount(0);
-          setCashbackAmount(data.discount);
+        
+        // Handle double discounts: check if cashback is enabled
+        if (data.cashbackEnabled && data.cashbackAmount > 0) {
+          setCashbackAmount(data.cashbackAmount);
+          if (data.applyAsStoreCredit) {
+            setCouponDiscount(0);
+          } else {
+            setCouponDiscount(data.discount);
+          }
         } else {
-          setCouponDiscount(data.discount);
-          setCashbackAmount(0);
+          if (data.applyAsStoreCredit) {
+            setCouponDiscount(0);
+            setCashbackAmount(data.discount);
+          } else {
+            setCouponDiscount(data.discount);
+            setCashbackAmount(0);
+          }
         }
       } else {
         setCouponDiscount(0);
@@ -384,15 +395,48 @@ export default function CheckoutPage() {
     
     // check minimum order value
     if (subtotalAmount < Number(coupon.minOrderValue || 0)) {
-      return { discount: 0, eligible: false, message: "Min order amount not met", type: "", value: 0, applyAsStoreCredit: false };
+      return { 
+        discount: 0, 
+        eligible: false, 
+        message: "Min order amount not met", 
+        type: "", 
+        value: 0, 
+        applyAsStoreCredit: false,
+        cashbackEnabled: false,
+        cashbackType: "percentage",
+        cashbackValue: 0,
+        cashbackAmount: 0
+      };
     }
     
     // check payment method applicability
     if (coupon.applicability === "PREPAID_ONLY" && isCOD) {
-      return { discount: 0, eligible: false, message: "Only valid for prepaid orders", type: "", value: 0, applyAsStoreCredit: false };
+      return { 
+        discount: 0, 
+        eligible: false, 
+        message: "Only valid for prepaid orders", 
+        type: "", 
+        value: 0, 
+        applyAsStoreCredit: false,
+        cashbackEnabled: false,
+        cashbackType: "percentage",
+        cashbackValue: 0,
+        cashbackAmount: 0
+      };
     }
     if (coupon.applicability === "COD_ONLY" && !isCOD) {
-      return { discount: 0, eligible: false, message: "Only valid for COD orders", type: "", value: 0, applyAsStoreCredit: false };
+      return { 
+        discount: 0, 
+        eligible: false, 
+        message: "Only valid for COD orders", 
+        type: "", 
+        value: 0, 
+        applyAsStoreCredit: false,
+        cashbackEnabled: false,
+        cashbackType: "percentage",
+        cashbackValue: 0,
+        cashbackAmount: 0
+      };
     }
     
     let currentDiscountType = coupon.discountType;
@@ -413,12 +457,28 @@ export default function CheckoutPage() {
       calculatedDiscount = Math.min(currentDiscountValue, subtotalAmount);
     }
 
+    // Calculate cashback if enabled
+    let cashbackAmount = 0;
+    const isCashbackEnabled = !!coupon.cashbackEnabled;
+    if (isCashbackEnabled) {
+      const cbVal = Number(coupon.cashbackValue || 0);
+      if (coupon.cashbackType === "percentage") {
+        cashbackAmount = Math.round((subtotalAmount * cbVal) / 100);
+      } else {
+        cashbackAmount = Math.min(cbVal, subtotalAmount);
+      }
+    }
+
     return { 
       discount: calculatedDiscount, 
       eligible: true, 
       type: currentDiscountType,
       value: currentDiscountValue,
-      applyAsStoreCredit: !!coupon.applyAsStoreCredit
+      applyAsStoreCredit: !!coupon.applyAsStoreCredit,
+      cashbackEnabled: isCashbackEnabled,
+      cashbackType: coupon.cashbackType || "percentage",
+      cashbackValue: Number(coupon.cashbackValue || 0),
+      cashbackAmount
     };
   }, []);
 
@@ -431,15 +491,15 @@ export default function CheckoutPage() {
         coupon,
         calc: calculateCouponDiscount(coupon, subtotal, paymentMethod)
       }))
-      .filter(item => item.calc.eligible && item.calc.discount > 0)
+      .filter(item => item.calc.eligible && (item.calc.discount > 0 || item.calc.cashbackAmount > 0))
       .sort((a, b) => {
         const immediateA = a.calc.applyAsStoreCredit ? 0 : a.calc.discount;
         const immediateB = b.calc.applyAsStoreCredit ? 0 : b.calc.discount;
         if (immediateA !== immediateB) {
           return immediateB - immediateA;
         }
-        const cashbackA = a.calc.applyAsStoreCredit ? a.calc.discount : 0;
-        const cashbackB = b.calc.applyAsStoreCredit ? b.calc.discount : 0;
+        const cashbackA = a.calc.applyAsStoreCredit ? a.calc.discount : a.calc.cashbackAmount;
+        const cashbackB = b.calc.applyAsStoreCredit ? b.calc.discount : b.calc.cashbackAmount;
         return cashbackB - cashbackA;
       });
 
@@ -448,19 +508,37 @@ export default function CheckoutPage() {
       setCouponCode(best.coupon.code);
       setCouponValid(true);
       setApplyAsStoreCredit(best.coupon.applyAsStoreCredit);
-      if (best.coupon.applyAsStoreCredit) {
-        setCouponDiscount(0);
-        setCashbackAmount(best.calc.discount);
+      
+      if (best.calc.cashbackEnabled && best.calc.cashbackAmount > 0) {
+        setCashbackAmount(best.calc.cashbackAmount);
+        if (best.coupon.applyAsStoreCredit) {
+          setCouponDiscount(0);
+        } else {
+          setCouponDiscount(best.calc.discount);
+        }
       } else {
-        setCouponDiscount(best.calc.discount);
-        setCashbackAmount(0);
+        if (best.coupon.applyAsStoreCredit) {
+          setCouponDiscount(0);
+          setCashbackAmount(best.calc.discount);
+        } else {
+          setCouponDiscount(best.calc.discount);
+          setCashbackAmount(0);
+        }
       }
       
-      const displayMessage = best.coupon.applyAsStoreCredit
-        ? `₹${best.calc.discount.toLocaleString("en-IN")} Store Credit cashback will be added!`
-        : best.calc.type === "percentage"
+      let displayMessage = "";
+      if (best.calc.cashbackEnabled && !best.coupon.applyAsStoreCredit && best.calc.discount > 0) {
+        displayMessage = best.calc.type === "percentage"
+          ? `${best.calc.value}% instant off + ₹${best.calc.cashbackAmount.toLocaleString("en-IN")} store credit cashback!`
+          : `₹${best.calc.value.toLocaleString("en-IN")} instant off + ₹${best.calc.cashbackAmount.toLocaleString("en-IN")} store credit cashback!`;
+      } else if (best.coupon.applyAsStoreCredit || (best.calc.cashbackEnabled && best.calc.discount === 0)) {
+        const finalCashback = best.calc.discount > 0 ? best.calc.discount : best.calc.cashbackAmount;
+        displayMessage = `₹${finalCashback.toLocaleString("en-IN")} Store Credit cashback will be added!`;
+      } else {
+        displayMessage = best.calc.type === "percentage"
           ? `${best.calc.value}% off applied automatically!`
           : `₹${best.calc.value.toLocaleString("en-IN")} off applied automatically!`;
+      }
       setCouponMessage(displayMessage);
     } else {
       setCouponCode("");
@@ -1210,7 +1288,7 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  {applyAsStoreCredit && cashbackAmount > 0 && (
+                  {cashbackAmount > 0 && (
                     <div className="flex justify-between items-center text-[10.5px] font-extrabold uppercase tracking-wider">
                       <span className="text-emerald-400">Cashback ({couponCode})</span>
                       <span className="text-emerald-400">+ ₹{cashbackAmount.toLocaleString("en-IN")}</span>

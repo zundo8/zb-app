@@ -26,27 +26,38 @@ export default function DiscountsPage() {
     endDate: "",
     usageLimit: "",
     isActive: true,
-    description: ""
+    description: "",
+    cashbackEnabled: false,
+    cashbackType: "percentage",
+    cashbackValue: ""
   });
 
   useEffect(() => {
     fetchDiscounts();
   }, []);
 
-  const fetchDiscounts = async () => {
+  const fetchDiscounts = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await fetch("/api/discounts");
       const data = await res.json();
       if (data.success) {
         setDiscounts(data.discounts);
       }
     } catch (err) {
-      toast.error("Failed to load discounts");
+      if (!silent) toast.error("Failed to load discounts");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handleSync = () => {
+      fetchDiscounts(true);
+    };
+    window.addEventListener("realtime-sync", handleSync);
+    return () => window.removeEventListener("realtime-sync", handleSync);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +80,10 @@ export default function DiscountsPage() {
           endDate: "",
           usageLimit: "",
           isActive: true,
-          description: ""
+          description: "",
+          cashbackEnabled: false,
+          cashbackType: "percentage",
+          cashbackValue: ""
         });
         fetchDiscounts();
       } else {
@@ -94,10 +108,17 @@ export default function DiscountsPage() {
     }
   };
 
-  const filteredDiscounts = discounts.filter(d => 
-    d.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [filterType, setFilterType] = useState("all");
+
+  const filteredDiscounts = discounts.filter(d => {
+    const matchesSearch = d.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    if (filterType === "cashback") return d.cashbackEnabled;
+    if (filterType === "double") return d.cashbackEnabled && Number(d.value) > 0;
+    return true;
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-10 pb-20 px-4">
@@ -149,7 +170,16 @@ export default function DiscountsPage() {
             className="flex-1 bg-transparent border-none outline-none text-sm font-medium placeholder:text-foreground/20"
           />
           <div className="h-8 w-px bg-foreground/5" />
-          <Filter className="w-5 h-5 text-foreground/20 mr-2" />
+          <Filter className="w-5 h-5 text-foreground/20" />
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="bg-transparent border-none outline-none text-[10px] font-bold uppercase tracking-wider text-foreground/60 cursor-pointer pr-4"
+          >
+            <option value="all" className="bg-[#0e0e0e] text-foreground">All Codes</option>
+            <option value="cashback" className="bg-[#0e0e0e] text-foreground">Cashback Only</option>
+            <option value="double" className="bg-[#0e0e0e] text-foreground">Double Discounts</option>
+          </select>
         </div>
       </div>
 
@@ -203,13 +233,30 @@ export default function DiscountsPage() {
                     </td>
                     <td className="px-8 py-8">
                       <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center gap-2">
-                          {discount.type === 'percentage' ? <Percent className="w-3 h-3 text-emerald-500" /> : <Banknote className="w-3 h-3 text-emerald-500" />}
-                          <span className="text-[14px] font-black">
-                            {discount.type === 'percentage' ? `${discount.value}%` : `₹${discount.value}`}
-                          </span>
-                          <span className="text-[9px] font-bold text-foreground/30 uppercase tracking-tighter">Off</span>
-                        </div>
+                        {discount.value > 0 && (
+                          <div className="flex items-center gap-2">
+                            {discount.type === 'percentage' ? <Percent className="w-3 h-3 text-emerald-500" /> : <Banknote className="w-3 h-3 text-emerald-500" />}
+                            <span className="text-[14px] font-black">
+                              {discount.type === 'percentage' ? `${discount.value}%` : `₹${discount.value}`}
+                            </span>
+                            <span className="text-[9px] font-bold text-foreground/30 uppercase tracking-tighter">Off</span>
+                          </div>
+                        )}
+                        {discount.cashbackEnabled && (
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-3 h-3 text-amber-500 fill-amber-500 animate-pulse" />
+                            <span className="text-[12px] font-black text-amber-500">
+                              {discount.cashbackType === 'percentage' ? `${discount.cashbackValue}%` : `₹${discount.cashbackValue}`}
+                            </span>
+                            <span className="text-[8px] font-bold text-amber-500/60 uppercase tracking-wider">Cashback</span>
+                            {discount.value > 0 && (
+                              <span className="text-[8px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">Double</span>
+                            )}
+                          </div>
+                        )}
+                        {discount.value === 0 && !discount.cashbackEnabled && (
+                          <span className="text-[11px] font-bold text-foreground/30">Free Tier</span>
+                        )}
                         <span className="text-[10px] font-bold text-foreground/30 uppercase">Min Order: ₹{discount.minOrderAmount}</span>
                       </div>
                     </td>
@@ -368,6 +415,55 @@ export default function DiscountsPage() {
                         className="w-full bg-foreground/[0.03] border border-foreground/[0.05] rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-foreground/20"
                       />
                     </div>
+                  </div>
+
+                  {/* Cashback settings */}
+                  <div className="p-6 rounded-[2rem] bg-foreground/[0.02] border border-foreground/[0.05] space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <span className="text-[12px] font-bold text-foreground">Store Credit Cashback Reward</span>
+                        <p className="text-[10px] text-foreground/40 font-medium">Issue store credits cashback upon successful order checkout (valid for 90 days).</p>
+                      </div>
+                      <input 
+                        type="checkbox"
+                        checked={formData.cashbackEnabled}
+                        onChange={(e) => setFormData({...formData, cashbackEnabled: e.target.checked})}
+                        className="w-5 h-5 rounded border-foreground/10 text-emerald-500 bg-transparent focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                      />
+                    </div>
+
+                    {formData.cashbackEnabled && (
+                      <div className="grid grid-cols-2 gap-6 pt-2">
+                        <div className="space-y-3">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-foreground/40 ml-1">Cashback Type</label>
+                          <div className="flex bg-foreground/[0.03] p-1 rounded-2xl border border-foreground/[0.05]">
+                            <button 
+                              type="button"
+                              onClick={() => setFormData({...formData, cashbackType: 'percentage'})}
+                              className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${formData.cashbackType === 'percentage' ? 'bg-foreground text-background shadow-lg' : 'opacity-40'}`}
+                            >Percentage</button>
+                            <button 
+                              type="button"
+                              onClick={() => setFormData({...formData, cashbackType: 'fixed'})}
+                              className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${formData.cashbackType === 'fixed' ? 'bg-foreground text-background shadow-lg' : 'opacity-40'}`}
+                            >Fixed</button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-foreground/40 ml-1">
+                            Cashback Value ({formData.cashbackType === 'percentage' ? '%' : '₹'})
+                          </label>
+                          <input 
+                            required={formData.cashbackEnabled}
+                            type="number"
+                            value={formData.cashbackValue}
+                            onChange={(e) => setFormData({...formData, cashbackValue: e.target.value})}
+                            className="w-full bg-foreground/[0.03] border border-foreground/[0.05] rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-foreground/20"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">

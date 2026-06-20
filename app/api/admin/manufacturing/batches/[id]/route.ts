@@ -22,3 +22,26 @@ export async function GET(
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+
+export async function PATCH(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctx.params;
+    const body = await req.json();
+    const { workdriveFolderId, workdriveUrl } = body;
+
+    const updated = await prisma.mfgProductionBatch.update({
+      where: { id },
+      data: {
+        ...(workdriveFolderId !== undefined ? { workdriveFolderId } : {}),
+        ...(workdriveUrl !== undefined ? { workdriveUrl } : {}),
+      },
+    });
+
+    return NextResponse.json({ success: true, batch: updated });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}

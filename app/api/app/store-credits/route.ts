@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { getAppAuthFromRequest, resolveAuthCustomer } from '@/lib/appAuth';
+import { voidExpiredCredits, debitStoreCredits } from '@/lib/storeCreditsHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 
+    // Run expiration cleanup first
+    await voidExpiredCredits(customerId);
+
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
       select: { id: true, storeCredits: true, storeCreditPreference: true },
@@ -66,6 +70,7 @@ export async function GET(req: Request) {
           orderId: t.orderId,
           returnId: t.returnId,
           createdAt: t.createdAt,
+          expiresAt: t.expiresAt,
         })),
       },
       { headers: corsHeaders }
@@ -136,37 +141,26 @@ export async function POST(req: Request) {
           { status: 400, headers: corsHeaders }
         );
       }
-      if (amount > customer.storeCredits) {
+
+      try {
+        await debitStoreCredits(customer.id, amount, orderId);
+        const updatedCustomer = await prisma.customer.findUnique({
+          where: { id: customer.id },
+          select: { storeCredits: true }
+        });
         return NextResponse.json(
-          { error: 'Insufficient store credits', balance: customer.storeCredits },
+          {
+            success: true,
+            newBalance: updatedCustomer?.storeCredits || 0,
+          },
+          { headers: corsHeaders }
+        );
+      } catch (debitErr: any) {
+        return NextResponse.json(
+          { error: debitErr.message, balance: customer.storeCredits },
           { status: 400, headers: corsHeaders }
         );
       }
-
-      // Debit the credits and record the transaction
-      await prisma.$transaction([
-        prisma.customer.update({
-          where: { id: customer.id },
-          data: { storeCredits: { decrement: amount } },
-        }),
-        prisma.storeCredit.create({
-          data: {
-            customerId: customer.id,
-            amount: -amount, // Record as negative for debit
-            type: 'DEBIT',
-            description: `Applied to order ${orderId || 'checkout'}`,
-            orderId: orderId || null,
-          },
-        }),
-      ]);
-
-      return NextResponse.json(
-        {
-          success: true,
-          newBalance: customer.storeCredits - amount,
-        },
-        { headers: corsHeaders }
-      );
     }
 
     return NextResponse.json(

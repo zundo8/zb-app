@@ -49,7 +49,10 @@ export async function POST(request: Request) {
       prepaidDiscountValue,
       codDiscountType,
       codDiscountValue,
-      applyAsStoreCredit
+      applyAsStoreCredit,
+      cashbackEnabled,
+      cashbackType,
+      cashbackValue
     } = body;
 
     if (!code || !discountType || !discountValue || !validFrom || !validUntil) {
@@ -67,24 +70,53 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Coupon code already exists" }, { status: 400 });
     }
 
-    const newCoupon = await prisma.webStoreCoupon.create({
-      data: {
-        code: formattedCode,
-        discountType,
-        discountValue: parseFloat(discountValue),
-        minOrderValue: parseFloat(minOrderValue || 0),
-        usageLimit: usageLimit ? parseInt(usageLimit) : null,
-        usedCount: 0,
-        validFrom: new Date(validFrom),
-        validUntil: new Date(validUntil),
-        isActive: isActive !== undefined ? isActive : true,
-        applicability: applicability || "ALL",
-        prepaidDiscountType: prepaidDiscountType || "percentage",
-        prepaidDiscountValue: parseFloat(prepaidDiscountValue || 0),
-        codDiscountType: codDiscountType || "percentage",
-        codDiscountValue: parseFloat(codDiscountValue || 0),
-        applyAsStoreCredit: applyAsStoreCredit !== undefined ? applyAsStoreCredit : false,
-      },
+    const newCoupon = await prisma.$transaction(async (tx) => {
+      // 1. Create WebStoreCoupon
+      const coupon = await tx.webStoreCoupon.create({
+        data: {
+          code: formattedCode,
+          discountType,
+          discountValue: parseFloat(discountValue),
+          minOrderValue: parseFloat(minOrderValue || 0),
+          usageLimit: usageLimit ? parseInt(usageLimit) : null,
+          usedCount: 0,
+          validFrom: new Date(validFrom),
+          validUntil: new Date(validUntil),
+          isActive: isActive !== undefined ? isActive : true,
+          applicability: applicability || "ALL",
+          prepaidDiscountType: prepaidDiscountType || "percentage",
+          prepaidDiscountValue: parseFloat(prepaidDiscountValue || 0),
+          codDiscountType: codDiscountType || "percentage",
+          codDiscountValue: parseFloat(codDiscountValue || 0),
+          applyAsStoreCredit: applyAsStoreCredit !== undefined ? applyAsStoreCredit : false,
+          cashbackEnabled: cashbackEnabled !== undefined ? !!cashbackEnabled : false,
+          cashbackType: cashbackType || "percentage",
+          cashbackValue: cashbackValue ? parseFloat(cashbackValue) : 0,
+        },
+      });
+
+      // 2. Synchronize with Discount
+      const existingDiscount = await tx.discount.findUnique({
+        where: { code: formattedCode }
+      });
+      if (!existingDiscount) {
+        await tx.discount.create({
+          data: {
+            code: formattedCode,
+            type: discountType,
+            value: parseFloat(discountValue),
+            minOrderAmount: parseFloat(minOrderValue || 0),
+            endDate: new Date(validUntil),
+            usageLimit: usageLimit ? parseInt(usageLimit) : null,
+            isActive: isActive !== undefined ? isActive : true,
+            cashbackEnabled: cashbackEnabled !== undefined ? !!cashbackEnabled : false,
+            cashbackType: cashbackType || "percentage",
+            cashbackValue: cashbackValue ? parseFloat(cashbackValue) : 0,
+          }
+        });
+      }
+
+      return coupon;
     });
 
     return NextResponse.json({ success: true, coupon: newCoupon });

@@ -56,6 +56,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404, headers: corsHeaders });
     }
 
+    // Clean up expired store credits
+    const { voidExpiredCredits } = await import('@/lib/storeCreditsHelper');
+    await voidExpiredCredits(customer.id);
+
+    const freshCustomer = await prisma.customer.findUnique({
+      where: { id: customer.id },
+      select: { storeCredits: true }
+    });
+
     return NextResponse.json(
       {
         customer: {
@@ -66,7 +75,7 @@ export async function GET(req: Request) {
           image: customer.image,
           defaultAddress: customer.defaultAddress,
           isCommunityMember: !!customer.communityMember,
-          storeCredits: customer.storeCredits ?? 0,
+          storeCredits: freshCustomer ? freshCustomer.storeCredits : (customer.storeCredits ?? 0),
           storeCreditPreference: customer.storeCreditPreference ?? false,
         },
       },

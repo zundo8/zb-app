@@ -25,6 +25,8 @@ import {
   AlertOctagon 
 } from "lucide-react";
 import { BatchDrawer } from "../_components/BatchDrawer";
+import WorkDriveGallery from "@/components/workdrive/WorkDriveGallery";
+import { supabase } from "@/lib/supabase";
 
 const STAGE_ICONS: Record<string, any> = {
   READY_FOR_PRODUCTION: Package,
@@ -58,6 +60,9 @@ type BatchRow = {
   updatedAt: string;
   fabric: FabricOpt | null;
   notes?: string | null;
+  workdriveFolderId?: string | null;
+  workdriveFolderName?: string | null;
+  workdriveUrl?: string | null;
 };
 
 type ActionKey =
@@ -207,6 +212,7 @@ export default function ProductionTrackerPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [expandData, setExpandData] = useState<Record<string, { breakdown: unknown } | null>>({});
   const [expandLoad, setExpandLoad] = useState<Record<string, boolean>>({});
+  const [linkingBatchId, setLinkingBatchId] = useState<string | null>(null);
 
   const showToast = (msg: string, type: "ok" | "err" = "ok") => {
     setToast({ msg, type });
@@ -433,6 +439,58 @@ export default function ProductionTrackerPage() {
   const progressPct = (stage: string) => {
     const idx = stageProgressIndex(stage);
     return Math.round(((idx + 1) / MFG_STAGE_KEYS.length) * 100);
+  };
+
+  const linkWorkDriveFolder = async (batchId: string, batchCode: string) => {
+    setLinkingBatchId(batchId);
+    try {
+      const folderRes = await fetch("/api/admin/zoho/workdrive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderName: `Mfg-${batchCode}` }),
+      });
+      if (!folderRes.ok) throw new Error("Failed to create WorkDrive folder");
+      const folder = await folderRes.json();
+
+      const updateRes = await mfgFetch(`/api/admin/manufacturing/batches/${batchId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          workdriveFolderId: folder.id,
+          workdriveUrl: folder.url || `https://workdrive.zoho.in/open/${folder.id}`,
+        }),
+      });
+      if (!updateRes.ok) throw new Error("Failed to update batch with folder link");
+
+      showToast("WorkDrive folder linked successfully!");
+      loadBatches();
+    } catch (e: any) {
+      showToast(e.message || "Failed to link folder", "err");
+    } finally {
+      setLinkingBatchId(null);
+    }
+  };
+
+  const saveFolderToSupabase = async (batchId: string, folderId: string, folderName: string) => {
+    try {
+      const teamId = process.env.NEXT_PUBLIC_ZOHO_WD_TEAM_ID || "f48vv99d2b514c3a14d4faf3d5813eb13c454";
+      const wsId = process.env.NEXT_PUBLIC_ZOHO_WD_WORKSPACE_ID || "1egko45e1b49a70d2401fad5e5650485e18e1";
+      const folderUrl = `https://workdrive.zoho.in/${teamId}/ws/${wsId}/folders/${folderId}`;
+
+      const { error } = await supabase
+        .from("manufacturing_batches")
+        .update({
+          workdrive_folder_id: folderId,
+          workdrive_folder_name: folderName,
+          workdrive_url: folderUrl,
+        })
+        .eq("id", batchId);
+
+      if (error) throw error;
+      showToast("WorkDrive folder linked");
+      loadBatches();
+    } catch (e: any) {
+      showToast(e.message || "Failed to save folder reference", "err");
+    }
   };
 
   return (
@@ -684,6 +742,18 @@ export default function ProductionTrackerPage() {
                         <div className="text-[8px] font-bold text-foreground/30 uppercase tracking-[0.15em]">Wash</div>
                         <div className="text-[16px] font-bold text-foreground tabular-nums leading-none tracking-tight">{formatInr(num(b.washCostTotal))}</div>
                       </div>
+                    </div>
+
+                    {/* Production Photos section */}
+                    <div className="mb-5 w-full space-y-2 border-t border-foreground/5 pt-4" onClick={(e) => e.stopPropagation()}>
+                      <div className="text-[8px] font-bold text-foreground/30 uppercase tracking-[0.15em] mb-2">Production Photos</div>
+                      <WorkDriveGallery
+                        compact={true}
+                        folderId={b.workdriveFolderId || null}
+                        folderName={b.productName}
+                        autoCreateFolderName={"Mfg-" + b.id}
+                        onFolderCreate={(folderId, folderName) => saveFolderToSupabase(b.id, folderId, folderName)}
+                      />
                     </div>
 
                     {b.fabric && (

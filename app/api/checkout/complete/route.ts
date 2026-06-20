@@ -438,27 +438,33 @@ export async function POST(req: Request) {
       }
     }
 
-    // Issue cashback if coupon is store-credit rebate
-    if (couponCode && applyAsStoreCredit && Number(cashbackAmount) > 0) {
+    // Issue cashback if coupon has cashback store credits enabled
+    if (couponCode && Number(cashbackAmount) > 0) {
       try {
+        const cbAmt = parseFloat(String(cashbackAmount));
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 90); // 90 days expiry
+
         await prisma.$transaction([
           prisma.customer.update({
             where: { id: localCustomer.id },
             data: {
-              storeCredits: { increment: parseFloat(String(cashbackAmount)) }
+              storeCredits: { increment: cbAmt }
             }
           }),
           prisma.storeCredit.create({
             data: {
               customerId: localCustomer.id,
-              amount: parseFloat(String(cashbackAmount)),
+              amount: cbAmt,
               type: "COUPON_REBATE",
               description: `Cashback for applying coupon code ${couponCode.toUpperCase()}`,
-              orderId: localOrder.id
+              orderId: localOrder.id,
+              expiresAt,
+              remainingAmount: cbAmt
             }
           })
         ]);
-        console.log(`[Checkout Store Credit] Successfully credited ₹${cashbackAmount} to customer ${localCustomer.id}`);
+        console.log(`[Checkout Store Credit] Successfully credited ₹${cbAmt} (90-day expiry) to customer ${localCustomer.id}`);
       } catch (storeCreditErr: any) {
         console.error("[Checkout Store Credit] Failed to issue cashback:", storeCreditErr.message);
       }

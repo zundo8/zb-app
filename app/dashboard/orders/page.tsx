@@ -110,8 +110,8 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const LIMIT = 50;
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       let finalStatus = statusFilter;
       let finalPayment = paymentFilter;
@@ -132,7 +132,7 @@ export default function OrdersPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab, page]);
 
@@ -141,8 +141,16 @@ export default function OrdersPage() {
   }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab]);
 
   useEffect(() => {
-    const timer = setTimeout(fetchOrders, 300);
+    const timer = setTimeout(() => fetchOrders(false), 300);
     return () => clearTimeout(timer);
+  }, [fetchOrders]);
+
+  useEffect(() => {
+    const handleSync = () => {
+      fetchOrders(true);
+    };
+    window.addEventListener("realtime-sync", handleSync);
+    return () => window.removeEventListener("realtime-sync", handleSync);
   }, [fetchOrders]);
 
   const handleSync = async () => {

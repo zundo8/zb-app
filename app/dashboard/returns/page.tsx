@@ -74,8 +74,8 @@ export default function ReturnsPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchReturns = useCallback(async () => {
-    setLoading(true);
+  const fetchReturns = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
@@ -98,12 +98,20 @@ export default function ReturnsPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [statusFilter]);
 
   useEffect(() => {
-    fetchReturns();
+    fetchReturns(false);
+  }, [fetchReturns]);
+
+  useEffect(() => {
+    const handleSync = () => {
+      fetchReturns(true);
+    };
+    window.addEventListener("realtime-sync", handleSync);
+    return () => window.removeEventListener("realtime-sync", handleSync);
   }, [fetchReturns]);
 
   const searchOrders = async (q: string) => {
@@ -230,7 +238,7 @@ export default function ReturnsPage() {
             <Package className="w-3 h-3" />
             New Return
           </button>
-          <button onClick={fetchReturns} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity">
+          <button onClick={() => fetchReturns()} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-md text-[10px] font-medium uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-50 transition-opacity">
             <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>

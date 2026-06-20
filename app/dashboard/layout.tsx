@@ -43,7 +43,8 @@ import {
   Heart,
   Wallet,
   Bot,
-  GraduationCap
+  GraduationCap,
+  Palette
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -174,6 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const manufacturingNav = [
     { name: "Pending Tasks", href: "/dashboard/manufacturing/tasks", icon: ClipboardList, module: 'MANUFACTURING' },
+    { name: "Design Studio", href: "/dashboard/design", icon: Palette, module: 'MANUFACTURING' },
     { name: "Production Tracker", href: "/dashboard/manufacturing/production", icon: TrendingUp, module: 'MANUFACTURING' },
     { name: "Fabric Inventory", href: "/dashboard/manufacturing/fabric", icon: Layers2, module: 'MANUFACTURING' },
     { name: "Fabric Movement", href: "/dashboard/manufacturing/movement", icon: ArrowDownUp, module: 'MANUFACTURING' },
