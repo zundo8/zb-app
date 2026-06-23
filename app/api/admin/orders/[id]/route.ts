@@ -35,6 +35,95 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const { id } = params;
     const body = await req.json();
 
+    // Handle individual OrderItem SKU updates if provided
+    if (body.items && Array.isArray(body.items)) {
+      for (const item of body.items) {
+        if (item.id && 'sku' in item) {
+          await prisma.orderItem.update({
+            where: { id: item.id },
+            data: { sku: item.sku || null }
+          });
+          
+          // If assigning a generated custom SKU, mark it as SOLD in inventory and sync stock
+          if (item.sku) {
+            const normalizedSku = item.sku.trim().toUpperCase();
+            
+            // Find if this SKU exists in product_skus
+            try {
+              const skuRecords: any[] = await prisma.$queryRawUnsafe(
+                `SELECT * FROM product_skus WHERE UPPER(sku) = $1`,
+                normalizedSku
+              );
+              
+              if (skuRecords.length > 0) {
+                const skuRec = skuRecords[0];
+                // Only update and decrement inventory if the status is NOT already SOLD
+                if (skuRec.status !== 'SOLD') {
+                  await prisma.$executeRawUnsafe(
+                    `UPDATE product_skus SET status = 'SOLD', quantity = 0 WHERE id = $1`,
+                    skuRec.id
+                  );
+                  
+                  // Decrement overall Shopify & local product inventory by 1
+                  const dbProduct = await prisma.product.findUnique({
+                    where: { id: skuRec.product_id },
+                    include: { inventory: true }
+                  });
+                  
+                  if (dbProduct && dbProduct.inventoryItemId) {
+                    try {
+                      const { adjustInventoryLevel, fetchLocations } = await import('@/lib/shopify-admin');
+                      const locations = await fetchLocations();
+                      const activeLocation = locations.find((l) => l.active) || locations[0];
+                      const locationId = activeLocation ? String(activeLocation.id) : null;
+                      
+                      if (locationId) {
+                        const updatedLevel = await adjustInventoryLevel(dbProduct.inventoryItemId, locationId, -1);
+                        
+                        // Sync local inventory count
+                        const localInv = dbProduct.inventory[0];
+                        if (localInv) {
+                          await prisma.inventory.update({
+                            where: { id: localInv.id },
+                            data: { stockQuantity: updatedLevel.available ?? (localInv.stockQuantity - 1) }
+                          });
+                        }
+                      }
+                    } catch (shopifyErr) {
+                      console.error('[Order Patch Shopify Sync Error]:', shopifyErr);
+                    }
+                  }
+
+                  // Record scan activity for ORDER_OUT
+                  try {
+                    await (prisma as any).scanRecord.create({
+                      data: {
+                        productId: skuRec.product_id,
+                        productTitle: dbProduct?.title || 'Order Item SKU Assignment',
+                        variantInfo: `Size ${skuRec.size}`,
+                        sku: skuRec.sku,
+                        actionType: 'ORDER_OUT',
+                        quantity: 1,
+                        beforeStock: dbProduct ? (dbProduct.inventory[0]?.stockQuantity || 1) : 1,
+                        afterStock: dbProduct ? Math.max(0, (dbProduct.inventory[0]?.stockQuantity || 1) - 1) : 0,
+                        locationId: 'LOCAL',
+                        staffName: 'Admin (Auto)'
+                      }
+                    });
+                  } catch (e) {
+                    console.error('[Scan Record Create Error]:', e);
+                  }
+                }
+              }
+            } catch (dbErr) {
+              console.error('[Order Patch SKU Local DB Query Error]:', dbErr);
+            }
+          }
+        }
+      }
+      delete body.items; // Remove items so they are not updated on Order object directly
+    }
+
     const oldOrder = await prisma.order.findUnique({
       where: { id },
       select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true }

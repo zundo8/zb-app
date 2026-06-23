@@ -57,6 +57,27 @@ export default function InventoryPage() {
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
 
+  // Custom printed SKUs tracking
+  const [customSkus, setCustomSkus] = useState<Record<number, any[]>>({});
+  const [loadingSkus, setLoadingSkus] = useState<Record<number, boolean>>({});
+
+  const fetchCustomSkus = async (productId: number) => {
+    setLoadingSkus(prev => ({ ...prev, [productId]: true }));
+    try {
+      const res = await fetch(`/api/admin/inventory/skus?productId=${productId}`);
+      const data = await res.json();
+      setCustomSkus(prev => ({ ...prev, [productId]: data.skus || [] }));
+    } catch (err) {
+      console.error('Error fetching custom SKUs:', err);
+    } finally {
+      setLoadingSkus(prev => {
+        const n = { ...prev };
+        delete n[productId];
+        return n;
+      });
+    }
+  };
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
@@ -233,7 +254,13 @@ export default function InventoryPage() {
     setExpandedProducts((prev) => {
       const next = new Set(prev);
       if (next.has(productId)) next.delete(productId);
-      else next.add(productId);
+      else {
+        next.add(productId);
+        // Fetch custom SKUs for this product
+        if (!customSkus[productId]) {
+          fetchCustomSkus(productId);
+        }
+      }
       return next;
     });
   };
@@ -734,6 +761,68 @@ export default function InventoryPage() {
                                 </div>
                               );
                             })}
+
+                            {/* Printed SKUs section */}
+                            <div className="border-t border-foreground/[0.04] p-5 pl-6 md:pl-[72px] space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                  <h4 className="text-[10px] font-bold text-foreground/45 uppercase tracking-[0.2em]">
+                                    Printed Price Tag SKUs
+                                  </h4>
+                                  <p className="text-[8px] text-foreground/30 uppercase tracking-widest">
+                                    Individually generated stock tags mapped to this product
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => fetchCustomSkus(product.id)}
+                                  className="text-[9px] font-bold uppercase tracking-widest text-[#007AFF] hover:opacity-80 flex items-center gap-1.5"
+                                >
+                                  <RefreshCw className={`w-3 h-3 ${loadingSkus[product.id] ? 'animate-spin' : ''}`} />
+                                  Sync SKUs
+                                </button>
+                              </div>
+
+                              {loadingSkus[product.id] && !customSkus[product.id] ? (
+                                <div className="flex items-center gap-2 py-4">
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-foreground/20" />
+                                  <span className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest">Decrypting registry...</span>
+                                </div>
+                              ) : customSkus[product.id] && customSkus[product.id].length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2 hide-scrollbar">
+                                  {customSkus[product.id].map((skuItem: any) => (
+                                    <div
+                                      key={skuItem.id}
+                                      className="flex items-center justify-between p-3.5 rounded-xl border border-foreground/5 bg-foreground/[0.01] hover:bg-foreground/[0.02] transition-colors"
+                                    >
+                                      <div className="space-y-1">
+                                        <p className="text-[11px] font-mono font-bold text-foreground select-all">
+                                          {skuItem.sku}
+                                        </p>
+                                        <p className="text-[8px] font-black text-foreground/30 uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                          Size: {skuItem.size} | Created: {new Date(skuItem.created_at).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <div className={`px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest ${
+                                          skuItem.status === 'IN_STOCK'
+                                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                                            : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                                        }`}>
+                                          {skuItem.status.replace('_', ' ')}
+                                        </div>
+                                        <span className="text-[11px] font-black text-foreground/40 font-mono">
+                                          QTY: {skuItem.quantity}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest italic py-4">
+                                  No printed price tag SKUs found for this product. Use the Price Tags generator to create tags.
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </motion.div>
                       )}

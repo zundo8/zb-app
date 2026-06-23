@@ -19,28 +19,102 @@ export async function POST(req: Request) {
     const normalizedCode = normalizeSku(code);
 
     // Identify the subject (Product or Order)
-    const products = await fetchAllProducts();
     let matchedProduct = null;
     let matchedVariant = null;
 
-    for (const p of products) {
-      if (p.id.toString() === code || p.handle === code) {
-        matchedProduct = p;
-        matchedVariant = p.variants?.[0] || null;
-        break;
+    // 1. Search locally by ID, shopifyProductId, SKU, or Barcode
+    const localProduct = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { id: code },
+          { shopifyProductId: code },
+          { sku: normalizedCode },
+          { barcode: normalizedCode }
+        ]
+      },
+      include: {
+        inventory: true
       }
-      for (const v of p.variants || []) {
-        if (
-          v.id.toString() === code ||
-          normalizeSku(v.sku || '') === normalizedCode ||
-          normalizeSku(v.barcode || '') === normalizedCode
-        ) {
+    });
+
+    if (localProduct) {
+      matchedProduct = {
+        id: localProduct.shopifyProductId,
+        title: localProduct.title,
+        handle: localProduct.handle,
+        variants: [
+          {
+            id: localProduct.shopifyProductId, // fallback variant ID
+            title: 'Default Variant',
+            price: String(localProduct.price || 0),
+            sku: localProduct.sku,
+            barcode: localProduct.barcode,
+            inventory_item_id: localProduct.inventoryItemId,
+            inventory_quantity: localProduct.inventory[0]?.stockQuantity || 0
+          }
+        ]
+      };
+      matchedVariant = matchedProduct.variants[0];
+    } else {
+      // 2. Search in custom product_skus table
+      try {
+        const skuRecords: any[] = await prisma.$queryRawUnsafe(
+          `SELECT * FROM product_skus WHERE UPPER(sku) = $1`,
+          normalizedCode
+        );
+        if (skuRecords.length > 0) {
+          const skuRecord = skuRecords[0];
+          const dbProduct = await prisma.product.findUnique({
+            where: { id: skuRecord.product_id },
+            include: { inventory: true }
+          });
+          if (dbProduct) {
+            matchedProduct = {
+              id: dbProduct.shopifyProductId,
+              title: dbProduct.title,
+              handle: dbProduct.handle,
+              variants: [
+                {
+                  id: dbProduct.shopifyProductId, // fallback variant ID
+                  title: `Size ${skuRecord.size}`,
+                  price: String(dbProduct.price || 0),
+                  sku: skuRecord.sku,
+                  barcode: dbProduct.barcode,
+                  inventory_item_id: dbProduct.inventoryItemId,
+                  inventory_quantity: skuRecord.quantity // individual SKU's quantity!
+                }
+              ]
+            };
+            matchedVariant = matchedProduct.variants[0];
+          }
+        }
+      } catch (e) {
+        console.error('Error querying product_skus table in sync lookup:', e);
+      }
+    }
+
+    // 3. Fallback to Shopify fetchAllProducts if not matched locally
+    if (!matchedProduct) {
+      const products = await fetchAllProducts();
+      for (const p of products) {
+        if (p.id.toString() === code || p.handle === code) {
           matchedProduct = p;
-          matchedVariant = v;
+          matchedVariant = p.variants?.[0] || null;
           break;
         }
+        for (const v of p.variants || []) {
+          if (
+            v.id.toString() === code ||
+            normalizeSku(v.sku || '') === normalizedCode ||
+            normalizeSku(v.barcode || '') === normalizedCode
+          ) {
+            matchedProduct = p;
+            matchedVariant = v;
+            break;
+          }
+        }
+        if (matchedProduct) break;
       }
-      if (matchedProduct) break;
     }
 
     if (mode === 'LOOKUP') {
@@ -121,6 +195,22 @@ export async function POST(req: Request) {
               });
             }
           }
+        }
+
+        // Update product_skus table for the specific scanned SKU if it exists
+        try {
+          const isStockIn = mode === 'STOCK_IN' || mode === 'RETURN' || mode === 'RTO';
+          const newStatus = isStockIn ? 'IN_STOCK' : 'SOLD';
+          const newSkuQty = isStockIn ? 1 : 0;
+          
+          await prisma.$executeRawUnsafe(
+            `UPDATE product_skus SET status = $1, quantity = $2 WHERE UPPER(sku) = $3`,
+            newStatus,
+            newSkuQty,
+            normalizedCode
+          );
+        } catch (skuUpdateErr) {
+          console.error('[Sync Update SKU Error]:', skuUpdateErr);
         }
 
         // Record scan

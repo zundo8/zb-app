@@ -59,6 +59,19 @@ async function ensureTablesExist() {
       $$ LANGUAGE plpgsql;
     `);
 
+    // 4. Create product_skus table
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS product_skus (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id TEXT NOT NULL,
+        sku TEXT UNIQUE NOT NULL,
+        size TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL DEFAULT 'IN_STOCK',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
     isInitialized = true;
   } catch (error) {
     console.error('Failed to initialize price tag tables:', error);
@@ -103,14 +116,55 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Missing parameter: skuPrefix or quantity' }, { status: 400 });
       }
 
-      // Execute PG RPC increment_sku_counter function
+      // 1. Find the highest existing counter suffix for this prefix in product_skus
+      let maxExistingCounter = 0;
+      try {
+        const existingSkus: any[] = await prisma.$queryRawUnsafe(
+          `SELECT sku FROM product_skus WHERE sku LIKE $1`,
+          `${skuPrefix}%`
+        );
+        for (const row of existingSkus) {
+          const suffix = row.sku.substring(skuPrefix.length);
+          const num = parseInt(suffix, 10);
+          if (!isNaN(num) && num > maxExistingCounter) {
+            maxExistingCounter = num;
+          }
+        }
+      } catch (e) {
+        console.error('Error finding max existing SKU counter:', e);
+      }
+
+      // 2. Fetch the current counter from price_tag_sku_counters
       const result: any = await prisma.$queryRawUnsafe(
         `SELECT increment_sku_counter($1, $2) as counter`,
         skuPrefix,
         Number(quantity)
       );
+      const dbCounter = Number(result[0]?.counter ?? 0);
+      
+      // 3. Self-healing logic: If the database counter is lower than the actual highest existing SKU counter,
+      // update the counter in the DB to the correct value and return the corrected endCounter!
+      let endCounter = dbCounter;
+      const expectedStartCounter = dbCounter - Number(quantity) + 1;
+      
+      if (expectedStartCounter <= maxExistingCounter) {
+        endCounter = maxExistingCounter + Number(quantity);
+        
+        // Correct the DB table counter to this new maximum value
+        try {
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO price_tag_sku_counters (sku_variant_key, last_counter)
+             VALUES ($1, $2)
+             ON CONFLICT (sku_variant_key)
+             DO UPDATE SET last_counter = $2, updated_at = NOW()`,
+            skuPrefix,
+            endCounter
+          );
+        } catch (dbUpdateErr) {
+          console.error('Error correcting last_counter in DB:', dbUpdateErr);
+        }
+      }
 
-      const endCounter = Number(result[0]?.counter ?? 0);
       return NextResponse.json({ endCounter }, { status: 200 });
     }
 
@@ -140,6 +194,24 @@ export async function POST(request: Request) {
         String(skuPrefix),
         JSON.stringify(tagsGenerated)
       );
+
+      // Save individual SKUs to product_skus table
+      if (tagsGenerated && Array.isArray(tagsGenerated)) {
+        for (const tag of tagsGenerated) {
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO product_skus (product_id, sku, size, quantity, status)
+             VALUES ($1, $2, $3, 1, 'IN_STOCK')
+             ON CONFLICT (sku) DO UPDATE SET
+               product_id = EXCLUDED.product_id,
+               size = EXCLUDED.size,
+               quantity = 1,
+               status = 'IN_STOCK'`,
+            String(productId),
+            String(tag.sku),
+            String(tag.size)
+          );
+        }
+      }
 
       return NextResponse.json({ success: true }, { status: 200 });
     }

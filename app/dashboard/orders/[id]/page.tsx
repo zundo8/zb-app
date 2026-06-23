@@ -193,6 +193,31 @@ export default function OrderDetailPage() {
     }
   };
 
+  const handleUpdateItemSku = async (itemId: string, sku: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: [{ id: itemId, sku: sku.trim() }]
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast("SKU Assigned");
+        fetchOrder(true);
+      } else {
+        setToast(data.error || "Update Failed");
+      }
+    } catch (err: any) {
+      setToast(err.message || "Update Failed");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
       <Loader2 className="w-6 h-6 animate-spin text-foreground/10" />
@@ -400,9 +425,50 @@ export default function OrderDetailPage() {
                     <div className="w-16 h-16 rounded-xl bg-foreground/5 border border-foreground/10 overflow-hidden shadow-2xl transition-transform group-hover:scale-105">
                       {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <Box className="w-6 h-6 text-foreground/10 mx-auto mt-5" />}
                     </div>
-                    <div>
+                    <div className="space-y-1">
                       <h4 className="text-[14px] font-semibold text-foreground tracking-tight">{item.title}</h4>
-                      <p className="text-[10px] text-foreground/20 font-bold uppercase tracking-widest mt-1">QTY: {item.quantity} | SKU: {item.sku || "N/A"}</p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest">
+                          QTY: {item.quantity}
+                        </span>
+                        <span className="text-foreground/10">|</span>
+                        {item.sku ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/10">
+                              SKU: {item.sku}
+                            </span>
+                            {isEditing && (
+                              <button
+                                onClick={() => handleUpdateItemSku(item.id, '')}
+                                className="text-rose-500 hover:text-rose-700 p-0.5 hover:bg-rose-500/10 rounded transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-foreground/20 font-bold uppercase tracking-widest">
+                              SKU: N/A
+                            </span>
+                            <input
+                              type="text"
+                              placeholder="Scan SKU to dispatch..."
+                              defaultValue=""
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const val = (e.target as HTMLInputElement).value;
+                                  if (val.trim()) {
+                                    handleUpdateItemSku(item.id, val);
+                                    (e.target as HTMLInputElement).value = '';
+                                  }
+                                }
+                              }}
+                              className="bg-foreground/5 border border-foreground/10 rounded-lg px-2.5 py-1 text-[10px] font-mono w-40 focus:outline-none focus:border-[#007AFF]/50 placeholder:text-foreground/20 text-foreground transition-all"
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
