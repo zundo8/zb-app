@@ -853,7 +853,7 @@ export const authOptions: AuthOptions = {
         httpOnly: true,
         sameSite: "strict",
         path: "/",
-        secure: true,
+        secure: process.env.NODE_ENV === "production",
       },
     },
   },

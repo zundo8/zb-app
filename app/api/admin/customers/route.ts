@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     }
 
     // Fetch DB customers with pagination
-    const [dbCustomers, totalCount, shopifyCustomers] = await Promise.all([
+    const [dbCustomers, totalCount] = await Promise.all([
       prisma.customer.findMany({
         where: customerWhere,
         take: limit,
@@ -50,35 +50,64 @@ export async function GET(req: Request) {
         },
       }),
       prisma.customer.count({ where: customerWhere }),
-      (page === 1 && !search) ? fetchAllCustomers(limit + 50).catch(() => []) : Promise.resolve([]),
     ]);
 
-    const shopifyMap = new Map<string, any>();
-    for (const c of shopifyCustomers) {
-      shopifyMap.set(String(c.id), c);
+    // Fire-and-forget background sync (non-blocking) on page 1 without active search
+    if (page === 1 && !search) {
+      (async () => {
+        try {
+          const shop = await prisma.shop.findFirst();
+          if (shop) {
+            const shopifyCustomers = await fetchAllCustomers(100).catch(() => []);
+            for (const sc of shopifyCustomers) {
+              const shopifyId = String(sc.id);
+              const email = sc.email || null;
+              const phone = sc.phone || null;
+              const name = `${sc.first_name || ""} ${sc.last_name || ""}`.trim() || email || phone || "Customer";
+
+              await prisma.customer.upsert({
+                where: { shopifyId },
+                update: {
+                  email,
+                  phone,
+                  name,
+                  ordersCount: sc.orders_count || 0,
+                  totalSpent: parseFloat(sc.total_spent || "0"),
+                },
+                create: {
+                  shopifyId,
+                  shopId: shop.id,
+                  email,
+                  phone,
+                  name,
+                  ordersCount: sc.orders_count || 0,
+                  totalSpent: parseFloat(sc.total_spent || "0"),
+                }
+              }).catch(() => {});
+            }
+          }
+        } catch (e: any) {
+          console.error("[Customers Sync BG] Error:", e.message);
+        }
+      })();
     }
 
     let payload = dbCustomers.map((c) => {
-      const s = shopifyMap.get(c.shopifyId);
-      const shopifyName = s ? `${s.first_name || ''} ${s.last_name || ''}`.trim() : '';
-      const email = s?.email || c.email || null;
-      const phone = s?.phone || c.phone || null;
-
-      const displayName = shopifyName || c.name || email || (c.shopifyId !== 'anonymous' ? c.shopifyId : 'Anonymous User');
-      const totalOrders = c.orders.length;
-      const totalSpent = c.orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+      const displayName = c.name || c.email || (c.shopifyId !== 'anonymous' ? c.shopifyId : 'Anonymous User');
+      const totalOrders = c.ordersCount || c.orders.length;
+      const totalSpent = c.totalSpent || c.orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
 
       return {
         id: c.id,
         shopifyId: c.shopifyId,
-        email,
+        email: c.email,
         name: displayName,
-        phone,
+        phone: c.phone,
         createdAt: c.createdAt,
         lastLoginAt: c.lastLoginAt,
         totalOrders,
         totalSpent: isNaN(totalSpent) ? 0 : totalSpent,
-        tags: s?.tags || '',
+        tags: '',
         orders: c.orders.map((o) => ({
           id: o.id,
           shopifyOrderId: o.shopifyOrderId,
@@ -99,9 +128,7 @@ export async function GET(req: Request) {
     });
 
     if (format === 'csv') {
-      // ... CSV logic remains same but using full payload if needed, 
-      // but for CSV we might want to fetch more than the paginated limit
-      // For now let's keep it consistent
+      // CSV logic placeholder
     }
 
     return NextResponse.json({

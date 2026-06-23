@@ -1,11 +1,14 @@
 import twilio from 'twilio';
 import db from '../db';
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-
-const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
+function getTwilioClient(sid?: string | null, token?: string | null) {
+  const activeSid = sid || process.env.TWILIO_ACCOUNT_SID;
+  const activeToken = token || process.env.TWILIO_AUTH_TOKEN;
+  if (activeSid && activeToken) {
+    return twilio(activeSid, activeToken);
+  }
+  return null;
+}
 
 export const SmsService = {
   /**
@@ -14,8 +17,8 @@ export const SmsService = {
    * Throws an error if no valid credentials are found.
    */
   async sendSms(to: string, body: string, dltTemplateId?: string) {
-    let activeClient = client;
-    let activeFromNumber = fromNumber;
+    let activeClient = getTwilioClient();
+    let activeFromNumber = process.env.TWILIO_PHONE_NUMBER || undefined;
     let activeMessagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
     // If environment variables are missing, try fetching from the database
@@ -23,7 +26,7 @@ export const SmsService = {
       try {
         const shop = await db.shop.findFirst();
         if (shop?.twilioAccountSid && shop?.twilioAuthToken) {
-          activeClient = twilio(shop.twilioAccountSid, shop.twilioAuthToken);
+          activeClient = getTwilioClient(shop.twilioAccountSid, shop.twilioAuthToken);
           activeFromNumber = shop.twilioPhoneNumber || undefined;
         }
       } catch (dbErr) {
@@ -81,7 +84,8 @@ export const SmsService = {
    */
   async sendVerification(to: string) {
     const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-    if (!client || !serviceSid) {
+    const activeClient = getTwilioClient();
+    if (!activeClient || !serviceSid) {
       console.log('[SmsService] Twilio Verify not configured, falling back to manual SMS.');
       return null;
     }
@@ -90,7 +94,7 @@ export const SmsService = {
       let formattedPhone = to.trim().replace(/[\s\-\(\)]/g, '');
       if (!formattedPhone.startsWith('+')) formattedPhone = '+' + formattedPhone.replace(/\D/g, '');
 
-      const verification = await client.verify.v2.services(serviceSid)
+      const verification = await activeClient.verify.v2.services(serviceSid)
         .verifications
         .create({ to: formattedPhone, channel: 'sms' });
       
@@ -107,13 +111,14 @@ export const SmsService = {
    */
   async checkVerification(to: string, code: string) {
     const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-    if (!client || !serviceSid) return null;
+    const activeClient = getTwilioClient();
+    if (!activeClient || !serviceSid) return null;
 
     try {
       let formattedPhone = to.trim().replace(/[\s\-\(\)]/g, '');
       if (!formattedPhone.startsWith('+')) formattedPhone = '+' + formattedPhone.replace(/\D/g, '');
 
-      const check = await client.verify.v2.services(serviceSid)
+      const check = await activeClient.verify.v2.services(serviceSid)
         .verificationChecks
         .create({ to: formattedPhone, code });
       
