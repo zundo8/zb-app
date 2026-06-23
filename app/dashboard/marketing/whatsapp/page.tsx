@@ -164,6 +164,7 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [testingTemplate, setTestingTemplate] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Form State
@@ -201,9 +202,67 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
     fetchTemplates();
   }, []);
 
+  const handleTestTemplate = async () => {
+    setTestingTemplate(true);
+    const toastId = toast.loading("Running WABA Integration test...");
+    
+    const testPayload = {
+      name: "zb_test_template",
+      category: "MARKETING",
+      language: "en_US",
+      components: [
+        {
+          type: "BODY",
+          text: "Hello from Zica Bella."
+        }
+      ]
+    };
+
+    try {
+      // Attempt deletion first to prevent "content already exists" error
+      await fetch("/api/whatsapp/templates", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "zb_test_template" })
+      }).catch(() => {});
+
+      const res = await fetch("/api/whatsapp/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(testPayload)
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        toast.success("WABA Integration Test Succeeded! Test template submitted successfully.", { id: toastId });
+        fetchTemplates();
+      } else {
+        if (data.code || data.subcode) {
+          const errorMsg = (
+            <div className="space-y-1 text-xs">
+              <div className="font-bold text-red-500">WABA Integration Test Failed:</div>
+              <div>{data.error}</div>
+              <div className="text-[10px] text-foreground/60 mt-1">
+                <div>Error Code: {data.code}</div>
+                <div>Subcode: {data.subcode}</div>
+              </div>
+            </div>
+          );
+          toast.error(errorMsg, { id: toastId, duration: 10000 });
+        } else {
+          toast.error(data.error || "WABA Integration Test Failed.", { id: toastId });
+        }
+      }
+    } catch (e) {
+      toast.error("Network error during WABA Integration test.", { id: toastId });
+    } finally {
+      setTestingTemplate(false);
+    }
+  };
+
   const handleSeed = async () => {
     setSeeding(true);
-    const toastId = toast.loading("Submitting 11 templates to Meta...");
+    const toastId = toast.loading("Submitting templates to Meta...");
     try {
       const res = await fetch("/api/whatsapp/templates/seed", { method: "POST" });
       const data = await res.json();
@@ -243,40 +302,35 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    // Build components structure for WABA Template Registration
-    const components: any[] = [];
-
+  const getPayloadJson = () => {
+    const componentsList: any[] = [];
     if (headerType === "TEXT" && headerText) {
-      components.push({
+      componentsList.push({
         type: "HEADER",
         format: "TEXT",
         text: headerText
       });
     } else if (headerType === "IMAGE") {
-      components.push({
+      componentsList.push({
         type: "HEADER",
         format: "IMAGE"
       });
     }
 
-    components.push({
+    componentsList.push({
       type: "BODY",
       text: bodyText
     });
 
     if (footerText) {
-      components.push({
+      componentsList.push({
         type: "FOOTER",
         text: footerText
       });
     }
 
     if (buttonType === "URL" && buttonText && buttonUrl) {
-      components.push({
+      componentsList.push({
         type: "BUTTONS",
         buttons: [
           {
@@ -288,11 +342,25 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
       });
     }
 
+    return {
+      name: name || "template_name",
+      category,
+      language,
+      components: componentsList
+    };
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    const componentsPayload = getPayloadJson().components;
+
     try {
       const res = await fetch("/api/whatsapp/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, category, language, components })
+        body: JSON.stringify({ name, category, language, components: componentsPayload })
       });
       const data = await res.json();
       if (res.ok) {
@@ -307,7 +375,21 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
         setButtonUrl("");
         fetchTemplates();
       } else {
-        toast.error(data.error || "Failed to create template.");
+        if (data.code || data.subcode) {
+          const errorMsg = (
+            <div className="space-y-1 text-xs">
+              <div className="font-bold text-red-500">Meta Error:</div>
+              <div>{data.error}</div>
+              <div className="text-[10px] text-foreground/60 mt-1">
+                <div>Error Code: {data.code}</div>
+                <div>Subcode: {data.subcode}</div>
+              </div>
+            </div>
+          );
+          toast.error(errorMsg, { duration: 10000 });
+        } else {
+          toast.error(data.error || "Failed to create template.");
+        }
       }
     } catch (err) {
       toast.error("Network error creating template.");
@@ -329,9 +411,17 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h3 className="text-lg font-semibold">Meta Template Library</h3>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleTestTemplate}
+            disabled={testingTemplate}
+            className="border border-foreground/10 hover:bg-foreground/5 text-foreground px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
+          >
+            {testingTemplate ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4 text-emerald-500" />}
+            Test WABA Integration
+          </button>
           <button
             onClick={handleSeed}
             disabled={seeding}
@@ -589,10 +679,10 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
             </form>
 
             {/* Preview Side */}
-            <div className="hidden md:flex flex-1 flex-col items-center justify-center p-6 bg-gradient-to-br from-background to-emerald-500/5 relative">
-              <div className="text-xs text-muted-foreground absolute top-4 left-4 font-semibold uppercase tracking-wider">Device Preview</div>
+            <div className="hidden md:flex flex-1 flex-col items-center justify-between p-6 bg-gradient-to-br from-background to-emerald-500/5 relative overflow-y-auto max-h-[90vh] scrollbar-hide">
+              <div className="text-xs text-muted-foreground self-start font-semibold uppercase tracking-wider mb-2">Device Preview</div>
               
-              <div className="w-[260px] h-[480px] border-[6px] border-foreground/10 rounded-[2.5rem] relative bg-background shadow-2xl flex flex-col overflow-hidden">
+              <div className="w-[260px] h-[280px] border-[6px] border-foreground/10 rounded-[2rem] relative bg-background shadow-2xl flex flex-col overflow-hidden">
                 <div className="absolute top-0 inset-x-0 h-4 bg-foreground/10 z-10 rounded-t-3xl" />
                 <div className="absolute top-1 left-1/2 -translate-x-1/2 w-20 h-4 bg-background rounded-full z-20" />
 
@@ -632,6 +722,26 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Template Payload Preview Inspector */}
+              <div className="w-full mt-4 flex flex-col min-h-[160px] max-h-[220px]">
+                <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-semibold mb-1">
+                  <span>Template Payload Preview</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(getPayloadJson(), null, 2));
+                      toast.success("Payload copied to clipboard!");
+                    }}
+                    className="text-emerald-500 hover:text-emerald-400 font-bold lowercase flex items-center gap-1"
+                  >
+                    Copy JSON
+                  </button>
+                </div>
+                <pre className="flex-1 bg-zinc-950 border border-foreground/10 text-zinc-300 p-2.5 rounded-xl font-mono text-[9px] overflow-auto select-all scrollbar-hide">
+                  {JSON.stringify(getPayloadJson(), null, 2)}
+                </pre>
               </div>
             </div>
           </motion.div>
