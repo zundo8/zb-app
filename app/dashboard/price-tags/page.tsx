@@ -138,7 +138,7 @@ export default function PriceTagsPage() {
 
   return (
     <>
-      {/* Print CSS — proper paginated full-page layout */}
+      {/* Print CSS — proper paginated full-page layout (supports A4 and Thermal Label) */}
       <style jsx global>{`
         @media print {
           /* Hide everything except the tag print area */
@@ -166,17 +166,23 @@ export default function PriceTagsPage() {
             visibility: visible !important;
           }
           
-          /* Single price tag card styling on print */
-          .price-tag-card {
+          /* Checkbox overlay hidden in print */
+          .price-tag-card label,
+          .price-tag-card input[type="checkbox"] {
+            display: none !important;
+          }
+
+          /* ── LAYOUT 1: A4 Sheet ────────────────────────────── */
+          #price-tags-print-area.print-a4 .price-tag-card {
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
             width: 190mm !important;
             height: 277mm !important;
-            margin: 0 auto !important;
+            margin: 10mm auto !important; /* Center on A4 with 10mm margins */
             padding: 12mm 12mm 10mm 12mm !important;
             box-sizing: border-box !important;
-            border: none !important; /* Remove outer border for professional look */
+            border: none !important;
             border-radius: 0 !important;
             background-color: #ffffff !important;
             box-shadow: none !important;
@@ -186,75 +192,64 @@ export default function PriceTagsPage() {
             break-inside: avoid !important;
           }
           
-          /* Checkbox overlay hidden in print */
-          .price-tag-card label,
-          .price-tag-card input[type="checkbox"] {
-            display: none !important;
-          }
-          
-          /* Logo Container & Image Scaling */
-          .price-tag-card .logo-container {
+          #price-tags-print-area.print-a4 .logo-container {
             margin-bottom: 12mm !important;
             text-align: center !important;
             display: flex !important;
             justify-content: center !important;
           }
-          .price-tag-card .logo-image {
+          #price-tags-print-area.print-a4 .logo-image {
             height: 26mm !important;
             width: 26mm !important;
             max-height: 26mm !important;
             max-width: 26mm !important;
           }
           
-          /* MRP Section Scaling */
-          .price-tag-card .mrp-section {
+          #price-tags-print-area.print-a4 .mrp-section {
             padding: 8mm 0 !important;
             border-top: 0.3mm solid #dddddd !important;
             margin-bottom: 8mm !important;
           }
-          .price-tag-card .mrp-title,
-          .price-tag-card .mrp-value {
+          #price-tags-print-area.print-a4 .mrp-title,
+          #price-tags-print-area.print-a4 .mrp-value {
             font-size: 24pt !important;
             font-weight: 700 !important;
             letter-spacing: 0.5px !important;
           }
-          .price-tag-card .mrp-taxes {
+          #price-tags-print-area.print-a4 .mrp-taxes {
             font-size: 11pt !important;
             color: #888888 !important;
             margin-top: 2mm !important;
             letter-spacing: 0.6px !important;
           }
           
-          /* Divider styling */
-          .price-tag-card .tag-divider {
+          #price-tags-print-area.print-a4 .tag-divider {
             height: 0.3mm !important;
             background-color: #dddddd !important;
             margin-bottom: 8mm !important;
           }
           
-          /* Info Rows Scaling */
-          .price-tag-card .info-rows {
+          #price-tags-print-area.print-a4 .info-rows {
             width: 100% !important;
           }
-          .price-tag-card .info-row {
+          #price-tags-print-area.print-a4 .info-row {
             padding: 4mm 0 !important;
             gap: 12mm !important;
           }
-          .price-tag-card .info-row-label {
+          #price-tags-print-area.print-a4 .info-row-label {
             font-size: 13pt !important;
             font-weight: 700 !important;
             color: #555555 !important;
             letter-spacing: 0.2px !important;
           }
-          .price-tag-card .info-row-value {
+          #price-tags-print-area.print-a4 .info-row-value {
             font-size: 13pt !important;
             font-weight: 500 !important;
             color: #111111 !important;
           }
           
-          /* QR Section Scaling */
-          .price-tag-card .qr-section {
-            margin-top: auto !important; /* Push QR and SKU to the bottom */
+          #price-tags-print-area.print-a4 .qr-section {
+            margin-top: auto !important;
             padding-top: 8mm !important;
             border-top: 0.3mm solid #eeeeee !important;
             width: 100% !important;
@@ -262,23 +257,120 @@ export default function PriceTagsPage() {
             flex-direction: column !important;
             align-items: center !important;
           }
-          .price-tag-card .qr-image {
+          #price-tags-print-area.print-a4 .qr-image {
             width: 52mm !important;
             height: 52mm !important;
           }
           
-          /* SKU Text Scaling */
-          .price-tag-card .sku-text {
+          #price-tags-print-area.print-a4 .sku-text {
             margin-top: 4mm !important;
             font-size: 13pt !important;
             font-weight: 600 !important;
             color: #333333 !important;
             letter-spacing: 0.4px !important;
           }
+
+          /* ── LAYOUT 2: Thermal Label (50mm × 100mm) ─────────── */
+          #price-tags-print-area.print-thermal .price-tag-card {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            width: 44mm !important;
+            height: 94mm !important;
+            margin: 3mm auto !important; /* Margins to fit the 50x100 label bounds */
+            padding: 3mm 3mm 2mm 3mm !important;
+            box-sizing: border-box !important;
+            border: none !important;
+            border-radius: 0 !important;
+            background-color: #ffffff !important;
+            box-shadow: none !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          
+          #price-tags-print-area.print-thermal .logo-container {
+            margin-bottom: 2.5mm !important;
+            text-align: center !important;
+            display: flex !important;
+            justify-content: center !important;
+          }
+          #price-tags-print-area.print-thermal .logo-image {
+            height: 8mm !important;
+            width: 8mm !important;
+            max-height: 8mm !important;
+            max-width: 8mm !important;
+          }
+          
+          #price-tags-print-area.print-thermal .mrp-section {
+            padding: 2.5mm 0 !important;
+            border-top: 0.15mm solid #dddddd !important;
+            margin-bottom: 2.5mm !important;
+          }
+          #price-tags-print-area.print-thermal .mrp-title,
+          #price-tags-print-area.print-thermal .mrp-value {
+            font-size: 7.5pt !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.2px !important;
+          }
+          #price-tags-print-area.print-thermal .mrp-taxes {
+            font-size: 3.5pt !important;
+            color: #888888 !important;
+            margin-top: 0.5mm !important;
+            letter-spacing: 0.2px !important;
+          }
+          
+          #price-tags-print-area.print-thermal .tag-divider {
+            height: 0.15mm !important;
+            background-color: #dddddd !important;
+            margin-bottom: 2.5mm !important;
+          }
+          
+          #price-tags-print-area.print-thermal .info-rows {
+            width: 100% !important;
+          }
+          #price-tags-print-area.print-thermal .info-row {
+            padding: 0.8mm 0 !important;
+            gap: 2mm !important;
+          }
+          #price-tags-print-area.print-thermal .info-row-label {
+            font-size: 4.2pt !important;
+            font-weight: 700 !important;
+            color: #555555 !important;
+            letter-spacing: 0.1px !important;
+          }
+          #price-tags-print-area.print-thermal .info-row-value {
+            font-size: 4.2pt !important;
+            font-weight: 500 !important;
+            color: #111111 !important;
+          }
+          
+          #price-tags-print-area.print-thermal .qr-section {
+            margin-top: auto !important;
+            padding-top: 2mm !important;
+            border-top: 0.15mm solid #eeeeee !important;
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+          }
+          #price-tags-print-area.print-thermal .qr-image {
+            width: 20mm !important;
+            height: 20mm !important;
+          }
+          
+          #price-tags-print-area.print-thermal .sku-text {
+            margin-top: 1mm !important;
+            font-size: 4.2pt !important;
+            font-weight: 600 !important;
+            color: #333333 !important;
+            letter-spacing: 0.2px !important;
+          }
           
           @page {
-            size: A4 portrait;
-            margin: 10mm;
+            size: auto;
+            margin: 0;
           }
         }
       `}</style>
