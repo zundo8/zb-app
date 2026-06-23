@@ -61,8 +61,12 @@ export default function PriceTagCard({
       )}
 
       {/* Logo */}
-      <div style={{ marginBottom: `${Math.round(6 * scale)}px`, textAlign: 'center' }}>
+      <div 
+        className="logo-container"
+        style={{ marginBottom: `${Math.round(6 * scale)}px`, textAlign: 'center' }}
+      >
         <img
+          className="logo-image"
           src="/zb-logo-220px.png"
           alt="Zica Bella"
           style={{
@@ -75,48 +79,68 @@ export default function PriceTagCard({
       </div>
 
       {/* MRP Section */}
-      <div style={{
-        width: '100%',
-        padding: `${Math.round(4 * scale)}px 0`,
-        borderTop: '0.5px solid #ccc',
-        marginBottom: `${Math.round(3 * scale)}px`,
-      }}>
+      <div 
+        className="mrp-section"
+        style={{
+          width: '100%',
+          padding: `${Math.round(4 * scale)}px 0`,
+          borderTop: '0.5px solid #ccc',
+          marginBottom: `${Math.round(3 * scale)}px`,
+        }}
+      >
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'baseline',
           width: '100%',
         }}>
-          <span style={{
-            fontWeight: 700,
-            fontSize: `${Math.round(10 * scale)}px`,
-            letterSpacing: '0.5px',
-            textTransform: 'uppercase' as const,
-          }}>MRP</span>
-          <span style={{
-            fontWeight: 700,
-            fontSize: `${Math.round(10 * scale)}px`,
-            letterSpacing: '0.3px',
-          }}>
+          <span 
+            className="mrp-title"
+            style={{
+              fontWeight: 700,
+              fontSize: `${Math.round(10 * scale)}px`,
+              letterSpacing: '0.5px',
+              textTransform: 'uppercase' as const,
+            }}
+          >
+            MRP
+          </span>
+          <span 
+            className="mrp-value"
+            style={{
+              fontWeight: 700,
+              fontSize: `${Math.round(10 * scale)}px`,
+              letterSpacing: '0.3px',
+            }}
+          >
             ₹ {tag.mrp.toLocaleString('en-IN')}
           </span>
         </div>
-        <div style={{
-          fontSize: `${Math.round(5.5 * scale)}px`,
-          color: '#888',
-          textTransform: 'uppercase' as const,
-          letterSpacing: '0.6px',
-          marginTop: `${Math.round(1 * scale)}px`,
-        }}>
+        <div 
+          className="mrp-taxes"
+          style={{
+            fontSize: `${Math.round(5.5 * scale)}px`,
+            color: '#888',
+            textTransform: 'uppercase' as const,
+            letterSpacing: '0.6px',
+            marginTop: `${Math.round(1 * scale)}px`,
+          }}
+        >
           Inclusive of All Taxes
         </div>
       </div>
 
       {/* Divider */}
-      <div style={{ width: '100%', height: '0.5px', backgroundColor: '#ccc', marginBottom: `${Math.round(4 * scale)}px` }} />
+      <div 
+        className="tag-divider"
+        style={{ width: '100%', height: '0.5px', backgroundColor: '#ccc', marginBottom: `${Math.round(4 * scale)}px` }} 
+      />
 
       {/* Info Rows */}
-      <div style={{ width: '100%', fontSize: `${Math.round(6.5 * scale)}px` }}>
+      <div 
+        className="info-rows"
+        style={{ width: '100%', fontSize: `${Math.round(6.5 * scale)}px` }}
+      >
         <InfoRow label="NET QUANTITY" value={tag.netQuantity} scale={scale} />
         <InfoRow label="SIZE" value={tag.size} scale={scale} />
         <InfoRow label="MFG & MKT BY" value="ZICA BELLA PVT. LTD." scale={scale} />
@@ -128,18 +152,22 @@ export default function PriceTagCard({
       </div>
 
       {/* QR Code — always at the bottom */}
-      <div style={{
-        marginTop: `${Math.round(6 * scale)}px`,
-        textAlign: 'center' as const,
-        paddingTop: `${Math.round(4 * scale)}px`,
-        borderTop: '0.5px solid #e0e0e0',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column' as const,
-        alignItems: 'center',
-      }}>
+      <div 
+        className="qr-section"
+        style={{
+          marginTop: `${Math.round(6 * scale)}px`,
+          textAlign: 'center' as const,
+          paddingTop: `${Math.round(4 * scale)}px`,
+          borderTop: '0.5px solid #e0e0e0',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column' as const,
+          alignItems: 'center',
+        }}
+      >
         {tag.qrDataUrl && tag.qrDataUrl.startsWith('data:') ? (
           <img
+            className="qr-image"
             src={tag.qrDataUrl}
             alt={`QR: ${tag.sku}`}
             style={{
@@ -165,16 +193,19 @@ export default function PriceTagCard({
       </div>
 
       {/* SKU — at the very bottom */}
-      <div style={{
-        marginTop: `${Math.round(3 * scale)}px`,
-        fontSize: `${Math.round(6.5 * scale)}px`,
-        fontWeight: 600,
-        letterSpacing: '0.4px',
-        textAlign: 'center' as const,
-        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-        color: '#333',
-        wordBreak: 'break-all' as const,
-      }}>
+      <div 
+        className="sku-text"
+        style={{
+          marginTop: `${Math.round(3 * scale)}px`,
+          fontSize: `${Math.round(6.5 * scale)}px`,
+          fontWeight: 600,
+          letterSpacing: '0.4px',
+          textAlign: 'center' as const,
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          color: '#333',
+          wordBreak: 'break-all' as const,
+        }}
+      >
         {tag.sku}
       </div>
     </div>
@@ -183,30 +214,39 @@ export default function PriceTagCard({
 
 function InfoRow({ label, value, scale = 1 }: { label: string; value: string; scale?: number }) {
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      padding: `${Math.round(1.5 * scale)}px 0`,
-      gap: `${Math.round(6 * scale)}px`,
-    }}>
-      <span style={{
-        fontWeight: 600,
-        textTransform: 'uppercase' as const,
-        letterSpacing: '0.2px',
-        color: '#333',
-        whiteSpace: 'nowrap' as const,
-        flexShrink: 0,
-        fontSize: `${Math.round(6.5 * scale)}px`,
-      }}>
+    <div 
+      className="info-row"
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: `${Math.round(1.5 * scale)}px 0`,
+        gap: `${Math.round(6 * scale)}px`,
+      }}
+    >
+      <span 
+        className="info-row-label"
+        style={{
+          fontWeight: 600,
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.2px',
+          color: '#333',
+          whiteSpace: 'nowrap' as const,
+          flexShrink: 0,
+          fontSize: `${Math.round(6.5 * scale)}px`,
+        }}
+      >
         {label}
       </span>
-      <span style={{
-        textAlign: 'right' as const,
-        fontWeight: 500,
-        color: '#111',
-        wordBreak: 'break-word' as const,
-        fontSize: `${Math.round(6.5 * scale)}px`,
-      }}>
+      <span 
+        className="info-row-value"
+        style={{
+          textAlign: 'right' as const,
+          fontWeight: 500,
+          color: '#111',
+          wordBreak: 'break-word' as const,
+          fontSize: `${Math.round(6.5 * scale)}px`,
+        }}
+      >
         {value}
       </span>
     </div>

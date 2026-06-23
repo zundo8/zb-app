@@ -138,55 +138,147 @@ export default function PriceTagsPage() {
 
   return (
     <>
-      {/* Print CSS — proper paginated grid layout */}
+      {/* Print CSS — proper paginated full-page layout */}
       <style jsx global>{`
         @media print {
-          /* Hide everything except the tag grid */
+          /* Hide everything except the tag print area */
           body > *:not(#__next),
           #__next > * > *:not(#price-tags-print-area) {
             display: none !important;
           }
           .no-print,
           nav, header, footer, aside,
-          [class*="border-foreground"],
-          button, form, table {
+          button, form, table, [class*="border-foreground"] {
             display: none !important;
           }
-          /* Show only the print area */
+          
+          /* Setup main print area container */
           #price-tags-print-area {
-            display: grid !important;
-            grid-template-columns: repeat(3, 50mm) !important;
-            grid-auto-rows: 82mm !important;
-            gap: 3mm !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            position: static !important;
+            display: block !important;
             width: 100% !important;
-            justify-content: center !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            position: static !important;
           }
+          
           #price-tags-print-area * {
             visibility: visible !important;
           }
+          
+          /* Single price tag card styling on print */
           .price-tag-card {
-            width: 50mm !important;
-            height: 82mm !important;
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            width: 190mm !important;
+            height: 277mm !important;
+            margin: 0 auto !important;
+            padding: 12mm 12mm 10mm 12mm !important;
+            box-sizing: border-box !important;
+            border: none !important; /* Remove outer border for professional look */
+            border-radius: 0 !important;
+            background-color: #ffffff !important;
             box-shadow: none !important;
-            margin: 0 !important;
-            overflow: hidden !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
+          
           /* Checkbox overlay hidden in print */
           .price-tag-card label,
           .price-tag-card input[type="checkbox"] {
             display: none !important;
           }
+          
+          /* Logo Container & Image Scaling */
+          .price-tag-card .logo-container {
+            margin-bottom: 12mm !important;
+            text-align: center !important;
+          }
+          .price-tag-card .logo-image {
+            height: 18mm !important;
+            max-height: 18mm !important;
+          }
+          
+          /* MRP Section Scaling */
+          .price-tag-card .mrp-section {
+            padding: 8mm 0 !important;
+            border-top: 0.3mm solid #dddddd !important;
+            margin-bottom: 8mm !important;
+          }
+          .price-tag-card .mrp-title,
+          .price-tag-card .mrp-value {
+            font-size: 24pt !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.5px !important;
+          }
+          .price-tag-card .mrp-taxes {
+            font-size: 11pt !important;
+            color: #888888 !important;
+            margin-top: 2mm !important;
+            letter-spacing: 0.6px !important;
+          }
+          
+          /* Divider styling */
+          .price-tag-card .tag-divider {
+            height: 0.3mm !important;
+            background-color: #dddddd !important;
+            margin-bottom: 8mm !important;
+          }
+          
+          /* Info Rows Scaling */
+          .price-tag-card .info-rows {
+            width: 100% !important;
+          }
+          .price-tag-card .info-row {
+            padding: 4mm 0 !important;
+            gap: 12mm !important;
+          }
+          .price-tag-card .info-row-label {
+            font-size: 13pt !important;
+            font-weight: 700 !important;
+            color: #555555 !important;
+            letter-spacing: 0.2px !important;
+          }
+          .price-tag-card .info-row-value {
+            font-size: 13pt !important;
+            font-weight: 500 !important;
+            color: #111111 !important;
+          }
+          
+          /* QR Section Scaling */
+          .price-tag-card .qr-section {
+            margin-top: auto !important; /* Push QR and SKU to the bottom */
+            padding-top: 8mm !important;
+            border-top: 0.3mm solid #eeeeee !important;
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+          }
+          .price-tag-card .qr-image {
+            width: 52mm !important;
+            height: 52mm !important;
+          }
+          
+          /* SKU Text Scaling */
+          .price-tag-card .sku-text {
+            margin-top: 4mm !important;
+            font-size: 13pt !important;
+            font-weight: 600 !important;
+            color: #333333 !important;
+            letter-spacing: 0.4px !important;
+          }
+          
           @page {
             size: A4 portrait;
             margin: 10mm;
           }
         }
       `}</style>
+
 
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Header */}
