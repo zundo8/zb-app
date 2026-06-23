@@ -60,17 +60,24 @@ export default function PriceTagCard({
         </label>
       )}
 
-      {/* Logo */}
+      {/* Logo — rendered in square 1:1 ratio */}
       <div 
         className="logo-container"
-        style={{ marginBottom: `${Math.round(6 * scale)}px`, textAlign: 'center' }}
+        style={{ 
+          marginBottom: `${Math.round(6 * scale)}px`, 
+          textAlign: 'center' as const,
+          display: 'flex',
+          justifyContent: 'center',
+          width: '100%',
+        }}
       >
         <img
           className="logo-image"
-          src="/zb-logo-220px.png"
+          src="/ZB-logo-silver.svg"
           alt="Zica Bella"
           style={{
-            height: `${Math.round(24 * scale)}px`,
+            height: `${Math.round(44 * scale)}px`,
+            width: `${Math.round(44 * scale)}px`,
             objectFit: 'contain' as const,
             filter: 'grayscale(100%) contrast(200%)',
           }}

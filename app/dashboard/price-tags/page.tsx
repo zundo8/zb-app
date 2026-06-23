@@ -196,10 +196,14 @@ export default function PriceTagsPage() {
           .price-tag-card .logo-container {
             margin-bottom: 12mm !important;
             text-align: center !important;
+            display: flex !important;
+            justify-content: center !important;
           }
           .price-tag-card .logo-image {
-            height: 18mm !important;
-            max-height: 18mm !important;
+            height: 26mm !important;
+            width: 26mm !important;
+            max-height: 26mm !important;
+            max-width: 26mm !important;
           }
           
           /* MRP Section Scaling */

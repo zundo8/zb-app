@@ -31,21 +31,57 @@ const OFFSET_X = MARGIN_X
 const OFFSET_Y = MARGIN_Y
 
 // ── Helper: load image as base64 data URL ─────────────────────
+// SVG files are rasterized onto a high-res 512x512 canvas for crisp PDF rendering.
 async function loadImageAsDataURL(src: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
       const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
+      const size = 512
+      canvas.width = size
+      canvas.height = size
       const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0)
+      ctx.clearRect(0, 0, size, size)
+      ctx.drawImage(img, 0, 0, size, size)
       resolve(canvas.toDataURL('image/png'))
     }
     img.onerror = () => reject(new Error(`Failed to load image: ${src}`))
     img.src = src
   })
+}
+
+// ── Helper: Draw vector Indian Rupee symbol next to MRP ───────
+function drawRupeeVector(pdf: jsPDF, x: number, y: number, h: number) {
+  const w = h * 0.72 // width is 72% of height
+  const thick = h * 0.12 // bold line thickness (12% of height)
+  
+  pdf.setLineWidth(thick)
+  pdf.setDrawColor(17, 17, 17)
+  
+  // 1. Vertical stem (located at 30% of width)
+  const stemX = x + w * 0.3
+  pdf.line(stemX, y, stemX, y + h)
+  
+  // 2. Top horizontal bar
+  pdf.line(x, y + thick/2, x + w, y + thick/2)
+  
+  // 3. Middle horizontal bar
+  pdf.line(x, y + h * 0.32, x + w * 0.9, y + h * 0.32)
+  
+  // 4. Curved loop (upper-right loop)
+  const loopTopY = y
+  const loopBotY = y + h * 0.55
+  const loopRightX = x + w
+  
+  pdf.moveTo(stemX, loopTopY)
+  pdf.curveTo(loopRightX, loopTopY, loopRightX, loopBotY, stemX, loopBotY)
+  
+  // 5. Diagonal leg (starts at stem intersection and goes to bottom right)
+  pdf.moveTo(stemX + w * 0.05, loopBotY + h * 0.05)
+  pdf.lineTo(x + w * 0.9, y + h)
+  
+  pdf.stroke()
 }
 
 // ── Draw a single price tag at (x, y) ────────────────────────
@@ -62,30 +98,28 @@ function drawTag(
   const rightX = x + TAG_W - pad
 
   // ── No outer border for a clean full-page minimal look.
-  // We'll keep it borderless as requested by "remove unwanted lines" to make it look professional.
-
   let curY = y + pad + 6
 
   // ── Logo ──
+  // Zica Bella SVG logo is 1:1 ratio. Render at 26mm × 26mm square.
   if (logoDataUrl) {
-    const logoH = 18
-    const logoW = 66
-    const logoX = x + (TAG_W - logoW) / 2
+    const logoSize = 26
+    const logoX = x + (TAG_W - logoSize) / 2
     try {
-      pdf.addImage(logoDataUrl, 'PNG', logoX, curY, logoW, logoH)
+      pdf.addImage(logoDataUrl, 'PNG', logoX, curY, logoSize, logoSize)
     } catch {
       pdf.setFontSize(24)
       pdf.setFont('helvetica', 'bold')
       pdf.setTextColor(30, 30, 30)
       pdf.text('ZICA BELLA', x + TAG_W / 2, curY + 12, { align: 'center' })
     }
-    curY += logoH + 15
+    curY += logoSize + 10
   } else {
     pdf.setFontSize(24)
     pdf.setFont('helvetica', 'bold')
     pdf.setTextColor(30, 30, 30)
     pdf.text('ZICA BELLA', x + TAG_W / 2, curY + 12, { align: 'center' })
-    curY += 25
+    curY += 30
   }
 
   // ── MRP section with top border ──
@@ -99,8 +133,19 @@ function drawTag(
   pdf.setTextColor(17, 17, 17)
   pdf.text('MRP', contentX, curY + 6)
 
-  const mrpStr = `\u20B9 ${tag.mrp.toLocaleString('en-IN')}`
-  pdf.text(mrpStr, rightX, curY + 6, { align: 'right' })
+  // Align custom Rupee vector symbol with the baseline of text
+  const priceValStr = tag.mrp.toLocaleString('en-IN')
+  const priceW = pdf.getTextWidth(priceValStr)
+
+  const rupeeH = 5.8
+  const rupeeW = rupeeH * 0.72
+  const gap = 2.0
+
+  const rupeeX = rightX - priceW - rupeeW - gap
+  const rupeeY = curY + 6 - rupeeH + 0.5 // Align base of Rupee with text baseline
+
+  drawRupeeVector(pdf, rupeeX, rupeeY, rupeeH)
+  pdf.text(priceValStr, rightX, curY + 6, { align: 'right' })
   curY += 14
 
   // "Inclusive of All Taxes"
@@ -187,10 +232,10 @@ export async function downloadTagsPDF(
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
 
-  // Pre-load the logo once
+  // Pre-load the official circular SVG logo
   let logoDataUrl: string | null = null
   try {
-    logoDataUrl = await loadImageAsDataURL('/zb-logo-220px.png')
+    logoDataUrl = await loadImageAsDataURL('/ZB-logo-silver.svg')
   } catch {
     console.warn('Could not load logo for PDF, using text fallback')
   }
@@ -224,7 +269,7 @@ export async function printTagsPDF(tags: TagData[]): Promise<void> {
 
   let logoDataUrl: string | null = null
   try {
-    logoDataUrl = await loadImageAsDataURL('/zb-logo-220px.png')
+    logoDataUrl = await loadImageAsDataURL('/ZB-logo-silver.svg')
   } catch {
     console.warn('Could not load logo for PDF print')
   }
