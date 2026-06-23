@@ -17,51 +17,22 @@ export async function GET() {
       const data = await shopifyFetch('checkouts.json', { limit: '50' });
       checkouts = data?.checkouts || [];
     } catch (apiErr) {
-      console.warn('[Shopify Carts API] Live fetch failed, using fallback mock data:', apiErr.message);
+      console.warn('[Shopify Carts API] Live fetch failed:', apiErr.message);
     }
 
-    // Fallback: If Shopify isn't connected or returns empty, use simulated checkouts for the dashboard
-    if (!checkouts || checkouts.length === 0) {
-      checkouts = [
-        {
-          id: 1042,
-          phone: "+919876543210",
-          billing_address: { first_name: "Rahul", last_name: "Sharma", phone: "+919876543210" },
-          line_items: [{ title: "Archival Tee (Black, M)", quantity: 1 }],
-          total_price: "4599.00",
-          abandoned_checkout_url: "https://zicabella.com/checkout/recover/cart_1",
-          created_at: new Date(Date.now() - 3600000).toISOString() // 1h ago
-        },
-        {
-          id: 1043,
-          phone: "+919988776655",
-          billing_address: { first_name: "Priya", last_name: "Singh", phone: "+919988776655" },
-          line_items: [{ title: "Kinetic Cargo (Beige, S)", quantity: 1 }],
-          total_price: "2199.00",
-          abandoned_checkout_url: "https://zicabella.com/checkout/recover/cart_2",
-          created_at: new Date(Date.now() - 7200000).toISOString() // 2h ago
-        },
-        {
-          id: 1044,
-          phone: "+919876500000",
-          billing_address: { first_name: "Amit", last_name: "Kumar", phone: "+919876500000" },
-          line_items: [{ title: "Mesh Hoodie (White, L)", quantity: 1 }],
-          total_price: "8999.00",
-          abandoned_checkout_url: "https://zicabella.com/checkout/recover/cart_3",
-          created_at: new Date(Date.now() - 86400000).toISOString() // 1d ago
-        }
-      ];
-    }
-
-    // Cross reference with local whatsapp_message_log database to see which ones are already sent
+    // Cross reference with local whatsapp_messages database to see which ones are already sent
     const sentPhones = new Set();
     try {
-      const logs = await prisma.$queryRaw`
-        SELECT DISTINCT recipient_phone FROM whatsapp_message_log
-        WHERE message_type = 'abandoned_cart' AND status = 'sent'
-      `;
+      const logs = await prisma.whatsAppMessage.findMany({
+        where: {
+          templateName: { in: ['zica_cart_recovery_v1', 'zb_abandoned_cart'] },
+          status: 'sent'
+        },
+        select: { phoneNumber: true },
+        distinct: ['phoneNumber']
+      });
       if (logs && Array.isArray(logs)) {
-        logs.forEach(l => sentPhones.add(l.recipient_phone));
+        logs.forEach(l => sentPhones.add(l.phoneNumber));
       }
     } catch (dbErr) {
       console.warn('[Shopify Carts API] Failed to fetch sent recovery logs:', dbErr.message);
@@ -94,3 +65,4 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

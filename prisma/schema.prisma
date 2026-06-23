@@ -794,9 +794,13 @@ model WhatsAppMessage {
   orderId      String?
   errorCode    String?
   errorMessage String?
+  sentAt       DateTime  @default(now())
+  deliveredAt  DateTime?
+  readAt       DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  @@map("whatsapp_messages")
   @@index([phoneNumber, createdAt])
   @@index([userId])
   @@index([campaignId])
@@ -820,9 +824,87 @@ model WhatsAppCampaign {
   statsFailed    Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  recipients     WhatsAppCampaignRecipient[]
 
+  @@map("whatsapp_campaigns")
   @@index([status, scheduledAt])
 }
+
+model WhatsAppSetting {
+  key   String @id
+  value String
+
+  @@map("whatsapp_settings")
+}
+
+model WhatsAppTemplate {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  category   String
+  language   String
+  status     String
+  components Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("whatsapp_templates")
+}
+
+model WhatsAppCampaignRecipient {
+  id           String           @id @default(cuid())
+  campaignId   String
+  phone        String
+  name         String?
+  status       String           @default("queued") // queued, sent, delivered, read, failed
+  messageId    String?
+  errorMessage String?
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  campaign     WhatsAppCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_campaign_recipients")
+  @@index([campaignId])
+  @@index([phone])
+}
+
+model WhatsAppWebhookEvent {
+  id        String   @id @default(cuid())
+  eventType String   // messages, message_status, etc.
+  payload   Json
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("whatsapp_webhook_events")
+}
+
+model WhatsAppOptIn {
+  id          String   @id @default(cuid())
+  phone       String   @unique
+  status      String   // opted_in, opted_out
+  consentDate DateTime @default(now())
+  source      String   // e.g. community_signup, checkout, admin_dashboard
+
+  @@map("whatsapp_opt_ins")
+  @@index([phone])
+}
+
+model WhatsAppDeliveryStatus {
+  id          String    @id @default(cuid())
+  messageId   String    @unique
+  phoneNumber String
+  status      String    // sent, delivered, read, failed
+  errorCode   String?
+  errorText   String?
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  readAt      DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@map("whatsapp_delivery_status")
+  @@index([phoneNumber])
+}
+
 
 model EmailCampaign {
   id                String    @id @default(cuid())

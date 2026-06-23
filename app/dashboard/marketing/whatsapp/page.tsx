@@ -95,9 +95,13 @@ export default function WhatsAppHubPage() {
           </div>
 
           {connectionStatus === "connected" && statusData && (
-            <div className="text-[10px] text-muted-foreground flex gap-3 mt-1 font-mono">
+            <div className="text-[10px] text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 mt-1 font-mono justify-end">
               <span>Sender: <strong className="text-foreground">{statusData.phone}</strong></span>
               <span>WABA ID: <strong className="text-foreground">{statusData.wabaId}</strong></span>
+              <span>Phone ID: <strong className="text-foreground">{statusData.phoneId}</strong></span>
+              <span>Quality: <strong className={statusData.quality === 'GREEN' || statusData.quality === 'HIGH' ? 'text-emerald-500' : 'text-amber-500'}>{statusData.quality}</strong></span>
+              <span>Tier: <strong className="text-foreground">{statusData.tier}</strong></span>
+              <span>Webhook: <strong className={statusData.webhookSubscribed ? "text-emerald-500" : "text-rose-500"}>{statusData.webhookSubscribed ? "Active" : "Not Active"}</strong></span>
             </div>
           )}
 
@@ -873,6 +877,12 @@ function BroadcastCampaigns() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<{ total: number; current: number } | null>(null);
   const [summary, setSummary] = useState<any>(null);
+  const [campaignName, setCampaignName] = useState("");
+  const [audience, setAudience] = useState("all_customers");
+  
+  // Historical campaigns list
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
 
   const campaignTemplates = [
     { id: "sale_alert", label: "Sale Alert", fields: ["discountPercent", "saleEndDate"] },
@@ -897,21 +907,85 @@ function BroadcastCampaigns() {
 
   const estimatedCost = (recipients.length * 0.58).toFixed(2);
 
-  const loadFromDB = async () => {
-    const toastId = toast.loading("Fetching opted-in users from database...");
+  // Fetch campaigns
+  const fetchCampaigns = async () => {
     try {
-      const res = await fetch("/api/whatsapp/recipients");
+      const res = await fetch("/api/whatsapp/campaigns");
+      const data = await res.json();
+      if (res.ok && data.campaigns) {
+        setCampaigns(data.campaigns);
+      }
+    } catch (err) {
+      console.error("Error loading campaigns:", err);
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  // Poll active sending campaigns
+  useEffect(() => {
+    const hasActiveCampaign = campaigns.some(c => c.status === "sending" || c.status === "queued");
+    if (!hasActiveCampaign) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/whatsapp/campaigns");
+        const data = await res.json();
+        if (res.ok && data.campaigns) {
+          setCampaigns(data.campaigns);
+        }
+      } catch (err) {
+        console.error("Polling campaigns failed:", err);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [campaigns]);
+
+  // Load audience from DB
+  const loadSegment = async (selectedAudience: string) => {
+    const toastId = toast.loading(`Loading audience segment: ${selectedAudience}...`);
+    try {
+      const res = await fetch(`/api/whatsapp/recipients?audience=${selectedAudience}`);
       const data = await res.json();
       if (res.ok && data.recipients) {
         const text = data.recipients.map((r: any) => `${r.phone}, ${r.customerName}`).join("\n");
         setRecipientsText(text);
-        toast.success(`Loaded ${data.recipients.length} subscribers!`, { id: toastId });
+        toast.success(`Loaded ${data.recipients.length} opted-in subscribers!`, { id: toastId });
       } else {
         toast.error(data.error || "Failed to load database recipients.", { id: toastId });
       }
     } catch (e) {
       toast.error("Network error loading recipients.", { id: toastId });
     }
+  };
+
+  // CSV parsing
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+      
+      const parsed = lines.map(line => {
+        const parts = line.split(",");
+        const phone = parts[0]?.trim() || '';
+        const name = parts[1]?.trim() || '';
+        return phone ? `${phone}${name ? ',' + name : ''}` : '';
+      }).filter(Boolean).join("\n");
+
+      setRecipientsText(parsed);
+      setAudience("custom_csv");
+      toast.success(`Successfully loaded ${lines.length} rows from CSV file!`);
+    };
+    reader.readAsText(file);
   };
 
   const handleBroadcast = async (e: React.FormEvent) => {
@@ -924,22 +998,30 @@ function BroadcastCampaigns() {
     setLoading(true);
     setSummary(null);
     setProgress({ total: recipients.length, current: 0 });
+    const toastId = toast.loading("Queuing broadcast campaign...");
 
     try {
       const res = await fetch("/api/whatsapp/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, recipients, payload })
+        body: JSON.stringify({
+          type,
+          recipients,
+          payload,
+          name: campaignName || undefined
+        })
       });
       const data = await res.json();
-      if (res.ok) {
-        setSummary(data);
-        toast.success(`Broadcast finished! Sent: ${data.sent}, Failed: ${data.failed}`);
+      if (res.ok && data.success) {
+        toast.success("Broadcast successfully queued in background!", { id: toastId });
+        setRecipientsText("");
+        setCampaignName("");
+        fetchCampaigns();
       } else {
-        toast.error(data.error || "Broadcast campaign execution failed.");
+        toast.error(data.error || "Broadcast campaign execution failed.", { id: toastId });
       }
     } catch (e) {
-      toast.error("Network error during broadcast campaign.");
+      toast.error("Network error during broadcast campaign.", { id: toastId });
     } finally {
       setLoading(false);
       setProgress(null);
@@ -953,7 +1035,18 @@ function BroadcastCampaigns() {
         <h3 className="font-semibold text-lg">New Campaign Blast</h3>
         <form onSubmit={handleBroadcast} className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Campaign Type</label>
+            <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Campaign Name (Optional)</label>
+            <input
+              type="text"
+              placeholder="e.g. Summer Clearance Blast"
+              value={campaignName}
+              onChange={(e) => setCampaignName(e.target.value)}
+              className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Campaign Template</label>
             <select
               value={type}
               onChange={(e) => { setType(e.target.value); setPayload({}); }}
@@ -986,26 +1079,52 @@ function BroadcastCampaigns() {
             </div>
           )}
 
-          <div className="border-t border-foreground/5 pt-3">
-            <div className="flex justify-between items-center mb-1.5">
-              <label className="text-xs font-semibold text-foreground/60 uppercase">Recipients List</label>
-              <button 
-                type="button" 
-                onClick={loadFromDB}
-                className="text-xs text-emerald-500 font-medium flex items-center gap-1 hover:underline"
-              >
-                <Database className="w-3.5 h-3.5" />
-                Load Opted-in from DB
-              </button>
+          <div className="border-t border-foreground/5 pt-3 space-y-3">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+              <label className="text-xs font-semibold text-foreground/60 uppercase">Target Audience</label>
+              
+              <div className="flex items-center gap-2">
+                <select
+                  value={audience}
+                  onChange={(e) => {
+                    setAudience(e.target.value);
+                    if (e.target.value !== "custom_csv") {
+                      loadSegment(e.target.value);
+                    }
+                  }}
+                  className="bg-foreground/5 border border-foreground/10 rounded-lg px-2.5 py-1 text-xs outline-none focus:border-foreground/30"
+                >
+                  <option value="all_customers">All Opted-In Customers</option>
+                  <option value="with_orders">Customers with Orders</option>
+                  <option value="without_orders">Customers without Orders</option>
+                  <option value="wishlist">Wishlist Users</option>
+                  <option value="cart_abandonment">Cart Abandonment Users</option>
+                  <option value="custom_csv">Upload Custom CSV File</option>
+                </select>
+
+                {audience === "custom_csv" && (
+                  <label className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer border border-emerald-500/20">
+                    Upload CSV
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCSVUpload}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
             </div>
+            
             <textarea
-              rows={6}
+              rows={5}
+              required
               placeholder="e.g. +919876543210, Priya&#10;+919988776655, Rahul"
               value={recipientsText}
               onChange={(e) => setRecipientsText(e.target.value)}
               className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono text-xs resize-none"
             />
-            <span className="text-[10px] text-muted-foreground mt-1 block">Paste phone numbers (one per line). Format: [phone], [name] (optional).</span>
+            <span className="text-[10px] text-muted-foreground block">Format: [phone], [name] (one per line). Empty numbers are ignored. Only opted-in numbers are allowed.</span>
           </div>
 
           {/* Pricing & Estimation banner */}
@@ -1030,65 +1149,86 @@ function BroadcastCampaigns() {
         </form>
       </div>
 
-      {/* Progress & Result Panel */}
-      <div className="glass-card p-6 flex flex-col justify-between">
-        <div>
-          <h3 className="font-semibold text-lg mb-4">Execution Panel</h3>
+      {/* Progress & Campaign History Panel */}
+      <div className="glass-card p-6 flex flex-col justify-between h-[600px] overflow-hidden">
+        <div className="space-y-4 flex flex-col h-full">
+          <h3 className="font-semibold text-lg">Campaign Dashboard</h3>
           
-          {loading && (
-            <div className="space-y-4 py-10 flex flex-col items-center justify-center">
-              <RefreshCcw className="w-10 h-10 animate-spin text-emerald-500 mb-2" />
-              <div className="w-full bg-foreground/5 rounded-full h-2.5 overflow-hidden border border-foreground/10 max-w-sm">
-                <div 
-                  className="bg-emerald-500 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${(progress ? progress.current / progress.total : 0) * 100}%` }}
-                />
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
+            {loadingCampaigns ? (
+              <div className="flex justify-center py-20">
+                <RefreshCcw className="w-6 h-6 animate-spin text-emerald-500" />
               </div>
-              <span className="text-sm font-medium">Processing broadcast queues...</span>
-            </div>
-          )}
-
-          {summary && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-foreground/5 border border-foreground/10 p-3 rounded-xl">
-                  <span className="text-muted-foreground text-[10px] uppercase font-bold block">Total</span>
-                  <span className="text-xl font-bold">{summary.total}</span>
-                </div>
-                <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
-                  <span className="text-emerald-500 text-[10px] uppercase font-bold block">Sent</span>
-                  <span className="text-xl font-bold text-emerald-500">{summary.sent}</span>
-                </div>
-                <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl">
-                  <span className="text-rose-500 text-[10px] uppercase font-bold block">Failed</span>
-                  <span className="text-xl font-bold text-rose-500">{summary.failed}</span>
-                </div>
+            ) : campaigns.length === 0 ? (
+              <div className="py-20 text-center text-muted-foreground text-sm flex flex-col items-center justify-center">
+                <Send className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                <span>No campaign blasts found. Start one above.</span>
               </div>
-
-              <div>
-                <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-2">Detailed Results Log</h4>
-                <div className="bg-foreground/5 border border-foreground/10 rounded-xl overflow-y-auto max-h-60 text-xs font-mono divide-y divide-foreground/10">
-                  {summary.results?.map((res: any, i: number) => (
-                    <div key={i} className="p-2.5 flex justify-between items-center gap-2">
-                      <span className="text-muted-foreground">{res.phone}</span>
-                      {res.success ? (
-                        <span className="text-emerald-500 font-semibold">Sent ({res.messageId})</span>
-                      ) : (
-                        <span className="text-rose-500 font-semibold" title={res.error}>Failed: {res.error}</span>
-                      )}
+            ) : (
+              campaigns.map((c) => {
+                const total = c.statsSent + c.statsFailed;
+                const progressVal = total > 0 ? (c.statsSent / total) * 100 : 0;
+                
+                return (
+                  <div key={c.id} className="bg-foreground/5 border border-foreground/10 rounded-xl p-4.5 space-y-3 hover:bg-foreground/[0.08] transition-all">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold text-sm text-foreground">{c.name}</h4>
+                        <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">Template: {c.templateName}</span>
+                      </div>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        c.status === "completed" ? "border-emerald-500/20 text-emerald-500 bg-emerald-500/10" :
+                        c.status === "sending" ? "border-blue-500/20 text-blue-500 bg-blue-500/10 animate-pulse" :
+                        "border-rose-500/20 text-rose-500 bg-rose-500/10"
+                      }`}>
+                        {c.status.toUpperCase()}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
-          {!loading && !summary && (
-            <div className="py-20 text-center text-muted-foreground text-sm flex flex-col items-center justify-center">
-              <Send className="w-12 h-12 text-muted-foreground/30 mb-3" />
-              <span>Broadcast campaign output logs will display here.</span>
-            </div>
-          )}
+                    {/* Stats metrics */}
+                    <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-semibold text-muted-foreground">
+                      <div className="bg-background/40 p-1.5 rounded-lg border border-foreground/5">
+                        <span className="block text-[8px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Sent</span>
+                        <strong className="text-foreground text-xs">{c.statsSent}</strong>
+                      </div>
+                      <div className="bg-emerald-500/5 p-1.5 rounded-lg border border-emerald-500/10">
+                        <span className="block text-[8px] uppercase tracking-wider text-emerald-500/60 mb-0.5">Delivered</span>
+                        <strong className="text-emerald-500 text-xs">{c.statsDelivered}</strong>
+                      </div>
+                      <div className="bg-blue-500/5 p-1.5 rounded-lg border border-blue-500/10">
+                        <span className="block text-[8px] uppercase tracking-wider text-blue-500/60 mb-0.5">Read</span>
+                        <strong className="text-blue-500 text-xs">{c.statsRead}</strong>
+                      </div>
+                      <div className="bg-rose-500/5 p-1.5 rounded-lg border border-rose-500/10">
+                        <span className="block text-[8px] uppercase tracking-wider text-rose-500/60 mb-0.5">Failed</span>
+                        <strong className="text-rose-500 text-xs">{c.statsFailed}</strong>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar for active campaign */}
+                    {(c.status === "sending" || c.status === "queued") && (
+                      <div className="space-y-1">
+                        <div className="w-full bg-foreground/5 rounded-full h-1.5 overflow-hidden border border-foreground/5">
+                          <div 
+                            className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                            style={{ width: `${progressVal}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[8px] text-muted-foreground">
+                          <span>Progress: {Math.round(progressVal)}%</span>
+                          <span>{c.statsSent} sent</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="text-[9px] text-muted-foreground text-right">
+                      {new Date(c.createdAt).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -1102,6 +1242,19 @@ function CartRecovery() {
   const [carts, setCarts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isBulkSending, setIsBulkSending] = useState(false);
+  const [stats, setStats] = useState<any>(null);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch("/api/whatsapp/abandoned-cart/stats");
+      const data = await res.json();
+      if (res.ok) {
+        setStats(data);
+      }
+    } catch (e) {
+      console.error("Failed to load cart recovery stats:", e);
+    }
+  };
 
   const fetchCarts = async () => {
     setLoading(true);
@@ -1122,28 +1275,32 @@ function CartRecovery() {
 
   useEffect(() => {
     fetchCarts();
+    fetchStats();
   }, []);
 
   const handleSendRecovery = async (cart: any) => {
     const toastId = toast.loading(`Sending recovery to ${cart.customer}...`);
     try {
-      const res = await fetch("/api/whatsapp/abandoned-cart/trigger", {
+      const res = await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: cart.phone,
-          billing_address: { first_name: cart.customer },
-          total_price: cart.cart_value.replace(/[^0-9.]/g, ""), // extract float number
-          abandoned_checkout_url: cart.abandoned_checkout_url,
-          line_items: cart.items.split(",").map((i: string) => ({ title: i.trim() }))
+          type: "abandoned_cart",
+          to: cart.phone,
+          payload: {
+            phone: cart.phone,
+            customerName: cart.customer,
+            checkoutUrl: cart.abandoned_checkout_url
+          }
         })
       });
       const data = await res.json();
-      if (res.ok && (data.success || data.skipped)) {
+      if (res.ok && data.success) {
         toast.success(`Recovery message triggered successfully!`, { id: toastId });
         
         // Update local cart state to 'sent'
         setCarts(prev => prev.map(c => c.id === cart.id ? { ...c, status: "sent" } : c));
+        fetchStats();
       } else {
         toast.error(data.error || "Recovery failed.", { id: toastId });
       }
@@ -1167,19 +1324,21 @@ function CartRecovery() {
     let sentCount = 0;
     for (const cart of pendingCarts) {
       try {
-        const res = await fetch("/api/whatsapp/abandoned-cart/trigger", {
+        const res = await fetch("/api/whatsapp/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            phone: cart.phone,
-            billing_address: { first_name: cart.customer },
-            total_price: cart.cart_value.replace(/[^0-9.]/g, ""),
-            abandoned_checkout_url: cart.abandoned_checkout_url,
-            line_items: cart.items.split(",").map((i: string) => ({ title: i.trim() }))
+            type: "abandoned_cart",
+            to: cart.phone,
+            payload: {
+              phone: cart.phone,
+              customerName: cart.customer,
+              checkoutUrl: cart.abandoned_checkout_url
+            }
           })
         });
         const data = await res.json();
-        if (res.ok && (data.success || data.skipped)) {
+        if (res.ok && data.success) {
           sentCount++;
           // Update status in real time
           setCarts(prev => prev.map(c => c.id === cart.id ? { ...c, status: "sent" } : c));
@@ -1193,10 +1352,39 @@ function CartRecovery() {
 
     toast.success(`Bulk recovery completed! Sent: ${sentCount}`, { id: toastId });
     setIsBulkSending(false);
+    fetchStats();
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Recovery stats cards grid */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="glass-card p-5">
+          <span className="text-xs font-semibold text-foreground/50 tracking-wider uppercase block mb-1">Recovered Revenue</span>
+          <span className="text-2xl font-bold tracking-tight text-emerald-500">
+            ₹{(stats?.recoveredRevenue || 0).toLocaleString('en-IN')}
+          </span>
+        </div>
+        <div className="glass-card p-5">
+          <span className="text-xs font-semibold text-foreground/50 tracking-wider uppercase block mb-1">Recovered Orders</span>
+          <span className="text-2xl font-bold tracking-tight">
+            {stats?.recoveredOrders || 0}
+          </span>
+        </div>
+        <div className="glass-card p-5">
+          <span className="text-xs font-semibold text-foreground/50 tracking-wider uppercase block mb-1">Recovery Rate</span>
+          <span className="text-2xl font-bold tracking-tight text-blue-500">
+            {stats?.recoveryRate || 0}%
+          </span>
+        </div>
+        <div className="glass-card p-5">
+          <span className="text-xs font-semibold text-foreground/50 tracking-wider uppercase block mb-1">Recoveries Sent</span>
+          <span className="text-2xl font-bold tracking-tight text-muted-foreground">
+            {stats?.totalSent || 0}
+          </span>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between gap-4">
         <h3 className="text-lg font-semibold">Abandoned Carts (Shopify)</h3>
         <button
@@ -1500,95 +1688,162 @@ function MessageLogs() {
   );
 }
 
-/* ==========================================================================
-   COD OPERATIONS (PRISTINE KEEP)
-   ========================================================================== */
 function CODOperations() {
-  const stats = [
-    { label: "Pending Confirm", value: "42", icon: AlertCircle, color: "text-amber-500" },
-    { label: "Confirmed Today", value: "128", icon: CheckCircle2, color: "text-emerald-500" },
-    { label: "Auto Cancelled", value: "14", icon: AlertCircle, color: "text-rose-500" },
-    { label: "Avg Response Time", value: "12m", icon: BarChart3, color: "text-blue-500" },
-  ];
+  const [stats, setStats] = useState<any[]>([]);
+  const [verifications, setVerifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/whatsapp/cod/stats");
+      const data = await res.json();
+      if (res.ok) {
+        setStats(data.stats || []);
+        setVerifications(data.verifications || []);
+      }
+    } catch (err) {
+      toast.error("Failed to load COD verification metrics.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleResend = async (orderId: string) => {
+    const toastId = toast.loading("Resending COD verification...");
+    try {
+      const res = await fetch("/api/orders/cod-confirm-init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success("Verification template sent successfully!", { id: toastId });
+        fetchData();
+      } else {
+        toast.error(data.error || "Failed to resend verification.", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Network error resending verification.", { id: toastId });
+    }
+  };
+
+  // Filter verifications by search query
+  const filteredVerifications = verifications.filter(v =>
+    v.shopifyOrderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getIcon = (label: string) => {
+    if (label === "Confirmed Today") return CheckCircle2;
+    if (label === "Avg Response Time") return BarChart3;
+    return AlertCircle;
+  };
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {stats.map((s, i) => (
-          <div key={i} className="glass-card p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <s.icon className={`w-4 h-4 ${s.color}`} />
-              <span className="text-xs font-semibold text-foreground/50 tracking-wider uppercase">{s.label}</span>
-            </div>
-            <span className="text-2xl font-bold tracking-tight">{s.value}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="glass-card overflow-hidden">
-        <div className="p-5 border-b border-foreground/10 flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Recent COD Verifications</h3>
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40" />
-            <input 
-              type="text" 
-              placeholder="Search orders..." 
-              className="pl-9 pr-4 py-1.5 bg-foreground/5 border border-foreground/10 rounded-lg text-sm outline-none w-64 focus:border-foreground/30"
-            />
-          </div>
+      {loading && stats.length === 0 ? (
+        <div className="flex justify-center py-20">
+          <RefreshCcw className="w-8 h-8 animate-spin text-emerald-500" />
         </div>
-        
-        <table className="w-full text-sm">
-          <thead className="bg-foreground/[0.02] border-b border-foreground/10">
-            <tr>
-              <th className="text-left font-medium text-foreground/60 px-5 py-3">Order</th>
-              <th className="text-left font-medium text-foreground/60 px-5 py-3">Customer</th>
-              <th className="text-left font-medium text-foreground/60 px-5 py-3">Amount</th>
-              <th className="text-left font-medium text-foreground/60 px-5 py-3">Risk Score</th>
-              <th className="text-left font-medium text-foreground/60 px-5 py-3">Status</th>
-              <th className="text-right font-medium text-foreground/60 px-5 py-3">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-foreground/10">
-            {[
-              { id: "#1042", name: "Rahul Sharma", amount: "₹4,599", risk: 85, status: "pending" },
-              { id: "#1043", name: "Priya Singh", amount: "₹2,199", risk: 12, status: "confirmed" },
-              { id: "#1044", name: "Amit Kumar", amount: "₹8,999", risk: 45, status: "cancelled" },
-            ].map((row, i) => (
-              <tr key={i} className="hover:bg-foreground/5 transition-colors">
-                <td className="px-5 py-4 font-medium">{row.id}</td>
-                <td className="px-5 py-4 text-foreground/80">{row.name}</td>
-                <td className="px-5 py-4">{row.amount}</td>
-                <td className="px-5 py-4">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold ${
-                    row.risk > 70 ? 'bg-rose-500/10 text-rose-500' :
-                    row.risk > 30 ? 'bg-amber-500/10 text-amber-500' :
-                    'bg-emerald-500/10 text-emerald-500'
-                  }`}>
-                    {row.risk}/100
-                  </span>
-                </td>
-                <td className="px-5 py-4">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
-                    row.status === 'confirmed' ? 'border-emerald-500/20 text-emerald-600 bg-emerald-500/10' :
-                    row.status === 'cancelled' ? 'border-rose-500/20 text-rose-600 bg-rose-500/10' :
-                    'border-amber-500/20 text-amber-600 bg-amber-500/10'
-                  }`}>
-                    {row.status.toUpperCase()}
-                  </span>
-                </td>
-                <td className="px-5 py-4 text-right">
-                  {row.status === 'pending' && (
-                    <button className="text-xs font-medium text-blue-500 hover:text-blue-600">
-                      Resend WhatsApp
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {stats.map((s, i) => {
+              const Icon = getIcon(s.label);
+              return (
+                <div key={i} className="glass-card p-5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Icon className={`w-4 h-4 ${s.color || 'text-muted-foreground'}`} />
+                    <span className="text-xs font-semibold text-foreground/50 tracking-wider uppercase">{s.label}</span>
+                  </div>
+                  <span className="text-2xl font-bold tracking-tight">{s.value}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="glass-card overflow-hidden">
+            <div className="p-5 border-b border-foreground/10 flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Recent COD Verifications</h3>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40" />
+                <input 
+                  type="text" 
+                  placeholder="Search orders..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 pr-4 py-1.5 bg-foreground/5 border border-foreground/10 rounded-lg text-sm outline-none w-64 focus:border-foreground/30"
+                />
+              </div>
+            </div>
+            
+            <table className="w-full text-sm">
+              <thead className="bg-foreground/[0.02] border-b border-foreground/10">
+                <tr>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3">Order</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3">Customer</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3">Amount</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3">Risk Score</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3">Status</th>
+                  <th className="text-right font-medium text-foreground/60 px-5 py-3">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-foreground/10">
+                {filteredVerifications.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
+                      No COD verifications found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredVerifications.map((row) => (
+                    <tr key={row.id} className="hover:bg-foreground/5 transition-colors">
+                      <td className="px-5 py-4 font-medium">#{row.shopifyOrderId}</td>
+                      <td className="px-5 py-4 text-foreground/80">{row.customerName}</td>
+                      <td className="px-5 py-4">{row.amount}</td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold ${
+                          row.riskScore > 70 ? 'bg-rose-500/10 text-rose-500' :
+                          row.riskScore > 30 ? 'bg-amber-500/10 text-amber-500' :
+                          'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          {row.riskScore}/100
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+                          row.status === 'confirmed' ? 'border-emerald-500/20 text-emerald-600 bg-emerald-500/10' :
+                          row.status === 'cancelled' || row.status === 'cancelled_by_customer' ? 'border-rose-500/20 text-rose-600 bg-rose-500/10' :
+                          'border-amber-500/20 text-amber-600 bg-amber-500/10'
+                        }`}>
+                          {row.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {row.status === 'pending' && (
+                          <button 
+                            onClick={() => handleResend(row.id)}
+                            className="text-xs font-semibold text-blue-500 hover:text-blue-600 transition-all hover:underline"
+                          >
+                            Resend WhatsApp
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

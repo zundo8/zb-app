@@ -1,174 +1,129 @@
 /**
- * Pre-built Templates Seeder API Endpoint
+ * Production-ready Templates Seeder API Endpoint
  * Location: app/api/whatsapp/templates/seed/route.js
  */
 
 import { NextResponse } from 'next/server';
-import { createTemplate } from '@/lib/whatsapp/client';
+import { createTemplate, deleteTemplate, listTemplates, getConfig } from '@/lib/whatsapp/client';
 import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-const TEMPLATES_TO_SEED = [
+const PRODUCTION_TEMPLATES = [
   {
-    name: 'zb_order_confirmed',
+    name: 'zica_otp_v3',
     category: 'UTILITY',
     language: 'en',
     components: [
       {
         type: 'BODY',
-        text: 'Hi {{1}}! Your Zica Bella order #{{2}} for ₹{{3}} has been confirmed. We\'ll notify you when it ships. 🛍️'
+        text: 'Hello! Your reference number is {{1}}. Thank you for choosing Zica Bella.',
+        example: {
+          body_text: [
+            ['123456']
+          ]
+        }
       }
     ]
   },
   {
-    name: 'zb_order_status',
+    name: 'zica_order_confirmed_v1',
     category: 'UTILITY',
     language: 'en',
     components: [
       {
         type: 'BODY',
-        text: 'Hi {{1}}! Your Zica Bella order #{{2}} status has been updated to: *{{3}}*. {{4}}'
+        text: 'Thank you for your order, {{1}}! Your order {{2}} has been confirmed successfully.',
+        example: {
+          body_text: [
+            ['Karthik', '1024']
+          ]
+        }
       }
     ]
   },
   {
-    name: 'zb_order_shipped',
+    name: 'zica_order_shipped',
     category: 'UTILITY',
     language: 'en',
     components: [
       {
         type: 'BODY',
-        text: 'Great news, {{1}}! 📦 Your order #{{2}} is on its way.\nCourier: {{3}} | Tracking: {{4}}\nEstimated delivery: {{5}}'
+        text: 'Update: Hello {{1}}, your order {{2}} has been shipped. Your tracking ID is {{3}} - thank you.',
+        example: {
+          body_text: [
+            ['Karthik', '1024', '1234567890']
+          ]
+        }
       }
     ]
   },
   {
-    name: 'zb_out_for_delivery',
+    name: 'zica_order_delivered_v1',
     category: 'UTILITY',
     language: 'en',
     components: [
       {
         type: 'BODY',
-        text: 'Your Zica Bella order #{{1}} is out for delivery today! 🚚 Keep your phone handy, {{2}}.'
+        text: 'Update: Hello {{1}}, your order {{2}} has been delivered successfully. Thank you for shopping with us!',
+        example: {
+          body_text: [
+            ['Karthik', '1024']
+          ]
+        }
       }
     ]
   },
   {
-    name: 'zb_order_delivered',
+    name: 'zica_cod_confirmation_v1',
     category: 'UTILITY',
     language: 'en',
     components: [
       {
         type: 'BODY',
-        text: 'Hi {{1}}! Your Zica Bella order #{{2}} has been delivered. We hope you love it! 💕\nNeed help? Reply here.'
-      }
-    ]
-  },
-  {
-    name: 'zb_return_confirmed',
-    category: 'UTILITY',
-    language: 'en',
-    components: [
-      {
-        type: 'BODY',
-        text: 'Hi {{1}}, we\'ve received your return request for order #{{2}}. Your refund of ₹{{3}} will be processed within 5–7 business days.'
-      }
-    ]
-  },
-  {
-    name: 'zb_abandoned_cart',
-    category: 'MARKETING',
-    language: 'en',
-    components: [
-      {
-        type: 'BODY',
-        text: 'Hey {{1}}! 👀 You left something behind.\n{{2}} item(s) worth ₹{{3}} are waiting in your cart.\nComplete your order before it sells out! 💃'
+        text: 'Hello {{1}}, we received order {{2}} for Cash on Delivery. Please confirm your order below to proceed with shipment.',
+        example: {
+          body_text: [
+            ['Karthik', '1024']
+          ]
+        }
       },
       {
         type: 'BUTTONS',
         buttons: [
           {
-            type: 'URL',
-            text: 'Complete Order',
-            url: 'https://zicabella.com/checkout/recover/{{1}}'
+            type: 'QUICK_REPLY',
+            text: 'Confirm Order'
+          },
+          {
+            type: 'QUICK_REPLY',
+            text: 'Cancel Order'
           }
         ]
       }
     ]
   },
   {
-    name: 'zb_new_collection',
-    category: 'MARKETING',
-    language: 'en',
-    components: [
-      {
-        type: 'HEADER',
-        format: 'IMAGE'
-      },
-      {
-        type: 'BODY',
-        text: '✨ New Drop Alert, {{1}}!\n*{{2}}* is now live on Zica Bella.\n{{3}}'
-      },
-      {
-        type: 'BUTTONS',
-        buttons: [
-          {
-            type: 'URL',
-            text: 'Shop Now',
-            url: 'https://zicabella.com/{{1}}'
-          }
-        ]
-      }
-    ]
-  },
-  {
-    name: 'zb_sale_alert',
+    name: 'zica_cart_recovery_v1',
     category: 'MARKETING',
     language: 'en',
     components: [
       {
         type: 'BODY',
-        text: '🔥 {{1}}, the Zica Bella sale is LIVE!\nUp to {{2}}% off on selected styles.\nSale ends: {{3}}'
-      }
-    ]
-  },
-  {
-    name: 'zb_restock_alert',
-    category: 'MARKETING',
-    language: 'en',
-    components: [
-      {
-        type: 'BODY',
-        text: 'Good news, {{1}}! ✅\n*{{2}}* in size {{3}} is back in stock.\nGrab it before it\'s gone! 👉 zicabella.com'
-      }
-    ]
-  },
-  {
-    name: 'zb_welcome',
-    category: 'MARKETING',
-    language: 'en',
-    components: [
-      {
-        type: 'BODY',
-        text: 'Welcome to Zica Bella, {{1}}! 🌟\nYou\'re now part of our exclusive fashion circle.\nExplore our latest collections and enjoy a premium shopping experience.'
+        text: 'Hello {{1}}, we noticed you left some items in your cart. Complete your purchase today to get them shipped soon.',
+        example: {
+          body_text: [
+            ['Karthik']
+          ]
+        }
       }
     ]
   }
 ];
 
 export async function POST() {
-  let isConfigured = !!process.env.WHATSAPP_ACCESS_TOKEN;
-  if (!isConfigured) {
-    try {
-      const shop = await prisma.shop.findFirst();
-      if (shop?.whatsappToken) {
-        isConfigured = true;
-      }
-    } catch (e) {}
-  }
-
-  if (!isConfigured) {
+  const config = await getConfig();
+  if (!config.configured) {
     return NextResponse.json(
       { error: 'WhatsApp not configured' },
       { status: 503 }
@@ -178,28 +133,111 @@ export async function POST() {
   const results = [];
   let successCount = 0;
 
-  for (const template of TEMPLATES_TO_SEED) {
+  try {
+    // 1. Fetch current templates from Meta
+    let metaTemplates = [];
     try {
-      const result = await createTemplate(template);
-      results.push({
-        name: template.name,
-        status: 'submitted',
-        result
-      });
-      successCount++;
-    } catch (error) {
-      console.error(`[WhatsApp Seeder] Failed to seed ${template.name}:`, error.message);
-      results.push({
-        name: template.name,
-        status: 'error',
-        error: error.message
-      });
+      metaTemplates = await listTemplates();
+    } catch (err) {
+      console.warn('[WhatsApp Seeder] Failed to list existing templates:', err.message);
     }
+
+    const existingTemplates = new Map(
+      (metaTemplates || []).map(t => [t.name, t.status])
+    );
+
+    for (const template of PRODUCTION_TEMPLATES) {
+      const existingStatus = existingTemplates.get(template.name);
+
+      if (existingStatus === 'APPROVED' || existingStatus === 'PENDING') {
+        console.log(`[WhatsApp Seeder] Skipping ${template.name} because it is already ${existingStatus}`);
+        
+        // Cache locally
+        await prisma.whatsAppTemplate.upsert({
+          where: { name: template.name },
+          update: {
+            category: template.category,
+            language: template.language,
+            status: existingStatus,
+            components: template.components || [],
+            updatedAt: new Date()
+          },
+          create: {
+            name: template.name,
+            category: template.category,
+            language: template.language,
+            status: existingStatus,
+            components: template.components || []
+          }
+        });
+
+        results.push({
+          name: template.name,
+          status: 'skipped',
+          metaStatus: existingStatus
+        });
+        successCount++;
+        continue;
+      }
+
+      try {
+        if (existingStatus) {
+          // Try to delete existing template first to overwrite it
+          try {
+            await deleteTemplate(template.name);
+            console.log(`[WhatsApp Seeder] Deleted existing template: ${template.name}`);
+            // Wait 2 seconds for deletion to register
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (delError) {
+            console.log(`[WhatsApp Seeder] Template ${template.name} deletion skipped/failed:`, delError.message);
+          }
+        }
+
+        // Create new template on Meta
+        const result = await createTemplate(template);
+        
+        // Cache locally
+        await prisma.whatsAppTemplate.upsert({
+          where: { name: template.name },
+          update: {
+            category: template.category,
+            language: template.language,
+            status: 'PENDING',
+            components: template.components || [],
+            updatedAt: new Date()
+          },
+          create: {
+            name: template.name,
+            category: template.category,
+            language: template.language,
+            status: 'PENDING',
+            components: template.components || []
+          }
+        });
+
+        results.push({
+          name: template.name,
+          status: 'submitted',
+          result
+        });
+        successCount++;
+      } catch (error) {
+        console.error(`[WhatsApp Seeder] Failed to seed ${template.name}:`, error.message);
+        results.push({
+          name: template.name,
+          status: 'error',
+          error: error.message
+        });
+      }
+    }
+  } catch (error) {
+    console.error('[WhatsApp Seeder] Global seeding error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   return NextResponse.json({
     seeded: successCount,
-    total: TEMPLATES_TO_SEED.length,
+    total: PRODUCTION_TEMPLATES.length,
     results
   });
 }

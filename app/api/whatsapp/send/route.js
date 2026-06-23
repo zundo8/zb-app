@@ -1,7 +1,13 @@
+/**
+ * WhatsApp Unified Message Send API Endpoint with Opt-In Compliance
+ * Location: app/api/whatsapp/send/route.js
+ */
+
 import { NextResponse } from 'next/server';
 import * as templates from '@/lib/whatsapp/templates';
-import { sendTemplate, formatPhone } from '@/lib/whatsapp/client';
+import { sendTemplate, formatPhone, getConfig } from '@/lib/whatsapp/client';
 import { logMessage } from '@/lib/whatsapp/logger';
+import { isOptedIn } from '@/lib/whatsapp/templates';
 import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -18,25 +24,13 @@ const SENDER_MAP = {
   sale_alert: templates.sendSaleAlert,
   restock_alert: templates.sendRestockAlert,
   welcome: templates.sendWelcome,
+  cod_confirmation: templates.sendCODConfirmation,
 };
 
 export async function POST(req) {
-  // Check if WhatsApp is configured (either in env or DB)
-  const token = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-  let isConfigured = !!(token && phoneNumberId && wabaId);
+  const config = await getConfig();
 
-  if (!isConfigured) {
-    try {
-      const shop = await prisma.shop.findFirst();
-      if (shop?.whatsappToken && shop?.whatsappPhoneId) {
-        isConfigured = true;
-      }
-    } catch (e) {}
-  }
-
-  if (!isConfigured) {
+  if (!config.configured) {
     return NextResponse.json(
       { error: 'WhatsApp not configured' },
       { status: 503 }
@@ -50,13 +44,48 @@ export async function POST(req) {
     const { templateName, languageCode = 'en_US', to, components, type, payload } = body;
 
     // Determine recipient
-    let recipient = to || payload?.phone || '917907914512';
+    let recipient = to || payload?.phone || '';
+    if (!recipient) {
+      return NextResponse.json(
+        { error: 'Missing recipient phone number' },
+        { status: 400 }
+      );
+    }
     recipient = formatPhone(recipient);
 
-    // Direct Template Send (hello_world, or templates selected from dropdown)
+    // Direct Template Send (e.g. from the test form dropdown)
     if (templateName) {
+      // 1. Fetch template from DB to check category compliance
+      const dbTemplate = await prisma.whatsAppTemplate.findUnique({
+        where: { name: templateName }
+      });
+      
+      const isMarketing = dbTemplate?.category === 'MARKETING' || templateName === 'zica_cart_recovery_v1';
+
+      if (isMarketing) {
+        const consented = await isOptedIn(recipient);
+        if (!consented) {
+          const errorMsg = 'Recipient has not opted in to receive marketing messages.';
+          console.warn(`[WhatsApp API Send Route] Blocked marketing template ${templateName} to ${recipient} (consent missing)`);
+          
+          await logMessage({
+            to_number: recipient,
+            template_name: templateName,
+            message_body: `Template: ${templateName} (Blocked: Consent)`,
+            status: 'failed',
+            message_id: null,
+            error_details: { error: errorMsg }
+          });
+
+          return NextResponse.json(
+            { error: errorMsg },
+            { status: 403 }
+          );
+        }
+      }
+
       try {
-        console.log(`[WhatsApp API Send Route] Sending template: ${templateName} to ${recipient} using Graph API v19.0`);
+        console.log(`[WhatsApp API Send Route] Sending template: ${templateName} to ${recipient}`);
         const result = await sendTemplate({
           to: recipient,
           templateName,
@@ -64,12 +93,9 @@ export async function POST(req) {
           components
         });
 
-        // Log the full response to console for debugging
-        console.log('[WhatsApp Send API Full Response]:', JSON.stringify(result, null, 2));
-
         const messageId = result.messages?.[0]?.id || null;
 
-        // Log the event in the database logs table (whatsapp_message_logs)
+        // Log to DB via Prisma
         let bodyText = `Template: ${templateName}`;
         if (components && components.length > 0) {
           bodyText += ` | Parameters: ${JSON.stringify(components)}`;
@@ -125,7 +151,7 @@ export async function POST(req) {
       );
     }
 
-    // Call the corresponding sender function
+    // Call the corresponding sender function (which performs consent checks internally)
     const result = await senderFn(payload);
 
     if (result.success) {

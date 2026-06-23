@@ -1,111 +1,223 @@
+/**
+ * WhatsApp Production Webhook Handler
+ * Location: app/api/webhooks/whatsapp/route.ts
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
+import db from '@/lib/db';
+import { getConfig } from '@/lib/whatsapp/client';
+import { updateMessageStatus } from '@/lib/whatsapp/logger';
+import { WhatsAppService } from '@/lib/services/whatsapp.service';
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN
-  || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN
-  || 'zicabella_whatsapp_2026';
+export const dynamic = 'force-dynamic';
 
-// GET — Meta webhook verification handshake
+/**
+ * Helper to verify Meta signature
+ */
+async function verifyMetaSignature(req: NextRequest, appSecret: string): Promise<boolean> {
+  const signature = req.headers.get('x-hub-signature-256');
+  if (!signature) {
+    console.warn('[WhatsApp Webhook] Missing x-hub-signature-256 header');
+    return false;
+  }
+
+  const elements = signature.split('=');
+  const signatureHash = elements[1];
+
+  const clone = req.clone();
+  const rawBody = await clone.text();
+
+  const expectedHash = crypto
+    .createHmac('sha256', appSecret)
+    .update(rawBody)
+    .digest('hex');
+
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(signatureHash, 'utf-8'),
+      Buffer.from(expectedHash, 'utf-8')
+    );
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * GET — Meta webhook verification handshake
+ */
 export async function GET(req: NextRequest) {
+  const config = await getConfig();
   const { searchParams } = new URL(req.url);
-  const mode      = searchParams.get('hub.mode');
-  const token     = searchParams.get('hub.verify_token');
+  const mode = searchParams.get('hub.mode');
+  const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('[WhatsApp] Webhook verified successfully');
+  const verifyToken = config.verifyToken || 'zicabella_whatsapp_2026';
+
+  if (mode === 'subscribe' && token === verifyToken) {
+    console.log('[WhatsApp Webhook] Verification successful');
     return new NextResponse(challenge, { status: 200 });
   }
 
-  console.error('[WhatsApp] Webhook verification failed — token mismatch');
+  console.error('[WhatsApp Webhook] Verification failed — token mismatch');
   return new NextResponse('Forbidden', { status: 403 });
 }
 
-// POST — Incoming WhatsApp events (messages, status updates)
+/**
+ * POST — Process incoming webhook events
+ */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const config = await getConfig();
+    const appSecret = config.appSecret || process.env.WHATSAPP_APP_SECRET;
 
-    if (body.object !== 'whatsapp_business_account') {
-      return NextResponse.json({ error: 'Not a WhatsApp webhook' }, { status: 404 });
+    // Verify Meta signature if App Secret is configured
+    if (appSecret) {
+      const isSignatureValid = await verifyMetaSignature(req, appSecret);
+      if (!isSignatureValid) {
+        console.warn('[WhatsApp Webhook] Signature verification failed. Unauthorized request.');
+        return NextResponse.json({ error: 'Signature verification failed' }, { status: 401 });
+      }
     }
 
-    // Lazy-import heavy dependencies only when processing events
-    // This keeps the GET handler zero-dependency for reliable verification
-    const { default: db } = await import('@/lib/db');
-    const { WhatsAppService } = await import('@/lib/services/whatsapp.service');
+    const body = await req.json();
+    console.log('[WhatsApp Webhook Payload Received]:', JSON.stringify(body, null, 2));
 
+    if (body.object !== 'whatsapp_business_account') {
+      return NextResponse.json({ error: 'Unsupported webhook object type' }, { status: 400 });
+    }
+
+    // 1. Record raw webhook event in database
+    await db.whatsAppWebhookEvent.create({
+      data: {
+        eventType: body.entry?.[0]?.changes?.[0]?.field || 'messages',
+        payload: body,
+        processed: false
+      }
+    });
+
+    // 2. Process entries
     for (const entry of body.entry || []) {
       for (const change of entry.changes || []) {
         const value = change.value;
         if (!value) continue;
 
-        // Incoming messages
+        // Process incoming messages
         if (value.messages && Array.isArray(value.messages)) {
-          await handleIncomingMessages(value.messages, value.contacts || [], db, WhatsAppService);
+          await handleIncomingMessages(value.messages, db);
         }
 
-        // Status updates (sent, delivered, read, failed)
+        // Process delivery/read status updates
         if (value.statuses && Array.isArray(value.statuses)) {
-          await handleStatuses(value.statuses, db);
+          for (const statusObj of value.statuses) {
+            const { id, status, errors } = statusObj;
+            let errorDetails = null;
+            if (errors && errors.length > 0) {
+              errorDetails = errors[0];
+            }
+
+            // Update status (sent, delivered, read, failed) and campaign logs
+            await updateMessageStatus(id, status, errorDetails);
+          }
         }
       }
     }
 
     return NextResponse.json({ received: true }, { status: 200 });
-  } catch (err) {
-    console.error('[WhatsApp] Webhook POST error:', err);
-    // Always return 200 to Meta to prevent retry storms
+  } catch (error: any) {
+    console.error('[WhatsApp Webhook] POST error:', error);
+    // Always return 200 to Meta to avoid retry storms
     return NextResponse.json({ received: true }, { status: 200 });
   }
 }
 
-async function handleIncomingMessages(messages: any[], contacts: any[], db: any, WhatsAppService: any) {
+/**
+ * Handle user messages (opt-out keywords & COD button replies)
+ */
+async function handleIncomingMessages(messages: any[], db: any) {
   for (const message of messages) {
     const phoneNumber = message.from;
     const waMessageId = message.id;
 
-    // Extract text body from different message types
+    // Extract text body
     let bodyText = '';
     if (message.type === 'text') {
       bodyText = message.text?.body || '';
     } else if (message.type === 'button') {
       bodyText = message.button?.text || '';
     } else if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
-      bodyText = message.interactive.button_reply?.id || '';
+      bodyText = message.interactive.button_reply?.title || '';
     }
 
-    console.log(`[WhatsApp] Message from ${phoneNumber}: ${bodyText || '[non-text message]'}`);
+    console.log(`[WhatsApp Webhook] Message from ${phoneNumber}: ${bodyText}`);
 
-    // Check for opt-out keywords
+    // Check opt-out keywords (STOP, UNSUBSCRIBE)
     const lowerText = bodyText.toLowerCase().trim();
     if (lowerText === 'stop' || lowerText === 'unsubscribe') {
       try {
-        const user = await db.customer.findFirst({ where: { phone: { contains: phoneNumber.slice(-10) } } });
-        if (user) {
-          await db.customer.update({ where: { id: user.id }, data: { whatsappOptedOut: true } });
-          console.log(`[WhatsApp] Opted out customer: ${phoneNumber}`);
+        // Record opt-out consent status
+        await db.whatsAppOptIn.upsert({
+          where: { phone: phoneNumber },
+          update: { status: 'opted_out', consentDate: new Date() },
+          create: { phone: phoneNumber, status: 'opted_out', source: 'webhook_optout' }
+        });
+
+        // Also update local Customer profile
+        const customer = await db.customer.findFirst({
+          where: { phone: { contains: phoneNumber.slice(-10) } }
+        });
+        if (customer) {
+          await db.customer.update({
+            where: { id: customer.id },
+            data: { whatsappOptedOut: true }
+          });
         }
-      } catch (e: any) {
-        console.error('[WhatsApp] Opt-out error:', e.message);
+        console.log(`[WhatsApp Webhook] Consent marked OPTED_OUT for: ${phoneNumber}`);
+      } catch (err: any) {
+        console.error('[WhatsApp Webhook] Consent opt-out save error:', err.message);
+      }
+    } else if (lowerText === 'start' || lowerText === 'optin') {
+      // Opt back in
+      try {
+        await db.whatsAppOptIn.upsert({
+          where: { phone: phoneNumber },
+          update: { status: 'opted_in', consentDate: new Date() },
+          create: { phone: phoneNumber, status: 'opted_in', source: 'webhook_optin' }
+        });
+        const customer = await db.customer.findFirst({
+          where: { phone: { contains: phoneNumber.slice(-10) } }
+        });
+        if (customer) {
+          await db.customer.update({
+            where: { id: customer.id },
+            data: { whatsappOptedOut: false }
+          });
+        }
+        console.log(`[WhatsApp Webhook] Consent marked OPTED_IN for: ${phoneNumber}`);
+      } catch (err: any) {
+        console.error('[WhatsApp Webhook] Consent opt-in save error:', err.message);
       }
     }
 
-    // Handle COD Confirmations via button replies
+    // Handle COD confirmations via button clicks
     if (message.type === 'button' || message.type === 'interactive') {
       const payload = message.type === 'button' ? message.button?.payload : message.interactive?.button_reply?.id;
       if (payload?.startsWith('COD_CONFIRM_')) {
         const orderId = payload.split('_')[2];
-        await handleCODConfirmation(orderId, 'confirmed', 'whatsapp_button', db, WhatsAppService);
+        await handleCODConfirmation(orderId, 'confirmed', 'whatsapp_button', db);
       } else if (payload?.startsWith('COD_CANCEL_')) {
         const orderId = payload.split('_')[2];
-        await handleCODConfirmation(orderId, 'cancelled_by_customer', 'whatsapp_button', db, WhatsAppService);
+        await handleCODConfirmation(orderId, 'cancelled_by_customer', 'whatsapp_button', db);
       }
     }
 
-    // Save message to database
+    // Save message to log database
     try {
       let userId = null;
-      const customer = await db.customer.findFirst({ where: { phone: { contains: phoneNumber.slice(-10) } } });
+      const customer = await db.customer.findFirst({
+        where: { phone: { contains: phoneNumber.slice(-10) } }
+      });
       if (customer) userId = customer.id;
 
       await db.whatsAppMessage.create({
@@ -118,62 +230,21 @@ async function handleIncomingMessages(messages: any[], contacts: any[], db: any,
           status: 'read',
         }
       });
-    } catch (e: any) {
-      console.error('[WhatsApp] DB save error:', e.message);
+    } catch (err: any) {
+      console.error('[WhatsApp Webhook] Failed to log inbound message:', err.message);
     }
 
-    // Mark as read in Meta (fire-and-forget)
-    WhatsAppService.markAsRead(waMessageId).catch((e: any) => {
-      console.error('[WhatsApp] Mark-as-read error:', e.message);
+    // Mark as read in Meta
+    WhatsAppService.markAsRead(waMessageId).catch((err: any) => {
+      console.error('[WhatsApp Webhook] Mark-as-read error:', err.message);
     });
   }
 }
 
-async function handleStatuses(statuses: any[], db: any) {
-  for (const status of statuses) {
-    const waMessageId = status.id;
-    const statusType = status.status; // sent, delivered, read, failed
-
-    console.log(`[WhatsApp] Status update: ${statusType} for message ${waMessageId}`);
-
-    const updateData: any = { status: statusType };
-
-    if (status.errors && status.errors.length > 0) {
-      updateData.errorCode = status.errors[0].code?.toString();
-      updateData.errorMessage = status.errors[0].title || status.errors[0].message;
-    }
-
-    try {
-      await db.whatsAppMessage.update({
-        where: { waMessageId },
-        data: updateData
-      });
-
-      // Also update campaign stats if applicable
-      const msg = await db.whatsAppMessage.findUnique({ where: { waMessageId } });
-      if (msg?.campaignId) {
-        const fieldMap: Record<string, string> = {
-          sent: 'statsSent',
-          delivered: 'statsDelivered',
-          read: 'statsRead',
-          failed: 'statsFailed'
-        };
-        const field = fieldMap[statusType];
-        if (field) {
-          await db.whatsAppCampaign.update({
-            where: { id: msg.campaignId },
-            data: { [field]: { increment: 1 } }
-          });
-        }
-      }
-    } catch (err) {
-      // Might not exist yet if out-of-order delivery
-      console.error('[WhatsApp] Status update error for', waMessageId);
-    }
-  }
-}
-
-async function handleCODConfirmation(orderId: string, status: string, method: string, db: any, WhatsAppService: any) {
+/**
+ * Handle order COD confirmations
+ */
+async function handleCODConfirmation(orderId: string, status: string, method: string, db: any) {
   try {
     const order = await db.order.findUnique({
       where: { id: orderId },
@@ -182,6 +253,7 @@ async function handleCODConfirmation(orderId: string, status: string, method: st
 
     if (!order || order.codConfirmationStatus !== 'pending') return;
 
+    // Update order verification state
     await db.order.update({
       where: { id: orderId },
       data: {
@@ -192,7 +264,9 @@ async function handleCODConfirmation(orderId: string, status: string, method: st
       }
     });
 
-    // Trigger push notification to admin users
+    console.log(`[WhatsApp Webhook] COD order ${orderId} marked: ${status}`);
+
+    // Notify admins
     try {
       const { NotificationService } = await import('@/lib/services/notification.service');
       const admins = await db.user.findMany({
@@ -204,11 +278,11 @@ async function handleCODConfirmation(orderId: string, status: string, method: st
         await NotificationService.sendToUser(
           admin.id,
           `COD Order ${status === 'confirmed' ? 'Confirmed' : 'Cancelled'}`,
-          `Order #${order.shopifyOrderId} has been ${status} by the customer via WhatsApp.`
+          `Order #${order.shopifyOrderId || order.id} has been ${status} by the customer via WhatsApp.`
         ).catch((e: any) => console.error(`Error notifying admin ${admin.id}:`, e));
       }
-    } catch (notifError) {
-      console.error('[WhatsApp] Admin notification error:', notifError);
+    } catch (notifErr) {
+      console.error('[WhatsApp Webhook] Admin notification dispatch failed:', notifErr);
     }
 
     // Send confirmation back to customer
@@ -217,11 +291,11 @@ async function handleCODConfirmation(orderId: string, status: string, method: st
       await WhatsAppService.sendTextMessage(
         phone,
         status === 'confirmed'
-          ? `✅ Thank you! Your Cash on Delivery order #${order.shopifyOrderId} is confirmed. We will pack it shortly.`
-          : `❌ Your order #${order.shopifyOrderId} has been cancelled.`
+          ? `✅ Thank you! Your Cash on Delivery order #${order.shopifyOrderId || order.id} is confirmed. We will pack it shortly.`
+          : `❌ Your order #${order.shopifyOrderId || order.id} has been cancelled.`
       );
     }
   } catch (error) {
-    console.error('[WhatsApp] COD confirmation error:', error);
+    console.error('[WhatsApp Webhook] COD confirmation error:', error);
   }
 }
