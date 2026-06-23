@@ -31,7 +31,8 @@ import {
   Globe,
   Smartphone,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  ScanLine
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import DelhiveryActions from "@/components/orders/DelhiveryActions";
@@ -83,6 +84,11 @@ interface OrderDetail {
   delhivery_awb: string | null;
   tracking_status: string | null;
   orderNumber?: string | null;
+}
+
+function isCustomSku(sku: string | null | undefined): boolean {
+  if (!sku) return false;
+  return /^ZB\d{2}[A-Z]{2}\d{2}[A-Z]{2}(XS|S|M|L|XL|XXL)\d+$/i.test(sku);
 }
 
 const STATUS_THEME: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -251,7 +257,11 @@ export default function OrderDetailPage() {
             initial={{ opacity: 0, y: -20, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="fixed top-8 left-1/2 z-[100] bg-foreground text-background px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-2xl"
+            className={`fixed top-8 left-1/2 z-[100] px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-2xl ${
+              /failed|error|mismatch|invalid|sold/i.test(toast) 
+                ? 'bg-rose-500 text-white' 
+                : 'bg-foreground text-background'
+            }`}
           >
             {toast}
           </motion.div>
@@ -389,9 +399,9 @@ export default function OrderDetailPage() {
               },
             ].map((s, i) => (
               <div key={i} className={`p-5 rounded-[24px] border transition-all ${isEditing ? 'bg-foreground/5 border-foreground/10' : 'bg-foreground/[0.02] border-foreground/5'} space-y-3`}>
-                <div className="flex justify-between items-center text-[9px] font-bold text-foreground/20 uppercase tracking-widest">
+                <div className="flex justify-between items-center text-[9px] font-bold text-foreground/50 dark:text-foreground/30 uppercase tracking-widest">
                   {s.label}
-                  <s.icon className={`w-3.5 h-3.5 ${isEditing ? 'text-foreground/40' : 'opacity-20'}`} />
+                  <s.icon className={`w-3.5 h-3.5 ${isEditing ? 'text-foreground/60 dark:text-foreground/40' : 'opacity-20'}`} />
                 </div>
                 
                 {isEditing && s.key !== 'network' ? (
@@ -401,7 +411,7 @@ export default function OrderDetailPage() {
                     className="w-full bg-transparent text-[11px] font-bold text-foreground outline-none uppercase tracking-widest cursor-pointer"
                   >
                     {s.options?.map(opt => (
-                      <option key={opt} value={opt} className="bg-[#0A0A0A] text-foreground">{opt.replace('_', ' ')}</option>
+                      <option key={opt} value={opt} className="dark:bg-[#0A0A0A] bg-white text-foreground">{opt.replace('_', ' ')}</option>
                     ))}
                   </select>
                 ) : (
@@ -414,8 +424,8 @@ export default function OrderDetailPage() {
           {/* Line Items */}
           <div className="space-y-6">
             <div className="flex items-center justify-between px-2">
-              <h3 className="text-[10px] font-bold text-foreground/20 uppercase tracking-[0.4em]">Inventory Manifest</h3>
-              <span className="text-[10px] font-bold text-foreground/40 uppercase">{order.items.length} Elements</span>
+              <h3 className="text-[10px] font-bold text-foreground/50 dark:text-foreground/30 uppercase tracking-[0.4em]">Inventory Manifest</h3>
+              <span className="text-[10px] font-bold text-foreground/60 dark:text-foreground/40 uppercase">{order.items.length} Elements</span>
             </div>
             
             <div className="space-y-2">
@@ -428,44 +438,63 @@ export default function OrderDetailPage() {
                     <div className="space-y-1">
                       <h4 className="text-[14px] font-semibold text-foreground tracking-tight">{item.title}</h4>
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest">
+                        <span className="text-[10px] text-foreground/60 dark:text-foreground/45 font-bold uppercase tracking-widest">
                           QTY: {item.quantity}
                         </span>
-                        <span className="text-foreground/10">|</span>
-                        {item.sku ? (
+                        <span className="text-foreground/20">|</span>
+                        {isCustomSku(item.sku) ? (
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/10">
                               SKU: {item.sku}
                             </span>
-                            {isEditing && (
-                              <button
-                                onClick={() => handleUpdateItemSku(item.id, '')}
-                                className="text-rose-500 hover:text-rose-700 p-0.5 hover:bg-rose-500/10 rounded transition-colors"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleUpdateItemSku(item.id, '')}
+                              title="Clear SKU"
+                              className="text-rose-500 hover:text-rose-700 p-0.5 hover:bg-rose-500/10 rounded transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-foreground/20 font-bold uppercase tracking-widest">
-                              SKU: N/A
-                            </span>
-                            <input
-                              type="text"
-                              placeholder="Scan SKU to dispatch..."
-                              defaultValue=""
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  const val = (e.target as HTMLInputElement).value;
-                                  if (val.trim()) {
-                                    handleUpdateItemSku(item.id, val);
-                                    (e.target as HTMLInputElement).value = '';
+                          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                            {item.sku && (
+                              <span className="text-[9px] text-foreground/50 dark:text-foreground/45 font-semibold uppercase tracking-wider bg-foreground/5 px-2 py-0.5 rounded">
+                                Variant: {item.sku}
+                              </span>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex items-center">
+                                <ScanLine className="absolute left-2.5 w-3.5 h-3.5 text-foreground/45 dark:text-foreground/35" />
+                                <input
+                                  id={`sku-input-${item.id}`}
+                                  type="text"
+                                  placeholder="Scan SKU to dispatch..."
+                                  defaultValue=""
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const val = (e.target as HTMLInputElement).value;
+                                      if (val.trim()) {
+                                        handleUpdateItemSku(item.id, val);
+                                        (e.target as HTMLInputElement).value = '';
+                                      }
+                                    }
+                                  }}
+                                  className="bg-foreground/5 border border-foreground/10 rounded-lg pl-8 pr-2.5 py-1 text-[10px] font-mono w-40 focus:outline-none focus:border-[#007AFF]/50 placeholder:text-foreground/30 text-foreground transition-all"
+                                />
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const inputEl = document.getElementById(`sku-input-${item.id}`) as HTMLInputElement;
+                                  if (inputEl && inputEl.value.trim()) {
+                                    handleUpdateItemSku(item.id, inputEl.value);
+                                    inputEl.value = '';
                                   }
-                                }
-                              }}
-                              className="bg-foreground/5 border border-foreground/10 rounded-lg px-2.5 py-1 text-[10px] font-mono w-40 focus:outline-none focus:border-[#007AFF]/50 placeholder:text-foreground/20 text-foreground transition-all"
-                            />
+                                }}
+                                className="px-3 py-1 bg-foreground text-background dark:bg-foreground dark:text-background rounded-lg text-[9px] font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-sm"
+                              >
+                                Save
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

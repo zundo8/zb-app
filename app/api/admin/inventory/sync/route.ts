@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     // Identify the subject (Product or Order)
     let matchedProduct = null;
     let matchedVariant = null;
+    let resolvedLocalProduct = null;
 
     // 1. Search locally by ID, shopifyProductId, SKU, or Barcode
     const localProduct = await prisma.product.findFirst({
@@ -38,6 +39,7 @@ export async function POST(req: Request) {
     });
 
     if (localProduct) {
+      resolvedLocalProduct = localProduct;
       matchedProduct = {
         id: localProduct.shopifyProductId,
         title: localProduct.title,
@@ -69,6 +71,7 @@ export async function POST(req: Request) {
             include: { inventory: true }
           });
           if (dbProduct) {
+            resolvedLocalProduct = dbProduct;
             matchedProduct = {
               id: dbProduct.shopifyProductId,
               title: dbProduct.title,
@@ -117,6 +120,12 @@ export async function POST(req: Request) {
       }
     }
 
+    if (!resolvedLocalProduct && matchedProduct) {
+      resolvedLocalProduct = await prisma.product.findUnique({
+        where: { shopifyProductId: String(matchedProduct.id) }
+      });
+    }
+
     if (mode === 'LOOKUP') {
       if (matchedProduct && matchedVariant) {
         return NextResponse.json({
@@ -153,11 +162,108 @@ export async function POST(req: Request) {
       else if (mode === 'RETURN' || mode === 'RTO') {
         delta = qty;
         message = `${mode === 'RTO' ? 'RTO' : 'Return'} Processed: ${qty} unit(s) restored to inventory.`;
+        
+        if (mode === 'RETURN') {
+          // Automate Return request status updates
+          try {
+            const returnRecord = await prisma.return.findFirst({
+              where: {
+                OR: [
+                  { sku: normalizedCode },
+                  { productId: resolvedLocalProduct?.id || '' }
+                ],
+                status: { notIn: ['RECEIVED', 'REFUNDED'] }
+              }
+            });
+            if (returnRecord) {
+              await prisma.return.update({
+                where: { id: returnRecord.id },
+                data: { status: 'RECEIVED' }
+              });
+              if (returnRecord.returnRequestId) {
+                await prisma.returnRequest.update({
+                  where: { id: returnRecord.returnRequestId },
+                  data: { status: 'received' }
+                });
+              }
+              await prisma.order.update({
+                where: { id: returnRecord.orderId },
+                data: {
+                  status: 'returned',
+                  deliveryStatus: 'returned'
+                }
+              });
+              message += ` Associated Return Request ${returnRecord.returnRequestId || ''} updated to 'received' and order status updated to 'returned'.`;
+            } else {
+              // Check if it's an Exchange return (original item returned)
+              const exchangeRecord = await prisma.exchange.findFirst({
+                where: {
+                  originalProductId: resolvedLocalProduct?.id || '',
+                  status: { notIn: ['RECEIVED', 'EXCHANGED'] }
+                }
+              });
+              if (exchangeRecord) {
+                await prisma.exchange.update({
+                  where: { id: exchangeRecord.id },
+                  data: { status: 'RECEIVED' }
+                });
+                if (exchangeRecord.exchangeRequestId) {
+                  await prisma.exchangeRequest.update({
+                    where: { id: exchangeRecord.exchangeRequestId },
+                    data: { status: 'received' }
+                  });
+                }
+                await prisma.order.update({
+                  where: { id: exchangeRecord.orderId },
+                  data: {
+                    status: 'exchanged',
+                    deliveryStatus: 'returned'
+                  }
+                });
+                message += ` Associated Exchange Request ${exchangeRecord.exchangeRequestId || ''} updated to 'received' (original item returned).`;
+              }
+            }
+          } catch (retErr) {
+            console.error('Error auto-updating Return/Exchange records on scan:', retErr);
+          }
+        }
       }
       else if (mode === 'EXCHANGE') {
         if (currentQty >= qty) {
           delta = -qty;
           message = `Exchange Out: ${qty} unit(s) of ${productName} extracted for replacement.`;
+          
+          // Automate Exchange request status updates
+          try {
+            const exchangeRecord = await prisma.exchange.findFirst({
+              where: {
+                newProductId: resolvedLocalProduct?.id || '',
+                status: { notIn: ['EXCHANGED'] }
+              }
+            });
+            if (exchangeRecord) {
+              await prisma.exchange.update({
+                where: { id: exchangeRecord.id },
+                data: { status: 'EXCHANGED' }
+              });
+              if (exchangeRecord.exchangeRequestId) {
+                await prisma.exchangeRequest.update({
+                  where: { id: exchangeRecord.exchangeRequestId },
+                  data: { status: 'completed' }
+                });
+              }
+              await prisma.order.update({
+                where: { id: exchangeRecord.orderId },
+                data: {
+                  status: 'exchanged',
+                  deliveryStatus: 'exchanged'
+                }
+              });
+              message += ` Associated Exchange Request ${exchangeRecord.exchangeRequestId || ''} updated to 'completed' and order status updated to 'exchanged'.`;
+            }
+          } catch (excErr) {
+            console.error('Error auto-updating Exchange records on scan:', excErr);
+          }
         } else {
           return NextResponse.json({ error: `Stock Depleted. Only ${currentQty} units available.` }, { status: 400 });
         }

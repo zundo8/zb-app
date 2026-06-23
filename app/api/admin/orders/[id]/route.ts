@@ -1,6 +1,53 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 
+function extractSize(orderItem: any): string {
+  const sizes = ['XXXL', 'XXL', 'XL', 'XS', 'S', 'M', 'L']; // match longer sizes first (e.g. XXL before L)
+  
+  // 1. Try to extract from title
+  if (orderItem.title) {
+    const upperTitle = orderItem.title.toUpperCase();
+    
+    // Check if there is a ' - ' pattern
+    const titleParts = upperTitle.split(' - ');
+    if (titleParts.length > 1) {
+      const variantPart = titleParts[titleParts.length - 1].trim();
+      // If variantPart is something like "BLACK / M"
+      const slashParts = variantPart.split('/');
+      const finalPart = slashParts[slashParts.length - 1].trim();
+      for (const size of sizes) {
+        if (finalPart === size || finalPart === `SIZE ${size}`) {
+          return size;
+        }
+      }
+    }
+    
+    // Fallback: check if title ends with size or has "size X" or " - X"
+    for (const size of sizes) {
+      if (
+        upperTitle.endsWith(` ${size}`) || 
+        upperTitle.endsWith(`-${size}`) || 
+        upperTitle.endsWith(`/${size}`) ||
+        upperTitle.includes(` SIZE ${size} `) ||
+        upperTitle.endsWith(` SIZE ${size}`)
+      ) {
+        return size;
+      }
+    }
+  }
+
+  // 2. Try to extract from Shopify SKU (e.g. "HOODIE-M" or "ZB-SWEATER-L")
+  if (orderItem.sku) {
+    const skuParts = orderItem.sku.split('-');
+    const lastPart = skuParts[skuParts.length - 1].toUpperCase().trim();
+    if (sizes.includes(lastPart)) {
+      return lastPart;
+    }
+  }
+
+  return '';
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -39,14 +86,74 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (body.items && Array.isArray(body.items)) {
       for (const item of body.items) {
         if (item.id && 'sku' in item) {
-          await prisma.orderItem.update({
-            where: { id: item.id },
-            data: { sku: item.sku || null }
+          // Fetch the OrderItem to validate
+          const orderItem = await prisma.orderItem.findUnique({
+            where: { id: item.id }
           });
           
-          // If assigning a generated custom SKU, mark it as SOLD in inventory and sync stock
-          if (item.sku) {
-            const normalizedSku = item.sku.trim().toUpperCase();
+          if (!orderItem) {
+            return NextResponse.json({ success: false, error: 'Order item not found' }, { status: 404 });
+          }
+
+          const oldSku = orderItem.sku;
+          const newSku = item.sku ? item.sku.trim() : '';
+
+          // If changing SKU (restoring previous SKU or swapping)
+          if (oldSku && oldSku.trim().toUpperCase() !== newSku.toUpperCase()) {
+            const normalizedOldSku = oldSku.trim().toUpperCase();
+            try {
+              // Find if the old SKU exists in product_skus
+              const oldSkuRecords: any[] = await prisma.$queryRawUnsafe(
+                `SELECT * FROM product_skus WHERE UPPER(sku) = $1`,
+                normalizedOldSku
+              );
+              
+              if (oldSkuRecords.length > 0) {
+                const skuRec = oldSkuRecords[0];
+                // Restore old SKU status to IN_STOCK and quantity to 1
+                await prisma.$executeRawUnsafe(
+                  `UPDATE product_skus SET status = 'IN_STOCK', quantity = 1 WHERE id = $1`,
+                  skuRec.id
+                );
+                
+                // Increment Shopify & local product inventory by 1
+                const dbProduct = await prisma.product.findUnique({
+                  where: { id: skuRec.product_id },
+                  include: { inventory: true }
+                });
+                
+                if (dbProduct && dbProduct.inventoryItemId) {
+                  try {
+                    const { adjustInventoryLevel, fetchLocations } = await import('@/lib/shopify-admin');
+                    const locations = await fetchLocations();
+                    const activeLocation = locations.find((l) => l.active) || locations[0];
+                    const locationId = activeLocation ? String(activeLocation.id) : null;
+                    
+                    if (locationId) {
+                      const updatedLevel = await adjustInventoryLevel(dbProduct.inventoryItemId, locationId, 1);
+                      
+                      // Sync local inventory count
+                      const localInv = dbProduct.inventory[0];
+                      if (localInv) {
+                        await prisma.inventory.update({
+                          where: { id: localInv.id },
+                          data: { stockQuantity: updatedLevel.available ?? (localInv.stockQuantity + 1) }
+                        });
+                      }
+                    }
+                  } catch (shopifyErr) {
+                    console.error('[Order Patch Old SKU Restore Shopify Error]:', shopifyErr);
+                  }
+                }
+              }
+            } catch (dbRestoreErr) {
+              console.error('[Order Patch Old SKU Restore DB Error]:', dbRestoreErr);
+            }
+          }
+
+          // If assigning a new SKU
+          if (newSku) {
+            const normalizedSku = newSku.toUpperCase();
             
             // Find if this SKU exists in product_skus
             try {
@@ -57,68 +164,105 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
               
               if (skuRecords.length > 0) {
                 const skuRec = skuRecords[0];
-                // Only update and decrement inventory if the status is NOT already SOLD
-                if (skuRec.status !== 'SOLD') {
-                  await prisma.$executeRawUnsafe(
-                    `UPDATE product_skus SET status = 'SOLD', quantity = 0 WHERE id = $1`,
-                    skuRec.id
-                  );
-                  
-                  // Decrement overall Shopify & local product inventory by 1
-                  const dbProduct = await prisma.product.findUnique({
-                    where: { id: skuRec.product_id },
-                    include: { inventory: true }
-                  });
-                  
-                  if (dbProduct && dbProduct.inventoryItemId) {
-                    try {
-                      const { adjustInventoryLevel, fetchLocations } = await import('@/lib/shopify-admin');
-                      const locations = await fetchLocations();
-                      const activeLocation = locations.find((l) => l.active) || locations[0];
-                      const locationId = activeLocation ? String(activeLocation.id) : null;
-                      
-                      if (locationId) {
-                        const updatedLevel = await adjustInventoryLevel(dbProduct.inventoryItemId, locationId, -1);
-                        
-                        // Sync local inventory count
-                        const localInv = dbProduct.inventory[0];
-                        if (localInv) {
-                          await prisma.inventory.update({
-                            where: { id: localInv.id },
-                            data: { stockQuantity: updatedLevel.available ?? (localInv.stockQuantity - 1) }
-                          });
-                        }
-                      }
-                    } catch (shopifyErr) {
-                      console.error('[Order Patch Shopify Sync Error]:', shopifyErr);
-                    }
-                  }
+                
+                // 1. Validate Product Mismatch
+                if (orderItem.productId !== skuRec.product_id) {
+                  const p = await prisma.product.findUnique({ where: { id: skuRec.product_id } });
+                  return NextResponse.json({
+                    success: false,
+                    error: `Product Mismatch: Scanned SKU belongs to "${p?.title || 'a different product'}", not this order item.`
+                  }, { status: 400 });
+                }
+                
+                // 2. Validate Size Mismatch
+                const itemSize = extractSize(orderItem);
+                if (itemSize && itemSize.toUpperCase() !== skuRec.size.toUpperCase()) {
+                  return NextResponse.json({
+                    success: false,
+                    error: `Size Mismatch: Scanned SKU size is "${skuRec.size}", but this order item requires size "${itemSize}".`
+                  }, { status: 400 });
+                }
 
-                  // Record scan activity for ORDER_OUT
+                // 3. Validate Status (Prevent double selling)
+                if (skuRec.status === 'SOLD') {
+                  return NextResponse.json({
+                    success: false,
+                    error: `SKU Sold: This specific price tag SKU (${newSku}) has already been shipped/sold.`
+                  }, { status: 400 });
+                }
+
+                // Mark SKU as SOLD in inventory
+                await prisma.$executeRawUnsafe(
+                  `UPDATE product_skus SET status = 'SOLD', quantity = 0 WHERE id = $1`,
+                  skuRec.id
+                );
+                
+                // Decrement overall Shopify & local product inventory by 1
+                const dbProduct = await prisma.product.findUnique({
+                  where: { id: skuRec.product_id },
+                  include: { inventory: true }
+                });
+                
+                if (dbProduct && dbProduct.inventoryItemId) {
                   try {
-                    await (prisma as any).scanRecord.create({
-                      data: {
-                        productId: skuRec.product_id,
-                        productTitle: dbProduct?.title || 'Order Item SKU Assignment',
-                        variantInfo: `Size ${skuRec.size}`,
-                        sku: skuRec.sku,
-                        actionType: 'ORDER_OUT',
-                        quantity: 1,
-                        beforeStock: dbProduct ? (dbProduct.inventory[0]?.stockQuantity || 1) : 1,
-                        afterStock: dbProduct ? Math.max(0, (dbProduct.inventory[0]?.stockQuantity || 1) - 1) : 0,
-                        locationId: 'LOCAL',
-                        staffName: 'Admin (Auto)'
+                    const { adjustInventoryLevel, fetchLocations } = await import('@/lib/shopify-admin');
+                    const locations = await fetchLocations();
+                    const activeLocation = locations.find((l) => l.active) || locations[0];
+                    const locationId = activeLocation ? String(activeLocation.id) : null;
+                    
+                    if (locationId) {
+                      const updatedLevel = await adjustInventoryLevel(dbProduct.inventoryItemId, locationId, -1);
+                      
+                      // Sync local inventory count
+                      const localInv = dbProduct.inventory[0];
+                      if (localInv) {
+                        await prisma.inventory.update({
+                          where: { id: localInv.id },
+                          data: { stockQuantity: updatedLevel.available ?? (localInv.stockQuantity - 1) }
+                        });
                       }
-                    });
-                  } catch (e) {
-                    console.error('[Scan Record Create Error]:', e);
+                    }
+                  } catch (shopifyErr) {
+                    console.error('[Order Patch Shopify Sync Error]:', shopifyErr);
                   }
                 }
+
+                // Record scan activity for ORDER_OUT
+                try {
+                  await prisma.scanRecord.create({
+                    data: {
+                      productId: skuRec.product_id,
+                      productTitle: dbProduct?.title || 'Order Item SKU Assignment',
+                      variantInfo: `Size ${skuRec.size}`,
+                      sku: skuRec.sku,
+                      actionType: 'ORDER_OUT',
+                      quantity: 1,
+                      beforeStock: dbProduct ? (dbProduct.inventory[0]?.stockQuantity || 1) : 1,
+                      afterStock: dbProduct ? Math.max(0, (dbProduct.inventory[0]?.stockQuantity || 1) - 1) : 0,
+                      locationId: 'LOCAL',
+                      staffName: 'Admin (Auto)'
+                    }
+                  });
+                } catch (e) {
+                  console.error('[Scan Record Create Error]:', e);
+                }
+              } else {
+                return NextResponse.json({
+                  success: false,
+                  error: `Invalid SKU: The scanned SKU (${newSku}) was not found in the printed tags database.`
+                }, { status: 400 });
               }
             } catch (dbErr) {
               console.error('[Order Patch SKU Local DB Query Error]:', dbErr);
+              return NextResponse.json({ success: false, error: 'Database verification failed.' }, { status: 500 });
             }
           }
+
+          // Update the OrderItem SKU in database
+          await prisma.orderItem.update({
+            where: { id: item.id },
+            data: { sku: item.sku || null }
+          });
         }
       }
       delete body.items; // Remove items so they are not updated on Order object directly
