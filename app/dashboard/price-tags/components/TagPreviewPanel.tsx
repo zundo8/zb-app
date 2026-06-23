@@ -1,9 +1,9 @@
 'use client'
 
 import React, { useRef, useState, useCallback } from 'react'
-import { Download, Printer, CheckSquare, Square, Loader2, Wifi, FileText } from 'lucide-react'
+import { Printer, CheckSquare, Square, Loader2, Wifi, FileText } from 'lucide-react'
 import PriceTagCard from './PriceTagCard'
-import { downloadTagsPDF, printTagsPDF, TAGS_PER_PAGE, type PDFLayoutType } from '../utils/pdfExport'
+import { printTagsPDF, type PDFLayoutType } from '../utils/pdfExport'
 import type { TagData } from '../utils/skuGenerator'
 import { toast } from 'sonner'
 
@@ -14,10 +14,9 @@ interface TagPreviewPanelProps {
 export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
   const printAreaRef = useRef<HTMLDivElement>(null)
   const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set())
-  const [isDownloading, setIsDownloading] = useState(false)
   const [isPrinting, setIsPrinting] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
-  const [pdfLayout, setPdfLayout] = useState<PDFLayoutType>('a4')
+  const [pdfLayout] = useState<PDFLayoutType>('thermal')
 
   const toggleSelect = useCallback((index: number) => {
     setSelectedIndexes((prev) => {
@@ -39,36 +38,6 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
     setSelectedIndexes(new Set())
   }, [])
 
-  // ── Download All as PDF (passes layout) ──
-  const handleDownloadAll = useCallback(async () => {
-    setIsDownloading(true)
-    try {
-      await downloadTagsPDF(tags, undefined, pdfLayout)
-      toast.success('PDF downloaded successfully!')
-    } catch (err: any) {
-      toast.error(`PDF download failed: ${err.message}`)
-    } finally {
-      setIsDownloading(false)
-    }
-  }, [tags, pdfLayout])
-
-  // ── Download Selected as PDF ──
-  const handleDownloadSelected = useCallback(async () => {
-    if (selectedIndexes.size === 0) {
-      toast.error('No tags selected')
-      return
-    }
-    setIsDownloading(true)
-    try {
-      const selectedTags = tags.filter((_, i) => selectedIndexes.has(i))
-      await downloadTagsPDF(selectedTags, `zicabella-selected-tags-${Date.now()}.pdf`, pdfLayout)
-      toast.success(`${selectedTags.length} tags downloaded as PDF!`)
-    } catch (err: any) {
-      toast.error(`PDF download failed: ${err.message}`)
-    } finally {
-      setIsDownloading(false)
-    }
-  }, [tags, selectedIndexes, pdfLayout])
 
   // ── Print via browser: generates PDF and opens in new tab ──
   const handlePrint = useCallback(async () => {
@@ -126,60 +95,18 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
     <div className="space-y-4">
       {/* Action Bar */}
       <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-foreground/[0.06]">
-        {/* Layout Toggle */}
-        <div className="flex items-center gap-1 bg-foreground/[0.03] border border-foreground/[0.05] p-1 rounded-xl mr-2">
-          <button
-            onClick={() => setPdfLayout('a4')}
-            className={`px-3 py-1.5 rounded-lg text-[9px] font-semibold uppercase tracking-[0.1em] transition-all ${
-              pdfLayout === 'a4'
-                ? 'bg-foreground text-background shadow-sm'
-                : 'text-foreground/50 hover:text-foreground/80'
-            }`}
-          >
-            A4 Sheet
-          </button>
-          <button
-            onClick={() => setPdfLayout('thermal')}
-            className={`px-3 py-1.5 rounded-lg text-[9px] font-semibold uppercase tracking-[0.1em] transition-all ${
-              pdfLayout === 'thermal'
-                ? 'bg-foreground text-background shadow-sm'
-                : 'text-foreground/50 hover:text-foreground/80'
-            }`}
-          >
-            Thermal (50x100)
-          </button>
-        </div>
-
-        <button
-          onClick={handleDownloadAll}
-          disabled={isDownloading || isPrinting}
-          className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40"
-        >
-          {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-          Download All PDF
-        </button>
-
-        <button
-          onClick={handleDownloadSelected}
-          disabled={isDownloading || isPrinting || selectedIndexes.size === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97] disabled:opacity-40"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Selected ({selectedIndexes.size})
-        </button>
-
         <button
           onClick={handlePrint}
-          disabled={isDownloading || isPrinting}
-          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97] disabled:opacity-40"
+          disabled={isPrinting}
+          className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40"
         >
           {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
-          Print
+          Print Tags
         </button>
 
         <button
           onClick={handleConnectPrinter}
-          disabled={isDownloading || isPrinting}
+          disabled={isPrinting}
           className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97] disabled:opacity-40"
         >
           <Wifi className="w-3.5 h-3.5" />

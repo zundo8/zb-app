@@ -118,9 +118,32 @@ export default function PriceTagCard({
               fontWeight: 700,
               fontSize: `${Math.round(10 * scale)}px`,
               letterSpacing: '0.3px',
+              display: 'inline-flex',
+              alignItems: 'center',
             }}
           >
-            ₹ {tag.mrp.toLocaleString('en-IN')}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                width: `${Math.round(8.5 * scale)}px`,
+                height: `${Math.round(8.5 * scale)}px`,
+                marginRight: `${Math.round(1 * scale)}px`,
+                display: 'inline-block',
+              }}
+            >
+              <path d="M6 3h12" />
+              <path d="M6 8h12" />
+              <path d="M6 3a5 5 0 0 1 5 5H6" />
+              <path d="M6 8a5 5 0 0 1 5 5H6" />
+              <path d="M6 13h5l4 7" />
+            </svg>
+            {tag.mrp.toLocaleString('en-IN')}
           </span>
         </div>
         <div 
