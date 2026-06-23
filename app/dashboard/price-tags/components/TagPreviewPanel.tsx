@@ -1,9 +1,9 @@
 'use client'
 
 import React, { useRef, useState, useCallback } from 'react'
-import { Download, Printer, CheckSquare, Square, Loader2, Wifi } from 'lucide-react'
+import { Download, Printer, CheckSquare, Square, Loader2, Wifi, FileText } from 'lucide-react'
 import PriceTagCard from './PriceTagCard'
-import { downloadTagsPDF } from '../utils/pdfExport'
+import { downloadTagsPDF, printTagsPDF, TAGS_PER_PAGE } from '../utils/pdfExport'
 import type { TagData } from '../utils/skuGenerator'
 import { toast } from 'sonner'
 
@@ -15,6 +15,7 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
   const printAreaRef = useRef<HTMLDivElement>(null)
   const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set())
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isPrinting, setIsPrinting] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
 
   const toggleSelect = useCallback((index: number) => {
@@ -37,56 +38,69 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
     setSelectedIndexes(new Set())
   }, [])
 
+  // ── Download All as PDF (passes data directly, not DOM) ──
   const handleDownloadAll = useCallback(async () => {
-    if (!printAreaRef.current) return
     setIsDownloading(true)
     try {
-      const tagElements = Array.from(
-        printAreaRef.current.querySelectorAll('.price-tag-card')
-      ) as HTMLElement[]
-      await downloadTagsPDF(tagElements)
+      await downloadTagsPDF(tags)
       toast.success('PDF downloaded successfully!')
     } catch (err: any) {
       toast.error(`PDF download failed: ${err.message}`)
     } finally {
       setIsDownloading(false)
     }
-  }, [])
+  }, [tags])
 
+  // ── Download Selected as PDF ──
   const handleDownloadSelected = useCallback(async () => {
-    if (!printAreaRef.current || selectedIndexes.size === 0) {
+    if (selectedIndexes.size === 0) {
       toast.error('No tags selected')
       return
     }
     setIsDownloading(true)
     try {
-      const allTagElements = Array.from(
-        printAreaRef.current.querySelectorAll('.price-tag-card')
-      ) as HTMLElement[]
-      const selectedElements = allTagElements.filter((_, i) => selectedIndexes.has(i))
-      await downloadTagsPDF(selectedElements, `zicabella-selected-tags-${Date.now()}.pdf`)
-      toast.success(`${selectedElements.length} tags downloaded as PDF!`)
+      const selectedTags = tags.filter((_, i) => selectedIndexes.has(i))
+      await downloadTagsPDF(selectedTags, `zicabella-selected-tags-${Date.now()}.pdf`)
+      toast.success(`${selectedTags.length} tags downloaded as PDF!`)
     } catch (err: any) {
       toast.error(`PDF download failed: ${err.message}`)
     } finally {
       setIsDownloading(false)
     }
-  }, [selectedIndexes])
+  }, [tags, selectedIndexes])
 
-  const handlePrint = useCallback(() => {
-    toast.info('Print dialog opening...')
-    window.print()
-  }, [])
+  // ── Print via browser: generates PDF and opens in new tab ──
+  const handlePrint = useCallback(async () => {
+    setIsPrinting(true)
+    try {
+      toast.info('Generating printable PDF...')
+      await printTagsPDF(tags)
+      toast.success('Print-ready PDF opened in new tab')
+    } catch (err: any) {
+      toast.error(`Print failed: ${err.message}`)
+    } finally {
+      setIsPrinting(false)
+    }
+  }, [tags])
 
-  const handleConnectPrinter = useCallback(() => {
-    toast.info(
-      "Use your printer's dialog to select the connected printer. Set paper size to A4 or label size as needed.",
-      { duration: 6000 }
-    )
-    setTimeout(() => {
-      window.print()
-    }, 500)
-  }, [])
+  // ── Direct Print (Connect Printer) — same as print but with guidance ──
+  const handleConnectPrinter = useCallback(async () => {
+    setIsPrinting(true)
+    try {
+      toast.info(
+        'Generating PDF for your printer. Select your printer in the dialog that follows.',
+        { duration: 5000 }
+      )
+      await printTagsPDF(tags)
+    } catch (err: any) {
+      toast.error(`Printer connection failed: ${err.message}`)
+    } finally {
+      setIsPrinting(false)
+    }
+  }, [tags])
+
+  // ── Page count calculation ──
+  const totalPages = Math.ceil(tags.length / TAGS_PER_PAGE)
 
   if (tags.length === 0) {
     return (
@@ -112,7 +126,7 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
       <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-foreground/[0.06]">
         <button
           onClick={handleDownloadAll}
-          disabled={isDownloading}
+          disabled={isDownloading || isPrinting}
           className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40"
         >
           {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
@@ -121,7 +135,7 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
 
         <button
           onClick={handleDownloadSelected}
-          disabled={isDownloading || selectedIndexes.size === 0}
+          disabled={isDownloading || isPrinting || selectedIndexes.size === 0}
           className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97] disabled:opacity-40"
         >
           <Download className="w-3.5 h-3.5" />
@@ -130,15 +144,17 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
 
         <button
           onClick={handlePrint}
-          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97]"
+          disabled={isDownloading || isPrinting}
+          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97] disabled:opacity-40"
         >
-          <Printer className="w-3.5 h-3.5" />
+          {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
           Print
         </button>
 
         <button
           onClick={handleConnectPrinter}
-          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97]"
+          disabled={isDownloading || isPrinting}
+          className="flex items-center gap-2 px-4 py-2 bg-foreground/[0.06] border border-foreground/[0.08] text-foreground rounded-lg text-[10px] font-semibold uppercase tracking-[0.1em] transition-all hover:bg-foreground/[0.1] active:scale-[0.97] disabled:opacity-40"
         >
           <Wifi className="w-3.5 h-3.5" />
           Connect Printer
@@ -172,11 +188,19 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
         )}
       </div>
 
-      {/* Tag count */}
-      <p className="text-[9px] text-foreground/40 uppercase tracking-[0.15em] font-medium">
-        {tags.length} tag{tags.length !== 1 ? 's' : ''} generated
-        {tags.length > 0 && ` • SKU: ${tags[0].sku} → ${tags[tags.length - 1].sku}`}
-      </p>
+      {/* Tag count + page count */}
+      <div className="flex items-center gap-3">
+        <p className="text-[9px] text-foreground/40 uppercase tracking-[0.15em] font-medium">
+          {tags.length} tag{tags.length !== 1 ? 's' : ''} generated
+          {tags.length > 0 && ` • SKU: ${tags[0].sku} → ${tags[tags.length - 1].sku}`}
+        </p>
+        <div className="flex items-center gap-1 px-2 py-0.5 bg-foreground/[0.04] rounded-md">
+          <FileText className="w-3 h-3 text-foreground/30" strokeWidth={1.5} />
+          <span className="text-[8px] text-foreground/40 uppercase tracking-[0.15em] font-semibold">
+            {totalPages} page{totalPages !== 1 ? 's' : ''} in PDF
+          </span>
+        </div>
+      </div>
 
       {/* Tag Grid */}
       <div
@@ -188,6 +212,7 @@ export default function TagPreviewPanel({ tags }: TagPreviewPanelProps) {
           <PriceTagCard
             key={tag.sku}
             tag={tag}
+            index={i}
             selected={selectedIndexes.has(i)}
             onToggleSelect={() => toggleSelect(i)}
             showCheckbox={selectMode}

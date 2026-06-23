@@ -118,23 +118,19 @@ export default function PriceTagsPage() {
 
   const handleRedownload = useCallback(async (batch: BatchRecord) => {
     try {
-      // Load tags first, then trigger PDF download
-      await loadBatchTags(batch)
+      // Load tags from batch data
+      const loadedTags = await loadBatchTags(batch)
       toast.info('Preparing PDF...')
 
-      // Wait for next render cycle so tags are rendered in DOM
-      setTimeout(async () => {
-        const printArea = document.getElementById('price-tags-print-area')
-        if (!printArea) {
-          toast.error('Could not find tags to download')
-          return
-        }
-        const tagElements = Array.from(
-          printArea.querySelectorAll('.price-tag-card')
-        ) as HTMLElement[]
-        await downloadTagsPDF(tagElements, `zicabella-batch-${batch.batch_number}-${Date.now()}.pdf`)
-        toast.success('PDF downloaded!')
-      }, 500)
+      // Use the batch's stored tag data directly — no DOM needed
+      const tagsToExport = loadedTags || batch.tags_generated || []
+      if (tagsToExport.length === 0) {
+        toast.error('No tags found in this batch')
+        return
+      }
+
+      await downloadTagsPDF(tagsToExport, `zicabella-batch-${batch.batch_number}-${Date.now()}.pdf`)
+      toast.success('PDF downloaded!')
     } catch (err: any) {
       toast.error(`Failed to download: ${err.message}`)
     }
@@ -142,40 +138,51 @@ export default function PriceTagsPage() {
 
   return (
     <>
-      {/* Print CSS */}
+      {/* Print CSS — proper paginated grid layout */}
       <style jsx global>{`
         @media print {
-          body * {
-            visibility: hidden !important;
+          /* Hide everything except the tag grid */
+          body > *:not(#__next),
+          #__next > * > *:not(#price-tags-print-area) {
+            display: none !important;
           }
-          #price-tags-print-area,
+          .no-print,
+          nav, header, footer, aside,
+          [class*="border-foreground"],
+          button, form, table {
+            display: none !important;
+          }
+          /* Show only the print area */
+          #price-tags-print-area {
+            display: grid !important;
+            grid-template-columns: repeat(3, 50mm) !important;
+            grid-auto-rows: 82mm !important;
+            gap: 3mm !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            position: static !important;
+            width: 100% !important;
+            justify-content: center !important;
+          }
           #price-tags-print-area * {
             visibility: visible !important;
           }
-          #price-tags-print-area {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            z-index: 99999 !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
-            gap: 2mm !important;
-            padding: 5mm !important;
-          }
           .price-tag-card {
             width: 50mm !important;
-            height: 80mm !important;
+            height: 82mm !important;
+            break-inside: avoid !important;
             page-break-inside: avoid !important;
-            margin: 2mm !important;
-            display: inline-block !important;
             box-shadow: none !important;
+            margin: 0 !important;
+            overflow: hidden !important;
           }
-          .no-print {
+          /* Checkbox overlay hidden in print */
+          .price-tag-card label,
+          .price-tag-card input[type="checkbox"] {
             display: none !important;
           }
           @page {
-            size: A4;
+            size: A4 portrait;
             margin: 10mm;
           }
         }

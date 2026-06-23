@@ -5,29 +5,43 @@ import type { TagData } from '../utils/skuGenerator'
 
 interface PriceTagCardProps {
   tag: TagData
+  index?: number
   selected?: boolean
   onToggleSelect?: () => void
   showCheckbox?: boolean
+  /** Renders a slightly larger version for the live preview panel */
+  isPreview?: boolean
 }
 
-export default function PriceTagCard({ tag, selected, onToggleSelect, showCheckbox }: PriceTagCardProps) {
+export default function PriceTagCard({
+  tag,
+  index,
+  selected,
+  onToggleSelect,
+  showCheckbox,
+  isPreview = false,
+}: PriceTagCardProps) {
+  const scale = isPreview ? 1.35 : 1
+
   return (
     <div
       className="price-tag-card relative"
+      data-tag-index={index}
       style={{
-        width: '200px',
+        width: `${Math.round(190 * scale)}px`,
         backgroundColor: '#FFFFFF',
-        border: '1px solid #000',
-        borderRadius: '4px',
-        padding: '12px 10px 10px',
+        border: '0.5px solid #d0d0d0',
+        borderRadius: '3px',
+        padding: `${Math.round(10 * scale)}px ${Math.round(8 * scale)}px ${Math.round(8 * scale)}px`,
         fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
-        color: '#000',
+        color: '#111',
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'column' as const,
         alignItems: 'center',
-        fontSize: '9px',
-        lineHeight: '1.4',
-        pageBreakInside: 'avoid',
+        fontSize: `${Math.round(8 * scale)}px`,
+        lineHeight: '1.35',
+        pageBreakInside: 'avoid' as const,
+        boxShadow: isPreview ? '0 2px 12px rgba(0,0,0,0.08)' : 'none',
       }}
     >
       {/* Checkbox for selection */}
@@ -47,72 +61,119 @@ export default function PriceTagCard({ tag, selected, onToggleSelect, showCheckb
       )}
 
       {/* Logo */}
-      <div style={{ marginBottom: '8px', textAlign: 'center' }}>
+      <div style={{ marginBottom: `${Math.round(6 * scale)}px`, textAlign: 'center' }}>
         <img
           src="/zb-logo-220px.png"
           alt="Zica Bella"
-          style={{ height: '28px', objectFit: 'contain', filter: 'grayscale(100%) contrast(200%)' }}
+          style={{
+            height: `${Math.round(24 * scale)}px`,
+            objectFit: 'contain' as const,
+            filter: 'grayscale(100%) contrast(200%)',
+          }}
           crossOrigin="anonymous"
         />
       </div>
 
-      {/* MRP */}
+      {/* MRP Section */}
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
         width: '100%',
-        padding: '4px 0',
+        padding: `${Math.round(4 * scale)}px 0`,
+        borderTop: '0.5px solid #ccc',
+        marginBottom: `${Math.round(3 * scale)}px`,
       }}>
-        <span style={{ fontWeight: 700, fontSize: '11px', letterSpacing: '0.5px' }}>MRP</span>
-        <span style={{ fontWeight: 700, fontSize: '11px' }}>
-          ₹ {tag.mrp.toLocaleString('en-IN')}
-        </span>
-      </div>
-      <div style={{
-        fontSize: '6.5px',
-        color: '#555',
-        textTransform: 'uppercase',
-        letterSpacing: '0.8px',
-        textAlign: 'center',
-        marginBottom: '6px',
-      }}>
-        Inclusive of All Taxes
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          width: '100%',
+        }}>
+          <span style={{
+            fontWeight: 700,
+            fontSize: `${Math.round(10 * scale)}px`,
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase' as const,
+          }}>MRP</span>
+          <span style={{
+            fontWeight: 700,
+            fontSize: `${Math.round(10 * scale)}px`,
+            letterSpacing: '0.3px',
+          }}>
+            ₹ {tag.mrp.toLocaleString('en-IN')}
+          </span>
+        </div>
+        <div style={{
+          fontSize: `${Math.round(5.5 * scale)}px`,
+          color: '#888',
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.6px',
+          marginTop: `${Math.round(1 * scale)}px`,
+        }}>
+          Inclusive of All Taxes
+        </div>
       </div>
 
       {/* Divider */}
-      <div style={{ width: '100%', height: '1px', backgroundColor: '#000', margin: '2px 0 6px' }} />
+      <div style={{ width: '100%', height: '0.5px', backgroundColor: '#ccc', marginBottom: `${Math.round(4 * scale)}px` }} />
 
       {/* Info Rows */}
-      <div style={{ width: '100%', fontSize: '7.5px' }}>
-        <InfoRow label="NET QUANTITY" value={tag.netQuantity} />
-        <InfoRow label="SIZE" value={tag.size} />
-        <InfoRow label="MFG & MKT BY" value="ZICA BELLA PVT. LTD." />
-        <InfoRow label="GENERIC NAME" value={tag.genericName} />
-        <InfoRow label="COUNTRY OF ORIGIN" value="INDIA" />
-        <InfoRow label="CC" value="care@zicabella.com" />
-        <InfoRow label="MFG ON" value={tag.mfgDate} />
-        <InfoRow label="EMAIL" value="support@zicabella.com" />
+      <div style={{ width: '100%', fontSize: `${Math.round(6.5 * scale)}px` }}>
+        <InfoRow label="NET QUANTITY" value={tag.netQuantity} scale={scale} />
+        <InfoRow label="SIZE" value={tag.size} scale={scale} />
+        <InfoRow label="MFG & MKT BY" value="ZICA BELLA PVT. LTD." scale={scale} />
+        <InfoRow label="GENERIC NAME" value={tag.genericName} scale={scale} />
+        <InfoRow label="COUNTRY OF ORIGIN" value="INDIA" scale={scale} />
+        <InfoRow label="CC" value="care@zicabella.com" scale={scale} />
+        <InfoRow label="MFG ON" value={tag.mfgDate} scale={scale} />
+        <InfoRow label="EMAIL" value="support@zicabella.com" scale={scale} />
       </div>
 
-      {/* QR Code */}
-      <div style={{ marginTop: '8px', textAlign: 'center' }}>
-        <img
-          src={tag.qrDataUrl}
-          alt={`QR: ${tag.sku}`}
-          style={{ width: '72px', height: '72px', imageRendering: 'pixelated' }}
-        />
-      </div>
-
-      {/* SKU */}
+      {/* QR Code — always at the bottom */}
       <div style={{
-        marginTop: '4px',
-        fontSize: '7.5px',
-        fontWeight: 700,
-        letterSpacing: '0.5px',
-        textAlign: 'center',
-        fontFamily: 'monospace',
-        wordBreak: 'break-all',
+        marginTop: `${Math.round(6 * scale)}px`,
+        textAlign: 'center' as const,
+        paddingTop: `${Math.round(4 * scale)}px`,
+        borderTop: '0.5px solid #e0e0e0',
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column' as const,
+        alignItems: 'center',
+      }}>
+        {tag.qrDataUrl && tag.qrDataUrl.startsWith('data:') ? (
+          <img
+            src={tag.qrDataUrl}
+            alt={`QR: ${tag.sku}`}
+            style={{
+              width: `${Math.round(60 * scale)}px`,
+              height: `${Math.round(60 * scale)}px`,
+              imageRendering: 'pixelated' as const,
+            }}
+          />
+        ) : (
+          <div style={{
+            width: `${Math.round(60 * scale)}px`,
+            height: `${Math.round(60 * scale)}px`,
+            border: '1px dashed #ccc',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: `${Math.round(5 * scale)}px`,
+            color: '#aaa',
+          }}>
+            QR Code
+          </div>
+        )}
+      </div>
+
+      {/* SKU — at the very bottom */}
+      <div style={{
+        marginTop: `${Math.round(3 * scale)}px`,
+        fontSize: `${Math.round(6.5 * scale)}px`,
+        fontWeight: 600,
+        letterSpacing: '0.4px',
+        textAlign: 'center' as const,
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        color: '#333',
+        wordBreak: 'break-all' as const,
       }}>
         {tag.sku}
       </div>
@@ -120,29 +181,31 @@ export default function PriceTagCard({ tag, selected, onToggleSelect, showCheckb
   )
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, scale = 1 }: { label: string; value: string; scale?: number }) {
   return (
     <div style={{
       display: 'flex',
       justifyContent: 'space-between',
-      padding: '1.5px 0',
-      gap: '8px',
+      padding: `${Math.round(1.5 * scale)}px 0`,
+      gap: `${Math.round(6 * scale)}px`,
     }}>
       <span style={{
         fontWeight: 600,
-        textTransform: 'uppercase',
-        letterSpacing: '0.3px',
+        textTransform: 'uppercase' as const,
+        letterSpacing: '0.2px',
         color: '#333',
-        whiteSpace: 'nowrap',
+        whiteSpace: 'nowrap' as const,
         flexShrink: 0,
+        fontSize: `${Math.round(6.5 * scale)}px`,
       }}>
         {label}
       </span>
       <span style={{
-        textAlign: 'right',
+        textAlign: 'right' as const,
         fontWeight: 500,
-        color: '#000',
-        wordBreak: 'break-word',
+        color: '#111',
+        wordBreak: 'break-word' as const,
+        fontSize: `${Math.round(6.5 * scale)}px`,
       }}>
         {value}
       </span>

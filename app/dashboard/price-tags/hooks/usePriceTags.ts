@@ -261,7 +261,7 @@ export function usePriceTags() {
     }
   }, [fetchBatches])
 
-  const loadBatchTags = useCallback(async (batch: BatchRecord) => {
+  const loadBatchTags = useCallback(async (batch: BatchRecord): Promise<TagData[]> => {
     // Re-render tags from saved batch data
     // QR codes may need regeneration since they're stored as data URLs in JSONB
     const tagsWithQR: TagData[] = []
@@ -278,6 +278,7 @@ export function usePriceTags() {
       tagsWithQR.push({ ...tag, qrDataUrl })
     }
     setTags(tagsWithQR)
+    return tagsWithQR
   }, [])
 
   const clearTags = useCallback(() => {
