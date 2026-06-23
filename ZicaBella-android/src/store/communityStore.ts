@@ -26,8 +26,8 @@ export const useCommunityStore = create<CommunityState>()(
         const { lastFetched, loading } = get();
         const now = Date.now();
         
-        // Cache for 1 minute (reduced from 5 for better live sync experience)
-        if (!force && lastFetched && (now - lastFetched < 60000) && get().looks.length > 0) {
+        // Cache for 5 minutes
+        if (!force && lastFetched && (now - lastFetched < 300000) && get().looks.length > 0) {
           return;
         }
 

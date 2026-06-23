@@ -111,124 +111,68 @@ globalThis.__prisma_fresh_v2 = prisma;
 
 export default prisma;
 
-/**
- * Resiliently fetch shop settings without crashing on missing columns.
- */
 export async function getShopSettings() {
-  const shopFields = [
-    'id', 'domain', 'name', 'email', 'currency', 'status', 'createdAt', 'updatedAt',
-    'heroTitle', 'heroSubtitle', 'heroVideo', 'heroImage', 'showHeroText',
-    'blueprintTitle', 'blueprintSubtitle', 'blueprintImage', 'archiveTitle', 'archiveSubtitle',
-    'latestCurationTitle', 'latestCurationSubtitle', 'communityTitle', 'communitySubtitle',
-    'flipbookDesc', 'flipbookImage', 'flipbookTag', 'flipbookTitle', 'flipbookVideo', 'flipbookConfig',
-    'ringCarouselItems', 'ringCarouselTitle', 'showRingCarousel',
-    'spotlightCollection', 'spotlightProducts', 'spotlightTitle', 'spotlightSubtitle', 'spotlightMedia',
-    'homepageCollection', 'homepageProducts',
-    'footerLogo3dUrl', 'showLatestCuration', 'showArchive', 'showBlueprint', 'showProductVideo',
-    'showSizeChart', 'showBrand', 'showShippingReturn', 'showCare', 'showSizeFit', 'showDetails',
-    'pdpBackground', 'instagramUrl', 'appleUrl', 'spotifyUrl', 'youtubeUrl', 'featuredMedia',
-    'featuredMediaMobile', 'featuredMediaImageMobile', 'collectionsMediaMobile', 'flipbookImageMobile',
-    'flipbookVideoMobile', 'footerVideoMobile',
-    'collectionsMedia', 'footerVideo', 'footerLogo3dUrl', 'mainMenuHandle', 'secondaryMenuHandle', 'showTreeText',
-    'enabledCollectionsHeader', 'enabledCollectionsPage', 'enabledCollectionsMenu', 'featuredMediaImage',
-    'kineticMeshProducts', 'kineticMeshTitle', 'showCommunity', 'communityAgeRestricted',
-    'communityMinOrders', 'communityWhatsAppEnabled',
-    'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile',
-    'loginBgImageLight', 'loginBgImageDark', 'loginBgImageLightMobile', 'loginBgImageDarkMobile'
-  ];
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('[DB] Supabase config not found for getShopSettings. Falling back to Prisma.');
+    try {
+      return await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
+        ?? await prisma.shop.findFirst();
+    } catch {
+      return null;
+    }
+  }
 
   try {
-    // Prefer the canonical 8tiahf-bk.myshopify.com record to stay in sync with the webstore
-    const shop = await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
-      ?? await prisma.shop.findFirst();
-    return shop;
-  } catch (error) {
-    console.warn('[DB] Full shop fetch failed, falling back to safe selection:', (error as any).message);
-    
-    // Fallback: Fetch fields one by one or in a smaller subset
-    // This handles the case where new columns like 'spotlightMedia' don't exist yet
-    return prisma.shop.findFirst({
-      select: {
-        id: true,
-        domain: true,
-        heroTitle: true,
-        heroSubtitle: true,
-        heroVideo: true,
-        heroImage: true,
-        heroButtonText: true,
-        showHeroText: true,
-        latestCurationTitle: true,
-        latestCurationSubtitle: true,
-        showLatestCuration: true,
-        archiveTitle: true,
-        archiveSubtitle: true,
-        showArchive: true,
-        blueprintTitle: true,
-        blueprintSubtitle: true,
-        showBlueprint: true,
-        showProductVideo: true,
-        showSizeChart: true,
-        showBrand: true,
-        showShippingReturn: true,
-        showCare: true,
-        showSizeFit: true,
-        showDetails: true,
-        pdpBackground: true,
-        instagramUrl: true,
-        appleUrl: true,
-        spotifyUrl: true,
-        youtubeUrl: true,
-        featuredMedia: true,
-        featuredMediaImage: true,
-        featuredMediaMobile: true,
-        featuredMediaImageMobile: true,
-        collectionsMedia: true,
-        collectionsMediaMobile: true,
-        footerVideo: true,
-        footerVideoMobile: true,
-        footerLogo3dUrl: true,
-        mainMenuHandle: true,
-        secondaryMenuHandle: true,
-        showTreeText: true,
-        enabledCollectionsHeader: true,
-        enabledCollectionsPage: true,
-        enabledCollectionsMenu: true,
-        kineticMeshProducts: true,
-        kineticMeshTitle: true,
-        communityTitle: true,
-        communitySubtitle: true,
-        showCommunity: true,
-        communityAgeRestricted: true,
-        communityMinOrders: true,
-        communityWhatsAppEnabled: true,
-        spotlightTitle: true,
-        spotlightSubtitle: true,
-        spotlightCollection: true,
-        spotlightProducts: true,
-        spotlightMedia: true,
-        homepageCollection: true,
-        homepageProducts: true,
-        flipbookConfig: true,
-        flipbookDesc: true,
-        flipbookImage: true,
-        flipbookImageMobile: true,
-        flipbookTag: true,
-        flipbookTitle: true,
-        flipbookVideo: true,
-        flipbookVideoMobile: true,
-        ringCarouselItems: true,
-        ringCarouselTitle: true,
-        showRingCarousel: true,
-        loginBgImage: true,
-        loginBgVideo: true,
-        loginBgImageMobile: true,
-        loginBgVideoMobile: true,
-        loginBgImageLight: true,
-        loginBgImageDark: true,
-        loginBgImageLightMobile: true,
-        loginBgImageDarkMobile: true,
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/Shop?domain=eq.8tiahf-bk.myshopify.com&select=*`,
+      {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json',
+        },
+        next: { revalidate: 300, tags: ['homepage'] },
       }
-    }) as any;
+    );
+
+    if (!res.ok) {
+      throw new Error(`Supabase REST fetch failed: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    let shop = data?.[0] || null;
+
+    if (!shop) {
+      // Fallback to fetch first shop record if domain match not found
+      const fallbackRes = await fetch(
+        `${supabaseUrl}/rest/v1/Shop?select=*&limit=1`,
+        {
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          next: { revalidate: 300, tags: ['homepage'] },
+        }
+      );
+      if (fallbackRes.ok) {
+        const fallbackData = await fallbackRes.json();
+        shop = fallbackData?.[0] || null;
+      }
+    }
+
+    return shop;
+  } catch (error: any) {
+    console.warn('[DB] Supabase REST fetch failed for getShopSettings, falling back to Prisma:', error.message);
+    try {
+      return await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
+        ?? await prisma.shop.findFirst();
+    } catch {
+      return null;
+    }
   }
 }
 

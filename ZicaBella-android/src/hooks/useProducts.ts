@@ -16,6 +16,17 @@ const LIST_FIELDS = 'id,title,handle,priceRange,featuredImage';
 const FULL_FIELDS = 'id,title,handle,description,descriptionHtml,availableForSale,featuredImage,images,priceRange,variants,media,details,care,sizeChart,productVideo';
 
 // Manual cache functions replaced by cacheService
+const apiCache = new Map<string, { data: any; timestamp: number }>();
+
+async function cachedFetch<T>(key: string, fetchFn: () => Promise<T>, ttl = 300000): Promise<T> {
+  const cached = apiCache.get(key);
+  if (cached && Date.now() - cached.timestamp < ttl) {
+    return cached.data;
+  }
+  const data = await fetchFn();
+  apiCache.set(key, { data, timestamp: Date.now() });
+  return data;
+}
 
 function isShopifyProduct(product: any): product is Product {
   return Boolean(product?.variants?.edges && product?.images?.edges);
@@ -226,13 +237,13 @@ export function useProducts(count = 24) {
         }
       }
 
-      const data = await apiGet<{ products: FlatProduct[] }>(
+      const data = await cachedFetch(cacheKey, () => apiGet<{ products: FlatProduct[] }>(
         ENDPOINTS.products,
         { 
           limit: String(Math.max(count, 50)),
           fields: LIST_FIELDS
         }
-      );
+      ));
 
       if (!isMounted.current) return;
 
@@ -294,10 +305,10 @@ export function useProductByHandle(handle: string) {
           setLoading(false);
         }
 
-        const data = await apiGet<{ product: FlatProduct | null }>(
+        const data = await cachedFetch(cacheKey, () => apiGet<{ product: FlatProduct | null }>(
           ENDPOINTS.productByHandle(handle),
           { fields: FULL_FIELDS }
-        );
+        ));
 
         if (cancelled) return;
 
@@ -380,14 +391,14 @@ export function useSearchProducts() {
         setLoading(false);
       }
 
-      const data = await apiGet<{ products: FlatProduct[] }>(
-        ENDPOINTS.search,
-        { 
-          q: query, 
-          limit: '48',
-          fields: LIST_FIELDS 
-        }
-      );
+      const data = await cachedFetch(cacheKey, () => apiGet<{ products: FlatProduct[] }>(
+          ENDPOINTS.search,
+          { 
+            q: query, 
+            limit: '48',
+            fields: LIST_FIELDS 
+          }
+      ));
 
       if (!isMounted.current) return;
 
@@ -449,10 +460,10 @@ export function useCollections(count = 20, location?: 'header' | 'page' | 'menu'
 
       const params: any = { limit: String(count) };
       if (location) params.location = location;
-      const data = await apiGet<{ collections: FlatCollection[] }>(
+      const data = await cachedFetch(cacheKey, () => apiGet<{ collections: FlatCollection[] }>(
         ENDPOINTS.collections,
         params
-      );
+      ));
 
       if (!isMounted.current) return;
 
@@ -510,7 +521,7 @@ export function useCollectionByHandle(handle: string) {
       
       // If handle is 'all', we fetch all products instead of a specific collection
       if (handle === 'all') {
-        const data = await apiGet<any>(ENDPOINTS.products, { limit: '80', fields: LIST_FIELDS });
+        const data = await cachedFetch(`${cacheKey}_all`, () => apiGet<any>(ENDPOINTS.products, { limit: '80', fields: LIST_FIELDS }));
         
         if (!isMounted.current) return;
 
@@ -531,10 +542,10 @@ export function useCollectionByHandle(handle: string) {
         return;
       }
 
-      const data = await apiGet<any>(
+      const data = await cachedFetch(cacheKey, () => apiGet<any>(
         ENDPOINTS.collectionByHandle(handle),
         { limit: '50', fields: LIST_FIELDS }
-      );
+      ));
 
       if (!isMounted.current) return;
 
