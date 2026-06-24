@@ -117,12 +117,11 @@ export async function generateMetadata({
 }
 
 export default async function ProductPage({ params }: { params: { id: string } }) {
-  const [product, shop, allProducts, collections] = await Promise.all([
+  const [product, shop, allProducts] = await Promise.all([
     fetchProductByHandle(params.id).catch(() => null),
     prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } }).catch(() => null)
       .then(s => s || prisma.shop.findFirst().catch(() => null)),
-    fetchProducts(50).catch(() => []),
-    fetchCollections().catch(() => [])
+    fetchProducts(12).catch(() => [])
   ]);
 
   const recommendedProducts = allProducts.filter((p: ShopifyProduct) => p.id.toString() !== params.id);

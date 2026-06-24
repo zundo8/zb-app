@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const PIXEL_ID = process.env.META_PIXEL_ID!;
   const ACCESS_TOKEN = process.env.META_CAPI_ACCESS_TOKEN!;

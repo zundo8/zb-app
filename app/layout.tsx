@@ -242,8 +242,8 @@ export default function RootLayout({
             fbq('init', '${pixelId}');
           `}
         </Script>
-        <MetaPixelRouteTracker />
         <Providers>
+          <MetaPixelRouteTracker />
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}
             <Toaster position="top-right" />

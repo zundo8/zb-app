@@ -214,7 +214,7 @@ export default function UserAIConfigPage() {
   };
 
   const copyKeyText = () => {
-    const key = "sk-ant-" + "api03-" + "60UkxU0vt9jnC8_" + "pshEaaaI4x7tuJmpoOf5uLe-uL7AiR9wG6XXZ8MrAzKokU_DEK1-eOWuIezJaph2gFM7f-A-L5acvAAA";
+    const key = "sk-ant-api03-xxxxxxxxxxxxxxxxxxxx-placeholder";
     navigator.clipboard.writeText(key);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2000);
@@ -311,7 +311,7 @@ export default function UserAIConfigPage() {
               <div className="flex items-center justify-between p-3 rounded-xl bg-foreground/[0.02] border border-foreground/5 font-mono text-[11px] text-foreground/80 hover:bg-foreground/[0.04] transition-all">
                 <div className="flex items-center gap-2">
                   <Lock className="w-3.5 h-3.5 text-indigo-400/50" />
-                  <span>sk-ant-api03...Le-uL7Ai</span>
+                  <span>sk-ant-api03...placeholder</span>
                 </div>
                 <button onClick={copyKeyText} className="p-1.5 rounded-lg bg-foreground/5 hover:bg-indigo-500/20 text-foreground/40 hover:text-indigo-400 transition-colors">
                   {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
