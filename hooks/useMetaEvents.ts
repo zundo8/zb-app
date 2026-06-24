@@ -1,4 +1,4 @@
-import { trackEvent } from '@/lib/metaPixel';
+import { trackEvent, initPixel } from '@/lib/metaPixel';
 import { event as trackGAEvent } from '@/lib/gtag';
 
 function uuidv4() {
@@ -100,9 +100,12 @@ export function useMetaEvents() {
     fb_login_id?: string;
   }) => {
     const base = getBasePayload('AddPaymentInfo');
+    if (userData) {
+      initPixel(userData);
+    }
     trackEvent('AddPaymentInfo', {}, base.eventId);
     sendToCapiRoute({ ...base, userData: { client_user_agent: navigator.userAgent, ...userData } });
-    
+
     // GA4 equivalent: add_payment_info
     trackGAEvent('add_payment_info');
   };
@@ -141,6 +144,9 @@ export function useMetaEvents() {
     contentCategory?: string
   ) => {
     const base = { ...getBasePayload('Purchase'), eventId: orderId }; // use order ID as event ID for dedup
+    if (userData) {
+      initPixel(userData);
+    }
     trackEvent('Purchase', { value, currency, content_ids: contentIds, order_id: orderId, content_category: contentCategory }, base.eventId);
     sendToCapiRoute({
       ...base,

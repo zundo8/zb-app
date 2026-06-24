@@ -31,6 +31,16 @@ export async function POST(req: NextRequest) {
     const fbc = req.cookies.get('_fbc')?.value;
     const externalId = req.cookies.get('zb_external_id')?.value;
 
+    const guestEmail = req.cookies.get('zb_guest_email')?.value;
+    const guestPhone = req.cookies.get('zb_guest_phone')?.value;
+    const guestFn = req.cookies.get('zb_guest_fn')?.value;
+    const guestLn = req.cookies.get('zb_guest_ln')?.value;
+    const guestCountry = req.cookies.get('zb_guest_country')?.value;
+    const guestState = req.cookies.get('zb_guest_st')?.value;
+    const guestCity = req.cookies.get('zb_guest_ct')?.value;
+    const guestZip = req.cookies.get('zb_guest_zp')?.value;
+    const fbLoginId = req.cookies.get('zb_fb_login_id')?.value;
+
     const sessionUserData: Record<string, any> = {};
     if (session?.user) {
       sessionUserData.em = session.user.email || undefined;
@@ -49,8 +59,15 @@ export async function POST(req: NextRequest) {
       fbp: fbp || userData?.fbp,
       fbc: fbc || userData?.fbc,
       external_id: externalId || sessionUserData.external_id || userData?.external_id,
-      ...sessionUserData,
-      ...userData,
+      em: guestEmail || sessionUserData.em || userData?.em,
+      ph: guestPhone || sessionUserData.ph || userData?.ph,
+      fn: guestFn || sessionUserData.fn || userData?.fn,
+      ln: guestLn || sessionUserData.ln || userData?.ln,
+      country: guestCountry || userData?.country,
+      st: guestState || userData?.st,
+      ct: guestCity || userData?.ct,
+      zp: guestZip || userData?.zp,
+      fb_login_id: fbLoginId || userData?.fb_login_id,
     };
 
     console.log('[Meta CAPI Event Received]', eventName, { eventId, customData });

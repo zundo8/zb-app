@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
+import { saveUserDataToCookiesAndReinit } from "@/lib/metaPixel";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPin, 
@@ -252,6 +253,17 @@ export default function CheckoutPage() {
     });
     setAddressErrors({});
     setShowAddressForm(false);
+
+    // Save details to cookies and re-init pixel for Advanced Matching
+    saveUserDataToCookiesAndReinit({
+      email: addr.email || undefined,
+      phone: addr.phone || undefined,
+      name: addr.name || undefined,
+      city: addr.city || undefined,
+      state: addr.state || undefined,
+      zip: addr.zip || undefined,
+      country: addr.country || "India",
+    });
   };
 
   const validateAddress = (): boolean => {
@@ -321,6 +333,17 @@ export default function CheckoutPage() {
       ln,
       em: address.email || undefined,
       ph: formattedPhone || undefined,
+    });
+
+    // Save details to cookies and re-init pixel for Advanced Matching
+    saveUserDataToCookiesAndReinit({
+      email: address.email || undefined,
+      phone: formattedPhone || undefined,
+      name: address.name || undefined,
+      city: address.city || undefined,
+      state: address.state || undefined,
+      zip: address.zip || undefined,
+      country: address.country || "India",
     });
   };
 

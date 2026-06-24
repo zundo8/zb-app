@@ -2,7 +2,7 @@
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { pageview as trackMetaPageView } from '@/lib/metaPixel';
+import { initPixel, pageview as trackMetaPageView } from '@/lib/metaPixel';
 import { pageview as trackGAPageView } from '@/lib/gtag';
 
 function uuidv4() {
@@ -55,7 +55,15 @@ export function MetaPixelRouteTracker() {
       setCookie('zb_external_id', extId, 365);
     }
 
-    // 2. Capture fbclid and set as _fbc cookie
+    // 2. Generate/verify browser ID (_fbp) fallback
+    let fbpVal = getCookie('_fbp');
+    if (!fbpVal) {
+      const randVal = Math.floor(Math.random() * 1000000000);
+      fbpVal = `fb.1.${Date.now()}.${randVal}`;
+      setCookie('_fbp', fbpVal, 90);
+    }
+
+    // 3. Capture fbclid and set as _fbc cookie
     const urlParams = new URLSearchParams(window.location.search);
     const fbclid = urlParams.get('fbclid');
     let fbcVal = getCookie('_fbc');
@@ -66,46 +74,46 @@ export function MetaPixelRouteTracker() {
       setCookie('_fbc', fbcVal, 90);
     }
 
-    const fbpVal = getCookie('_fbp');
-
-    // 3. Update fbq user properties dynamically when session/visitor details are ready
+    // 4. Update fbq user properties dynamically when session/visitor details are ready
     const updateFbq = async () => {
-      if (typeof window === 'undefined' || !(window as any).fbq) return;
-
-      const userData: Record<string, any> = {
-        external_id: session?.user ? (session.user as any).id : extId,
-      };
-
-      if (fbcVal) userData.fbc = fbcVal;
-      if (fbpVal) userData.fbp = fbpVal;
+      const sessionUserData: Record<string, any> = {};
 
       if (session?.user) {
         const email = session.user.email;
         if (email) {
-          userData.em = await sha256(email);
+          const hashedEmail = await sha256(email);
+          sessionUserData.em = hashedEmail;
+          setCookie('zb_guest_email', hashedEmail, 365);
         }
 
         const phone = (session.user as any).phone || (session as any).customer?.phone;
         if (phone) {
-          userData.ph = await sha256(phone);
+          const hashedPhone = await sha256(phone);
+          sessionUserData.ph = hashedPhone;
+          setCookie('zb_guest_phone', hashedPhone, 365);
         }
 
         const name = session.user.name;
         if (name) {
           const parts = name.trim().split(/\s+/);
-          if (parts[0]) userData.fn = await sha256(parts[0]);
-          if (parts.length > 1) userData.ln = await sha256(parts.slice(1).join(' '));
+          if (parts[0]) {
+            const hashedFn = await sha256(parts[0]);
+            sessionUserData.fn = hashedFn;
+            setCookie('zb_guest_fn', hashedFn, 365);
+          }
+          if (parts.length > 1) {
+            const hashedLn = await sha256(parts.slice(1).join(' '));
+            sessionUserData.ln = hashedLn;
+            setCookie('zb_guest_ln', hashedLn, 365);
+          }
         }
       }
 
-      const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
-      if (pixelId) {
-        (window as any).fbq('init', pixelId, userData);
-      }
+      initPixel(sessionUserData);
     };
 
     updateFbq();
-  }, [session]);
+  }, [session, pathname]);
 
   useEffect(() => {
     trackMetaPageView();
