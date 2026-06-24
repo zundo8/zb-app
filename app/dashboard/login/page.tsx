@@ -19,7 +19,26 @@ export default function DashboardLoginPage() {
   const [loading, setLoading] = useState(false);
   const [show, setShow] = useState(false);
 
-  const from = searchParams.get('from') || '/dashboard';
+  const from = searchParams.get('callbackUrl') || searchParams.get('from') || '/dashboard';
+
+  // Map NextAuth error codes to user-friendly messages
+  const friendlyError = (code: string): string => {
+    const map: Record<string, string> = {
+      CredentialsSignin: 'Invalid credentials. Please check your email and password.',
+      SessionRequired: 'Your session has expired. Please sign in again.',
+      AccessDenied: 'Access denied. You do not have permission.',
+      Default: 'Authentication failed. Please try again.',
+    };
+    return map[code] || map.Default;
+  };
+
+  // Show URL error param (e.g. from NextAuth redirect)
+  useEffect(() => {
+    const urlError = searchParams.get('error');
+    if (urlError) {
+      setError(friendlyError(urlError));
+    }
+  }, [searchParams]);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -45,8 +64,9 @@ export default function DashboardLoginPage() {
       });
 
       if (result?.error) {
-        setError(result.error || 'Invalid credentials. Please try again.');
-        toast.error(result.error || 'Login failed');
+        const msg = friendlyError(result.error);
+        setError(msg);
+        toast.error(msg);
         setLoading(false);
       } else {
         toast.success('Authentication successful. Redirecting...');
@@ -62,6 +82,7 @@ export default function DashboardLoginPage() {
       setLoading(false);
     }
   };
+
 
   if (status === 'loading') {
     return (

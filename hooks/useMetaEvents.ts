@@ -86,7 +86,19 @@ export function useMetaEvents() {
     });
   };
 
-  const trackAddPaymentInfo = (userData?: { country?: string; st?: string; ge?: string; ct?: string; em?: string; ph?: string }) => {
+  const trackAddPaymentInfo = (userData?: {
+    country?: string;
+    st?: string;
+    ge?: string;
+    ct?: string;
+    zp?: string;
+    fn?: string;
+    ln?: string;
+    em?: string;
+    ph?: string;
+    external_id?: string;
+    fb_login_id?: string;
+  }) => {
     const base = getBasePayload('AddPaymentInfo');
     trackEvent('AddPaymentInfo', {}, base.eventId);
     sendToCapiRoute({ ...base, userData: { client_user_agent: navigator.userAgent, ...userData } });
@@ -113,7 +125,19 @@ export function useMetaEvents() {
     value: number,
     currency = 'INR',
     contentIds: string[],
-    userData?: { country?: string; st?: string; ge?: string; ct?: string; em?: string; ph?: string },
+    userData?: {
+      country?: string;
+      st?: string;
+      ge?: string;
+      ct?: string;
+      zp?: string;
+      fn?: string;
+      ln?: string;
+      em?: string;
+      ph?: string;
+      external_id?: string;
+      fb_login_id?: string;
+    },
     contentCategory?: string
   ) => {
     const base = { ...getBasePayload('Purchase'), eventId: orderId }; // use order ID as event ID for dedup

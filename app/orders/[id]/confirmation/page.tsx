@@ -28,22 +28,32 @@ export default function OrderConfirmationPage() {
         const val = parseFloat(order.totalPrice || "0");
         const contentIds = order.items?.map((item: any) => item.variantId || item.productId) || [];
 
-        let userData = undefined;
-        if (order.shippingAddress) {
-          try {
-            const addr = typeof order.shippingAddress === 'string'
+        let userData: any = undefined;
+        try {
+          const addr = order.shippingAddress
+            ? (typeof order.shippingAddress === 'string'
               ? JSON.parse(order.shippingAddress)
-              : order.shippingAddress;
-            if (addr) {
-              userData = {
-                country: addr.country,
-                st: addr.state,
-                ct: addr.city
-              };
-            }
-          } catch (e) {
-            console.error("Error parsing shippingAddress in confirmation page", e);
-          }
+              : order.shippingAddress)
+            : null;
+
+          const cust = order.customer || {};
+          const nameToUse = cust.name || addr?.name || "";
+          const nameParts = nameToUse.trim().split(/\s+/);
+          const fn = nameParts[0] || undefined;
+          const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
+
+          userData = {
+            country: addr?.country || undefined,
+            st: addr?.state || undefined,
+            ct: addr?.city || undefined,
+            zp: addr?.zip || undefined,
+            fn,
+            ln,
+            em: cust.email || undefined,
+            ph: cust.phone || addr?.phone || undefined,
+          };
+        } catch (e) {
+          console.error("Error parsing shippingAddress in confirmation page", e);
         }
 
         let storedCategory = undefined;

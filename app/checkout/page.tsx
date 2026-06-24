@@ -308,7 +308,20 @@ export default function CheckoutPage() {
     const formattedPhone = `+91${baseNumber}`;
     setAddress(prev => ({ ...prev, phone: formattedPhone }));
     setStep(2);
-    trackAddPaymentInfo({ country: address.country, st: address.state, ct: address.city });
+
+    const nameParts = (address.name || "").trim().split(/\s+/);
+    const fn = nameParts[0] || undefined;
+    const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
+    trackAddPaymentInfo({
+      country: address.country,
+      st: address.state,
+      ct: address.city,
+      zp: address.zip,
+      fn,
+      ln,
+      em: address.email || undefined,
+      ph: formattedPhone || undefined,
+    });
   };
 
   const handleApplyCoupon = async (overrideCode?: string, currentPaymentMethod?: string, isAuto = false) => {
@@ -1216,7 +1229,19 @@ export default function CheckoutPage() {
                         type="button"
                         onClick={() => {
                           setPaymentMethod(method.id);
-                          trackAddPaymentInfo({ country: address.country, st: address.state, ct: address.city });
+                          const nameParts = (address.name || "").trim().split(/\s+/);
+                          const fn = nameParts[0] || undefined;
+                          const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
+                          trackAddPaymentInfo({
+                            country: address.country,
+                            st: address.state,
+                            ct: address.city,
+                            zp: address.zip,
+                            fn,
+                            ln,
+                            em: address.email || undefined,
+                            ph: address.phone || undefined,
+                          });
                           if (method.id !== "UPI") {
                             setSelectedUpiApp("");
                             setUpiId("");

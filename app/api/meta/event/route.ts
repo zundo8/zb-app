@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendCapiEvent } from '@/lib/metaCapi';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,6 +20,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const session = await getServerSession(authOptions);
+
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 
                req.headers.get('x-real-ip') || 
                req.ip || 
@@ -25,12 +29,28 @@ export async function POST(req: NextRequest) {
 
     const fbp = req.cookies.get('_fbp')?.value;
     const fbc = req.cookies.get('_fbc')?.value;
+    const externalId = req.cookies.get('zb_external_id')?.value;
+
+    const sessionUserData: Record<string, any> = {};
+    if (session?.user) {
+      sessionUserData.em = session.user.email || undefined;
+      sessionUserData.ph = (session.user as any).phone || (session as any).customer?.phone || undefined;
+      const name = session.user.name;
+      if (name) {
+        const parts = name.trim().split(/\s+/);
+        if (parts[0]) sessionUserData.fn = parts[0];
+        if (parts.length > 1) sessionUserData.ln = parts.slice(1).join(' ');
+      }
+      sessionUserData.external_id = (session.user as any).id || undefined;
+    }
 
     const mergedUserData = {
-      ...userData,
       client_ip_address: ip,
       fbp: fbp || userData?.fbp,
       fbc: fbc || userData?.fbc,
+      external_id: externalId || sessionUserData.external_id || userData?.external_id,
+      ...sessionUserData,
+      ...userData,
     };
 
     console.log('[Meta CAPI Event Received]', eventName, { eventId, customData });

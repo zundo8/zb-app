@@ -25,12 +25,17 @@ export interface CapiEventPayload {
     st?: string;             // state/county lowercase, hashed before sending
     ge?: string;             // gender: m or f, hashed before sending
     ct?: string;             // city lowercase, hashed before sending
+    zp?: string;             // zip code, hashed before sending
+    fn?: string;             // first name, hashed before sending
+    ln?: string;             // last name, hashed before sending
     client_user_agent?: string;
     client_ip_address?: string;
     fbp?: string;
     fbc?: string;
     em?: string;
     ph?: string;
+    external_id?: string;
+    fb_login_id?: string;
   };
   customData?: Record<string, any>;
   actionSource?: 'website' | 'app' | 'email' | 'phone_call' | 'physical_store' | 'system_generated' | 'other';
@@ -56,8 +61,13 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
             st: hashValue(payload.userData.st),
             ge: hashValue(payload.userData.ge),
             ct: hashValue(payload.userData.ct),
+            zp: hashValue(payload.userData.zp),
+            fn: hashValue(payload.userData.fn),
+            ln: hashValue(payload.userData.ln),
             em: hashValue(payload.userData.em),
             ph: hashValue(payload.userData.ph),
+            external_id: payload.userData.external_id,
+            fb_login_id: payload.userData.fb_login_id,
           } : {}),
         },
         ...(payload.customData ? { custom_data: payload.customData } : {}),

@@ -657,9 +657,39 @@ export const authOptions: AuthOptions = {
           if (!credentials?.email || !credentials?.password) return null;
 
           const email = credentials.email.toLowerCase().trim();
-          const user = await prisma.user.findUnique({
+          let user = await prisma.user.findUnique({
             where: { email },
           });
+
+          // ── AUTO-SEED: Create the super-admin User if it doesn't exist yet ──
+          // This ensures the admin account is always available after a fresh
+          // deployment or database migration without requiring a manual seed step.
+          if (!user && email === (process.env.SUPER_ADMIN_EMAIL || 'admin@zicabella.com').toLowerCase().trim()) {
+            const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+            if (superAdminPassword) {
+              console.log('[AUTH] Auto-seeding super-admin User record for', email);
+              const hashedPassword = await bcrypt.hash(superAdminPassword, 12);
+              try {
+                user = await prisma.user.create({
+                  data: {
+                    email,
+                    passwordHash: hashedPassword,
+                    name: 'Super Admin',
+                    role: 'SUPER_ADMIN',
+                    isActive: true,
+                  },
+                });
+                console.log('[AUTH] Super-admin User created:', user.id);
+              } catch (seedErr: any) {
+                // Handle race condition: another request may have created it
+                if (seedErr.code === 'P2002') {
+                  user = await prisma.user.findUnique({ where: { email } });
+                } else {
+                  console.error('[AUTH] Failed to auto-seed admin:', seedErr.message);
+                }
+              }
+            }
+          }
 
           if (!user || !user.isActive) return null;
 
@@ -851,7 +881,7 @@ export const authOptions: AuthOptions = {
       name: process.env.NODE_ENV === "production" ? "__Secure-next-auth.session-token" : "next-auth.session-token",
       options: {
         httpOnly: true,
-        sameSite: "strict",
+        sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
       },

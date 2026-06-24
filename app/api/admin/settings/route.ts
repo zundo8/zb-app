@@ -140,30 +140,24 @@ export async function GET(req: Request) {
       }
 
       // Auto-create shop record for this domain if none exists
+      // IMPORTANT: Use upsert to prevent overwriting existing settings.
+      // On create, only set domain and accessToken — never set content defaults
+      // that would overwrite admin-configured values on redeployment.
       if (!shop) {
         const targetDomain = domainOverride || ENV_DOMAIN;
         console.log(`[Settings API] Auto-initializing shop record for ${targetDomain}...`);
-        const existing = await prisma.shop.findFirst().catch(() => null);
-        shop = await prisma.shop.create({
-          data: {
+        shop = await prisma.shop.upsert({
+          where: { domain: targetDomain },
+          create: {
             domain: targetDomain,
-            accessToken: existing?.accessToken || ENV_TOKEN || 'shpat_required',
-            heroTitle: "Redefine The Standard",
-            heroSubtitle: "Explore the latest drops tailored for the relentless.",
-            heroButtonText: "Discover",
-            showHeroText: true,
-            heroVideo: "/zb-video-heroo.mp4",
-            showLatestCuration: true,
-            showArchive: true,
-            showBlueprint: true,
-            showCommunity: true,
-            communityTitle: "Featured Looks",
-            communitySubtitle: "Community",
-            spotlightTitle: "AUTHENTIC STREETWEAR",
-            spotlightSubtitle: "Luxury Indian streetwear for modern men."
-          }
+            accessToken: ENV_TOKEN || 'shpat_required',
+          },
+          update: {
+            // Only update the access token if it was previously a placeholder
+            ...(ENV_TOKEN ? { accessToken: ENV_TOKEN } : {}),
+          },
         });
-        console.log(`[Settings API] Shop record created: ${shop.domain}`);
+        console.log(`[Settings API] Shop record resolved: ${shop.domain} (id: ${shop.id})`);
       }
     } catch (dbErr: any) {
       console.error('[Settings API GET DB error]:', dbErr.message);
