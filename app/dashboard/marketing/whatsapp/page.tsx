@@ -181,6 +181,9 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
   const [buttonUrl, setButtonUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState("ALL");
+
   const fetchTemplates = async () => {
     setLoading(true);
     try {
@@ -197,6 +200,12 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
       setLoading(false);
     }
   };
+
+  const filteredTemplates = templates.filter(t => {
+    const matchesSearch = t.name.toLowerCase().includes(templateSearch.toLowerCase());
+    const matchesCategory = templateCategoryFilter === "ALL" || t.category === templateCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
 
   useEffect(() => {
     fetchTemplates();
@@ -440,6 +449,32 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
         </div>
       </div>
 
+      {/* Search & Category Filter */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-foreground/5 p-4 rounded-xl border border-foreground/10">
+        <div className="relative md:col-span-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search templates by name..."
+            value={templateSearch}
+            onChange={(e) => setTemplateSearch(e.target.value)}
+            className="w-full bg-background/5 border border-foreground/10 rounded-lg pl-9 pr-4 py-2 outline-none focus:border-emerald-500/50 text-xs text-foreground"
+          />
+        </div>
+        <div>
+          <select
+            value={templateCategoryFilter}
+            onChange={(e) => setTemplateCategoryFilter(e.target.value)}
+            className="w-full bg-background/5 border border-foreground/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-500/50 text-xs text-foreground"
+          >
+            <option value="ALL">All Categories</option>
+            <option value="MARKETING">Marketing</option>
+            <option value="UTILITY">Utility</option>
+            <option value="AUTHENTICATION">Authentication</option>
+          </select>
+        </div>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-20">
           <RefreshCcw className="w-8 h-8 animate-spin text-emerald-500" />
@@ -457,14 +492,14 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-foreground/10">
-              {templates.length === 0 ? (
+              {filteredTemplates.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-10 text-muted-foreground text-sm">
-                    No templates registered. Click "Seed Zica Bella Templates" or create a new one.
+                    No matching templates registered. Click &quot;Seed Zica Bella Templates&quot; or create a new one.
                   </td>
                 </tr>
               ) : (
-                templates.map((t, idx) => (
+                filteredTemplates.map((t, idx) => (
                   <tr key={t.id || idx} className="hover:bg-foreground/5 transition-colors">
                     <td className="px-5 py-4 font-mono font-medium text-xs">{t.name}</td>
                     <td className="px-5 py-4 text-xs font-semibold uppercase text-muted-foreground">{t.category}</td>
@@ -989,6 +1024,7 @@ function BroadcastCampaigns() {
   const [summary, setSummary] = useState<any>(null);
   const [campaignName, setCampaignName] = useState("");
   const [audience, setAudience] = useState("all_customers");
+  const [scheduledAt, setScheduledAt] = useState("");
   
   // Historical campaigns list
   const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -1118,14 +1154,16 @@ function BroadcastCampaigns() {
           type,
           recipients,
           payload,
-          name: campaignName || undefined
+          name: campaignName || undefined,
+          scheduledAt: scheduledAt || undefined
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success("Broadcast successfully queued in background!", { id: toastId });
+        toast.success(data.message || "Broadcast successfully queued in background!", { id: toastId });
         setRecipientsText("");
         setCampaignName("");
+        setScheduledAt("");
         fetchCampaigns();
       } else {
         toast.error(data.error || "Broadcast campaign execution failed.", { id: toastId });
@@ -1202,13 +1240,14 @@ function BroadcastCampaigns() {
                       loadSegment(e.target.value);
                     }
                   }}
-                  className="bg-foreground/5 border border-foreground/10 rounded-lg px-2.5 py-1 text-xs outline-none focus:border-foreground/30"
+                  className="bg-foreground/5 border border-foreground/10 rounded-lg px-2.5 py-1 text-xs outline-none focus:border-foreground/30 text-foreground"
                 >
                   <option value="all_customers">All Opted-In Customers</option>
-                  <option value="with_orders">Customers with Orders</option>
-                  <option value="without_orders">Customers without Orders</option>
-                  <option value="wishlist">Wishlist Users</option>
-                  <option value="cart_abandonment">Cart Abandonment Users</option>
+                  <option value="new_customers">New Customers (Signups)</option>
+                  <option value="returning_customers">Returning Customers</option>
+                  <option value="high_value_customers">High-Value Customers</option>
+                  <option value="wishlist_customers">Wishlist Customers</option>
+                  <option value="cart_abandonment">Cart Abandonment Customers</option>
                   <option value="custom_csv">Upload Custom CSV File</option>
                 </select>
 
@@ -1235,6 +1274,17 @@ function BroadcastCampaigns() {
               className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono text-xs resize-none"
             />
             <span className="text-[10px] text-muted-foreground block">Format: [phone], [name] (one per line). Empty numbers are ignored. Only opted-in numbers are allowed.</span>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Schedule Campaign (Optional)</label>
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm text-foreground"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">Leave blank to send immediately, or pick a future time to schedule.</p>
           </div>
 
           {/* Pricing & Estimation banner */}
@@ -1289,6 +1339,7 @@ function BroadcastCampaigns() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                         c.status === "completed" ? "border-emerald-500/20 text-emerald-500 bg-emerald-500/10" :
                         c.status === "sending" ? "border-blue-500/20 text-blue-500 bg-blue-500/10 animate-pulse" :
+                        c.status === "scheduled" ? "border-amber-500/20 text-amber-500 bg-amber-500/10" :
                         "border-rose-500/20 text-rose-500 bg-rose-500/10"
                       }`}>
                         {c.status.toUpperCase()}
@@ -1331,8 +1382,17 @@ function BroadcastCampaigns() {
                       </div>
                     )}
                     
-                    <div className="text-[9px] text-muted-foreground text-right">
-                      {new Date(c.createdAt).toLocaleString('en-IN')}
+                    <div className="text-[9px] text-muted-foreground flex justify-between items-center mt-1">
+                      {c.scheduledAt ? (
+                        <span className="text-amber-500 font-semibold font-mono">
+                          Scheduled: {new Date(c.scheduledAt).toLocaleString('en-IN')}
+                        </span>
+                      ) : (
+                        <span>Immediate</span>
+                      )}
+                      <span>
+                        Created: {new Date(c.createdAt).toLocaleString('en-IN')}
+                      </span>
                     </div>
                   </div>
                 );

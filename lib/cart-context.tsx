@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { trackStorefrontEvent } from "@/lib/track-client";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -21,6 +22,7 @@ export interface CartItem {
   price: string;
   image: string;
   quantity: number;
+  category?: string;
 }
 
 interface CartContextType {
@@ -57,6 +59,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const add = useCallback((item: Omit<CartItem, "id" | "quantity">) => {
     const id = `${item.productId}_${item.variantId}_${item.size || "one-size"}`;
+    
+    // Track Add To Cart event
+    trackStorefrontEvent('Add To Cart', {
+      productId: item.productId,
+      metadata: {
+        title: item.title,
+        price: item.price,
+        size: item.size
+      }
+    });
+
     setItems((prev) => {
       const existing = prev.find((i) => i.id === id);
       if (existing) {
@@ -69,7 +82,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const remove = useCallback((id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    // Find item details first to track Removal
+    setItems((prev) => {
+      const item = prev.find((i) => i.id === id);
+      if (item) {
+        trackStorefrontEvent('Remove From Cart', {
+          productId: item.productId,
+          metadata: {
+            title: item.title,
+            price: item.price,
+            size: item.size
+          }
+        });
+      }
+      return prev.filter((i) => i.id !== id);
+    });
   }, []);
 
   const update = useCallback((id: string, quantity: number) => {

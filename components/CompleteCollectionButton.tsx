@@ -45,7 +45,8 @@ export default function CompleteCollectionButton({ products, collectionName }: P
           title: product.title,
           size: variant.option1 === "Default Title" ? null : variant.option1,
           price: variant.price,
-          image: product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png"
+          image: product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png",
+          category: product.product_type
         });
       }
       

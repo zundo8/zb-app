@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, startTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, Loader2, Bookmark, X, Plus, ChevronLeft, ArrowLeft, ArrowRight } from "lucide-react";
-import * as fp from "@/lib/meta-pixel";
+import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import { parseShopifyRichText, matchKey } from "@/lib/utils";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import ProductCard from "@/components/ProductCard";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/lib/cart-context";
 import { useBookmarks } from "@/lib/bookmark-context";
+import { trackStorefrontEvent } from "@/lib/track-client";
 import { useRecentlyViewed } from "@/lib/recently-viewed-context";
 import { handleImageError } from "@/components/ImagePlaceholder";
 import dynamic from "next/dynamic";
@@ -45,6 +46,13 @@ export default function ProductDetailsClient({
   allImages?: any[];
 }) {
   const router = useRouter();
+  const { trackViewContent, trackAddToCart, trackAddToWishlist } = useMetaEvents();
+
+  useEffect(() => {
+    const variantId = product.variants?.[0]?.id?.toString() || product.id.toString();
+    trackViewContent(variantId, product.title, parseFloat(product.variants?.[0]?.price || "0"), 'INR', product.product_type);
+  }, [product.id, product.title, product.product_type]);
+
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("details");
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -94,6 +102,26 @@ export default function ProductDetailsClient({
   useEffect(() => {
     setWinHeight(window.innerHeight);
     recordVisit(product);
+
+    // Track Product Viewed event
+    trackStorefrontEvent('Product Viewed', {
+      productId: product.id.toString(),
+      metadata: {
+        title: product.title,
+        price: product.variants?.[0]?.price,
+        handle: product.handle,
+        category: product.product_type
+      }
+    });
+
+    // Capture and save ctwa_clid (Click-to-WhatsApp Click ID) from URL if present
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const ctwa_clid = urlParams.get('ctwa_clid');
+      if (ctwa_clid) {
+        localStorage.setItem('ctwa_clid', ctwa_clid);
+      }
+    }
   }, [product, recordVisit]);
 
   // Optimized Scroll Effects for Safari
@@ -157,17 +185,12 @@ export default function ProductDetailsClient({
       title: product.title,
       size: selectedSize,
       price: variant.price,
-      image: product.image?.src || product.images[0]?.src || "/zb-logo-220px.png"
+      image: product.image?.src || product.images[0]?.src || "/zb-logo-220px.png",
+      category: product.product_type
     });
 
     // Track AddToCart in Meta Pixel
-    fp.event("AddToCart", {
-      content_ids: [product.id.toString()],
-      content_name: product.title,
-      content_type: "product",
-      value: parseFloat(variant.price || "0"),
-      currency: "INR"
-    });
+    trackAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
 
     setIsAdded(true);
     toast.success(`${product.title} added to bag`);
@@ -201,17 +224,12 @@ export default function ProductDetailsClient({
       title: product.title,
       size: selectedSize,
       price: variant.price,
-      image: product.image?.src || product.images[0]?.src || "/zb-logo-220px.png"
+      image: product.image?.src || product.images[0]?.src || "/zb-logo-220px.png",
+      category: product.product_type
     });
 
     // Track AddToCart in Meta Pixel
-    fp.event("AddToCart", {
-      content_ids: [product.id.toString()],
-      content_name: product.title,
-      content_type: "product",
-      value: parseFloat(variant.price || "0"),
-      currency: "INR"
-    });
+    trackAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
 
     router.push("/checkout");
   };
@@ -413,6 +431,9 @@ export default function ProductDetailsClient({
                   const wasBookmarked = isBookmarked(product.id.toString());
                   toggleBookmark(product);
                   setIsOpen(true);
+                  if (!wasBookmarked) {
+                    trackAddToWishlist(product.id.toString(), product.title, product.product_type);
+                  }
                   toast.success(wasBookmarked ? "Removed from bookmarks" : "Saved to bookmarks");
                 }}
                 className="w-8 h-8 rounded-full bg-foreground/5 border border-foreground/5 flex items-center justify-center hover:bg-foreground/10 transition-all active:scale-90 flex-shrink-0"
@@ -714,6 +735,9 @@ export default function ProductDetailsClient({
                     const wasBookmarked = isBookmarked(product.id.toString());
                     toggleBookmark(product);
                     setIsOpen(true);
+                    if (!wasBookmarked) {
+                      trackAddToWishlist(product.id.toString(), product.title, product.product_type);
+                    }
                     toast.success(wasBookmarked ? "Removed from bookmarks" : "Saved to bookmarks");
                   }}
                   className="w-8 h-8 rounded-full bg-foreground/5 border border-foreground/5 flex items-center justify-center hover:bg-foreground/10 transition-all active:scale-90"

@@ -593,7 +593,7 @@ export default async function Home() {
               "name": "Zica Bella",
               "url": "https://zicabella.com",
               "logo": "https://zicabella.com/zb-logo-220px.png",
-              "description": "Zica Bella is recognized as the world's fastest-growing luxury streetwear label and India's #1 premium clothing shopping site and app. Redefining street culture through custom heavyweight cotton hoodies, oversized tees, and 3D virtual fittings for a relentless global community.",
+              "description": "Zica Bella® is recognized as India's premier luxury streetwear label and the fastest growing global fashion app. Redefining street culture with custom 240+ GSM heavyweight oversized graphic tees, vintage acid-wash shirts, custom loopback fleece hoodies, and raw-edge streetwear accessories for a relentless global community.",
               "slogan": "Redefine The Standard",
               "award": ["India's #1 Premium Streetwear Brand", "World's Fastest Growing Fashion Brand"],
               "aggregateRating": {

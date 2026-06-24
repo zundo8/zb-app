@@ -20,28 +20,41 @@ export async function generateMetadata({
   const { collection } = await fetchCollectionByHandle(params.handle, 1).catch(() => ({ collection: null }));
 
   const titleMap: Record<string, string> = {
-    'graphic-tees': 'Best Graphic Tees in India | Zica Bella',
-    'tshirts-under-5000': 'Best T-Shirts Under ₹5000 | Zica Bella',
-    'oversized-tees': 'Oversized T-Shirts for Men & Women | Zica Bella',
+    'graphic-tees': 'Heavyweight Graphic Tees | Premium Streetwear - Zica Bella®',
+    'tshirts-under-5000': 'Luxury Streetwear Tees Under ₹5000 | Zica Bella®',
+    'oversized-tees': 'Oversized drop-shoulder Tees | Heavyweight Blanks - Zica Bella®',
   };
 
   const descMap: Record<string, string> = {
     'graphic-tees':
-      'Shop the best graphic tees in India. Premium prints, ethically crafted, starting at ₹799. Free shipping above ₹999.',
+      'Explore India\'s finest heavyweight graphic tees. Crafted with custom-engineered oversized drop-shoulder patterns, premium double-yarn cotton, and high-density vintage prints. Wear with intent.',
     'tshirts-under-5000':
-      'Discover the best t-shirts under ₹5000 in India. Zica Bella graphic tees, oversized fits, and statement fashion — all under budget.',
+      'Discover premium graphic tees and oversized street fits under ₹5000. Luxury fabric architecture, hand-finished washes, and bold graphics without the luxury markup.',
     'oversized-tees':
-      'Oversized t-shirts for men and women. Crafted in India with premium cotton and bold graphics.',
+      'Boxy drop-shoulder oversized t-shirts engineered from custom heavyweight cotton blanks. The ultimate subculture streetwear essential for men & women.',
   };
 
-  const title = titleMap[params.handle] ?? `${collection?.title ?? params.handle} | Zica Bella`;
+  const collectionTitle = collection?.title || params.handle.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  const title = titleMap[params.handle] ?? `${collectionTitle} — Luxury Streetwear Drop | Zica Bella®`;
   const description =
     descMap[params.handle] ??
-    `Shop ${collection?.title ?? params.handle} at Zica Bella. Crafted in India · Worn with Intent.`;
+    `Shop the ${collectionTitle} capsule collection at Zica Bella®. Featuring custom relaxed silhouettes, heavyweight premium blanks, and original subculture graphics. Designed in Italy, crafted in India.`;
+
+  const customKeywords = [
+    collectionTitle,
+    'Zica Bella collections',
+    'luxury streetwear India',
+    'oversized fit t-shirts',
+    'heavyweight hoodies',
+    'graphic print apparel',
+    'streetwear capsule drop',
+    'pre-shrunk cotton blanks',
+  ];
 
   return {
     title,
     description,
+    keywords: customKeywords.join(', '),
     alternates: {
       canonical: `https://zicabella.com/collections/${params.handle}`,
     },
@@ -50,7 +63,7 @@ export async function generateMetadata({
       description,
       url: `https://zicabella.com/collections/${params.handle}`,
       type: 'website',
-      images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella' }],
+      images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella®' }],
     },
     twitter: {
       card: 'summary_large_image',

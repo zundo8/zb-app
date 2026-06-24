@@ -92,6 +92,59 @@ const prismaClientSingleton = () => {
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     });
 
+    client.$use(async (params, next) => {
+      const result = await next(params);
+      try {
+        if (params.model === 'Customer' && params.action === 'create') {
+          const customer = result;
+          if (customer) {
+            import('./services/eventTracker').then(({ eventTracker }) => {
+              eventTracker.track({
+                eventName: 'Lead Created',
+                customerId: customer.id,
+                customerPhone: customer.phone,
+                eventSource: 'web',
+                metadata: { source: 'db_hook_signup' }
+              });
+              eventTracker.track({
+                eventName: 'User Registered',
+                customerId: customer.id,
+                customerPhone: customer.phone,
+                eventSource: 'web',
+                metadata: { source: 'db_hook_signup' }
+              });
+            }).catch(() => {});
+          }
+        }
+        if (params.model === 'AppLogin' && params.action === 'create') {
+          const appLogin = result;
+          if (appLogin && (appLogin.status === 'SUCCESS' || appLogin.status === 'ACCOUNT_CREATED')) {
+            import('./services/eventTracker').then(async ({ eventTracker }) => {
+              const cleanPhone = appLogin.phone ? appLogin.phone.replace(/\D/g, "") : "";
+              const last10 = cleanPhone.slice(-10);
+              let customerId = null;
+              if (last10) {
+                const customer = await client.customer.findFirst({
+                  where: { phone: { contains: last10 } }
+                });
+                customerId = customer?.id || null;
+              }
+              eventTracker.track({
+                eventName: 'User Login',
+                customerId,
+                customerPhone: appLogin.phone,
+                eventSource: 'web',
+                metadata: { userAgent: appLogin.userAgent, status: appLogin.status }
+              });
+            }).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.error('[DB Middleware Error]:', err);
+      }
+      return result;
+    });
+
     console.log('[DB] Prisma Client initialized with PgAdapter (SSL Patch v1.0.3 active)');
     return client;
   } catch (error: any) {

@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useBookmarks } from "@/lib/bookmark-context";
 import { handleImageError } from "./ImagePlaceholder";
 import { Search, LayoutGrid, Menu } from "lucide-react";
+import { useMetaEvents } from "@/hooks/useMetaEvents";
 import dynamic from "next/dynamic";
 
 // Lazy-load modal to avoid SSR issues
@@ -34,6 +35,14 @@ export default function SearchResultsClient({
   initialSortBy,
 }: Props) {
   const router = useRouter();
+  const { trackSearch } = useMetaEvents();
+
+  useEffect(() => {
+    if (query) {
+      trackSearch(query);
+    }
+  }, [query]);
+
   const [searchTerm, setSearchTerm] = useState(query);
   const [viewMode, setViewMode] = useState<"grid" | "editorial">("editorial");
   const [sortBy, setSortBy] = useState<string>(initialSortBy || "relevance");

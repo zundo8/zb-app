@@ -14,7 +14,7 @@ export function OrganizationJsonLd() {
       height: 512,
     },
     description:
-      'Zica Bella is an Indian D2C fashion brand crafting premium graphic tees and statement apparel. Crafted in India · Worn with Intent.',
+      'Zica Bella® is an elite Indian luxury streetwear label specializing in boxy drop-shoulder oversized graphic tees, vintage acid-wash shirts, custom heavyweight loopback hoodies, and limited drops. Crafted in India, designed with modular silhouettes.',
     foundingDate: '2023',
     foundingLocation: {
       '@type': 'Place',
@@ -33,7 +33,8 @@ export function OrganizationJsonLd() {
       availableLanguage: ['English', 'Hindi'],
     },
     sameAs: [
-      'https://www.instagram.com/zicabella',
+      'https://www.instagram.com/zica.bella',
+      'https://www.youtube.com/@Zicabella',
       'https://www.facebook.com/zicabella',
     ],
     hasOfferCatalog: {

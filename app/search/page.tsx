@@ -11,11 +11,17 @@ export async function generateMetadata({
   searchParams: { q?: string };
 }): Promise<Metadata> {
   const query = (searchParams.q || "").trim();
+  const title = query ? `Archives Search: "${query}" | Zica Bella®` : "Search Streetwear & Graphic Tees | Zica Bella®";
+  const description = query
+    ? `Search results for "${query}" in Zica Bella\'s streetwear archives. Browse heavyweight oversized blanks, vintage graphic t-shirts, and limited edition drops.`
+    : "Search the Zica Bella streetwear catalog. Explore boxy drop-shoulder oversized graphic tees, heavyweight hoodies, and premium basics.";
+  
   return {
-    title: query ? `Search: "${query}" | Zica Bella` : "Search Products | Zica Bella",
-    description: query
-      ? `Find products matching "${query}" on Zica Bella. Browse our premium graphic tees, streetwear, and designer apparel.`
-      : "Search the Zica Bella catalog. Explore premium graphic t-shirts, oversized collections, and luxury Indian streetwear.",
+    title,
+    description,
+    keywords: query 
+      ? [query, 'zica bella search', 'streetwear search', 'oversized graphic tees', 'vintage blanks']
+      : ['zica bella catalog', 'streetwear search', 'oversized t-shirts online', 'heavyweight hoodies', 'graphic tees india'],
     alternates: {
       canonical: query
         ? `https://zicabella.com/search?q=${encodeURIComponent(query)}`

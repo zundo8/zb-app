@@ -780,16 +780,16 @@ model NotificationSend {
 }
 
 model WhatsAppMessage {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   direction    String
-  waMessageId  String?  @unique
+  waMessageId  String?   @unique
   phoneNumber  String
   userId       String?
   templateName String?
   body         String?
   mediaUrl     String?
   mediaType    String?
-  status       String   @default("sent")
+  status       String    @default("sent")
   campaignId   String?
   orderId      String?
   errorCode    String?
@@ -797,8 +797,12 @@ model WhatsAppMessage {
   sentAt       DateTime  @default(now())
   deliveredAt  DateTime?
   readAt       DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Added for queue retry mechanism
+  retryCount   Int       @default(0) @map("retry_count")
+  nextRetryAt  DateTime? @map("next_retry_at")
 
   @@map("whatsapp_messages")
   @@index([phoneNumber, createdAt])
@@ -825,6 +829,17 @@ model WhatsAppCampaign {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   recipients     WhatsAppCampaignRecipient[]
+
+  // New fields requested for Analytics and Meta Review:
+  campaign_name     String?   @map("campaign_name")
+  template_name     String?   @map("template_name")
+  target_audience   String?   @map("target_audience")
+  total_sent        Int       @default(0) @map("total_sent")
+  delivered         Int       @default(0)
+  read_count        Int       @default(0) @map("read_count")
+  click_count       Int       @default(0) @map("click_count")
+  conversions       Int       @default(0)
+  revenue_generated Float     @default(0.0) @map("revenue_generated")
 
   @@map("whatsapp_campaigns")
   @@index([status, scheduledAt])
@@ -862,6 +877,10 @@ model WhatsAppCampaignRecipient {
   deliveredAt  DateTime?
   readAt       DateTime?
   campaign     WhatsAppCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Added for queue retry mechanism
+  retryCount   Int       @default(0) @map("retry_count")
+  nextRetryAt  DateTime? @map("next_retry_at")
 
   @@map("whatsapp_campaign_recipients")
   @@index([campaignId])
@@ -903,6 +922,39 @@ model WhatsAppDeliveryStatus {
 
   @@map("whatsapp_delivery_status")
   @@index([phoneNumber])
+}
+
+model WhatsAppEvent {
+  id             String             @id @default(cuid())
+  eventName      String             @map("event_name")
+  customerId     String?            @map("customer_id")
+  customerPhone  String?            @map("customer_phone")
+  orderId        String?            @map("order_id")
+  productId      String?            @map("product_id")
+  eventSource    String             @default("system") @map("event_source")
+  metadataJson   String?            @map("metadata_json")
+  status         String             @default("pending")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  logs           WhatsAppEventLog[]
+
+  @@map("whatsapp_events")
+  @@index([eventName])
+  @@index([customerPhone])
+  @@index([status])
+}
+
+model WhatsAppEventLog {
+  id              String        @id @default(cuid())
+  eventId         String        @map("event_id")
+  requestPayload  String?       @map("request_payload")
+  responsePayload String?       @map("response_payload")
+  status          String        @default("success")
+  errorMessage    String?       @map("error_message")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  event           WhatsAppEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_event_logs")
+  @@index([eventId])
 }
 
 

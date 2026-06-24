@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import ThreeDLogo from "./ThreeDLogo";
 import LazyVideo from "./LazyVideo";
+import { useMetaEvents } from "@/hooks/useMetaEvents";
 
 interface Policy {
   handle: string;
@@ -45,6 +46,7 @@ interface StorefrontFooterClientProps {
 }
 
 export default function StorefrontFooterClient({ shop, policies }: StorefrontFooterClientProps) {
+  const { trackSubscribe } = useMetaEvents();
   // Mobile accordion states
   const [shopOpen, setShopOpen] = useState(false);
   const [customerCareOpen, setCustomerCareOpen] = useState(true); // Default open as shown in reference image
@@ -56,6 +58,7 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     if (email.trim()) {
+      trackSubscribe();
       toast.success("Thank you for joining our newsletter!", {
         description: "You have successfully subscribed to the Zica Bella newsletter.",
       });
@@ -103,8 +106,8 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
       <div className="hidden md:block max-w-7xl mx-auto px-8 py-24">
         <div className="grid grid-cols-12 gap-8 items-start">
           
-          {/* Brand Info (5 Columns) */}
-          <div className="col-span-5 space-y-6">
+          {/* Brand Info (3 Columns) */}
+          <div className="col-span-3 space-y-6">
             <div className="flex flex-col items-start gap-4">
               <ThreeDLogo src={shop?.footerLogo3dUrl} size={36} />
               <h2 className="font-rocaston text-[9px] tracking-[0.18em] text-foreground font-light uppercase leading-none">ZICABELLA</h2>
@@ -160,8 +163,8 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
             </ul>
           </div>
 
-          {/* Connect Column (3 Columns) */}
-          <div className="col-span-3 space-y-4 pt-2 flex flex-col items-start">
+          {/* Connect Column (2 Columns) */}
+          <div className="col-span-2 space-y-4 pt-2 flex flex-col items-start">
             <h3 className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-foreground/25">Connect</h3>
             <div className="flex flex-col gap-2.5 w-full">
               {socialLinks.map(({ url, icon: Icon, label }) => (
@@ -173,6 +176,35 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
                 </a>
               ))}
             </div>
+          </div>
+
+          {/* Stay In The Loop (Newsletter - 3 Columns) */}
+          <div className="col-span-3 space-y-4 pt-2 text-left">
+            <h3 className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-foreground/25">Stay In The Loop</h3>
+            <p className="text-[10px] text-foreground/45 font-light leading-relaxed">
+              Join our newsletter for early access to product releases.
+            </p>
+            <form onSubmit={handleSubscribe} className="flex items-center gap-2.5 w-full pt-2">
+              <div className="relative flex-1">
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email" 
+                  required
+                  className="w-full h-10 bg-transparent border border-gray-200 dark:border-white/[0.08] focus:border-foreground dark:focus:border-white/20 rounded-full px-4 pr-10 text-[10.5px] focus:outline-none placeholder:text-foreground/25 text-foreground transition-colors leading-none"
+                />
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none flex items-center justify-center">
+                  <Mail className="w-3 h-3" />
+                </div>
+              </div>
+              <button 
+                type="submit"
+                className="h-10 bg-black dark:bg-white text-white dark:text-black hover:opacity-90 active:scale-95 rounded-full px-4 text-[8.5px] font-bold tracking-[0.15em] uppercase transition-all shrink-0 flex items-center justify-center"
+              >
+                SUBSCRIBE
+              </button>
+            </form>
           </div>
 
         </div>

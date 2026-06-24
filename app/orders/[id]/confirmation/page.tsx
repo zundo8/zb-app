@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, Package, Truck, Calendar, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
-import * as fp from "@/lib/meta-pixel";
+import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { trackStorefrontEvent } from "@/lib/track-client";
 
 export default function OrderConfirmationPage() {
   const { id } = useParams();
@@ -13,17 +14,68 @@ export default function OrderConfirmationPage() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [purchasedPixel, setPurchasedPixel] = useState(false);
+  const { trackPurchase } = useMetaEvents();
 
   useEffect(() => {
-    if (order && !purchasedPixel) {
-      setPurchasedPixel(true);
-      fp.event("Purchase", {
-        value: parseFloat(order.totalPrice || "0"),
-        currency: "INR",
-        content_ids: order.items?.map((item: any) => item.productId || item.variantId) || [],
-        content_type: "product",
-        num_items: order.items?.length || 0,
-      });
+    if (order) {
+      const storageKey = `meta_purchase_fired_${order.id}`;
+      const hasFired = typeof window !== 'undefined' ? sessionStorage.getItem(storageKey) : null;
+      if (!hasFired) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(storageKey, 'true');
+        }
+
+        const val = parseFloat(order.totalPrice || "0");
+        const contentIds = order.items?.map((item: any) => item.variantId || item.productId) || [];
+
+        let userData = undefined;
+        if (order.shippingAddress) {
+          try {
+            const addr = typeof order.shippingAddress === 'string'
+              ? JSON.parse(order.shippingAddress)
+              : order.shippingAddress;
+            if (addr) {
+              userData = {
+                country: addr.country,
+                st: addr.state,
+                ct: addr.city
+              };
+            }
+          } catch (e) {
+            console.error("Error parsing shippingAddress in confirmation page", e);
+          }
+        }
+
+        let storedCategory = undefined;
+        if (typeof window !== 'undefined') {
+          storedCategory = sessionStorage.getItem(`order_categories_${order.id}`) || undefined;
+        }
+
+        trackPurchase(order.id, val, 'INR', contentIds, userData, storedCategory);
+      }
+
+      if (!purchasedPixel) {
+        setPurchasedPixel(true);
+
+        const val = parseFloat(order.totalPrice || "0");
+
+        // Track server-side event
+        const isCod = order.paymentMethod === "COD";
+        const eventName = isCod ? "COD Order Placed" : "Purchase Completed";
+
+        trackStorefrontEvent(eventName, {
+          customerId: order.customerId || null,
+          customerPhone: order.customerPhone || order.customer?.phone || null,
+          orderId: order.id,
+          metadata: {
+            value: val,
+            currency: "INR",
+            content_ids: order.items?.map((item: any) => item.productId || item.variantId) || [],
+            num_items: order.items?.length || 0,
+            paymentMethod: order.paymentMethod
+          }
+        });
+      }
     }
   }, [order, purchasedPixel]);
 

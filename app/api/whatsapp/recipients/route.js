@@ -18,32 +18,54 @@ export async function GET(req) {
 
     let customers = [];
 
-    if (audience === 'all_customers') {
+    if (audience === 'all_customers' || audience === 'all') {
       customers = await prisma.customer.findMany({
         where: { phone: { not: null } }
       });
-    } else if (audience === 'with_orders') {
+    } else if (audience === 'new_customers' || audience === 'new') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       customers = await prisma.customer.findMany({
         where: {
           phone: { not: null },
-          orders: { some: {} }
+          OR: [
+            { createdAt: { gte: thirtyDaysAgo } },
+            { ordersCount: 0 }
+          ]
+        }
+      });
+    } else if (audience === 'returning_customers' || audience === 'with_orders' || audience === 'returning') {
+      customers = await prisma.customer.findMany({
+        where: {
+          phone: { not: null },
+          ordersCount: { gte: 1 }
+        }
+      });
+    } else if (audience === 'high_value_customers' || audience === 'high_value') {
+      customers = await prisma.customer.findMany({
+        where: {
+          phone: { not: null },
+          OR: [
+            { totalSpent: { gte: 5000 } },
+            { ordersCount: { gte: 2 } }
+          ]
         }
       });
     } else if (audience === 'without_orders') {
       customers = await prisma.customer.findMany({
         where: {
           phone: { not: null },
-          orders: { none: {} }
+          ordersCount: 0
         }
       });
-    } else if (audience === 'wishlist') {
+    } else if (audience === 'wishlist' || audience === 'wishlist_customers') {
       customers = await prisma.customer.findMany({
         where: {
           phone: { not: null },
           wishlist: { some: {} }
         }
       });
-    } else if (audience === 'cart_abandonment') {
+    } else if (audience === 'cart_abandonment' || audience === 'abandoned_cart_customers') {
       // Fetch checkouts from Shopify API
       let shopifyCheckouts = [];
       try {

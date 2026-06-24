@@ -10,6 +10,7 @@ import { handleImageError } from "./ImagePlaceholder";
 import { toast } from "sonner";
 import ProductCardImage from "./ProductCardImage";
 import dynamic from "next/dynamic";
+import { useMetaEvents } from "@/hooks/useMetaEvents";
 
 const QuickAddModal = dynamic(() => import("./QuickAddModal"), { ssr: false });
 
@@ -47,6 +48,7 @@ interface Props {
 
 export default function SearchProductCardEditorial({ chunk, index, priority = false }: Props) {
   const { add } = useCart();
+  const { trackAddToCart } = useMetaEvents();
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [added, setAdded] = useState(false);
@@ -109,16 +111,22 @@ export default function SearchProductCardEditorial({ chunk, index, priority = fa
 
     setIsAdding(true);
 
+    const variantId = matchedSizeObj?.variantId ?? String(p1.variants?.[0]?.id);
+    const itemPrice = parseFloat(productVariant?.price || p1Details.price || "0");
+
     setTimeout(() => {
       add({
         productId: String(p1.id),
-        variantId: matchedSizeObj?.variantId ?? String(p1.variants?.[0]?.id),
+        variantId,
         title: p1.title,
         size: chosenSize,
         handle: p1.handle,
         price: p1Details.price,
         image: p1Details.img,
+        category: p1.product_type,
       });
+
+      trackAddToCart(variantId, p1.title, itemPrice, 'INR', p1.product_type);
 
       setIsAdding(false);
       setAdded(true);

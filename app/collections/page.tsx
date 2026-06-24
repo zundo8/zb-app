@@ -7,12 +7,12 @@ import { Metadata } from "next";
 export const revalidate = 300; // ISR: revalidate every 5 minutes
 
 export const metadata: Metadata = {
-  title: "Curated Collections | Luxury Streetwear - Zica Bella",
-  description: "Browse Zica Bella's curated luxury streetwear collections. Explore custom oversized tees, heavyweight hoodies, premium denim, and limited capsule drops.",
-  keywords: "zica bella collections, luxury streetwear collections, streetwear hoodies, oversized tees, streetwear brand india, premium denim, limited drop fashion",
+  title: "Subculture Collections & Limited Drops | Zica Bella® — Streetwear Archives",
+  description: "Explore Zica Bella's curated limited-edition streetwear drops and subculture collections. Discover boxy drop-shoulder oversized tees, double-yarn loopback hoodies, and custom acid-wash denims. Crafted in India, worn with intent.",
+  keywords: "zica bella collections, luxury streetwear India, streetwear drops, oversized t-shirts online, premium blanks, limited capsule drops, heavyweight hoodies, streetwear brand india, subculture design",
   openGraph: {
-    title: "Curated Collections | Luxury Streetwear - Zica Bella",
-    description: "Browse Zica Bella's curated luxury streetwear collections. Explore custom oversized tees, heavyweight hoodies, premium denim, and limited capsule drops.",
+    title: "Subculture Collections & Limited Drops | Zica Bella®",
+    description: "Explore Zica Bella's curated limited-edition streetwear drops and subculture collections. Discover boxy drop-shoulder oversized tees, double-yarn loopback hoodies, and custom acid-wash denims.",
     url: "https://zicabella.com/collections",
     images: [
       {

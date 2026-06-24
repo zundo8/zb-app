@@ -8,6 +8,7 @@ import { ShopifyProduct } from "@/lib/shopify-admin";
 import { createPortal } from "react-dom";
 import { handleImageError } from "./ImagePlaceholder";
 import { toast } from "sonner";
+import { useMetaEvents } from "@/hooks/useMetaEvents";
 
 interface Props {
   product: ShopifyProduct;
@@ -17,6 +18,7 @@ interface Props {
 
 export default function QuickAddModal({ product, initialSize, onClose }: Props) {
   const { add } = useCart();
+  const { trackAddToCart } = useMetaEvents();
   const [selectedSize, setSelectedSize] = useState<string | null>(initialSize || null);
   const [added, setAdded] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -79,15 +81,22 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
       return;
     }
 
+    const variantId = variant?.variantId ?? String(product.variants?.[0]?.id);
+    const itemPrice = parseFloat(productVariant.price || price || "0");
+
     add({
       productId: String(product.id),
-      variantId: variant?.variantId ?? String(product.variants?.[0]?.id),
+      variantId,
       title: product.title,
       size: selectedSize,
       handle: product.handle,
       price,
       image,
+      category: product.product_type,
     });
+    
+    trackAddToCart(variantId, product.title, itemPrice, 'INR', product.product_type);
+
     setAdded(true);
     toast.success(`${product.title} added to bag`);
     setTimeout(() => { setAdded(false); onClose(); }, 900);

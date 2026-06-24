@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
-import * as fp from "@/lib/meta-pixel";
+import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { trackStorefrontEvent } from "@/lib/track-client";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPin, 
@@ -89,6 +90,20 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const { trackInitiateCheckout, trackAddPaymentInfo } = useMetaEvents();
+
+  const [address, setAddress] = useState<Address>({
+    name: session?.user?.name || "",
+    email: session?.user?.email || "",
+    phone: (session as any)?.customer?.phone || "",
+    houseNo: "",
+    street: "",
+    landmark: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "India",
+  });
 
   const [step, setStep] = useState(1); // 1: Address, 2: Payment
   const [loading, setLoading] = useState(false);
@@ -112,27 +127,23 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (items.length > 0 && !initiatedPixel) {
       setInitiatedPixel(true);
-      fp.event("InitiateCheckout", {
-        num_items: items.length,
-        value: subtotal,
-        currency: "INR",
-        content_ids: items.map(item => item.productId)
+      const joinedCategories = items.map(item => item.category).filter(Boolean).join(', ') || undefined;
+      trackInitiateCheckout(subtotal, items.length, 'INR', joinedCategories);
+
+      // Track Checkout Started event server-side
+      trackStorefrontEvent('Checkout Started', {
+        customerId: (session?.user as any)?.id || null,
+        customerPhone: address.phone || null,
+        metadata: {
+          num_items: items.length,
+          value: subtotal,
+          currency: "INR",
+          content_ids: items.map(item => item.productId)
+        }
       });
     }
-  }, [items, subtotal, initiatedPixel]);
-  
-  const [address, setAddress] = useState<Address>({
-    name: session?.user?.name || "",
-    email: session?.user?.email || "",
-    phone: (session as any)?.customer?.phone || "",
-    houseNo: "",
-    street: "",
-    landmark: "",
-    city: "",
-    state: "",
-    zip: "",
-    country: "India",
-  });
+  }, [items, subtotal, initiatedPixel, session, address.phone]);
+
 
   const [addressErrors, setAddressErrors] = useState<Record<string, string>>({});
   const [zipLoading, setZipLoading] = useState(false);
@@ -297,6 +308,7 @@ export default function CheckoutPage() {
     const formattedPhone = `+91${baseNumber}`;
     setAddress(prev => ({ ...prev, phone: formattedPhone }));
     setStep(2);
+    trackAddPaymentInfo({ country: address.country, st: address.state, ct: address.city });
   };
 
   const handleApplyCoupon = async (overrideCode?: string, currentPaymentMethod?: string, isAuto = false) => {
@@ -590,6 +602,19 @@ export default function CheckoutPage() {
       
       if (!res.ok) throw new Error(orderData.error || "Failed to initiate payment");
 
+      // Track Payment Initiated event
+      trackStorefrontEvent('Payment Initiated', {
+        customerId: (session?.user as any)?.id || null,
+        customerPhone: address.phone || null,
+        orderId: orderData.id || orderData.razorpay_order_id || null,
+        metadata: {
+          amount: paymentAmount,
+          currency: 'INR',
+          paymentMethod,
+          num_items: items.length
+        }
+      });
+
       const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
 
       const options: any = {
@@ -622,10 +647,12 @@ export default function CheckoutPage() {
             const verifyData = await verifyRes.json();
             if (verifyRes.ok) {
               setIsOrderPlaced(true);
-              clear();
               if (typeof window !== "undefined") {
                 sessionStorage.setItem("last_placed_order_id", verifyData.orderId);
+                const joinedCategories = items.map(item => item.category).filter(Boolean).join(', ');
+                sessionStorage.setItem(`order_categories_${verifyData.orderId}`, joinedCategories);
               }
+              clear();
               router.push(`/orders/${verifyData.orderId}/confirmation`);
             } else {
               setError(verifyData.error || "Payment verification failed");
@@ -1189,6 +1216,7 @@ export default function CheckoutPage() {
                         type="button"
                         onClick={() => {
                           setPaymentMethod(method.id);
+                          trackAddPaymentInfo({ country: address.country, st: address.state, ct: address.city });
                           if (method.id !== "UPI") {
                             setSelectedUpiApp("");
                             setUpiId("");

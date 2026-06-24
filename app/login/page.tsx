@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Loader2, ChevronDown, ShieldCheck, BadgeCheck, Gem, Sun, Moon } from "lucide-react";
 import Image from "next/image";
 import { useTheme } from "next-themes";
+import { useMetaEvents } from "@/hooks/useMetaEvents";
+
 
 /* ────────────────────────────────────────────
    Top 10 Countries — Minimal, No Search
@@ -31,6 +33,8 @@ export default function LoginPage() {
   const callbackUrl = searchParams.get("callbackUrl") || "/";
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const { trackCompleteRegistration } = useMetaEvents();
 
   const [step, setStep] = useState<"PHONE" | "NAME" | "OTP">("PHONE");
   const [phone, setPhone] = useState("");
@@ -241,6 +245,7 @@ export default function LoginPage() {
 
     try {
       await sendOTP(fullPhone);
+      setIsNewUser(true);
       setStep("OTP");
     } catch (e: any) {
       setError(e.message || "Failed to send OTP code");
@@ -328,6 +333,9 @@ export default function LoginPage() {
         setLoading(false);
         isSubmittingRef.current = false;
       } else if (result?.ok) {
+        if (isNewUser) {
+          trackCompleteRegistration();
+        }
         // Lock the form permanently — no more submissions allowed
         loginSucceededRef.current = true;
         setRedirecting(true);

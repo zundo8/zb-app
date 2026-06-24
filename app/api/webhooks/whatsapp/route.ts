@@ -9,6 +9,7 @@ import db from '@/lib/db';
 import { getConfig } from '@/lib/whatsapp/client';
 import { updateMessageStatus } from '@/lib/whatsapp/logger';
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
+import { eventTracker } from '@/lib/services/eventTracker';
 
 export const dynamic = 'force-dynamic';
 
@@ -213,8 +214,8 @@ async function handleIncomingMessages(messages: any[], db: any) {
     }
 
     // Save message to log database
+    let userId = null;
     try {
-      let userId = null;
       const customer = await db.customer.findFirst({
         where: { phone: { contains: phoneNumber.slice(-10) } }
       });
@@ -232,6 +233,65 @@ async function handleIncomingMessages(messages: any[], db: any) {
       });
     } catch (err: any) {
       console.error('[WhatsApp Webhook] Failed to log inbound message:', err.message);
+    }
+
+    // Track WhatsApp Chat Started event (deduplicated by a 24-hour window)
+    try {
+      const lastChatStarted = await db.whatsAppEvent.findFirst({
+        where: {
+          eventName: 'WhatsApp Chat Started',
+          customerPhone: phoneNumber,
+          createdAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          }
+        }
+      });
+      if (!lastChatStarted) {
+        await eventTracker.trackWhatsAppConversation(userId, phoneNumber, { bodyText });
+      }
+    } catch (err: any) {
+      console.error('[WhatsApp Webhook] Failed to track conversation start:', err.message);
+    }
+
+    // Track WhatsApp Campaign Clicked event when interacting with buttons/quick replies
+    if (message.type === 'button' || message.type === 'interactive') {
+      const payload = message.type === 'button' ? message.button?.payload : message.interactive?.button_reply?.id;
+      const title = message.type === 'button' ? message.button?.text : message.interactive?.button_reply?.title;
+      
+      try {
+        // Find latest campaign message sent to this recipient to attribute click
+        const lastMessage = await db.whatsAppMessage.findFirst({
+          where: { phoneNumber: { contains: phoneNumber.slice(-10) }, campaignId: { not: null } },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        const campaignId = lastMessage?.campaignId;
+        
+        await eventTracker.track({
+          eventName: 'WhatsApp Campaign Clicked',
+          customerId: userId,
+          customerPhone: phoneNumber,
+          eventSource: 'whatsapp',
+          metadata: {
+            buttonPayload: payload,
+            buttonTitle: title,
+            campaignId: campaignId || null,
+            messageId: lastMessage?.waMessageId || null
+          }
+        });
+
+        // Increment campaign metrics in DB
+        if (campaignId) {
+          await db.whatsAppCampaign.update({
+            where: { id: campaignId },
+            data: { 
+              click_count: { increment: 1 }
+            }
+          });
+        }
+      } catch (err: any) {
+        console.error('[WhatsApp Webhook] Click tracking failed:', err.message);
+      }
     }
 
     // Mark as read in Meta

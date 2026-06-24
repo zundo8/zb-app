@@ -19,7 +19,7 @@ export async function generateMetadata({
 
   if (!product) {
     return {
-      title: 'Product Not Found',
+      title: 'Product Not Found | Zica Bella®',
       robots: { index: false, follow: false },
     }
   }
@@ -31,28 +31,69 @@ export async function generateMetadata({
     maximumFractionDigits: 0,
   }).format(Number(price))
 
-  const title = `${product.title} — ${priceFormatted} | Zica Bella`
-  const plainDescription = product.body_html
-    ? product.body_html.replace(/<[^>]*>/g, '').slice(0, 155)
-    : `Buy ${product.title} from Zica Bella. Crafted in India, premium quality graphic tee.`
+  const productType = product.product_type?.toLowerCase() || 'streetwear';
+  let categoryTag = 'Heavyweight Oversized Tee';
+  
+  if (productType.includes('hoodie')) {
+    categoryTag = 'Heavyweight Fleece Hoodie';
+  } else if (productType.includes('pant') || productType.includes('jean') || productType.includes('denim') || productType.includes('trouser')) {
+    categoryTag = 'Luxury Streetwear Denim';
+  } else if (productType.includes('accessory') || productType.includes('cap') || productType.includes('hat') || productType.includes('socks')) {
+    categoryTag = 'Subculture Accessory';
+  } else if (productType.includes('jacket') || productType.includes('outerwear') || productType.includes('zip')) {
+    categoryTag = 'Streetwear Outerwear';
+  } else if (productType.includes('t-shirt') || productType.includes('tee')) {
+    categoryTag = 'Heavyweight Oversized Tee';
+  }
+
+  // Create a premium, unique streetwear title
+  const title = `${product.title} — ${priceFormatted} | ${categoryTag} | Zica Bella®`
+
+  // Process tags & title to extract specifications
+  const tagsList = product.tags ? product.tags.split(',').map((t: string) => t.trim().toLowerCase()) : [];
+  const hasAcidWash = tagsList.some(t => t.includes('acid') || t.includes('wash') || t.includes('vintage') || t.includes('fade'));
+  const isHeavy = tagsList.some(t => t.includes('heavy') || t.includes('gsm') || t.includes('300') || t.includes('240') || t.includes('400'));
+  const isLoopback = tagsList.some(t => t.includes('loopback') || t.includes('french') || t.includes('terry'));
+  
+  let specText = '';
+  if (hasAcidWash) specText += 'vintage acid-wash finish, ';
+  if (isLoopback) specText += 'double-yarn loopback cotton, ';
+  else if (isHeavy) specText += 'heavyweight premium cotton, ';
+  specText += 'relaxed drop-shoulder silhouette, and premium high-definition graphic prints.';
+
+  const cleanBodyHtml = product.body_html
+    ? product.body_html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+    : '';
+
+  const shortDesc = cleanBodyHtml.length > 120 ? `${cleanBodyHtml.slice(0, 117)}...` : cleanBodyHtml;
+  
+  // Construct dynamic description using Shopify product data and tags
+  const description = `Shop ${product.title} at Zica Bella® for ${priceFormatted}. Premium ${categoryTag.toLowerCase()} featuring ${specText} ${shortDesc ? `Details: ${shortDesc}` : ''} Crafted in India, worn with intent. Free shipping above ₹999.`.slice(0, 290);
+
+  // Dynamic keyword generation
+  const customKeywords = [
+    product.title,
+    'Zica Bella',
+    categoryTag,
+    product.product_type || 'streetwear apparel',
+    ...tagsList,
+    'oversized graphic tee',
+    'luxury streetwear India',
+    'drop shoulder fit',
+    'street wear accessories',
+    'premium cotton blanks',
+  ].filter((v, i, self) => v && self.indexOf(v) === i).slice(0, 15);
 
   return {
     title,
-    description: plainDescription,
-    keywords: [
-      product.title,
-      'graphic tee',
-      'Indian fashion',
-      `t-shirt under ${Math.ceil(Number(price) / 1000) * 1000}`,
-      'Zica Bella',
-      product.product_type ?? '',
-    ].filter(Boolean),
+    description,
+    keywords: customKeywords,
     alternates: {
       canonical: `https://zicabella.com/products/${product.handle}`,
     },
     openGraph: {
       title,
-      description: plainDescription,
+      description,
       url: `https://zicabella.com/products/${product.handle}`,
       type: 'website',
       images: product.images?.[0]?.src
@@ -64,12 +105,12 @@ export async function generateMetadata({
               alt: product.title,
             },
           ]
-        : [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella' }],
+        : [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella®' }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
-      description: plainDescription,
+      description,
       images: product.images?.[0]?.src ? [product.images[0].src] : ['/og-image.jpg'],
     },
   }

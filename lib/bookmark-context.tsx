@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { ShopifyProduct } from "./shopify-admin";
 import { useSession } from "next-auth/react";
+import { trackStorefrontEvent } from "@/lib/track-client";
 
 interface BookmarkContextType {
   bookmarks: ShopifyProduct[];
@@ -84,6 +85,15 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
   }, [status, session]);
 
   const addBookmark = useCallback((product: ShopifyProduct) => {
+    // Track Add To Wishlist event
+    trackStorefrontEvent('Add To Wishlist', {
+      productId: product.id.toString(),
+      metadata: {
+        title: product.title,
+        price: product.variants?.[0]?.price
+      }
+    });
+
     setBookmarks((prev) => {
       if (prev.find((p) => p.id === product.id)) return prev;
       return [...prev, product];
@@ -117,6 +127,17 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
   const toggleBookmark = useCallback((product: ShopifyProduct) => {
     const isCurrentlyBookmarked = bookmarks.some((p) => p.id.toString() === product.id.toString());
     const action = isCurrentlyBookmarked ? "remove" : "add";
+
+    // Track Toggle (AddToWishlist if currently not bookmarked)
+    if (!isCurrentlyBookmarked) {
+      trackStorefrontEvent('Add To Wishlist', {
+        productId: product.id.toString(),
+        metadata: {
+          title: product.title,
+          price: product.variants?.[0]?.price
+        }
+      });
+    }
 
     setBookmarks((prev) => {
       if (isCurrentlyBookmarked) {

@@ -7,67 +7,67 @@ const content: Record<
   { heading: string; intro: string; faqs: { q: string; a: string }[] }
 > = {
   'graphic-tees': {
-    heading: 'Best Graphic Tees in India — Crafted by Zica Bella',
+    heading: 'Heavyweight Graphic Tees & Streetwear Blanks — Zica Bella®',
     intro:
-      'Zica Bella graphic tees are designed and crafted in India with premium 100% cotton fabric, bold original prints, and intentional fits. Whether you are looking for statement streetwear, minimalist art prints, or culture-inspired graphics, our collection is built to wear with intent — not just wear.',
+      'Engineered for the subculture. Zica Bella\'s graphic tees represent a collision of luxury streetwear aesthetics, custom boxy silhouettes, and high-density industrial prints. Each piece is crafted in India from 240+ GSM double-yarn pre-shrunk cotton blanks to deliver the ultimate relaxed drop-shoulder drape that maintains its structure.',
     faqs: [
       {
-        q: 'What makes Zica Bella graphic tees different from other Indian brands?',
-        a: 'Zica Bella is a D2C brand based in Faridabad, India. Every piece is designed in-house, produced locally with quality oversight at each stage — cutting, stitching, printing, embroidery, wash, and quality check. We cut out middlemen so you get premium quality at honest prices.',
+        q: 'What makes Zica Bella graphic tees different from mass-market brands in India?',
+        a: 'Zica Bella graphic tees are built from scratch on custom patterns, not standard pre-made wholesale blanks. We use custom-developed 240+ GSM heavyweight double-yarn cotton, dropped shoulder seams, and tight, double-needle stitched ribbed collars that will not warp after washing. Our graphics are applied using premium, high-density screen printing and screen-puff techniques that resist cracking and fading.',
       },
       {
-        q: 'Are Zica Bella graphic tees available under ₹1000?',
-        a: 'Yes, several styles from our graphic tee collection start under ₹999 with free shipping on orders above ₹999.',
+        q: 'Are Zica Bella streetwear graphic tees available under ₹1000?',
+        a: 'Yes, select drops and core streetwear graphic tees start at ₹999, featuring the same premium fabric architecture and custom packaging as our limited-edition capsule collections.',
       },
       {
-        q: 'What fabric is used in Zica Bella t-shirts?',
-        a: 'We use 100% cotton, biowashed for softness and pre-shrunk for consistent fit. Select styles use cotton-modal blends for added drape.',
+        q: 'What fabric structure and treatments are used for Zica Bella tees?',
+        a: 'We use 100% premium combed cotton, treated with silicon and bio-washes for a soft vintage feel. The fabric is pre-shrunk to ensure consistent fitting and shape retention over years of wear.',
       },
       {
-        q: 'Do Zica Bella t-shirts shrink after washing?',
-        a: 'Our tees go through a prewash and biowash treatment during production, so shrinkage after home washing is minimal — typically under 3%.',
+        q: 'How should I wash my Zica Bella graphic tees to preserve the print?',
+        a: 'For maximum longevity, we recommend washing our tees inside out in cold water on a gentle cycle, and hang drying them. Avoid direct ironing on the high-density graphic prints.',
       },
     ],
   },
   'tshirts-under-5000': {
-    heading: 'Best T-Shirts Under ₹5000 in India — Zica Bella',
+    heading: 'Best Streetwear & Oversized Tees Under ₹5000 — Zica Bella®',
     intro:
-      'Looking for the best t-shirts under ₹5000 in India? Zica Bella offers a curated range of premium graphic tees, oversized fits, and statement apparel — all priced honestly under ₹5000. No fast fashion, no compromise on quality. Crafted in India with full production transparency.',
+      'High-end streetwear fabric architecture without the luxury markup. Zica Bella offers a curated range of premium heavyweight graphic tees, boxy fits, and statement apparel priced honestly under ₹5000. No fast fashion shortcuts. Crafted in India with absolute quality control.',
     faqs: [
       {
-        q: 'Which are the best t-shirt brands under ₹5000 in India?',
-        a: 'Zica Bella is one of India\'s emerging D2C fashion brands offering premium graphic tees under ₹5000. Unlike mass-market brands, Zica Bella controls its entire production chain — from fabric sourcing in India to final quality check — resulting in higher quality at the same or lower price points.',
+        q: 'Which are the best premium streetwear brands under ₹5000 in India?',
+        a: 'Zica Bella stands out as India\'s premier D2C streetwear label offering luxury-tier heavy cotton blanks under ₹5000. By controlling our entire design-to-production chain in-house, we deliver the same heavyweight loopback fleece and drop-shoulder silhouettes as high-end global brands, but at an honest price.',
       },
       {
-        q: 'Are Zica Bella t-shirts good quality under ₹5000?',
-        a: 'Yes. Our tees use 100% cotton with biowash treatment, reactive printed graphics for longevity, and pass a multi-stage quality check before dispatch. At our price point, this is difficult to match in the Indian market.',
+        q: 'What quality standards do Zica Bella t-shirts under ₹5000 meet?',
+        a: 'Every garment passes a rigid multi-point quality check. We inspect stitch density, seam strength, collar elasticity, and print accuracy to guarantee that your t-shirt holds up as a durable streetwear collector\'s piece.',
       },
       {
-        q: 'Does Zica Bella offer free shipping on orders under ₹5000?',
-        a: 'Free shipping applies on all orders above ₹999. Most single t-shirt purchases qualify.',
+        q: 'Is shipping free for Zica Bella orders in India?',
+        a: 'Yes, we provide free express shipping across India for all orders above ₹999. Most single oversized tee purchases qualify automatically.',
       },
       {
-        q: 'What is the return policy for Zica Bella t-shirts?',
-        a: 'We offer a 7-day return window for all products. Returns are free of charge.',
+        q: 'Does Zica Bella support returns and exchanges?',
+        a: 'We offer an easy 7-day return and exchange window. If your fit isn\'t exactly how you envisioned, we will arrange a free reverse pickup and offer a replacement size or full refund.',
       },
     ],
   },
   'oversized-tees': {
-    heading: 'Oversized T-Shirts for Men & Women — Zica Bella India',
+    heading: 'Boxy Drop-Shoulder Oversized Tees — Zica Bella® India',
     intro:
-      'Zica Bella oversized tees are built with a drop-shoulder, relaxed silhouette crafted from heavyweight 100% cotton. The perfect canvas for bold graphics and everyday wear — in sizes S to 3XL.',
+      'Engineered with a relaxed, slouchy body and dropped shoulders, Zica Bella oversized tees are the ultimate streetwear staple. Crafted from heavy-density 100% cotton blanks, they provide a clean boxy drape that hangs perfectly from XS to 3XL.',
     faqs: [
       {
-        q: 'How do Zica Bella oversized tees fit?',
-        a: 'Our oversized tees use a drop-shoulder pattern with a relaxed body. We recommend sizing down if you prefer a less dramatic oversized look, or going true-to-size for the full streetwear silhouette.',
+        q: 'How do Zica Bella oversized tees fit compared to standard t-shirts?',
+        a: 'Our oversized tees are custom-patterned to be boxy and loose-fitting with dropped shoulders and longer, wider sleeves. We recommend ordering your true size for the intended streetwear drape, or sizing down if you prefer a standard relaxed fit.',
       },
       {
-        q: 'Are the oversized tees available for women?',
-        a: 'Yes. Our oversized fits are unisex and available in sizes XS to 3XL, designed to work for all body types.',
+        q: 'Are the oversized tees unisex?',
+        a: 'Yes. All Zica Bella oversized garments are designed with a unisex fit architecture, suited for all body types looking to achieve a structured, modern street style.',
       },
     ],
   },
-}
+};
 
 export function CategorySEOContent({ slug }: CategorySEOContentProps) {
   const c = content[slug]

@@ -47,7 +47,9 @@ import {
   Palette,
   Factory,
   FlaskConical,
-  BookOpen
+  BookOpen,
+  Database,
+  ShieldCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -193,12 +195,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const marketingNav = [
     { name: "Omnichannel Analytics", href: "/dashboard/marketing/analytics", icon: BarChart3, module: 'MARKETING' },
+    { name: "Meta Pixel", href: "/dashboard/marketing/meta-pixel", icon: ShieldCheck, module: 'MARKETING' },
     { name: "Wishlist Management", href: "/dashboard/wishlist", icon: Heart, module: 'MARKETING' },
     { name: "Push Notifications", href: "/dashboard/notifications", icon: Bell, module: 'MARKETING' },
     { name: "Discounts", href: "/dashboard/marketing/discounts", icon: Tag, module: 'MARKETING' },
     { name: "WhatsApp Hub", href: "/dashboard/marketing/whatsapp", icon: MessageCircle, module: 'MARKETING' },
     { name: "Email Center", href: "/dashboard/marketing/email", icon: Mail, module: 'MARKETING' },
     { name: "SMS Campaigns", href: "/dashboard/marketing/sms", icon: MessageSquare, module: 'MARKETING' },
+  ];
+
+  const whatsappEventsNav = [
+    { name: "Overview", href: "/dashboard/whatsapp-events/overview", icon: BarChart3, module: 'MARKETING' },
+    { name: "Events Feed", href: "/dashboard/whatsapp-events/events", icon: Database, module: 'MARKETING' },
+    { name: "Campaign Analytics", href: "/dashboard/whatsapp-events/campaign-analytics", icon: TrendingUp, module: 'MARKETING' },
+    { name: "Templates Manager", href: "/dashboard/whatsapp-events/templates", icon: FileText, module: 'MARKETING' },
+    { name: "Customer Journeys", href: "/dashboard/whatsapp-events/customer-journeys", icon: History, module: 'MARKETING' },
+    { name: "Meta Review", href: "/dashboard/whatsapp-events/meta-review", icon: ShieldCheck, module: 'MARKETING' },
   ];
 
   const financialNav = [
@@ -431,6 +443,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               <div className="space-y-0.5">
                 {filterNav(marketingNav).map((item) => (
+                  <NavLink key={item.name} item={item} />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 px-5 flex items-center gap-2">
+                <MessageCircle className="w-3 h-3 text-emerald-400" strokeWidth={2} />
+                <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
+                  WhatsApp Events
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                {filterNav(whatsappEventsNav).map((item) => (
                   <NavLink key={item.name} item={item} />
                 ))}
               </div>

@@ -7,7 +7,7 @@ import "./globals.css";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import StorefrontFooter from "@/components/StorefrontFooter";
 import { Toaster } from "sonner";
-import MetaPixelTracker from "@/components/MetaPixelTracker";
+import MetaPixelRouteTracker from "@/components/MetaPixelRouteTracker";
 import { NavigationProgress } from "@/components/ui/NavigationProgress";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 import { WebsiteJsonLd } from "@/components/seo/WebsiteJsonLd";
@@ -46,28 +46,33 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL('https://zicabella.com'),
   title: {
-    default: 'Zica Bella | Graphic Tees & Apparel — India\'s D2C Fashion Brand',
-    template: '%s | Zica Bella',
+    default: 'Zica Bella® | Premium Streetwear, Heavyweight Hoodies & Oversized Tees',
+    template: '%s | Zica Bella® — Luxury Indian Streetwear',
   },
   description:
-    'Shop premium Indian graphic tees, oversized t-shirts, and statement fashion under ₹5000. Crafted in India, worn with intent. Free shipping above ₹999.',
+    'India\'s premier luxury streetwear label. Discover boxy drop-shoulder oversized graphic tees, vintage acid-wash shirts, custom heavyweight loopback hoodies, and limited drop capsules. Engineered with premium double-yarn cotton blanks. Crafted in India, worn with intent. Free shipping above ₹999.',
   keywords: [
-    'graphic tees India',
-    'best t-shirts under 5000',
-    'Indian fashion brand',
-    'oversized tees online',
-    'premium tshirts India',
     'Zica Bella',
-    'D2C fashion India',
-    'graphic tshirts under 5k',
-    'buy graphic tees online India',
-    'crafted in India fashion',
+    'luxury streetwear India',
+    'premium graphic tees India',
+    'heavyweight oversized tshirts',
+    'best tshirts under 5000',
+    'drop shoulder tees online',
+    'vintage acid wash t-shirt',
+    'loopback cotton hoodies',
+    'd2c fashion brand India',
+    'subculture street apparel',
+    'boxy fit graphic tees',
+    'limited edition streetwear drops',
+    'crafted in India clothing',
+    'aesthetic oversized hoodies',
+    'Indian streetwear design',
   ],
   authors: [{ name: 'Zica Bella', url: 'https://zicabella.com' }],
   creator: 'Zica Bella',
   publisher: 'Zica Bella',
   category: 'Fashion & Apparel',
-  classification: 'D2C Fashion, Indian Apparel, Graphic Tees',
+  classification: 'Luxury Streetwear, Indian Apparel, Heavyweight Blanks, Graphic Tees',
   robots: {
     index: true,
     follow: true,
@@ -86,23 +91,23 @@ export const metadata: Metadata = {
     locale: 'en_IN',
     url: 'https://zicabella.com',
     siteName: 'Zica Bella',
-    title: 'Zica Bella — Crafted in India · Worn with Intent',
+    title: 'Zica Bella® | Premium Streetwear & Heavyweight Graphic Tees',
     description:
-      'Premium Indian graphic tees and fashion under ₹5000. Free shipping above ₹999.',
+      'India\'s premier luxury streetwear label. Shop custom boxy oversized t-shirts, vintage acid-wash drop shoulder tees, and premium loopback hoodies. Crafted in India, worn with intent.',
     images: [
       {
         url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Zica Bella — Crafted in India · Worn with Intent',
+        alt: 'Zica Bella® | Premium Streetwear & Heavyweight Graphic Tees',
         type: 'image/jpeg',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Zica Bella — Crafted in India · Worn with Intent',
-    description: 'Premium Indian graphic tees and fashion under ₹5000.',
+    title: 'Zica Bella® | Premium Streetwear & Heavyweight Graphic Tees',
+    description: 'India\'s premier luxury streetwear label. Shop custom boxy oversized t-shirts, vintage acid-wash drop shoulder tees, and premium loopback hoodies. Crafted in India, worn with intent.',
     images: ['/og-image.jpg'],
     creator: '@zicabella',
     site: '@zicabella',
@@ -133,7 +138,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: 'Zica Bella',
+    title: 'Zica Bella®',
     statusBarStyle: 'black-translucent',
   },
   formatDetection: { telephone: false },
@@ -170,14 +175,14 @@ export default function RootLayout({
               "url": "https://zicabella.com",
               "logo": "https://zicabella.com/zb-logo-220px.png",
               "image": "https://zicabella.com/zb-logo-220px.png",
-              "description": "Zica Bella is India's and the world's number one premium luxury streetwear clothing brand, top rated shopping site, and fastest growing fashion app, specializing in heavyweight hoodies, custom oversized graphic tees, and streetwear denims.",
-              "telephone": "+91-9999999999",
+              "description": "Zica Bella is a leading premium luxury streetwear label, redefining street culture through custom heavyweight cotton hoodies, oversized graphic tees, and streetwear denims. Designed in Italy and crafted in India with modular silhouettes.",
+              "telephone": "+91-9220385011",
               "priceRange": "₹₹₹",
               "address": {
                 "@type": "PostalAddress",
-                "addressLocality": "New Delhi",
-                "addressRegion": "Delhi",
-                "postalCode": "110001",
+                "addressLocality": "Noida",
+                "addressRegion": "Uttar Pradesh",
+                "postalCode": "201305",
                 "addressCountry": "IN"
               },
               "aggregateRating": {
@@ -213,11 +218,11 @@ export default function RootLayout({
             t.src=v;s=b.getElementsByTagName(e)[0];
             s.parentNode.insertBefore(t,s)}(window, document,'script',
             'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('set', 'autoConfig', false, '${pixelId}');
             fbq('init', '${pixelId}');
-            fbq('track', 'PageView');
           `}
         </Script>
-        <MetaPixelTracker />
+        <MetaPixelRouteTracker />
         <Providers>
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}

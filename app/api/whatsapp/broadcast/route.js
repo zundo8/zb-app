@@ -28,7 +28,7 @@ const SENDER_MAP = {
 /**
  * Background runner that executes the broadcast queue sequentially
  */
-async function runBroadcastInBackground(campaignId, type, payload) {
+export async function runBroadcastInBackground(campaignId, type, payload) {
   try {
     const recipients = await prisma.whatsAppCampaignRecipient.findMany({
       where: { campaignId, status: 'queued' }
@@ -153,7 +153,7 @@ export async function POST(req) {
   }
 
   try {
-    const { type, recipients, payload, name } = await req.json();
+    const { type, recipients, payload, name, scheduledAt } = await req.json();
 
     if (!type || !recipients || !Array.isArray(recipients)) {
       return NextResponse.json(
@@ -170,6 +170,8 @@ export async function POST(req) {
       );
     }
 
+    const isScheduled = scheduledAt && !isNaN(Date.parse(scheduledAt)) && new Date(scheduledAt) > new Date();
+
     // 1. Create campaign in database
     const campaign = await prisma.whatsAppCampaign.create({
       data: {
@@ -177,7 +179,8 @@ export async function POST(req) {
         templateName: type,
         templateParams: JSON.stringify(payload),
         targetSegment: 'custom',
-        status: 'sending',
+        status: isScheduled ? 'scheduled' : 'sending',
+        scheduledAt: isScheduled ? new Date(scheduledAt) : null,
         statsSent: 0,
         statsDelivered: 0,
         statsRead: 0,
@@ -205,14 +208,17 @@ export async function POST(req) {
       });
     }
 
-    // 3. Fire background worker without blocking
-    runBroadcastInBackground(campaign.id, type, payload);
+    // 3. Fire background worker without blocking (only if not scheduled in future)
+    if (!isScheduled) {
+      runBroadcastInBackground(campaign.id, type, payload);
+    }
 
     return NextResponse.json({
       success: true,
       campaignId: campaign.id,
-      message: 'Campaign broadcast queued successfully.',
-      totalQueued: campaignRecipients.length
+      message: isScheduled ? 'Campaign scheduled successfully.' : 'Campaign broadcast queued successfully.',
+      totalQueued: campaignRecipients.length,
+      status: isScheduled ? 'scheduled' : 'sending'
     });
 
   } catch (error) {
