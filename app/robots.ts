@@ -8,11 +8,12 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: [
           '/api/',
-          '/checkout/',
-          '/account/',
-          '/cart',
+          '/checkout/success',
+          '/private/',
+          '/admin/',
           '/_next/',
-          '/admin',
+          '/cart',
+          '/account/',
         ],
       },
       // Explicitly allow all known AI crawlers
@@ -30,7 +31,7 @@ export default function robots(): MetadataRoute.Robots {
       { userAgent: 'Baiduspider', allow: '/' },
       { userAgent: 'YandexBot', allow: '/' },
     ],
-    sitemap: 'https://zicabella.com/sitemap.xml',
-    host: 'https://zicabella.com',
+    sitemap: 'https://www.zicabella.com/sitemap.xml',
+    host: 'https://www.zicabella.com',
   }
 }

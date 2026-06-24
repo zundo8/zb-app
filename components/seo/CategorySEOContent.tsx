@@ -73,45 +73,64 @@ export function CategorySEOContent({ slug }: CategorySEOContentProps) {
   const c = content[slug]
   if (!c) return null
 
-  return (
-    <section aria-label="About this collection" style={{ marginTop: '3rem' }}>
-      <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>
-        {c.heading}
-      </h2>
-      <p style={{ opacity: 0.75, lineHeight: 1.7, maxWidth: '65ch', marginBottom: '2rem' }}>
-        {c.intro}
-      </p>
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": c.faqs.map(faq => ({
+      "@type": "Question",
+      "name": faq.q,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": faq.a
+      }
+    }))
+  };
 
-      <div itemScope itemType="https://schema.org/FAQPage">
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
-          Frequently Asked Questions
-        </h3>
-        {c.faqs.map((faq) => (
-          <div
-            key={faq.q}
-            itemScope
-            itemProp="mainEntity"
-            itemType="https://schema.org/Question"
-            style={{ marginBottom: '1.25rem' }}
-          >
-            <h4
-              itemProp="name"
-              style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}
-            >
-              {faq.q}
-            </h4>
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <section aria-label="About this collection" style={{ marginTop: '3rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>
+          {c.heading}
+        </h2>
+        <p style={{ opacity: 0.75, lineHeight: 1.7, maxWidth: '65ch', marginBottom: '2rem' }}>
+          {c.intro}
+        </p>
+
+        <div itemScope itemType="https://schema.org/FAQPage">
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+            Frequently Asked Questions
+          </h3>
+          {c.faqs.map((faq) => (
             <div
+              key={faq.q}
               itemScope
-              itemProp="acceptedAnswer"
-              itemType="https://schema.org/Answer"
+              itemProp="mainEntity"
+              itemType="https://schema.org/Question"
+              style={{ marginBottom: '1.25rem' }}
             >
-              <p itemProp="text" style={{ opacity: 0.72, fontSize: '0.875rem', lineHeight: 1.7 }}>
-                {faq.a}
-              </p>
+              <h4
+                itemProp="name"
+                style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}
+              >
+                {faq.q}
+              </h4>
+              <div
+                itemScope
+                itemProp="acceptedAnswer"
+                itemType="https://schema.org/Answer"
+              >
+                <p itemProp="text" style={{ opacity: 0.72, fontSize: '0.875rem', lineHeight: 1.7 }}>
+                  {faq.a}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    </section>
+          ))}
+        </div>
+      </section>
+    </>
   )
 }

@@ -56,20 +56,22 @@ export async function generateMetadata({
     description,
     keywords: customKeywords.join(', '),
     alternates: {
-      canonical: `https://zicabella.com/collections/${params.handle}`,
+      canonical: `https://www.zicabella.com/collections/${params.handle}`,
     },
     openGraph: {
       title,
       description,
-      url: `https://zicabella.com/collections/${params.handle}`,
+      url: `https://www.zicabella.com/collections/${params.handle}`,
       type: 'website',
-      images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella®' }],
+      images: collection?.image?.src
+        ? [{ url: collection.image.src, width: 800, height: 800, alt: collection.title }]
+        : [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella®' }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: ['/og-image.jpg'],
+      images: collection?.image?.src ? [collection.image.src] : ['/og-image.jpg'],
     },
   };
 }

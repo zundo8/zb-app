@@ -44,7 +44,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://zicabella.com'),
+  metadataBase: new URL('https://www.zicabella.com'),
   title: {
     default: 'Zica Bella® | Premium Streetwear, Heavyweight Hoodies & Oversized Tees',
     template: '%s | Zica Bella® — Luxury Indian Streetwear',
@@ -68,7 +68,7 @@ export const metadata: Metadata = {
     'aesthetic oversized hoodies',
     'Indian streetwear design',
   ],
-  authors: [{ name: 'Zica Bella', url: 'https://zicabella.com' }],
+  authors: [{ name: 'Zica Bella', url: 'https://www.zicabella.com' }],
   creator: 'Zica Bella',
   publisher: 'Zica Bella',
   category: 'Fashion & Apparel',
@@ -89,7 +89,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_IN',
-    url: 'https://zicabella.com',
+    url: 'https://www.zicabella.com',
     siteName: 'Zica Bella',
     title: 'Zica Bella® | Premium Streetwear & Heavyweight Graphic Tees',
     description:
@@ -113,9 +113,9 @@ export const metadata: Metadata = {
     site: '@zicabella',
   },
   alternates: {
-    canonical: 'https://zicabella.com',
+    canonical: 'https://www.zicabella.com',
     languages: {
-      'en-IN': 'https://zicabella.com',
+      'en-IN': 'https://www.zicabella.com',
     },
   },
   icons: {
@@ -131,9 +131,9 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.webmanifest',
   verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ?? '',
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || '_0vcMoBD8FO-9t-J7QtmUyFLYy9XzlhOe9GEsUMAq0g',
     other: {
-      'msvalidate.01': process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION ?? '',
+      'msvalidate.01': process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION || '853916BB78BEBC665721D645159AD1E3',
     },
   },
   appleWebApp: {

@@ -49,7 +49,8 @@ import {
   FlaskConical,
   BookOpen,
   Database,
-  ShieldCheck
+  ShieldCheck,
+  Search
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -194,6 +195,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   const marketingNav = [
+    { name: "SEO Dashboard", href: "/dashboard/marketing/seo", icon: Search, module: 'MARKETING' },
     { name: "Omnichannel Analytics", href: "/dashboard/marketing/analytics", icon: BarChart3, module: 'MARKETING' },
     { name: "Meta Pixel", href: "/dashboard/marketing/meta-pixel", icon: ShieldCheck, module: 'MARKETING' },
     { name: "Wishlist Management", href: "/dashboard/wishlist", icon: Heart, module: 'MARKETING' },

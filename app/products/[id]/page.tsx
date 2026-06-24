@@ -89,12 +89,12 @@ export async function generateMetadata({
     description,
     keywords: customKeywords,
     alternates: {
-      canonical: `https://zicabella.com/products/${product.handle}`,
+      canonical: `https://www.zicabella.com/products/${product.handle}`,
     },
     openGraph: {
       title,
       description,
-      url: `https://zicabella.com/products/${product.handle}`,
+      url: `https://www.zicabella.com/products/${product.handle}`,
       type: 'website',
       images: product.images?.[0]?.src
         ? [
