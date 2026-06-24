@@ -69,7 +69,8 @@ export const initPixel = (additionalData: Record<string, any> = {}) => {
     if (guestCountry) userData.country = guestCountry;
     if (guestState) userData.st = guestState;
     if (guestCity) userData.ct = guestCity;
-    if (guestZip) userData.zp = guestZip;
+    const guestFbLoginId = getClientCookie('zb_fb_login_id');
+    if (guestFbLoginId) userData.fb_login_id = guestFbLoginId;
 
     const merged = { ...userData, ...additionalData };
     (window as any).fbq('init', META_PIXEL_ID, merged);

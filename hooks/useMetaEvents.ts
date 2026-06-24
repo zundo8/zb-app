@@ -34,8 +34,18 @@ function getBasePayload(eventName: string) {
 export function useMetaEvents() {
   const trackViewContent = (contentId: string, contentName: string, value?: number, currency = 'INR', contentCategory?: string) => {
     const base = getBasePayload('ViewContent');
-    trackEvent('ViewContent', { content_ids: [contentId], content_name: contentName, currency, value, content_category: contentCategory }, base.eventId);
-    sendToCapiRoute({ ...base, customData: { content_ids: [contentId], content_name: contentName, currency, value, content_category: contentCategory } });
+    const contents = value !== undefined ? [{ id: contentId, quantity: 1, item_price: value }] : [{ id: contentId, quantity: 1 }];
+    const customData = {
+      content_ids: [contentId],
+      content_name: contentName,
+      currency,
+      value,
+      content_category: contentCategory,
+      content_type: 'product',
+      contents
+    };
+    trackEvent('ViewContent', customData, base.eventId);
+    sendToCapiRoute({ ...base, customData });
     
     // GA4 equivalent: view_item
     trackGAEvent('view_item', {
@@ -53,8 +63,17 @@ export function useMetaEvents() {
 
   const trackAddToCart = (contentId: string, contentName: string, value: number, currency = 'INR', contentCategory?: string) => {
     const base = getBasePayload('AddToCart');
-    trackEvent('AddToCart', { content_ids: [contentId], content_name: contentName, value, currency, content_category: contentCategory }, base.eventId);
-    sendToCapiRoute({ ...base, customData: { content_ids: [contentId], content_name: contentName, value, currency, content_category: contentCategory } });
+    const customData = {
+      content_ids: [contentId],
+      content_name: contentName,
+      value,
+      currency,
+      content_category: contentCategory,
+      content_type: 'product',
+      contents: [{ id: contentId, quantity: 1, item_price: value }]
+    };
+    trackEvent('AddToCart', customData, base.eventId);
+    sendToCapiRoute({ ...base, customData });
     
     // GA4 equivalent: add_to_cart
     trackGAEvent('add_to_cart', {
@@ -70,10 +89,19 @@ export function useMetaEvents() {
     });
   };
 
-  const trackAddToWishlist = (contentId: string, contentName: string, contentCategory?: string) => {
+  const trackAddToWishlist = (contentId: string, contentName: string, contentCategory?: string, value?: number, currency = 'INR') => {
     const base = getBasePayload('AddToWishlist');
-    trackEvent('AddToWishlist', { content_ids: [contentId], content_name: contentName, content_category: contentCategory }, base.eventId);
-    sendToCapiRoute({ ...base, customData: { content_ids: [contentId], content_name: contentName, content_category: contentCategory } });
+    const customData = {
+      content_ids: [contentId],
+      content_name: contentName,
+      content_category: contentCategory,
+      content_type: 'product',
+      contents: [{ id: contentId, quantity: 1, item_price: value }],
+      value,
+      currency
+    };
+    trackEvent('AddToWishlist', customData, base.eventId);
+    sendToCapiRoute({ ...base, customData });
     
     // GA4 equivalent: add_to_wishlist
     trackGAEvent('add_to_wishlist', {
@@ -86,40 +114,86 @@ export function useMetaEvents() {
     });
   };
 
-  const trackAddPaymentInfo = (userData?: {
-    country?: string;
-    st?: string;
-    ge?: string;
-    ct?: string;
-    zp?: string;
-    fn?: string;
-    ln?: string;
-    em?: string;
-    ph?: string;
-    external_id?: string;
-    fb_login_id?: string;
-  }) => {
+  const trackAddPaymentInfo = (
+    userData?: {
+      country?: string;
+      st?: string;
+      ge?: string;
+      ct?: string;
+      zp?: string;
+      fn?: string;
+      ln?: string;
+      em?: string;
+      ph?: string;
+      external_id?: string;
+      fb_login_id?: string;
+    },
+    value?: number,
+    currency = 'INR',
+    contentIds?: string[],
+    contents?: { id: string; quantity: number; item_price?: number }[]
+  ) => {
     const base = getBasePayload('AddPaymentInfo');
     if (userData) {
       initPixel(userData);
     }
-    trackEvent('AddPaymentInfo', {}, base.eventId);
-    sendToCapiRoute({ ...base, userData: { client_user_agent: navigator.userAgent, ...userData } });
+    const finalContents = contents || (contentIds ? contentIds.map(id => ({ id, quantity: 1 })) : []);
+    const customData = {
+      value,
+      currency,
+      content_ids: contentIds,
+      content_type: 'product',
+      contents: finalContents
+    };
+    trackEvent('AddPaymentInfo', customData, base.eventId);
+    sendToCapiRoute({ 
+      ...base, 
+      customData, 
+      userData: { client_user_agent: navigator.userAgent, ...userData } 
+    });
 
     // GA4 equivalent: add_payment_info
     trackGAEvent('add_payment_info');
   };
 
-  const trackInitiateCheckout = (value: number, numItems: number, currency = 'INR', contentCategory?: string) => {
+  const trackInitiateCheckout = (
+    value: number,
+    numItems: number,
+    currency = 'INR',
+    contentCategory?: string,
+    contentIds?: string[],
+    userData?: any,
+    contents?: { id: string; quantity: number; item_price?: number }[]
+  ) => {
     const base = getBasePayload('InitiateCheckout');
-    trackEvent('InitiateCheckout', { value, num_items: numItems, currency, content_category: contentCategory }, base.eventId);
-    sendToCapiRoute({ ...base, customData: { value, num_items: numItems, currency, content_category: contentCategory } });
+    if (userData) {
+      initPixel(userData);
+    }
+    const finalContents = contents || (contentIds ? contentIds.map(id => ({ id, quantity: 1 })) : []);
+    const customData = {
+      value,
+      num_items: numItems,
+      currency,
+      content_category: contentCategory,
+      content_ids: contentIds,
+      content_type: 'product',
+      contents: finalContents
+    };
+    trackEvent('InitiateCheckout', customData, base.eventId);
+    sendToCapiRoute({ 
+      ...base, 
+      customData,
+      userData: { client_user_agent: navigator.userAgent, ...userData }
+    });
     
     // GA4 equivalent: begin_checkout
     trackGAEvent('begin_checkout', {
       value,
       currency,
-      items: []
+      items: finalContents.map(item => ({
+        item_id: item.id,
+        quantity: item.quantity
+      }))
     });
   };
 
@@ -141,16 +215,28 @@ export function useMetaEvents() {
       external_id?: string;
       fb_login_id?: string;
     },
-    contentCategory?: string
+    contentCategory?: string,
+    contents?: { id: string; quantity: number; item_price?: number }[]
   ) => {
     const base = { ...getBasePayload('Purchase'), eventId: orderId }; // use order ID as event ID for dedup
     if (userData) {
       initPixel(userData);
     }
-    trackEvent('Purchase', { value, currency, content_ids: contentIds, order_id: orderId, content_category: contentCategory }, base.eventId);
+    const finalContents = contents || contentIds.map(id => ({ id, quantity: 1, item_price: value / (contentIds.length || 1) }));
+    const customData = {
+      value,
+      currency,
+      content_ids: contentIds,
+      order_id: orderId,
+      content_category: contentCategory,
+      content_type: 'product',
+      contents: finalContents,
+      num_items: finalContents.reduce((sum, item) => sum + item.quantity, 0)
+    };
+    trackEvent('Purchase', customData, base.eventId);
     sendToCapiRoute({
       ...base,
-      customData: { value, currency, content_ids: contentIds, order_id: orderId, content_category: contentCategory },
+      customData,
       userData: { client_user_agent: navigator.userAgent, ...userData },
     });
     
@@ -159,9 +245,10 @@ export function useMetaEvents() {
       transaction_id: orderId,
       value,
       currency,
-      items: contentIds.map(id => ({
-        item_id: id,
-        quantity: 1
+      items: finalContents.map(item => ({
+        item_id: item.id,
+        quantity: item.quantity,
+        price: item.item_price
       }))
     });
   };

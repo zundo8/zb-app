@@ -129,7 +129,13 @@ export default function CheckoutPage() {
     if (items.length > 0 && !initiatedPixel) {
       setInitiatedPixel(true);
       const joinedCategories = items.map(item => item.category).filter(Boolean).join(', ') || undefined;
-      trackInitiateCheckout(subtotal, items.length, 'INR', joinedCategories);
+      const contentIds = items.map(item => item.productId);
+      const contents = items.map(item => ({
+        id: item.productId,
+        quantity: item.quantity,
+        item_price: parseFloat(item.price)
+      }));
+      trackInitiateCheckout(subtotal, items.length, 'INR', joinedCategories, contentIds, undefined, contents);
 
       // Track Checkout Started event server-side
       trackStorefrontEvent('Checkout Started', {
@@ -139,7 +145,7 @@ export default function CheckoutPage() {
           num_items: items.length,
           value: subtotal,
           currency: "INR",
-          content_ids: items.map(item => item.productId)
+          content_ids: contentIds
         }
       });
     }
@@ -324,16 +330,30 @@ export default function CheckoutPage() {
     const nameParts = (address.name || "").trim().split(/\s+/);
     const fn = nameParts[0] || undefined;
     const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
-    trackAddPaymentInfo({
-      country: address.country,
-      st: address.state,
-      ct: address.city,
-      zp: address.zip,
-      fn,
-      ln,
-      em: address.email || undefined,
-      ph: formattedPhone || undefined,
-    });
+    
+    const contentIds = items.map(item => item.productId);
+    const contents = items.map(item => ({
+      id: item.productId,
+      quantity: item.quantity,
+      item_price: parseFloat(item.price)
+    }));
+
+    trackAddPaymentInfo(
+      {
+        country: address.country,
+        st: address.state,
+        ct: address.city,
+        zp: address.zip,
+        fn,
+        ln,
+        em: address.email || undefined,
+        ph: formattedPhone || undefined,
+      },
+      subtotal,
+      'INR',
+      contentIds,
+      contents
+    );
 
     // Save details to cookies and re-init pixel for Advanced Matching
     saveUserDataToCookiesAndReinit({
@@ -1255,16 +1275,30 @@ export default function CheckoutPage() {
                           const nameParts = (address.name || "").trim().split(/\s+/);
                           const fn = nameParts[0] || undefined;
                           const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
-                          trackAddPaymentInfo({
-                            country: address.country,
-                            st: address.state,
-                            ct: address.city,
-                            zp: address.zip,
-                            fn,
-                            ln,
-                            em: address.email || undefined,
-                            ph: address.phone || undefined,
-                          });
+                          
+                          const contentIds = items.map(item => item.productId);
+                          const contents = items.map(item => ({
+                            id: item.productId,
+                            quantity: item.quantity,
+                            item_price: parseFloat(item.price)
+                          }));
+
+                          trackAddPaymentInfo(
+                            {
+                              country: address.country,
+                              st: address.state,
+                              ct: address.city,
+                              zp: address.zip,
+                              fn,
+                              ln,
+                              em: address.email || undefined,
+                              ph: address.phone || undefined,
+                            },
+                            subtotal,
+                            'INR',
+                            contentIds,
+                            contents
+                          );
                           if (method.id !== "UPI") {
                             setSelectedUpiApp("");
                             setUpiId("");

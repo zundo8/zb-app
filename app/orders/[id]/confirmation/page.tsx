@@ -61,7 +61,13 @@ export default function OrderConfirmationPage() {
           storedCategory = sessionStorage.getItem(`order_categories_${order.id}`) || undefined;
         }
 
-        trackPurchase(order.id, val, 'INR', contentIds, userData, storedCategory);
+        const contents = order.items?.map((item: any) => ({
+          id: item.variantId || item.productId,
+          quantity: item.quantity || 1,
+          item_price: parseFloat(item.price || "0")
+        })) || [];
+
+        trackPurchase(order.id, val, 'INR', contentIds, userData, storedCategory, contents);
       }
 
       if (!purchasedPixel) {
