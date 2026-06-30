@@ -63,7 +63,7 @@ export default function FeaturedUsersSection({
           {[1, 2, 3].map(i => (
             <div 
               key={i} 
-              className="w-[calc((100vw-36px)/3)] md:w-[calc((100%-24px)/3)] md:max-w-[360px] shrink-0 aspect-[9/16] rounded-xl bg-foreground/[0.03]" 
+              className="w-[calc((100vw-36px)/3)] md:w-[calc((100%-24px)/3)] md:max-w-[360px] shrink-0 aspect-[9/20] rounded-xl bg-foreground/[0.03]" 
             />
           ))}
         </div>
@@ -86,7 +86,7 @@ export default function FeaturedUsersSection({
               className="w-[calc((100vw-36px)/3)] md:w-[calc((100%-24px)/3)] md:max-w-[360px] md:flex-1 shrink-0 snap-center group cursor-pointer flex flex-col gap-1.5"
               onClick={onUploadClick}
             >
-              <div className="relative aspect-[9/16] rounded-xl overflow-hidden bg-foreground/[0.01] border border-dashed border-foreground/10 flex flex-col items-center justify-center transition-all duration-300 hover:border-foreground/25">
+              <div className="relative aspect-[9/20] rounded-xl overflow-hidden bg-foreground/[0.01] border border-dashed border-foreground/10 flex flex-col items-center justify-center transition-all duration-300 hover:border-foreground/25">
                 <div className="w-9 h-9 rounded-full bg-foreground/5 flex items-center justify-center mb-1">
                   <Upload className="w-4 h-4 text-foreground/40" />
                 </div>
@@ -118,7 +118,7 @@ export default function FeaturedUsersSection({
                      }
                   }}
                 >
-                  <div className="relative aspect-[9/16] rounded-xl overflow-hidden bg-foreground/[0.01]">
+                  <div className="relative aspect-[9/20] rounded-xl overflow-hidden bg-foreground/[0.01]">
                     <NextImage 
                       src={user.imageUrl || "/zb-logo-220px.png"} 
                       alt={user.name} 
