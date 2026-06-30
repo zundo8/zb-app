@@ -80,12 +80,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    if (!customer.phone && phone) {
+    const updateData: any = {};
+    if (name && name !== customer.name) {
+      updateData.name = name;
+    }
+    if (email && email !== customer.email) {
+      updateData.email = email;
+    }
+    if (phone && phone !== customer.phone) {
+      updateData.phone = phone;
+    }
+
+    if (Object.keys(updateData).length > 0) {
       await prisma.customer.update({
         where: { id: customer.id },
-        data: { phone }
+        data: updateData
       });
-      customer.phone = phone;
+      Object.assign(customer, updateData);
     }
 
     if (isDefault) {
@@ -179,12 +190,23 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    if (!customer.phone && phone) {
+    const updateData: any = {};
+    if (name && name !== customer.name) {
+      updateData.name = name;
+    }
+    if (email && email !== customer.email) {
+      updateData.email = email;
+    }
+    if (phone && phone !== customer.phone) {
+      updateData.phone = phone;
+    }
+
+    if (Object.keys(updateData).length > 0) {
       await prisma.customer.update({
         where: { id: customer.id },
-        data: { phone }
+        data: updateData
       });
-      customer.phone = phone;
+      Object.assign(customer, updateData);
     }
 
     // Verify address belongs to customer

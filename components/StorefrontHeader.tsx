@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import NextImage from "next/image";
 import { Bookmark, ShoppingBag, ChevronLeft, ChevronDown, Search, User, Menu, Sun, Moon } from "lucide-react";
@@ -16,8 +16,24 @@ import { useTheme } from "next-themes";
 export default function StorefrontHeader({ collections: initialCollections = [] }: { collections?: any[] }) {
   const router = useRouter();
   const pathname = usePathname();
+
+  // Track in-app navigation depth so the back button can reliably go
+  // to the previous page instead of always falling through to "/".
+  // document.referrer does NOT update on client-side (SPA) navigations,
+  // so we count pathname changes instead.
+  const navCountRef = useRef(0);
+  const prevPathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    if (prevPathnameRef.current !== pathname) {
+      navCountRef.current += 1;
+      prevPathnameRef.current = pathname;
+    }
+  }, [pathname]);
+
   const handleBack = useCallback(() => {
-    if (typeof window !== "undefined" && document.referrer && document.referrer.startsWith(window.location.origin)) {
+    if (navCountRef.current > 0) {
+      navCountRef.current -= 1;
       router.back();
     } else {
       router.push("/");

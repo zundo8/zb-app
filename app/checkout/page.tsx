@@ -8,12 +8,12 @@ import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
 import { saveUserDataToCookiesAndReinit } from "@/lib/metaPixel";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  MapPin, 
-  CreditCard, 
-  Truck, 
-  ShieldCheck, 
-  Plus, 
+import {
+  MapPin,
+  CreditCard,
+  Truck,
+  ShieldCheck,
+  Plus,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -76,13 +76,13 @@ const isValidAddressField = (val: string, minLen = 2) => val.trim().length >= mi
 
 /* ─── Indian states for dropdown ─────────────────────────────── */
 const INDIAN_STATES = [
-  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat",
-  "Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh",
-  "Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab",
-  "Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh",
-  "Uttarakhand","West Bengal","Andaman and Nicobar Islands","Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu","Delhi","Jammu and Kashmir",
-  "Ladakh","Lakshadweep","Puducherry"
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
+  "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh",
+  "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+  "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir",
+  "Ladakh", "Lakshadweep", "Puducherry"
 ];
 
 export default function CheckoutPage() {
@@ -111,7 +111,7 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [initiatedPixel, setInitiatedPixel] = useState(false);
   const [isOrderPlaced, setIsOrderPlaced] = useState(false);
-  
+
   // Saved addresses
   const [savedAddresses, setSavedAddresses] = useState<DBAddress[]>([]);
   const [selectedSavedId, setSelectedSavedId] = useState<string>("");
@@ -195,52 +195,56 @@ export default function CheckoutPage() {
   const [cashbackAmount, setCashbackAmount] = useState(0);
   const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
   const [isManualCoupon, setIsManualCoupon] = useState(false);
-  
+
   const total = subtotal - (applyAsStoreCredit ? 0 : couponDiscount) + (paymentMethod === "COD" ? codFee : 0) + shipping;
 
   useEffect(() => {
     if (status === "unauthenticated") {
-       router.push(`/login?callbackUrl=/checkout`);
+      router.push(`/login?callbackUrl=/checkout`);
     } else if (items.length === 0 && !isOrderPlaced) {
       router.push("/cart");
     }
   }, [items, isOrderPlaced, router, status]);
 
-  // Fetch saved addresses
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetch("/api/customer/addresses")
-        .then(res => res.json())
-        .then(data => {
-          if (data.addresses && data.addresses.length > 0) {
-            setSavedAddresses(data.addresses);
-            const def = data.addresses.find((a: DBAddress) => a.isDefault) || data.addresses[0];
-            setSelectedSavedId(def.id);
-            // Parse saved address into new fields
-            const parts = def.address1?.split(",").map((s: string) => s.trim()) || [];
-            setAddress({
-              name: def.name || "",
-              email: def.email || "",
-              phone: def.phone || "",
-              houseNo: parts[0] || def.address1 || "",
-              street: parts.slice(1).join(", ") || def.address2 || "",
-              landmark: def.address2 && !parts[1] ? def.address2 : "",
-              city: def.city || "",
-              state: def.state || "",
-              zip: def.zip || "",
-              country: def.country || "India",
-            });
-            setShowAddressForm(false);
-          } else {
-            setShowAddressForm(true);
-          }
-        })
-        .catch(err => {
-          console.error("Error loading addresses:", err);
-          setShowAddressForm(true);
-        });
+  // Fetch saved addresses callback
+  const fetchSavedAddresses = useCallback(async (selectDefault = false) => {
+    if (status !== "authenticated") return;
+    try {
+      const res = await fetch("/api/customer/addresses");
+      const data = await res.json();
+      if (data.addresses && data.addresses.length > 0) {
+        setSavedAddresses(data.addresses);
+        if (selectDefault) {
+          const def = data.addresses.find((a: DBAddress) => a.isDefault) || data.addresses[0];
+          setSelectedSavedId(def.id);
+          // Parse saved address into new fields
+          const parts = def.address1?.split(",").map((s: string) => s.trim()) || [];
+          setAddress({
+            name: def.name || "",
+            email: def.email || "",
+            phone: def.phone || "",
+            houseNo: parts[0] || def.address1 || "",
+            street: parts.slice(1).join(", ") || def.address2 || "",
+            landmark: def.address2 && !parts[1] ? def.address2 : "",
+            city: def.city || "",
+            state: def.state || "",
+            zip: def.zip || "",
+            country: def.country || "India",
+          });
+          setShowAddressForm(false);
+        }
+      } else {
+        setShowAddressForm(true);
+      }
+    } catch (err) {
+      console.error("Error loading addresses:", err);
+      setShowAddressForm(true);
     }
   }, [status]);
+
+  useEffect(() => {
+    fetchSavedAddresses(true);
+  }, [fetchSavedAddresses]);
 
   const handleSelectSavedAddress = (addr: DBAddress) => {
     setSelectedSavedId(addr.id);
@@ -274,14 +278,14 @@ export default function CheckoutPage() {
 
   const validateAddress = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     if (!address.name.trim() || address.name.trim().length < 2) {
       errors.name = "Enter your full name";
     }
     if (!address.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email)) {
       errors.email = "Enter a valid email";
     }
-    
+
     // Phone validation
     const digits = address.phone.replace(/\D/g, "");
     let baseNumber = digits;
@@ -293,7 +297,7 @@ export default function CheckoutPage() {
     if (baseNumber.length !== 10) {
       errors.phone = "Enter a valid 10-digit mobile number";
     }
-    
+
     if (!isValidAddressField(address.houseNo, 1)) {
       errors.houseNo = "Enter house/flat number";
     }
@@ -309,14 +313,16 @@ export default function CheckoutPage() {
     if (!/^\d{6}$/.test(address.zip.trim())) {
       errors.zip = "Enter a valid 6-digit PIN code";
     }
-    
+
     setAddressErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleAddressSubmit = (e: React.FormEvent) => {
+  const handleAddressSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateAddress()) return;
+
+    setLoading(true);
 
     // Format phone
     const digits = address.phone.replace(/\D/g, "");
@@ -324,13 +330,51 @@ export default function CheckoutPage() {
     if (digits.length === 12 && digits.startsWith("91")) baseNumber = digits.slice(2);
     else if (digits.length === 11 && digits.startsWith("0")) baseNumber = digits.slice(1);
     const formattedPhone = `+91${baseNumber}`;
-    setAddress(prev => ({ ...prev, phone: formattedPhone }));
+    const updatedAddress = { ...address, phone: formattedPhone };
+    setAddress(updatedAddress);
+
+    // Auto-save address to database on proceed
+    try {
+      const response = await fetch("/api/customer/addresses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: updatedAddress.name,
+          phone: updatedAddress.phone,
+          email: updatedAddress.email,
+          address1: `${updatedAddress.houseNo}, ${updatedAddress.street}`,
+          address2: updatedAddress.landmark,
+          city: updatedAddress.city,
+          state: updatedAddress.state,
+          zip: updatedAddress.zip,
+          country: updatedAddress.country,
+          isDefault: true,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.address) {
+          setSelectedSavedId(data.address.id);
+          // Reload saved addresses to sync UI in real time
+          await fetchSavedAddresses(false);
+          setShowAddressForm(false);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to auto-save address on proceed:", err);
+    } finally {
+      setLoading(false);
+    }
+
     setStep(2);
 
-    const nameParts = (address.name || "").trim().split(/\s+/);
+    const nameParts = (updatedAddress.name || "").trim().split(/\s+/);
     const fn = nameParts[0] || undefined;
     const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
-    
+
     const contentIds = items.map(item => item.productId);
     const contents = items.map(item => ({
       id: item.productId,
@@ -340,13 +384,13 @@ export default function CheckoutPage() {
 
     trackAddPaymentInfo(
       {
-        country: address.country,
-        st: address.state,
-        ct: address.city,
-        zp: address.zip,
+        country: updatedAddress.country,
+        st: updatedAddress.state,
+        ct: updatedAddress.city,
+        zp: updatedAddress.zip,
         fn,
         ln,
-        em: address.email || undefined,
+        em: updatedAddress.email || undefined,
         ph: formattedPhone || undefined,
       },
       subtotal,
@@ -357,13 +401,13 @@ export default function CheckoutPage() {
 
     // Save details to cookies and re-init pixel for Advanced Matching
     saveUserDataToCookiesAndReinit({
-      email: address.email || undefined,
+      email: updatedAddress.email || undefined,
       phone: formattedPhone || undefined,
-      name: address.name || undefined,
-      city: address.city || undefined,
-      state: address.state || undefined,
-      zip: address.zip || undefined,
-      country: address.country || "India",
+      name: updatedAddress.name || undefined,
+      city: updatedAddress.city || undefined,
+      state: updatedAddress.state || undefined,
+      zip: updatedAddress.zip || undefined,
+      country: updatedAddress.country || "India",
     });
   };
 
@@ -378,7 +422,7 @@ export default function CheckoutPage() {
 
     setCouponLoading(true);
     setCouponMessage("");
-    
+
     try {
       const res = await fetch("/api/storefront/coupons/validate", {
         method: "POST",
@@ -390,12 +434,12 @@ export default function CheckoutPage() {
         }),
       });
       const data = await res.json();
-      
+
       setCouponMessage(data.message);
       if (data.valid) {
         setCouponValid(true);
         setApplyAsStoreCredit(!!data.applyAsStoreCredit);
-        
+
         // Handle double discounts: check if cashback is enabled
         if (data.cashbackEnabled && data.cashbackAmount > 0) {
           setCashbackAmount(data.cashbackAmount);
@@ -464,15 +508,15 @@ export default function CheckoutPage() {
   // Client-side local evaluation helper for ranking coupons
   const calculateCouponDiscount = useCallback((coupon: any, subtotalAmount: number, payMethod: string) => {
     const isCOD = payMethod === "COD";
-    
+
     // check minimum order value
     if (subtotalAmount < Number(coupon.minOrderValue || 0)) {
-      return { 
-        discount: 0, 
-        eligible: false, 
-        message: "Min order amount not met", 
-        type: "", 
-        value: 0, 
+      return {
+        discount: 0,
+        eligible: false,
+        message: "Min order amount not met",
+        type: "",
+        value: 0,
         applyAsStoreCredit: false,
         cashbackEnabled: false,
         cashbackType: "percentage",
@@ -480,15 +524,15 @@ export default function CheckoutPage() {
         cashbackAmount: 0
       };
     }
-    
+
     // check payment method applicability
     if (coupon.applicability === "PREPAID_ONLY" && isCOD) {
-      return { 
-        discount: 0, 
-        eligible: false, 
-        message: "Only valid for prepaid orders", 
-        type: "", 
-        value: 0, 
+      return {
+        discount: 0,
+        eligible: false,
+        message: "Only valid for prepaid orders",
+        type: "",
+        value: 0,
         applyAsStoreCredit: false,
         cashbackEnabled: false,
         cashbackType: "percentage",
@@ -497,12 +541,12 @@ export default function CheckoutPage() {
       };
     }
     if (coupon.applicability === "COD_ONLY" && !isCOD) {
-      return { 
-        discount: 0, 
-        eligible: false, 
-        message: "Only valid for COD orders", 
-        type: "", 
-        value: 0, 
+      return {
+        discount: 0,
+        eligible: false,
+        message: "Only valid for COD orders",
+        type: "",
+        value: 0,
         applyAsStoreCredit: false,
         cashbackEnabled: false,
         cashbackType: "percentage",
@@ -510,7 +554,7 @@ export default function CheckoutPage() {
         cashbackAmount: 0
       };
     }
-    
+
     let currentDiscountType = coupon.discountType;
     let currentDiscountValue = Number(coupon.discountValue);
 
@@ -541,9 +585,9 @@ export default function CheckoutPage() {
       }
     }
 
-    return { 
-      discount: calculatedDiscount, 
-      eligible: true, 
+    return {
+      discount: calculatedDiscount,
+      eligible: true,
       type: currentDiscountType,
       value: currentDiscountValue,
       applyAsStoreCredit: !!coupon.applyAsStoreCredit,
@@ -580,7 +624,7 @@ export default function CheckoutPage() {
       setCouponCode(best.coupon.code);
       setCouponValid(true);
       setApplyAsStoreCredit(best.coupon.applyAsStoreCredit);
-      
+
       if (best.calc.cashbackEnabled && best.calc.cashbackAmount > 0) {
         setCashbackAmount(best.calc.cashbackAmount);
         if (best.coupon.applyAsStoreCredit) {
@@ -597,7 +641,7 @@ export default function CheckoutPage() {
           setCashbackAmount(0);
         }
       }
-      
+
       let displayMessage = "";
       if (best.calc.cashbackEnabled && !best.coupon.applyAsStoreCredit && best.calc.discount > 0) {
         displayMessage = best.calc.type === "percentage"
@@ -655,7 +699,7 @@ export default function CheckoutPage() {
       });
 
       const orderData = await res.json();
-      
+
       if (!res.ok) throw new Error(orderData.error || "Failed to initiate payment");
 
       // Track Payment Initiated event
@@ -862,7 +906,7 @@ export default function CheckoutPage() {
       }
 
       const rzp = new (window as any).Razorpay(options);
-      
+
       // Handle payment failure
       rzp.on('payment.failed', function (response: any) {
         const errorDesc = response?.error?.description || "Payment failed. Please try again.";
@@ -900,9 +944,9 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-[100dvh] relative bg-background text-foreground font-sans">
-      
+
       <div className="relative z-10 max-w-xl mx-auto px-4 pt-24 pb-12 flex flex-col" style={{ minHeight: '100dvh' }}>
-        
+
         {/* Page Title & H1 */}
         <div className="mb-6">
           <p className="text-[8.5px] font-semibold uppercase tracking-[0.45em] text-foreground/45 mb-1.5 pl-0.5">YOUR PURCHASE</p>
@@ -940,11 +984,10 @@ export default function CheckoutPage() {
                         key={addr.id}
                         type="button"
                         onClick={() => handleSelectSavedAddress(addr)}
-                        className={`snap-start shrink-0 w-[180px] text-left p-3 rounded-2xl border transition-all ${
-                          selectedSavedId === addr.id
-                            ? "border-foreground/30 bg-foreground/[0.04] shadow-[0_0_15px_rgba(var(--foreground),0.02)]"
-                            : "border-foreground/5 bg-foreground/[0.01] hover:border-foreground/10"
-                        }`}
+                        className={`snap-start shrink-0 w-[180px] text-left p-3 rounded-2xl border transition-all ${selectedSavedId === addr.id
+                          ? "border-foreground/30 bg-foreground/[0.04] shadow-[0_0_15px_rgba(var(--foreground),0.02)]"
+                          : "border-foreground/5 bg-foreground/[0.01] hover:border-foreground/10"
+                          }`}
                       >
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="text-[10px] font-bold truncate pr-1">{addr.name}</span>
@@ -1000,7 +1043,7 @@ export default function CheckoutPage() {
                       +91 {address.phone.replace("+91", "").replace("+91", "")}
                     </p>
                   </div>
-                  
+
                   <div className="flex flex-col gap-2 pt-2 border-t border-foreground/5">
                     <button
                       type="button"
@@ -1192,9 +1235,8 @@ export default function CheckoutPage() {
                           required
                           value={address.state}
                           onChange={(e) => updateField("state", e.target.value)}
-                          className={`glass-input w-full pl-8 pr-10 py-3 text-[12px] rounded-2xl appearance-none cursor-pointer ${
-                            !address.state ? "text-foreground/40" : ""
-                          } ${addressErrors.state ? "border-red-500/40" : ""}`}
+                          className={`glass-input w-full pl-8 pr-10 py-3 text-[12px] rounded-2xl appearance-none cursor-pointer ${!address.state ? "text-foreground/40" : ""
+                            } ${addressErrors.state ? "border-red-500/40" : ""}`}
                         >
                           <option value="" disabled>Select State</option>
                           {INDIAN_STATES.map(s => (
@@ -1230,7 +1272,7 @@ export default function CheckoutPage() {
               className="flex-1 flex flex-col"
             >
               <div className="flex-1 flex flex-col">
-                
+
                 {/* Product Preview Card */}
                 <div className="apple-glass-capsule p-4 rounded-2xl flex flex-col gap-3 mb-6">
                   {items.map((item) => (
@@ -1255,7 +1297,7 @@ export default function CheckoutPage() {
 
                 {/* Payment Method header label */}
                 <p className="text-[8px] font-light uppercase tracking-[0.25em] text-foreground/45 mb-2 pl-0.5">PAYMENT METHOD</p>
-                
+
                 {/* Segment tabs */}
                 <div className="grid grid-cols-5 gap-1.5 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-6">
                   {[
@@ -1275,7 +1317,7 @@ export default function CheckoutPage() {
                           const nameParts = (address.name || "").trim().split(/\s+/);
                           const fn = nameParts[0] || undefined;
                           const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
-                          
+
                           const contentIds = items.map(item => item.productId);
                           const contents = items.map(item => ({
                             id: item.productId,
@@ -1304,11 +1346,10 @@ export default function CheckoutPage() {
                             setUpiId("");
                           }
                         }}
-                        className={`py-2 px-0.5 text-[7px] min-[360px]:text-[8px] sm:text-[9.5px] font-normal uppercase tracking-[0.05em] min-[360px]:tracking-[0.1em] sm:tracking-[0.12em] rounded-lg text-center transition-all duration-300 border whitespace-nowrap ${
-                          isActive
-                            ? "bg-foreground/[0.08] dark:bg-white/[0.1] border-foreground/15 dark:border-white/15 text-foreground scale-[1.02]"
-                            : "border-transparent text-foreground/40 hover:text-foreground hover:bg-foreground/[0.02]"
-                        }`}
+                        className={`py-2 px-0.5 text-[7px] min-[360px]:text-[8px] sm:text-[9.5px] font-normal uppercase tracking-[0.05em] min-[360px]:tracking-[0.1em] sm:tracking-[0.12em] rounded-lg text-center transition-all duration-300 border whitespace-nowrap ${isActive
+                          ? "bg-foreground/[0.08] dark:bg-white/[0.1] border-foreground/15 dark:border-white/15 text-foreground scale-[1.02]"
+                          : "border-transparent text-foreground/40 hover:text-foreground hover:bg-foreground/[0.02]"
+                          }`}
                       >
                         {method.label}
                       </button>
@@ -1324,7 +1365,7 @@ export default function CheckoutPage() {
                       <div className="relative">
                         <input
                           type="text"
-                          placeholder="e.g., mobile@upi or username@okhdfcbank"
+                          placeholder="mobile@upi"
                           value={upiId}
                           onChange={(e) => {
                             setUpiId(e.target.value);
@@ -1344,40 +1385,48 @@ export default function CheckoutPage() {
                       <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">OR PAY WITH</label>
                       <div className="grid grid-cols-4 gap-1.5 text-center mt-1">
                         {[
-                          { id: "google_pay", name: "GPay", logo: (
-                            <div className="flex items-center justify-center gap-1 h-6 shrink-0">
-                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
-                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                              </svg>
-                              <span className="text-[10px] font-black text-foreground tracking-tight pt-0.5">Pay</span>
-                            </div>
-                          )},
-                          { id: "phonepe", name: "PhonePe", logo: (
-                            <div className="flex items-center justify-center h-6 w-6 rounded-md bg-[#5f259f] shrink-0 mx-auto">
-                              <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                              </svg>
-                            </div>
-                          )},
-                          { id: "paytm", name: "Paytm", logo: (
-                            <div className="flex items-center justify-center h-6 w-11 bg-white rounded-md shrink-0 mx-auto border border-black/5">
-                              <span className="text-[8.5px] font-black italic tracking-tighter leading-none">
-                                <span className="text-[#002e6e]">pay</span>
-                                <span className="text-[#00baf2]">tm</span>
-                              </span>
-                            </div>
-                          )},
-                          { id: "bhim", name: "BHIM", logo: (
-                            <div className="flex items-center justify-center h-6 w-10 bg-[#e4e4e4] rounded-md shrink-0 mx-auto border border-black/5">
-                              <span className="text-[7.5px] font-black tracking-tight leading-none text-black italic">
-                                <span className="text-orange-500">BH</span>
-                                <span className="text-green-600">IM</span>
-                              </span>
-                            </div>
-                          )}
+                          {
+                            id: "google_pay", name: "GPay", logo: (
+                              <div className="flex items-center justify-center gap-1 h-6 shrink-0">
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05" />
+                                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                                </svg>
+                                <span className="text-[10px] font-black text-foreground tracking-tight pt-0.5">Pay</span>
+                              </div>
+                            )
+                          },
+                          {
+                            id: "phonepe", name: "PhonePe", logo: (
+                              <div className="flex items-center justify-center h-6 w-6 rounded-md bg-[#5f259f] shrink-0 mx-auto">
+                                <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                                </svg>
+                              </div>
+                            )
+                          },
+                          {
+                            id: "paytm", name: "Paytm", logo: (
+                              <div className="flex items-center justify-center h-6 w-11 bg-white rounded-md shrink-0 mx-auto border border-black/5">
+                                <span className="text-[8.5px] font-black italic tracking-tighter leading-none">
+                                  <span className="text-[#002e6e]">pay</span>
+                                  <span className="text-[#00baf2]">tm</span>
+                                </span>
+                              </div>
+                            )
+                          },
+                          {
+                            id: "bhim", name: "BHIM", logo: (
+                              <div className="flex items-center justify-center h-6 w-10 bg-[#e4e4e4] rounded-md shrink-0 mx-auto border border-black/5">
+                                <span className="text-[7.5px] font-black tracking-tight leading-none text-black italic">
+                                  <span className="text-orange-500">BH</span>
+                                  <span className="text-green-600">IM</span>
+                                </span>
+                              </div>
+                            )
+                          }
                         ].map((app) => {
                           const isSelected = selectedUpiApp === app.id;
                           return (
@@ -1388,11 +1437,10 @@ export default function CheckoutPage() {
                                 setSelectedUpiApp(app.id);
                                 setUpiId("");
                               }}
-                              className={`flex flex-col items-center justify-center gap-1.5 py-1.5 transition-all duration-300 hover:scale-105 active:scale-95 ${
-                                selectedUpiApp === "" || isSelected
-                                  ? "opacity-100 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]"
-                                  : "opacity-35"
-                              }`}
+                              className={`flex flex-col items-center justify-center gap-1.5 py-1.5 transition-all duration-300 hover:scale-105 active:scale-95 ${selectedUpiApp === "" || isSelected
+                                ? "opacity-100 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]"
+                                : "opacity-35"
+                                }`}
                             >
                               {app.logo}
                               <span className="text-[9px] font-light tracking-wide text-foreground/50">{app.name}</span>
@@ -1410,7 +1458,7 @@ export default function CheckoutPage() {
                     <span className="text-foreground/40">Subtotal</span>
                     <span className="text-foreground/75">₹{subtotal.toLocaleString("en-IN")}</span>
                   </div>
-                  
+
                   {couponDiscount > 0 && !applyAsStoreCredit && (
                     <div className="flex justify-between items-center text-[9.5px] font-light uppercase tracking-wider">
                       <span className="text-emerald-400/90">Discount ({couponCode})</span>
@@ -1469,7 +1517,7 @@ export default function CheckoutPage() {
                     <Tag className="w-4.5 h-4.5 text-foreground/40" />
                     <span className="text-[11px] font-light text-foreground/75">Apply Discount</span>
                   </div>
-                  
+
                   {couponValid ? (
                     <div className="flex items-center gap-2.5 py-1.5 px-3 rounded-full bg-foreground/[0.08] border border-foreground/10 animate-in scale-in duration-300">
                       <span className="text-[9.5px] font-medium text-foreground uppercase tracking-wider">{couponCode}</span>
@@ -1516,7 +1564,7 @@ export default function CheckoutPage() {
                         let benefitText = "";
                         let val = 0;
                         let type = "";
-                        
+
                         if (coupon.applicability === "ALL") {
                           val = Number(coupon.discountValue);
                           type = coupon.discountType;
@@ -1527,7 +1575,7 @@ export default function CheckoutPage() {
                           val = Number(coupon.codDiscountValue);
                           type = coupon.codDiscountType;
                         }
-                        
+
                         if (type === "percentage") {
                           benefitText = `${val}% Off`;
                         } else {
@@ -1539,7 +1587,7 @@ export default function CheckoutPage() {
                         }
 
                         const isEligible = subtotal >= Number(coupon.minOrderValue);
-                        const isMethodApplicable = 
+                        const isMethodApplicable =
                           coupon.applicability === "ALL" ||
                           (isCOD && (coupon.applicability === "COD_ONLY" || coupon.applicability === "CUSTOM_RATES")) ||
                           (!isCOD && (coupon.applicability === "PREPAID_ONLY" || coupon.applicability === "CUSTOM_RATES"));
@@ -1554,11 +1602,10 @@ export default function CheckoutPage() {
                               setIsManualCoupon(true);
                               handleApplyCoupon(coupon.code, paymentMethod, false);
                             }}
-                            className={`snap-start shrink-0 p-3.5 rounded-xl border text-left w-[185px] flex flex-col gap-1.5 transition-all duration-300 ${
-                              !isEligible || !isMethodApplicable
-                                ? "bg-foreground/[0.002] border-foreground/5 opacity-30 cursor-not-allowed"
-                                : "bg-foreground/[0.015] border-foreground/5 hover:border-foreground/10 hover:bg-foreground/[0.02]"
-                            }`}
+                            className={`snap-start shrink-0 p-3.5 rounded-xl border text-left w-[185px] flex flex-col gap-1.5 transition-all duration-300 ${!isEligible || !isMethodApplicable
+                              ? "bg-foreground/[0.002] border-foreground/5 opacity-30 cursor-not-allowed"
+                              : "bg-foreground/[0.015] border-foreground/5 hover:border-foreground/10 hover:bg-foreground/[0.02]"
+                              }`}
                           >
                             <span className="font-mono text-[9px] font-light text-foreground bg-foreground/10 px-1.5 py-0.5 rounded uppercase tracking-wider self-start leading-none">
                               {coupon.code}
@@ -1590,9 +1637,8 @@ export default function CheckoutPage() {
                     type="button"
                     onClick={handlePlaceOrder}
                     disabled={loading}
-                    className={`w-full ${
-                      paymentMethod === "COD" ? "h-14 pl-14" : "h-12 pl-12"
-                    } rounded-full bg-black/95 dark:bg-white/95 hover:bg-black/90 dark:hover:bg-white/90 active:scale-[0.98] backdrop-blur-xl border border-black/10 dark:border-white/10 text-white dark:text-black transition-all flex items-center justify-between pr-1.5 disabled:opacity-50 shadow-sm`}
+                    className={`w-full ${paymentMethod === "COD" ? "h-14 pl-14" : "h-12 pl-12"
+                      } rounded-full bg-black/95 dark:bg-white/95 hover:bg-black/90 dark:hover:bg-white/90 active:scale-[0.98] backdrop-blur-xl border border-black/10 dark:border-white/10 text-white dark:text-black transition-all flex items-center justify-between pr-1.5 disabled:opacity-50 shadow-sm`}
                   >
                     {/* Center text */}
                     <span className="text-[9.5px] font-bold tracking-[0.16em] uppercase text-center flex-1 whitespace-nowrap">
@@ -1600,9 +1646,8 @@ export default function CheckoutPage() {
                     </span>
 
                     {/* Right chevron circle */}
-                    <div className={`${
-                      paymentMethod === "COD" ? "w-11 h-11" : "w-9 h-9"
-                    } rounded-full bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0 transition-all`}>
+                    <div className={`${paymentMethod === "COD" ? "w-11 h-11" : "w-9 h-9"
+                      } rounded-full bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0 transition-all`}>
                       {loading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
@@ -1610,7 +1655,7 @@ export default function CheckoutPage() {
                       )}
                     </div>
                   </button>
-                  
+
                   <div className="flex items-center justify-center gap-1.5 mt-4 text-foreground/20">
                     <Lock className="w-3 h-3" />
                     <span className="text-[8px] font-bold uppercase tracking-[0.25em] leading-none">256-bit SSL secured transaction</span>
