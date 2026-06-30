@@ -38,7 +38,14 @@ export default function FeaturedUsersSection({
     fetch(url, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
-        if (data.users) setUsers(data.users);
+        if (data.users) {
+          const arr = [...data.users];
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+          setUsers(arr);
+        }
       })
       .finally(() => setLoading(false));
   }, [showCommunity, allFeatured]);
@@ -73,6 +80,28 @@ export default function FeaturedUsersSection({
 
       <div className="relative group">
         <div className="flex gap-2 md:gap-3 overflow-x-auto pb-6 hide-scrollbar snap-x px-3 -mx-3 items-start">
+          {/* Upload / Add Yours Card */}
+          {onUploadClick && (
+            <div 
+              className="w-[calc((100vw-36px)/3)] md:w-[calc((100%-24px)/3)] md:max-w-[360px] md:flex-1 shrink-0 snap-center group cursor-pointer flex flex-col gap-1.5"
+              onClick={onUploadClick}
+            >
+              <div className="relative aspect-[9/16] rounded-xl overflow-hidden bg-foreground/[0.01] border border-dashed border-foreground/10 flex flex-col items-center justify-center transition-all duration-300 hover:border-foreground/25">
+                <div className="w-9 h-9 rounded-full bg-foreground/5 flex items-center justify-center mb-1">
+                  <Upload className="w-4 h-4 text-foreground/40" />
+                </div>
+                <p className="text-[5.5px] md:text-[7.5px] text-foreground/25 font-medium tracking-wide">
+                  Publish Look
+                </p>
+              </div>
+              <div className="text-center">
+                <span className="text-[7.5px] md:text-[8.5px] font-medium text-foreground/40 tracking-[0.18em] uppercase select-none">
+                  Add Yours
+                </span>
+              </div>
+            </div>
+          )}
+
           {users.length > 0 ? (
             users.map((user) => {
               const avgRating = user.reviews.length > 0 
@@ -118,28 +147,6 @@ export default function FeaturedUsersSection({
               <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Collective Forming</p>
             </div>
           ) : null}
-
-          {/* Upload / Add Yours Card */}
-          {onUploadClick && (
-            <div 
-              className="w-[calc((100vw-36px)/3)] md:w-[calc((100%-24px)/3)] md:max-w-[360px] md:flex-1 shrink-0 snap-center group cursor-pointer flex flex-col gap-1.5"
-              onClick={onUploadClick}
-            >
-              <div className="relative aspect-[9/16] rounded-xl overflow-hidden bg-foreground/[0.01] border border-dashed border-foreground/10 flex flex-col items-center justify-center transition-all duration-300 hover:border-foreground/25">
-                <div className="w-9 h-9 rounded-full bg-foreground/5 flex items-center justify-center mb-1">
-                  <Upload className="w-4 h-4 text-foreground/40" />
-                </div>
-                <p className="text-[5.5px] md:text-[7.5px] text-foreground/25 font-medium tracking-wide">
-                  Publish Look
-                </p>
-              </div>
-              <div className="text-center">
-                <span className="text-[7.5px] md:text-[8.5px] font-medium text-foreground/40 tracking-[0.18em] uppercase select-none">
-                  Add Yours
-                </span>
-              </div>
-            </div>
-          )}
         </div>
         
       </div>

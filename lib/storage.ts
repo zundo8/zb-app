@@ -22,7 +22,7 @@ export async function uploadToStorage(buffer: Buffer, mimeType: string, original
   const filename = `${randomUUID()}.${ext}`;
 
   try {
-    const uploadUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/uploads/${filename}`;
+    const uploadUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/store-assets/uploads/${filename}`;
     
     console.log(`[Storage] Uploading ${filename} (${buffer.length} bytes) to Supabase...`);
     const res = await fetch(uploadUrl, {
@@ -43,7 +43,7 @@ export async function uploadToStorage(buffer: Buffer, mimeType: string, original
     const data = await res.json();
     console.log('[Storage] Upload success:', data);
 
-    const publicUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/uploads/${filename}`;
+    const publicUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/store-assets/uploads/${filename}`;
     return {
       url: publicUrl,
       fallback: false

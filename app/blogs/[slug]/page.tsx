@@ -47,6 +47,15 @@ export async function generateMetadata({ params }: BlogPostProps): Promise<Metad
   };
 }
 
+function getShortUrl(url: string) {
+  try {
+    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+    return parsed.hostname.replace('www.', '');
+  } catch {
+    return url;
+  }
+}
+
 export default async function BlogPostPage({ params }: BlogPostProps) {
   const post = await prisma.blogPost.findUnique({
     where: { slug: params.slug },
@@ -130,14 +139,41 @@ export default async function BlogPostPage({ params }: BlogPostProps) {
 
           {/* Cover Image */}
           {post.coverImage && (
-            <div className="w-full aspect-video mb-16 rounded-[2rem] overflow-hidden border border-foreground/5 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 relative bg-foreground/[0.02] glass">
-              <Image 
-                src={post.coverImage} 
-                alt={post.title}
-                fill
-                sizes="(max-width: 1024px) 100vw, 768px"
-                className="w-full h-full object-cover"
-              />
+            <div className="mb-16">
+              {post.backlinkUrl ? (
+                <a 
+                  href={post.backlinkUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="block group/cover"
+                >
+                  <div className="w-full aspect-video rounded-[2rem] overflow-hidden border border-foreground/5 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 relative bg-foreground/[0.02] glass transition-transform duration-500 group-hover/cover:scale-[1.005]">
+                    <Image 
+                      src={post.coverImage} 
+                      alt={post.title}
+                      fill
+                      sizes="(max-width: 1024px) 100vw, 768px"
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover/cover:scale-105"
+                    />
+                  </div>
+                  <div className="mt-4 px-2 flex items-center justify-between text-[9px] uppercase tracking-wider font-sans text-muted-foreground/50">
+                    <span>Source Reference</span>
+                    <span className="font-bold hover:text-foreground transition-colors underline underline-offset-4 decoration-foreground/20">
+                      {getShortUrl(post.backlinkUrl)}
+                    </span>
+                  </div>
+                </a>
+              ) : (
+                <div className="w-full aspect-video rounded-[2rem] overflow-hidden border border-foreground/5 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 relative bg-foreground/[0.02] glass">
+                  <Image 
+                    src={post.coverImage} 
+                    alt={post.title}
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 768px"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -147,21 +183,6 @@ export default async function BlogPostPage({ params }: BlogPostProps) {
             className="prose prose-lg max-w-none animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 font-sans"
             dangerouslySetInnerHTML={{ __html: post.content }}
           />
-
-          {/* Backlink Anchor */}
-          {post.backlinkUrl && (
-            <div className="mt-16 pt-8 border-t border-foreground/[0.08] text-sm animate-in fade-in">
-              <span className="text-muted-foreground font-light mr-2">Reference:</span>
-              <a 
-                href={post.backlinkUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-foreground hover:underline font-bold decoration-foreground/35 underline-offset-4"
-              >
-                {post.backlinkText || post.backlinkUrl}
-              </a>
-            </div>
-          )}
 
           <div className="mt-24 pt-12 border-t border-foreground/5 text-center animate-in fade-in">
              <p className="font-sans text-xs uppercase tracking-widest text-muted-foreground/40 font-medium">The Zica Bella Archive</p>
