@@ -41,6 +41,33 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { amount, currency, receipt, notes } = body;
 
+    // Validate / check prefill data in notes
+    const contact = notes?.contact || "";
+    const email = notes?.email || "";
+    const name = notes?.name || "";
+
+    if (!contact || !name) {
+      console.warn("[Razorpay Server Warn] Prefill notes missing critical fields:", {
+        hasContact: !!contact,
+        hasName: !!name,
+        hasEmail: !!email,
+        contactValue: contact,
+        nameValue: name,
+        emailValue: email
+      });
+    } else {
+      const isPhoneValid = contact.startsWith("+91") && contact.length === 13;
+      const isEmailValid = !email || /^[^@]+@[^@]+\.[^@]+$/.test(email);
+      if (!isPhoneValid || !isEmailValid) {
+        console.warn("[Razorpay Server Warn] Malformed prefill fields in notes:", {
+          contact,
+          email,
+          isPhoneValid,
+          isEmailValid
+        });
+      }
+    }
+
     // Validate required fields
     if (!amount || typeof amount !== "number" || amount <= 0) {
       return NextResponse.json(

@@ -139,12 +139,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   const webStoreNav = [
-    { name: "Web Store Overview", href: "/web-store", icon: BarChart3 },
-    { name: "Web Store Orders", href: "/web-store/orders", icon: ShoppingBag },
-    { name: "Web Store Customers", href: "/web-store/customers", icon: Users },
-    { name: "Web Storefront", href: "/web-store/storefront", icon: Monitor },
-    { name: "Homepage Banners", href: "/web-store/banners", icon: Monitor },
-    { name: "Web Store Coupons", href: "/web-store/coupons", icon: Tag },
+    { name: "Web Store Overview", href: "/web-store", icon: BarChart3, module: 'STOREFRONT' },
+    { name: "Web Store Orders", href: "/web-store/orders", icon: ShoppingBag, module: 'STOREFRONT' },
+    { name: "Web Store Customers", href: "/web-store/customers", icon: Users, module: 'STOREFRONT' },
+    { name: "Web Storefront", href: "/web-store/storefront", icon: Monitor, module: 'STOREFRONT' },
+    { name: "Homepage Banners", href: "/web-store/banners", icon: Monitor, module: 'STOREFRONT' },
+    { name: "Web Store Coupons", href: "/web-store/coupons", icon: Tag, module: 'STOREFRONT' },
   ];
 
   const operationalNav = [
@@ -236,10 +236,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isSuperAdmin = (session?.user as any)?.role === 'SUPER_ADMIN';
 
-  const systemNav = isSuperAdmin ? [
-    { name: "Admin Users", href: "/dashboard/admin-users", icon: Users },
-    { name: "Audit Log", href: "/dashboard/audit-log", icon: History },
-  ] : [];
+  const systemNav = [
+    { name: "Admin Users", href: "/dashboard/admin-users", icon: Users, module: 'ADMIN_USERS' },
+    { name: "Audit Log", href: "/dashboard/audit-log", icon: History, module: 'AUDIT_LOG' },
+  ];
 
   const isActive = useCallback(
     (href: string) =>
@@ -378,14 +378,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
 
-            <div>
-              <SectionLabel>Web Store CMS</SectionLabel>
-              <div className="space-y-0.5">
-                {webStoreNav.map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
+            {filterNav(webStoreNav).length > 0 && (
+              <div>
+                <SectionLabel>Web Store CMS</SectionLabel>
+                <div className="space-y-0.5">
+                  {filterNav(webStoreNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
               <SectionLabel>Logistics</SectionLabel>
@@ -478,11 +480,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
 
-            {isSuperAdmin && (
+            {filterNav(systemNav).length > 0 && (
               <div>
                 <SectionLabel>System Management</SectionLabel>
                 <div className="space-y-0.5">
-                  {systemNav.map((item) => (
+                  {filterNav(systemNav).map((item) => (
                     <NavLink key={item.name} item={item} />
                   ))}
                 </div>
@@ -490,24 +492,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </div>
 
-          {/* Settings — always visible at bottom */}
-          <div className="mt-4 pt-3 border-t border-foreground/[0.06]">
-            <Link
-              ref={pathname === "/dashboard/settings" ? activeRef : undefined}
-              href="/dashboard/settings"
-              className={`flex items-center gap-3 px-5 py-2.5 rounded-xl transition-all duration-300 ${
-                pathname === "/dashboard/settings"
-                  ? "bg-foreground text-background shadow-lg shadow-black/10"
-                  : "text-foreground/50 hover:text-foreground hover:bg-foreground/[0.04]"
-              }`}
-            >
-              <Settings
-                className="w-4 h-4"
-                strokeWidth={pathname === "/dashboard/settings" ? 2 : 1.5}
-              />
-              <span className="text-[12px] font-medium font-inter">Settings</span>
-            </Link>
-          </div>
+          {/* Settings — always visible at bottom if permitted */}
+          {hasPermission('SETTINGS') && (
+            <div className="mt-4 pt-3 border-t border-foreground/[0.06]">
+              <Link
+                ref={pathname === "/dashboard/settings" ? activeRef : undefined}
+                href="/dashboard/settings"
+                className={`flex items-center gap-3 px-5 py-2.5 rounded-xl transition-all duration-300 ${
+                  pathname === "/dashboard/settings"
+                    ? "bg-foreground text-background shadow-lg shadow-black/10"
+                    : "text-foreground/50 hover:text-foreground hover:bg-foreground/[0.04]"
+                }`}
+              >
+                <Settings
+                  className="w-4 h-4"
+                  strokeWidth={pathname === "/dashboard/settings" ? 2 : 1.5}
+                />
+                <span className="text-[12px] font-medium font-inter">Settings</span>
+              </Link>
+            </div>
+          )}
         </div>
       </aside>
 

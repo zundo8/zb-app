@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { requireSuperAdmin, handleAuthError } from "@/lib/auth/rbac";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 import bcrypt from "bcryptjs";
 import { logAudit } from "@/lib/audit";
 import crypto from "crypto";
@@ -10,7 +10,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireSuperAdmin();
+    await requirePermission('ADMIN_USERS', 'edit');
     const { id } = params;
 
     // Generate temporary password

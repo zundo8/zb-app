@@ -10,7 +10,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import * as crypto from 'crypto';
 import prisma from '@/lib/db';
-import { validateWebhookSignature } from '@/lib/services/logistics';
+import { validateWebhookSignature, resolveWebhookSecret } from '@/lib/services/logistics';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,15 +102,8 @@ export async function POST(req: NextRequest) {
       req.headers.get('x-shiprocket-signature') ||
       req.headers.get('x-delhivery-signature') || '';
 
-    // Validate webhook signature
-    const webhookSecret = process.env.DELHIVERY_WEBHOOK_SECRET || '';
-    
-    // Also check DB fallback
-    let secret = webhookSecret;
-    if (!secret) {
-      const shop = await prisma.shop.findFirst({ select: { webhookSecret: true } });
-      secret = shop?.webhookSecret || '';
-    }
+    // Validate webhook signature using the unified secret resolver
+    const { secret, source } = await resolveWebhookSecret();
 
     // Parse payload early to assist provider detection
     let earlyPayload: { Shipment?: unknown } | null = null;
@@ -132,14 +125,21 @@ export async function POST(req: NextRequest) {
     if (secret && signature) {
       const isValid = validateWebhookSignature(rawBody, signature, secret, provider);
       if (!isValid) {
-        console.error(`[Webhook] Invalid logistics signature from IP ${ip} at ${new Date().toISOString()} — rejecting with 401`);
-        await logToWebhookLogs('delhivery', `IP: ${ip} | RawBody: ${rawBody}`, 'unauthorized_signature_mismatch');
+        const secretTail = secret ? secret.slice(-4) : '';
+        const sigHead = signature ? signature.slice(0, 12) : '';
+        console.error(`[Webhook] Signature mismatch. Secret source=${source}, secret tail=****${secretTail}, signature received=${sigHead}...`);
+        
+        const debugPayload = `Secret source: ${source} | Secret tail: ****${secretTail} | Received signature: ${signature} | IP: ${ip} | RawBody: ${rawBody}`;
+        await logToWebhookLogs('delhivery', debugPayload, 'unauthorized_signature_mismatch');
         return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
       }
     } else if (!signature && secret) {
       // Secret configured but no signature sent — reject
-      console.error(`[Webhook] No signature provided from IP ${ip} at ${new Date().toISOString()} but webhook secret is configured`);
-      await logToWebhookLogs('delhivery', `IP: ${ip} | RawBody: ${rawBody}`, 'unauthorized_missing_signature');
+      const secretTail = secret ? secret.slice(-4) : '';
+      console.error(`[Webhook] No signature provided from IP ${ip} at ${new Date().toISOString()} but webhook secret is configured. Secret source=${source}, secret tail=****${secretTail}`);
+      
+      const debugPayload = `Secret source: ${source} | Secret tail: ****${secretTail} | IP: ${ip} | RawBody: ${rawBody}`;
+      await logToWebhookLogs('delhivery', debugPayload, 'unauthorized_missing_signature');
       return NextResponse.json({ error: 'Missing webhook signature' }, { status: 401 });
     }
 

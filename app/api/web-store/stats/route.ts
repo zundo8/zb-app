@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/db";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    // 1. Authenticate session
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    await requirePermission('STOREFRONT', 'view');
 
     // 2. Fetch aggregate data from database
     const now = new Date();
@@ -84,10 +79,6 @@ export async function GET() {
       topCoupons,
     });
   } catch (error: any) {
-    console.error("[Web Store Stats API] Error:", error);
-    return NextResponse.json(
-      { error: error?.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleAuthError(error);
   }
 }

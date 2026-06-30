@@ -798,6 +798,19 @@ export async function testConnection(): Promise<{ success: boolean; provider: st
 }
 
 /**
+ * Resolves the Delhivery webhook secret prioritizing process.env over DB.
+ */
+export async function resolveWebhookSecret(): Promise<{ secret: string; source: 'env' | 'db' | 'none' }> {
+  const envSecret = process.env.DELHIVERY_WEBHOOK_SECRET?.trim();
+  if (envSecret) return { secret: envSecret, source: 'env' };
+
+  const shop = await prisma.shop.findFirst({ select: { webhookSecret: true } });
+  if (shop?.webhookSecret) return { secret: shop.webhookSecret.trim(), source: 'db' };
+
+  return { secret: '', source: 'none' };
+}
+
+/**
  * Validate a webhook signature from the logistics partner.
  * Delhivery uses a plain Bearer token — direct string comparison.
  * Shiprocket / generic providers use HMAC-SHA256 signature verification.
@@ -811,23 +824,33 @@ export function validateWebhookSignature(
   if (!secret || !signature) return false;
 
   try {
+    const cleanSignature = signature
+      .replace(/^sha256=/i, '')
+      .replace(/^Bearer\s+/i, '')
+      .trim();
+    const cleanSecret = secret.trim();
+
     // Delhivery uses plain Bearer token — direct string comparison
     if (provider === 'delhivery') {
-      const incoming = signature.replace(/^Bearer\s+/i, '').trim();
-      const expected = secret.trim();
+      const maxLength = Math.max(cleanSignature.length, cleanSecret.length, 64);
       return crypto.timingSafeEqual(
-        Buffer.from(incoming.padEnd(64)),
-        Buffer.from(expected.padEnd(64))
+        Buffer.from(cleanSignature.padEnd(maxLength)),
+        Buffer.from(cleanSecret.padEnd(maxLength))
       );
     }
 
     // Shiprocket / generic — HMAC-SHA256
     const expectedSignature = crypto
-      .createHmac('sha256', secret)
+      .createHmac('sha256', cleanSecret)
       .update(payload)
       .digest('hex');
+
+    if (cleanSignature.length !== expectedSignature.length) {
+      return false;
+    }
+
     return crypto.timingSafeEqual(
-      Buffer.from(signature),
+      Buffer.from(cleanSignature),
       Buffer.from(expectedSignature)
     );
   } catch (err) {

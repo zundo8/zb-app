@@ -20,7 +20,8 @@ import {
   ShieldCheck,
   Lock,
   Unlock,
-  RefreshCw
+  RefreshCw,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
@@ -67,6 +68,20 @@ export default function AdminUsersPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [showTempPassword, setShowTempPassword] = useState<string | null>(null);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
+  // Permission Checks
+  const currentUserRole = session?.user?.role;
+  const currentUserPermissions = (session?.user as any)?.permissions || [];
+  const isSuperAdmin = currentUserRole === 'SUPER_ADMIN';
+  const adminUsersPermission = currentUserPermissions.find((p: any) => p.module === 'ADMIN_USERS');
+  
+  const canEdit = isSuperAdmin || !!adminUsersPermission?.canEdit;
+  const canDelete = isSuperAdmin || !!adminUsersPermission?.canDelete;
 
   useEffect(() => {
     fetchUsers();
@@ -145,6 +160,10 @@ export default function AdminUsersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) {
+      toast.error('You do not have permission to modify users');
+      return;
+    }
     setIsSaving(true);
     try {
       const url = editingUser ? `/api/admin/users/${editingUser.id}` : '/api/admin/users';
@@ -177,6 +196,10 @@ export default function AdminUsersPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canDelete) {
+      toast.error('You do not have permission to delete users');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
@@ -194,6 +217,10 @@ export default function AdminUsersPage() {
   };
 
   const handleResetPassword = async (id: string) => {
+    if (!canEdit) {
+      toast.error('You do not have permission to reset passwords');
+      return;
+    }
     if (!confirm('Reset password for this user?')) return;
     
     try {
@@ -210,6 +237,10 @@ export default function AdminUsersPage() {
   };
 
   const toggleUserStatus = async (user: any) => {
+    if (!canEdit) {
+      toast.error('You do not have permission to modify users');
+      return;
+    }
     try {
       const res = await fetch(`/api/admin/users/${user.id}`, {
         method: 'PATCH',
@@ -225,6 +256,21 @@ export default function AdminUsersPage() {
     }
   };
 
+  // Reactive filtering of the users list
+  const filteredUsers = users.filter((user) => {
+    const nameMatch = (user.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const emailMatch = (user.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = nameMatch || emailMatch;
+
+    const matchesRole = roleFilter === 'ALL' || user.role === roleFilter;
+
+    const matchesStatus = statusFilter === 'ALL' ||
+      (statusFilter === 'ACTIVE' && user.isActive) ||
+      (statusFilter === 'DISABLED' && !user.isActive);
+
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
   return (
     <div className="space-y-8 pb-20">
       {/* Header Section */}
@@ -238,13 +284,53 @@ export default function AdminUsersPage() {
           </p>
         </div>
         
-        <button 
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background rounded-2xl font-medium hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg"
-        >
-          <UserPlus className="w-4 h-4" />
-          Add New Admin
-        </button>
+        {canEdit && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background rounded-2xl font-medium hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add New Admin
+          </button>
+        )}
+      </div>
+
+      {/* Filters Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="relative">
+          <input 
+            type="text"
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-foreground/5 border border-foreground/5 rounded-2xl px-5 py-3 pl-12 text-sm focus:bg-foreground/10 focus:border-foreground/20 transition-all outline-none"
+          />
+          <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40" />
+        </div>
+
+        <div>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="w-full bg-foreground/5 border border-foreground/5 rounded-2xl px-5 py-3 text-sm focus:bg-foreground/10 focus:border-foreground/20 transition-all outline-none appearance-none cursor-pointer text-foreground"
+          >
+            <option value="ALL">All Roles</option>
+            <option value="SUPER_ADMIN">Super Admin</option>
+            <option value="ADMIN">Standard Admin</option>
+          </select>
+        </div>
+
+        <div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full bg-foreground/5 border border-foreground/5 rounded-2xl px-5 py-3 text-sm focus:bg-foreground/10 focus:border-foreground/20 transition-all outline-none appearance-none cursor-pointer text-foreground"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="ACTIVE">Active Only</option>
+            <option value="DISABLED">Disabled Only</option>
+          </select>
+        </div>
       </div>
 
       {/* Users Table */}
@@ -267,7 +353,7 @@ export default function AdminUsersPage() {
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-foreground/20" />
                   </td>
                 </tr>
-              ) : users.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-8 py-20 text-center">
                     <div className="space-y-2">
@@ -277,7 +363,7 @@ export default function AdminUsersPage() {
                   </td>
                 </tr>
               ) : (
-                users.map((user) => (
+                filteredUsers.map((user) => (
                   <tr 
                     key={user.id}
                     className="group border-b border-foreground/[0.03] hover:bg-foreground/[0.01] transition-colors"
@@ -305,8 +391,11 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-8 py-5">
                       <button 
-                        onClick={() => toggleUserStatus(user)}
+                        onClick={() => canEdit && toggleUserStatus(user)}
+                        disabled={!canEdit}
                         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all ${
+                          !canEdit ? 'cursor-not-allowed opacity-80' : ''
+                        } ${
                           user.isActive 
                             ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20' 
                             : 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20'
@@ -324,20 +413,24 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => handleResetPassword(user.id)}
-                          className="p-2 rounded-xl hover:bg-foreground/5 text-foreground/40 hover:text-foreground transition-all"
-                          title="Reset Password"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleOpenModal(user)}
-                          className="p-2 rounded-xl hover:bg-foreground/5 text-foreground/40 hover:text-foreground transition-all"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        {user.role !== 'SUPER_ADMIN' && (
+                        {canEdit && (
+                          <button 
+                            onClick={() => handleResetPassword(user.id)}
+                            className="p-2 rounded-xl hover:bg-foreground/5 text-foreground/40 hover:text-foreground transition-all"
+                            title="Reset Password"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button 
+                            onClick={() => handleOpenModal(user)}
+                            className="p-2 rounded-xl hover:bg-foreground/5 text-foreground/40 hover:text-foreground transition-all"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDelete && user.role !== 'SUPER_ADMIN' && (
                           <button 
                             onClick={() => handleDelete(user.id)}
                             className="p-2 rounded-xl hover:bg-red-500/10 text-foreground/40 hover:text-red-500 transition-all"

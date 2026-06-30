@@ -180,16 +180,47 @@ export default function ExchangeRequestPage() {
 
     try {
       if (priceDifference > 0) {
+        // Clean and normalize phone helper
+        const cleanAndNormalizePhone = (phoneStr: string) => {
+          const digits = phoneStr.replace(/\D/g, "");
+          const baseNumber = digits.slice(-10);
+          if (baseNumber.length === 10) {
+            return `+91${baseNumber}`;
+          }
+          return phoneStr;
+        };
+
+        const finalPhone = cleanAndNormalizePhone((session as any)?.customer?.phone || (session?.user as any)?.phone || order?.customer?.phone || "");
+        const finalEmail = (session?.user?.email || order?.customer?.email || "").trim();
+        const finalName = (session?.user?.name || order?.customer?.name || "Zica Customer").trim();
+
+        // Client-side console logging for debugging prefill validation
+        console.log("[Razorpay Exchange Prefill]", {
+          userId: (session?.user as any)?.id || "guest",
+          name: finalName,
+          phone: finalPhone,
+          email: finalEmail || "OMITTED (missing/empty)"
+        });
+
         const payRes = await fetch("/api/checkout/razorpay", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: priceDifference }),
+          body: JSON.stringify({
+            amount: priceDifference,
+            notes: {
+              contact: finalPhone,
+              email: finalEmail || undefined,
+              name: finalName,
+            }
+          }),
         });
 
         const orderData = await payRes.json();
         if (!payRes.ok) throw new Error(orderData.error || "Failed to initiate payment");
 
-        const options = {
+        const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
+
+        const options: any = {
           key: orderData.keyId,
           amount: orderData.amount,
           currency: "INR",
@@ -205,9 +236,8 @@ export default function ExchangeRequestPage() {
             }
           },
           prefill: {
-            name: session?.user?.name || "",
-            email: session?.user?.email || "",
-            contact: (session as any)?.customer?.phone || "",
+            name: finalName,
+            contact: finalPhone,
           },
           modal: {
             ondismiss: function () {
@@ -217,7 +247,30 @@ export default function ExchangeRequestPage() {
           theme: {
             color: "#000000",
           },
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay using UPI",
+                  instruments: [
+                    {
+                      method: "upi",
+                      flows: isMobile ? ["intent"] : ["qr", "collect"],
+                    }
+                  ]
+                }
+              },
+              sequence: ["block.upi"],
+              preferences: {
+                show_default_blocks: true // Prioritize UPI, but show other methods as fallback
+              }
+            }
+          }
         };
+
+        if (finalEmail && /^[^@]+@[^@]+\.[^@]+$/.test(finalEmail)) {
+          options.prefill.email = finalEmail;
+        }
 
         const rzp = new (window as any).Razorpay(options);
         rzp.open();

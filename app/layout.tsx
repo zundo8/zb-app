@@ -246,8 +246,8 @@ export default function RootLayout({
           <MetaPixelRouteTracker />
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}
-            <Toaster position="top-right" />
           </LayoutWrapper>
+          <Toaster position="top-right" />
         </Providers>
         <Analytics />
       </body>

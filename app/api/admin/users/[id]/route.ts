@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { requireSuperAdmin, handleAuthError } from "@/lib/auth/rbac";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 import { logAudit } from "@/lib/audit";
 
 export async function PATCH(
@@ -8,7 +8,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePermission('ADMIN_USERS', 'edit');
     const currentUserId = (session.user as any).id;
     const { id } = params;
 
@@ -62,7 +62,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePermission('ADMIN_USERS', 'edit');
     const currentUserId = (session.user as any).id;
     const { id } = params;
 

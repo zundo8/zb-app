@@ -74,28 +74,62 @@ export default withAuth(
       "/dashboard/financial": "FINANCIAL",
       "/dashboard/marketing": "MARKETING",
       "/dashboard/vendors": "VENDORS",
-      "/dashboard/returns": "RETURNS",
+      "/dashboard/returns": "RETURNS_EXCHANGES",
       "/dashboard/analytics": "ANALYTICS",
       "/dashboard/settings": "SETTINGS",
       "/dashboard/admin-users": "ADMIN_USERS",
       "/dashboard/audit-log": "AUDIT_LOG",
+      
+      // Web Store CMS mappings
+      "/web-store": "STOREFRONT",
+      "/api/web-store": "STOREFRONT",
+      
+      // Admin API mappings for middleware double-guard
+      "/api/admin/users": "ADMIN_USERS",
+      "/api/admin/audit-logs": "AUDIT_LOG",
     };
 
-    // Check module-specific page access
+    // Check module-specific page/API access
     for (const [route, moduleName] of Object.entries(moduleMap)) {
       if (pathname.startsWith(route)) {
+        // Allow public GET requests on banners API
+        if (pathname === "/api/web-store/banners" && req.method === "GET") {
+          continue;
+        }
+
         const permissions = (token?.permissions as any[]) || [];
         const permission = permissions.find(p => p.module === moduleName);
-        if (!permission || !permission.canView) {
-          return NextResponse.redirect(new URL("/unauthorized", req.url));
+        
+        const isApi = pathname.startsWith('/api/');
+        let hasAccess = false;
+        
+        if (permission) {
+          if (isApi) {
+            // For API endpoints, mutating methods (POST, PUT, DELETE, PATCH) require canEdit
+            const isWrite = ["POST", "PUT", "DELETE", "PATCH"].includes(req.method);
+            if (isWrite) {
+              hasAccess = req.method === "DELETE" ? permission.canDelete || permission.canEdit : permission.canEdit;
+            } else {
+              hasAccess = permission.canView;
+            }
+          } else {
+            hasAccess = permission.canView;
+          }
         }
-      }
-    }
-
-    // Protect Super Admin only pages
-    if (pathname.startsWith('/dashboard/admin-users') || pathname.startsWith('/dashboard/audit-log')) {
-      if (token?.role !== 'SUPER_ADMIN') {
-        return NextResponse.redirect(new URL("/unauthorized", req.url));
+        
+        if (!hasAccess) {
+          if (isApi) {
+            return new NextResponse(
+              JSON.stringify({ error: `Forbidden: Insufficient permissions for module ${moduleName}` }), 
+              {
+                status: 403,
+                headers: { "Content-Type": "application/json" }
+              }
+            );
+          } else {
+            return NextResponse.redirect(new URL("/unauthorized", req.url));
+          }
+        }
       }
     }
 
@@ -112,6 +146,9 @@ export default withAuth(
         // Allow public app APIs
         if (pathname.startsWith('/api/app/')) return true;
 
+        // Allow public banners API GET request
+        if (pathname === '/api/web-store/banners' && req.method === 'GET') return true;
+
         const role = token?.role as string;
         const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
 
@@ -127,7 +164,9 @@ export default withAuth(
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/web-store/:path*",
     "/api/admin/:path*",
+    "/api/web-store/:path*",
     "/api/payments/refund",
   ],
 };

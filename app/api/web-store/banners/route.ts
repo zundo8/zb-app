@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/db";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +24,7 @@ export async function GET() {
 // POST: Create a banner
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    await requirePermission('STOREFRONT', 'edit');
 
     const body = await request.json();
     const {
@@ -72,7 +68,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, banner: newBanner });
   } catch (error: any) {
-    console.error("[Web Store Banners POST] Error:", error);
-    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
+    return handleAuthError(error);
   }
 }

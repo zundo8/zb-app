@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { requireSuperAdmin, handleAuthError } from "@/lib/auth/rbac";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 import bcrypt from "bcryptjs";
 import { logAudit } from "@/lib/audit";
 import crypto from "crypto";
 
 export async function GET() {
   try {
-    await requireSuperAdmin();
+    await requirePermission('ADMIN_USERS', 'view');
     const users = await prisma.user.findMany({
       include: { 
         permissions: true,
@@ -25,7 +25,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePermission('ADMIN_USERS', 'edit');
     const creatorId = (session.user as any).id;
     
     const { name, email, role, permissions } = await req.json();

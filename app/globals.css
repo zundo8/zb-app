@@ -2052,3 +2052,12 @@ body.gallery-open .fixed.z-50 {
   transform: scale(1.05) !important;
 }
 
+/* Target Sonner Container to ensure proper stacking and positioning below the floating header */
+[data-sonner-toaster] {
+  z-index: 99999 !important;
+}
+
+[data-sonner-toaster][data-y-position="top"] {
+  top: 76px !important;
+}
+

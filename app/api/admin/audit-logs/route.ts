@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { requireSuperAdmin, handleAuthError } from "@/lib/auth/rbac";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    await requireSuperAdmin();
+    await requirePermission('AUDIT_LOG', 'view');
     
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '100');
