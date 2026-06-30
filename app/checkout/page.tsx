@@ -901,7 +901,7 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-[100dvh] relative bg-background text-foreground font-sans">
       
-      <div className="relative z-10 max-w-4xl lg:max-w-5xl mx-auto px-4 pt-24 pb-12 flex flex-col" style={{ minHeight: '100dvh' }}>
+      <div className="relative z-10 max-w-xl mx-auto px-4 pt-24 pb-12 flex flex-col" style={{ minHeight: '100dvh' }}>
         
         {/* Page Title & H1 */}
         <div className="mb-6">
@@ -911,11 +911,18 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-8 items-start w-full">
-          {/* Left Column: Shipping Address */}
-          <div className="flex-1 w-full lg:max-w-[55%] flex flex-col gap-6">
-            <div className="apple-glass-capsule p-6 rounded-[2rem] border border-foreground/10 bg-foreground/[0.01] flex flex-col">
-              <div className="space-y-0.5 mb-5">
+        <AnimatePresence mode="wait">
+          {step === 1 ? (
+            /* ORIGINAL Step 1 Address Selection and form logic (fully reverted) */
+            <motion.div
+              key="address"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              className="flex flex-col"
+              style={{ minHeight: 'calc(100dvh - 160px)' }}
+            >
+              <div className="space-y-0.5 mb-3">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-foreground/85 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-foreground/50" />
                   Shipping Details
@@ -1201,26 +1208,31 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  {/* Save address CTA button */}
+                  {/* CTA */}
                   <div className="pt-4 mt-auto">
                     <button
                       type="submit"
-                      className="w-full h-11 text-[9.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-sm font-semibold"
+                      className="w-full h-11 text-[9.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-sm"
                     >
-                      <span>Use This Address</span>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-foreground/50" />
+                      <span>Continue to Payment</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </form>
               )}
-            </div>
-          </div>
-
-          {/* Right Column: Order Summary & Payment Options */}
-          <div className="w-full lg:max-w-[42%] flex flex-col gap-6 lg:sticky lg:top-24 bg-foreground/[0.005] dark:bg-white/[0.005] p-5 rounded-[2rem] border border-foreground/5 backdrop-blur-xl">
-            
-            {/* Product Preview Card */}
-            <div className="apple-glass-capsule p-4 rounded-2xl flex flex-col gap-3">
+            </motion.div>
+          ) : (
+            <motion.div
+              key="payment"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              className="flex-1 flex flex-col"
+            >
+              <div className="flex-1 flex flex-col">
+                
+                {/* Product Preview Card */}
+                <div className="apple-glass-capsule p-4 rounded-2xl flex flex-col gap-3 mb-6">
                   {items.map((item) => (
                     <div key={item.id} className="flex gap-4 items-center">
                       <div className="w-14 h-18 rounded-xl bg-foreground/[0.02] border border-foreground/10 overflow-hidden shrink-0 relative">
@@ -1292,9 +1304,9 @@ export default function CheckoutPage() {
                             setUpiId("");
                           }
                         }}
-                        className={`py-2 px-1 text-[8.5px] font-light uppercase tracking-[0.12em] rounded-lg text-center transition-all duration-300 border ${
+                        className={`py-2 px-0.5 text-[7px] min-[360px]:text-[8px] sm:text-[9.5px] font-normal uppercase tracking-[0.05em] min-[360px]:tracking-[0.1em] sm:tracking-[0.12em] rounded-lg text-center transition-all duration-300 border whitespace-nowrap ${
                           isActive
-                            ? "bg-foreground/[0.08] dark:bg-white/[0.1] border-foreground/15 dark:border-white/15 text-foreground scale-[1.02] font-normal"
+                            ? "bg-foreground/[0.08] dark:bg-white/[0.1] border-foreground/15 dark:border-white/15 text-foreground scale-[1.02]"
                             : "border-transparent text-foreground/40 hover:text-foreground hover:bg-foreground/[0.02]"
                         }`}
                       >
@@ -1564,49 +1576,51 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-            {/* Error Banner */}
-            {error && (
-              <div className="flex items-center gap-2.5 p-4 rounded-xl border border-red-500/10 bg-red-500/[0.03] text-red-400 text-[11px] font-semibold animate-in shake duration-300">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
-                <p>{error}</p>
-              </div>
-            )}
+                {/* Error Banner */}
+                {error && (
+                  <div className="flex items-center gap-2.5 p-4 rounded-xl border border-red-500/10 bg-red-500/[0.03] text-red-400 text-[11px] font-semibold mb-5 animate-in shake duration-300">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                    <p>{error}</p>
+                  </div>
+                )}
 
-            {/* Secure Payment button */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handlePlaceOrder}
-                disabled={loading}
-                className={`w-full ${
-                  paymentMethod === "COD" ? "h-14 pl-14" : "h-12 pl-12"
-                } rounded-full bg-black/95 dark:bg-white/95 hover:bg-black/90 dark:hover:bg-white/90 active:scale-[0.98] backdrop-blur-xl border border-black/10 dark:border-white/10 text-white dark:text-black transition-all flex items-center justify-between pr-1.5 disabled:opacity-50 shadow-sm`}
-              >
-                {/* Center text */}
-                <span className="text-[9.5px] font-bold tracking-[0.16em] uppercase text-center flex-1 whitespace-nowrap">
-                  {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
-                </span>
+                {/* Secure Payment button */}
+                <div className="mt-auto pt-4 pb-8">
+                  <button
+                    type="button"
+                    onClick={handlePlaceOrder}
+                    disabled={loading}
+                    className={`w-full ${
+                      paymentMethod === "COD" ? "h-14 pl-14" : "h-12 pl-12"
+                    } rounded-full bg-black/95 dark:bg-white/95 hover:bg-black/90 dark:hover:bg-white/90 active:scale-[0.98] backdrop-blur-xl border border-black/10 dark:border-white/10 text-white dark:text-black transition-all flex items-center justify-between pr-1.5 disabled:opacity-50 shadow-sm`}
+                  >
+                    {/* Center text */}
+                    <span className="text-[9.5px] font-bold tracking-[0.16em] uppercase text-center flex-1 whitespace-nowrap">
+                      {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
+                    </span>
 
-                {/* Right chevron circle */}
-                <div className={`${
-                  paymentMethod === "COD" ? "w-11 h-11" : "w-9 h-9"
-                } rounded-full bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0 transition-all`}>
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5" strokeWidth={2.5} />
-                  )}
+                    {/* Right chevron circle */}
+                    <div className={`${
+                      paymentMethod === "COD" ? "w-11 h-11" : "w-9 h-9"
+                    } rounded-full bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0 transition-all`}>
+                      {loading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5" strokeWidth={2.5} />
+                      )}
+                    </div>
+                  </button>
+                  
+                  <div className="flex items-center justify-center gap-1.5 mt-4 text-foreground/20">
+                    <Lock className="w-3 h-3" />
+                    <span className="text-[8px] font-bold uppercase tracking-[0.25em] leading-none">256-bit SSL secured transaction</span>
+                  </div>
                 </div>
-              </button>
-              
-              <div className="flex items-center justify-center gap-1.5 mt-4 text-foreground/20">
-                <Lock className="w-3 h-3" />
-                <span className="text-[8px] font-bold uppercase tracking-[0.25em] leading-none">256-bit SSL secured transaction</span>
-              </div>
-            </div>
 
-          </div>
-        </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
     </div>
