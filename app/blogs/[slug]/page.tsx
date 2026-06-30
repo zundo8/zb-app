@@ -11,6 +11,8 @@ interface BlogPostProps {
   };
 }
 
+export const dynamic = "force-dynamic";
+
 // Generate dynamic SEO metadata for search engines and crawlers
 export async function generateMetadata({ params }: BlogPostProps): Promise<Metadata> {
   const post = await prisma.blogPost.findUnique({
@@ -58,6 +60,7 @@ export default async function BlogPostPage({ params }: BlogPostProps) {
   const contentStyles = `
     .prose {
       font-family: inherit;
+      white-space: pre-line;
     }
     .prose h1, .prose h2, .prose h3 {
       font-family: inherit;

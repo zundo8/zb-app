@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 
-export const revalidate = 3600; // ISR: revalidate every 1 hour
+export const dynamic = "force-dynamic";
 
 export default async function BlogsPage() {
   const posts = await prisma.blogPost.findMany({

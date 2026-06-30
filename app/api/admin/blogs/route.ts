@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +62,12 @@ export async function POST(req: Request) {
       }
     });
 
+    // Revalidate blogs cache routes in storefront
+    revalidatePath('/blogs');
+    if (slug) {
+      revalidatePath(`/blogs/${slug}`);
+    }
+
     return NextResponse.json({ success: true, post: newPost });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
@@ -91,6 +98,12 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
+    // Fetch existing slug before update to clear its cache
+    const existingPost = await prisma.blogPost.findUnique({
+      where: { id },
+      select: { slug: true }
+    });
+
     const updatedPost = await prisma.blogPost.update({
       where: { id },
       data: {
@@ -109,6 +122,15 @@ export async function PATCH(req: Request) {
       }
     });
 
+    // Revalidate blogs cache routes in storefront
+    revalidatePath('/blogs');
+    if (existingPost?.slug) {
+      revalidatePath(`/blogs/${existingPost.slug}`);
+    }
+    if (updatedPost.slug && updatedPost.slug !== existingPost?.slug) {
+      revalidatePath(`/blogs/${updatedPost.slug}`);
+    }
+
     return NextResponse.json({ success: true, post: updatedPost });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
@@ -125,9 +147,21 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
+    // Fetch slug to clear cache before deleting
+    const post = await prisma.blogPost.findUnique({
+      where: { id },
+      select: { slug: true }
+    });
+
     await prisma.blogPost.delete({
       where: { id }
     });
+
+    // Revalidate blogs cache routes in storefront
+    revalidatePath('/blogs');
+    if (post?.slug) {
+      revalidatePath(`/blogs/${post.slug}`);
+    }
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
