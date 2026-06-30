@@ -953,9 +953,9 @@ export default function CheckoutPage() {
 
         {/* Page Title & H1 */}
         <div className="mb-6">
-          <p className="text-[8.5px] font-semibold uppercase tracking-[0.45em] text-foreground/45 mb-1.5 pl-0.5">YOUR PURCHASE</p>
+          <p className="text-[8.5px] font-extrabold uppercase tracking-[0.4em] text-foreground/40 mb-1 pl-0.5">YOUR PURCHASE</p>
           <div className="flex items-center gap-3">
-            <h1 className="text-[26px] font-black tracking-tight text-foreground leading-none">Checkout</h1>
+            <h1 className="text-[32px] font-black tracking-tight text-foreground leading-none mb-1">Checkout</h1>
           </div>
         </div>
 
@@ -967,44 +967,48 @@ export default function CheckoutPage() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
-              className="flex flex-col"
+              className="flex flex-col animate-in fade-in duration-300"
               style={{ minHeight: 'calc(100dvh - 160px)' }}
             >
-              <div className="space-y-0.5 mb-3">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-foreground/85 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-foreground/50" />
-                  Shipping Details
-                </h2>
-                <p className="text-foreground/40 text-[10px] font-medium uppercase tracking-wider">Where should we deliver?</p>
+              <div className="flex flex-col gap-1.5 mb-5">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-foreground/80" strokeWidth={2.25} />
+                  <h2 className="text-[12px] font-black uppercase tracking-[0.12em] text-foreground/90">
+                    SHIPPING DETAILS
+                  </h2>
+                </div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-foreground/40 pl-6">
+                  WHERE SHOULD WE DELIVER?
+                </p>
               </div>
 
               {/* Saved Addresses list */}
               {savedAddresses.length > 0 && !showAddressForm && (
-                <div className="mb-3">
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-foreground/45 mb-1.5">Saved Addresses</p>
+                <div className="mb-4">
+                  <p className="text-[9px] font-extrabold uppercase tracking-wider text-foreground/45 mb-2 pl-0.5">Saved Addresses</p>
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
                     {savedAddresses.map((addr) => (
                       <button
                         key={addr.id}
                         type="button"
                         onClick={() => handleSelectSavedAddress(addr)}
-                        className={`snap-start shrink-0 w-[180px] text-left p-3 rounded-2xl border transition-all ${selectedSavedId === addr.id
-                          ? "border-foreground/30 bg-foreground/[0.04] shadow-[0_0_15px_rgba(var(--foreground),0.02)]"
-                          : "border-foreground/5 bg-foreground/[0.01] hover:border-foreground/10"
+                        className={`snap-start shrink-0 w-[180px] text-left p-4 rounded-xl border transition-all ${selectedSavedId === addr.id
+                          ? "border-black/40 dark:border-white/40 bg-black/[0.02] dark:bg-white/[0.02] shadow-sm"
+                          : "border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-black"
                           }`}
                       >
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[10px] font-bold truncate pr-1">{addr.name}</span>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-bold truncate pr-1">{addr.name}</span>
                           {addr.isDefault && (
-                            <span className="px-1.5 py-0.5 rounded-full text-[5px] font-bold uppercase tracking-wider bg-foreground text-background">
+                            <span className="px-1.5 py-0.5 rounded-full text-[6px] font-bold uppercase tracking-wider bg-foreground text-background">
                               Default
                             </span>
                           )}
                         </div>
-                        <p className="text-[8px] text-foreground/50 truncate">
+                        <p className="text-[9px] text-foreground/50 truncate">
                           {addr.address1}{addr.address2 ? `, ${addr.address2}` : ""}
                         </p>
-                        <p className="text-[8px] text-foreground/50 font-medium">
+                        <p className="text-[9px] text-foreground/50 font-medium">
                           {addr.city}, {addr.state}
                         </p>
                       </button>
@@ -1020,10 +1024,10 @@ export default function CheckoutPage() {
                         setAddressErrors({});
                         setShowAddressForm(true);
                       }}
-                      className="snap-start shrink-0 p-3 rounded-2xl border border-foreground/10 hover:border-foreground/20 bg-foreground/[0.01] hover:bg-foreground/[0.03] dark:hover:bg-white/[0.03] backdrop-blur-md flex flex-col items-center justify-center gap-0.5 w-[100px] text-center transition-all"
+                      className="snap-start shrink-0 p-4 rounded-xl border border-dashed border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-black flex flex-col items-center justify-center gap-1 w-[100px] text-center transition-all hover:bg-black/[0.01] dark:hover:bg-white/[0.01]"
                     >
-                      <Plus className="w-3 h-3 text-foreground/45" />
-                      <span className="text-[7px] font-light uppercase tracking-widest text-foreground/55">New</span>
+                      <Plus className="w-4 h-4 text-foreground/45" />
+                      <span className="text-[8px] font-bold uppercase tracking-wider text-foreground/55">New</span>
                     </button>
                   </div>
                 </div>
@@ -1031,31 +1035,31 @@ export default function CheckoutPage() {
 
               {/* Selected Address Display Card when form is hidden */}
               {!showAddressForm && selectedSavedId && (
-                <div className="glass-panel p-5 rounded-[2rem] border border-foreground/10 bg-foreground/[0.01] flex flex-col gap-4 mb-4 shadow-sm animate-in fade-in duration-300">
+                <div className="p-6 rounded-xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-black/40 flex flex-col gap-4 mb-4 shadow-sm animate-in fade-in duration-300">
                   <div className="space-y-1">
-                    <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-foreground/45">Deliver to</p>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-foreground/45">Deliver to</p>
                     <p className="text-sm font-extrabold tracking-tight">{address.name}</p>
-                    <p className="text-[11px] text-foreground/60 leading-relaxed font-medium">
+                    <p className="text-[12px] text-foreground/60 leading-relaxed font-medium">
                       {address.houseNo}, {address.street}
                       {address.landmark ? `, ${address.landmark}` : ""}
                     </p>
-                    <p className="text-[11px] text-foreground/60 leading-relaxed font-semibold">
+                    <p className="text-[12px] text-foreground/60 leading-relaxed font-semibold">
                       {address.city}, {address.state} — {address.zip}
                     </p>
-                    <p className="text-[10px] text-foreground/50 font-bold uppercase tracking-wider flex items-center gap-1 pt-1.5">
-                      <Smartphone className="w-3.5 h-3.5 text-foreground/35" />
+                    <p className="text-[11px] text-foreground/50 font-bold uppercase tracking-wider flex items-center gap-1.5 pt-1.5">
+                      <Smartphone className="w-4 h-4 text-foreground/35" />
                       +91 {address.phone.replace("+91", "").replace("+91", "")}
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-2 pt-2 border-t border-foreground/5">
+                  <div className="flex flex-col gap-2 pt-2 border-t border-black/[0.06] dark:border-white/[0.06]">
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="w-full h-11 text-[9.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-sm"
+                      className="w-full h-[54px] bg-black text-white dark:bg-white dark:text-black rounded-xl text-[11px] font-bold uppercase tracking-[0.2em] hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm"
                     >
                       <span>Deliver to this Address</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <ChevronRight className="w-3.5 h-3.5" strokeWidth={3} />
                     </button>
                     <button
                       type="button"
@@ -1068,9 +1072,9 @@ export default function CheckoutPage() {
                         setAddressErrors({});
                         setShowAddressForm(true);
                       }}
-                      className="w-full h-10 text-[8.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.015] dark:bg-white/[0.02] border border-dashed border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.04] dark:hover:bg-white/[0.04] active:scale-[0.98] rounded-full text-foreground/75 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
+                      className="w-full h-11 text-[9px] font-semibold uppercase tracking-[0.15em] bg-transparent border border-dashed border-black/[0.12] dark:border-white/[0.12] hover:bg-black/[0.02] dark:hover:bg-white/[0.02] active:scale-[0.98] rounded-xl text-foreground/75 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                       Add New Address
                     </button>
                   </div>
@@ -1089,15 +1093,17 @@ export default function CheckoutPage() {
                         }
                         setShowAddressForm(false);
                       }}
-                      className="w-full h-10 text-[8.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.015] dark:bg-white/[0.02] border border-foreground/5 dark:border-white/5 hover:bg-foreground/[0.04] dark:hover:bg-white/[0.04] active:scale-[0.98] rounded-full text-foreground/55 transition-all flex items-center justify-center mb-3 whitespace-nowrap"
+                      className="w-full h-11 text-[9px] font-semibold uppercase tracking-[0.15em] bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] active:scale-[0.98] rounded-xl text-foreground/55 transition-all flex items-center justify-center mb-4 whitespace-nowrap"
                     >
                       Back to Saved Addresses
                     </button>
                   )}
-                  <div className="grid grid-cols-1 gap-2.5 flex-1">
+                  
+                  <div className="flex flex-col gap-3 flex-1">
                     {/* Full Name */}
                     <div>
-                      <div className="relative">
+                      <div className={`relative flex items-center w-full h-[54px] bg-white dark:bg-black border rounded-xl px-4 transition-all duration-200 ${addressErrors.name ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                        <User className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none" />
                         <input
                           type="text"
                           placeholder="Full Name"
@@ -1105,97 +1111,104 @@ export default function CheckoutPage() {
                           required
                           value={address.name}
                           onChange={(e) => updateField("name", e.target.value)}
-                          className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.name ? "border-red-500/40" : ""}`}
+                          className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-normal text-foreground placeholder:text-foreground/35 p-0"
                         />
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                       </div>
-                      {addressErrors.name && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.name}</p>}
+                      {addressErrors.name && <p className="text-[9px] text-red-500 mt-1 pl-1">{addressErrors.name}</p>}
                     </div>
 
-                    {/* Email + Phone */}
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <div className="relative">
-                          <input
-                            type="email"
-                            placeholder="Email"
-                            aria-label="Email"
-                            required
-                            value={address.email}
-                            onChange={(e) => updateField("email", e.target.value)}
-                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.email ? "border-red-500/40" : ""}`}
-                          />
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
-                        </div>
-                        {addressErrors.email && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.email}</p>}
+                    {/* Email Address */}
+                    <div>
+                      <div className={`relative flex items-center w-full h-[54px] bg-white dark:bg-black border rounded-xl px-4 transition-all duration-200 ${addressErrors.email ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                        <Mail className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none" />
+                        <input
+                          type="email"
+                          placeholder="Email Address"
+                          aria-label="Email"
+                          required
+                          value={address.email}
+                          onChange={(e) => updateField("email", e.target.value)}
+                          className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                        />
                       </div>
-                      <div className="relative">
+                      {addressErrors.email && <p className="text-[9px] text-red-500 mt-1 pl-1">{addressErrors.email}</p>}
+                    </div>
+
+                    {/* Mobile Number */}
+                    <div>
+                      <div className={`relative flex items-center w-full h-[54px] bg-white dark:bg-black border rounded-xl px-4 transition-all duration-200 ${addressErrors.phone ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                        <Smartphone className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none" />
+                        <div className="flex items-center gap-1 text-[13px] font-bold text-foreground/75 px-0.5 select-none">
+                          <span>+91</span>
+                          <ChevronDown className="w-3 h-3 text-foreground/45" />
+                        </div>
+                        <div className="h-5 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mx-3" />
                         <input
                           type="tel"
-                          placeholder="Mobile"
+                          placeholder="Mobile Number"
                           aria-label="Mobile Number"
                           required
-                          value={address.phone}
+                          value={address.phone.startsWith("+91") ? address.phone.slice(3) : address.phone}
                           onChange={(e) => updateField("phone", e.target.value)}
-                          className={`glass-input w-full pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.phone ? "border-red-500/40" : ""}`}
-                          style={{ paddingLeft: "3.75rem" }}
+                          className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-normal text-foreground placeholder:text-foreground/35 p-0"
                         />
-                        <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
-                        <span className="absolute left-8 top-1/2 -translate-y-1/2 text-[11px] text-foreground/35 font-semibold pointer-events-none">+91</span>
-                        {addressErrors.phone && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.phone}</p>}
+                      </div>
+                      {addressErrors.phone && <p className="text-[9px] text-red-500 mt-1 pl-1">{addressErrors.phone}</p>}
+                    </div>
+
+                    {/* House / Flat / Building */}
+                    <div>
+                      <div className={`relative flex items-center w-full h-[54px] bg-white dark:bg-black border rounded-xl px-4 transition-all duration-200 ${addressErrors.houseNo ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                        <Home className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="House / Flat / Building"
+                          aria-label="House or Flat Number"
+                          required
+                          value={address.houseNo}
+                          onChange={(e) => updateField("houseNo", e.target.value, true)}
+                          className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                        />
+                      </div>
+                      {addressErrors.houseNo && <p className="text-[9px] text-red-500 mt-1 pl-1">{addressErrors.houseNo}</p>}
+                    </div>
+
+                    {/* Street / Road / Area */}
+                    <div>
+                      <div className={`relative flex items-center w-full h-[54px] bg-white dark:bg-black border rounded-xl px-4 transition-all duration-200 ${addressErrors.street ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                        <Navigation className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none rotate-45" />
+                        <input
+                          type="text"
+                          placeholder="Street / Road / Area"
+                          aria-label="Street, Road, or Area"
+                          required
+                          value={address.street}
+                          onChange={(e) => updateField("street", e.target.value, true)}
+                          className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                        />
+                      </div>
+                      {addressErrors.street && <p className="text-[9px] text-red-500 mt-1 pl-1">{addressErrors.street}</p>}
+                    </div>
+
+                    {/* Landmark (Optional) */}
+                    <div>
+                      <div className="relative flex items-center w-full h-[54px] bg-white dark:bg-black border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-4 focus-within:border-black/30 dark:focus-within:border-white/30 transition-all">
+                        <Building2 className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Landmark (Optional)"
+                          aria-label="Landmark"
+                          value={address.landmark}
+                          onChange={(e) => updateField("landmark", e.target.value, true)}
+                          className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                        />
                       </div>
                     </div>
 
-                    {/* House No + Street */}
-                    <div className="grid grid-cols-5 gap-2.5">
-                      <div className="col-span-2">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="House / Flat No."
-                            aria-label="House or Flat Number"
-                            required
-                            value={address.houseNo}
-                            onChange={(e) => updateField("houseNo", e.target.value, true)}
-                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.houseNo ? "border-red-500/40" : ""}`}
-                          />
-                          <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
-                        </div>
-                        {addressErrors.houseNo && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.houseNo}</p>}
-                      </div>
-                      <div className="col-span-3">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="Street / Road / Area"
-                            aria-label="Street, Road, or Area"
-                            required
-                            value={address.street}
-                            onChange={(e) => updateField("street", e.target.value, true)}
-                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.street ? "border-red-500/40" : ""}`}
-                          />
-                          <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
-                        </div>
-                        {addressErrors.street && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.street}</p>}
-                      </div>
-                    </div>
-
-                    {/* Landmark */}
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Landmark (Optional)"
-                        aria-label="Landmark"
-                        value={address.landmark}
-                        onChange={(e) => updateField("landmark", e.target.value, true)}
-                        className="glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl"
-                      />
-                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
-                    </div>
-
-                    {/* PIN + City */}
-                    <div className="grid grid-cols-5 gap-2.5">
-                      <div className="col-span-2 relative">
+                    {/* PIN Code */}
+                    <div>
+                      <div className={`relative flex items-center w-full h-[54px] bg-white dark:bg-black border rounded-xl px-4 transition-all duration-200 ${addressErrors.zip ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                        <MapPin className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none" />
                         <input
                           type="text"
                           placeholder="PIN Code"
@@ -1207,50 +1220,53 @@ export default function CheckoutPage() {
                             const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                             updateField("zip", val);
                           }}
-                          className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl font-mono tracking-wider ${addressErrors.zip ? "border-red-500/40" : ""}`}
+                          className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-normal text-foreground placeholder:text-foreground/35 p-0 font-mono tracking-wider"
                         />
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                         {zipLoading && (
-                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-foreground/30" />
+                          <Loader2 className="absolute right-4 w-4 h-4 animate-spin text-foreground/30" />
                         )}
-                        {addressErrors.zip && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.zip}</p>}
                       </div>
-                      <div className="col-span-3">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="City"
-                            aria-label="City"
-                            required
-                            value={address.city}
-                            onChange={(e) => updateField("city", e.target.value)}
-                            className={`glass-input w-full pl-8 pr-3 py-3 text-[12px] rounded-2xl ${addressErrors.city ? "border-red-500/40" : ""}`}
-                          />
-                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
-                        </div>
-                        {addressErrors.city && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.city}</p>}
-                      </div>
+                      {addressErrors.zip && <p className="text-[9px] text-red-500 mt-1 pl-1">{addressErrors.zip}</p>}
                     </div>
 
-                    {/* State dropdown */}
+                    {/* City */}
                     <div>
-                      <div className="relative">
+                      <div className={`relative flex items-center w-full h-[54px] bg-white dark:bg-black border rounded-xl px-4 transition-all duration-200 ${addressErrors.city ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                        <Globe className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="City"
+                          aria-label="City"
+                          required
+                          value={address.city}
+                          onChange={(e) => updateField("city", e.target.value)}
+                          className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                        />
+                      </div>
+                      {addressErrors.city && <p className="text-[9px] text-red-500 mt-1 pl-1">{addressErrors.city}</p>}
+                    </div>
+
+                    {/* Select State */}
+                    <div>
+                      <div className={`relative flex items-center w-full h-[54px] bg-white dark:bg-black border rounded-xl px-4 transition-all duration-200 ${addressErrors.state ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                        <Map className="w-4.5 h-4.5 text-foreground/35 mr-3 pointer-events-none" />
+                        <span className={`text-[13px] ${!address.state ? "text-foreground/35" : "text-foreground"}`}>
+                          {address.state || "Select State"}
+                        </span>
+                        <ChevronDown className="absolute right-4 w-4 h-4 text-foreground/35 pointer-events-none" />
                         <select
                           required
                           value={address.state}
                           onChange={(e) => updateField("state", e.target.value)}
-                          className={`glass-input w-full pl-8 pr-10 py-3 text-[12px] rounded-2xl appearance-none cursor-pointer ${!address.state ? "text-foreground/40" : ""
-                            } ${addressErrors.state ? "border-red-500/40" : ""}`}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         >
                           <option value="" disabled>Select State</option>
                           {INDIAN_STATES.map(s => (
-                            <option key={s} value={s} className="bg-[#0e0e0e] text-foreground">{s}</option>
+                            <option key={s} value={s} className="bg-background text-foreground">{s}</option>
                           ))}
                         </select>
-                        <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                       </div>
-                      {addressErrors.state && <p className="text-[9px] text-red-400 mt-0.5 pl-1">{addressErrors.state}</p>}
+                      {addressErrors.state && <p className="text-[9px] text-red-500 mt-1 pl-1">{addressErrors.state}</p>}
                     </div>
                   </div>
 
@@ -1258,10 +1274,10 @@ export default function CheckoutPage() {
                   <div className="pt-4 mt-auto">
                     <button
                       type="submit"
-                      className="w-full h-11 text-[9.5px] font-light uppercase tracking-[0.18em] bg-foreground/[0.03] dark:bg-white/[0.05] border border-foreground/10 dark:border-white/10 hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] active:scale-[0.98] backdrop-blur-xl rounded-full text-foreground transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-sm"
+                      className="w-full h-[54px] bg-black text-white dark:bg-white dark:text-black rounded-xl text-[11px] font-bold uppercase tracking-[0.2em] hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm"
                     >
                       <span>Continue to Payment</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <ChevronRight className="w-3.5 h-3.5" strokeWidth={3} />
                     </button>
                   </div>
                 </form>
