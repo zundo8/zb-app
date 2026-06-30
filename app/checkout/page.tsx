@@ -110,6 +110,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [initiatedPixel, setInitiatedPixel] = useState(false);
+  const [paymentInfoFired, setPaymentInfoFired] = useState(false);
   const [isOrderPlaced, setIsOrderPlaced] = useState(false);
 
   // Saved addresses
@@ -382,22 +383,25 @@ export default function CheckoutPage() {
       item_price: parseFloat(item.price)
     }));
 
-    trackAddPaymentInfo(
-      {
-        country: updatedAddress.country,
-        st: updatedAddress.state,
-        ct: updatedAddress.city,
-        zp: updatedAddress.zip,
-        fn,
-        ln,
-        em: updatedAddress.email || undefined,
-        ph: formattedPhone || undefined,
-      },
-      subtotal,
-      'INR',
-      contentIds,
-      contents
-    );
+    if (!paymentInfoFired) {
+      trackAddPaymentInfo(
+        {
+          country: updatedAddress.country,
+          st: updatedAddress.state,
+          ct: updatedAddress.city,
+          zp: updatedAddress.zip,
+          fn,
+          ln,
+          em: updatedAddress.email || undefined,
+          ph: formattedPhone || undefined,
+        },
+        subtotal,
+        'INR',
+        contentIds,
+        contents
+      );
+      setPaymentInfoFired(true);
+    }
 
     // Save details to cookies and re-init pixel for Advanced Matching
     saveUserDataToCookiesAndReinit({
@@ -1325,22 +1329,25 @@ export default function CheckoutPage() {
                             item_price: parseFloat(item.price)
                           }));
 
-                          trackAddPaymentInfo(
-                            {
-                              country: address.country,
-                              st: address.state,
-                              ct: address.city,
-                              zp: address.zip,
-                              fn,
-                              ln,
-                              em: address.email || undefined,
-                              ph: address.phone || undefined,
-                            },
-                            subtotal,
-                            'INR',
-                            contentIds,
-                            contents
-                          );
+                          if (!paymentInfoFired) {
+                            trackAddPaymentInfo(
+                              {
+                                country: address.country,
+                                st: address.state,
+                                ct: address.city,
+                                zp: address.zip,
+                                fn,
+                                ln,
+                                em: address.email || undefined,
+                                ph: address.phone || undefined,
+                              },
+                              subtotal,
+                              'INR',
+                              contentIds,
+                              contents
+                            );
+                            setPaymentInfoFired(true);
+                          }
                           if (method.id !== "UPI") {
                             setSelectedUpiApp("");
                             setUpiId("");

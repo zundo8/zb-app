@@ -6,16 +6,6 @@ const PIXEL_ID = process.env.META_PIXEL_ID!;
 const ACCESS_TOKEN = process.env.META_CAPI_ACCESS_TOKEN!;
 const TEST_EVENT_CODE = process.env.META_TEST_EVENT_CODE;
 
-function hashValue(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const cleaned = value.trim().toLowerCase();
-  // Check if it's already a 64-character SHA-256 hash (hex)
-  if (/^[a-f0-9]{64}$/.test(cleaned)) {
-    return cleaned;
-  }
-  return crypto.createHash('sha256').update(cleaned).digest('hex');
-}
-
 export interface CapiEventPayload {
   eventName: string;
   eventTime?: number;
@@ -43,6 +33,40 @@ export interface CapiEventPayload {
   actionSource?: 'website' | 'app' | 'email' | 'phone_call' | 'physical_store' | 'system_generated' | 'other';
 }
 
+function isHash(val: string | undefined): boolean {
+  if (!val) return false;
+  return /^[a-f0-9]{64}$/.test(val.trim().toLowerCase());
+}
+
+function cleanAndHash(val: string | undefined, normalizer: (v: string) => string): string | undefined {
+  if (!val) return undefined;
+  const trimmed = val.trim();
+  if (isHash(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  const normalized = normalizer(trimmed);
+  if (!normalized) return undefined;
+  return crypto.createHash('sha256').update(normalized).digest('hex');
+}
+
+const normalizePhone = (p: string) => {
+  const digits = p.replace(/\D/g, "");
+  let base = digits;
+  if (digits.length === 12 && digits.startsWith("91")) base = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith("0")) base = digits.slice(1);
+  return `91${base}`;
+};
+
+const normalizeCountry = (c: string) => {
+  const clean = c.trim().toLowerCase();
+  if (clean === 'india' || clean === 'ind' || clean === 'in') return 'in';
+  if (clean === 'united states' || clean === 'usa' || clean === 'us' || clean === 'united states of america') return 'us';
+  return clean.replace(/[^a-z]/g, '').slice(0, 2);
+};
+
+const normalizeGeneric = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+const normalizeEmail = (e: string) => e.trim().toLowerCase();
+
 export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ success: boolean; data?: any; error?: any; fbtrace_id?: string }> {
   // Pre-request validation
   const tokenErr = validateTokenFormat(ACCESS_TOKEN);
@@ -57,35 +81,82 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
     return { success: false, error: pixelErr };
   }
 
+  // Validate event time
+  const eventTime = payload.eventTime ?? Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000);
+  if (eventTime < now - 7 * 24 * 60 * 60 || eventTime > now + 24 * 60 * 60) {
+    console.warn('[Meta CAPI] Event time is out of valid range (older than 7 days or in future):', eventTime);
+  }
+
+  // Clean custom data — strip undefined or null values
+  const cleanedCustomData: Record<string, any> = {};
+  if (payload.customData) {
+    for (const [key, val] of Object.entries(payload.customData)) {
+      if (val !== undefined && val !== null && val !== '') {
+        cleanedCustomData[key] = val;
+      }
+    }
+  }
+
+  // Build user_data with correct hashing and normalization
+  const userData: Record<string, any> = {
+    client_user_agent: payload.userAgent || undefined,
+  };
+
+  if (payload.userData) {
+    if (payload.userData.client_user_agent) userData.client_user_agent = payload.userData.client_user_agent;
+    if (payload.userData.client_ip_address) userData.client_ip_address = payload.userData.client_ip_address;
+    if (payload.userData.fbp) userData.fbp = payload.userData.fbp;
+    if (payload.userData.fbc) userData.fbc = payload.userData.fbc;
+    
+    // Hash PII fields
+    const em = cleanAndHash(payload.userData.em, normalizeEmail);
+    const ph = cleanAndHash(payload.userData.ph, normalizePhone);
+    const fn = cleanAndHash(payload.userData.fn, normalizeGeneric);
+    const ln = cleanAndHash(payload.userData.ln, normalizeGeneric);
+    const country = cleanAndHash(payload.userData.country, normalizeCountry);
+    const st = cleanAndHash(payload.userData.st, normalizeGeneric);
+    const ct = cleanAndHash(payload.userData.ct, normalizeGeneric);
+    const zp = cleanAndHash(payload.userData.zp, normalizeGeneric);
+    const ge = cleanAndHash(payload.userData.ge, normalizeGeneric);
+
+    if (em) userData.em = [em];
+    if (ph) userData.ph = [ph];
+    if (fn) userData.fn = [fn];
+    if (ln) userData.ln = [ln];
+    if (country) userData.country = [country];
+    if (st) userData.st = [st];
+    if (ct) userData.ct = [ct];
+    if (zp) userData.zp = [zp];
+    if (ge) userData.ge = [ge];
+
+    // Non-hashed identifiers
+    if (payload.userData.external_id) {
+      userData.external_id = payload.userData.external_id.trim();
+    }
+    if (payload.userData.fb_login_id) {
+      userData.fb_login_id = payload.userData.fb_login_id.trim();
+    }
+  }
+
+  // Clean empty fields from userData
+  const cleanedUserData: Record<string, any> = {};
+  for (const [key, val] of Object.entries(userData)) {
+    if (val !== undefined && val !== null && val !== '' && (!Array.isArray(val) || val.length > 0)) {
+      cleanedUserData[key] = val;
+    }
+  }
+
   const body: Record<string, any> = {
     data: [
       {
         event_name: payload.eventName,
-        event_time: payload.eventTime ?? Math.floor(Date.now() / 1000),
+        event_time: eventTime,
         event_source_url: payload.eventSourceUrl,
         event_id: payload.eventId,
         action_source: payload.actionSource ?? 'website',
-        user_data: {
-          client_user_agent: payload.userAgent,
-          ...(payload.userData ? {
-            client_user_agent: payload.userData.client_user_agent ?? payload.userAgent,
-            client_ip_address: payload.userData.client_ip_address,
-            fbp: payload.userData.fbp,
-            fbc: payload.userData.fbc,
-            country: hashValue(payload.userData.country),
-            st: hashValue(payload.userData.st),
-            ge: hashValue(payload.userData.ge),
-            ct: hashValue(payload.userData.ct),
-            zp: hashValue(payload.userData.zp),
-            fn: hashValue(payload.userData.fn),
-            ln: hashValue(payload.userData.ln),
-            em: hashValue(payload.userData.em),
-            ph: hashValue(payload.userData.ph),
-            external_id: payload.userData.external_id,
-            fb_login_id: payload.userData.fb_login_id,
-          } : {}),
-        },
-        ...(payload.customData ? { custom_data: payload.customData } : {}),
+        user_data: cleanedUserData,
+        ...(Object.keys(cleanedCustomData).length > 0 ? { custom_data: cleanedCustomData } : {}),
       },
     ],
   };

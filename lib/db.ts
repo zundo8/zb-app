@@ -239,3 +239,63 @@ export async function getShopSettings() {
   }
 }
 
+export async function getStoreSettings(pageKey: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn(`[DB] Supabase config not found for getStoreSettings(${pageKey}). Falling back to Prisma.`);
+    try {
+      return await prisma.storeSettings.findUnique({ where: { pageKey } });
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const res = await fetch(
+      `${supabaseUrl.replace(/\/$/, '')}/rest/v1/store_settings?page_key=eq.${pageKey}&select=*`,
+      {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json',
+        },
+        next: { revalidate: 300, tags: [`store-settings-${pageKey}`] },
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(`Supabase REST fetch failed: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const settings = data?.[0] || null;
+
+    // Map snake_case columns from REST API to camelCase schema matching Prisma output for consistent typings
+    if (settings) {
+      return {
+        id: settings.id,
+        pageKey: settings.page_key,
+        homePageTitle: settings.home_page_title,
+        metaDescription: settings.meta_description,
+        socialImageUrl: settings.social_image_url,
+        socialImageAlt: settings.social_image_alt,
+        twitterCardType: settings.twitter_card_type,
+        updatedBy: settings.updated_by,
+        updatedAt: settings.updated_at,
+        createdAt: settings.created_at,
+      };
+    }
+    return null;
+  } catch (error: any) {
+    console.warn(`[DB] Supabase REST fetch failed for getStoreSettings(${pageKey}), falling back to Prisma:`, error.message);
+    try {
+      return await prisma.storeSettings.findUnique({ where: { pageKey } });
+    } catch {
+      return null;
+    }
+  }
+}
+
+

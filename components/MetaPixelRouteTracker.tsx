@@ -2,7 +2,7 @@
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { initPixel, pageview as trackMetaPageView } from '@/lib/metaPixel';
+import { initPixel } from '@/lib/metaPixel';
 import { pageview as trackGAPageView } from '@/lib/gtag';
 
 function uuidv4() {
@@ -43,12 +43,17 @@ async function sha256(message: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function cleanStringNoSpaces(val: string | undefined): string {
+  if (!val) return "";
+  return val.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export function MetaPixelRouteTracker() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
   useEffect(() => {
-    // 1. Generate/verify visitor UUID
+    // 1. Generate/verify visitor UUID (external_id)
     let extId = getCookie('zb_external_id');
     if (!extId) {
       extId = 'zb.' + uuidv4();
@@ -81,14 +86,20 @@ export function MetaPixelRouteTracker() {
       if (session?.user) {
         const email = session.user.email;
         if (email) {
-          const hashedEmail = await sha256(email);
+          const hashedEmail = await sha256(email.trim().toLowerCase());
           sessionUserData.em = hashedEmail;
           setCookie('zb_guest_email', hashedEmail, 365);
         }
 
         const phone = (session.user as any).phone || (session as any).customer?.phone;
         if (phone) {
-          const hashedPhone = await sha256(phone);
+          // Normalize phone number (no plus sign, digits only) before hashing
+          const digits = phone.replace(/\D/g, "");
+          let baseNumber = digits;
+          if (digits.length === 12 && digits.startsWith("91")) baseNumber = digits.slice(2);
+          else if (digits.length === 11 && digits.startsWith("0")) baseNumber = digits.slice(1);
+          const formattedPhone = `91${baseNumber}`;
+          const hashedPhone = await sha256(formattedPhone);
           sessionUserData.ph = hashedPhone;
           setCookie('zb_guest_phone', hashedPhone, 365);
         }
@@ -97,12 +108,12 @@ export function MetaPixelRouteTracker() {
         if (name) {
           const parts = name.trim().split(/\s+/);
           if (parts[0]) {
-            const hashedFn = await sha256(parts[0]);
+            const hashedFn = await sha256(cleanStringNoSpaces(parts[0]));
             sessionUserData.fn = hashedFn;
             setCookie('zb_guest_fn', hashedFn, 365);
           }
           if (parts.length > 1) {
-            const hashedLn = await sha256(parts.slice(1).join(' '));
+            const hashedLn = await sha256(cleanStringNoSpaces(parts.slice(1).join('')));
             sessionUserData.ln = hashedLn;
             setCookie('zb_guest_ln', hashedLn, 365);
           }
@@ -116,7 +127,30 @@ export function MetaPixelRouteTracker() {
   }, [session, pathname]);
 
   useEffect(() => {
-    trackMetaPageView();
+    // Generate matched browser & server identifiers
+    const eventId = 'pv.' + uuidv4();
+    const eventTime = Math.floor(Date.now() / 1000);
+
+    // Track Meta PageView in Browser
+    if (typeof window !== 'undefined' && (window as any).fbq) {
+      (window as any).fbq('track', 'PageView', {}, { eventID: eventId });
+    }
+
+    // Track Meta PageView via CAPI for full browser/server deduplication
+    fetch('/api/meta/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventName: 'PageView',
+        eventId,
+        eventTime,
+        eventSourceUrl: window.location.href,
+        userAgent: navigator.userAgent,
+        actionSource: 'website',
+      }),
+    }).catch(err => console.warn('[Tracker Client] PageView CAPI failed:', err));
+
+    // Track GA PageView
     trackGAPageView(pathname);
   }, [pathname]);
 

@@ -560,6 +560,129 @@ export default function MetaPixelPage() {
           </div>
         )}
       </div>
+
+      {/* Visual Payload Schema & Match Quality Audit */}
+      <div className="glass-card p-6 space-y-6 border-indigo-500/10 mt-8">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Conversions API (CAPI) Matching Audit</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Real-time parameters validation & Meta best practices alignment</p>
+          </div>
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400">
+            Target EMQ: 10/10
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+          <div className="space-y-4">
+            <h3 className="font-semibold text-foreground/80 border-b border-foreground/5 pb-2">Hashed Customer Identifiers</h3>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full p-0.5 bg-emerald-500/15 text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold flex items-center gap-2">
+                    Email (em) <span className="text-[10px] text-emerald-500 font-mono font-normal">Active</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">SHA-256 hashed on client & server. Trimmed and converted to lowercase prior to hashing.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full p-0.5 bg-emerald-500/15 text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold flex items-center gap-2">
+                    Phone (ph) <span className="text-[10px] text-emerald-500 font-mono font-normal">Active</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">E.164 digits-only normalized (e.g. 91XXXXXXXXXX) without special characters or plus signs before SHA-256 hashing.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full p-0.5 bg-emerald-500/15 text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold flex items-center gap-2">
+                    Names & Location (fn, ln, ct, st, zp, country) <span className="text-[10px] text-emerald-500 font-mono font-normal">Active</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Names, state, city and zip are stripped of spaces/punctuation. Country normalized to lowercase 2-letter ISO code (e.g. "in") before hashing.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-foreground/80 border-b border-foreground/5 pb-2">Technical & Deduplication Keys</h3>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full p-0.5 bg-emerald-500/15 text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold flex items-center gap-2">
+                    Browser ID (_fbp) <span className="text-[10px] text-emerald-500 font-mono font-normal">Active</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Created on browser, persisted in cookies, and forwarded in all Conversions API payloads for browser-server matching.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full p-0.5 bg-amber-500/15 text-amber-400">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold flex items-center gap-2">
+                    Click ID (_fbc) <span className="text-[10px] text-amber-500 font-mono font-normal">Conditional</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Captured from fbclid URL parameter. Automatically forwarded in CAPI payloads when traffic originates from Facebook/Instagram ads.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full p-0.5 bg-emerald-500/15 text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold flex items-center gap-2">
+                    Event Deduplication (event_id & event_time) <span className="text-[10px] text-emerald-500 font-mono font-normal">Active</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Browser and CAPI events share matching event_id and event_time generated at the client to ensure 100% deduplication success.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-foreground/5">
+          <h3 className="text-xs font-semibold text-foreground/80 mb-2">Browser vs Server Payload Schema Comparison</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-[10px] bg-foreground/[0.02] p-4 rounded-lg border border-foreground/5 overflow-x-auto">
+            <div className="space-y-1">
+              <div className="text-indigo-400 border-b border-foreground/5 pb-1 mb-1 font-sans font-bold">Browser Pixel Event</div>
+              <div>fbq('track', 'PageView', {}, &#123;</div>
+              <div className="pl-4">eventID: "pv.12345678-90ab-cdef..."</div>
+              <div>&#125;);</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-indigo-400 border-b border-foreground/5 pb-1 mb-1 font-sans font-bold">Server Conversions API Event</div>
+              <div>&#123;</div>
+              <div className="pl-4">"event_name": "PageView",</div>
+              <div className="pl-4">"event_id": "pv.12345678-90ab-cdef...",</div>
+              <div className="pl-4">"event_time": 1719792000,</div>
+              <div className="pl-4">"user_data": &#123;</div>
+              <div className="pl-8">"client_ip_address": "127.0.0.1",</div>
+              <div className="pl-8">"client_user_agent": "Mozilla/5.0...",</div>
+              <div className="pl-8">"fbp": "fb.1.1719792000.12345...",</div>
+              <div className="pl-8">"external_id": "zb.12345678-90ab..."</div>
+              <div className="pl-4">&#125;</div>
+              <div>&#125;</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

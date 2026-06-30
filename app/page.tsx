@@ -1,5 +1,5 @@
 import { fetchProducts, fetchEnabledCollections, fetchPolicies, fetchCollectionByHandle } from "@/lib/shopify-admin";
-import prisma from "@/lib/db";
+import prisma, { getStoreSettings } from "@/lib/db";
 import NextImage from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -14,10 +14,46 @@ import RingCarouselSection from "@/components/RingCarouselSection";
 import SpotlightSection from "@/components/SpotlightSection";
 import LazyVideo from "@/components/LazyVideo";
 import { handleImageError } from "@/components/ImagePlaceholder";
+import { Metadata } from "next";
 
 export const dynamic = 'force-dynamic';
 
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getStoreSettings('homepage');
+  const title = settings?.homePageTitle || 'Zica Bella® | Premium Streetwear, Heavyweight Hoodies & Oversized Tees';
+  const description = settings?.metaDescription || 'Zica Bella crafts luxury Indian streetwear for modern men, oversized heavyweight tees, acid-wash finishes, cargos and modern denim designed for bold everyday style.';
+  const imageUrl = settings?.socialImageUrl || 'https://www.zicabella.com/og-image.jpg';
+  const twitterCardType = settings?.twitterCardType || 'summary_large_image';
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: settings?.socialImageAlt || title,
+        }
+      ],
+      url: 'https://zicabella.com',
+      siteName: 'Zica Bella',
+      type: 'website',
+    },
+    twitter: {
+      card: twitterCardType as any,
+      title,
+      description,
+      images: [imageUrl],
+    },
+  };
+}
+
 export default async function Home() {
+  const settings = await getStoreSettings('homepage');
   let shop: any = null;
   try {
     shop = await prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } });
@@ -593,7 +629,8 @@ export default async function Home() {
               "name": "Zica Bella",
               "url": "https://zicabella.com",
               "logo": "https://zicabella.com/zb-logo-220px.png",
-              "description": "Zica Bella® is recognized as India's premier luxury streetwear label and the fastest growing global fashion app. Redefining street culture with custom 240+ GSM heavyweight oversized graphic tees, vintage acid-wash shirts, custom loopback fleece hoodies, and raw-edge streetwear accessories for a relentless global community.",
+              "image": settings?.socialImageUrl || "https://zicabella.com/og-image.jpg",
+              "description": settings?.metaDescription || "Zica Bella® is recognized as India's premier luxury streetwear label and the fastest growing global fashion app. Redefining street culture with custom 240+ GSM heavyweight oversized graphic tees, vintage acid-wash shirts, custom loopback fleece hoodies, and raw-edge streetwear accessories for a relentless global community.",
               "slogan": "Redefine The Standard",
               "award": ["India's #1 Premium Streetwear Brand", "World's Fastest Growing Fashion Brand"],
               "aggregateRating": {

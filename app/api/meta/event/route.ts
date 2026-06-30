@@ -3,12 +3,22 @@ import { sendCapiEvent } from '@/lib/metaCapi';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
+function normalizePhone(p: string | undefined): string | undefined {
+  if (!p) return undefined;
+  const digits = p.replace(/\D/g, "");
+  let base = digits;
+  if (digits.length === 12 && digits.startsWith("91")) base = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith("0")) base = digits.slice(1);
+  return `91${base}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
       eventName,
       eventId,
+      eventTime, // Received from client for perfect browser-server timestamp sync
       eventSourceUrl,
       userAgent,
       userData,
@@ -16,7 +26,9 @@ export async function POST(req: NextRequest) {
       actionSource,
     } = body;
 
+    // Strict payload validation
     if (!eventName || !eventId || !eventSourceUrl || !userAgent) {
+      console.warn('[Meta CAPI Route] Rejected invalid payload: Missing required event metadata');
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -44,7 +56,8 @@ export async function POST(req: NextRequest) {
     const sessionUserData: Record<string, any> = {};
     if (session?.user) {
       sessionUserData.em = session.user.email || undefined;
-      sessionUserData.ph = (session.user as any).phone || (session as any).customer?.phone || undefined;
+      const rawPhone = (session.user as any).phone || (session as any).customer?.phone || undefined;
+      sessionUserData.ph = normalizePhone(rawPhone);
       const name = session.user.name;
       if (name) {
         const parts = name.trim().split(/\s+/);
@@ -70,11 +83,16 @@ export async function POST(req: NextRequest) {
       fb_login_id: fbLoginId || userData?.fb_login_id,
     };
 
-    console.log('[Meta CAPI Event Received]', eventName, { eventId, customData });
+    // Log identifier coverage summary (what identifiers are present, not the actual values)
+    const presentKeys = Object.entries(mergedUserData)
+      .filter(([_, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key]) => key);
+    console.log(`[Meta CAPI Event Received] ${eventName} — Deduplication ID: ${eventId} — Customer Identifiers Present: [${presentKeys.join(', ')}]`);
 
     const result = await sendCapiEvent({
       eventName,
       eventId,
+      eventTime, // Forward the exact event time generated on the client
       eventSourceUrl,
       userAgent,
       userData: mergedUserData,

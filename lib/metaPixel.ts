@@ -77,6 +77,19 @@ export const initPixel = (additionalData: Record<string, any> = {}) => {
   }
 };
 
+function cleanStringNoSpaces(val: string | undefined): string {
+  if (!val) return "";
+  return val.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function cleanCountry(country: string | undefined): string {
+  if (!country) return "";
+  const c = country.trim().toLowerCase();
+  if (c === 'india' || c === 'ind' || c === 'in') return 'in';
+  if (c === 'united states' || c === 'usa' || c === 'us' || c === 'united states of america') return 'us';
+  return c.replace(/[^a-z]/g, '').slice(0, 2);
+}
+
 export async function saveUserDataToCookies(data: {
   email?: string;
   phone?: string;
@@ -90,7 +103,7 @@ export async function saveUserDataToCookies(data: {
   if (typeof window === 'undefined') return;
 
   if (data.email) {
-    const hashedEmail = await sha256(data.email);
+    const hashedEmail = await sha256(data.email.trim().toLowerCase());
     setClientCookie('zb_guest_email', hashedEmail, 365);
   }
   if (data.phone) {
@@ -98,39 +111,39 @@ export async function saveUserDataToCookies(data: {
     let baseNumber = digits;
     if (digits.length === 12 && digits.startsWith("91")) baseNumber = digits.slice(2);
     else if (digits.length === 11 && digits.startsWith("0")) baseNumber = digits.slice(1);
-    const formattedPhone = `+91${baseNumber}`;
+    const formattedPhone = `91${baseNumber}`; // Only digits, no plus sign for Meta
     const hashedPhone = await sha256(formattedPhone);
     setClientCookie('zb_guest_phone', hashedPhone, 365);
   }
   if (data.name) {
     const parts = data.name.trim().split(/\s+/);
     if (parts[0]) {
-      const hashedFn = await sha256(parts[0]);
+      const hashedFn = await sha256(cleanStringNoSpaces(parts[0]));
       setClientCookie('zb_guest_fn', hashedFn, 365);
     }
     if (parts.length > 1) {
-      const hashedLn = await sha256(parts.slice(1).join(' '));
+      const hashedLn = await sha256(cleanStringNoSpaces(parts.slice(1).join('')));
       setClientCookie('zb_guest_ln', hashedLn, 365);
     }
   }
   if (data.city) {
-    const hashedCity = await sha256(data.city);
+    const hashedCity = await sha256(cleanStringNoSpaces(data.city));
     setClientCookie('zb_guest_ct', hashedCity, 365);
   }
   if (data.state) {
-    const hashedState = await sha256(data.state);
+    const hashedState = await sha256(cleanStringNoSpaces(data.state));
     setClientCookie('zb_guest_st', hashedState, 365);
   }
   if (data.zip) {
-    const hashedZip = await sha256(data.zip);
+    const hashedZip = await sha256(cleanStringNoSpaces(data.zip));
     setClientCookie('zb_guest_zp', hashedZip, 365);
   }
   if (data.country) {
-    const hashedCountry = await sha256(data.country);
+    const hashedCountry = await sha256(cleanCountry(data.country));
     setClientCookie('zb_guest_country', hashedCountry, 365);
   }
   if (data.fbLoginId) {
-    setClientCookie('zb_fb_login_id', data.fbLoginId, 365);
+    setClientCookie('zb_fb_login_id', data.fbLoginId.trim(), 365); // Do NOT hash fb_login_id
   }
 }
 

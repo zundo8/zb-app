@@ -30,6 +30,7 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
     "/web-store/banners",
     "/web-store/coupons",
     "/web-store/logins",
+    "/dashboard/webstore-settings/preferences",
   ],
   COMMUNITY: [
     "/dashboard/community/chat",
@@ -177,6 +178,8 @@ export default withAuth(
       // Web Store CMS mappings
       "/web-store": "STOREFRONT",
       "/api/web-store": "STOREFRONT",
+      "/dashboard/webstore-settings": "STOREFRONT",
+      "/api/webstore-settings": "STOREFRONT",
       
       // Admin API mappings for middleware double-guard
       "/api/admin/users": "ADMIN_USERS",
@@ -191,6 +194,7 @@ export default withAuth(
       "/api/web-store/banners": "/web-store/banners",
       "/api/web-store/coupons": "/web-store/coupons",
       "/api/web-store/logins": "/web-store/logins",
+      "/api/webstore-settings": "/dashboard/webstore-settings/preferences",
       "/api/admin/users": "/dashboard/admin-users",
       "/api/admin/audit-logs": "/dashboard/audit-log",
     };

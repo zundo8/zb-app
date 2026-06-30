@@ -1632,3 +1632,19 @@ model MfgEmployeePerformance {
   @@map("mfg_employee_performance")
 }
 
+model StoreSettings {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageKey         String   @unique @map("page_key")
+  homePageTitle   String?  @map("home_page_title")
+  metaDescription String?  @map("meta_description")
+  socialImageUrl  String?  @map("social_image_url")
+  socialImageAlt  String?  @map("social_image_alt")
+  twitterCardType String   @default("summary_large_image") @map("twitter_card_type")
+  updatedBy       String?  @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("store_settings")
+}
+
+
