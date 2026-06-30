@@ -45,6 +45,8 @@ interface Campaign {
   usageLimit?: number | null;
   usedCount: number;
   isActive: boolean;
+  autoApply: boolean;
+  isSecure: boolean;
   createdAt: string;
   webstoreSettings?: WebstoreSettings | null;
   appSettings?: AppSettings | null;
@@ -66,6 +68,8 @@ export default function UnifiedDiscountsPage() {
   const [validUntil, setValidUntil] = useState("");
   const [usageLimit, setUsageLimit] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [autoApply, setAutoApply] = useState(false);
+  const [isSecure, setIsSecure] = useState(false);
 
   // Web Store specific states
   const [webstoreDiscountType, setWebstoreDiscountType] = useState("percentage");
@@ -134,6 +138,8 @@ export default function UnifiedDiscountsPage() {
     setValidUntil("");
     setUsageLimit("");
     setIsActive(true);
+    setAutoApply(false);
+    setIsSecure(false);
 
     // Reset webstore form
     setWebstoreDiscountType("percentage");
@@ -178,6 +184,8 @@ export default function UnifiedDiscountsPage() {
     setValidUntil(formatToInputDate(campaign.validUntil));
     setUsageLimit(campaign.usageLimit ? String(campaign.usageLimit) : "");
     setIsActive(campaign.isActive);
+    setAutoApply(!!campaign.autoApply);
+    setIsSecure(!!campaign.isSecure);
 
     // Populate webstore fields if available
     if (campaign.webstoreSettings) {
@@ -285,6 +293,8 @@ export default function UnifiedDiscountsPage() {
       validUntil: validUntil ? new Date(validUntil).toISOString() : null,
       usageLimit: usageLimit ? parseInt(usageLimit) : null,
       isActive,
+      autoApply,
+      isSecure,
       webstoreSettings,
       appSettings
     };
@@ -455,7 +465,7 @@ export default function UnifiedDiscountsPage() {
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {campaign.targets.includes("webstore") && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-wider">
                             <Monitor className="w-3 h-3" /> Web
@@ -464,6 +474,16 @@ export default function UnifiedDiscountsPage() {
                         {campaign.targets.includes("app") && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider">
                             <Smartphone className="w-3 h-3" /> App
+                          </span>
+                        )}
+                        {campaign.autoApply && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
+                            Auto-Apply
+                          </span>
+                        )}
+                        {campaign.isSecure && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wider">
+                            Secure
                           </span>
                         )}
                       </div>
@@ -691,6 +711,37 @@ export default function UnifiedDiscountsPage() {
                     />
                   </div>
 
+                  {/* Campaign Auto Apply & Security Options */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-[2rem] bg-foreground/[0.02] border border-foreground/[0.05]">
+                    <div className="flex items-start gap-3">
+                      <input 
+                        type="checkbox"
+                        id="autoApplyToggle"
+                        checked={autoApply}
+                        onChange={(e) => setAutoApply(e.target.checked)}
+                        className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
+                      />
+                      <label htmlFor="autoApplyToggle" className="flex flex-col cursor-pointer select-none">
+                        <span className="text-[12px] font-bold text-foreground">Auto-Apply on Checkout</span>
+                        <span className="text-[9px] text-foreground/40 font-medium">Automatically rank and apply this discount when customer meets criteria.</span>
+                      </label>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <input 
+                        type="checkbox"
+                        id="isSecureToggle"
+                        checked={isSecure}
+                        onChange={(e) => setIsSecure(e.target.checked)}
+                        className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
+                      />
+                      <label htmlFor="isSecureToggle" className="flex flex-col cursor-pointer select-none">
+                        <span className="text-[12px] font-bold text-foreground">Secure Promotion (Manual Entry Only)</span>
+                        <span className="text-[9px] text-foreground/40 font-medium">Hide code from active listings and require manual typing to validate.</span>
+                      </label>
+                    </div>
+                  </div>
+
                   {/* ──────────────────────────────────────────────────────── */}
                   {/* Web Store Options Panel */}
                   {/* ──────────────────────────────────────────────────────── */}
@@ -765,7 +816,7 @@ export default function UnifiedDiscountsPage() {
                               type="checkbox"
                               checked={webstoreApplyAsStoreCredit}
                               onChange={(e) => setWebstoreApplyAsStoreCredit(e.target.checked)}
-                              className="w-5 h-5 rounded border-foreground/10 text-emerald-500 bg-transparent focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                              className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
                             />
                             <div className="flex flex-col">
                               <span className="text-[12px] font-bold text-foreground">Apply as Store Credit Discount</span>
@@ -833,18 +884,18 @@ export default function UnifiedDiscountsPage() {
                       {/* Webstore Cashback Reward options */}
                       <div className="p-4 rounded-2xl bg-foreground/[0.02] border border-foreground/[0.04] space-y-4">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 cursor-pointer select-none">
+                          <label className="flex items-center gap-3 cursor-pointer select-none">
                             <input 
                               type="checkbox"
                               checked={webstoreCashbackEnabled}
                               onChange={(e) => setWebstoreCashbackEnabled(e.target.checked)}
-                              className="w-5 h-5 rounded border-foreground/10 text-emerald-500 bg-transparent focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                              className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
                             />
                             <div className="flex flex-col">
                               <span className="text-[12px] font-bold text-foreground">Double Cashback Rewards</span>
                               <span className="text-[9px] text-foreground/40 font-medium">Issue store credits cashback upon successful order checkout (webstore).</span>
                             </div>
-                          </div>
+                          </label>
                         </div>
 
                         {webstoreCashbackEnabled && (
@@ -947,7 +998,7 @@ export default function UnifiedDiscountsPage() {
                               type="checkbox"
                               checked={appCashbackEnabled}
                               onChange={(e) => setAppCashbackEnabled(e.target.checked)}
-                              className="w-5 h-5 rounded border-foreground/10 text-emerald-500 bg-transparent focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                              className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
                             />
                             <div className="flex flex-col">
                               <span className="text-[12px] font-bold text-foreground">App Store Credit Cashback</span>
@@ -993,7 +1044,7 @@ export default function UnifiedDiscountsPage() {
                         id="isActiveToggle"
                         checked={isActive}
                         onChange={(e) => setIsActive(e.target.checked)}
-                        className="w-5 h-5 rounded border-foreground/10 text-emerald-500 bg-transparent focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                        className="w-5 h-5 rounded-lg border-2 border-foreground/10 bg-background checked:bg-foreground checked:border-foreground transition-all cursor-pointer appearance-none relative checked:after:content-['✓'] checked:after:absolute checked:after:inset-0 checked:after:flex checked:after:items-center checked:after:justify-center checked:after:text-background checked:after:text-[10px] checked:after:font-black"
                       />
                       <label htmlFor="isActiveToggle" className="text-xs font-bold uppercase tracking-wider text-foreground select-none cursor-pointer">
                         Promotion is Live & Active

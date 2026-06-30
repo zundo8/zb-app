@@ -611,7 +611,7 @@ export default function CheckoutPage() {
         coupon,
         calc: calculateCouponDiscount(coupon, subtotal, paymentMethod)
       }))
-      .filter(item => item.calc.eligible && (item.calc.discount > 0 || item.calc.cashbackAmount > 0))
+      .filter(item => item.coupon.autoApply && item.calc.eligible && (item.calc.discount > 0 || item.calc.cashbackAmount > 0))
       .sort((a, b) => {
         const immediateA = a.calc.applyAsStoreCredit ? 0 : a.calc.discount;
         const immediateB = b.calc.applyAsStoreCredit ? 0 : b.calc.discount;

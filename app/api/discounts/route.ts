@@ -30,6 +30,8 @@ export async function GET() {
         usageLimit: c.usageLimit,
         usedCount: c.usedCount,
         isActive: c.isActive,
+        autoApply: c.autoApply,
+        isSecure: c.isSecure,
         createdAt: c.createdAt,
         webstoreSettings: {
           discountType: c.discountType,
@@ -57,6 +59,8 @@ export async function GET() {
       if (existing) {
         existing.targets.push('app');
         existing.description = d.description || existing.description;
+        existing.autoApply = existing.autoApply || d.autoApply;
+        existing.isSecure = existing.isSecure || d.isSecure;
         existing.appSettings = {
           id: d.id,
           type: d.type,
@@ -78,6 +82,8 @@ export async function GET() {
           usageLimit: d.usageLimit,
           usedCount: d.usageCount,
           isActive: d.isActive,
+          autoApply: d.autoApply,
+          isSecure: d.isSecure,
           createdAt: d.createdAt,
           webstoreSettings: null,
           appSettings: {
@@ -118,6 +124,8 @@ export async function POST(req: Request) {
       validUntil,
       usageLimit,
       isActive,
+      autoApply,
+      isSecure,
       webstoreSettings,
       appSettings
     } = body;
@@ -150,6 +158,8 @@ export async function POST(req: Request) {
             validFrom: validFrom ? new Date(validFrom) : new Date(),
             validUntil: validUntil ? new Date(validUntil) : new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000), // 100 years fallback
             isActive: isActive !== undefined ? !!isActive : true,
+            autoApply: autoApply !== undefined ? !!autoApply : false,
+            isSecure: isSecure !== undefined ? !!isSecure : false,
             applicability: webstoreSettings.applicability || 'ALL',
             prepaidDiscountType: webstoreSettings.prepaidDiscountType || 'percentage',
             prepaidDiscountValue: parseFloat(webstoreSettings.prepaidDiscountValue || 0),
@@ -177,6 +187,8 @@ export async function POST(req: Request) {
             usageLimit: usageLimit ? parseInt(usageLimit) : null,
             usageCount: 0,
             isActive: isActive !== undefined ? !!isActive : true,
+            autoApply: autoApply !== undefined ? !!autoApply : false,
+            isSecure: isSecure !== undefined ? !!isSecure : false,
             description: description || '',
             cashbackEnabled: appSettings.cashbackEnabled !== undefined ? !!appSettings.cashbackEnabled : false,
             cashbackType: appSettings.cashbackType || 'percentage',

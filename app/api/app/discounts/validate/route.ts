@@ -59,6 +59,8 @@ export async function POST(req: Request) {
         type: discount.type,
         value: discount.value,
         discountAmount: Math.min(discountAmount, orderAmount),
+        autoApply: !!discount.autoApply,
+        isSecure: !!discount.isSecure,
       }
     });
   } catch (error: any) {

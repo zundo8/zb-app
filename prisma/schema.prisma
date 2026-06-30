@@ -1035,6 +1035,8 @@ model Discount {
   cashbackEnabled Boolean   @default(false)
   cashbackType    String    @default("percentage")
   cashbackValue   Float     @default(0)
+  autoApply       Boolean   @default(false) @map("auto_apply")
+  isSecure        Boolean   @default(false) @map("is_secure")
 
   @@index([code])
   @@index([isActive])
@@ -1473,6 +1475,8 @@ model WebStoreCoupon {
   cashbackEnabled      Boolean   @default(false) @map("cashback_enabled")
   cashbackType         String    @default("percentage") @map("cashback_type")
   cashbackValue        Decimal   @default(0) @map("cashback_value") @db.Decimal(10, 2)
+  autoApply            Boolean   @default(false) @map("auto_apply")
+  isSecure             Boolean   @default(false) @map("is_secure")
 
   @@map("web_store_coupons")
 }

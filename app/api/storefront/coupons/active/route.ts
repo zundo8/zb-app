@@ -13,6 +13,7 @@ export async function GET() {
       const coupons = await prisma.webStoreCoupon.findMany({
         where: {
           isActive: true,
+          isSecure: false,
           validFrom: { lte: now },
           validUntil: { gte: now },
         },
@@ -37,7 +38,7 @@ export async function GET() {
 
   try {
     const res = await fetch(
-      `${supabaseUrl}/rest/v1/web_store_coupons?select=*&is_active=eq.true&valid_from=lte.${now.toISOString()}&valid_until=gte.${now.toISOString()}&order=created_at.desc`,
+      `${supabaseUrl}/rest/v1/web_store_coupons?select=*&is_active=eq.true&is_secure=eq.false&valid_from=lte.${now.toISOString()}&valid_until=gte.${now.toISOString()}&order=created_at.desc`,
       {
         headers: {
           apikey: supabaseAnonKey,
@@ -74,6 +75,8 @@ export async function GET() {
       cashbackEnabled: c.cashback_enabled,
       cashbackType: c.cashback_type,
       cashbackValue: c.cashback_value,
+      autoApply: c.auto_apply,
+      isSecure: c.is_secure,
     }));
 
     const validCoupons = coupons.filter((coupon: any) => {
@@ -90,6 +93,7 @@ export async function GET() {
       const coupons = await prisma.webStoreCoupon.findMany({
         where: {
           isActive: true,
+          isSecure: false,
           validFrom: { lte: now },
           validUntil: { gte: now },
         },
