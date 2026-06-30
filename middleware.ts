@@ -167,6 +167,7 @@ export default withAuth(
       "/dashboard/production": "PRODUCTION_TRACKER",
       "/dashboard/financial": "FINANCIAL",
       "/dashboard/marketing": "MARKETING",
+      "/api/discounts": "MARKETING",
       "/dashboard/vendors": "VENDORS",
       "/dashboard/returns": "RETURNS_EXCHANGES",
       "/dashboard/analytics": "ANALYTICS",
