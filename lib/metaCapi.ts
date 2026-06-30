@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { graphUrl, validateTokenFormat, validatePixelIdFormat } from './metaErrors';
+import { fetchMetaApi } from './metaApiLogger';
 
 const PIXEL_ID = process.env.META_PIXEL_ID!;
 const ACCESS_TOKEN = process.env.META_CAPI_ACCESS_TOKEN!;
@@ -41,7 +43,20 @@ export interface CapiEventPayload {
   actionSource?: 'website' | 'app' | 'email' | 'phone_call' | 'physical_store' | 'system_generated' | 'other';
 }
 
-export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ success: boolean; data?: any; error?: any }> {
+export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ success: boolean; data?: any; error?: any; fbtrace_id?: string }> {
+  // Pre-request validation
+  const tokenErr = validateTokenFormat(ACCESS_TOKEN);
+  if (tokenErr) {
+    console.error('[Meta CAPI] Token validation failed:', tokenErr);
+    return { success: false, error: tokenErr };
+  }
+
+  const pixelErr = validatePixelIdFormat(PIXEL_ID);
+  if (pixelErr) {
+    console.error('[Meta CAPI] Pixel ID validation failed:', pixelErr);
+    return { success: false, error: pixelErr };
+  }
+
   const body: Record<string, any> = {
     data: [
       {
@@ -79,23 +94,29 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
     body.test_event_code = TEST_EVENT_CODE;
   }
 
-  const url = `https://graph.facebook.com/v25.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
+  const url = graphUrl(`/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`);
 
   try {
-    const res = await fetch(url, {
+    const { data: resJson, logEntry } = await fetchMetaApi(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body,
+      label: `POST /${PIXEL_ID}/events [${payload.eventName}]`,
     });
 
-    const resJson = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
+    if (!logEntry.success) {
       console.error('[Meta CAPI Error]', resJson);
-      return { success: false, error: resJson };
+      return {
+        success: false,
+        error: resJson,
+        fbtrace_id: logEntry.fbtrace_id,
+      };
     }
 
-    return { success: true, data: resJson };
+    return {
+      success: true,
+      data: resJson,
+      fbtrace_id: logEntry.fbtrace_id,
+    };
   } catch (err: any) {
     console.error('[Meta CAPI Catch Error]', err);
     return { success: false, error: err.message || 'Fetch failed' };

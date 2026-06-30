@@ -4,7 +4,9 @@ import {
   parseMetaError,
   validateTokenFormat,
   validatePixelIdFormat,
+  META_GRAPH_API_VERSION,
 } from '@/lib/metaErrors';
+import { fetchMetaApi } from '@/lib/metaApiLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,101 +32,91 @@ export async function GET() {
   }
 
   try {
-    // Make parallel requests to the correct Graph API v25.0 endpoints
-    const [pixelRes, statsRes, lastFiredRes] = await Promise.allSettled([
-      // 1. Basic pixel/dataset info
-      fetch(
-        graphUrl(`/${PIXEL_ID}?fields=name,creation_time,id&access_token=${ACCESS_TOKEN}`),
-        { cache: 'no-store' }
-      ),
-      // 2. Stats via the stats edge (not a field)
-      fetch(
-        graphUrl(`/${PIXEL_ID}/stats?access_token=${ACCESS_TOKEN}`),
-        { cache: 'no-store' }
-      ),
-      // 3. Last fired time via the dedicated edge
-      fetch(
-        graphUrl(`/${PIXEL_ID}/event_last_fired_time?access_token=${ACCESS_TOKEN}`),
-        { cache: 'no-store' }
-      ),
-    ]);
+    // Fetch pixel info with all available fields in a single request.
+    // Using event_time_max instead of the deprecated event_last_fired_time edge.
+    // Using event_stats as a field instead of the separate /stats edge.
+    const pixelFields = 'name,creation_time,id,event_time_max,event_time_min,event_stats';
 
-    // Parse all responses
-    const pixelData = pixelRes.status === 'fulfilled' ? await pixelRes.value.json().catch(() => null) : null;
-    const statsData = statsRes.status === 'fulfilled' ? await statsRes.value.json().catch(() => null) : null;
-    const lastFiredData = lastFiredRes.status === 'fulfilled' ? await lastFiredRes.value.json().catch(() => null) : null;
+    const { data: pixelData, logEntry: pixelLogEntry } = await fetchMetaApi(
+      graphUrl(`/${PIXEL_ID}?fields=${pixelFields}&access_token=${ACCESS_TOKEN}`),
+      { label: `GET /${PIXEL_ID} [dashboard]` }
+    );
 
-    // Check primary pixel request for errors
-    if (pixelRes.status === 'fulfilled' && !pixelRes.value.ok) {
-      const diagnostic = parseMetaError(pixelData, `GET /${PIXEL_ID}?fields=name,creation_time,id`);
+    // Check for errors in the primary pixel request
+    if (!pixelLogEntry.success || pixelData?.error) {
+      // If the combined request fails, try a minimal request to identify which fields are the problem
+      const diagnostic = parseMetaError(pixelData, `GET /${PIXEL_ID}?fields=${pixelFields}`, pixelFields);
       console.error('[Meta Event Stats API Error]', JSON.stringify(diagnostic, null, 2));
+
+      // Attempt a fallback with minimal fields
+      let fallbackData: any = null;
+      try {
+        const { data: fb, logEntry: fbLog } = await fetchMetaApi(
+          graphUrl(`/${PIXEL_ID}?fields=name,id,creation_time&access_token=${ACCESS_TOKEN}`),
+          { label: `GET /${PIXEL_ID} [fallback]` }
+        );
+        if (fbLog.success && !fb?.error) {
+          fallbackData = fb;
+        }
+      } catch {
+        // Fallback also failed — return the original error
+      }
+
+      if (fallbackData) {
+        // Return partial data from fallback + the original error as a warning
+        return NextResponse.json({
+          id: fallbackData.id || PIXEL_ID,
+          name: fallbackData.name || null,
+          creation_time: fallbackData.creation_time || null,
+          event_time_max: null,
+          event_time_min: null,
+          event_stats: [],
+          _sync: {
+            timestamp: new Date().toISOString(),
+            api_version: META_GRAPH_API_VERSION,
+            pixel_ok: true,
+            stats_ok: false,
+            last_fired_ok: false,
+          },
+          _warnings: [diagnostic],
+        });
+      }
+
       return NextResponse.json(
         { error: diagnostic },
-        { status: pixelRes.value.status }
+        { status: pixelLogEntry.httpStatus || 400 }
       );
     }
 
-    if (pixelRes.status === 'rejected') {
-      console.error('[Meta Event Stats Network Error]', pixelRes.reason);
-      return NextResponse.json(
-        { error: { summary: 'Network Error', detail: 'Failed to connect to Meta Graph API. Check your server network connectivity.', code: 'NETWORK_ERROR' } },
-        { status: 502 }
-      );
-    }
-
-    // Check for error in pixel data (API returned 200 but with error body)
-    if (pixelData?.error) {
-      const diagnostic = parseMetaError(pixelData, `GET /${PIXEL_ID}?fields=name,creation_time,id`);
-      console.error('[Meta Event Stats API Error]', JSON.stringify(diagnostic, null, 2));
-      return NextResponse.json(
-        { error: diagnostic },
-        { status: 400 }
-      );
-    }
-
-    // Build the response with whatever data succeeded
+    // Build the response from the single request
     const response: Record<string, any> = {
       // Primary pixel info
       id: pixelData?.id || PIXEL_ID,
       name: pixelData?.name || null,
       creation_time: pixelData?.creation_time || null,
 
-      // Last fired time (from dedicated edge)
-      last_fired_time: null,
+      // Timestamps from the pixel node
+      event_time_max: pixelData?.event_time_max || null,
+      event_time_min: pixelData?.event_time_min || null,
 
-      // Stats (from dedicated edge)
-      stats: { data: [] },
+      // Formatted last fired time for dashboard display
+      last_fired_time: pixelData?.event_time_max || null,
+
+      // Event stats from the field (not the edge)
+      event_stats: pixelData?.event_stats || [],
+
+      // Legacy compat: wrap stats in { data: [...] }
+      stats: { data: pixelData?.event_stats || [] },
 
       // Sync metadata
       _sync: {
         timestamp: new Date().toISOString(),
-        api_version: 'v25.0',
+        api_version: META_GRAPH_API_VERSION,
         pixel_ok: !!pixelData?.id,
-        stats_ok: false,
-        last_fired_ok: false,
+        stats_ok: Array.isArray(pixelData?.event_stats) && pixelData.event_stats.length > 0,
+        last_fired_ok: !!pixelData?.event_time_max,
       },
     };
-
-    // Process last_fired_time edge response
-    if (lastFiredRes.status === 'fulfilled' && lastFiredRes.value.ok && lastFiredData && !lastFiredData.error) {
-      // The edge may return {data: [{event_fired_time: ...}]} or {event_fired_time: ...}
-      if (lastFiredData.data && Array.isArray(lastFiredData.data) && lastFiredData.data.length > 0) {
-        response.last_fired_time = lastFiredData.data[0].event_fired_time || lastFiredData.data[0].time || null;
-      } else if (lastFiredData.event_fired_time) {
-        response.last_fired_time = lastFiredData.event_fired_time;
-      }
-      response._sync.last_fired_ok = true;
-    } else if (lastFiredData?.error) {
-      console.warn('[Meta Last Fired Time Warning]', lastFiredData.error.message);
-    }
-
-    // Process stats edge response
-    if (statsRes.status === 'fulfilled' && statsRes.value.ok && statsData && !statsData.error) {
-      response.stats = statsData;
-      response._sync.stats_ok = true;
-    } else if (statsData?.error) {
-      console.warn('[Meta Stats Warning]', statsData.error.message);
-    }
 
     return NextResponse.json(response);
   } catch (err: any) {

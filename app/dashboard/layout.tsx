@@ -404,96 +404,113 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             )}
 
-            <div>
-              <SectionLabel>Logistics</SectionLabel>
-              <div className="space-y-0.5">
-                {filterNav(operationalNav).map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
+            {filterNav(operationalNav).length > 0 && (
+              <div>
+                <SectionLabel>Logistics</SectionLabel>
+                <div className="space-y-0.5">
+                  {filterNav(operationalNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <SectionLabel>Experience</SectionLabel>
-              <div className="space-y-0.5">
-                {filterNav(aestheticNav).map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
+            {filterNav(aestheticNav).length > 0 && (
+              <div>
+                <SectionLabel>Experience</SectionLabel>
+                <div className="space-y-0.5">
+                  {filterNav(aestheticNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <SectionLabel>Financial</SectionLabel>
-              <div className="space-y-0.5">
-                {filterNav(financialNav).map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
+            {filterNav(financialNav).length > 0 && (
+              <div>
+                <SectionLabel>Financial</SectionLabel>
+                <div className="space-y-0.5">
+                  {filterNav(financialNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <SectionLabel>Integration</SectionLabel>
-              <div className="space-y-0.5">
-                {filterNav(integrationNav).map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
+            {filterNav(integrationNav).length > 0 && (
+              <div>
+                <SectionLabel>Integration</SectionLabel>
+                <div className="space-y-0.5">
+                  {filterNav(integrationNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <div className="mb-2 px-5 flex items-center gap-2">
-                <Sparkles className="w-3 h-3 text-violet-400" strokeWidth={2} />
-                <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
-                  Intelligence
-                </span>
+            {filterNav(intelligenceNav).length > 0 && (
+              <div>
+                <div className="mb-2 px-5 flex items-center gap-2">
+                  <Sparkles className="w-3 h-3 text-violet-400" strokeWidth={2} />
+                  <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
+                    Intelligence
+                  </span>
+                </div>
+                <div className="space-y-0.5">
+                  {filterNav(intelligenceNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-0.5">
-                {filterNav(intelligenceNav).map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="mb-2 px-5 flex items-center gap-2">
-                <Megaphone className="w-3 h-3 text-foreground/40" strokeWidth={2} />
-                <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
-                  Marketing
-                </span>
-              </div>
-              <div className="space-y-0.5">
-                {filterNav(marketingNav).map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
-              </div>
-            </div>
+            )}
 
-            <div>
-              <div className="mb-2 px-5 flex items-center gap-2">
-                <MessageCircle className="w-3 h-3 text-emerald-400" strokeWidth={2} />
-                <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
-                  WhatsApp Events
-                </span>
+            {filterNav(marketingNav).length > 0 && (
+              <div>
+                <div className="mb-2 px-5 flex items-center gap-2">
+                  <Megaphone className="w-3 h-3 text-foreground/40" strokeWidth={2} />
+                  <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
+                    Marketing
+                  </span>
+                </div>
+                <div className="space-y-0.5">
+                  {filterNav(marketingNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-0.5">
-                {filterNav(whatsappEventsNav).map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
-              </div>
-            </div>
+            )}
 
-            <div>
-              <div className="mb-2 px-5 flex items-center gap-2">
-                <Building2 className="w-3 h-3 text-foreground/40" strokeWidth={2} />
-                <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
-                  Manufacturing
-                </span>
+            {filterNav(whatsappEventsNav).length > 0 && (
+              <div>
+                <div className="mb-2 px-5 flex items-center gap-2">
+                  <MessageCircle className="w-3 h-3 text-emerald-400" strokeWidth={2} />
+                  <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
+                    WhatsApp Events
+                  </span>
+                </div>
+                <div className="space-y-0.5">
+                  {filterNav(whatsappEventsNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-0.5">
-                {filterNav(manufacturingNav).map((item) => (
-                  <NavLink key={item.name} item={item} />
-                ))}
+            )}
+
+            {filterNav(manufacturingNav).length > 0 && (
+              <div>
+                <div className="mb-2 px-5 flex items-center gap-2">
+                  <Building2 className="w-3 h-3 text-foreground/40" strokeWidth={2} />
+                  <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
+                    Manufacturing
+                  </span>
+                </div>
+                <div className="space-y-0.5">
+                  {filterNav(manufacturingNav).map((item) => (
+                    <NavLink key={item.name} item={item} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {filterNav(systemNav).length > 0 && (
               <div>

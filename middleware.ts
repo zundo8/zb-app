@@ -1,10 +1,103 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
+const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
+  DASHBOARD_HOME: ["/dashboard"],
+  SUPPORT: ["/dashboard/support"],
+  ORDERS: ["/dashboard/orders"],
+  MOBILE_ORDERS: ["/dashboard/mobile-orders"],
+  CUSTOMERS: ["/dashboard/customers"],
+  PRODUCTS: [
+    "/dashboard/products",
+    "/dashboard/collections"
+  ],
+  INVENTORY: [
+    "/dashboard/inventory",
+    "/dashboard/inventory/scanner",
+    "/dashboard/scanner-records",
+    "/dashboard/price-tags",
+  ],
+  LOGISTICS: ["/dashboard/logistics"],
+  RETURNS_EXCHANGES: [
+    "/dashboard/returns",
+    "/dashboard/exchanges"
+  ],
+  STOREFRONT: [
+    "/web-store",
+    "/web-store/orders",
+    "/web-store/customers",
+    "/web-store/storefront",
+    "/web-store/banners",
+    "/web-store/coupons",
+    "/web-store/logins",
+  ],
+  COMMUNITY: [
+    "/dashboard/community/chat",
+    "/dashboard/community",
+    "/dashboard/blogs",
+  ],
+  MARKETING: [
+    "/dashboard/marketing/seo",
+    "/dashboard/marketing/analytics",
+    "/dashboard/marketing/meta-pixel",
+    "/dashboard/wishlist",
+    "/dashboard/notifications",
+    "/dashboard/marketing/discounts",
+    "/dashboard/marketing/whatsapp",
+    "/dashboard/marketing/email",
+    "/dashboard/marketing/sms",
+    "/dashboard/whatsapp-events/overview",
+    "/dashboard/whatsapp-events/events",
+    "/dashboard/whatsapp-events/campaign-analytics",
+    "/dashboard/whatsapp-events/templates",
+    "/dashboard/whatsapp-events/customer-journeys",
+    "/dashboard/whatsapp-events/meta-review",
+  ],
+  FINANCIAL: [
+    "/dashboard/payments",
+    "/dashboard/payments/store-credits",
+    "/dashboard/payments/refunds",
+  ],
+  MANUFACTURING: [
+    "/dashboard/manufacturing",
+    "/dashboard/manufacturing/designs",
+    "/dashboard/manufacturing/samples",
+    "/dashboard/manufacturing/tasks",
+    "/dashboard/manufacturing/production",
+    "/dashboard/manufacturing/fabric",
+    "/dashboard/manufacturing/movement",
+    "/dashboard/manufacturing/vendors",
+    "/dashboard/manufacturing/costs",
+    "/dashboard/manufacturing/knowledge-base",
+    "/dashboard/manufacturing/employees",
+    "/dashboard/manufacturing/reports",
+  ],
+  INTEGRATIONS: [
+    "/dashboard/app-integration",
+    "/dashboard/live-carts",
+    "/dashboard/app-logins",
+    "/dashboard/payments/razorpay",
+  ],
+  AI_SERVICES: [
+    "/dashboard/ai",
+    "/dashboard/ai/admin",
+    "/dashboard/ai/user",
+    "/dashboard/ai/training",
+  ],
+  SETTINGS: ["/dashboard/settings"],
+  ADMIN_USERS: ["/dashboard/admin-users"],
+  AUDIT_LOG: ["/dashboard/audit-log"],
+};
+
 export default withAuth(
-  function middleware(req) {
+  async function middleware(req) {
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
+
+    // Allow login page to load without checks to avoid redirect loop
+    if (pathname === '/dashboard/login') {
+      return NextResponse.next();
+    }
 
     // Allow webhook routes through without auth (Meta WhatsApp, Shopify, etc.)
     if (pathname.startsWith('/api/webhooks')) {
@@ -79,6 +172,7 @@ export default withAuth(
       "/dashboard/settings": "SETTINGS",
       "/dashboard/admin-users": "ADMIN_USERS",
       "/dashboard/audit-log": "AUDIT_LOG",
+      "/dashboard": "DASHBOARD_HOME",
       
       // Web Store CMS mappings
       "/web-store": "STOREFRONT",
@@ -101,7 +195,10 @@ export default withAuth(
       "/api/admin/audit-logs": "/dashboard/audit-log",
     };
 
-    for (const [route, moduleName] of Object.entries(moduleMap)) {
+    // Sort routes by length descending so that longest match runs first (e.g. /dashboard/admin-users before /dashboard)
+    const sortedRoutes = Object.keys(moduleMap).sort((a, b) => b.length - a.length);
+
+    for (const route of sortedRoutes) {
       if (pathname.startsWith(route)) {
         // Allow public GET requests on banners API
         if (pathname === "/api/web-store/banners" && req.method === "GET") {
@@ -109,42 +206,78 @@ export default withAuth(
         }
 
         const permissions = (token?.permissions as any[]) || [];
-        const permission = permissions.find(p => p.module === moduleName);
+        const permission = permissions.find(p => p.module === moduleMap[route]);
         
         const isApi = pathname.startsWith('/api/');
         let hasAccess = false;
         
-        if (permission) {
-          if (isApi) {
-            // For API endpoints, mutating methods (POST, PUT, DELETE, PATCH) require canEdit
-            const isWrite = ["POST", "PUT", "DELETE", "PATCH"].includes(req.method);
-            if (isWrite) {
-              hasAccess = req.method === "DELETE" ? permission.canDelete || permission.canEdit : permission.canEdit;
+        // 1. Run real-time check using secure internal API
+        try {
+          const checkUrl = new URL(`/api/admin/users/check-permissions`, req.url);
+          checkUrl.searchParams.set("userId", token?.id as string);
+          checkUrl.searchParams.set("module", moduleMap[route]);
+          checkUrl.searchParams.set("path", pathname);
+          checkUrl.searchParams.set("method", req.method);
+          
+          const res = await fetch(checkUrl.toString(), {
+            headers: {
+              "x-internal-secret": process.env.INTERNAL_API_SECRET || ""
+            }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            hasAccess = data.hasAccess;
+          } else {
+            throw new Error(`Response status: ${res.status}`);
+          }
+        } catch (err) {
+          console.warn("Middleware real-time permissions check failed, falling back to token validation:", err);
+          
+          // Fallback to token permissions
+          if (permission) {
+            if (isApi) {
+              const isWrite = ["POST", "PUT", "DELETE", "PATCH"].includes(req.method);
+              if (isWrite) {
+                hasAccess = req.method === "DELETE" ? permission.canDelete || permission.canEdit : permission.canEdit;
+              } else {
+                hasAccess = permission.canView;
+              }
             } else {
               hasAccess = permission.canView;
             }
-          } else {
-            hasAccess = permission.canView;
-          }
 
-          // Enforce granular page-level checks if permission.pages is set
-          if (hasAccess && permission.pages) {
-            const allowedPages = (permission.pages as string).split(',');
-            if (isApi) {
-              let targetPage: string | null = null;
-              for (const [apiPrefix, pageRoute] of Object.entries(apiPageMap)) {
-                if (pathname.startsWith(apiPrefix)) {
-                  targetPage = pageRoute;
-                  break;
+            // Enforce granular page-level check with crossing prevention
+            if (hasAccess && permission.pages) {
+              const allowedPages = (permission.pages as string).split(',');
+              const knownPagesForModule = ALL_KNOWN_MODULE_PAGES[moduleMap[route]] || [];
+              if (isApi) {
+                let targetPage: string | null = null;
+                for (const [apiPrefix, pageRoute] of Object.entries(apiPageMap)) {
+                  if (pathname.startsWith(apiPrefix)) {
+                    targetPage = pageRoute;
+                    break;
+                  }
                 }
+                if (targetPage && !allowedPages.includes(targetPage)) {
+                  hasAccess = false;
+                }
+              } else {
+                let isAllowed = false;
+                for (const allowedPage of allowedPages) {
+                  if (pathname === allowedPage || pathname.startsWith(allowedPage + "/")) {
+                    const isCrossingIntoOtherRestrictedPage = knownPagesForModule.some(kp => 
+                      kp !== allowedPage && 
+                      !allowedPages.includes(kp) && 
+                      (pathname === kp || pathname.startsWith(kp + "/"))
+                    );
+                    if (!isCrossingIntoOtherRestrictedPage) {
+                      isAllowed = true;
+                      break;
+                    }
+                  }
+                }
+                hasAccess = isAllowed;
               }
-              if (targetPage && !allowedPages.includes(targetPage)) {
-                hasAccess = false;
-              }
-            } else {
-              hasAccess = allowedPages.some(allowedPage => 
-                pathname === allowedPage || pathname.startsWith(allowedPage + "/")
-              );
             }
           }
         }
@@ -152,7 +285,7 @@ export default withAuth(
         if (!hasAccess) {
           if (isApi) {
             return new NextResponse(
-              JSON.stringify({ error: `Forbidden: Insufficient permissions for module ${moduleName}` }), 
+              JSON.stringify({ error: `Forbidden: Insufficient permissions for module ${moduleMap[route]}` }), 
               {
                 status: 403,
                 headers: { "Content-Type": "application/json" }
@@ -162,6 +295,9 @@ export default withAuth(
             return NextResponse.redirect(new URL("/unauthorized", req.url));
           }
         }
+        
+        // Match found and verified, skip other routes
+        break;
       }
     }
 

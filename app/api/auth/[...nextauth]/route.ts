@@ -852,11 +852,31 @@ export const authOptions: AuthOptions = {
       if (token && session.user) {
         (session.user as any).id = token.id ?? null;
         (session.user as any).role = token.role ?? "CUSTOMER";
-        (session.user as any).permissions = token.permissions ?? null;
         (session.user as any).needsPasswordChange = token.needsPasswordChange ?? null;
         (session.user as any).phone = token.phone ?? null;
         (session.user as any).email = token.email || session.user.email || null;
         (session.user as any).image = token.image || session.user.image || null;
+        
+        // Fetch fresh permissions from DB in real-time for administrators
+        if (token.role === "ADMIN" || token.role === "SUPER_ADMIN") {
+          try {
+            const freshPermissions = await prisma.permission.findMany({
+              where: { userId: token.id as string }
+            });
+            (session.user as any).permissions = freshPermissions.map(p => ({
+              module: p.module,
+              canView: p.canView,
+              canEdit: p.canEdit,
+              canDelete: p.canDelete,
+              pages: p.pages,
+            }));
+          } catch (err) {
+            console.error("[Session fresh permissions] Error fetching fresh permissions:", err);
+            (session.user as any).permissions = token.permissions ?? null;
+          }
+        } else {
+          (session.user as any).permissions = null;
+        }
         
         // Populate session.customer object to match frontend usage
         (session as any).customer = {
