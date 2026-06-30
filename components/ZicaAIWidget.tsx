@@ -83,13 +83,22 @@ export default function ZicaAIWidget() {
             onClick={() => setIsOpen(true)}
             className={
               isPublic
-                ? "fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] md:bottom-5 right-4 md:right-5 z-[100] w-10 h-10 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all duration-300 group apple-glass-capsule liquid-glass-hover-sweep"
-                : "fixed bottom-5 right-5 z-[100] w-10 h-10 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all duration-300 group apple-glass-capsule liquid-glass-hover-sweep"
+                ? "fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] md:bottom-5 right-4 md:right-5 z-[100] w-12 h-12 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all duration-300 group apple-glass-capsule liquid-glass-hover-sweep"
+                : "fixed bottom-5 right-5 z-[100] w-12 h-12 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all duration-300 group apple-glass-capsule liquid-glass-hover-sweep"
             }
+            style={{
+              position: "fixed",
+              zIndex: 9999,
+              bottom: isPublic ? "calc(5rem + env(safe-area-inset-bottom, 0px))" : "20px",
+              right: "20px",
+              background: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.06)",
+              border: isDark ? "1px solid rgba(255, 255, 255, 0.2)" : "1px solid rgba(0, 0, 0, 0.1)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.25)"
+            }}
             aria-label="Zica AI"
           >
             <div className="apple-glass-sweep-glow" />
-            <Sparkles className="w-4 h-4 text-foreground/50 group-hover:text-foreground/80 group-hover:rotate-12 transition-all duration-300 z-10" />
+            <Sparkles className="w-5 h-5 text-foreground/50 group-hover:text-foreground/80 group-hover:rotate-12 transition-all duration-300 z-10" />
           </motion.button>
         )}
       </AnimatePresence>
@@ -107,6 +116,15 @@ export default function ZicaAIWidget() {
                 ? "fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full md:w-[calc(100vw-2rem)] md:max-w-[420px] h-[100dvh] md:h-[min(640px,calc(100dvh-3rem))] rounded-none md:rounded-[1.75rem] z-[100] flex flex-col overflow-hidden transition-all duration-500 apple-glass-capsule"
                 : "fixed bottom-5 right-5 w-[calc(100vw-2rem)] sm:w-[380px] h-[520px] rounded-2xl z-[100] flex flex-col overflow-hidden transition-all duration-500 apple-glass-capsule"
             }
+            style={{
+              position: "fixed",
+              zIndex: 9999,
+              background: isDark ? "rgba(10, 10, 12, 0.85)" : "rgba(255, 255, 255, 0.88)",
+              border: isDark ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid rgba(0, 0, 0, 0.06)",
+              boxShadow: isDark 
+                ? "0 24px 64px -12px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.15)"
+                : "0 24px 64px -12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6)"
+            }}
           >
             {/* Header */}
             <div className="relative z-10 flex items-center justify-between px-5 py-3 shrink-0 transition-colors duration-500"
