@@ -35,6 +35,7 @@ export async function PATCH(
             canView: p.canView,
             canEdit: p.canEdit,
             canDelete: p.canDelete,
+            pages: p.pages && p.pages.length > 0 ? p.pages.join(',') : null,
           }))
         } : undefined
       },

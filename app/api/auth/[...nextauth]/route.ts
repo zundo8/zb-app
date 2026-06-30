@@ -742,6 +742,7 @@ export const authOptions: AuthOptions = {
               canView: p.canView,
               canEdit: p.canEdit,
               canDelete: p.canDelete,
+              pages: p.pages,
             }))
           };
         } catch (error: any) {

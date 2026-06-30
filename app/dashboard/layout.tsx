@@ -230,8 +230,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return perm?.canView;
   }, [userRole, userPermissions]);
 
+  const hasPageAccess = useCallback((item: { href: string; module?: string }) => {
+    if (userRole === 'SUPER_ADMIN') return true;
+    if (!item.module) return true;
+
+    const perm = userPermissions.find((p: any) => p.module === item.module);
+    if (!perm || !perm.canView) return false;
+
+    if (perm.pages) {
+      const allowedPages = (perm.pages as string).split(',');
+      return allowedPages.includes(item.href);
+    }
+
+    return true;
+  }, [userRole, userPermissions]);
+
   const filterNav = (navItems: any[]) => {
-    return navItems.filter(item => !item.module || hasPermission(item.module));
+    return navItems.filter(item => hasPageAccess(item));
   };
 
   const isSuperAdmin = (session?.user as any)?.role === 'SUPER_ADMIN';

@@ -1224,6 +1224,7 @@ model Permission {
   canView   Boolean @default(false)
   canEdit   Boolean @default(false)
   canDelete Boolean @default(false)
+  pages     String? // Comma-separated list of allowed page paths/IDs
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, module])

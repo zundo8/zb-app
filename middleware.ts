@@ -90,6 +90,17 @@ export default withAuth(
     };
 
     // Check module-specific page/API access
+    const apiPageMap: Record<string, string> = {
+      "/api/web-store/stats": "/web-store",
+      "/api/web-store/orders": "/web-store/orders",
+      "/api/web-store/customers": "/web-store/customers",
+      "/api/web-store/banners": "/web-store/banners",
+      "/api/web-store/coupons": "/web-store/coupons",
+      "/api/web-store/logins": "/web-store/logins",
+      "/api/admin/users": "/dashboard/admin-users",
+      "/api/admin/audit-logs": "/dashboard/audit-log",
+    };
+
     for (const [route, moduleName] of Object.entries(moduleMap)) {
       if (pathname.startsWith(route)) {
         // Allow public GET requests on banners API
@@ -114,6 +125,27 @@ export default withAuth(
             }
           } else {
             hasAccess = permission.canView;
+          }
+
+          // Enforce granular page-level checks if permission.pages is set
+          if (hasAccess && permission.pages) {
+            const allowedPages = (permission.pages as string).split(',');
+            if (isApi) {
+              let targetPage: string | null = null;
+              for (const [apiPrefix, pageRoute] of Object.entries(apiPageMap)) {
+                if (pathname.startsWith(apiPrefix)) {
+                  targetPage = pageRoute;
+                  break;
+                }
+              }
+              if (targetPage && !allowedPages.includes(targetPage)) {
+                hasAccess = false;
+              }
+            } else {
+              hasAccess = allowedPages.some(allowedPage => 
+                pathname === allowedPage || pathname.startsWith(allowedPage + "/")
+              );
+            }
           }
         }
         

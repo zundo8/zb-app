@@ -60,6 +60,7 @@ export async function POST(req: Request) {
             canView: p.canView,
             canEdit: p.canEdit,
             canDelete: p.canDelete,
+            pages: p.pages && p.pages.length > 0 ? p.pages.join(',') : null,
           }))
         }
       },
