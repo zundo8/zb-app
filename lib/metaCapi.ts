@@ -79,7 +79,7 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
     body.test_event_code = TEST_EVENT_CODE;
   }
 
-  const url = `https://graph.facebook.com/v19.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
+  const url = `https://graph.facebook.com/v25.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
 
   try {
     const res = await fetch(url, {

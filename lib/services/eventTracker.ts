@@ -147,7 +147,7 @@ export const eventTracker = {
           ]
         };
 
-        const metaUrl = `https://graph.facebook.com/v20.0/${datasetId}/events?access_token=${accessToken}`;
+        const metaUrl = `https://graph.facebook.com/v25.0/${datasetId}/events?access_token=${accessToken}`;
         const requestPayloadStr = JSON.stringify(payload, null, 2);
 
         const response = await axios.post(metaUrl, payload);
