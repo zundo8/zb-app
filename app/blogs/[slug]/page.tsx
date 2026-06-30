@@ -3,12 +3,45 @@ import prisma from "@/lib/db";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
-
-export const revalidate = 3600; // ISR: revalidate every hour
+import { Metadata } from "next";
 
 interface BlogPostProps {
   params: {
     slug: string;
+  };
+}
+
+// Generate dynamic SEO metadata for search engines and crawlers
+export async function generateMetadata({ params }: BlogPostProps): Promise<Metadata> {
+  const post = await prisma.blogPost.findUnique({
+    where: { slug: params.slug },
+  });
+
+  if (!post || !post.published) {
+    return {};
+  }
+
+  const title = post.metaTitle || post.title;
+  const description = post.metaDescription || post.excerpt || "";
+  const robots = post.indexPref === false ? "noindex, nofollow" : "index, follow";
+
+  return {
+    title,
+    description,
+    robots,
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      url: `https://zicabella.com/blogs/${post.slug}`,
+      images: post.coverImage ? [{ url: post.coverImage }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: post.coverImage ? [post.coverImage] : undefined,
+    }
   };
 }
 
@@ -111,6 +144,21 @@ export default async function BlogPostPage({ params }: BlogPostProps) {
             className="prose prose-lg max-w-none animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 font-sans"
             dangerouslySetInnerHTML={{ __html: post.content }}
           />
+
+          {/* Backlink Anchor */}
+          {post.backlinkUrl && (
+            <div className="mt-16 pt-8 border-t border-foreground/[0.08] text-sm animate-in fade-in">
+              <span className="text-muted-foreground font-light mr-2">Reference:</span>
+              <a 
+                href={post.backlinkUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-foreground hover:underline font-bold decoration-foreground/35 underline-offset-4"
+              >
+                {post.backlinkText || post.backlinkUrl}
+              </a>
+            </div>
+          )}
 
           <div className="mt-24 pt-12 border-t border-foreground/5 text-center animate-in fade-in">
              <p className="font-sans text-xs uppercase tracking-widest text-muted-foreground/40 font-medium">The Zica Bella Archive</p>

@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+// GET: Fetch all posts or single post by ID
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -24,10 +25,24 @@ export async function GET(req: Request) {
   }
 }
 
+// POST: Create a blog post with SEO and backlink settings
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { title, slug, excerpt, content, coverImage, published, author } = body;
+    const { 
+      title, 
+      slug, 
+      excerpt, 
+      content, 
+      coverImage, 
+      published, 
+      author,
+      metaTitle,
+      metaDescription,
+      backlinkUrl,
+      backlinkText,
+      indexPref
+    } = body;
 
     const newPost = await prisma.blogPost.create({
       data: {
@@ -37,7 +52,12 @@ export async function POST(req: Request) {
         content,
         coverImage,
         published: !!published,
-        author: author || 'Zica Bella'
+        author: author || 'Zica Bella',
+        metaTitle: metaTitle || null,
+        metaDescription: metaDescription || null,
+        backlinkUrl: backlinkUrl || null,
+        backlinkText: backlinkText || null,
+        indexPref: indexPref !== undefined ? !!indexPref : true
       }
     });
 
@@ -47,10 +67,25 @@ export async function POST(req: Request) {
   }
 }
 
+// PATCH: Update a blog post
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { id, title, slug, excerpt, content, coverImage, published, author } = body;
+    const { 
+      id, 
+      title, 
+      slug, 
+      excerpt, 
+      content, 
+      coverImage, 
+      published, 
+      author,
+      metaTitle,
+      metaDescription,
+      backlinkUrl,
+      backlinkText,
+      indexPref
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
@@ -65,7 +100,12 @@ export async function PATCH(req: Request) {
         content,
         coverImage,
         published: typeof published === 'boolean' ? published : undefined,
-        author
+        author,
+        metaTitle: metaTitle !== undefined ? (metaTitle || null) : undefined,
+        metaDescription: metaDescription !== undefined ? (metaDescription || null) : undefined,
+        backlinkUrl: backlinkUrl !== undefined ? (backlinkUrl || null) : undefined,
+        backlinkText: backlinkText !== undefined ? (backlinkText || null) : undefined,
+        indexPref: typeof indexPref === 'boolean' ? indexPref : undefined
       }
     });
 
@@ -75,6 +115,7 @@ export async function PATCH(req: Request) {
   }
 }
 
+// DELETE: Delete a post
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
