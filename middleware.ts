@@ -174,7 +174,6 @@ export default withAuth(
       "/dashboard/settings": "SETTINGS",
       "/dashboard/admin-users": "ADMIN_USERS",
       "/dashboard/audit-log": "AUDIT_LOG",
-      "/dashboard": "DASHBOARD_HOME",
       
       // Web Store CMS mappings
       "/web-store": "STOREFRONT",

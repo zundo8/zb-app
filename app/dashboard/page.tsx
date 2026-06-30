@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   PackageSearch,
   ShoppingCart,
@@ -14,6 +15,10 @@ import {
   ArrowLeftRight,
   Clock,
   CheckCircle2,
+  Shield,
+  Lock,
+  Eye,
+  ArrowRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -56,11 +61,86 @@ interface ServiceSummary {
   }[];
 }
 
+const PAGE_NAMES: Record<string, string> = {
+  "/dashboard": "Overview",
+  "/dashboard/support": "Support Center",
+  "/dashboard/orders": "Orders Management",
+  "/dashboard/mobile-orders": "Mobile App Orders",
+  "/dashboard/customers": "Customer Accounts",
+  "/dashboard/products": "Products Catalog",
+  "/dashboard/collections": "Collections Manager",
+  "/dashboard/inventory": "Inventory Controls",
+  "/dashboard/inventory/scanner": "Barcode Scanner",
+  "/dashboard/scanner-records": "Scanner Scan History",
+  "/dashboard/price-tags": "Price Tags Generator",
+  "/dashboard/returns": "Returns Processing",
+  "/dashboard/exchanges": "Exchanges Processing",
+  "/dashboard/logistics": "Logistics Dispatch",
+  "/web-store": "Storefront Analytics",
+  "/web-store/orders": "Storefront Orders",
+  "/web-store/customers": "Storefront Customers",
+  "/web-store/storefront": "Web Builder Pages",
+  "/web-store/banners": "Homepage Banners",
+  "/web-store/coupons": "Promo Coupons",
+  "/web-store/logins": "Customer Logins Feed",
+  "/dashboard/webstore-settings/preferences": "Store Preferences",
+  "/dashboard/community/chat": "Chat Console",
+  "/dashboard/community": "Community Feed",
+  "/dashboard/blogs": "Blog Editor",
+  "/dashboard/marketing/seo": "SEO Optimization",
+  "/dashboard/marketing/analytics": "Omnichannel Tracking",
+  "/dashboard/marketing/meta-pixel": "Meta Pixel Tracker",
+  "/dashboard/wishlist": "Wishlist Analytics",
+  "/dashboard/notifications": "Push Notifications",
+  "/dashboard/marketing/discounts": "Discount Engine",
+  "/dashboard/marketing/whatsapp": "WhatsApp Campaigns",
+  "/dashboard/marketing/email": "Email Campaigns",
+  "/dashboard/marketing/sms": "SMS Campaigns",
+  "/dashboard/whatsapp-events/overview": "WA Events overview",
+  "/dashboard/whatsapp-events/events": "WA Events Feed",
+  "/dashboard/whatsapp-events/campaign-analytics": "WA Campaign Analytics",
+  "/dashboard/whatsapp-events/templates": "WA Templates Manager",
+  "/dashboard/whatsapp-events/customer-journeys": "WA Journeys Feed",
+  "/dashboard/whatsapp-events/meta-review": "WA Meta Review",
+  "/dashboard/payments": "Payments Board",
+  "/dashboard/payments/store-credits": "Store Credits Wallet",
+  "/dashboard/payments/refunds": "Refunds Queue",
+  "/dashboard/manufacturing": "Manufacturing Hub",
+  "/dashboard/manufacturing/designs": "Design Assignments",
+  "/dashboard/manufacturing/samples": "Sample Room",
+  "/dashboard/manufacturing/tasks": "Work Order Tasks",
+  "/dashboard/manufacturing/production": "Production Tracker",
+  "/dashboard/manufacturing/fabric": "Fabric Ledger",
+  "/dashboard/manufacturing/movement": "Fabric Dispatch",
+  "/dashboard/manufacturing/vendors": "Vendor Contacts",
+  "/dashboard/manufacturing/costs": "Cost Sheets",
+  "/dashboard/manufacturing/knowledge-base": "SOP Manuals",
+  "/dashboard/manufacturing/employees": "Staff Logs",
+  "/dashboard/manufacturing/reports": "Factory Audits",
+  "/dashboard/app-integration": "App Keys Config",
+  "/dashboard/live-carts": "Live Shoppers",
+  "/dashboard/app-logins": "App Sessions",
+  "/dashboard/payments/razorpay": "Razorpay Settings",
+  "/dashboard/ai": "AI Assistant Hub",
+  "/dashboard/ai/admin": "AI Model Settings",
+  "/dashboard/ai/user": "AI User Prompts",
+  "/dashboard/ai/training": "AI Dataset Training",
+  "/dashboard/settings": "General Settings",
+  "/dashboard/admin-users": "Administrators Panel",
+  "/dashboard/audit-log": "System Audit Trail",
+};
+
 export default function DashboardOverview() {
+  const { data: session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [serviceSummary, setServiceSummary] = useState<ServiceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+
+  const user = session?.user as any;
+  const permissions = user?.permissions || [];
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const hasDashboardHome = isSuperAdmin || permissions.some((p: any) => p.module === "DASHBOARD_HOME" && p.canView);
 
   const fetchStats = async (silent = false) => {
     if (!silent && !stats) setLoading(true);
@@ -114,6 +194,58 @@ export default function DashboardOverview() {
       console.error("Dashboard fetch error:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStatsOnly = async () => {
+    try {
+      const ordersRes = await fetch("/api/shopify/orders?limit=5");
+      const ordersData = await ordersRes.json();
+      const orders = ordersData.orders || [];
+      setStats(prev => ({
+        totalRevenue: 0,
+        totalOrders: 0,
+        totalCustomers: 0,
+        totalProducts: 0,
+        lowStockItems: 0,
+        recentOrders: orders.slice(0, 5),
+        lowStockProducts: prev?.lowStockProducts || [],
+      }));
+    } catch (err) {
+      console.error("Failed to fetch orders only:", err);
+    }
+  };
+
+  const fetchLowStockOnly = async () => {
+    try {
+      const productsRes = await fetch("/api/shopify/products?limit=250");
+      const productsData = await productsRes.json();
+      const products = productsData.products || [];
+      const lowStockProducts: DashboardStats["lowStockProducts"] = [];
+      for (const p of products) {
+        for (const v of p.variants || []) {
+          if (v.inventory_quantity !== null && v.inventory_quantity < 10) {
+            lowStockProducts.push({
+              title: p.title,
+              sku: v.sku,
+              stock: v.inventory_quantity,
+              variant: v.title !== "Default Title" ? v.title : "",
+            });
+          }
+        }
+      }
+      lowStockProducts.sort((a, b) => a.stock - b.stock);
+      setStats(prev => ({
+        totalRevenue: prev?.totalRevenue || 0,
+        totalOrders: prev?.totalOrders || 0,
+        totalCustomers: prev?.totalCustomers || 0,
+        totalProducts: prev?.totalProducts || 0,
+        lowStockItems: lowStockProducts.length,
+        recentOrders: prev?.recentOrders || [],
+        lowStockProducts: lowStockProducts.slice(0, 6),
+      }));
+    } catch (err) {
+      console.error("Failed to fetch low stock products only:", err);
     }
   };
 
@@ -174,6 +306,59 @@ export default function DashboardOverview() {
     }
   };
 
+  const fetchServiceSummaryOnly = async () => {
+    try {
+      const [returnsRes, exchangesRes] = await Promise.all([
+        fetch("/api/admin/returns?status=all"),
+        fetch("/api/admin/exchanges?status=all"),
+      ]);
+
+      const returnsData = await returnsRes.json();
+      const exchangesData = await exchangesRes.json();
+
+      const returns = returnsData.returns || [];
+      const exchanges = exchangesData.exchanges || [];
+
+      const activity: ServiceSummary["recentActivity"] = [];
+
+      for (const r of returns.slice(0, 5)) {
+        activity.push({
+          id: r.id,
+          type: "return",
+          status: r.status,
+          productTitle: r.product?.title || "Unknown",
+          customerName: r.customer?.name || "Unknown",
+          date: r.requestedAt || r.updatedAt,
+          orderId: r.order?.shopifyOrderId || "",
+        });
+      }
+
+      for (const e of exchanges.slice(0, 5)) {
+        activity.push({
+          id: e.id,
+          type: "exchange",
+          status: e.status,
+          productTitle: `${e.originalProduct?.title || "?"} → ${e.newProduct?.title || "?"}`,
+          customerName: e.order?.customer?.name || "Unknown",
+          date: e.createdAt || e.updatedAt,
+          orderId: e.order?.shopifyOrderId || "",
+        });
+      }
+
+      activity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      setServiceSummary({
+        pendingReturns: 0,
+        pendingExchanges: 0,
+        totalReturns: returns.length,
+        totalExchanges: exchanges.length,
+        recentActivity: activity.slice(0, 8),
+      });
+    } catch (err) {
+      console.error("Failed to fetch returns/exchanges feed:", err);
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -189,25 +374,224 @@ export default function DashboardOverview() {
   };
 
   useEffect(() => {
-    fetchStats();
-    fetchServiceSummary();
-  }, []);
+    if (!session) return;
+
+    if (hasDashboardHome) {
+      fetchStats();
+      fetchServiceSummary();
+    } else {
+      const allowedModules = permissions.filter((p: any) => p.canView).map((p: any) => p.module);
+      const fetches = [];
+      if (allowedModules.includes("ORDERS")) {
+        fetches.push(fetchStatsOnly());
+      }
+      if (allowedModules.includes("RETURNS_EXCHANGES")) {
+        fetches.push(fetchServiceSummaryOnly());
+      }
+      if (allowedModules.includes("INVENTORY") || allowedModules.includes("PRODUCTS")) {
+        fetches.push(fetchLowStockOnly());
+      }
+      
+      Promise.all(fetches).finally(() => {
+        setLoading(false);
+      });
+    }
+  }, [session, hasDashboardHome]);
 
   useEffect(() => {
-    const handleSync = () => {
+    if (!hasDashboardHome) return;
+    const handleSyncEvent = () => {
       fetchStats(true);
       fetchServiceSummary();
     };
-    window.addEventListener("realtime-sync", handleSync);
-    return () => window.removeEventListener("realtime-sync", handleSync);
-  }, []);
+    window.addEventListener("realtime-sync", handleSyncEvent);
+    return () => window.removeEventListener("realtime-sync", handleSyncEvent);
+  }, [hasDashboardHome]);
 
-   if (loading) {
+  if (!session) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <Loader2 className="w-4 h-4 text-foreground/40 animate-spin" />
-        <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-foreground/40">Loading Data...</span>
+        <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-foreground/40">Authenticating session...</span>
       </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <Loader2 className="w-4 h-4 text-foreground/40 animate-spin" />
+        <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-foreground/40">Loading workspace...</span>
+      </div>
+    );
+  }
+
+  if (!hasDashboardHome) {
+    const allowedModules = permissions.filter((p: any) => p.canView);
+    
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="pb-20 space-y-8"
+      >
+        {/* Personalized Workspace Header */}
+        <div className="glass-card p-8 lg:p-12 rounded-[2rem] lg:rounded-[3rem] relative overflow-hidden mb-8">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-full text-[9px] font-bold uppercase tracking-widest">
+                <Shield className="w-3 h-3" /> Staff Workspace
+              </div>
+              <h1 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight leading-none uppercase">
+                Welcome back, {user?.name || "Team Member"}!
+              </h1>
+              <p className="text-[10px] lg:text-[11px] text-foreground/40 font-semibold uppercase tracking-[0.25em]">
+                Your personal operations console and active page permissions
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-2 bg-foreground/5 px-4 py-3 rounded-2xl border border-foreground/10">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-bold text-foreground/60 uppercase tracking-widest">Secure session active</span>
+            </div>
+          </div>
+          <div className="absolute right-0 top-0 w-80 h-80 bg-violet-500/5 blur-3xl rounded-full -z-10" />
+        </div>
+
+        {/* Assigned Modules Grid */}
+        <div className="space-y-4">
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.3em] text-foreground/50 px-2">Assigned Modules</h2>
+          {allowedModules.length === 0 ? (
+            <div className="glass-card p-12 text-center rounded-[2rem]">
+              <Lock className="w-8 h-8 text-foreground/20 mx-auto mb-4" />
+              <p className="text-[12px] font-bold text-foreground/60 uppercase tracking-[0.2em]">No Modules Allocated</p>
+              <p className="text-[10px] text-foreground/30 uppercase tracking-wider mt-1">Please contact your System Administrator to receive page privileges.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {allowedModules.map((perm: any) => {
+                const modulePages = perm.pages ? perm.pages.split(',') : [];
+                return (
+                  <motion.div
+                    key={perm.module}
+                    whileHover={{ scale: 1.01 }}
+                    className="glass-card p-6 lg:p-8 rounded-[2rem] border border-foreground/5 relative overflow-hidden flex flex-col justify-between group"
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-foreground/30 uppercase tracking-widest">Module</span>
+                          <h3 className="text-lg font-bold text-foreground uppercase tracking-tight mt-0.5">
+                            {perm.module.replace(/_/g, ' ')}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-foreground/5 rounded-lg border border-foreground/10">
+                          <Eye className="w-3.5 h-3.5 text-foreground/50" />
+                          <span className="text-[8px] font-bold text-foreground/60 uppercase tracking-widest">Active</span>
+                        </div>
+                      </div>
+
+                      {/* Display Allowed Pages under this Module */}
+                      <div className="space-y-2 mt-4">
+                        <span className="text-[9px] font-bold text-foreground/20 uppercase tracking-[0.2em] block">Authorized Pages</span>
+                        {modulePages.length === 0 ? (
+                          <span className="text-[10px] font-medium italic text-foreground/30">No specific pages mapped.</span>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            {modulePages.map((pg: string) => (
+                              <Link
+                                key={pg}
+                                href={pg}
+                                className="flex items-center justify-between text-[11px] font-medium text-foreground/60 hover:text-foreground bg-foreground/[0.02] hover:bg-foreground/5 px-3 py-2 rounded-xl transition-all duration-300 border border-foreground/5"
+                              >
+                                <span className="truncate">{PAGE_NAMES[pg] || pg}</span>
+                                <ArrowRight className="w-3 h-3 text-foreground/20 group-hover:text-foreground/60 transition-colors" />
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-6 pt-4 border-t border-foreground/[0.04]">
+                      <span className={`text-[8px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${perm.canView ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" : "bg-foreground/5 text-foreground/20"}`}>View</span>
+                      <span className={`text-[8px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${perm.canEdit ? "bg-blue-500/10 text-blue-500 border border-blue-500/20" : "bg-foreground/5 text-foreground/20"}`}>Edit</span>
+                      <span className={`text-[8px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${perm.canDelete ? "bg-rose-500/10 text-rose-500 border border-rose-500/20" : "bg-foreground/5 text-foreground/20"}`}>Delete</span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Dynamic Activity / Updates Section */}
+        {allowedModules.some((p: any) => ["ORDERS", "RETURNS_EXCHANGES", "INVENTORY", "PRODUCTS"].includes(p.module)) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+            {allowedModules.some((p: any) => p.module === "ORDERS") && stats?.recentOrders && (
+              <div className="glass-card rounded-[2rem] overflow-hidden flex flex-col">
+                <div className="px-6 py-4 border-b border-foreground/5 flex items-center justify-between bg-foreground/[0.01]">
+                   <h3 className="text-[10px] font-bold text-foreground/80 uppercase tracking-[0.3em]">Recent Orders Update</h3>
+                   <Link href="/dashboard/orders" className="px-3 py-1 glass rounded-full text-[8px] font-bold text-foreground/40 hover:text-foreground uppercase tracking-widest flex items-center gap-1 transition-all border border-foreground/5">
+                     Open <ArrowRight className="w-3 h-3" />
+                   </Link>
+                </div>
+                <div className="divide-y divide-foreground/[0.03] overflow-x-auto">
+                  {stats.recentOrders.length === 0 ? (
+                    <p className="py-8 text-center text-[10px] text-foreground/30 uppercase tracking-widest">No recent orders</p>
+                  ) : (
+                    stats.recentOrders.slice(0, 3).map((order) => (
+                      <div key={order.id} className="px-6 py-4 flex items-center justify-between text-[11px]">
+                        <div>
+                          <p className="font-bold text-foreground uppercase">{order.name}</p>
+                          <p className="text-[9px] text-foreground/40 mt-0.5">
+                            {order.customer ? `${order.customer.first_name || ""} ${order.customer.last_name || ""}` : "Guest"}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-foreground">₹{parseFloat(order.total_price).toLocaleString("en-IN")}</p>
+                          <span className={`inline-block text-[7px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-widest mt-0.5 ${order.financial_status === "paid" ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                            {order.financial_status}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {allowedModules.some((p: any) => p.module === "RETURNS_EXCHANGES") && serviceSummary?.recentActivity && (
+              <div className="glass-card rounded-[2rem] overflow-hidden flex flex-col">
+                <div className="px-6 py-4 border-b border-foreground/5 flex items-center justify-between bg-foreground/[0.01]">
+                   <h3 className="text-[10px] font-bold text-foreground/80 uppercase tracking-[0.3em]">Returns & Exchanges Feed</h3>
+                   <Link href="/dashboard/returns" className="px-3 py-1 glass rounded-full text-[8px] font-bold text-foreground/40 hover:text-foreground uppercase tracking-widest flex items-center gap-1 transition-all border border-foreground/5">
+                     Open <ArrowRight className="w-3 h-3" />
+                   </Link>
+                </div>
+                <div className="divide-y divide-foreground/[0.03]">
+                  {serviceSummary.recentActivity.length === 0 ? (
+                    <p className="py-8 text-center text-[10px] text-foreground/30 uppercase tracking-widest">No service activity</p>
+                  ) : (
+                    serviceSummary.recentActivity.slice(0, 3).map((item) => (
+                      <div key={item.id} className="px-6 py-4 flex items-center justify-between text-[11px]">
+                        <div>
+                          <p className="font-bold text-foreground truncate max-w-[180px]">{item.productTitle}</p>
+                          <p className="text-[9px] text-foreground/40 mt-0.5">{item.customerName} • #{item.orderId}</p>
+                        </div>
+                        <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-widest ${item.type === "return" ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"}`}>
+                          {item.type}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
     );
   }
 
