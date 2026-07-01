@@ -3,9 +3,9 @@ import { DelhiveryOrder } from './types';
 const BASE_URL = 'https://track.delhivery.com';
 
 function getAuthHeader(): Record<string, string> {
-  const token = process.env.DELHIVERY_API_TOKEN;
+  const token = process.env.DELHIVERY_API_KEY || process.env.DELHIVERY_API_TOKEN;
   if (!token) {
-    console.warn('[Delhivery API] Warning: DELHIVERY_API_TOKEN is not set in environment.');
+    console.warn('[Delhivery API] Warning: DELHIVERY_API_KEY is not set in environment.');
   }
   return {
     'Authorization': `Token ${token || ''}`,

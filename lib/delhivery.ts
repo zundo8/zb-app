@@ -21,9 +21,18 @@ export interface DelhiveryShipment {
 }
 
 export async function getDelhiveryClient() {
+  // Priority: environment variable → DB Shop settings
+  const envKey = process.env.DELHIVERY_API_KEY || process.env.DELHIVERY_API_TOKEN;
+  if (envKey) {
+    return {
+      apiKey: envKey,
+      baseUrl: process.env.DELHIVERY_BASE_URL || DELHIVERY_PROD_URL,
+    };
+  }
+
   const shop = await prisma.shop.findFirst();
   if (!shop?.delhiveryApiKey) {
-    throw new Error('Delhivery API Key not configured in Shop settings');
+    throw new Error('Delhivery API Key not configured. Set DELHIVERY_API_KEY in environment or in Shop settings.');
   }
   return {
     apiKey: shop.delhiveryApiKey,

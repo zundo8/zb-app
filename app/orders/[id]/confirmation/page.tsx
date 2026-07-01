@@ -139,21 +139,21 @@ export default function OrderConfirmationPage() {
   arrivalDate.setDate(arrivalDate.getDate() + 5);
 
   return (
-    <div className="min-h-screen bg-background text-foreground px-6 pt-28 pb-12 font-sans">
-      <div className="max-w-md mx-auto space-y-10">
+    <div className="min-h-[100dvh] bg-background text-foreground px-4 pt-20 pb-12 font-sans flex flex-col items-center justify-center">
+      <div className="w-full max-w-md space-y-6 flex flex-col">
         {/* Hero Success */}
-        <div className="text-center space-y-5">
+        <div className="text-center space-y-4">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.6, ease: "backOut" }}
-            className="inline-flex items-center justify-center w-16 h-16 rounded-[1.5rem] bg-green-500/10 text-green-500 mb-1 border border-green-500/20 shadow-lg shadow-green-500/5"
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-green-500/10 text-green-500 mb-1 border border-green-500/20 shadow-lg shadow-green-500/5"
           >
-            <CheckCircle2 className="w-8 h-8" />
+            <CheckCircle2 className="w-7 h-7" />
           </motion.div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <h1 className="text-xl font-black tracking-tight">Confirmed</h1>
-             <p className="text-muted-foreground text-[10px] font-bold tracking-[0.1em] uppercase opacity-50">
+             <p className="text-foreground/40 text-[9px] font-bold tracking-[0.1em] uppercase">
               Order {order.orderNumber 
                 ? (order.orderNumber.startsWith('#') ? order.orderNumber : `#${order.orderNumber}`)
                 : (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') 
@@ -161,7 +161,7 @@ export default function OrderConfirmationPage() {
                     : `#ZB${order.id.slice(-6).toUpperCase()}`)}
             </p>
           </div>
-          <p className="text-muted-foreground text-[13px] font-medium leading-relaxed max-w-[240px] mx-auto">
+          <p className="text-foreground/50 text-[12px] font-medium leading-relaxed max-w-[240px] mx-auto">
             Your pieces are being prepared. Confirmation sent to email.
           </p>
         </div>
@@ -170,49 +170,49 @@ export default function OrderConfirmationPage() {
         <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-5 bg-muted/10 rounded-[2rem] border border-border/5 flex items-center gap-5 shadow-sm"
+            className="apple-glass-capsule p-4.5 rounded-2xl flex items-center gap-4"
         >
-          <div className="w-12 h-12 rounded-xl bg-background border border-border/10 flex items-center justify-center shadow-md">
-            <Calendar className="w-5 h-5 text-muted-foreground/30" />
+          <div className="w-10 h-10 rounded-xl bg-foreground/[0.03] border border-foreground/5 flex items-center justify-center">
+            <Calendar className="w-4 h-4 text-foreground/40" />
           </div>
           <div>
-            <p className="text-[9px] uppercase tracking-[0.1em] text-muted-foreground/40 font-black mb-0.5">Estimated Arrival</p>
-            <p className="font-bold text-[14px] tracking-tight">{arrivalDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}</p>
+            <p className="text-[8px] uppercase tracking-[0.1em] text-foreground/30 font-black mb-0.5">Estimated Arrival</p>
+            <p className="font-bold text-[13px] tracking-tight">{arrivalDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}</p>
           </div>
         </motion.div>
 
         {/* Order Details */}
-        <div className="space-y-5">
-          <div className="flex items-center justify-between border-b border-border/5 pb-3">
-            <h2 className="text-[11px] font-black uppercase tracking-[0.1em]">Details</h2>
-            <Link href="/orders" className="text-[9px] text-muted-foreground hover:text-foreground transition-colors font-bold uppercase tracking-widest underline underline-offset-4">History</Link>
+        <div className="apple-glass-capsule p-5 rounded-2xl space-y-4">
+          <div className="flex items-center justify-between border-b border-foreground/5 pb-2.5">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.1em] text-foreground/75">Details</h2>
+            <Link href="/orders" className="text-[8px] text-foreground/45 hover:text-foreground transition-colors font-bold uppercase tracking-widest underline underline-offset-4">History</Link>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {order.items?.map((item: any, idx: number) => (
-              <div key={idx} className="flex justify-between items-center text-[12px] font-medium">
-                <span className="text-muted-foreground truncate max-w-[200px]">{item.quantity}x {item.title}</span>
-                <span className="font-bold opacity-30">₹{item.price.toLocaleString()}</span>
+              <div key={idx} className="flex justify-between items-center text-[11px] font-medium">
+                <span className="text-foreground/60 truncate max-w-[200px]">{item.quantity}x {item.title}</span>
+                <span className="font-bold text-foreground/45">₹{item.price.toLocaleString()}</span>
               </div>
             ))}
-            <div className="pt-4 border-t border-border/5 flex justify-between items-center">
-              <span className="font-black text-[11px] uppercase tracking-widest">Total</span>
-              <span className="text-xl font-black tracking-tight">₹{order.totalPrice.toLocaleString()}</span>
+            <div className="pt-3.5 border-t border-foreground/5 flex justify-between items-center">
+              <span className="font-black text-[10px] uppercase tracking-widest text-foreground/75">Total</span>
+              <span className="text-lg font-black tracking-tight">₹{order.totalPrice.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-6 space-y-3">
+        <div className="space-y-2.5 pt-2">
           <Link 
             href="/"
-            className="block w-full py-4 bg-foreground text-background text-center rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.15em] shadow-xl hover:opacity-90 active:scale-[0.98] transition-all border border-foreground"
+            className="block w-full py-3 bg-black text-white dark:bg-white dark:text-black text-center rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] hover:opacity-90 active:scale-[0.98] transition-all border border-black/10 dark:border-white/10"
           >
-            Continue
+            Continue Shopping
           </Link>
           <button 
             onClick={() => router.push("/orders")}
-            className="w-full py-4 border border-border/10 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground/40 hover:text-foreground hover:bg-muted/20 transition-all"
+            className="w-full py-3 border border-dashed border-black/[0.12] dark:border-white/[0.12] rounded-xl text-[9px] font-bold uppercase tracking-[0.1em] text-foreground/50 hover:text-foreground hover:bg-foreground/[0.02] transition-all"
           >
             Track Order
           </button>

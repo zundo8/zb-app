@@ -35,36 +35,60 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Also fetch orders that are "fulfilled" but might not have a Shipment record yet in our system
-    // (This happens for Shopify orders synced after fulfillment)
-    const ordersNeedingShipmentRecord = await prisma.order.findMany({
-      where: {
-        fulfillmentStatus: 'fulfilled',
-        shipments: { none: {} },
-        shopifyOrderId: search ? { contains: search, mode: 'insensitive' } : undefined
+    // Also fetch orders that need shipment — fulfilled without a Shipment record,
+    // OR unfulfilled but paid/active orders ready to be manifested
+    const orderWhereConditions: any[] = [
+      { shipments: { none: {} } },
+      { status: { notIn: ['cancelled', 'CANCELLED', 'FAILED', 'payment_failed', 'REFUNDED'] } },
+      {
+        OR: [
+          { fulfillmentStatus: 'fulfilled' },
+          {
+            fulfillmentStatus: 'unfulfilled',
+            status: { in: ['active', 'PAID', 'confirmed', 'open'] },
+          },
+        ],
       },
+    ];
+
+    if (search) {
+      orderWhereConditions.push({
+        OR: [
+          { shopifyOrderId: { contains: search, mode: 'insensitive' as const } },
+          { shopifyOrderName: { contains: search, mode: 'insensitive' as const } },
+          { delhivery_awb: { contains: search, mode: 'insensitive' as const } },
+        ],
+      });
+    }
+
+    const ordersNeedingShipmentRecord = await prisma.order.findMany({
+      where: { AND: orderWhereConditions },
       include: {
         customer: { select: { name: true } }
       },
-      take: 20
+      orderBy: { createdAt: 'desc' },
+      take: 50
     });
 
     // Merge them into a unified list for the UI
     const unifiedShipments = [
       ...shipments,
-      ...ordersNeedingShipmentRecord.map(o => ({
-        id: `pending-${o.id}`,
-        orderId: o.id,
-        awb: null,
-        courier: 'Pending',
-        status: 'manifest_required',
-        trackingUrl: null,
-        createdAt: o.createdAt,
-        order: {
-          shopifyOrderId: o.shopifyOrderId,
-          customer: o.customer
-        }
-      }))
+      ...ordersNeedingShipmentRecord
+        .filter(o => !shipments.some(s => s.orderId === o.id)) // avoid duplicates
+        .map(o => ({
+          id: `pending-${o.id}`,
+          orderId: o.id,
+          awb: o.delhivery_awb || null,
+          courier: o.delhivery_awb ? 'Delhivery' : 'Pending',
+          status: o.delhivery_awb ? 'manifested' : 'manifest_required',
+          trackingUrl: o.delhivery_awb ? `https://www.delhivery.com/track/package/${o.delhivery_awb}` : null,
+          createdAt: o.createdAt,
+          order: {
+            shopifyOrderId: o.shopifyOrderName || o.shopifyOrderId || '',
+            fulfillmentStatus: o.fulfillmentStatus,
+            customer: o.customer
+          }
+        }))
     ];
 
     return NextResponse.json({ success: true, shipments: unifiedShipments });
