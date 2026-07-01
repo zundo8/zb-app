@@ -1438,16 +1438,16 @@ export default function CheckoutPage() {
                             }
                             setShowAddressForm(false);
                           }}
-                          className="w-full h-10 text-[8.5px] font-semibold uppercase tracking-[0.15em] bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] active:scale-[0.98] rounded-xl text-foreground/55 transition-all flex items-center justify-center mb-3 whitespace-nowrap"
+                          className="w-full h-10 text-[9px] font-black uppercase tracking-[0.18em] bg-white/20 dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-md hover:bg-foreground/[0.02] active:scale-[0.98] rounded-xl text-foreground/50 transition-all flex items-center justify-center mb-4 whitespace-nowrap"
                         >
                           Back to Saved Addresses
                         </button>
                       )}
                       
-                      <div className="grid grid-cols-12 gap-2 w-full">
+                      <div className="grid grid-cols-12 gap-3.5 w-full">
                         {/* Full Name */}
                         <div className="col-span-12">
-                          <div className={`relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border rounded-xl px-3 transition-all duration-200 ${addressErrors.name ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.name ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
                               type="text"
                               placeholder="Full Name"
@@ -1455,15 +1455,15 @@ export default function CheckoutPage() {
                               required
                               value={address.name}
                               onChange={(e) => updateField("name", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[12px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
-                          {addressErrors.name && <p className="text-[8px] text-red-500 mt-0.5 pl-1 leading-none">{addressErrors.name}</p>}
+                          {addressErrors.name && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.name}</p>}
                         </div>
 
                         {/* Email Address */}
                         <div className="col-span-12">
-                          <div className={`relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border rounded-xl px-3 transition-all duration-200 ${addressErrors.email ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.email ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
                               type="email"
                               placeholder="Email Address"
@@ -1471,19 +1471,19 @@ export default function CheckoutPage() {
                               required
                               value={address.email}
                               onChange={(e) => updateField("email", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[12px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
-                          {addressErrors.email && <p className="text-[8px] text-red-500 mt-0.5 pl-1 leading-none">{addressErrors.email}</p>}
+                          {addressErrors.email && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.email}</p>}
                         </div>
 
                         {/* Mobile Number */}
                         <div className="col-span-12">
-                          <div className={`relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border rounded-xl px-3 transition-all duration-200 ${addressErrors.phone ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
-                            <div className="flex items-center gap-0.5 text-[12px] font-semibold text-foreground/75 select-none mr-2">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.phone ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                            <div className="flex items-center text-[13px] font-semibold text-foreground/70 select-none mr-2">
                               <span>+91</span>
                             </div>
-                            <div className="h-4 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2" />
+                            <div className="h-4.5 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2.5" />
                             <input
                               type="tel"
                               placeholder="Mobile Number"
@@ -1491,15 +1491,15 @@ export default function CheckoutPage() {
                               required
                               value={address.phone.startsWith("+91") ? address.phone.slice(3) : address.phone}
                               onChange={(e) => updateField("phone", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[12px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
-                          {addressErrors.phone && <p className="text-[8px] text-red-500 mt-0.5 pl-1 leading-none">{addressErrors.phone}</p>}
+                          {addressErrors.phone && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.phone}</p>}
                         </div>
 
                         {/* House / Flat / Building & Street / Road */}
                         <div className="col-span-4">
-                          <div className={`relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border rounded-xl px-3 transition-all duration-200 ${addressErrors.houseNo ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.houseNo ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
                               type="text"
                               placeholder="House/Flat"
@@ -1507,14 +1507,14 @@ export default function CheckoutPage() {
                               required
                               value={address.houseNo}
                               onChange={(e) => updateField("houseNo", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[12px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
-                          {addressErrors.houseNo && <p className="text-[8px] text-red-500 mt-0.5 pl-1 leading-none">{addressErrors.houseNo}</p>}
+                          {addressErrors.houseNo && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.houseNo}</p>}
                         </div>
 
                         <div className="col-span-8">
-                          <div className={`relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border rounded-xl px-3 transition-all duration-200 ${addressErrors.street ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.street ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
                               type="text"
                               placeholder="Street / Road / Area"
@@ -1522,14 +1522,14 @@ export default function CheckoutPage() {
                               required
                               value={address.street}
                               onChange={(e) => updateField("street", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[12px] font-normal text-foreground placeholder:text-foreground/35 pr-8 pl-0 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                             <button
                               type="button"
                               onClick={handleDetectLocation}
                               disabled={locating}
                               title="Detect current location"
-                              className="absolute right-3 p-1 rounded-lg text-foreground/45 hover:text-foreground/90 hover:bg-foreground/5 transition-all flex items-center justify-center disabled:opacity-50"
+                              className="p-1.5 text-foreground/45 hover:text-foreground/90 hover:bg-foreground/5 rounded-lg transition-colors flex items-center justify-center shrink-0 ml-1.5"
                             >
                               {locating ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1538,12 +1538,12 @@ export default function CheckoutPage() {
                               )}
                             </button>
                           </div>
-                          {addressErrors.street && <p className="text-[8px] text-red-500 mt-0.5 pl-1 leading-none">{addressErrors.street}</p>}
+                          {addressErrors.street && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.street}</p>}
                         </div>
 
                         {/* PIN Code & City */}
                         <div className="col-span-5">
-                          <div className={`relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border rounded-xl px-3 transition-all duration-200 ${addressErrors.zip ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.zip ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
                               type="text"
                               placeholder="PIN Code"
@@ -1555,17 +1555,17 @@ export default function CheckoutPage() {
                                 const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                                 updateField("zip", val);
                               }}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[12px] font-normal text-foreground placeholder:text-foreground/35 p-0 font-mono tracking-wider"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                             {zipLoading && (
-                              <Loader2 className="absolute right-3 w-3.5 h-3.5 animate-spin text-foreground/30" />
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-foreground/30 ml-1.5" />
                             )}
                           </div>
-                          {addressErrors.zip && <p className="text-[8px] text-red-500 mt-0.5 pl-1 leading-none">{addressErrors.zip}</p>}
+                          {addressErrors.zip && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.zip}</p>}
                         </div>
 
                         <div className="col-span-7">
-                          <div className={`relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border rounded-xl px-3 transition-all duration-200 ${addressErrors.city ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.city ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
                               type="text"
                               placeholder="City"
@@ -1573,32 +1573,32 @@ export default function CheckoutPage() {
                               required
                               value={address.city}
                               onChange={(e) => updateField("city", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[12px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
-                          {addressErrors.city && <p className="text-[8px] text-red-500 mt-0.5 pl-1 leading-none">{addressErrors.city}</p>}
+                          {addressErrors.city && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.city}</p>}
                         </div>
 
                         {/* Landmark & State */}
                         <div className="col-span-5">
-                          <div className="relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3 focus-within:border-black/30 dark:focus-within:border-white/30 transition-all">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5`}>
                             <input
                               type="text"
                               placeholder="Landmark (Opt)"
                               aria-label="Landmark"
                               value={address.landmark}
                               onChange={(e) => updateField("landmark", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[12px] font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
                         </div>
 
                         <div className="col-span-7">
-                          <div className={`relative flex items-center w-full h-11 bg-white/40 dark:bg-black/30 backdrop-blur-md border rounded-xl px-3 transition-all duration-200 ${addressErrors.state ? "border-red-500/50 focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/30" : "border-black/[0.08] dark:border-white/[0.08] focus-within:border-black/30 dark:focus-within:border-white/30"}`}>
-                            <span className={`text-[12px] truncate pr-4 ${!address.state ? "text-foreground/35" : "text-foreground"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.state ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                            <span className={`text-[13px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/30" : "text-foreground"}`}>
                               {address.state || "Select State"}
                             </span>
-                            <ChevronDown className="absolute right-3 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+                            <ChevronDown className="absolute right-3.5 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                             <select
                               required
                               value={address.state}
@@ -1611,7 +1611,7 @@ export default function CheckoutPage() {
                               ))}
                             </select>
                           </div>
-                          {addressErrors.state && <p className="text-[8px] text-red-500 mt-0.5 pl-1 leading-none">{addressErrors.state}</p>}
+                          {addressErrors.state && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.state}</p>}
                         </div>
                       </div>
 
@@ -1619,7 +1619,7 @@ export default function CheckoutPage() {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="w-full h-11 bg-black text-white dark:bg-white dark:text-black rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm mt-4 md:hidden"
+                        className="w-full h-11 bg-black text-white dark:bg-white dark:text-black rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm mt-5 md:hidden"
                       >
                         {loading ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
