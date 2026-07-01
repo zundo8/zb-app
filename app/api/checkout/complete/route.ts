@@ -216,6 +216,117 @@ export async function POST(req: Request) {
       }
     }
 
+    // Duplicate account check and merge by email:
+    if (address.email) {
+      const duplicateCustomerByEmail = await prisma.customer.findFirst({
+        where: {
+          email: { equals: address.email, mode: "insensitive" },
+          id: { not: localCustomer.id }
+        }
+      });
+
+      if (duplicateCustomerByEmail) {
+        console.log(`[Checkout Merge Email] Merging duplicate customer account by email: ${duplicateCustomerByEmail.id} -> ${localCustomer.id}`);
+        try {
+          // Perform merging in a transaction
+          await prisma.$transaction([
+            prisma.order.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.address.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.return.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.returnRequest.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.exchangeRequest.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.payment.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.profileHistory.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.mobileOrder.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.communityMessage.updateMany({
+              where: { customerId: duplicateCustomerByEmail.id },
+              data: { customerId: localCustomer.id }
+            }),
+            prisma.cart.deleteMany({
+              where: { customerId: duplicateCustomerByEmail.id }
+            }),
+            prisma.follow.deleteMany({
+              where: {
+                OR: [
+                  { followerId: duplicateCustomerByEmail.id },
+                  { followingId: duplicateCustomerByEmail.id }
+                ]
+              }
+            })
+          ]);
+
+          // Migrate Wishlist (outside transaction to safely try/catch unique constraint violations)
+          const dupWishlist = await prisma.wishlist.findMany({
+            where: { customerId: duplicateCustomerByEmail.id }
+          });
+          for (const item of dupWishlist) {
+            try {
+              await prisma.wishlist.update({
+                where: { id: item.id },
+                data: { customerId: localCustomer.id }
+              });
+            } catch {
+              await prisma.wishlist.delete({
+                where: { id: item.id }
+              });
+            }
+          }
+
+          // Migrate CommunityMember
+          const dupCommunity = await prisma.communityMember.findUnique({
+            where: { customerId: duplicateCustomerByEmail.id }
+          });
+          if (dupCommunity) {
+            const primCommunity = await prisma.communityMember.findUnique({
+              where: { customerId: localCustomer.id }
+            });
+            if (!primCommunity) {
+              await prisma.communityMember.update({
+                where: { id: dupCommunity.id },
+                data: { customerId: localCustomer.id }
+              });
+            } else {
+              await prisma.communityMember.delete({
+                where: { id: dupCommunity.id }
+              });
+            }
+          }
+
+          // Delete duplicate customer record
+          await prisma.customer.delete({
+            where: { id: duplicateCustomerByEmail.id }
+          });
+          console.log(`[Checkout Merge Email] Merging completed successfully.`);
+        } catch (mergeErr: any) {
+          console.error("[Checkout Merge Email] Error occurred during account merge:", mergeErr);
+        }
+      }
+    }
+
     // Sync with Shopify if needed
     let shopifyCustomerId = localCustomer.shopifyId;
     if (shopifyCustomerId.startsWith('temp_') || shopifyCustomerId.startsWith('google_') || shopifyCustomerId.startsWith('apple_')) {
