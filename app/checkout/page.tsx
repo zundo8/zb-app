@@ -281,6 +281,18 @@ export default function CheckoutPage() {
     }
   }, [items, isOrderPlaced, router, status]);
 
+  // Auto-fill address details from session once authenticated
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      setAddress(prev => ({
+        ...prev,
+        name: prev.name || session?.user?.name || "",
+        email: prev.email || session?.user?.email || "",
+        phone: prev.phone || (session as any)?.customer?.phone || (session?.user as any)?.phone || "",
+      }));
+    }
+  }, [session, status]);
+
   // Fetch saved addresses callback
   const fetchSavedAddresses = useCallback(async (selectDefault = false) => {
     if (status !== "authenticated") return;
@@ -1358,7 +1370,10 @@ export default function CheckoutPage() {
                           onClick={() => {
                             setSelectedSavedId("");
                             setAddress({
-                              name: "", email: "", phone: "", houseNo: "", street: "",
+                              name: session?.user?.name || "",
+                              email: session?.user?.email || "",
+                              phone: (session as any)?.customer?.phone || (session?.user as any)?.phone || "",
+                              houseNo: "", street: "",
                               landmark: "", city: "", state: "", zip: "", country: "India",
                             });
                             setAddressErrors({});
@@ -1411,7 +1426,10 @@ export default function CheckoutPage() {
                           onClick={() => {
                             setSelectedSavedId("");
                             setAddress({
-                              name: "", email: "", phone: "", houseNo: "", street: "",
+                              name: session?.user?.name || "",
+                              email: session?.user?.email || "",
+                              phone: (session as any)?.customer?.phone || (session?.user as any)?.phone || "",
+                              houseNo: "", street: "",
                               landmark: "", city: "", state: "", zip: "", country: "India",
                             });
                             setAddressErrors({});
@@ -1662,6 +1680,11 @@ export default function CheckoutPage() {
                       </p>
                     </div>
 
+                    {/* Mobile Step 2 Order Summary block */}
+                    <div className="md:hidden flex flex-col w-full mb-4">
+                      {renderOrderSummary()}
+                    </div>
+
                     {/* Payment selection segment tabs */}
                     <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-4">
                       {[
@@ -1827,10 +1850,7 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
-                    {/* Mobile Step 2 Order Summary block */}
-                    <div className="md:hidden flex flex-col w-full mt-2">
-                      {renderOrderSummary()}
-                    </div>
+
 
                   </div>
                 </motion.div>
