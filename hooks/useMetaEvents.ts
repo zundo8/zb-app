@@ -17,12 +17,14 @@ async function sendToCapiRoute(payload: Record<string, any>) {
   try {
     // Always include identity cookies (fbc, fbp, external_id, PII) for maximum
     // Meta Event Match Quality. Explicit userData from event callers takes priority.
-    const identityData = getMetaIdentityCookies();
+    // Clean both objects to prevent undefined/empty fields from overwriting valid values.
+    const identityData = cleanCustomData(getMetaIdentityCookies());
+    const callerUserData = cleanCustomData(payload.userData || {});
     const enrichedPayload = {
       ...payload,
       userData: {
         ...identityData,
-        ...(payload.userData || {}),
+        ...callerUserData,
       },
     };
     await fetch('/api/meta/event', {

@@ -14,7 +14,19 @@ export function setClientCookie(name: string, value: string, days: number) {
     date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
     expires = "; expires=" + date.toUTCString();
   }
-  document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax; Secure";
+
+  // Set cookie on root domain if possible so subdomains (e.g. www, checkout) can share it
+  let domainAttr = "";
+  const hostname = window.location.hostname;
+  if (!/^localhost$|^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    const parts = hostname.split('.');
+    if (parts.length >= 2) {
+      const root = parts.slice(-2).join('.');
+      domainAttr = `; domain=.${root}`;
+    }
+  }
+
+  document.cookie = name + "=" + (value || "") + expires + "; path=/" + domainAttr + "; SameSite=Lax; Secure";
 }
 
 export async function sha256(message: string): Promise<string> {
@@ -67,16 +79,15 @@ export function getMetaIdentityCookies(): Record<string, string | undefined> {
 export const initPixel = (additionalData: Record<string, any> = {}) => {
   if (typeof window !== 'undefined' && (window as any).fbq) {
     const extId = getClientCookie('zb_external_id');
-    const fbcVal = getClientCookie('_fbc');
-    const fbpVal = getClientCookie('_fbp');
 
+    // Build advanced matching user data for fbq('init').
+    // NOTE: fbc and fbp are NOT passed here — the pixel SDK reads them directly
+    // from the _fbc and _fbp cookies. Passing them in init is unsupported.
     const userData: Record<string, any> = {
       external_id: extId || undefined,
     };
 
-    if (fbcVal) userData.fbc = fbcVal;
-    if (fbpVal) userData.fbp = fbpVal;
-
+    // Read all hashed PII cookies for advanced matching
     const guestEmail = getClientCookie('zb_guest_email');
     const guestPhone = getClientCookie('zb_guest_phone');
     const guestFn = getClientCookie('zb_guest_fn');
@@ -93,6 +104,8 @@ export const initPixel = (additionalData: Record<string, any> = {}) => {
     if (guestCountry) userData.country = guestCountry;
     if (guestState) userData.st = guestState;
     if (guestCity) userData.ct = guestCity;
+    if (guestZip) userData.zp = guestZip;
+
     const guestFbLoginId = getClientCookie('zb_fb_login_id');
     if (guestFbLoginId) userData.fb_login_id = guestFbLoginId;
 
