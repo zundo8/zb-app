@@ -49,9 +49,7 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
       }
     });
 
-    // 5. Determine payment method and find linked WebStoreOrder to get exact values if available
-    const isCod = order.paymentMethod?.toUpperCase() === 'COD' || order.paymentMethod?.toLowerCase().includes('cash');
-    
+    // 5. Find linked WebStoreOrder to get exact values if available
     let webStoreOrder = null;
     if (order.razorpayOrderId) {
       webStoreOrder = await prisma.webStoreOrder.findFirst({
@@ -63,6 +61,15 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
         where: { notes: { contains: `Local: ${order.id}` } }
       });
     }
+
+    // Determine payment method robustly using order properties, tags, notes, and webStoreOrder
+    const isCod = 
+      order.paymentMethod?.toUpperCase() === 'COD' || 
+      order.paymentMethod?.toLowerCase().includes('cash') ||
+      webStoreOrder?.paymentMethod?.toUpperCase() === 'COD' ||
+      webStoreOrder?.paymentMethod?.toLowerCase().includes('cash') ||
+      order.tags?.split(',').map(t => t.trim().toUpperCase()).includes('COD') ||
+      order.note?.toLowerCase().includes('cod order');
 
     const paymentId = isCod 
       ? (webStoreOrder?.codUpfrontPaymentId || order.razorpayPaymentId) 
@@ -85,15 +92,9 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
     // 6. Determine refund amount
     let refundAmount = 0;
     if (isCod) {
-      // For COD, refund the upfront fee (typically Rs 99) only if order was cancelled by admin or by user before processing
-      const isRefundable = order.cancelledBy === 'admin' || order.cancelledBy === 'user';
-      if (isRefundable) {
-        const upfrontPaid = webStoreOrder ? Number(webStoreOrder.codUpfrontPaid) : 0;
-        refundAmount = upfrontPaid > 0 ? upfrontPaid : 99;
-      } else {
-        console.log(`[AutoRefund] COD fee is not refundable for Order ${orderId} (cancelledBy: ${order.cancelledBy}).`);
-        refundAmount = 0;
-      }
+      // For COD, refund the upfront fee (typically Rs 99)
+      const upfrontPaid = webStoreOrder ? Number(webStoreOrder.codUpfrontPaid) : 0;
+      refundAmount = upfrontPaid > 0 ? upfrontPaid : 99;
     } else {
       // For Prepaid, refund the total price
       refundAmount = order.totalPrice;
