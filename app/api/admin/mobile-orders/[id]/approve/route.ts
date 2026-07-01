@@ -70,7 +70,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         }
 
         const shopifyOrderPayload: any = {
-          line_items: mobileOrder.items.map((item) => {
+          line_items: mobileOrder.items.map((item: any) => {
             // 1. Direct variantId from DB (best source)
             if (item.variantId && /^\d+$/.test(String(item.variantId))) {
               return { variant_id: parseInt(String(item.variantId), 10), quantity: item.quantity };
@@ -82,6 +82,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
             // 3. Fallback: title + price based line item
             return { title: item.title, quantity: item.quantity, price: item.price.toFixed(2), requires_shipping: true };
           }),
+          email: mobileOrder.customer?.email || '',
           financial_status: String(mobileOrder.paymentStatus || '').toLowerCase() === 'paid' ? 'paid' : 'pending',
           tags: `mobile-app, zb-order-${mobileOrder.orderNumber}, ${mobileOrder.paymentMethod || ''}`.replace(/\s+/g, ' ').trim(),
           note: `mobile-app | InternalOrderId: ${mobileOrder.id} | Payment: ${mobileOrder.paymentMethod || 'Unknown'}`,
@@ -128,7 +129,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         });
 
         if (!existingOrder) {
-          const orderLineItems = mobileOrder.items.map((item, index) => ({
+          const orderLineItems = mobileOrder.items.map((item: any, index: number) => ({
             shopifyLineItemId: `synced_${createdOrder.id}_${index}_${Date.now()}`,
             title: item.title,
             quantity: item.quantity,

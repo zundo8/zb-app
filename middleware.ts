@@ -160,6 +160,7 @@ export default withAuth(
     // Map pathnames to modules for RBAC
     const moduleMap: Record<string, string> = {
       "/dashboard/orders": "ORDERS",
+      "/api/admin/orders": "ORDERS",
       "/dashboard/products": "PRODUCTS",
       "/dashboard/inventory": "INVENTORY",
       "/dashboard/customers": "CUSTOMERS",
@@ -188,6 +189,7 @@ export default withAuth(
 
     // Check module-specific page/API access
     const apiPageMap: Record<string, string> = {
+      "/api/admin/orders": "/dashboard/orders",
       "/api/web-store/stats": "/web-store",
       "/api/web-store/orders": "/web-store/orders",
       "/api/web-store/customers": "/web-store/customers",

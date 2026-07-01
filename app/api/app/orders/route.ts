@@ -367,17 +367,17 @@ export async function GET(req: Request) {
                  estimatedDelivery: status.estimatedDelivery ? new Date(status.estimatedDelivery) : undefined,
                  events: JSON.stringify(status.events)
                }
-             }).catch(e => console.error('DB Status Sync Error:', e));
+             }).catch((e: any) => console.error('DB Status Sync Error:', e));
 
              // Also update order delivery status if changed
              if (status.status.toLowerCase() === 'delivered') {
                 prisma.order.update({
                    where: { id: order.id },
                    data: { deliveryStatus: 'delivered' }
-                }).catch(e => console.error('DB Order Sync Error:', e));
+                }).catch((e: any) => console.error('DB Order Sync Error:', e));
              }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error('Real-time sync failed:', e);
         }
       }

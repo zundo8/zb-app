@@ -57,6 +57,9 @@ interface Order {
   };
   items: OrderItem[];
   shipments: any[];
+  internalOrderNumber?: string | null;
+  shopifySyncStatus?: string | null;
+  shopifySyncError?: string | null;
 }
 
 const STATUS_THEME: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -375,13 +378,31 @@ export default function OrdersPage() {
                       )}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-[14px] font-bold text-foreground tracking-tighter">
-                          #{order.shopifyOrderId.replace('#', '')}
+                          {order.internalOrderNumber || (order.shopifyOrderId && `#${order.shopifyOrderId.replace('#', '')}`) || `#${order.id.slice(-6).toUpperCase()}`}
                         </span>
                         {isMobile && (
                           <div className="px-1.5 py-0.5 rounded-md bg-foreground/5 border border-foreground/10 text-[8px] font-bold text-foreground/30 uppercase tracking-tighter">
                             APP
+                          </div>
+                        )}
+                        {order.shopifySyncStatus === 'failed' && (
+                          <div className="px-1.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-[8px] font-bold text-rose-500 uppercase tracking-tighter flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-rose-500" />
+                            SYNC FAILED
+                          </div>
+                        )}
+                        {order.shopifySyncStatus === 'pending' && (
+                          <div className="px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-[8px] font-bold text-amber-500 uppercase tracking-tighter flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-amber-500" />
+                            PENDING SYNC
+                          </div>
+                        )}
+                        {order.shopifySyncStatus === 'synced' && (
+                          <div className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-bold text-emerald-500 uppercase tracking-tighter flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                            SYNCED
                           </div>
                         )}
                       </div>

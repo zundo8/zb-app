@@ -273,11 +273,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true }
     });
 
+    if (!oldOrder) {
+      return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
+    }
+
     // Auto-cancel sub-statuses if status is set to cancelled
-    if (body.status === 'cancelled') {
-      body.paymentStatus = oldOrder?.paymentStatus === 'paid' ? 'paid' : 'cancelled';
+    if (body.status === 'cancelled' && oldOrder.status !== 'cancelled') {
+      const deliveryStatusLower = (oldOrder.deliveryStatus || '').toLowerCase();
+      const isShippedOrDelivered = ['shipped', 'delivered', 'in transit', 'out for delivery'].includes(deliveryStatusLower);
+      
+      if (isShippedOrDelivered) {
+        return NextResponse.json({ success: false, error: 'Cannot cancel order that is already shipped or delivered' }, { status: 400 });
+      }
+
+      body.paymentStatus = oldOrder.paymentStatus === 'paid' ? 'paid' : 'cancelled';
       body.fulfillmentStatus = 'cancelled';
       body.deliveryStatus = 'cancelled';
+      body.cancelledAt = new Date();
+      body.cancelledBy = 'admin';
       
       const order = await prisma.order.findUnique({ where: { id } });
       if (order && order.shopifyOrderId && !order.shopifyOrderId.startsWith('#') && !order.shopifyOrderId.startsWith('app_pending_')) {
@@ -341,7 +354,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
               items: true,
               shipments: { orderBy: { createdAt: 'desc' } }
             }
-          }).then((fullOrder) => {
+          }).then((fullOrder: any) => {
             if (fullOrder && fullOrder.customer && fullOrder.customer.email) {
               const latestShipment = fullOrder.shipments?.[0];
               const resolvedStatus = statusChanged ? fullOrder.status : fullOrder.deliveryStatus;
@@ -375,9 +388,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
               })
               .then(res => res.json())
               .then(resData => console.log('[Admin Order Status Trigger] Email status webhook success:', resData))
-              .catch(err => console.error('[Admin Order Status Trigger] Email status webhook fetch error:', err));
+              .catch((err: any) => console.error('[Admin Order Status Trigger] Email status webhook fetch error:', err));
             }
-          }).catch(err => console.error('[Admin Order Status Trigger] Error loading full order for email:', err));
+          }).catch((err: any) => console.error('[Admin Order Status Trigger] Error loading full order for email:', err));
         } catch (emailErr) {
           console.error('[Admin Order Status Trigger] Background email trigger failed:', emailErr);
         }

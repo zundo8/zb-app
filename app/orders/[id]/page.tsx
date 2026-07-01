@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   Package, 
   Truck, 
@@ -49,6 +49,8 @@ export default function OrderDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -94,7 +96,6 @@ export default function OrderDetailsPage() {
   };
 
   const handleCancelOrder = async () => {
-    if (!confirm("Are you sure you want to cancel this order?")) return;
     setCancelling(true);
     try {
       const res = await fetch("/api/app/orders/cancel", {
@@ -104,12 +105,14 @@ export default function OrderDetailsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to cancel");
-      alert("Order cancelled successfully.");
+      setToast("Order cancelled successfully.");
+      setShowCancelModal(false);
       fetchOrder();
     } catch (e: any) {
-      alert(e.message || "Failed to cancel order");
+      setToast(e.message || "Failed to cancel order");
     } finally {
       setCancelling(false);
+      setTimeout(() => setToast(null), 4000);
     }
   };
 
@@ -552,7 +555,7 @@ export default function OrderDetailsPage() {
           {/* Cancel order for pending/COD */}
           {canCancel && !hasPendingRequest && (
             <button
-              onClick={handleCancelOrder}
+              onClick={() => setShowCancelModal(true)}
               disabled={cancelling}
               className="w-full py-4 rounded-2xl text-[11px] font-bold uppercase tracking-wider text-red-500 bg-red-500/5 border border-red-500/15 hover:bg-red-500/10 transition-all active:scale-[0.98] disabled:opacity-50"
             >
@@ -569,6 +572,74 @@ export default function OrderDetailsPage() {
           </Link>
         </div>
       </main>
+
+      {/* Toast Notice */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] px-6 py-3.5 bg-black/90 border border-foreground/10 text-foreground text-[10px] font-bold uppercase tracking-widest rounded-full shadow-2xl backdrop-blur-md"
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Cancellation Modal */}
+      <AnimatePresence>
+        {showCancelModal && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCancelModal(false)}
+              className="absolute inset-0 bg-black/85 backdrop-blur-md"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md glass-card p-8 rounded-[32px] border border-foreground/15 shadow-2xl space-y-6 bg-[#090909]/95 text-left z-10"
+            >
+              <div className="flex items-center gap-3 text-red-500">
+                <AlertCircle className="w-5 h-5" />
+                <h3 className="text-[12px] font-black uppercase tracking-[0.25em]">Cancel Order</h3>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-[12px] text-foreground/70 leading-relaxed font-medium">
+                  Are you sure you want to cancel order <span className="text-foreground font-semibold">{order?.orderNumber || order?.id}</span>?
+                </p>
+                <p className="text-[10px] text-foreground/45 leading-normal">
+                  All items will be restocked and any upfront online payments will be refunded to your source account automatically. This action is irreversible.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="flex-1 py-3 bg-foreground/5 hover:bg-foreground/10 text-foreground/60 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={handleCancelOrder}
+                  disabled={cancelling}
+                  className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+                >
+                  {cancelling && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Confirm Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

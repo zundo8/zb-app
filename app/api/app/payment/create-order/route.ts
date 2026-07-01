@@ -108,7 +108,29 @@ export async function POST(req: Request) {
         const shop = await prisma.shop.findFirst();
         if (shop) {
           const customer = await resolveMobileCustomer(shop.id, orderData, userAuth);
-          const failedOrderNumber = await allocateOrderNumber();
+          
+          // Generate universal internal order number
+          const date = new Date();
+          const yy = String(date.getFullYear()).slice(-2);
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const yymm = `${yy}${mm}`;
+          
+          let universalOrderNumber = '';
+          try {
+            const seqRes: any[] = await prisma.$queryRawUnsafe(`
+              INSERT INTO order_sequences (year_month, current_value)
+              VALUES ($1, 1)
+              ON CONFLICT (year_month)
+              DO UPDATE SET current_value = order_sequences.current_value + 1
+              RETURNING current_value;
+            `, yymm);
+            const seqVal = seqRes[0].current_value;
+            universalOrderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
+          } catch (seqErr: any) {
+            console.error('[MobileCheckout] Failed to generate universal internal order number:', seqErr.message);
+            universalOrderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
+          }
+
           const resolvedItems = await Promise.all((orderData.lineItems || []).map(async (li: any, idx: number) => {
             let resolvedPid: string | null = null;
             const rawPid = li.productId || li.product_id;
@@ -137,13 +159,13 @@ export async function POST(req: Request) {
             };
           }));
 
-          await prisma.$transaction(async (tx) => {
+          await prisma.$transaction(async (tx: any) => {
             // 1. Create pending Order
             await tx.order.create({
               data: {
                 shopId: shop.id,
                 customerId: customer.id,
-                shopifyOrderId: `#${failedOrderNumber}`,
+                shopifyOrderId: null, // Null initially, set when synced
                 razorpayOrderId: order.id,
                 totalPrice: amountRupees,
                 subtotalPrice: orderData.subtotal || amountRupees,
@@ -164,6 +186,12 @@ export async function POST(req: Request) {
                 billingAddress: null,
                 tags: orderData.tags || 'mobile-app, pending',
                 note: orderData.note || 'Created via Payment Initiation',
+                
+                // Set universal numbering and status
+                internalOrderNumber: universalOrderNumber,
+                shopifySyncStatus: 'failed',
+                shopifySyncError: 'Order initiated on mobile, payment pending',
+
                 items: {
                   create: resolvedItems.map((item, idx) => ({
                     shopifyLineItemId: `pending_${order.id}_${idx}`,
@@ -181,7 +209,7 @@ export async function POST(req: Request) {
             // 2. Create pending MobileOrder
             await tx.mobileOrder.create({
               data: {
-                orderNumber: failedOrderNumber,
+                orderNumber: universalOrderNumber,
                 customerId: customer.id,
                 status: 'payment_pending',
                 paymentStatus: 'pending',
@@ -209,7 +237,7 @@ export async function POST(req: Request) {
             });
           });
 
-          console.log(`[Razorpay] Pre-created pending order and mobile order ${order.id} in DB`);
+          console.log(`[Razorpay] Pre-created pending order and mobile order ${order.id} in DB with internalOrderNumber: ${universalOrderNumber}`);
         }
       } catch (dbErr: any) {
         console.warn('[Razorpay] Failed to pre-create pending order:', dbErr.message);

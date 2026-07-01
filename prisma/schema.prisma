@@ -212,7 +212,7 @@ model Follow {
 model Order {
   id                    String            @id @default(cuid())
   shopId                String
-  shopifyOrderId        String            @unique
+  shopifyOrderId        String?           @unique
   customerId            String
   status                String
   totalPrice            Float
@@ -252,6 +252,17 @@ model Order {
   shipments             Shipment[]
   delhivery_awb         String?
   tracking_status       String?
+
+  // Universal Numbering, Sync and Refund Columns
+  internalOrderNumber   String?           @unique @map("internal_order_number")
+  shopifyOrderName      String?           @map("shopify_order_name")
+  shopifySyncStatus     String            @default("synced") @map("shopify_sync_status") // synced, pending, failed
+  shopifySyncError      String?           @map("shopify_sync_error")
+  refundStatus          String            @default("not_applicable") @map("refund_status") // not_applicable, pending, processing, completed, failed
+  refundError           String?           @map("refund_error")
+  refundAttempts        Int               @default(0) @map("refund_attempts")
+  cancelledAt           DateTime?         @map("cancelled_at")
+  cancelledBy           String?           @map("cancelled_by")
 }
 
 model OrderItem {
@@ -1655,5 +1666,16 @@ model StoreSettings {
 
   @@map("store_settings")
 }
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  orderId   String
+  action    String   // SHOPIFY_SYNC, RAZORPAY_REFUND
+  status    String   // SUCCESS, FAILED
+  error     String?
+  payload   String?  // JSON string
+  createdAt DateTime @default(now())
+}
+
 
 

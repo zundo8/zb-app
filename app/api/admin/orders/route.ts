@@ -71,6 +71,7 @@ export async function GET(req: Request) {
       conditions.push({
         OR: [
           { shopifyOrderId: { contains: search, mode: 'insensitive' } },
+          { internalOrderNumber: { contains: search, mode: 'insensitive' } },
           { note: { contains: search, mode: 'insensitive' } },
           { tags: { contains: search, mode: 'insensitive' } },
           { customer: { name: { contains: search, mode: 'insensitive' } } },

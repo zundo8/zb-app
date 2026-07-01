@@ -119,11 +119,77 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
     orderData.fulfillment_status = 'cancelled';
   }
 
+  // Attempt to link order by internalOrderNumber if shopifyOrderId doesn't match
+  let existingLocalOrder = await prisma.order.findUnique({
+    where: { shopifyOrderId: orderData.id.toString() }
+  });
+
+  let extractedNumber = '';
+  if (!existingLocalOrder) {
+    // 1. Try tags matching
+    const tagMatch = (orderData.tags || '').match(/zb-order-(ZB-\d{4}-\d{5})/i);
+    if (tagMatch) {
+      extractedNumber = tagMatch[1];
+    }
+
+    // 2. Try note attributes matching
+    if (!extractedNumber && orderData.note_attributes) {
+      const attr = orderData.note_attributes.find((na: any) => na.name === 'internal_order_number');
+      if (attr && typeof attr.value === 'string' && attr.value.startsWith('ZB-')) {
+        extractedNumber = attr.value;
+      }
+    }
+
+    if (extractedNumber) {
+      console.log(`[Webhook] Extracted internal order number: ${extractedNumber}. Searching local database...`);
+      const matchedOrder = await prisma.order.findUnique({
+        where: { internalOrderNumber: extractedNumber }
+      });
+      if (matchedOrder) {
+        console.log(`[Webhook] Found matching local order ${matchedOrder.id}. Updating shopifyOrderId to ${orderData.id}...`);
+        existingLocalOrder = await prisma.order.update({
+          where: { id: matchedOrder.id },
+          data: {
+            shopifyOrderId: orderData.id.toString(),
+            shopifyOrderName: orderData.name || null,
+            shopifySyncStatus: 'synced',
+            shopifySyncError: null
+          }
+        });
+
+        // Also update corresponding WebStoreOrder or MobileOrder if needed
+        if (matchedOrder.orderType === 'WEB_STORE') {
+          await prisma.webStoreOrder.updateMany({
+            where: { orderNumber: extractedNumber },
+            data: {
+              notes: `Linked to Shopify: ${orderData.id.toString()} | Local: ${matchedOrder.id}`
+            }
+          }).catch((e: any) => {
+            console.error('[Webhook] Failed to update webStoreOrder notes:', e.message);
+          });
+        } else if (matchedOrder.orderType === 'MOBILE_APP') {
+          await prisma.mobileOrder.updateMany({
+            where: { orderNumber: extractedNumber },
+            data: {
+              shopifyOrderId: orderData.id.toString(),
+              status: 'synced'
+            }
+          }).catch((e: any) => {
+            console.error('[Webhook] Failed to update mobileOrder status:', e.message);
+          });
+        }
+      }
+    }
+  }
+
   const order = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.id.toString() },
     create: {
       shopId: shopRecord.id,
       shopifyOrderId: orderData.id.toString(),
+      shopifyOrderName: orderData.name || null,
+      internalOrderNumber: extractedNumber || null,
+      shopifySyncStatus: 'synced',
       customerId: dbCustomer.id,
       status: finalStatus,
       totalPrice: parseFloat(orderData.total_price || '0'),
@@ -142,6 +208,7 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
     },
     update: {
       status: finalStatus,
+      shopifyOrderName: orderData.name || null,
       totalPrice: parseFloat(orderData.total_price || '0'),
       subtotalPrice: parseFloat(orderData.subtotal_price || '0'),
       totalTax: parseFloat(orderData.total_tax || '0'),
@@ -232,7 +299,7 @@ async function handleRefundWebhook(shop: string, refundData: any) {
     if (!lineItemId) continue;
 
     const orderItem = order.items.find(
-      (item) => item.shopifyLineItemId === lineItemId,
+      (item: any) => item.shopifyLineItemId === lineItemId,
     );
     if (!orderItem || !orderItem.productId) continue;
 

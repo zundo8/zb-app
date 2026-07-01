@@ -37,7 +37,24 @@ export async function POST(req) {
     }
 
     const customerName = payload.customer?.first_name || payload.billing_address?.first_name || 'there';
-    const orderId = payload.order_number || payload.id;
+    let orderId = payload.order_number || payload.id;
+    
+    // Extract internal order number from tags or note_attributes if present
+    let extractedNumber = '';
+    const tagMatch = (payload.tags || '').match(/zb-order-(ZB-\d{4}-\d{5})/i);
+    if (tagMatch) {
+      extractedNumber = tagMatch[1];
+    }
+    if (!extractedNumber && payload.note_attributes) {
+      const attr = payload.note_attributes.find((na) => na.name === 'internal_order_number');
+      if (attr && typeof attr.value === 'string' && attr.value.startsWith('ZB-')) {
+        extractedNumber = attr.value;
+      }
+    }
+    if (extractedNumber) {
+      orderId = extractedNumber;
+    }
+
     const orderTotal = payload.total_price || '0';
 
     const result = await sendOrderConfirmation({

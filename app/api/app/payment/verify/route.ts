@@ -144,6 +144,7 @@ export async function POST(req: Request) {
                         price: String(li.price),
                     };
                 }).filter((li: any) => li.variant_id),
+                email: order.customer?.email || address?.email || '',
                 financial_status: 'paid',
                 tags: `${tags}, synced`,
                 note: `Verified App Order | Razorpay: ${razorpay_payment_id}`,

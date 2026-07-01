@@ -245,6 +245,29 @@ export async function POST(req: Request) {
         }
     }
 
+    // Generate universal internal order number
+    const date = new Date();
+    const yy = String(date.getFullYear()).slice(-2);
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yymm = `${yy}${mm}`;
+    
+    let universalOrderNumber = '';
+    try {
+      const seqRes: any[] = await prisma.$queryRawUnsafe(`
+        INSERT INTO order_sequences (year_month, current_value)
+        VALUES ($1, 1)
+        ON CONFLICT (year_month)
+        DO UPDATE SET current_value = order_sequences.current_value + 1
+        RETURNING current_value;
+      `, yymm);
+      const seqVal = seqRes[0].current_value;
+      universalOrderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
+    } catch (seqErr: any) {
+      console.error('[Checkout] Failed to generate universal internal order number:', seqErr.message);
+      // Fallback in case of database issue
+      universalOrderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
+    }
+
     // 3. Create Order in Shopify
     const shopifyLineItems = items.map((item: any) => {
       // Parse variant_id safely — support GID format (gid://shopify/ProductVariant/123) or plain ID
@@ -270,6 +293,7 @@ export async function POST(req: Request) {
     const customerId = parseInt(shopifyCustomerId, 10);
     const shopifyOrderData: any = {
       line_items: shopifyLineItems,
+      email: address.email,
       billing_address: {
         first_name: address.name.split(' ')[0],
         last_name: address.name.split(' ').slice(1).join(' ') || '.',
@@ -295,7 +319,10 @@ export async function POST(req: Request) {
       note: paymentMethod === "COD" 
         ? `COD Order from Web Store - ₹99 upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})` 
         : "Paid via Razorpay from Web Store",
-      tags: `WebStoreOrder, WebStore, ${paymentMethod === "COD" ? "COD" : "Razorpay"}`,
+      tags: `WebStoreOrder, WebStore, ${paymentMethod === "COD" ? "COD" : "Razorpay"}, zb-order-${universalOrderNumber}`,
+      note_attributes: [
+        { name: 'internal_order_number', value: universalOrderNumber }
+      ],
       total_tax: 0,
       currency: "INR"
     };
@@ -306,7 +333,7 @@ export async function POST(req: Request) {
     }
 
     // Try to create order in Shopify — but don't fail the entire checkout if Shopify is down
-    let shopifyOrderId = `app_pending_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    let shopifyOrderId = null;
     let sOrder: any = null;
     try {
       sOrder = await createOrder(shopifyOrderData);
@@ -348,7 +375,7 @@ export async function POST(req: Request) {
           productId: dbProductId,
           title: li.title,
           quantity: li.quantity,
-          price: parseFloat(li.price || '0'),
+          price: li.price ? parseFloat(li.price) : 0,
           sku: li.sku || null,
           image: image
         });
@@ -408,9 +435,16 @@ export async function POST(req: Request) {
         paymentMethod: paymentMethod === "COD" ? "COD" : "razorpay",
         paymentCapturedAt: razorpay ? new Date() : null,
         orderType: "WEB_STORE",
-        tags: `WebStoreOrder, Web, ${paymentMethod === "COD" ? "COD" : "Razorpay"}`,
+        tags: `WebStoreOrder, Web, ${paymentMethod === "COD" ? "COD" : "Razorpay"}, zb-order-${universalOrderNumber}`,
         discountCode: couponCode || null,
         discountAmount: Number(couponDiscount) || 0,
+        
+        // Universal Numbering & Sync fields
+        internalOrderNumber: universalOrderNumber,
+        shopifyOrderName: sOrder ? sOrder.name : null,
+        shopifySyncStatus: sOrder ? 'synced' : 'failed',
+        shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
+        
         items: {
           create: resolvedItems.map((item: any) => ({
             shopifyLineItemId: item.shopifyLineItemId,
@@ -473,12 +507,9 @@ export async function POST(req: Request) {
     // Also create a WebStoreOrder for the web-store dashboard integration
     let webStoreOrder: any = null;
     try {
-      // Generate a fallback order number in case the DB trigger doesn't fire (e.g. SQLite / non-Postgres)
-      const fallbackOrderNumber = `ZB-WEB-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-
       webStoreOrder = await prisma.webStoreOrder.create({
         data: {
-          orderNumber: fallbackOrderNumber, // DB trigger will override on Postgres; fallback used on other DBs
+          orderNumber: universalOrderNumber, // Set directly to universal number
           customerName: address.name,
           customerEmail: address.email,
           customerPhone: address.phone || "",
@@ -504,7 +535,7 @@ export async function POST(req: Request) {
           codUpfrontPaid: paymentMethod === "COD" ? codFee : 0,
           codUpfrontPaymentId: paymentMethod === "COD" ? (razorpay?.razorpay_payment_id || null) : null,
           fulfillmentStatus: "unfulfilled",
-          notes: `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid: ${razorpay?.razorpay_payment_id || 'N/A'})` : "Paid via Razorpay"} from Web Store | Shopify: ${shopifyOrderId} | Local: ${localOrder.id}`,
+          notes: `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid: ${razorpay?.razorpay_payment_id || 'N/A'})` : "Paid via Razorpay"} from Web Store | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`,
           source: "web"
         }
       });
@@ -516,7 +547,7 @@ export async function POST(req: Request) {
     // Send order confirmation email to the user directly
     try {
       const orderPayload = {
-        orderId: webStoreOrder?.orderNumber || localOrder.shopifyOrderId || localOrder.id,
+        orderId: universalOrderNumber, // Universal ID
         customerEmail: address.email,
         customerName: address.name || "Customer",
         items: items.map((item: any) => ({

@@ -84,7 +84,7 @@ export async function POST(
 
     // Build Shopify order payload
     const shopifyOrderPayload: any = {
-      line_items: order.items.map((item) => {
+      line_items: order.items.map((item: any) => {
         // Mobile app stores Shopify variant id as `sku: variant:<id>` for later sync.
         const sku = item.sku || '';
         const m = sku.match(/variant:(\d+)/i);
@@ -102,9 +102,13 @@ export async function POST(
           requires_shipping: true,
         };
       }),
+      email: order.customer?.email || '',
       financial_status: order.paymentStatus === 'paid' ? 'paid' : 'pending',
-      note: `Synced from Mobile App | Payment: ${order.paymentMethod || 'Unknown'} | InternalOrderId: ${order.id}`,
-      tags: `mobile-app, SyncedFromAdmin, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
+      note: `Synced from Admin Dashboard | Payment: ${order.paymentMethod || 'Unknown'} | InternalOrderId: ${order.id}`,
+      tags: `mobile-app, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
+      note_attributes: [
+        { name: 'internal_order_number', value: order.internalOrderNumber || '' }
+      ],
       total_tax: 0,
       currency: order.currency || 'INR',
     };
@@ -132,13 +136,16 @@ export async function POST(
     // Create order in Shopify
     const shopifyOrder = await createOrder(shopifyOrderPayload);
 
-    // Update local order with Shopify ID and approve it
+    // Update local order with Shopify ID, sync status, and approve it
     await prisma.order.update({
       where: { id: orderId },
       data: { 
         shopifyOrderId: shopifyOrder.id.toString(),
-        status: 'OPEN', // Mark as approved/open now that it's in Shopify
-        tags: `AppOrder, MobileApp, Synced, ${order.paymentMethod || 'Razorpay'}`,
+        shopifyOrderName: shopifyOrder.name,
+        shopifySyncStatus: 'synced',
+        shopifySyncError: null,
+        status: order.status === 'payment_pending' ? 'approved' : order.status,
+        tags: `AppOrder, MobileApp, Synced, ${order.paymentMethod || 'Razorpay'}`
       },
     });
 
@@ -150,6 +157,20 @@ export async function POST(
 
   } catch (error: any) {
     console.error('[Sync] Shopify sync error:', error);
+    
+    // Save error in DB
+    try {
+      await prisma.order.update({
+        where: { id: params.id },
+        data: {
+          shopifySyncStatus: 'failed',
+          shopifySyncError: error.message || 'Unknown sync error'
+        }
+      });
+    } catch (dbErr) {
+      console.error('[Sync] Failed to update sync error in DB:', dbErr);
+    }
+
     return NextResponse.json(
       { success: false, error: error.message || 'Sync failed' },
       { status: 500 }

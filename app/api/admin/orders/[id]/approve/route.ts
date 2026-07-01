@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     // Prepare Shopify order data
-    const shopifyLineItems = order.items.map((item) => {
+    const shopifyLineItems = order.items.map((item: any) => {
       // Try to parse variant ID if it looks like a number or GID
       let variantId: number | undefined;
       if (item.sku && /^\d+$/.test(item.sku)) {

@@ -95,7 +95,39 @@ export async function POST(req: Request) {
       });
     }
 
-    const orderNumber = await allocateOrderNumber();
+    // Check if order already exists (pre-created via initiate)
+    let existingOrder = null;
+    if (rzpOrderId) {
+      existingOrder = await prisma.order.findUnique({
+        where: { razorpayOrderId: rzpOrderId },
+        include: { items: true }
+      });
+    }
+
+    // Determine the universal order number: reuse if pre-initiated, otherwise generate a new sequence number
+    let orderNumber = '';
+    if (existingOrder && existingOrder.internalOrderNumber) {
+      orderNumber = existingOrder.internalOrderNumber;
+    } else {
+      const date = new Date();
+      const yy = String(date.getFullYear()).slice(-2);
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yymm = `${yy}${mm}`;
+      try {
+        const seqRes: any[] = await prisma.$queryRawUnsafe(`
+          INSERT INTO order_sequences (year_month, current_value)
+          VALUES ($1, 1)
+          ON CONFLICT (year_month)
+          DO UPDATE SET current_value = order_sequences.current_value + 1
+          RETURNING current_value;
+        `, yymm);
+        const seqVal = seqRes[0].current_value;
+        orderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
+      } catch (seqErr: any) {
+        console.error('[MobileCheckoutComplete] Failed to generate universal internal order number:', seqErr.message);
+        orderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
+      }
+    }
 
     // ─── Store Credit Redemption ───
     if (appliedStoreCredits > 0) {
@@ -119,7 +151,7 @@ export async function POST(req: Request) {
 
     const note = [
       `Mobile app order`,
-      `InternalOrderId: pending`,
+      `InternalOrderId: ${orderNumber}`,
       `PaymentMethod: ${paymentMethod}`,
       appliedStoreCredits > 0 ? `Store Credits Used: ₹${appliedStoreCredits}` : null,
       paymentId ? `PaymentId: ${paymentId}` : null,
@@ -137,18 +169,10 @@ export async function POST(req: Request) {
         ? 'awaiting_approval' 
         : 'payment_pending';
     
-    // Check if order already exists (pre-created via initiate)
-    let existingOrder = null;
-    if (rzpOrderId) {
-      existingOrder = await prisma.order.findUnique({
-        where: { razorpayOrderId: rzpOrderId },
-        include: { items: true }
-      });
-    }
-
-    let finalShopifyOrderId = existingOrder?.shopifyOrderId || `#${orderNumber}`;
+    let finalShopifyOrderId = existingOrder?.shopifyOrderId || null;
     let finalTags = existingOrder?.tags || tags;
     let isSyncedNow = false;
+    let shopifyOrderRes: any = null;
 
     // --- SHOPIFY SYNC FOR PAID OR COD (If we want COD in shopify too) ---
     const shouldSyncNow = (paymentStatus === 'paid') && (!existingOrder?.shopifyOrderId || existingOrder.shopifyOrderId.startsWith('#'));
@@ -188,9 +212,13 @@ export async function POST(req: Request) {
                         price: li.price ? String(li.price) : undefined,
                     };
                 }).filter((li: any) => li.variant_id && !isNaN(li.variant_id)),
+                email: customerEmail || customer.email || shippingAddress?.email || '',
                 financial_status: paymentStatus === 'paid' ? 'paid' : 'pending',
-                tags: `${tags}, synced`,
+                tags: `${tags}, synced, zb-order-${orderNumber}`,
                 note: note,
+                note_attributes: [
+                    { name: 'internal_order_number', value: orderNumber }
+                ],
                 currency: 'INR',
                 customer: shopifyCustomerId && !shopifyCustomerId.includes('GUEST') ? { id: parseInt(shopifyCustomerId, 10) } : undefined,
                 shipping_address: {
@@ -216,7 +244,7 @@ export async function POST(req: Request) {
 
             shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
 
-            const shopifyOrderRes = await createOrder(shopifyOrderPayload);
+            shopifyOrderRes = await createOrder(shopifyOrderPayload);
             finalShopifyOrderId = String(shopifyOrderRes.id);
             finalTags = `${tags}, synced`;
             isSyncedNow = true;
@@ -228,7 +256,7 @@ export async function POST(req: Request) {
 
     if (existingOrder) {
       console.log(`[App API] Updating existing order ${existingOrder.id}...`);
-      const updated = await prisma.$transaction(async (tx) => {
+      const updated = await prisma.$transaction(async (tx: any) => {
         // Also update or create corresponding MobileOrder record
         const mobileOrder = await tx.mobileOrder.findUnique({
           where: { orderNumber: orderNumber }
@@ -334,9 +362,18 @@ export async function POST(req: Request) {
               phone: customerPhone || customer!.phone || shippingAddress?.phone || '',
               email: customerEmail || customer!.email || shippingAddress?.email || '',
             }),
+            internalOrderNumber: orderNumber,
+            shopifyOrderName: shopifyOrderRes ? shopifyOrderRes.name : null,
+            shopifySyncStatus: isSyncedNow ? 'synced' : 'failed',
+            shopifySyncError: isSyncedNow ? null : 'Shopify sync failed during order completion',
           }
         });
       });
+
+      // Email trigger
+      if (customerEmail && (paymentStatus === 'paid' || paymentMethod === 'COD')) {
+        await triggerMobileEmail(updated, orderNumber, subtotal, paymentMethod, total, lineItems, customer, shippingAddress, customerEmail, customerPhone);
+      }
 
       return NextResponse.json({
         success: true,
@@ -347,7 +384,7 @@ export async function POST(req: Request) {
       }, { headers: corsHeaders });
     }
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx: any) => {
       // 1. Create order
       const order = await tx.order.create({
         data: {
@@ -381,6 +418,12 @@ export async function POST(req: Request) {
           razorpayPaymentId: paymentId || null,
           paymentMethod: paymentMethod === 'COD' ? 'COD' : 'Razorpay',
           paymentCapturedAt: paymentStatus === 'paid' ? now : null,
+          
+          internalOrderNumber: orderNumber,
+          shopifyOrderName: shopifyOrderRes ? shopifyOrderRes.name : null,
+          shopifySyncStatus: isSyncedNow ? 'synced' : 'failed',
+          shopifySyncError: isSyncedNow ? null : 'Shopify sync failed during order completion',
+
           items: {
             create: await Promise.all(lineItems.map(async (li: any, idx: number) => {
               const rawPid = li.productId || li.product_id;
@@ -502,99 +545,7 @@ export async function POST(req: Request) {
 
     // ─── Trigger Dynamic Order Confirmation Email ───
     if (customerEmail && (paymentStatus === 'paid' || paymentMethod === 'COD')) {
-      try {
-        const { sendMail } = await import('@/lib/mailer');
-        const { orderConfirmationTemplate, renderDBTemplate } = await import('@/lib/email-templates');
-        
-        const customerName = shippingAddress?.name || customer?.name || 'Customer';
-        const formattedItems = lineItems.map((item: any) => {
-          let size = item.size || 'N/A';
-          if (size === 'N/A' && item.name) {
-            const sizeMatch = item.name.match(/\s*-\s*(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i);
-            if (sizeMatch) size = sizeMatch[1].toUpperCase();
-          }
-          return {
-            name: item.name || item.title || 'Product',
-            size: size,
-            qty: item.quantity || 1,
-            price: `INR ${item.price || 0}`,
-            image: item.image || item.imageUrl || null,
-          };
-        });
-
-        const itemsHtml = formattedItems
-          .map(
-            (item: any) => `
-        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
-          <tr>
-            <td class="item-img" width="110" style="vertical-align:top; padding:0;">
-              ${item.image ? `<img src="${item.image}" width="110" height="130" style="display:block; object-fit:cover; opacity:0.8;" alt="${item.name}" />` : `<div style="width:110px; height:130px; background:rgba(255,255,255,0.05);"></div>`}
-            </td>
-            <td style="vertical-align:top; padding:20px 20px 20px 22px; border-left:1px solid rgba(255,255,255,0.1);">
-              <p style="margin:0 0 4px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase;">Qty: ${item.qty}</p>
-              <p style="margin:0 0 6px; font-family:'DM Serif Display',serif; font-size:17px; color:rgba(255,255,255,0.7); line-height:1.3;">${item.name}</p>
-              ${item.size !== 'N/A' ? `<p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3);">Size: ${item.size}</p>` : ''}
-              <p style="margin:0; font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.5);">${item.price}</p>
-            </td>
-          </tr>
-        </table>
-        `
-          )
-          .join('');
-
-        const emailVars = {
-          customerName,
-          orderId: created.shopifyOrderId || created.id,
-          orderDate: new Date(created.createdAt).toLocaleDateString(),
-          itemsHtml,
-          items: itemsHtml,
-          products: itemsHtml,
-          subtotal: `INR ${subtotal}`,
-          shipping: `INR ${paymentMethod === 'COD' ? 99 : 0}`,
-          total: `INR ${total}`,
-          totalPrice: `INR ${total}`,
-          amount: `INR ${total}`,
-          price: `INR ${total}`,
-          currency: 'INR',
-          shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : `${shippingAddress?.line1 || shippingAddress?.street || ''}, ${shippingAddress?.city || ''}, ${shippingAddress?.state || ''} - ${shippingAddress?.pincode || shippingAddress?.zip || ''}, ${shippingAddress?.country || 'India'}`,
-          orderStatusUrl: `https://zicabella.com/account/orders`,
-        };
-
-        const fallbackFn = () => orderConfirmationTemplate({
-          customerName,
-          orderId: created.shopifyOrderId || created.id,
-          orderDate: new Date(created.createdAt).toLocaleDateString(),
-          items: formattedItems,
-          subtotal: `INR ${subtotal}`,
-          shipping: `INR ${paymentMethod === 'COD' ? 99 : 0}`,
-          total: `INR ${total}`,
-          shippingAddress: emailVars.shippingAddress,
-        });
-
-        const rendered = await renderDBTemplate('ORDER_CONFIRMATION', emailVars, fallbackFn);
-
-        const emailResult = await sendMail({
-          to: customerEmail,
-          subject: rendered.subject || `Order Confirmed - ${created.shopifyOrderId || created.id}`,
-          html: rendered.html,
-        });
-
-        await prisma.emailLog.create({
-          data: {
-            recipientEmail: customerEmail,
-            recipientName: customerName,
-            subject: rendered.subject || `Order Confirmed - ${created.shopifyOrderId || created.id}`,
-            templateName: 'Order Confirmed',
-            triggerEvent: 'app/orders/create',
-            referenceId: created.id,
-            status: emailResult.messageId ? 'sent' : 'failed',
-            messageId: emailResult.messageId || null,
-            sentBy: 'system',
-          }
-        });
-      } catch (emailErr: any) {
-        console.error('[Email Trigger Error] Failed to send order confirmation email:', emailErr.message);
-      }
+      await triggerMobileEmail(created, orderNumber, subtotal, paymentMethod, total, lineItems, customer, shippingAddress, customerEmail, customerPhone);
     }
 
     return NextResponse.json({
@@ -607,5 +558,101 @@ export async function POST(req: Request) {
   } catch (e: any) {
     console.error('[App API] orders/create error:', e);
     return NextResponse.json({ success: false, error: e?.message || 'Internal server error' }, { status: 500, headers: corsHeaders });
+  }
+}
+
+async function triggerMobileEmail(created: any, orderNumber: string, subtotal: number, paymentMethod: string, total: number, lineItems: any[], customer: any, shippingAddress: any, customerEmail: string, customerPhone: string) {
+  try {
+    const { sendMail } = await import('@/lib/mailer');
+    const { orderConfirmationTemplate, renderDBTemplate } = await import('@/lib/email-templates');
+    
+    const customerName = shippingAddress?.name || customer?.name || 'Customer';
+    const formattedItems = lineItems.map((item: any) => {
+      let size = item.size || 'N/A';
+      if (size === 'N/A' && item.name) {
+        const sizeMatch = item.name.match(/\s*-\s*(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i);
+        if (sizeMatch) size = sizeMatch[1].toUpperCase();
+      }
+      return {
+        name: item.name || item.title || 'Product',
+        size: size,
+        qty: item.quantity || 1,
+        price: `INR ${item.price || 0}`,
+        image: item.image || item.imageUrl || null,
+      };
+    });
+
+    const itemsHtml = formattedItems
+      .map(
+        (item: any) => `
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
+      <tr>
+        <td class="item-img" width="110" style="vertical-align:top; padding:0;">
+          ${item.image ? `<img src="${item.image}" width="110" height="130" style="display:block; object-fit:cover; opacity:0.8;" alt="${item.name}" />` : `<div style="width:110px; height:130px; background:rgba(255,255,255,0.05);"></div>`}
+        </td>
+        <td style="vertical-align:top; padding:20px 20px 20px 22px; border-left:1px solid rgba(255,255,255,0.1);">
+          <p style="margin:0 0 4px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase;">Qty: ${item.qty}</p>
+          <p style="margin:0 0 6px; font-family:'DM Serif Display',serif; font-size:17px; color:rgba(255,255,255,0.7); line-height:1.3;">${item.name}</p>
+          ${item.size !== 'N/A' ? `<p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3);">Size: ${item.size}</p>` : ''}
+          <p style="margin:0; font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.5);">${item.price}</p>
+        </td>
+      </tr>
+    </table>
+    `
+      )
+      .join('');
+
+    const emailVars = {
+      customerName,
+      orderId: orderNumber, // Universal Order ID
+      orderDate: new Date(created.createdAt).toLocaleDateString(),
+      itemsHtml,
+      items: itemsHtml,
+      products: itemsHtml,
+      subtotal: `INR ${subtotal}`,
+      shipping: `INR ${paymentMethod === 'COD' ? 99 : 0}`,
+      total: `INR ${total}`,
+      totalPrice: `INR ${total}`,
+      amount: `INR ${total}`,
+      price: `INR ${total}`,
+      currency: 'INR',
+      shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : `${shippingAddress?.line1 || shippingAddress?.street || ''}, ${shippingAddress?.city || ''}, ${shippingAddress?.state || ''} - ${shippingAddress?.pincode || shippingAddress?.zip || ''}, ${shippingAddress?.country || 'India'}`,
+      orderStatusUrl: `https://zicabella.com/account/orders`,
+    };
+
+    const fallbackFn = () => orderConfirmationTemplate({
+      customerName,
+      orderId: orderNumber, // Universal Order ID
+      orderDate: new Date(created.createdAt).toLocaleDateString(),
+      items: formattedItems,
+      subtotal: `INR ${subtotal}`,
+      shipping: `INR ${paymentMethod === 'COD' ? 99 : 0}`,
+      total: `INR ${total}`,
+      shippingAddress: emailVars.shippingAddress,
+    });
+
+    const rendered = await renderDBTemplate('ORDER_CONFIRMATION', emailVars, fallbackFn);
+
+    const emailResult = await sendMail({
+      to: customerEmail,
+      subject: rendered.subject || `Order Confirmed - ${orderNumber}`,
+      html: rendered.html,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        recipientEmail: customerEmail,
+        recipientName: customerName,
+        subject: rendered.subject || `Order Confirmed - ${orderNumber}`,
+        templateName: 'Order Confirmed',
+        triggerEvent: 'app/orders/create',
+        referenceId: created.id,
+        status: emailResult.messageId ? 'sent' : 'failed',
+        messageId: emailResult.messageId || null,
+        sentBy: 'system',
+      }
+    });
+  } catch (emailErr: any) {
+    console.error('[Email Trigger Error] Failed to send order confirmation email:', emailErr.message);
   }
 }

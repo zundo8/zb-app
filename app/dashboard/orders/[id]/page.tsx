@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   Loader2,
@@ -57,7 +58,7 @@ interface Shipment {
 
 interface OrderDetail {
   id: string;
-  shopifyOrderId: string;
+  shopifyOrderId: string | null;
   status: string;
   totalPrice: number;
   subtotalPrice: number | null;
@@ -84,6 +85,13 @@ interface OrderDetail {
   delhivery_awb: string | null;
   tracking_status: string | null;
   orderNumber?: string | null;
+  internalOrderNumber?: string | null;
+  shopifyOrderName?: string | null;
+  shopifySyncStatus?: string | null;
+  shopifySyncError?: string | null;
+  refundStatus?: string | null;
+  refundError?: string | null;
+  refundAttempts?: number;
 }
 
 function isCustomSku(sku: string | null | undefined): boolean {
@@ -109,6 +117,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
+  const { data: session } = useSession();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,6 +127,10 @@ export default function OrderDetailPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  
   const [editValues, setEditValues] = useState({
     status: '',
     paymentStatus: '',
@@ -177,6 +190,74 @@ export default function OrderDetailPage() {
       setToast("Update Failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleShopifySync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setToast("Initiating Shopify Sync...");
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/sync-shopify`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setToast("Shopify Sync Complete");
+        fetchOrder(true);
+      } else {
+        setToast(data.error || "Sync Failed");
+        fetchOrder(true);
+      }
+    } catch (err: any) {
+      setToast(err.message || "Sync Failed");
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const handleRetryRefund = async () => {
+    if (refunding) return;
+    setRefunding(true);
+    setToast("Initiating Razorpay Refund...");
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/retry-refund`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setToast("Refund Completed");
+        fetchOrder(true);
+      } else {
+        setToast(data.error || "Refund Failed");
+        fetchOrder(true);
+      }
+    } catch (err: any) {
+      setToast(err.message || "Refund Failed");
+    } finally {
+      setRefunding(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: 'cancelled' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast("Order Cancelled");
+        setShowCancelModal(false);
+        fetchOrder(true);
+      } else {
+        setToast(data.error || "Cancellation Failed");
+      }
+    } catch (err: any) {
+      setToast(err.message || "Cancellation Failed");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -276,7 +357,7 @@ export default function OrderDetailPage() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-black tracking-tighter uppercase italic">Order #{order.orderNumber || order.id.slice(-6).toUpperCase()}</h1>
+                <h1 className="text-3xl font-black tracking-tighter uppercase italic">Order {order.internalOrderNumber || (order.orderNumber && `#${order.orderNumber}`) || `#${order.id.slice(-6).toUpperCase()}`}</h1>
                 <div className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${order.status === 'cancelled' || order.status === 'payment_failed' ? 'bg-rose-500/10 text-rose-500' : 'bg-blue-500/10 text-blue-500'}`}>
                   {order.status}
                 </div>
@@ -535,7 +616,7 @@ export default function OrderDetailPage() {
               )}
             </div>
 
-            <DelhiveryActions order={order} onRefresh={() => fetchOrder(true)} />
+            <DelhiveryActions order={order as any} onRefresh={() => fetchOrder(true)} />
           </div>
         </div>
 
@@ -574,7 +655,7 @@ export default function OrderDetailPage() {
              
             <h3 className="text-[10px] font-bold text-foreground/20 uppercase tracking-[0.4em] relative z-10">Terminal Location</h3>
             
-            {shippingAddr ? (
+            {shippingAddr && (
               <div className="space-y-8 relative z-10">
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest">Primary Vector</p>
@@ -600,12 +681,168 @@ export default function OrderDetailPage() {
                    <ShieldCheck className="w-4 h-4 text-emerald-500/40" />
                 </div>
               </div>
-            ) : (
-              <p className="text-[11px] text-foreground/20 font-bold uppercase tracking-widest italic relative z-10">Terminal data undefined.</p>
             )}
           </div>
+
+          {/* Operations Control Card */}
+          <div className="p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute -left-20 -bottom-20 w-40 h-40 bg-blue-500/5 blur-[80px] rounded-full" />
+            
+            <h3 className="text-[10px] font-bold text-foreground/20 uppercase tracking-[0.4em] relative z-10">Operations Control</h3>
+            
+            {/* Shopify Sync Status Row */}
+            <div className="space-y-4 relative z-10">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest">Shopify Status</span>
+                {order.shopifySyncStatus === 'synced' ? (
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/10">Synced</span>
+                ) : order.shopifySyncStatus === 'failed' ? (
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/10">Failed</span>
+                ) : (
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/10">Pending</span>
+                )}
+              </div>
+              
+              {order.shopifySyncError && (
+                <p className="text-[10px] text-rose-500/70 font-mono leading-tight bg-rose-500/5 p-3 rounded-xl border border-rose-500/10 break-all">
+                  Error: {order.shopifySyncError}
+                </p>
+              )}
+
+              {order.shopifySyncStatus !== 'synced' && (
+                <button
+                  onClick={handleShopifySync}
+                  disabled={syncing}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
+                >
+                  {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  Sync with Shopify
+                </button>
+              )}
+            </div>
+
+            <div className="h-[1px] bg-foreground/5 relative z-10" />
+
+            {/* Refund Status Row (only if cancelled) */}
+            {order.status === 'cancelled' && (
+              <>
+                <div className="space-y-4 relative z-10">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest">Refund Status</span>
+                    {order.refundStatus === 'completed' ? (
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/10">Completed</span>
+                    ) : order.refundStatus === 'failed' ? (
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/10">Failed</span>
+                    ) : order.refundStatus === 'processing' ? (
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-blue-500 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/10">Processing</span>
+                    ) : (
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/30 bg-foreground/5 px-2.5 py-1 rounded-lg border border-foreground/10">N/A</span>
+                    )}
+                  </div>
+
+                  {order.refundError && (
+                    <p className="text-[10px] text-rose-500/70 font-mono leading-tight bg-rose-500/5 p-3 rounded-xl border border-rose-500/10 break-all">
+                      Error: {order.refundError} (Attempts: {order.refundAttempts})
+                    </p>
+                  )}
+
+                  {order.refundStatus === 'failed' && (
+                    <button
+                      onClick={handleRetryRefund}
+                      disabled={refunding}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
+                    >
+                      {refunding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                      Retry Refund
+                    </button>
+                  )}
+                </div>
+                <div className="h-[1px] bg-foreground/5 relative z-10" />
+              </>
+            )}
+
+            {/* Cancel Action Row */}
+            {order.status !== 'cancelled' && (
+              <div className="space-y-4 relative z-10">
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  disabled={['shipped', 'delivered', 'in transit', 'out for delivery'].includes((order.deliveryStatus || '').toLowerCase())}
+                  className="w-full py-3.5 bg-rose-500/10 border border-rose-500/15 hover:bg-rose-500/20 text-rose-500 disabled:opacity-30 disabled:pointer-events-none rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all active:scale-[0.98]"
+                >
+                  Cancel Order
+                </button>
+                {['shipped', 'delivered', 'in transit', 'out for delivery'].includes((order.deliveryStatus || '').toLowerCase()) && (
+                  <p className="text-[8px] text-foreground/30 uppercase tracking-widest text-center leading-normal">
+                    Cancellation blocked — Order has already left terminal
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
+
+      {/* Custom Cancel Confirmation Modal */}
+      <AnimatePresence>
+        {showCancelModal && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCancelModal(false)}
+              className="absolute inset-0 bg-black/65 backdrop-blur-md"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg glass-card p-10 rounded-[36px] border border-foreground/10 shadow-2xl space-y-8 bg-[#0C0C0C]/95 text-left z-10"
+            >
+              <div className="flex items-center gap-4 text-rose-500">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold uppercase tracking-tight leading-none">Terminate Process</h3>
+                  <p className="text-[10px] text-rose-500/50 uppercase tracking-[0.2em] mt-1.5 font-bold">Zica Bella D2C Protocol</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-[13px] text-foreground/75 leading-relaxed font-medium">
+                  Are you absolutely certain you want to cancel order <strong className="text-foreground">{order?.internalOrderNumber || order?.id}</strong>?
+                </p>
+                <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/10 space-y-2 text-[11px] text-rose-500/70 font-medium">
+                  <p>• Online payments (prepaid/upfront COD fees) will be automatically refunded via Razorpay.</p>
+                  <p>• All downstream logistics, shipments, and Delhivery waybills will be terminated.</p>
+                  <p>• Shopify catalog allocations will be released and restocked.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-2">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="flex-1 py-4 bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 text-foreground/60 hover:text-foreground text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all"
+                >
+                  Keep Order
+                </button>
+                <button
+                  onClick={handleCancelOrder}
+                  disabled={saving}
+                  className="flex-1 py-4 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all shadow-xl shadow-rose-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {saving && <Loader2 className="w-4.5 h-4.5 animate-spin" />}
+                  Terminate Order
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 
     // Match each order with its corresponding webStoreOrder if any
     const enrichedOrders = await Promise.all(
-      orders.map(async (order) => {
+      orders.map(async (order: any) => {
         let webStoreOrder = null;
         if (order.razorpayOrderId) {
           webStoreOrder = await prisma.webStoreOrder.findFirst({

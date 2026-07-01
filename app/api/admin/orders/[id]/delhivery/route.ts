@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { createDelhiveryShipment, cancelDelhiveryShipment } from '@/lib/delhivery';
+import { createDelhiveryShipment, cancelDelhiveryShipment, getShippingLabel, getExpectedTAT } from '@/lib/delhivery';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         payment_mode: (order.paymentMethod === 'COD' ? 'COD' : 'Prepaid') as 'COD' | 'Prepaid',
         total_amount: String(order.totalPrice),
         cod_amount: order.paymentMethod === 'COD' ? String(order.totalPrice) : '0.00',
-        products_desc: order.items.map(i => i.title).join(', '),
+        products_desc: order.items.map((i: any) => i.title).join(', '),
         weight: body.weight || '500', // Default weight if not provided
         shipping_mode: (body.shippingMode || 'Surface') as 'Surface' | 'Express',
         seller_name: 'Zica Bella',
