@@ -85,9 +85,15 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
     // 6. Determine refund amount
     let refundAmount = 0;
     if (isCod) {
-      // For COD, refund the upfront fee (typically Rs 99)
-      const upfrontPaid = webStoreOrder ? Number(webStoreOrder.codUpfrontPaid) : 0;
-      refundAmount = upfrontPaid > 0 ? upfrontPaid : 99;
+      // For COD, refund the upfront fee (typically Rs 99) only if order was cancelled by admin or by user before processing
+      const isRefundable = order.cancelledBy === 'admin' || order.cancelledBy === 'user';
+      if (isRefundable) {
+        const upfrontPaid = webStoreOrder ? Number(webStoreOrder.codUpfrontPaid) : 0;
+        refundAmount = upfrontPaid > 0 ? upfrontPaid : 99;
+      } else {
+        console.log(`[AutoRefund] COD fee is not refundable for Order ${orderId} (cancelledBy: ${order.cancelledBy}).`);
+        refundAmount = 0;
+      }
     } else {
       // For Prepaid, refund the total price
       refundAmount = order.totalPrice;

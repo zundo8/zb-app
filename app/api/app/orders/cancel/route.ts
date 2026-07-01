@@ -16,8 +16,29 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: Request) {
+  let customerId = null;
   const auth = getAppAuthFromRequest(req);
-  if (!auth) {
+  if (auth) {
+    customerId = auth.customerId;
+  } else {
+    // Fallback to NextAuth session for web store users
+    const { getServerSession } = await import('next-auth');
+    const { authOptions } = await import('../../../auth/[...nextauth]/route');
+    const session = await getServerSession(authOptions);
+    if (session?.user) {
+      const sessionUserId = (session.user as any).id;
+      if (sessionUserId) {
+        customerId = sessionUserId;
+      } else if (session.user.email) {
+        const customer = await prisma.customer.findFirst({
+          where: { email: session.user.email }
+        });
+        customerId = customer?.id || null;
+      }
+    }
+  }
+
+  if (!customerId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
   }
 
@@ -38,7 +59,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404, headers: corsHeaders });
     }
 
-    if (order.customerId !== auth.customerId) {
+    if (order.customerId !== customerId) {
       return NextResponse.json({ error: 'Unauthorized: not your order' }, { status: 403, headers: corsHeaders });
     }
 
@@ -58,6 +79,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Order cannot be cancelled after fulfillment or shipment' }, { status: 400, headers: corsHeaders });
     }
 
+    // Determine if cancelled before processed (status is open/awaiting_approval/payment_pending)
+    const originalStatus = (order.status || '').toLowerCase();
+    const isProcessed = !['open', 'awaiting_approval', 'payment_pending'].includes(originalStatus);
+    const cancelledBy = isProcessed ? 'user_processed' : 'user';
+
     // 1. Update local database
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
@@ -66,6 +92,8 @@ export async function POST(req: Request) {
         paymentStatus: order.paymentStatus === 'paid' ? 'paid' : 'cancelled',
         fulfillmentStatus: 'cancelled',
         deliveryStatus: 'cancelled',
+        cancelledBy,
+        cancelledAt: new Date(),
         note: order.note ? `${order.note}\nCancelled by user. Reason: ${reason || 'Not provided'}` : `Cancelled by user. Reason: ${reason || 'Not provided'}`,
         updatedAt: new Date(),
       }

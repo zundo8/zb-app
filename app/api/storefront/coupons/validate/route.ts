@@ -103,12 +103,14 @@ export async function POST(req: Request) {
     let currentDiscountType = coupon.discountType;
     let currentDiscountValue = Number(coupon.discountValue);
 
-    if (coupon.applicability === "PREPAID_ONLY" || (coupon.applicability === "CUSTOM_RATES" && !isCOD)) {
-      currentDiscountType = coupon.prepaidDiscountType;
-      currentDiscountValue = Number(coupon.prepaidDiscountValue);
-    } else if (coupon.applicability === "COD_ONLY" || (coupon.applicability === "CUSTOM_RATES" && isCOD)) {
-      currentDiscountType = coupon.codDiscountType;
-      currentDiscountValue = Number(coupon.codDiscountValue);
+    if (coupon.applicability === "CUSTOM_RATES") {
+      if (!isCOD) {
+        currentDiscountType = coupon.prepaidDiscountType;
+        currentDiscountValue = Number(coupon.prepaidDiscountValue);
+      } else {
+        currentDiscountType = coupon.codDiscountType;
+        currentDiscountValue = Number(coupon.codDiscountValue);
+      }
     }
 
     // Calculate discount

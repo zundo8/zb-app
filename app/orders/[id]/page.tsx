@@ -140,6 +140,12 @@ export default function OrderDetailsPage() {
   };
 
   // Compute derived state
+  const isCOD = useMemo(() => order?.paymentMethod === 'COD', [order]);
+  const isProcessed = useMemo(() => {
+    if (!order) return false;
+    const s = (order.status || '').toLowerCase();
+    return !['open', 'awaiting_approval', 'payment_pending'].includes(s);
+  }, [order]);
   const isCancelled = useMemo(() => (order?.status || '').toLowerCase().includes('cancel'), [order]);
   const isDelivered = useMemo(() => (order?.deliveryStatus || '').toLowerCase() === 'delivered', [order]);
   const hasActiveReturn = useMemo(() => order?.returnRequests?.some((r: any) => r.status !== 'cancelled') || false, [order]);
@@ -615,7 +621,17 @@ export default function OrderDetailsPage() {
                   Are you sure you want to cancel order <span className="text-foreground font-semibold">{order?.orderNumber || order?.id}</span>?
                 </p>
                 <p className="text-[10px] text-foreground/45 leading-normal">
-                  All items will be restocked and any upfront online payments will be refunded to your source account automatically. This action is irreversible.
+                  All items will be restocked.
+                  {isCOD ? (
+                    isProcessed ? (
+                      <span className="text-amber-500/90 font-medium block mt-1">Note: Since this order has already been processed, the upfront COD fee of ₹99 is non-refundable.</span>
+                    ) : (
+                      <span className="text-emerald-400/90 font-medium block mt-1">The upfront COD fee of ₹99 will be fully refunded to your source account.</span>
+                    )
+                  ) : (
+                    " Any upfront online payments will be refunded to your source account automatically."
+                  )}
+                  {" This action is irreversible."}
                 </p>
               </div>
 

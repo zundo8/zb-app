@@ -636,12 +636,14 @@ export default function CheckoutPage() {
     let currentDiscountType = coupon.discountType;
     let currentDiscountValue = Number(coupon.discountValue);
 
-    if (coupon.applicability === "PREPAID_ONLY" || (coupon.applicability === "CUSTOM_RATES" && !isCOD)) {
-      currentDiscountType = coupon.prepaidDiscountType;
-      currentDiscountValue = Number(coupon.prepaidDiscountValue);
-    } else if (coupon.applicability === "COD_ONLY" || (coupon.applicability === "CUSTOM_RATES" && isCOD)) {
-      currentDiscountType = coupon.codDiscountType;
-      currentDiscountValue = Number(coupon.codDiscountValue);
+    if (coupon.applicability === "CUSTOM_RATES") {
+      if (!isCOD) {
+        currentDiscountType = coupon.prepaidDiscountType;
+        currentDiscountValue = Number(coupon.prepaidDiscountValue);
+      } else {
+        currentDiscountType = coupon.codDiscountType;
+        currentDiscountValue = Number(coupon.codDiscountValue);
+      }
     }
 
     let calculatedDiscount = 0;
@@ -1158,15 +1160,17 @@ export default function CheckoutPage() {
                 let val = 0;
                 let type = "";
 
-                if (coupon.applicability === "ALL") {
+                if (coupon.applicability === "CUSTOM_RATES") {
+                  if (!isCOD) {
+                    val = Number(coupon.prepaidDiscountValue);
+                    type = coupon.prepaidDiscountType;
+                  } else {
+                    val = Number(coupon.codDiscountValue);
+                    type = coupon.codDiscountType;
+                  }
+                } else {
                   val = Number(coupon.discountValue);
                   type = coupon.discountType;
-                } else if (coupon.applicability === "PREPAID_ONLY" || (coupon.applicability === "CUSTOM_RATES" && !isCOD)) {
-                  val = Number(coupon.prepaidDiscountValue);
-                  type = coupon.prepaidDiscountType;
-                } else if (coupon.applicability === "COD_ONLY" || (coupon.applicability === "CUSTOM_RATES" && isCOD)) {
-                  val = Number(coupon.codDiscountValue);
-                  type = coupon.codDiscountType;
                 }
 
                 if (type === "percentage") {
