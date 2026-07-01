@@ -1,5 +1,9 @@
-import { trackEvent, initPixel } from '@/lib/metaPixel';
+import { trackEvent, initPixel, getMetaIdentityCookies } from '@/lib/metaPixel';
 import { event as trackGAEvent } from '@/lib/gtag';
+
+// Meta Purchase event "value" intentionally set to 50% of actual order total for ad reporting purposes only.
+// Does not affect displayed price, payment amount, or order records.
+const META_PURCHASE_VALUE_MULTIPLIER = 0.5;
 
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -11,10 +15,20 @@ function uuidv4() {
 
 async function sendToCapiRoute(payload: Record<string, any>) {
   try {
+    // Always include identity cookies (fbc, fbp, external_id, PII) for maximum
+    // Meta Event Match Quality. Explicit userData from event callers takes priority.
+    const identityData = getMetaIdentityCookies();
+    const enrichedPayload = {
+      ...payload,
+      userData: {
+        ...identityData,
+        ...(payload.userData || {}),
+      },
+    };
     await fetch('/api/meta/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(enrichedPayload),
     });
   } catch (err) {
     console.error('[CAPI send error]', err);
@@ -251,8 +265,11 @@ export function useMetaEvents() {
       initPixel(userData);
     }
     const finalContents = contents || contentIds.map(id => ({ id, quantity: 1, item_price: value / (contentIds.length || 1) }));
+    // Meta Purchase event "value" intentionally set to 50% of actual order total for ad reporting purposes only.
+    // Does not affect displayed price, payment amount, or order records.
+    const metaPurchaseValue = Math.round(value * META_PURCHASE_VALUE_MULTIPLIER * 100) / 100;
     const customData = cleanCustomData({
-      value,
+      value: metaPurchaseValue,
       currency,
       content_ids: contentIds,
       order_id: orderId,
@@ -268,7 +285,7 @@ export function useMetaEvents() {
       userData: { client_user_agent: navigator.userAgent, ...userData },
     });
     
-    // GA4 equivalent: purchase
+    // GA4 equivalent: purchase (uses full original value, not the Meta-adjusted value)
     trackGAEvent('purchase', {
       transaction_id: orderId,
       value,

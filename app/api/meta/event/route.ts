@@ -67,20 +67,24 @@ export async function POST(req: NextRequest) {
       sessionUserData.external_id = (session.user as any).id || undefined;
     }
 
+    // Merge user identity data. Priority: body userData (client-forwarded cookies, most reliable)
+    // → server-side cookies → session data. The client always forwards identity cookies in the
+    // body for reliability, since server-side cookie access can fail on edge/CDN.
     const mergedUserData = {
       client_ip_address: ip,
-      fbp: fbp || userData?.fbp,
-      fbc: fbc || userData?.fbc,
-      external_id: externalId || sessionUserData.external_id || userData?.external_id,
-      em: guestEmail || sessionUserData.em || userData?.em,
-      ph: guestPhone || sessionUserData.ph || userData?.ph,
-      fn: guestFn || sessionUserData.fn || userData?.fn,
-      ln: guestLn || sessionUserData.ln || userData?.ln,
-      country: guestCountry || userData?.country,
-      st: guestState || userData?.st,
-      ct: guestCity || userData?.ct,
-      zp: guestZip || userData?.zp,
-      fb_login_id: fbLoginId || userData?.fb_login_id,
+      client_user_agent: userData?.client_user_agent || userAgent,
+      fbp: userData?.fbp || fbp,
+      fbc: userData?.fbc || fbc,
+      external_id: userData?.external_id || externalId || sessionUserData.external_id,
+      em: userData?.em || guestEmail || sessionUserData.em,
+      ph: userData?.ph || guestPhone || sessionUserData.ph,
+      fn: userData?.fn || guestFn || sessionUserData.fn,
+      ln: userData?.ln || guestLn || sessionUserData.ln,
+      country: userData?.country || guestCountry,
+      st: userData?.st || guestState,
+      ct: userData?.ct || guestCity,
+      zp: userData?.zp || guestZip,
+      fb_login_id: userData?.fb_login_id || fbLoginId,
     };
 
     // Log identifier coverage summary (what identifiers are present, not the actual values)

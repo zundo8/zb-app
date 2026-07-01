@@ -40,6 +40,30 @@ export function getClientCookie(name: string): string | null {
   return null;
 }
 
+/**
+ * Reads all Meta identity cookies from the browser for CAPI event enrichment.
+ * Includes fbc (Click ID), fbp (Browser ID), external_id, and all hashed PII cookies.
+ * Used by useMetaEvents and MetaPixelRouteTracker to ensure every CAPI call
+ * carries maximum user identity data for optimal Event Match Quality.
+ */
+export function getMetaIdentityCookies(): Record<string, string | undefined> {
+  return {
+    fbc: getClientCookie('_fbc') || undefined,
+    fbp: getClientCookie('_fbp') || undefined,
+    external_id: getClientCookie('zb_external_id') || undefined,
+    em: getClientCookie('zb_guest_email') || undefined,
+    ph: getClientCookie('zb_guest_phone') || undefined,
+    fn: getClientCookie('zb_guest_fn') || undefined,
+    ln: getClientCookie('zb_guest_ln') || undefined,
+    country: getClientCookie('zb_guest_country') || undefined,
+    st: getClientCookie('zb_guest_st') || undefined,
+    ct: getClientCookie('zb_guest_ct') || undefined,
+    zp: getClientCookie('zb_guest_zp') || undefined,
+    fb_login_id: getClientCookie('zb_fb_login_id') || undefined,
+    client_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+  };
+}
+
 export const initPixel = (additionalData: Record<string, any> = {}) => {
   if (typeof window !== 'undefined' && (window as any).fbq) {
     const extId = getClientCookie('zb_external_id');
@@ -170,6 +194,7 @@ type FbqEventName =
   | 'Contact'
   | 'FindLocation'
   | 'InitiateCheckout'
+  | 'Lead'
   | 'Purchase'
   | 'Schedule'
   | 'Search'

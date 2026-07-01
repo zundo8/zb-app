@@ -2,7 +2,7 @@
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { initPixel } from '@/lib/metaPixel';
+import { initPixel, getMetaIdentityCookies } from '@/lib/metaPixel';
 import { pageview as trackGAPageView } from '@/lib/gtag';
 
 function uuidv4() {
@@ -137,6 +137,8 @@ export function MetaPixelRouteTracker() {
     }
 
     // Track Meta PageView via CAPI for full browser/server deduplication
+    // Include all identity cookies for maximum Event Match Quality
+    const identityData = getMetaIdentityCookies();
     fetch('/api/meta/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -147,6 +149,7 @@ export function MetaPixelRouteTracker() {
         eventSourceUrl: window.location.href,
         userAgent: navigator.userAgent,
         actionSource: 'website',
+        userData: identityData,
       }),
     }).catch(err => console.warn('[Tracker Client] PageView CAPI failed:', err));
 
