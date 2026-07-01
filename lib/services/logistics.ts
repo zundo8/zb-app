@@ -360,16 +360,16 @@ export async function shipOrder(
               phone: address.phone || '',
               order: orderId.replace('#', ''),
               payment_mode: paymentMode,
-              return_pin: process.env.WAREHOUSE_PIN || '',
-              return_city: process.env.WAREHOUSE_CITY || '',
-              return_phone: process.env.WAREHOUSE_PHONE || '',
+              return_pin: process.env.WAREHOUSE_PIN || '201301',
+              return_city: process.env.WAREHOUSE_CITY || 'Noida',
+              return_phone: process.env.WAREHOUSE_PHONE || '9220385011',
               return_name: 'Zica Bella Returns',
-              return_add: process.env.WAREHOUSE_ADDRESS || '',
+              return_add: process.env.WAREHOUSE_ADDRESS || 'C-43 sector-88 Noida 201301',
               products_desc: items.map(i => i.title).join(', '),
               cod_amount: paymentMode === 'COD' ? String(dbOrder?.totalPrice || items.reduce((s, i) => s + i.price * i.quantity, 0)) : '',
               order_date: new Date().toISOString(),
               total_amount: String(dbOrder?.totalPrice || items.reduce((s, i) => s + i.price * i.quantity, 0)),
-              seller_add: process.env.WAREHOUSE_ADDRESS || '',
+              seller_add: process.env.WAREHOUSE_ADDRESS || 'C-43 sector-88 Noida 201301',
               seller_name: 'Zica Bella',
               seller_inv: orderId.replace('#', ''),
               quantity: String(items.reduce((s, i) => s + i.quantity, 0)),
@@ -383,7 +383,7 @@ export async function shipOrder(
             }
           ],
           pickup_location: {
-            name: process.env.DELHIVERY_PICKUP_LOCATION || ''
+            name: process.env.DELHIVERY_PICKUP_LOCATION || 'Zica Bella Manufacturing Unit'
           }
         };
 
@@ -649,15 +649,15 @@ export async function createReturnShipment(
               order: returnOrder?.order?.shopifyOrderId?.replace('#', '') || returnId,
               payment_mode: 'Prepaid',
               product_type: 'R', // Reverse pickup
-              return_pin: process.env.WAREHOUSE_PIN || '',
-              return_city: process.env.WAREHOUSE_CITY || '',
-              return_phone: process.env.WAREHOUSE_PHONE || '',
+              return_pin: process.env.WAREHOUSE_PIN || '201301',
+              return_city: process.env.WAREHOUSE_CITY || 'Noida',
+              return_phone: process.env.WAREHOUSE_PHONE || '9220385011',
               return_name: 'Zica Bella Returns',
-              return_add: process.env.WAREHOUSE_ADDRESS || '',
+              return_add: process.env.WAREHOUSE_ADDRESS || 'C-43 sector-88 Noida 201301',
               products_desc: 'Return Items',
               order_date: new Date().toISOString(),
               total_amount: String(returnOrder?.refundAmount || '0'),
-              seller_add: process.env.WAREHOUSE_ADDRESS || '',
+              seller_add: process.env.WAREHOUSE_ADDRESS || 'C-43 sector-88 Noida 201301',
               seller_name: 'Zica Bella',
               quantity: '1',
               weight: '500',
@@ -669,7 +669,7 @@ export async function createReturnShipment(
             }
           ],
           pickup_location: {
-            name: process.env.DELHIVERY_PICKUP_LOCATION || ''
+            name: process.env.DELHIVERY_PICKUP_LOCATION || 'Zica Bella Manufacturing Unit'
           }
         };
 

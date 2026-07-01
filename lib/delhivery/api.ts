@@ -30,16 +30,16 @@ export async function createShipment(order: DelhiveryOrder): Promise<{ awb: stri
           phone: order.shippingAddress.phone,
           order: order.shopifyOrderId,
           payment_mode: order.paymentMode === 'COD' ? 'COD' : 'Prepaid',
-          return_pin: process.env.WAREHOUSE_PIN || '',
-          return_city: process.env.WAREHOUSE_CITY || '',
-          return_phone: process.env.WAREHOUSE_PHONE || '',
+          return_pin: process.env.WAREHOUSE_PIN || '201301',
+          return_city: process.env.WAREHOUSE_CITY || 'Noida',
+          return_phone: process.env.WAREHOUSE_PHONE || '9220385011',
           return_name: 'Zica Bella Returns',
-          return_add: process.env.WAREHOUSE_ADDRESS || '',
+          return_add: process.env.WAREHOUSE_ADDRESS || 'C-43 sector-88 Noida 201301',
           products_desc: order.items.map(i => i.title).join(', '),
           cod_amount: order.paymentMode === 'COD' ? String(order.total) : '',
           order_date: new Date().toISOString(),
           total_amount: String(order.total),
-          seller_add: process.env.WAREHOUSE_ADDRESS || '',
+          seller_add: process.env.WAREHOUSE_ADDRESS || 'C-43 sector-88 Noida 201301',
           seller_name: 'Zica Bella',
           seller_inv: order.sellerInvoice || '',
           quantity: String(order.quantity),
@@ -53,13 +53,15 @@ export async function createShipment(order: DelhiveryOrder): Promise<{ awb: stri
         }
       ],
       pickup_location: {
-        name: process.env.DELHIVERY_PICKUP_LOCATION || ''
+        name: process.env.DELHIVERY_PICKUP_LOCATION || 'Zica Bella Manufacturing Unit'
       }
     };
 
     const formData = new URLSearchParams();
     formData.append('format', 'json');
     formData.append('data', JSON.stringify(payload));
+
+    console.log('[Delhivery API] Outgoing payload:', JSON.stringify(payload, null, 2));
 
     const res = await fetch(`${BASE_URL}/api/cmu/create.json`, {
       method: 'POST',
@@ -72,10 +74,28 @@ export async function createShipment(order: DelhiveryOrder): Promise<{ awb: stri
 
     if (!res.ok) {
       const errText = await res.text();
+      console.error('[Delhivery API] Response error status:', res.status, 'body:', errText);
       return { awb: '', status: 'error', error: `HTTP ${res.status}: ${errText}` };
     }
 
     const data = await res.json();
+    console.log('[Delhivery API] Response body:', JSON.stringify(data, null, 2));
+
+    // Handle standard failure responses
+    if (data.success === false || data.error === true) {
+      const rmk = data.rmk || '';
+      let userFriendlyError = rmk;
+      if (rmk.includes('ClientWarehouse matching query does not exist')) {
+        userFriendlyError = `Pickup location '${payload.pickup_location.name}' is not registered with Delhivery. Please check your Delhivery merchant panel.`;
+      }
+      console.error('[Delhivery API] Creation failed:', userFriendlyError);
+      return {
+        awb: '',
+        status: 'error',
+        error: userFriendlyError || 'Delhivery shipment registration rejected'
+      };
+    }
+
     if (data.packages && data.packages.length > 0) {
       const pkg = data.packages[0];
       if (pkg.status === 'Success' || pkg.status === 'Successful' || pkg.waybill) {
@@ -98,7 +118,10 @@ export async function createShipment(order: DelhiveryOrder): Promise<{ awb: stri
       error: data.errors ? data.errors.join(', ') : 'Unknown API response format'
     };
   } catch (err: any) {
-    console.error('[Delhivery API] createShipment error:', err);
+    console.error('[Delhivery API] createShipment error:', err.message, err.stack);
+    if (err.response?.data) {
+      console.error('[Delhivery API] Response error data:', err.response.data);
+    }
     return { awb: '', status: 'error', error: err.message || 'Network error occurred' };
   }
 }
@@ -142,7 +165,7 @@ export async function schedulePickup(pickupDatetime: string, packageCount: numbe
       },
       body: JSON.stringify({
         pickup_time: pickupDatetime,
-        pickup_location: process.env.DELHIVERY_PICKUP_LOCATION || '',
+        pickup_location: process.env.DELHIVERY_PICKUP_LOCATION || 'Zica Bella Manufacturing Unit',
         expected_package_count: packageCount
       })
     });

@@ -69,10 +69,11 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ awb: result.awb, status: result.status });
     } else {
+      console.error('[Create Shipment API] Delhivery error returned:', result.error);
       return NextResponse.json({ error: result.error || 'Delhivery shipment creation failed' }, { status: 500 });
     }
   } catch (err: any) {
-    console.error('[Create Shipment API] Error:', err);
+    console.error('[Create Shipment API] Critical exception:', err.message, err.stack);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }
 }
