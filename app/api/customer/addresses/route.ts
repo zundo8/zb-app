@@ -5,110 +5,6 @@ import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-async function mergeDuplicateCustomers(activeCustomerId: string, duplicateCustomerId: string) {
-  if (activeCustomerId === duplicateCustomerId) return;
-  
-  console.log(`[Address Save Merge] Merging duplicate customer account: ${duplicateCustomerId} -> ${activeCustomerId}`);
-  
-  try {
-    // Perform merging in a transaction
-    await prisma.$transaction([
-      prisma.order.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.address.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.return.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.returnRequest.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.exchangeRequest.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.payment.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.profileHistory.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.mobileOrder.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.communityMessage.updateMany({
-        where: { customerId: duplicateCustomerId },
-        data: { customerId: activeCustomerId }
-      }),
-      prisma.cart.deleteMany({
-        where: { customerId: duplicateCustomerId }
-      }),
-      prisma.follow.deleteMany({
-        where: {
-          OR: [
-            { followerId: duplicateCustomerId },
-            { followingId: duplicateCustomerId }
-          ]
-        }
-      })
-    ]);
-
-    // Migrate Wishlist (outside transaction to safely try/catch unique constraint violations)
-    const dupWishlist = await prisma.wishlist.findMany({
-      where: { customerId: duplicateCustomerId }
-    });
-    for (const item of dupWishlist) {
-      try {
-        await prisma.wishlist.update({
-          where: { id: item.id },
-          data: { customerId: activeCustomerId }
-        });
-      } catch {
-        await prisma.wishlist.delete({
-          where: { id: item.id }
-        });
-      }
-    }
-
-    // Migrate CommunityMember
-    const dupCommunity = await prisma.communityMember.findUnique({
-      where: { customerId: duplicateCustomerId }
-    });
-    if (dupCommunity) {
-      const primCommunity = await prisma.communityMember.findUnique({
-        where: { customerId: activeCustomerId }
-      });
-      if (!primCommunity) {
-        await prisma.communityMember.update({
-          where: { id: dupCommunity.id },
-          data: { customerId: activeCustomerId }
-        });
-      } else {
-        await prisma.communityMember.delete({
-          where: { id: dupCommunity.id }
-        });
-      }
-    }
-
-    // Delete duplicate customer record
-    await prisma.customer.delete({
-      where: { id: duplicateCustomerId }
-    });
-    console.log(`[Address Save Merge] Merging completed successfully.`);
-  } catch (mergeErr: any) {
-    console.error("[Address Save Merge] Error occurred during account merge:", mergeErr);
-  }
-}
-
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -190,31 +86,9 @@ export async function POST(req: Request) {
     }
     if (email && email !== customer.email) {
       updateData.email = email;
-      
-      // Check for duplicate by email
-      const duplicateCustomer = await prisma.customer.findFirst({
-        where: {
-          email: { equals: email, mode: "insensitive" },
-          id: { not: customer.id }
-        }
-      });
-      if (duplicateCustomer) {
-        await mergeDuplicateCustomers(customer.id, duplicateCustomer.id);
-      }
     }
     if (phone && phone !== customer.phone) {
       updateData.phone = phone;
-
-      // Check for duplicate by phone
-      const duplicateCustomer = await prisma.customer.findFirst({
-        where: {
-          phone: phone,
-          id: { not: customer.id }
-        }
-      });
-      if (duplicateCustomer) {
-        await mergeDuplicateCustomers(customer.id, duplicateCustomer.id);
-      }
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -322,31 +196,9 @@ export async function PUT(req: Request) {
     }
     if (email && email !== customer.email) {
       updateData.email = email;
-
-      // Check for duplicate by email
-      const duplicateCustomer = await prisma.customer.findFirst({
-        where: {
-          email: { equals: email, mode: "insensitive" },
-          id: { not: customer.id }
-        }
-      });
-      if (duplicateCustomer) {
-        await mergeDuplicateCustomers(customer.id, duplicateCustomer.id);
-      }
     }
     if (phone && phone !== customer.phone) {
       updateData.phone = phone;
-
-      // Check for duplicate by phone
-      const duplicateCustomer = await prisma.customer.findFirst({
-        where: {
-          phone: phone,
-          id: { not: customer.id }
-        }
-      });
-      if (duplicateCustomer) {
-        await mergeDuplicateCustomers(customer.id, duplicateCustomer.id);
-      }
     }
 
     if (Object.keys(updateData).length > 0) {

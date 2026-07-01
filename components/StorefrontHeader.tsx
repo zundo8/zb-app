@@ -17,8 +17,6 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
   const router = useRouter();
   const pathname = usePathname();
 
-  // Render on checkout and payment pages normally as the default pill header.
-
   // Track in-app navigation depth so the back button can reliably go
   // to the previous page instead of always falling through to "/".
   // document.referrer does NOT update on client-side (SPA) navigations,
