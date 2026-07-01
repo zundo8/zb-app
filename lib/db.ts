@@ -78,7 +78,7 @@ const prismaClientSingleton = () => {
       },
       max: 5, // Reduced from 20 to prevent database connection exhaustion in production
       idleTimeoutMillis: 15000, // Reduced from 30000
-      connectionTimeoutMillis: 10000, // Reduced from 15000
+      connectionTimeoutMillis: 5000, // Reduced from 10000 to prevent blocking readiness probes
     });
 
     pool.on('error', (err) => {
