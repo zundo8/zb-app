@@ -1,7 +1,7 @@
 import { trackEvent, initPixel, getMetaIdentityCookies } from '@/lib/metaPixel';
 import { event as trackGAEvent } from '@/lib/gtag';
 
-// Meta Purchase event "value" intentionally set to 50% of actual order total for ad reporting purposes only.
+// Meta Purchase and InitiateCheckout events "value" intentionally set to 50% of actual order total for ad reporting purposes only.
 // Does not affect displayed price, payment amount, or order records.
 const META_PURCHASE_VALUE_MULTIPLIER = 0.5;
 
@@ -214,8 +214,13 @@ export function useMetaEvents() {
       initPixel(userData);
     }
     const finalContents = contents || (contentIds ? contentIds.map(id => ({ id, quantity: 1 })) : []);
+    
+    // Meta InitiateCheckout event "value" intentionally set to 50% of actual order total for ad reporting purposes only.
+    // Does not affect displayed price, payment amount, or order records.
+    const metaCheckoutValue = Math.round(value * META_PURCHASE_VALUE_MULTIPLIER * 100) / 100;
+    
     const customData = cleanCustomData({
-      value,
+      value: metaCheckoutValue,
       num_items: numItems,
       currency,
       content_category: contentCategory,
@@ -230,7 +235,7 @@ export function useMetaEvents() {
       userData: { client_user_agent: navigator.userAgent, ...userData }
     });
     
-    // GA4 equivalent: begin_checkout
+    // GA4 equivalent: begin_checkout (uses full original value, not the Meta-adjusted value)
     trackGAEvent('begin_checkout', {
       value,
       currency,
