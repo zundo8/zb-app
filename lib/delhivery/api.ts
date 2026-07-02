@@ -45,10 +45,10 @@ export async function createShipment(order: DelhiveryOrder): Promise<{ awb: stri
           quantity: String(order.quantity),
           weight: String(order.weight),
           seller_gst_tin: process.env.GST_NUMBER || '',
-          shipment_length: 30,
-          shipment_width: 20,
-          shipment_height: 5,
-          shipping_mode: 'Surface',
+          shipment_length: order.shipment_length || 30,
+          shipment_width: order.shipment_width || 20,
+          shipment_height: order.shipment_height || 5,
+          shipping_mode: order.shipping_mode || 'Surface',
           address_type: 'home'
         }
       ],

@@ -4,6 +4,10 @@ export interface DelhiveryOrder {
   total: number;
   quantity: number;
   weight: number;
+  shipment_length?: number;
+  shipment_width?: number;
+  shipment_height?: number;
+  shipping_mode?: 'Surface' | 'Express';
   sellerInvoice?: string;
   shippingAddress: {
     name: string;

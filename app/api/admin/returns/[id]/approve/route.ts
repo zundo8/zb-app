@@ -97,6 +97,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return updatedRequest;
     });
 
+    // Mark SKUs on returned items as RETURNED (not yet restocked — that happens on RECEIVED)
+    try {
+      const { markSkuStatus } = await import('@/lib/services/skuService');
+      for (const ret of returnRequest.returns) {
+        if (ret.sku) {
+          await markSkuStatus(ret.sku, 'RETURNED', 'RETURN_IN', 'Admin (Return Approve)');
+        }
+      }
+    } catch (skuErr) {
+      console.error('[Return Approve] SKU status update failed:', skuErr);
+    }
+
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Approve Return Error:", error);

@@ -316,6 +316,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       } catch (refundErr) {
         console.error('[Admin Order PATCH] Refund processing failed:', refundErr);
       }
+
+      // Restore all custom SKUs assigned to this order's items back to IN_STOCK
+      try {
+        const { restoreOrderSkus } = await import('@/lib/services/skuService');
+        const restoredCount = await restoreOrderSkus(id, 'CANCEL_RESTORE', 'Admin (Cancel)');
+        if (restoredCount > 0) {
+          console.log(`[Admin Order PATCH] Restored ${restoredCount} SKU(s) for cancelled order ${id}`);
+        }
+      } catch (skuErr) {
+        console.error('[Admin Order PATCH] SKU restoration on cancel failed:', skuErr);
+      }
     }
 
     // Send push notification if status changed

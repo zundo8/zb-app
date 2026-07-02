@@ -69,6 +69,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     console.log(`✅ Exchange ${id} marked as received. QC: ${qcStatus || "passed"}`);
 
+    // SKU lifecycle tracking: restore original item SKUs when QC passes
+    if (result.status === 'qc_passed' || (!qcStatus || qcStatus === 'passed')) {
+      try {
+        const { restoreSkuToStock } = await import('@/lib/services/skuService');
+        // Fetch the full exchange with order items to find the SKUs
+        const fullExchange = await prisma.exchangeRequest.findUnique({
+          where: { id },
+          include: {
+            exchanges: true,
+            order: { include: { items: true } }
+          }
+        });
+        if (fullExchange) {
+          for (const ex of fullExchange.exchanges) {
+            const orderItem = fullExchange.order.items.find(
+              (oi: any) => oi.productId === ex.originalProductId
+            );
+            const sku = orderItem?.sku;
+            if (sku) {
+              await restoreSkuToStock(sku, 'EXCHANGE_RESTOCK', 'Admin (Exchange QC Passed)');
+            }
+          }
+        }
+      } catch (skuErr) {
+        console.error('[Exchange Receive] SKU restoration failed:', skuErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       exchangeRequest: result

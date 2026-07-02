@@ -5,7 +5,7 @@ import { DelhiveryOrder } from '@/lib/delhivery/types';
 
 export async function POST(req: Request) {
   try {
-    const { orderId } = await req.json();
+    const { orderId, weight, shipment_length, shipment_width, shipment_height, shipping_mode } = await req.json();
     if (!orderId) {
       return NextResponse.json({ error: 'orderId is required' }, { status: 400 });
     }
@@ -28,7 +28,11 @@ export async function POST(req: Request) {
       paymentMode: order.paymentMethod === 'COD' ? 'COD' : 'Prepaid',
       total: order.totalPrice,
       quantity: order.items.reduce((acc, item) => acc + item.quantity, 0),
-      weight: 500, // Standard default weight in grams
+      weight: weight ? Number(weight) : 500,
+      shipment_length: shipment_length ? Number(shipment_length) : 30,
+      shipment_width: shipment_width ? Number(shipment_width) : 20,
+      shipment_height: shipment_height ? Number(shipment_height) : 5,
+      shipping_mode: shipping_mode || 'Surface',
       sellerInvoice: order.shopifyOrderId.replace('#', ''),
       shippingAddress: {
         name: shippingAddr.name || order.customer?.name || 'Customer',

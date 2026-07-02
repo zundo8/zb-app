@@ -273,6 +273,19 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Webhook] ✅ Updated shipment ${shipment.id} → ${normalizedStatus}`);
 
+    // SKU lifecycle tracking: restore SKUs when RTO is detected
+    if (normalizedStatus === 'rto') {
+      try {
+        const { restoreOrderSkus } = await import('@/lib/services/skuService');
+        const restoredCount = await restoreOrderSkus(shipment.orderId, 'RTO_RESTORE', 'System (Delhivery RTO)');
+        if (restoredCount > 0) {
+          console.log(`[Webhook] Restored ${restoredCount} SKU(s) for RTO order ${shipment.orderId}`);
+        }
+      } catch (skuErr) {
+        console.error(`[Webhook] SKU restoration on RTO failed for order ${shipment.orderId}:`, skuErr);
+      }
+    }
+
     // TODO: Trigger push notification for key events
     // const pushEvents = ['out_for_delivery', 'delivered', 'rto'];
     // if (pushEvents.includes(normalizedStatus)) {

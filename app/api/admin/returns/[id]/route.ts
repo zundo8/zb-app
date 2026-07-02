@@ -161,6 +161,34 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
     }
 
+    // SKU lifecycle tracking: restore SKUs when items are physically received back
+    if (lowerStatus === 'received') {
+      try {
+        const { restoreSkuToStock } = await import('@/lib/services/skuService');
+        for (const ret of returnRequest.returns) {
+          if (ret.sku) {
+            await restoreSkuToStock(ret.sku, 'RETURN_RESTOCK', 'Admin (Return Received)');
+          }
+        }
+      } catch (skuErr) {
+        console.error('[Return PATCH] SKU restoration on received failed:', skuErr);
+      }
+    }
+
+    // SKU lifecycle tracking: if marked REFUNDED but SKUs haven't been restocked yet, do it now
+    if (lowerStatus === 'refunded') {
+      try {
+        const { restoreSkuToStock } = await import('@/lib/services/skuService');
+        for (const ret of returnRequest.returns) {
+          if (ret.sku) {
+            await restoreSkuToStock(ret.sku, 'RETURN_RESTOCK', 'Admin (Return Refunded)');
+          }
+        }
+      } catch (skuErr) {
+        console.error('[Return PATCH] SKU restoration on refunded failed:', skuErr);
+      }
+    }
+
     return NextResponse.json({ success: true, returnRequest: updatedReturnRequest }, { status: 200 });
   } catch (error: any) {
     console.error('Admin Return API Error:', error);

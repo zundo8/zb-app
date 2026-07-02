@@ -33,6 +33,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         cod_amount: order.paymentMethod === 'COD' ? String(order.totalPrice) : '0.00',
         products_desc: order.items.map((i: any) => i.title).join(', '),
         weight: body.weight || '500', // Default weight if not provided
+        shipment_length: body.shipment_length || '30',
+        shipment_width: body.shipment_width || '20',
+        shipment_height: body.shipment_height || '5',
         shipping_mode: (body.shippingMode || 'Surface') as 'Surface' | 'Express',
         seller_name: 'Zica Bella',
       };

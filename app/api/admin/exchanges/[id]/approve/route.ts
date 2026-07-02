@@ -144,6 +144,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     console.log(`✅ Exchange ${id} approved. Return created: ${result.returnRequestId}, New order: ${result.newOrderId}`);
 
+    // SKU lifecycle tracking: mark original item SKUs as EXCHANGED
+    try {
+      const { markSkuStatus } = await import('@/lib/services/skuService');
+      for (const ex of exchangeRequest.exchanges) {
+        // Find the original item's SKU from the order items
+        const orderItem = exchangeRequest.order.items.find(
+          (oi: any) => oi.productId === ex.originalProductId
+        );
+        const sku = orderItem?.sku || (ex as any).originalProduct?.sku;
+        if (sku) {
+          await markSkuStatus(sku, 'EXCHANGED', 'EXCHANGE_OUT', 'Admin (Exchange Approve)');
+        }
+      }
+    } catch (skuErr) {
+      console.error('[Exchange Approve] SKU status update failed:', skuErr);
+    }
+
     return NextResponse.json({
       success: true,
       newOrderId: result.newOrderId,
