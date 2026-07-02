@@ -154,12 +154,35 @@ export default function ComposeTab() {
   };
 
 
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const resolvedCount = useMemo(() => {
+    if (recipientType === 'all') return customerCount;
+    if (recipientType === 'paste') {
+      return pastedEmails.split(',').map(e => e.trim()).filter(Boolean).length;
+    }
+    if (recipientType === 'specific') {
+      return specificUsers.length;
+    }
+    return 0;
+  }, [recipientType, customerCount, pastedEmails, specificUsers]);
+
   const handleSend = async () => {
     if (!subject) return toast.error('Subject is required');
     if (recipientType === 'paste' && !pastedEmails.trim()) return toast.error('Please enter at least one email');
     if (recipientType === 'specific' && specificUsers.length === 0) return toast.error('Please select at least one user');
     if (!htmlBody) return toast.error('HTML Body cannot be empty');
 
+    if (resolvedCount > 10) {
+      setShowConfirmModal(true);
+    } else {
+      executeSend();
+    }
+  };
+
+  const executeSend = async () => {
+    setShowConfirmModal(false);
+    
     let recipients: string[] | 'all' = [];
     if (recipientType === 'all') recipients = 'all';
     else if (recipientType === 'paste') {
@@ -379,7 +402,45 @@ export default function ComposeTab() {
             />
           </div>
         </div>
-      </div>
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-red-500 dark:text-red-400">Confirm Bulk Email Blast</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+              You are about to launch an email marketing campaign to <strong>{resolvedCount}</strong> recipients.
+            </p>
+            <div className="bg-black/5 dark:bg-white/5 p-3 rounded-xl border border-black/10 dark:border-white/10 space-y-2 text-xs text-gray-700 dark:text-gray-300">
+              <div>
+                <span className="font-semibold block text-[10px] uppercase text-gray-500">Subject:</span>
+                <span>{subject}</span>
+              </div>
+              {selectedTemplateId && (
+                <div>
+                  <span className="font-semibold block text-[10px] uppercase text-gray-500">Template ID:</span>
+                  <span>{selectedTemplateId}</span>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400 leading-normal">
+              ⚠ Bulk validation popup is active because you are sending to more than 10 recipients. Please confirm to proceed.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeSend}
+                className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-xl text-xs font-bold shadow-lg hover:opacity-90"
+              >
+                Confirm & Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { formatPhone, getConfig } from '@/lib/whatsapp/client';
 import * as templates from '@/lib/whatsapp/templates';
+import { WhatsAppService } from '@/lib/services/whatsapp.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,22 +36,30 @@ export async function runBroadcastInBackground(campaignId, type, payload) {
     });
 
     const senderFn = SENDER_MAP[type];
-    if (!senderFn) {
-      await prisma.whatsAppCampaign.update({
-        where: { id: campaignId },
-        data: { status: 'failed' }
+    const isGeneric = !senderFn;
+
+    // Load template details if generic
+    let templateRecord = null;
+    let numVars = 0;
+    let lang = 'en';
+
+    if (isGeneric) {
+      templateRecord = await prisma.whatsAppTemplate.findUnique({
+        where: { name: type }
       });
-      return;
+      lang = templateRecord?.language || 'en';
+
+      if (templateRecord && templateRecord.components) {
+        const bodyComp = templateRecord.components.find(c => c.type === 'BODY');
+        if (bodyComp && bodyComp.text) {
+          const matches = bodyComp.text.match(/\{\{(\d+)\}\}/g) || [];
+          numVars = matches.length;
+        }
+      }
     }
 
     for (let i = 0; i < recipients.length; i++) {
       const recipient = recipients[i];
-
-      const mergedParams = {
-        ...payload,
-        phone: recipient.phone,
-        customerName: recipient.name
-      };
 
       // Enforce rate limiting delay between sends (80ms)
       if (i > 0) {
@@ -58,7 +67,47 @@ export async function runBroadcastInBackground(campaignId, type, payload) {
       }
 
       try {
-        const res = await senderFn(mergedParams);
+        let res = null;
+
+        if (isGeneric) {
+          // Format parameters for generic template
+          const components = [];
+          const bodyParams = [];
+
+          for (let v = 1; v <= numVars; v++) {
+            let val = payload[v] || payload[`var_${v}`] || payload[String(v)] || payload[`param_${v}`];
+            // Auto replace first variable with customer name if empty or generic placeholder
+            if (v === 1 && (!val || val === 'customerName' || val === 'name' || val === 'Priya' || val === 'there')) {
+              val = recipient.name || 'there';
+            }
+            bodyParams.push({
+              type: 'text',
+              text: String(val || '')
+            });
+          }
+
+          if (bodyParams.length > 0) {
+            components.push({
+              type: 'body',
+              parameters: bodyParams
+            });
+          }
+
+          // Call direct WhatsApp send service
+          const apiResult = await WhatsAppService.sendTemplateMessage(recipient.phone, type, lang, components);
+          res = {
+            success: !!(apiResult && apiResult.messages && apiResult.messages.length > 0),
+            messageId: apiResult?.messages?.[0]?.id || null,
+            error: apiResult?.error?.message || null
+          };
+        } else {
+          const mergedParams = {
+            ...payload,
+            phone: recipient.phone,
+            customerName: recipient.name
+          };
+          res = await senderFn(mergedParams);
+        }
 
         if (res.success) {
           // Update recipient delivery status
@@ -73,10 +122,31 @@ export async function runBroadcastInBackground(campaignId, type, payload) {
 
           // Link campaignId to the outbound message log
           if (res.messageId) {
-            await prisma.whatsAppMessage.updateMany({
-              where: { waMessageId: res.messageId },
-              data: { campaignId }
+            // Check if outbound message log exists, otherwise create it
+            const existingMsg = await prisma.whatsAppMessage.findUnique({
+              where: { waMessageId: res.messageId }
             });
+
+            if (existingMsg) {
+              await prisma.whatsAppMessage.update({
+                where: { waMessageId: res.messageId },
+                data: { campaignId }
+              });
+            } else {
+              await prisma.whatsAppMessage.create({
+                data: {
+                  direction: 'outbound',
+                  waMessageId: res.messageId,
+                  phoneNumber: recipient.phone,
+                  userId: recipient.id,
+                  templateName: type,
+                  body: `Sent WABA Template: ${type}`,
+                  status: 'sent',
+                  campaignId,
+                  sentAt: new Date()
+                }
+              });
+            }
           }
 
           // Increment campaign sent count
@@ -92,7 +162,7 @@ export async function runBroadcastInBackground(campaignId, type, payload) {
             where: { id: recipient.id },
             data: {
               status: 'failed',
-              errorMessage: res.error
+              errorMessage: res.error || 'Meta API returned error'
             }
           });
 

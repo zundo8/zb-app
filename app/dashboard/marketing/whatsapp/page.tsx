@@ -1037,6 +1037,13 @@ function BroadcastCampaigns() {
   const [campaignDetail, setCampaignDetail] = useState<any>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // Dynamic WABA templates state
+  const [dbTemplates, setDbTemplates] = useState<any[]>([]);
+  const [loadingDbTemplates, setLoadingDbTemplates] = useState(true);
+
+  // Bulk confirmation popup state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
   const campaignTemplates = [
     { id: "sale_alert", label: "Sale Alert", fields: ["discountPercent", "saleEndDate"] },
     { id: "new_collection", label: "New Collection Drop", fields: ["collectionName", "tagline", "imageUrl", "shopUrl"] },
@@ -1045,7 +1052,43 @@ function BroadcastCampaigns() {
     { id: "abandoned_cart", label: "Abandoned Cart Recovery", fields: ["itemCount", "cartTotal", "checkoutUrl"] },
   ];
 
-  const currentTemplate = campaignTemplates.find(c => c.id === type);
+  // Fetch templates from DB
+  useEffect(() => {
+    async function loadDbTemplates() {
+      try {
+        const res = await fetch("/api/whatsapp/templates");
+        const data = await res.json();
+        if (res.ok && data.templates) {
+          setDbTemplates(data.templates);
+        }
+      } catch (err) {
+        console.error("Failed to load WABA templates:", err);
+      } finally {
+        setLoadingDbTemplates(false);
+      }
+    }
+    loadDbTemplates();
+  }, []);
+
+  // Merge hardcoded templates with dynamic synced ones from the DB
+  const mergedTemplates = [
+    ...campaignTemplates.map(t => ({ ...t, isCustom: false, text: "" })),
+    ...dbTemplates.map(t => {
+      const bodyComp = t.components?.find((c: any) => c.type === "BODY");
+      const text = bodyComp?.text || "";
+      const matches = text.match(/\{\{(\d+)\}\}/g) || [];
+      const fields = matches.map((m: string) => m.replace(/[{}]/g, ""));
+      return {
+        id: t.name,
+        label: `${t.name} (${t.category})`,
+        fields: fields,
+        isCustom: true,
+        text: text
+      };
+    })
+  ];
+
+  const currentTemplate = mergedTemplates.find(c => c.id === type);
 
   // Compute recipients list count
   const recipients = recipientsText
@@ -1160,13 +1203,22 @@ function BroadcastCampaigns() {
     reader.readAsText(file);
   };
 
-  const handleBroadcast = async (e: React.FormEvent) => {
+  const handleBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
     if (recipients.length === 0) {
       toast.error("No valid recipients loaded.");
       return;
     }
 
+    if (recipients.length > 10) {
+      setShowConfirmModal(true);
+    } else {
+      executeBroadcast();
+    }
+  };
+
+  const executeBroadcast = async () => {
+    setShowConfirmModal(false);
     setLoading(true);
     setSummary(null);
     setProgress({ total: recipients.length, current: 0 });
@@ -1319,36 +1371,74 @@ function BroadcastCampaigns() {
               onChange={(e) => { setType(e.target.value); setPayload({}); }}
               className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
             >
-              {campaignTemplates.map(c => (
+              {loadingDbTemplates ? (
+                <option disabled>Loading dynamic templates...</option>
+              ) : null}
+              {mergedTemplates.map(c => (
                 <option key={c.id} value={c.id}>{c.label}</option>
               ))}
             </select>
           </div>
 
-          {currentTemplate && currentTemplate.fields.length > 0 && (
+          {currentTemplate && (
             <div className="space-y-3 pt-3 border-t border-foreground/5">
-              <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-1">Shared Fields</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {currentTemplate.fields.map(field => (
-                  <div key={field}>
-                    <label className="text-xs text-muted-foreground block mb-1 font-mono">{field}</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder={`Shared ${field}`}
-                      value={payload[field] || ""}
-                      onChange={(e) => setPayload((p: any) => ({ ...p, [field]: e.target.value }))}
-                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3.5 py-2 outline-none focus:border-emerald-500/50 text-sm"
-                    />
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-1">
+                <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider">Template Settings</h4>
+                {currentTemplate.isCustom && (
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-mono font-semibold uppercase">Meta Approved</span>
+                )}
               </div>
+
+              {currentTemplate.text && (
+                <div className="bg-foreground/5 p-3 rounded-xl border border-foreground/10 text-xs font-mono text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                  <strong className="block text-[10px] text-foreground/50 uppercase mb-1">WABA Approved Body Preview:</strong>
+                  {currentTemplate.text}
+                </div>
+              )}
+
+              {currentTemplate.fields.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {currentTemplate.fields.map((field: string, idx: number) => {
+                    const isFirst = idx === 0;
+                    return (
+                      <div key={field}>
+                        <label className="text-xs text-muted-foreground block mb-1 font-mono">
+                          {currentTemplate.isCustom ? `Variable {{${field}}}` : field}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder={
+                            isFirst && currentTemplate.isCustom
+                              ? "First placeholder defaults to Customer Name"
+                              : `Value for placeholder ${field}`
+                          }
+                          value={payload[field] || ""}
+                          onChange={(e) => setPayload((p: any) => ({ ...p, [field]: e.target.value }))}
+                          className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3.5 py-2 outline-none focus:border-emerald-500/50 text-sm"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground italic py-1">
+                  This template does not require any variables or placeholders.
+                </div>
+              )}
             </div>
           )}
 
           <div className="border-t border-foreground/5 pt-3 space-y-3">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
-              <label className="text-xs font-semibold text-foreground/60 uppercase">Target Audience</label>
+              <label className="text-xs font-semibold text-foreground/60 uppercase flex items-center gap-1.5">
+                <span>Target Audience</span>
+                {recipients.length > 0 && (
+                  <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.2 rounded-full font-mono text-[9px] font-bold">
+                    {recipients.length} resolved
+                  </span>
+                )}
+              </label>
               
               <div className="flex items-center gap-2">
                 <select
@@ -1778,6 +1868,58 @@ function BroadcastCampaigns() {
                   Close
                 </button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-background border border-foreground/15 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4"
+          >
+            <h3 className="text-lg font-bold flex items-center gap-2 text-amber-500">
+              <AlertCircle className="w-5 h-5" />
+              <span>Confirm Bulk WhatsApp Send</span>
+            </h3>
+            
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              You are about to launch a marketing WhatsApp broadcast campaign to <strong>{recipients.length}</strong> recipients.
+            </p>
+
+            <div className="bg-foreground/5 p-3 rounded-xl border border-foreground/10 space-y-2 text-xs">
+              <div>
+                <span className="text-muted-foreground font-semibold block">Campaign Name:</span>
+                <span>{campaignName || `Broadcast - ${type}`}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground font-semibold block">Template Name:</span>
+                <span className="font-mono">{type}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground font-semibold block">Estimated Cost:</span>
+                <span className="font-bold text-emerald-400">₹{estimatedCost} INR</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-rose-400 font-semibold leading-normal">
+              ⚠ Verification is required for campaigns with more than 10 recipients to prevent accidental messaging spam.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 bg-foreground/5 text-foreground hover:bg-foreground/10 border border-foreground/10 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBroadcast}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-foreground rounded-xl text-xs font-bold shadow-lg"
+              >
+                Confirm & Send
+              </button>
             </div>
           </motion.div>
         </div>
