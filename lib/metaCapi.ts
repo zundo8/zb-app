@@ -6,6 +6,48 @@ const PIXEL_ID = process.env.META_PIXEL_ID!;
 const ACCESS_TOKEN = process.env.META_CAPI_ACCESS_TOKEN!;
 const TEST_EVENT_CODE = process.env.META_TEST_EVENT_CODE;
 
+// Events that use adjusted reporting value (server-side only)
+const ADJUSTED_VALUE_EVENTS = ['Purchase', 'InitiateCheckout'];
+const VALUE_ADJUSTMENT_FACTOR = 0.5;
+
+/**
+ * Compute the reported value for Meta events. For Purchase and InitiateCheckout,
+ * the reported value is adjusted per business convention. For all other events,
+ * the value is passed through unchanged.
+ *
+ * This function must only be called server-side. The adjustment factor and
+ * real value must never be sent to Meta, the client, or any external party.
+ */
+export function getReportedValue(eventName: string, realValue: number | undefined): number | undefined {
+  if (realValue === undefined || realValue === null) return undefined;
+  if (ADJUSTED_VALUE_EVENTS.includes(eventName)) {
+    return Math.round(realValue * VALUE_ADJUSTMENT_FACTOR * 100) / 100;
+  }
+  return realValue;
+}
+
+/**
+ * Dev-only validation: warn if value/currency is missing or suspicious
+ * before sending Purchase, InitiateCheckout, or Subscribe events.
+ * Logs are server-side only — never sent to Meta or the client.
+ */
+function validateEventPayload(eventName: string, customData: Record<string, any> | undefined): void {
+  if (process.env.NODE_ENV === 'production' && !process.env.META_TEST_EVENT_CODE) return;
+
+  const eventsRequiringValue = ['Purchase', 'InitiateCheckout', 'Subscribe'];
+  if (!eventsRequiringValue.includes(eventName)) return;
+
+  const value = customData?.value;
+  const currency = customData?.currency;
+
+  if (value === undefined || value === null || value === 0) {
+    console.warn(`[Meta CAPI VALIDATION] ⚠️ ${eventName} event has null/zero value — this will degrade Meta reporting. value=${value}`);
+  }
+  if (!currency || typeof currency !== 'string' || currency.length !== 3) {
+    console.warn(`[Meta CAPI VALIDATION] ⚠️ ${eventName} event has missing/invalid currency — expected ISO 4217 3-letter code. currency=${currency}`);
+  }
+}
+
 export interface CapiEventPayload {
   eventName: string;
   eventTime?: number;
@@ -130,9 +172,15 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
     if (zp) userData.zp = [zp];
     if (ge) userData.ge = [ge];
 
-    // Non-hashed identifiers
+    // Hash external_id with SHA-256 as Meta requires for proper matching
     if (payload.userData.external_id) {
-      userData.external_id = payload.userData.external_id.trim();
+      const rawExtId = payload.userData.external_id.trim();
+      // If already hashed (64-char hex), use as-is; otherwise hash it
+      if (/^[a-f0-9]{64}$/.test(rawExtId.toLowerCase())) {
+        userData.external_id = [rawExtId.toLowerCase()];
+      } else {
+        userData.external_id = [crypto.createHash('sha256').update(rawExtId.toLowerCase()).digest('hex')];
+      }
     }
     if (payload.userData.fb_login_id) {
       userData.fb_login_id = payload.userData.fb_login_id.trim();
@@ -144,6 +192,16 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
   for (const [key, val] of Object.entries(userData)) {
     if (val !== undefined && val !== null && val !== '' && (!Array.isArray(val) || val.length > 0)) {
       cleanedUserData[key] = val;
+    }
+  }
+
+  // Run dev-only validation before sending
+  validateEventPayload(payload.eventName, cleanedCustomData);
+
+  // Dev-only: log real vs reported value for adjusted events
+  if (ADJUSTED_VALUE_EVENTS.includes(payload.eventName) && cleanedCustomData.value !== undefined) {
+    if (process.env.NODE_ENV !== 'production' || process.env.META_TEST_EVENT_CODE) {
+      console.log(`[Meta CAPI DEBUG] ${payload.eventName} — reportedValue=${cleanedCustomData.value}, currency=${cleanedCustomData.currency || 'NOT SET'}`);
     }
   }
 

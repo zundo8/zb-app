@@ -58,7 +58,9 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     if (email.trim()) {
-      trackSubscribe();
+      // Subscribe is a non-monetary newsletter signup — pass estimated lead value
+      // for Meta's value-based optimization. Currency is INR.
+      trackSubscribe(50, 'INR', 'Newsletter Signup');
       toast.success("Thank you for joining our newsletter!", {
         description: "You have successfully subscribed to the Zica Bella newsletter.",
       });
@@ -232,290 +234,299 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
       </div>
 
       {/* ─── MOBILE (below md) ─── */}
-      <div className="md:hidden px-5 pt-12 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] flex flex-col items-center">
-        
-        {/* Brand Header: Logo stacked — 3D on top, text below */}
-        <div className="flex flex-col items-center gap-8 mb-6 text-center">
-          <ThreeDLogo src={shop?.footerLogo3dUrl} size={48} />
-          <h2 className="font-rocaston text-[13px] tracking-[0.22em] text-foreground uppercase leading-none font-bold">ZICABELLA</h2>
-        </div>
-
-        {/* Premium Minimal Social Row */}
-        <div className="flex justify-center gap-4 mb-8">
-          {/* Instagram */}
-          <a href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"
-            className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
-            <Instagram className="w-4 h-4" />
-          </a>
+      <div className="md:hidden flex flex-col w-full relative z-0">
+        {/* Upper Part (Normal Scroll) */}
+        <div className="relative z-10 w-full bg-white dark:bg-black px-5 pt-12 pb-6 flex flex-col items-center">
           
-          {/* Spotify */}
-          <a href={spotifyUrl} target="_blank" rel="noopener noreferrer" aria-label="Spotify"
-            className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
-            <SpotifyIcon className="w-4 h-4" />
-          </a>
-
-          {/* Apple Music */}
-          <a href={appleUrl} target="_blank" rel="noopener noreferrer" aria-label="Apple Music"
-            className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
-            <Music2Icon className="w-4 h-4" />
-          </a>
-
-          {/* YouTube */}
-          <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label="YouTube"
-            className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
-            <Youtube className="w-4 h-4" />
-          </a>
-        </div>
-
-        {/* Accordions & Newsletter Container */}
-        <div className="w-full max-w-md space-y-4">
-          
-          {/* Panel 1: SHOP (Collapsible) */}
-          <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
-            <button 
-              onClick={() => setShopOpen(!shopOpen)}
-              className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
-            >
-              <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground">
-                SHOP
-              </span>
-              {shopOpen ? <ChevronUp className="w-4 h-4 text-foreground/50" /> : <ChevronDown className="w-4 h-4 text-foreground/50" />}
-            </button>
-            
-            <AnimatePresence initial={false}>
-              {shopOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="overflow-hidden"
-                >
-                  <div className="px-5 pb-5 pt-0">
-                    <div className="h-px w-full bg-gray-50 dark:bg-white/[0.02] mb-3" />
-                    <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] font-semibold text-foreground/60">
-                      <Link href="/collections" className="hover:text-foreground transition-colors">Collections</Link>
-                      <Link href="/blogs" className="hover:text-foreground transition-colors">Journal</Link>
-                      <Link href="/profile" className="hover:text-foreground transition-colors">Account</Link>
-                      <Link href="/support" className="hover:text-foreground transition-colors">Help</Link>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          {/* Brand Header: Logo stacked — 3D on top, text below */}
+          <div className="flex flex-col items-center gap-8 mb-6 text-center">
+            <ThreeDLogo src={shop?.footerLogo3dUrl} size={48} />
+            <h2 className="font-rocaston text-[13px] tracking-[0.22em] text-foreground uppercase leading-none font-bold">ZICABELLA</h2>
           </div>
 
-          {/* Panel 2: CUSTOMER CARE (Collapsible, Expanded by Default) */}
-          <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
-            <button 
-              onClick={() => setCustomerCareOpen(!customerCareOpen)}
-              className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
-            >
-              <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground">
-                CUSTOMER CARE
-              </span>
-              {customerCareOpen ? <ChevronUp className="w-4 h-4 text-foreground/50" /> : <ChevronDown className="w-4 h-4 text-foreground/50" />}
-            </button>
+          {/* Premium Minimal Social Row */}
+          <div className="flex justify-center gap-4 mb-8">
+            {/* Instagram */}
+            <a href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"
+              className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
+              <Instagram className="w-4 h-4" />
+            </a>
             
-            <AnimatePresence initial={false}>
-              {customerCareOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="overflow-hidden"
-                >
-                  <div className="px-5 pb-5 pt-0">
-                    <div className="h-px w-full bg-gray-50 dark:bg-white/[0.02] mb-4" />
-                    <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                      {/* Column 1 */}
-                      <div className="space-y-4">
-                        <Link href={findPolicyPath("about", "/policies/about-us")} className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <Info className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            About Us
-                          </span>
-                        </Link>
+            {/* Spotify */}
+            <a href={spotifyUrl} target="_blank" rel="noopener noreferrer" aria-label="Spotify"
+              className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
+              <SpotifyIcon className="w-4 h-4" />
+            </a>
 
-                        <Link href="/support" className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <Mail className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Contact
-                          </span>
-                        </Link>
+            {/* Apple Music */}
+            <a href={appleUrl} target="_blank" rel="noopener noreferrer" aria-label="Apple Music"
+              className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
+              <Music2Icon className="w-4 h-4" />
+            </a>
 
-                        <Link href={findPolicyPath("contact-information", "/policies/contact-information")} className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <MapPin className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Contact Information
-                          </span>
-                        </Link>
-
-                        <Link href={findPolicyPath("shipping", "/policies/shipping-policy")} className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <Truck className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Shipping Policy
-                          </span>
-                        </Link>
-                      </div>
-
-                      {/* Column 2 */}
-                      <div className="space-y-4">
-                        <Link href="/portal/login" className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <RotateCcw className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Returns
-                          </span>
-                        </Link>
-
-                        <Link href={findPolicyPath("terms", "/policies/terms-of-service")} className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <FileText className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Terms of Service
-                          </span>
-                        </Link>
-
-                        <Link href={findPolicyPath("privacy", "/policies/privacy-policy")} className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <Lock className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Privacy Policy
-                          </span>
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* YouTube */}
+            <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label="YouTube"
+              className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
+              <Youtube className="w-4 h-4" />
+            </a>
           </div>
 
-          {/* Panel 3: SUPPORT (Collapsible) */}
-          <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
-            <button 
-              onClick={() => setSupportOpen(!supportOpen)}
-              className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
-            >
-              <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground">
-                SUPPORT
-              </span>
-              {supportOpen ? <ChevronUp className="w-4 h-4 text-foreground/50" /> : <ChevronDown className="w-4 h-4 text-foreground/50" />}
-            </button>
+          {/* Accordions Container */}
+          <div className="w-full max-w-md space-y-4">
             
-            <AnimatePresence initial={false}>
-              {supportOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="overflow-hidden"
-                >
-                  <div className="px-5 pb-5 pt-0">
-                    <div className="h-px w-full bg-gray-50 dark:bg-white/[0.02] mb-4" />
-                    <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                      {/* Column 1 */}
-                      <div className="space-y-4">
-                        <Link href="/faq" className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <HelpCircle className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            FAQ's
-                          </span>
-                        </Link>
-
-                        <Link href="/orders" className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <MapPin className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Track Your Order
-                          </span>
-                        </Link>
-                      </div>
-
-                      {/* Column 2 */}
-                      <div className="space-y-4">
-                        <Link href="/portal/login" className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <RefreshCw className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Return / Exchange
-                          </span>
-                        </Link>
-
-                        <Link href={findPolicyPath("refund", "/policies/refund-policy")} className="flex items-center gap-3 group">
-                          <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
-                            <CreditCard className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            Refund / Exchange Policy
-                          </span>
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Panel 4: STAY IN THE LOOP (Static Card) */}
-          <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.01)] text-left">
-            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground block mb-1">
-              STAY IN THE LOOP
-            </span>
-            <p className="text-[10.5px] text-foreground/45 font-light mb-4 leading-none">
-              Join our newsletter.
-            </p>
-            
-            <form onSubmit={handleSubscribe} className="flex items-center gap-2.5 w-full">
-              <div className="relative flex-1">
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email" 
-                  required
-                  className="w-full h-11 bg-transparent border border-gray-200 dark:border-white/[0.08] focus:border-foreground dark:focus:border-white/20 rounded-full px-5 pr-11 text-[11px] focus:outline-none placeholder:text-foreground/25 text-foreground transition-colors leading-none"
-                />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none flex items-center justify-center">
-                  <Mail className="w-3.5 h-3.5" />
-                </div>
-              </div>
+            {/* Panel 1: SHOP (Collapsible) */}
+            <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
               <button 
-                type="submit"
-                className="h-11 bg-black dark:bg-white text-white dark:text-black hover:opacity-90 active:scale-95 rounded-full px-5 text-[9px] font-bold tracking-[0.2em] uppercase transition-all shrink-0 flex items-center justify-center"
+                onClick={() => setShopOpen(!shopOpen)}
+                className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
               >
-                SUBSCRIBE
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground">
+                  SHOP
+                </span>
+                {shopOpen ? <ChevronUp className="w-4 h-4 text-foreground/50" /> : <ChevronDown className="w-4 h-4 text-foreground/50" />}
               </button>
-            </form>
+              
+              <AnimatePresence initial={false}>
+                {shopOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-5 pb-5 pt-0">
+                      <div className="h-px w-full bg-gray-50 dark:bg-white/[0.02] mb-3" />
+                      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] font-semibold text-foreground/60">
+                        <Link href="/collections" className="hover:text-foreground transition-colors">Collections</Link>
+                        <Link href="/blogs" className="hover:text-foreground transition-colors">Journal</Link>
+                        <Link href="/profile" className="hover:text-foreground transition-colors">Account</Link>
+                        <Link href="/support" className="hover:text-foreground transition-colors">Help</Link>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Panel 2: CUSTOMER CARE (Collapsible, Expanded by Default) */}
+            <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
+              <button 
+                onClick={() => setCustomerCareOpen(!customerCareOpen)}
+                className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
+              >
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground">
+                  CUSTOMER CARE
+                </span>
+                {customerCareOpen ? <ChevronUp className="w-4 h-4 text-foreground/50" /> : <ChevronDown className="w-4 h-4 text-foreground/50" />}
+              </button>
+              
+              <AnimatePresence initial={false}>
+                {customerCareOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-5 pb-5 pt-0">
+                      <div className="h-px w-full bg-gray-50 dark:bg-white/[0.02] mb-4" />
+                      <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                        {/* Column 1 */}
+                        <div className="space-y-4">
+                          <Link href={findPolicyPath("about", "/policies/about-us")} className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <Info className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              About Us
+                            </span>
+                          </Link>
+
+                          <Link href="/support" className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <Mail className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Contact
+                            </span>
+                          </Link>
+
+                          <Link href={findPolicyPath("contact-information", "/policies/contact-information")} className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <MapPin className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Contact Information
+                            </span>
+                          </Link>
+
+                          <Link href={findPolicyPath("shipping", "/policies/shipping-policy")} className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <Truck className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Shipping Policy
+                            </span>
+                          </Link>
+                        </div>
+
+                        {/* Column 2 */}
+                        <div className="space-y-4">
+                          <Link href="/portal/login" className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Returns
+                            </span>
+                          </Link>
+
+                          <Link href={findPolicyPath("terms", "/policies/terms-of-service")} className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <FileText className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Terms of Service
+                            </span>
+                          </Link>
+
+                          <Link href={findPolicyPath("privacy", "/policies/privacy-policy")} className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <Lock className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Privacy Policy
+                            </span>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Panel 3: SUPPORT (Collapsible) */}
+            <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
+              <button 
+                onClick={() => setSupportOpen(!supportOpen)}
+                className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
+              >
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground">
+                  SUPPORT
+                </span>
+                {supportOpen ? <ChevronUp className="w-4 h-4 text-foreground/50" /> : <ChevronDown className="w-4 h-4 text-foreground/50" />}
+              </button>
+              
+              <AnimatePresence initial={false}>
+                {supportOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-5 pb-5 pt-0">
+                      <div className="h-px w-full bg-gray-50 dark:bg-white/[0.02] mb-4" />
+                      <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                        {/* Column 1 */}
+                        <div className="space-y-4">
+                          <Link href="/faq" className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <HelpCircle className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              FAQ's
+                            </span>
+                          </Link>
+
+                          <Link href="/orders" className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <MapPin className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Track Your Order
+                            </span>
+                          </Link>
+                        </div>
+
+                        {/* Column 2 */}
+                        <div className="space-y-4">
+                          <Link href="/portal/login" className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Return / Exchange
+                            </span>
+                          </Link>
+
+                          <Link href={findPolicyPath("refund", "/policies/refund-policy")} className="flex items-center gap-3 group">
+                            <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
+                              <CreditCard className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
+                              Refund / Exchange Policy
+                            </span>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
+
+        {/* Lower Part (Sticky Reveal) */}
+        <div className="sticky bottom-0 z-0 w-full bg-white dark:bg-black px-5 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] pt-6 flex flex-col items-center border-t border-gray-100 dark:border-white/[0.04]">
+          <div className="w-full max-w-md space-y-4">
+            
+            {/* Panel 4: STAY IN THE LOOP (Static Card) */}
+            <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.01)] text-left">
+              <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground block mb-1">
+                STAY IN THE LOOP
+              </span>
+              <p className="text-[10.5px] text-foreground/45 font-light mb-4 leading-none">
+                Join our newsletter.
+              </p>
+              
+              <form onSubmit={handleSubscribe} className="flex items-center gap-2.5 w-full">
+                <div className="relative flex-1">
+                  <input 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email" 
+                    required
+                    className="w-full h-11 bg-transparent border border-gray-200 dark:border-white/[0.08] focus:border-foreground dark:focus:border-white/20 rounded-full px-5 pr-11 text-[11px] focus:outline-none placeholder:text-foreground/25 text-foreground transition-colors leading-none"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none flex items-center justify-center">
+                    <Mail className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+                <button 
+                  type="submit"
+                  className="h-11 bg-black dark:bg-white text-white dark:text-black hover:opacity-90 active:scale-95 rounded-full px-5 text-[9px] font-bold tracking-[0.2em] uppercase transition-all shrink-0 flex items-center justify-center"
+                >
+                  SUBSCRIBE
+                </button>
+              </form>
+            </div>
+
+          </div>
+
+          {/* Mobile Bottom Footer Copyright Details */}
+          <div className="w-full max-w-md flex justify-between items-center text-[7.5px] tracking-[0.12em] font-semibold text-foreground/25 px-1.5 mt-8">
+            <span>© {new Date().getFullYear()} ZICABELLA</span>
+            <span>CRAFTED IN INDIA • ALL RIGHTS RESERVED</span>
           </div>
 
         </div>
-
-        {/* Mobile Bottom Footer Copyright Details */}
-        <div className="w-full max-w-md flex justify-between items-center text-[7.5px] tracking-[0.12em] font-semibold text-foreground/25 px-1.5 mt-8">
-          <span>© {new Date().getFullYear()} ZICABELLA</span>
-          <span>CRAFTED IN INDIA • ALL RIGHTS RESERVED</span>
-        </div>
-
       </div>
     </footer>
   );

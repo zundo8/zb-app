@@ -446,9 +446,65 @@ export async function GET() {
     overallStatus = 'warn';
   }
 
+  // ────────────────────────────────────────
+  // Root Cause Detection: Permission cascade pattern
+  // When CAPI works but Business Manager / Pixel Access / Asset Assignment
+  // fail with #100 errors, the root cause is always the same: the System User
+  // doesn't have the Pixel assigned as an asset in Business Manager.
+  // ────────────────────────────────────────
+  let rootCauseSummary: string | null = null;
+
+  const capiCheck = checks.find(c => c.name === 'Conversions API (CAPI)');
+  const capiPassed = capiCheck?.status === 'pass';
+
+  const permissionFailNames = ['Business Manager', 'Pixel/Dataset Access', 'Asset Assignment', 'Dataset Event Stats'];
+  const permissionFails = checks.filter(c =>
+    permissionFailNames.includes(c.name) && (c.status === 'fail' || c.status === 'warn')
+  );
+
+  if (capiPassed && permissionFails.length >= 2) {
+    rootCauseSummary = [
+      'Root cause: The Pixel/Dataset is not assigned to your System User in Business Manager.',
+      '',
+      'CAPI event sending works correctly — your events are being delivered to Meta.',
+      'However, advanced diagnostic queries (Business Manager access, Pixel metadata, event stats, asset assignments) fail because the System User token lacks the required permissions.',
+      '',
+      'Required fix (manual step in Meta Business Manager):',
+      '1. Go to Meta Business Manager → Business Settings → System Users',
+      '2. Select the System User that owns this access token',
+      '3. Click "Add Assets" → Select "Pixels" → Choose "' + (PIXEL_ID || 'your pixel') + '" → Grant Full Control',
+      '4. Ensure the System User has ads_read and business_management permissions',
+      '5. Regenerate the System User Access Token with those scopes',
+      '6. Update META_CAPI_ACCESS_TOKEN in your environment variables',
+    ].join('\n');
+  }
+
+  // ────────────────────────────────────────
+  // Scope Validation: Compare required vs granted
+  // ────────────────────────────────────────
+  const requiredScopes = ['ads_read', 'business_management'];
+  const grantedScopes = tokenDebugData?.scopes || [];
+  const missingScopes = requiredScopes.filter(s => !grantedScopes.includes(s));
+
+  if (missingScopes.length > 0) {
+    checks.push({
+      name: 'Required Scope Validation',
+      status: 'warn',
+      message: `Missing required scopes: ${missingScopes.join(', ')}`,
+      detail: `Required: ${requiredScopes.join(', ')}\nGranted: ${grantedScopes.join(', ') || 'none detected'}\n\nTo fix: Regenerate the System User Access Token in Meta Business Manager with the missing scopes enabled.`,
+    });
+  } else if (grantedScopes.length > 0) {
+    checks.push({
+      name: 'Required Scope Validation',
+      status: 'pass',
+      message: `All required scopes present: ${requiredScopes.join(', ')}`,
+    });
+  }
+
   return NextResponse.json({
     overall: overallStatus,
     checks,
+    root_cause_summary: rootCauseSummary,
     api_version: META_GRAPH_API_VERSION,
     pixel_id: PIXEL_ID,
     app_id: META_APP_ID || null,

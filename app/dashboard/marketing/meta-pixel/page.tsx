@@ -45,6 +45,7 @@ interface ConnectionCheck {
 interface ConnectionTestResult {
   overall: "pass" | "fail" | "warn";
   checks: ConnectionCheck[];
+  root_cause_summary?: string | null;
   api_version: string;
   pixel_id?: string;
   app_id?: string;
@@ -789,6 +790,18 @@ function ConnectionTestPanel({
           </span>
         )}
       </div>
+
+      {result.root_cause_summary && (
+        <div className="py-3 px-4 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 space-y-1">
+          <div className="flex items-center gap-2 text-amber-500 text-xs font-semibold">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            Root Cause Identified
+          </div>
+          <div className="text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed">
+            {result.root_cause_summary}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         {result.checks.map((check, i) => (

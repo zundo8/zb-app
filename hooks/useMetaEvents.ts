@@ -1,10 +1,6 @@
 import { trackEvent, initPixel, getMetaIdentityCookies } from '@/lib/metaPixel';
 import { event as trackGAEvent } from '@/lib/gtag';
 
-// Meta Purchase and InitiateCheckout events "value" intentionally set to 50% of actual order total for ad reporting purposes only.
-// Does not affect displayed price, payment amount, or order records.
-const META_PURCHASE_VALUE_MULTIPLIER = 0.5;
-
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = (Math.random() * 16) | 0;
@@ -215,12 +211,9 @@ export function useMetaEvents() {
     }
     const finalContents = contents || (contentIds ? contentIds.map(id => ({ id, quantity: 1 })) : []);
     
-    // Meta InitiateCheckout event "value" intentionally set to 50% of actual order total for ad reporting purposes only.
-    // Does not affect displayed price, payment amount, or order records.
-    const metaCheckoutValue = Math.round(value * META_PURCHASE_VALUE_MULTIPLIER * 100) / 100;
-    
-    const customData = cleanCustomData({
-      value: metaCheckoutValue,
+    // Client-side fbq call omits value — the server CAPI call carries the
+    // adjusted value computed server-side for security.
+    const fbqCustomData = cleanCustomData({
       num_items: numItems,
       currency,
       content_category: contentCategory,
@@ -228,14 +221,25 @@ export function useMetaEvents() {
       content_type: 'product',
       contents: finalContents
     });
-    trackEvent('InitiateCheckout', customData, base.eventId);
+    trackEvent('InitiateCheckout', fbqCustomData, base.eventId);
+
+    // Server CAPI receives the real value — adjustment happens server-side
+    const capiCustomData = cleanCustomData({
+      value,
+      num_items: numItems,
+      currency,
+      content_category: contentCategory,
+      content_ids: contentIds,
+      content_type: 'product',
+      contents: finalContents
+    });
     sendToCapiRoute({ 
       ...base, 
-      customData,
+      customData: capiCustomData,
       userData: { client_user_agent: navigator.userAgent, ...userData }
     });
     
-    // GA4 equivalent: begin_checkout (uses full original value, not the Meta-adjusted value)
+    // GA4 equivalent: begin_checkout (uses full original value)
     trackGAEvent('begin_checkout', {
       value,
       currency,
@@ -272,11 +276,10 @@ export function useMetaEvents() {
       initPixel(userData);
     }
     const finalContents = contents || contentIds.map(id => ({ id, quantity: 1, item_price: value / (contentIds.length || 1) }));
-    // Meta Purchase event "value" intentionally set to 50% of actual order total for ad reporting purposes only.
-    // Does not affect displayed price, payment amount, or order records.
-    const metaPurchaseValue = Math.round(value * META_PURCHASE_VALUE_MULTIPLIER * 100) / 100;
-    const customData = cleanCustomData({
-      value: metaPurchaseValue,
+
+    // Client-side fbq call omits value — the server CAPI call carries the
+    // adjusted value computed server-side for security.
+    const fbqCustomData = cleanCustomData({
       currency,
       content_ids: contentIds,
       order_id: orderId,
@@ -285,14 +288,26 @@ export function useMetaEvents() {
       contents: finalContents,
       num_items: finalContents.reduce((sum, item) => sum + item.quantity, 0)
     });
-    trackEvent('Purchase', customData, base.eventId);
+    trackEvent('Purchase', fbqCustomData, base.eventId);
+
+    // Server CAPI receives the real value — adjustment happens server-side
+    const capiCustomData = cleanCustomData({
+      value,
+      currency,
+      content_ids: contentIds,
+      order_id: orderId,
+      content_category: contentCategory,
+      content_type: 'product',
+      contents: finalContents,
+      num_items: finalContents.reduce((sum, item) => sum + item.quantity, 0)
+    });
     sendToCapiRoute({
       ...base,
-      customData,
+      customData: capiCustomData,
       userData: { client_user_agent: navigator.userAgent, ...userData },
     });
     
-    // GA4 equivalent: purchase (uses full original value, not the Meta-adjusted value)
+    // GA4 equivalent: purchase (uses full original value)
     trackGAEvent('purchase', {
       transaction_id: orderId,
       value,
@@ -369,13 +384,19 @@ export function useMetaEvents() {
     trackGAEvent('start_trial');
   };
 
-  const trackSubscribe = () => {
+  const trackSubscribe = (value: number = 50, currency = 'INR', contentName = 'Newsletter Signup') => {
     const base = getBasePayload('Subscribe');
-    trackEvent('Subscribe', {}, base.eventId);
-    sendToCapiRoute({ ...base });
+    const customData = cleanCustomData({
+      value,
+      currency,
+      content_name: contentName,
+      content_type: 'lead'
+    });
+    trackEvent('Subscribe', customData, base.eventId);
+    sendToCapiRoute({ ...base, customData });
     
     // GA4 equivalent: subscribe
-    trackGAEvent('subscribe');
+    trackGAEvent('subscribe', { value, currency });
   };
 
   const trackLead = (value?: number, currency = 'INR', contentCategory?: string, contentName?: string) => {

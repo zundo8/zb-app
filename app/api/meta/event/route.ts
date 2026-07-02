@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendCapiEvent } from '@/lib/metaCapi';
+import { sendCapiEvent, getReportedValue } from '@/lib/metaCapi';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
@@ -87,11 +87,34 @@ export async function POST(req: NextRequest) {
       fb_login_id: userData?.fb_login_id || fbLoginId,
     };
 
+    // Issue 4 fix: For PageView events without an authenticated session,
+    // strip ph to prevent duplicate phone hash being sent for anonymous visitors.
+    // ph should only be sent when we have a real per-user phone number.
+    if (eventName === 'PageView' && !session?.user) {
+      delete mergedUserData.ph;
+    }
+
     // Log identifier coverage summary (what identifiers are present, not the actual values)
     const presentKeys = Object.entries(mergedUserData)
       .filter(([_, value]) => value !== undefined && value !== null && value !== '')
       .map(([key]) => key);
     console.log(`[Meta CAPI Event Received] ${eventName} — Deduplication ID: ${eventId} — Customer Identifiers Present: [${presentKeys.join(', ')}]`);
+
+    // Issue 5 fix: Apply server-side value adjustment for Purchase and InitiateCheckout.
+    // The client sends the real order/cart value; the adjustment happens here so
+    // the real value is never exposed in browser JS or network traffic to Meta.
+    let adjustedCustomData = customData ? { ...customData } : undefined;
+    if (adjustedCustomData?.value !== undefined) {
+      const realValue = adjustedCustomData.value;
+      const reportedValue = getReportedValue(eventName, realValue);
+      if (reportedValue !== realValue) {
+        // Dev-only: log both values for internal debugging (never sent to Meta or client)
+        if (process.env.NODE_ENV !== 'production' || process.env.META_TEST_EVENT_CODE) {
+          console.log(`[Meta CAPI Route] ${eventName} value adjustment — realValue=${realValue}, reportedValue=${reportedValue}, currency=${adjustedCustomData.currency || 'NOT SET'}`);
+        }
+        adjustedCustomData.value = reportedValue;
+      }
+    }
 
     const result = await sendCapiEvent({
       eventName,
@@ -100,7 +123,7 @@ export async function POST(req: NextRequest) {
       eventSourceUrl,
       userAgent,
       userData: mergedUserData,
-      customData,
+      customData: adjustedCustomData,
       actionSource: actionSource ?? 'website',
     });
 

@@ -112,6 +112,15 @@ export function MetaPixelRouteTracker() {
 
       // Server-side CAPI PageView with full identity for deduplication
       const identityData = getMetaIdentityCookies();
+
+      // Issue 4 fix: Do not send ph for anonymous PageView events.
+      // ph should only be included when we have a real, per-user phone number
+      // (i.e., from an authenticated session). Sending a stale/shared cookie value
+      // on anonymous pageviews causes the duplicate phone hash bug in Meta.
+      if (!session?.user) {
+        delete identityData.ph;
+      }
+
       fetch('/api/meta/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
