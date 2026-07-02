@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 interface CartItem {
   id: string;
@@ -27,15 +28,18 @@ interface CartItem {
 
 interface Cart {
   id: string;
-  customerId: string;
+  customerId: string | null;
+  email: string | null;
+  phone: string | null;
+  source: string;
   updatedAt: string;
-  customer: {
+  customer?: {
     id: string;
     name: string | null;
     email: string | null;
     phone: string | null;
     image: string | null;
-  };
+  } | null;
   items: CartItem[];
 }
 
@@ -53,6 +57,7 @@ function GlassCard({ children, className = "" }: { children: React.ReactNode; cl
 }
 
 export default function LiveCartsPage() {
+  const router = useRouter();
   const [carts, setCarts] = useState<Cart[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,10 +103,9 @@ export default function LiveCartsPage() {
   }, [fetchCarts]);
 
   const filteredCarts = carts.filter(cart => {
-    if (!cart.customer) return false;
-    const name = cart.customer.name?.toLowerCase() || "";
-    const email = cart.customer.email?.toLowerCase() || "";
-    const phone = cart.customer.phone || "";
+    const name = cart.customer?.name?.toLowerCase() || "guest customer";
+    const email = cart.customer?.email?.toLowerCase() || cart.email?.toLowerCase() || "";
+    const phone = cart.phone || cart.customer?.phone || "";
     const query = searchQuery.toLowerCase();
     return name.includes(query) || email.includes(query) || phone.includes(query);
   });
@@ -141,7 +145,7 @@ export default function LiveCartsPage() {
           <div className="flex -space-x-4">
              {carts.slice(0, 5).map((cart, i) => (
                 <div key={i} className="w-12 h-12 rounded-2xl border-4 border-background bg-foreground/5 flex items-center justify-center overflow-hidden">
-                   {cart.customer.image ? <img src={cart.customer.image} className="w-full h-full object-cover" /> : <User className="w-5 h-5 opacity-20" />}
+                   {cart.customer?.image ? <img src={cart.customer.image} className="w-full h-full object-cover" /> : <User className="w-5 h-5 opacity-20" />}
                 </div>
              ))}
              {carts.length > 5 && (
@@ -238,8 +242,13 @@ export default function LiveCartsPage() {
                           <h3 className="text-2xl font-black italic text-foreground tracking-tighter truncate">{cart.customer?.name || 'Anonymous Node'}</h3>
                           <p className="text-[11px] text-foreground/40 font-black uppercase tracking-[0.2em] truncate flex items-center gap-2">
                              <User className="w-3 h-3 text-foreground/20" />
-                             {cart.customer?.email || 'NO_SIGNATURE'}
+                             {cart.customer?.email || cart.email || 'NO_SIGNATURE'}
                           </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-foreground/10 text-foreground/60 border border-foreground/5">
+                              {cart.source === "app" ? "App" : "Web Store"}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -248,7 +257,7 @@ export default function LiveCartsPage() {
                           <span className="text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30 block">Marketing Contact</span>
                           <span className="text-[13px] font-black text-foreground italic flex items-center gap-2">
                              <Smartphone className="w-3 h-3 text-foreground/20" /> 
-                             {cart.customer?.phone || 'NO_PHONE'}
+                             {cart.phone || cart.customer?.phone || 'NO_PHONE'}
                           </span>
                         </div>
                         <div className="p-5 rounded-[1.5rem] bg-foreground/[0.03] border border-foreground/[0.05] space-y-1">
@@ -274,8 +283,8 @@ export default function LiveCartsPage() {
                         </div>
                         <div className="flex items-center gap-4">
                            <button 
-                             onClick={() => window.open(`tel:${cart.customer?.phone}`, '_blank')}
-                             disabled={!cart.customer?.phone}
+                             onClick={() => window.open(`tel:${cart.phone || cart.customer?.phone}`, '_blank')}
+                             disabled={!cart.phone && !cart.customer?.phone}
                              className="flex-1 h-12 rounded-2xl bg-foreground/5 border border-foreground/10 text-[9px] font-black uppercase tracking-widest text-foreground/60 hover:bg-foreground/10 transition-all active:scale-95 disabled:opacity-30"
                            >
                              Call Node
@@ -297,7 +306,11 @@ export default function LiveCartsPage() {
                           </span>
                         </div>
                         <div className="flex gap-3">
-                           <button className="flex-1 flex items-center justify-center gap-3 py-5 rounded-[1.5rem] bg-foreground text-background text-[10px] font-black uppercase tracking-[0.2em] hover:opacity-90 transition-all shadow-xl active:scale-95 group">
+                           <button 
+                             onClick={() => cart.customer && router.push(`/dashboard/customers/${cart.customer.id}`)}
+                             disabled={!cart.customer}
+                             className="flex-1 flex items-center justify-center gap-3 py-5 rounded-[1.5rem] bg-foreground text-background text-[10px] font-black uppercase tracking-[0.2em] hover:opacity-90 transition-all shadow-xl active:scale-95 group disabled:opacity-30"
+                           >
                               Audit Profile <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                            </button>
                            <button 

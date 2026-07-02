@@ -7,7 +7,7 @@ import {
   ExternalLink, Calendar, Trash2, ArrowRight,
   TrendingUp, Activity, Smartphone, Monitor,
   Zap, ChevronRight, Filter, MessageSquare,
-  ChevronLeft, ArrowLeftRight
+  ChevronLeft, ArrowLeftRight, Mail
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -80,6 +80,13 @@ export default function AbandonedCartsPage() {
   const [sourceFilter, setSourceFilter] = useState<"all" | "webstore" | "app">("all");
   const [selectedCart, setSelectedCart] = useState<Cart | null>(null);
   
+  // Marketing / Recovery tab states
+  const [activeChannelTab, setActiveChannelTab] = useState<"whatsapp" | "email" | "sms" | "call">("whatsapp");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [smsBody, setSmsBody] = useState("");
+  const [sendingRecovery, setSendingRecovery] = useState(false);
+
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -120,6 +127,18 @@ export default function AbandonedCartsPage() {
     setPage(1);
   }, [statusFilter, sourceFilter, searchQuery]);
 
+  // Prefill default message templates on cart selection
+  useEffect(() => {
+    if (selectedCart) {
+      const name = selectedCart.customer?.name || "Customer";
+      const checkoutUrl = `https://zicabella.com/checkout?recover=${selectedCart.id}`;
+      
+      setEmailSubject("We saved your Zica Bella shopping bag!");
+      setEmailBody(`Hi ${name},\n\nWe noticed you left some beautiful pieces in your shopping bag. Complete your checkout now and make them yours!\n\nRestore your cart with a single click here:\n${checkoutUrl}\n\nWarm regards,\nZica Bella Team`);
+      setSmsBody(`Hi ${name}, you left items in your Zica Bella bag. Complete your purchase here: ${checkoutUrl}`);
+    }
+  }, [selectedCart]);
+
   const handleSendWhatsApp = async (cart: Cart) => {
     const phone = cart.phone || cart.customer?.phone;
     if (!phone) {
@@ -151,6 +170,46 @@ export default function AbandonedCartsPage() {
       }
     } catch (err) {
       toast.error("Network error triggering WhatsApp recovery.", { id: toastId });
+    }
+  };
+
+  const handleSendRecoveryChannel = async (channel: "whatsapp" | "email" | "sms") => {
+    if (!selectedCart) return;
+    
+    const contactVal = channel === "email" 
+      ? (selectedCart.email || selectedCart.customer?.email) 
+      : (selectedCart.phone || selectedCart.customer?.phone);
+      
+    if (!contactVal) {
+      toast.error(`No ${channel === "email" ? "email" : "phone"} information available for this cart.`);
+      return;
+    }
+
+    setSendingRecovery(true);
+    const toastId = toast.loading(`Sending ${channel.toUpperCase()} recovery...`);
+    try {
+      const res = await fetch("/api/admin/abandoned-carts/send-recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cartId: selectedCart.id,
+          channel,
+          subject: channel === "email" ? emailSubject : undefined,
+          messageBody: channel === "email" ? emailBody : (channel === "sms" ? smsBody : undefined)
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`${channel.toUpperCase()} recovery sent successfully!`, { id: toastId });
+        fetchCarts();
+      } else {
+        toast.error(data.error || `Failed to send ${channel.toUpperCase()} recovery.`, { id: toastId });
+      }
+    } catch (err) {
+      toast.error(`Network error sending ${channel.toUpperCase()} recovery.`, { id: toastId });
+    } finally {
+      setSendingRecovery(false);
     }
   };
 
@@ -451,25 +510,25 @@ export default function AbandonedCartsPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-[95%] max-w-xl bg-neutral-950 border-l border-foreground/10 p-8 md:p-12 overflow-y-auto space-y-10"
+              className="fixed top-0 right-0 bottom-0 z-50 w-[95%] max-w-xl bg-white dark:bg-neutral-950 border-l border-neutral-200 dark:border-foreground/10 p-8 md:p-12 overflow-y-auto space-y-8 text-neutral-900 dark:text-neutral-100 shadow-2xl"
             >
               {/* Slide-over header */}
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center pb-2 border-b border-neutral-100 dark:border-foreground/10">
                 <h2 className="text-3xl font-black italic text-foreground tracking-tighter uppercase">Cart detail</h2>
                 <button
                   onClick={() => setSelectedCart(null)}
-                  className="w-10 h-10 rounded-full border border-foreground/10 flex items-center justify-center text-foreground/45 hover:bg-foreground/5 transition-colors"
+                  className="w-10 h-10 rounded-full border border-neutral-200 dark:border-foreground/10 flex items-center justify-center text-foreground/45 hover:bg-foreground/5 transition-colors"
                 >
                   ✕
                 </button>
               </div>
 
               {/* Customer summary */}
-              <div className="p-6 rounded-3xl bg-foreground/[0.02] border border-foreground/[0.06] space-y-4">
-                <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-foreground/5 pb-2">Customer Signature</span>
+              <div className="p-6 rounded-3xl bg-neutral-50 dark:bg-foreground/[0.02] border border-neutral-200 dark:border-foreground/[0.06] space-y-4">
+                <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-neutral-200 dark:border-foreground/5 pb-2">Customer Signature</span>
                 <div className="space-y-2">
                   <h3 className="text-xl font-black text-foreground italic">{selectedCart.customer?.name || "Guest Customer"}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[12px] font-mono text-foreground/50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[12px] font-mono text-neutral-600 dark:text-foreground/50">
                     <p>Phone: {selectedCart.phone || selectedCart.customer?.phone || "No phone signature"}</p>
                     <p>Email: {selectedCart.email || selectedCart.customer?.email || "No email signature"}</p>
                     <p>Session ID: {selectedCart.id.slice(0, 16)}...</p>
@@ -489,6 +548,143 @@ export default function AbandonedCartsPage() {
                 )}
               </div>
 
+              {/* Engage Shopper / Recovery actions */}
+              {selectedCart.computedStatus === "abandoned" && (
+                <div className="p-6 rounded-3xl bg-neutral-50 dark:bg-foreground/[0.02] border border-neutral-200 dark:border-foreground/[0.06] space-y-6">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-neutral-200 dark:border-foreground/5 pb-2">Engage Shopper</span>
+                  
+                  {/* Channel Tabs */}
+                  <div className="grid grid-cols-4 gap-2 border-b border-neutral-200 dark:border-foreground/5 pb-3">
+                    {(["whatsapp", "email", "sms", "call"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveChannelTab(tab)}
+                        className={`py-2 px-1 rounded-xl text-[10px] font-black uppercase tracking-wider text-center transition-all ${
+                          activeChannelTab === tab
+                            ? "bg-foreground text-background shadow-md"
+                            : "bg-neutral-100 dark:bg-foreground/5 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-foreground/10"
+                        }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* WhatsApp Tab */}
+                  {activeChannelTab === "whatsapp" && (
+                    <div className="space-y-4">
+                      <p className="text-[11px] text-neutral-500 dark:text-foreground/60 leading-relaxed">
+                        Sends a WhatsApp recovery notification template to the customer with an active recovery URL.
+                      </p>
+                      {selectedCart.phone || selectedCart.customer?.phone ? (
+                        <button
+                          onClick={() => handleSendRecoveryChannel("whatsapp")}
+                          disabled={sendingRecovery}
+                          className="w-full flex items-center justify-center gap-3 py-4 rounded-[1.5rem] bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          <MessageSquare className="w-4 h-4" /> Send WhatsApp Recovery
+                        </button>
+                      ) : (
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] text-center font-bold">
+                          Phone number not captured for this session.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Email Tab */}
+                  {activeChannelTab === "email" && (
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Email Subject</label>
+                        <input
+                          type="text"
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
+                          className="w-full bg-neutral-100 dark:bg-foreground/5 border border-neutral-200 dark:border-foreground/10 rounded-xl px-4 py-3 text-[12px] focus:outline-none focus:border-foreground/30 text-neutral-900 dark:text-neutral-100"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Email Message Note</label>
+                        <textarea
+                          rows={4}
+                          value={emailBody}
+                          onChange={(e) => setEmailBody(e.target.value)}
+                          className="w-full bg-neutral-100 dark:bg-foreground/5 border border-neutral-200 dark:border-foreground/10 rounded-xl px-4 py-3 text-[12px] focus:outline-none focus:border-foreground/30 text-neutral-900 dark:text-neutral-100 font-sans"
+                        />
+                      </div>
+                      {selectedCart.email || selectedCart.customer?.email ? (
+                        <button
+                          onClick={() => handleSendRecoveryChannel("email")}
+                          disabled={sendingRecovery}
+                          className="w-full flex items-center justify-center gap-3 py-4 rounded-[1.5rem] bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          <Mail className="w-4 h-4" /> Send Email Recovery
+                        </button>
+                      ) : (
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] text-center font-bold">
+                          Email signature not captured for this session.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SMS Tab */}
+                  {activeChannelTab === "sms" && (
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-neutral-400">SMS Body Message</label>
+                        <textarea
+                          rows={3}
+                          value={smsBody}
+                          onChange={(e) => setSmsBody(e.target.value)}
+                          className="w-full bg-neutral-100 dark:bg-foreground/5 border border-neutral-200 dark:border-foreground/10 rounded-xl px-4 py-3 text-[12px] focus:outline-none focus:border-foreground/30 text-neutral-900 dark:text-neutral-100 font-sans"
+                        />
+                      </div>
+                      {selectedCart.phone || selectedCart.customer?.phone ? (
+                        <button
+                          onClick={() => handleSendRecoveryChannel("sms")}
+                          disabled={sendingRecovery}
+                          className="w-full flex items-center justify-center gap-3 py-4 rounded-[1.5rem] bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          <Smartphone className="w-4 h-4" /> Send SMS Recovery
+                        </button>
+                      ) : (
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] text-center font-bold">
+                          Phone number not captured for this session.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Call Tab */}
+                  {activeChannelTab === "call" && (
+                    <div className="space-y-4 text-center">
+                      <p className="text-[12px] text-neutral-500 dark:text-foreground/60">
+                        Initiate a direct customer support phone call to resolve sizing, queries, or cart issues.
+                      </p>
+                      {selectedCart.phone || selectedCart.customer?.phone ? (
+                        <div className="space-y-3">
+                          <p className="text-[14px] font-mono font-bold text-neutral-800 dark:text-white">
+                            Phone: {selectedCart.phone || selectedCart.customer?.phone}
+                          </p>
+                          <a
+                            href={`tel:${selectedCart.phone || selectedCart.customer?.phone}`}
+                            className="w-full flex items-center justify-center gap-3 py-4 rounded-[1.5rem] bg-foreground text-background text-[10px] font-black uppercase tracking-[0.2em] shadow-lg active:scale-95 transition-all inline-block text-center"
+                          >
+                            <Smartphone className="w-4 h-4" /> Call Now
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-bold">
+                          Phone signature not captured for this session.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Conversion order details */}
               {selectedCart.computedStatus === "converted" && selectedCart.convertedOrder && (
                 <div className="p-6 rounded-3xl bg-emerald-500/5 border border-emerald-500/10 space-y-4">
@@ -496,7 +692,7 @@ export default function AbandonedCartsPage() {
                   <div className="flex justify-between items-center">
                     <div>
                       <h4 className="text-md font-black text-foreground italic">{selectedCart.convertedOrder.internalOrderNumber}</h4>
-                      <p className="text-[10px] text-foreground/45 font-mono">Value: ₹{selectedCart.convertedOrder.totalPrice.toLocaleString()}</p>
+                      <p className="text-[10px] text-neutral-500 dark:text-foreground/45 font-mono">Value: ₹{selectedCart.convertedOrder.totalPrice.toLocaleString()}</p>
                     </div>
                     <Link
                       href={`/dashboard/orders?search=${selectedCart.convertedOrder.internalOrderNumber}`}
@@ -510,10 +706,10 @@ export default function AbandonedCartsPage() {
 
               {/* Items List */}
               <div className="space-y-6">
-                <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-foreground/5 pb-2">Cart Payload</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-neutral-200 dark:border-foreground/5 pb-2">Cart Payload</span>
                 <div className="space-y-4">
                   {selectedCart.items.map((item) => (
-                    <div key={item.id} className="flex gap-5 p-4 rounded-2xl bg-foreground/[0.01] border border-foreground/[0.04]">
+                    <div key={item.id} className="flex gap-5 p-4 rounded-2xl bg-neutral-50 dark:bg-foreground/[0.01] border border-neutral-200 dark:border-foreground/[0.04]">
                       <div className="w-16 h-20 rounded-xl overflow-hidden bg-foreground/5 shrink-0">
                         {item.image ? (
                           <img src={item.image} alt="" className="w-full h-full object-cover" />
@@ -524,11 +720,11 @@ export default function AbandonedCartsPage() {
                       <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                         <div>
                           <h4 className="text-[13.5px] font-black text-foreground leading-tight italic truncate">{item.title}</h4>
-                          <p className="text-[9px] font-mono text-foreground/40 mt-1">ID: {item.productId.slice(-8)}</p>
+                          <p className="text-[9px] font-mono text-neutral-500 dark:text-foreground/40 mt-1">ID: {item.productId.slice(-8)}</p>
                         </div>
                         <div className="flex justify-between items-end">
-                          <span className="text-[12px] font-black text-foreground/75">
-                            ₹{(item.price || 0).toLocaleString()} <span className="text-[10px] text-foreground/30 font-normal">x{item.quantity}</span>
+                          <span className="text-[12px] font-black text-neutral-800 dark:text-foreground/75">
+                            ₹{(item.price || 0).toLocaleString()} <span className="text-[10px] text-neutral-500 dark:text-foreground/30 font-normal">x{item.quantity}</span>
                           </span>
                           {item.size && (
                             <span className="text-[9px] font-black uppercase tracking-widest text-foreground/50 px-2 py-0.5 rounded bg-foreground/5 border border-foreground/5">
@@ -542,25 +738,17 @@ export default function AbandonedCartsPage() {
                 </div>
               </div>
 
-              {/* Value summary and recover action */}
-              <div className="pt-6 border-t border-foreground/10 space-y-6">
+              {/* Value summary and close panel */}
+              <div className="pt-6 border-t border-neutral-200 dark:border-foreground/10 space-y-6">
                 <div className="flex justify-between items-end">
                   <span className="text-[10px] font-black uppercase tracking-widest text-foreground/30">Total accumulated value</span>
                   <span className="text-3xl font-black text-foreground italic leading-none">₹{(selectedCart.subtotal || 0).toLocaleString()}</span>
                 </div>
 
                 <div className="flex gap-4">
-                  {selectedCart.computedStatus === "abandoned" && (selectedCart.phone || selectedCart.customer?.phone) && (
-                    <button
-                      onClick={() => handleSendWhatsApp(selectedCart)}
-                      className="flex-1 flex items-center justify-center gap-3 py-5 rounded-[2rem] bg-emerald-500 hover:opacity-90 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-105 active:scale-95 transition-all"
-                    >
-                      <MessageSquare className="w-4 h-4" /> Send recovery template
-                    </button>
-                  )}
                   <button
                     onClick={() => setSelectedCart(null)}
-                    className="flex-1 py-5 rounded-[2rem] bg-foreground/5 border border-foreground/10 text-foreground text-[10px] font-black uppercase tracking-[0.2em] hover:bg-foreground/10 active:scale-95 transition-all"
+                    className="w-full py-5 rounded-[2rem] bg-foreground/5 border border-neutral-200 dark:border-foreground/10 text-foreground text-[10px] font-black uppercase tracking-[0.2em] hover:bg-foreground/10 active:scale-95 transition-all text-center"
                   >
                     Close panel
                   </button>
