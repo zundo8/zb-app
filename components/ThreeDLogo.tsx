@@ -13,19 +13,18 @@ export default function ThreeDLogo({ src, size = 48 }: { src?: string; size?: nu
   // SSR fallback: Render standard 2D image logo
   if (!mounted) {
     return (
-      <div className="relative dark:invert shrink-0" style={{ width: size, height: size }}>
+      <div className="relative dark:invert" style={{ width: size, height: size }}>
         <NextImage src="/zb-logo-220px.png" alt="Zica Bella Logo" fill className="object-contain" />
       </div>
     );
   }
 
   // Render interactive 3D model-viewer logo for both desktop and mobile
-  // Hardcoded to the canonical silver logo model as requested by the user
   return (
     <div style={{ width: size, height: size }} className="relative shrink-0">
       {/* @ts-expect-error model-viewer web component */}
       <model-viewer
-        src="https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb"
+        src={src || "https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb"}
         alt="Zica Bella 3D Logo"
         auto-rotate
         camera-controls
@@ -37,4 +36,3 @@ export default function ThreeDLogo({ src, size = 48 }: { src?: string; size?: nu
     </div>
   );
 }
-

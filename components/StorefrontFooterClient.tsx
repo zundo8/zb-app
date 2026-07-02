@@ -15,8 +15,7 @@ import {
   MapPin, 
   CreditCard, 
   ChevronDown, 
-  ChevronUp, 
-  Search
+  ChevronUp
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
@@ -47,16 +46,6 @@ interface StorefrontFooterClientProps {
 
 export default function StorefrontFooterClient({ shop, policies }: StorefrontFooterClientProps) {
   const { trackSubscribe } = useMetaEvents();
-  // Scroll reveal tracking for mobile view
-  const mobileFooterRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: mobileFooterRef,
-    offset: ["start end", "end end"]
-  });
-
-  const revealY = useTransform(scrollYProgress, [0.6, 1], [50, 0]);
-  const revealOpacity = useTransform(scrollYProgress, [0.6, 0.95], [0, 1]);
-
   // Mobile accordion states
   const [shopOpen, setShopOpen] = useState(false);
   const [customerCareOpen, setCustomerCareOpen] = useState(true); // Default open as shown in reference image
@@ -64,6 +53,15 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
 
   // Newsletter state
   const [email, setEmail] = useState("");
+
+  // Mobile newsletter reveal animation
+  const revealContainerRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: revealContainerRef,
+    offset: ["start end", "end end"],
+  });
+  const revealY = useTransform(scrollYProgress, [0, 1], [-55, 0]);
+  const revealOpacity = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,7 +242,7 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
       </div>
 
       {/* ─── MOBILE (below md) ─── */}
-      <div ref={mobileFooterRef} className="md:hidden px-5 pt-12 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] flex flex-col items-center w-full bg-white dark:bg-black relative">
+      <div className="md:hidden px-5 pt-12 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] flex flex-col items-center">
         
         {/* Brand Header: Logo stacked — 3D on top, text below */}
         <div className="flex flex-col items-center gap-8 mb-6 text-center">
@@ -279,11 +277,11 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
           </a>
         </div>
 
-        {/* Accordions Container */}
+        {/* Accordions & Newsletter Container */}
         <div className="w-full max-w-md space-y-4">
           
           {/* Panel 1: SHOP (Collapsible) */}
-          <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
+          <div className="relative z-10 bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
             <button 
               onClick={() => setShopOpen(!shopOpen)}
               className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
@@ -318,7 +316,7 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
           </div>
 
           {/* Panel 2: CUSTOMER CARE (Collapsible, Expanded by Default) */}
-          <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
+          <div className="relative z-10 bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
             <button 
               onClick={() => setCustomerCareOpen(!customerCareOpen)}
               className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
@@ -417,7 +415,7 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
           </div>
 
           {/* Panel 3: SUPPORT (Collapsible) */}
-          <div className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
+          <div className="relative z-10 bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
             <button 
               onClick={() => setSupportOpen(!supportOpen)}
               className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
@@ -447,7 +445,7 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
                             <HelpCircle className="w-3.5 h-3.5" />
                           </div>
                           <span className="text-[10px] font-medium tracking-wide text-foreground/70 group-hover:text-foreground transition-colors">
-                            FAQ's
+                            FAQ&apos;s
                           </span>
                         </Link>
 
@@ -488,51 +486,50 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
             </AnimatePresence>
           </div>
 
-          {/* Panel 4: STAY IN THE LOOP (Animated Reveal Card) */}
-          <motion.div 
-            style={{ y: revealY, opacity: revealOpacity }}
-            className="bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.01)] text-left"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground block mb-1">
-              STAY IN THE LOOP
-            </span>
-            <p className="text-[10.5px] text-foreground/45 font-light mb-4 leading-none">
-              Join our newsletter.
-            </p>
-            
-            <form onSubmit={handleSubscribe} className="flex items-center gap-2.5 w-full">
-              <div className="relative flex-1">
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email" 
-                  required
-                  className="w-full h-11 bg-transparent border border-gray-200 dark:border-white/[0.08] focus:border-foreground dark:focus:border-white/20 rounded-full px-5 pr-11 text-[11px] focus:outline-none placeholder:text-foreground/25 text-foreground transition-colors leading-none"
-                />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none flex items-center justify-center">
-                  <Mail className="w-3.5 h-3.5" />
+          {/* Panel 4: STAY IN THE LOOP (Static Card) */}
+          <div ref={revealContainerRef} className="relative w-full">
+            <motion.div
+              style={{ y: revealY, opacity: revealOpacity }}
+              className="relative z-0 bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.01)] text-left"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground block mb-1">
+                STAY IN THE LOOP
+              </span>
+              <p className="text-[10.5px] text-foreground/45 font-light mb-4 leading-none">
+                Join our newsletter.
+              </p>
+              
+              <form onSubmit={handleSubscribe} className="flex items-center gap-2.5 w-full">
+                <div className="relative flex-1">
+                  <input 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email" 
+                    required
+                    className="w-full h-11 bg-transparent border border-gray-200 dark:border-white/[0.08] focus:border-foreground dark:focus:border-white/20 rounded-full px-5 pr-11 text-[11px] focus:outline-none placeholder:text-foreground/25 text-foreground transition-colors leading-none"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none flex items-center justify-center">
+                    <Mail className="w-3.5 h-3.5" />
+                  </div>
                 </div>
-              </div>
-              <button 
-                type="submit"
-                className="h-11 bg-black dark:bg-white text-white dark:text-black hover:opacity-90 active:scale-95 rounded-full px-5 text-[9px] font-bold tracking-[0.2em] uppercase transition-all shrink-0 flex items-center justify-center"
-              >
-                SUBSCRIBE
-              </button>
-            </form>
-          </motion.div>
+                <button 
+                  type="submit"
+                  className="h-11 bg-black dark:bg-white text-white dark:text-black hover:opacity-90 active:scale-95 rounded-full px-5 text-[9px] font-bold tracking-[0.2em] uppercase transition-all shrink-0 flex items-center justify-center"
+                >
+                  SUBSCRIBE
+                </button>
+              </form>
+            </motion.div>
+          </div>
 
         </div>
 
-        {/* Mobile Bottom Footer Copyright Details (Animated) */}
-        <motion.div 
-          style={{ y: revealY, opacity: revealOpacity }}
-          className="w-full max-w-md flex justify-between items-center text-[7.5px] tracking-[0.12em] font-semibold text-foreground/25 px-1.5 mt-8"
-        >
+        {/* Mobile Bottom Footer Copyright Details */}
+        <div className="w-full max-w-md flex justify-between items-center text-[7.5px] tracking-[0.12em] font-semibold text-foreground/25 px-1.5 mt-8">
           <span>© {new Date().getFullYear()} ZICABELLA</span>
           <span>CRAFTED IN INDIA • ALL RIGHTS RESERVED</span>
-        </motion.div>
+        </div>
 
       </div>
     </footer>
