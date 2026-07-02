@@ -66,52 +66,32 @@ export async function GET(req) {
         }
       });
     } else if (audience === 'cart_abandonment' || audience === 'abandoned_cart_customers') {
-      // Fetch checkouts from Shopify API
-      let shopifyCheckouts = [];
-      try {
-        const data = await shopifyFetch('checkouts.json', { limit: '50' });
-        shopifyCheckouts = data?.checkouts || [];
-      } catch (err) {
-        console.warn('[Recipients API] Shopify checkout fetch failed:', err.message);
-      }
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
 
-      // Also fetch local carts from DB
+      // Fetch local active-and-idle or explicitly abandoned carts from DB
       const localCarts = await prisma.cart.findMany({
         where: {
-          customer: { phone: { not: null } },
-          items: { some: {} }
+          items: { some: {} },
+          OR: [
+            { status: 'abandoned' },
+            { status: 'active', lastActivityAt: { lte: thirtyMinutesAgo } }
+          ]
         },
         include: { customer: true }
       });
 
-      // Combine both sources
       const combinedPhones = new Set();
       const combinedCustomers = [];
 
-      for (const c of shopifyCheckouts) {
-        const phone = c.phone || c.billing_address?.phone;
-        if (phone) {
-          const formatted = formatPhone(phone);
-          if (formatted && !combinedPhones.has(formatted)) {
-            combinedPhones.add(formatted);
-            combinedCustomers.push({
-              id: String(c.id),
-              name: `${c.billing_address?.first_name || ''} ${c.billing_address?.last_name || ''}`.trim() || 'Guest Customer',
-              phone: phone
-            });
-          }
-        }
-      }
-
       for (const cart of localCarts) {
-        const phone = cart.customer.phone;
+        const phone = cart.phone || cart.customer?.phone;
         if (phone) {
           const formatted = formatPhone(phone);
           if (formatted && !combinedPhones.has(formatted)) {
             combinedPhones.add(formatted);
             combinedCustomers.push({
-              id: cart.customer.id,
-              name: cart.customer.name || 'Valued Customer',
+              id: cart.id,
+              name: cart.customer?.name || 'Guest Customer',
               phone: phone
             });
           }

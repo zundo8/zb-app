@@ -459,6 +459,26 @@ export async function POST(req: Request) {
       }
     });
 
+    // Mark active cart converted and link convertedOrderId
+    try {
+      await prisma.cart.updateMany({
+        where: {
+          OR: [
+            { customerId: localCustomer.id, status: "active" },
+            ...(address.phone ? [{ phone: address.phone, status: "active" }] : []),
+            ...(address.email ? [{ email: address.email, status: "active" }] : [])
+          ]
+        },
+        data: {
+          status: "converted",
+          convertedOrderId: localOrder.id,
+        }
+      });
+      console.log(`[Checkout] Marked active cart converted for customer: ${localCustomer.id}`);
+    } catch (cartErr: any) {
+      console.error("[Checkout] Failed to mark cart converted:", cartErr.message);
+    }
+
     // Increment coupon usedCount if coupon was applied
     if (couponCode) {
       try {

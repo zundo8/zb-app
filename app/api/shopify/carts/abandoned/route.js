@@ -1,10 +1,4 @@
-/**
- * Shopify Abandoned Carts API Route
- * Location: app/api/shopify/carts/abandoned/route.js
- */
-
 import { NextResponse } from 'next/server';
-import { shopifyFetch } from '@/lib/shopify-admin';
 import prisma from '@/lib/db';
 import { formatPhone } from '@/lib/whatsapp/client';
 
@@ -12,12 +6,35 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    let checkouts = [];
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    
+    // Fetch active carts that have been idle for > 30 minutes, or explicitly abandoned
+    let localCarts = [];
     try {
-      const data = await shopifyFetch('checkouts.json', { limit: '50' });
-      checkouts = data?.checkouts || [];
+      localCarts = await prisma.cart.findMany({
+        where: {
+          items: { some: {} },
+          OR: [
+            { status: 'abandoned' },
+            { status: 'active', lastActivityAt: { lte: thirtyMinutesAgo } }
+          ]
+        },
+        include: {
+          customer: {
+            select: {
+              name: true,
+              phone: true
+            }
+          },
+          items: true
+        },
+        orderBy: {
+          lastActivityAt: 'desc'
+        },
+        take: 50
+      });
     } catch (apiErr) {
-      console.warn('[Shopify Carts API] Live fetch failed:', apiErr.message);
+      console.warn('[First Party Carts API] Fetch failed:', apiErr.message);
     }
 
     // Cross reference with local whatsapp_messages database to see which ones are already sent
@@ -35,34 +52,35 @@ export async function GET() {
         logs.forEach(l => sentPhones.add(l.phoneNumber));
       }
     } catch (dbErr) {
-      console.warn('[Shopify Carts API] Failed to fetch sent recovery logs:', dbErr.message);
+      console.warn('[First Party Carts API] Failed to fetch sent recovery logs:', dbErr.message);
     }
 
-    const carts = checkouts.map(c => {
-      const phone = c.phone || c.billing_address?.phone || '';
+    const carts = localCarts.map(c => {
+      const phone = c.phone || c.customer?.phone || '';
       const formatted = phone ? formatPhone(phone) : '';
       const isSent = formatted ? sentPhones.has(formatted) : false;
 
-      const itemsList = c.line_items
+      const itemsList = c.items
         ?.map(item => `${item.title} (x${item.quantity || 1})`)
         .join(', ') || 'Cart Items';
 
       return {
-        id: String(c.id),
-        customer: `${c.billing_address?.first_name || ''} ${c.billing_address?.last_name || ''}`.trim() || 'Guest Customer',
+        id: c.id,
+        customer: c.customer?.name || 'Guest Customer',
         phone: phone,
-        cart_value: `₹${parseFloat(c.total_price || '0').toLocaleString('en-IN')}`,
+        cart_value: `₹${parseFloat(c.subtotal || 0).toLocaleString('en-IN')}`,
         items: itemsList,
-        abandoned_at: c.created_at,
+        abandoned_at: c.lastActivityAt,
         status: isSent ? 'sent' : 'pending',
-        abandoned_checkout_url: c.abandoned_checkout_url || ''
+        abandoned_checkout_url: `https://zicabella.com/checkout?recover=${c.id}`
       };
     });
 
     return NextResponse.json({ carts });
   } catch (error) {
-    console.error('[Shopify Carts API] Error:', error);
+    console.error('[First Party Carts API] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
 

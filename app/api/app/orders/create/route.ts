@@ -375,6 +375,26 @@ export async function POST(req: Request) {
         await triggerMobileEmail(updated, orderNumber, subtotal, paymentMethod, total, lineItems, customer, shippingAddress, customerEmail, customerPhone);
       }
 
+      // Mark active cart converted and link convertedOrderId
+      try {
+        await prisma.cart.updateMany({
+          where: {
+            OR: [
+              { customerId: resolvedCustomerId, status: "active" },
+              ...(customerPhone ? [{ phone: customerPhone, status: "active" }] : []),
+              ...(customerEmail ? [{ email: customerEmail, status: "active" }] : [])
+            ]
+          },
+          data: {
+            status: "converted",
+            convertedOrderId: updated.id,
+          }
+        });
+        console.log(`[MobileCheckout] Marked active cart converted for customer: ${resolvedCustomerId}`);
+      } catch (cartErr: any) {
+        console.error("[MobileCheckout] Failed to mark cart converted:", cartErr.message);
+      }
+
       return NextResponse.json({
         success: true,
         orderId: updated.id,
@@ -546,6 +566,26 @@ export async function POST(req: Request) {
     // ─── Trigger Dynamic Order Confirmation Email ───
     if (customerEmail && (paymentStatus === 'paid' || paymentMethod === 'COD')) {
       await triggerMobileEmail(created, orderNumber, subtotal, paymentMethod, total, lineItems, customer, shippingAddress, customerEmail, customerPhone);
+    }
+
+    // Mark active cart converted and link convertedOrderId
+    try {
+      await prisma.cart.updateMany({
+        where: {
+          OR: [
+            { customerId: resolvedCustomerId, status: "active" },
+            ...(customerPhone ? [{ phone: customerPhone, status: "active" }] : []),
+            ...(customerEmail ? [{ email: customerEmail, status: "active" }] : [])
+          ]
+        },
+        data: {
+          status: "converted",
+          convertedOrderId: created.id,
+        }
+      });
+      console.log(`[MobileCheckout] Marked active cart converted for customer: ${resolvedCustomerId}`);
+    } catch (cartErr: any) {
+      console.error("[MobileCheckout] Failed to mark cart converted:", cartErr.message);
     }
 
     return NextResponse.json({

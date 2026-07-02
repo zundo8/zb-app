@@ -31,16 +31,29 @@ export async function POST(req) {
     const body = await req.json();
     const checkout = body.checkout || body;
 
-    const phone = checkout.phone || checkout.billing_address?.phone;
+    const phone = checkout.phone || checkout.billing_address?.phone || checkout.customer?.phone;
 
     if (!phone) {
       return NextResponse.json({ skipped: 'no_phone' });
     }
 
-    const customerName = checkout.billing_address?.first_name || 'there';
-    const itemCount = checkout.line_items?.length || 0;
-    const cartTotal = checkout.total_price || '0.00';
-    const checkoutUrl = checkout.abandoned_checkout_url || '';
+    const customerName = checkout.billing_address?.first_name 
+      || checkout.customer?.name?.split(' ')[0] 
+      || checkout.customerName 
+      || 'there';
+      
+    const itemCount = checkout.line_items?.length 
+      || checkout.items?.length 
+      || checkout.itemCount 
+      || 0;
+      
+    const cartTotal = checkout.total_price 
+      || checkout.subtotal 
+      || checkout.cartTotal 
+      || '0.00';
+      
+    const checkoutUrl = checkout.abandoned_checkout_url 
+      || `https://zicabella.com/checkout?recover=${checkout.id}`;
 
     const result = await sendAbandonedCart({
       phone,

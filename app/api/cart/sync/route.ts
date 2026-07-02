@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
 
 export const dynamic = "force-dynamic";
 
@@ -17,55 +19,97 @@ export async function OPTIONS() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { items, guestId, name, email, phone } = body;
+    const { items, guestId, name, email, phone, source } = body;
+    
+    // 1. Resolve customer identity (Mobile Auth vs NextAuth Session)
     const auth = getAppAuthFromRequest(req);
-    const customer = auth ? await resolveAuthCustomer(auth) : null;
-    let customerId = customer?.id;
-
-    if (!customerId && !guestId) {
-      return NextResponse.json({ error: "Unauthorized or Missing guestId" }, { status: 401 });
-    }
-
-    // If guest mode, find or create a placeholder customer
-    if (!customerId && guestId) {
-      const shop = await prisma.shop.findFirst();
-      if (!shop) return NextResponse.json({ error: "Shop not configured" }, { status: 500 });
-
-      const guestIdentifier = `GUEST_${guestId}`;
-      const guestCustomer = await prisma.customer.upsert({
-        where: { shopifyId: guestIdentifier },
-        update: { 
-          updatedAt: new Date(),
-          name: name || undefined,
-          email: email || undefined,
-          phone: phone || undefined,
-        },
-        create: {
-          shopifyId: guestIdentifier,
-          shopId: shop.id,
-          name: name || "Guest Node",
-          email: email || "guest@zicabella.com",
-          phone: phone || null,
-        }
-      });
-      customerId = guestCustomer.id;
-    }
+    const appCustomer = auth ? await resolveAuthCustomer(auth) : null;
+    let customerId = appCustomer?.id;
 
     if (!customerId) {
-       return NextResponse.json({ error: "Failed to resolve identity" }, { status: 500 });
+      const session = await getServerSession(authOptions);
+      if (session?.user) {
+        const sessionUser = session.user as any;
+        const userEmail = sessionUser.email;
+        const userId = sessionUser.id;
+        const dbCustomer = await prisma.customer.findFirst({
+          where: {
+            OR: [
+              ...(userId ? [{ id: userId }] : []),
+              ...(userEmail ? [{ email: userEmail }] : [])
+            ]
+          }
+        });
+        customerId = dbCustomer?.id;
+      }
+    }
+
+    // 2. Find or create an active cart session
+    let cart = null;
+
+    if (customerId) {
+      // Find active cart for this customer
+      cart = await prisma.cart.findFirst({
+        where: { customerId: customerId, status: "active" }
+      });
+
+      // If customer has no active cart, but we have a guestId, try to associate the guest cart
+      if (!cart && guestId) {
+        cart = await prisma.cart.findFirst({
+          where: { sessionToken: guestId, status: "active" }
+        });
+        if (cart) {
+          cart = await prisma.cart.update({
+            where: { id: cart.id },
+            data: { customerId: customerId }
+          });
+        }
+      }
+    } else if (guestId) {
+      // Find guest active cart
+      cart = await prisma.cart.findFirst({
+        where: { sessionToken: guestId, status: "active" }
+      });
+    }
+
+    const calculatedSubtotal = Array.isArray(items) 
+      ? items.reduce((sum: number, item: any) => sum + (parseFloat(String(item.price || 0)) * (parseInt(String(item.quantity || 1)) || 1)), 0)
+      : 0;
+
+    const cartSource = source || (auth ? "app" : "webstore");
+
+    if (!cart) {
+      // Create new cart session
+      cart = await prisma.cart.create({
+        data: {
+          customerId: customerId || null,
+          sessionToken: guestId || null,
+          source: cartSource,
+          status: "active",
+          phone: phone || null,
+          email: email || null,
+          subtotal: calculatedSubtotal,
+          lastActivityAt: new Date()
+        }
+      });
+    } else {
+      // Update existing cart details
+      cart = await prisma.cart.update({
+        where: { id: cart.id },
+        data: {
+          updatedAt: new Date(),
+          lastActivityAt: new Date(),
+          subtotal: calculatedSubtotal,
+          phone: phone || undefined,
+          email: email || undefined,
+          source: cartSource // Ensure source is kept up-to-date
+        }
+      });
     }
 
     if (!Array.isArray(items)) {
-      return NextResponse.json({ error: "Invalid items format" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid items format" }, { status: 400, headers: corsHeaders });
     }
-
-
-    // Upsert the cart for this customer
-    const cart = await prisma.cart.upsert({
-      where: { customerId: customerId },
-      create: { customerId: customerId },
-      update: { updatedAt: new Date() },
-    });
 
     let syncedCount = 0;
 
@@ -102,3 +146,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to sync cart", details: error.message }, { status: 500, headers: corsHeaders });
   }
 }
+

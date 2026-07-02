@@ -37,6 +37,8 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | null>(null);
 
+import { getClientCookie, setClientCookie } from "@/lib/metaPixel";
+
 const STORAGE_KEY = "zb_cart_v1";
 
 // ─── Provider ────────────────────────────────────────────
@@ -44,17 +46,84 @@ const STORAGE_KEY = "zb_cart_v1";
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount and check for cart recovery URL
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setItems(JSON.parse(raw));
     } catch {}
+
+    // Check for "?recover=CART_ID" in the browser query parameters
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const recoverId = params.get("recover");
+      if (recoverId) {
+        const loadRecoveredCart = async () => {
+          try {
+            const res = await fetch(`/api/cart/recover?id=${recoverId}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && Array.isArray(data.items) && data.items.length > 0) {
+                const mappedItems = data.items.map((item: any) => ({
+                  id: `${item.productId}_${item.variantId || ""}_${item.size || "one-size"}`,
+                  productId: item.productId,
+                  variantId: item.variantId || "",
+                  handle: item.handle || "",
+                  title: item.title || "Product",
+                  price: String(item.price || 0),
+                  image: item.image || "",
+                  quantity: item.quantity || 1,
+                  size: item.size || null,
+                }));
+                setItems(mappedItems);
+                
+                // Remove recover parameter from URL
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+              }
+            }
+          } catch (err) {
+            console.error("Cart recovery failed:", err);
+          }
+        };
+        loadRecoveredCart();
+      }
+    }
   }, []);
 
-  // Persist on change
+  // Persist to localStorage on change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  }, [items]);
+
+  // Synchronize cart with backend on updates (debounced)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let deviceId = getClientCookie("zb_device_id");
+    if (!deviceId) {
+      deviceId = `guest_web_${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36)}`;
+      setClientCookie("zb_device_id", deviceId, 365);
+    }
+
+    const syncCartWithBackend = async () => {
+      try {
+        await fetch("/api/cart/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items,
+            guestId: deviceId,
+            source: "webstore"
+          })
+        });
+      } catch (err) {
+        console.error("Cart background sync failed:", err);
+      }
+    };
+
+    const timer = setTimeout(syncCartWithBackend, 1000);
+    return () => clearTimeout(timer);
   }, [items]);
 
   const add = useCallback((item: Omit<CartItem, "id" | "quantity">) => {

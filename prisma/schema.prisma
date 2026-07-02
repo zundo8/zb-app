@@ -139,7 +139,7 @@ model Customer {
   whatsappOptedOut      Boolean            @default(false)
   lastLoginAt           DateTime?
   addresses             Address[]
-  cart                  Cart?
+  carts                 Cart[]
   communityMember       CommunityMember?
   communityMessages     CommunityMessage[]
   shop                  Shop               @relation(fields: [shopId], references: [id])
@@ -155,28 +155,48 @@ model Customer {
 }
 
 model Cart {
-  id         String     @id @default(cuid())
-  customerId String     @unique
-  updatedAt  DateTime   @updatedAt
-  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  items      CartItem[]
+  id                String     @id @default(cuid())
+  customerId        String?    @map("customer_id")
+  sessionToken      String?    @unique @map("session_token")
+  source            String     @default("webstore")
+  status            String     @default("active")
+  phone             String?    @map("phone_number")
+  email             String?
+  subtotal          Float      @default(0)
+  currency          String     @default("INR")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  lastActivityAt    DateTime   @default(now()) @map("last_activity_at")
+  abandonedAt       DateTime?  @map("abandoned_at")
+  convertedOrderId  String?    @unique @map("converted_order_id")
+
+  customer          Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  convertedOrder    Order?     @relation("ConvertedOrder", fields: [convertedOrderId], references: [id])
+  items             CartItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([lastActivityAt])
+  @@index([source])
+  @@map("cart_sessions")
 }
 
 model CartItem {
   id        String   @id @default(cuid())
-  cartId    String
-  productId String
-  variantId String?
+  cartId    String   @map("cart_session_id")
+  productId String   @map("shopify_product_id")
+  variantId String?  @map("shopify_variant_id")
   handle    String?
-  title     String?
+  title     String?  @map("product_title")
   price     Float?
-  image     String?
+  image     String?  @map("image_url")
   quantity  Int
-  size      String?
-  createdAt DateTime @default(now())
+  size      String?  @map("variant_title")
+  createdAt DateTime @default(now()) @map("added_at")
   cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
   @@index([cartId])
+  @@map("cart_items")
 }
 
 model ProfileHistory {
@@ -263,6 +283,7 @@ model Order {
   refundAttempts        Int               @default(0) @map("refund_attempts")
   cancelledAt           DateTime?         @map("cancelled_at")
   cancelledBy           String?           @map("cancelled_by")
+  cartSession           Cart?             @relation("ConvertedOrder")
 }
 
 model OrderItem {

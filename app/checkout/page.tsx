@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
-import { saveUserDataToCookiesAndReinit } from "@/lib/metaPixel";
+import { saveUserDataToCookiesAndReinit, getClientCookie } from "@/lib/metaPixel";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin,
@@ -108,6 +108,34 @@ export default function CheckoutPage() {
 
   const [step, setStep] = useState(1); // 1: Address, 2: Payment
   const [loading, setLoading] = useState(false);
+
+  // Sync cart contact details (email, phone, name) in background as user fills checkout form
+  useEffect(() => {
+    if ((address.email || address.phone) && items.length > 0) {
+      const syncCheckoutDetails = async () => {
+        try {
+          const guestId = getClientCookie("zb_device_id");
+          await fetch("/api/cart/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              items,
+              guestId,
+              name: address.name || undefined,
+              email: address.email || undefined,
+              phone: address.phone || undefined,
+              source: "webstore"
+            }),
+          });
+        } catch (e) {
+          console.error("Failed to sync checkout details to cart session:", e);
+        }
+      };
+
+      const timer = setTimeout(syncCheckoutDetails, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [address.email, address.phone, address.name, items]);
   const [error, setError] = useState("");
   const [initiatedPixel, setInitiatedPixel] = useState(false);
   const [paymentInfoFired, setPaymentInfoFired] = useState(false);
