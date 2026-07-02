@@ -358,9 +358,12 @@ export default function TemplatesManagerPage() {
                         {renderPreviewBody(selectedTemplate.components)}
 
                         {/* Footer text */}
-                        {selectedEvent = selectedTemplate.components?.find((c: any) => c.type === "FOOTER") && (
-                          <span className="text-[9px] text-muted-foreground block">{selectedEvent.text}</span>
-                        )}
+                        {(() => {
+                          const footerComp = selectedTemplate.components?.find((c: any) => c.type === "FOOTER");
+                          return footerComp ? (
+                            <span className="text-[9px] text-muted-foreground block">{footerComp.text}</span>
+                          ) : null;
+                        })()}
                       </motion.div>
 
                       {/* Mock bubble button actions */}

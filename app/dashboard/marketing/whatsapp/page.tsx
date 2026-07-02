@@ -1029,6 +1029,13 @@ function BroadcastCampaigns() {
   // Historical campaigns list
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const [campaignStatusFilter, setCampaignStatusFilter] = useState("all");
+  
+  // Campaign detail modal
+  const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
+  const [campaignDetail, setCampaignDetail] = useState<any>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const campaignTemplates = [
     { id: "sale_alert", label: "Sale Alert", fields: ["discountPercent", "saleEndDate"] },
@@ -1056,7 +1063,10 @@ function BroadcastCampaigns() {
   // Fetch campaigns
   const fetchCampaigns = async () => {
     try {
-      const res = await fetch("/api/whatsapp/campaigns");
+      const params = new URLSearchParams();
+      if (campaignStatusFilter !== "all") params.set("status", campaignStatusFilter);
+      if (campaignSearch) params.set("search", campaignSearch);
+      const res = await fetch(`/api/whatsapp/campaigns?${params.toString()}`);
       const data = await res.json();
       if (res.ok && data.campaigns) {
         setCampaigns(data.campaigns);
@@ -1070,7 +1080,23 @@ function BroadcastCampaigns() {
 
   useEffect(() => {
     fetchCampaigns();
-  }, []);
+  }, [campaignStatusFilter, campaignSearch]);
+
+  // Load campaign from URL if present
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const campaignIdParam = new URLSearchParams(window.location.search).get("campaignId");
+    if (campaignIdParam && campaigns.length > 0) {
+      const match = campaigns.find(c => c.id === campaignIdParam);
+      if (match) {
+        loadCampaignDetail(match);
+        // Clear param from URL so it doesn't reopen on refresh
+        const url = new URL(window.location.href);
+        url.searchParams.delete("campaignId");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, [campaigns]);
 
   // Poll active sending campaigns
   useEffect(() => {
@@ -1176,6 +1202,99 @@ function BroadcastCampaigns() {
     }
   };
 
+  // Campaign detail loader
+  const loadCampaignDetail = async (campaign: any) => {
+    setSelectedCampaign(campaign);
+    setLoadingDetail(true);
+    try {
+      const res = await fetch(`/api/whatsapp/campaigns/${campaign.id}`);
+      const data = await res.json();
+      if (res.ok && data.campaign) {
+        setCampaignDetail(data.campaign);
+      } else {
+        toast.error("Failed to load campaign details.");
+      }
+    } catch (err) {
+      toast.error("Network error loading campaign details.");
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  // Campaign actions
+  const handleCampaignAction = async (campaignId: string, action: string, label: string) => {
+    if (action === "delete") {
+      if (!confirm(`Are you sure you want to permanently delete this campaign? This cannot be undone.`)) return;
+      const toastId = toast.loading("Deleting campaign...");
+      try {
+        const res = await fetch("/api/whatsapp/campaigns", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: campaignId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          toast.success("Campaign deleted successfully!", { id: toastId });
+          setSelectedCampaign(null);
+          setCampaignDetail(null);
+          fetchCampaigns();
+        } else {
+          toast.error(data.error || "Failed to delete campaign.", { id: toastId });
+        }
+      } catch (err) {
+        toast.error("Network error deleting campaign.", { id: toastId });
+      }
+      return;
+    }
+
+    const toastId = toast.loading(`${label}...`);
+    try {
+      const res = await fetch("/api/whatsapp/campaigns", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: campaignId, action })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Campaign ${action}d successfully!`, { id: toastId });
+        fetchCampaigns();
+        if (selectedCampaign?.id === campaignId) {
+          loadCampaignDetail({ ...selectedCampaign, status: data.campaign.status });
+        }
+      } else {
+        toast.error(data.error || `Failed to ${action} campaign.`, { id: toastId });
+      }
+    } catch (err) {
+      toast.error(`Network error during campaign ${action}.`, { id: toastId });
+    }
+  };
+
+  // Duplicate campaign
+  const handleDuplicate = (campaign: any) => {
+    setCampaignName(`${campaign.name} (Copy)`);
+    setType(campaign.templateName);
+    if (campaign.templateParams) {
+      try {
+        setPayload(JSON.parse(campaign.templateParams));
+      } catch {}
+    }
+    setSelectedCampaign(null);
+    setCampaignDetail(null);
+    toast.success("Campaign settings duplicated! Modify and send.");
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed": return "border-emerald-500/20 text-emerald-500 bg-emerald-500/10";
+      case "sending": return "border-blue-500/20 text-blue-500 bg-blue-500/10 animate-pulse";
+      case "scheduled": return "border-amber-500/20 text-amber-500 bg-amber-500/10";
+      case "paused": return "border-violet-500/20 text-violet-500 bg-violet-500/10";
+      case "cancelled": return "border-zinc-500/20 text-zinc-500 bg-zinc-500/10";
+      case "draft": return "border-foreground/10 text-foreground/50 bg-foreground/5";
+      default: return "border-rose-500/20 text-rose-500 bg-rose-500/10";
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
       {/* Configuration Form */}
@@ -1268,7 +1387,7 @@ function BroadcastCampaigns() {
             <textarea
               rows={5}
               required
-              placeholder="e.g. +919876543210, Priya&#10;+919988776655, Rahul"
+              placeholder={"e.g. +919876543210, Priya\n+919988776655, Rahul"}
               value={recipientsText}
               onChange={(e) => setRecipientsText(e.target.value)}
               className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono text-xs resize-none"
@@ -1309,12 +1428,48 @@ function BroadcastCampaigns() {
         </form>
       </div>
 
-      {/* Progress & Campaign History Panel */}
-      <div className="glass-card p-6 flex flex-col justify-between h-[600px] overflow-hidden">
+      {/* Campaign Dashboard Panel */}
+      <div className="glass-card p-6 flex flex-col justify-between h-[700px] overflow-hidden">
         <div className="space-y-4 flex flex-col h-full">
-          <h3 className="font-semibold text-lg">Campaign Dashboard</h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-semibold text-lg">Campaign Dashboard</h3>
+            <button
+              onClick={() => fetchCampaigns()}
+              className="p-2 bg-foreground/5 hover:bg-foreground/10 text-foreground border border-foreground/10 rounded-lg transition-all"
+              title="Refresh"
+            >
+              <RefreshCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Search & Filter */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search campaigns..."
+                value={campaignSearch}
+                onChange={(e) => setCampaignSearch(e.target.value)}
+                className="w-full bg-foreground/5 border border-foreground/10 rounded-lg pl-8 pr-3 py-1.5 outline-none focus:border-emerald-500/50 text-xs text-foreground"
+              />
+            </div>
+            <select
+              value={campaignStatusFilter}
+              onChange={(e) => setCampaignStatusFilter(e.target.value)}
+              className="bg-foreground/5 border border-foreground/10 rounded-lg px-2 py-1.5 outline-none text-xs text-foreground"
+            >
+              <option value="all">All Status</option>
+              <option value="sending">Sending</option>
+              <option value="completed">Completed</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="paused">Paused</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
           
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
             {loadingCampaigns ? (
               <div className="flex justify-center py-20">
                 <RefreshCcw className="w-6 h-6 animate-spin text-emerald-500" />
@@ -1322,7 +1477,7 @@ function BroadcastCampaigns() {
             ) : campaigns.length === 0 ? (
               <div className="py-20 text-center text-muted-foreground text-sm flex flex-col items-center justify-center">
                 <Send className="w-10 h-10 text-muted-foreground/30 mb-3" />
-                <span>No campaign blasts found. Start one above.</span>
+                <span>No campaigns found. Start one or adjust your filters.</span>
               </div>
             ) : (
               campaigns.map((c) => {
@@ -1330,18 +1485,17 @@ function BroadcastCampaigns() {
                 const progressVal = total > 0 ? (c.statsSent / total) * 100 : 0;
                 
                 return (
-                  <div key={c.id} className="bg-foreground/5 border border-foreground/10 rounded-xl p-4.5 space-y-3 hover:bg-foreground/[0.08] transition-all">
+                  <div 
+                    key={c.id} 
+                    className="bg-foreground/5 border border-foreground/10 rounded-xl p-4 space-y-3 hover:bg-foreground/[0.08] transition-all cursor-pointer group"
+                    onClick={() => loadCampaignDetail(c)}
+                  >
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-semibold text-sm text-foreground">{c.name}</h4>
+                        <h4 className="font-semibold text-sm text-foreground group-hover:text-emerald-500 transition-colors">{c.name}</h4>
                         <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">Template: {c.templateName}</span>
                       </div>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        c.status === "completed" ? "border-emerald-500/20 text-emerald-500 bg-emerald-500/10" :
-                        c.status === "sending" ? "border-blue-500/20 text-blue-500 bg-blue-500/10 animate-pulse" :
-                        c.status === "scheduled" ? "border-amber-500/20 text-amber-500 bg-amber-500/10" :
-                        "border-rose-500/20 text-rose-500 bg-rose-500/10"
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusColor(c.status)}`}>
                         {c.status.toUpperCase()}
                       </span>
                     </div>
@@ -1381,18 +1535,63 @@ function BroadcastCampaigns() {
                         </div>
                       </div>
                     )}
-                    
-                    <div className="text-[9px] text-muted-foreground flex justify-between items-center mt-1">
-                      {c.scheduledAt ? (
-                        <span className="text-amber-500 font-semibold font-mono">
-                          Scheduled: {new Date(c.scheduledAt).toLocaleString('en-IN')}
-                        </span>
-                      ) : (
-                        <span>Immediate</span>
-                      )}
-                      <span>
-                        Created: {new Date(c.createdAt).toLocaleString('en-IN')}
-                      </span>
+
+                    {/* Quick Actions Row */}
+                    <div className="flex justify-between items-center pt-1 border-t border-foreground/5">
+                      <div className="text-[9px] text-muted-foreground">
+                        {c.scheduledAt ? (
+                          <span className="text-amber-500 font-semibold font-mono">
+                            Scheduled: {new Date(c.scheduledAt).toLocaleString('en-IN')}
+                          </span>
+                        ) : (
+                          <span>{new Date(c.createdAt).toLocaleString('en-IN')}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        {c.status === "sending" && (
+                          <button
+                            onClick={() => handleCampaignAction(c.id, "pause", "Pausing campaign")}
+                            className="text-[9px] font-bold text-violet-500 hover:bg-violet-500/10 px-2 py-0.5 rounded-lg transition-colors"
+                            title="Pause"
+                          >
+                            Pause
+                          </button>
+                        )}
+                        {c.status === "paused" && (
+                          <button
+                            onClick={() => handleCampaignAction(c.id, "resume", "Resuming campaign")}
+                            className="text-[9px] font-bold text-blue-500 hover:bg-blue-500/10 px-2 py-0.5 rounded-lg transition-colors"
+                            title="Resume"
+                          >
+                            Resume
+                          </button>
+                        )}
+                        {["sending", "paused", "scheduled", "queued"].includes(c.status) && (
+                          <button
+                            onClick={() => handleCampaignAction(c.id, "cancel", "Cancelling campaign")}
+                            className="text-[9px] font-bold text-amber-500 hover:bg-amber-500/10 px-2 py-0.5 rounded-lg transition-colors"
+                            title="Cancel"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDuplicate(c)}
+                          className="text-[9px] font-bold text-foreground/50 hover:text-foreground hover:bg-foreground/5 px-2 py-0.5 rounded-lg transition-colors"
+                          title="Duplicate"
+                        >
+                          Duplicate
+                        </button>
+                        {c.status !== "sending" && (
+                          <button
+                            onClick={() => handleCampaignAction(c.id, "delete", "Deleting campaign")}
+                            className="text-[9px] font-bold text-rose-500 hover:bg-rose-500/10 px-2 py-0.5 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1401,9 +1600,193 @@ function BroadcastCampaigns() {
           </div>
         </div>
       </div>
+
+      {/* Campaign Detail Modal */}
+      {selectedCampaign && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-background border border-foreground/10 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh]"
+          >
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-5 border-b border-foreground/10">
+              <div>
+                <h3 className="font-semibold text-lg">{selectedCampaign.name}</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs font-mono text-muted-foreground">Template: {selectedCampaign.templateName}</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusColor(selectedCampaign.status)}`}>
+                    {selectedCampaign.status.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setSelectedCampaign(null); setCampaignDetail(null); }}
+                className="text-muted-foreground hover:text-foreground text-sm p-1 hover:bg-foreground/5 rounded-lg transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {loadingDetail ? (
+                <div className="flex justify-center py-16">
+                  <RefreshCcw className="w-8 h-8 animate-spin text-emerald-500" />
+                </div>
+              ) : campaignDetail ? (
+                <>
+                  {/* Stats Overview */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {[
+                      { label: "Sent", value: campaignDetail.statsSent, color: "text-foreground" },
+                      { label: "Delivered", value: campaignDetail.statsDelivered, color: "text-emerald-500" },
+                      { label: "Read", value: campaignDetail.statsRead, color: "text-blue-500" },
+                      { label: "Replied", value: campaignDetail.statsReplied, color: "text-violet-500" },
+                      { label: "Failed", value: campaignDetail.statsFailed, color: "text-rose-500" },
+                    ].map(s => (
+                      <div key={s.label} className="bg-foreground/5 p-3 rounded-xl border border-foreground/10 text-center">
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground block mb-1">{s.label}</span>
+                        <strong className={`text-lg font-bold ${s.color}`}>{s.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Campaign Metadata */}
+                  <div className="grid grid-cols-2 gap-4 bg-foreground/[0.02] p-4 rounded-xl border border-foreground/5 text-xs">
+                    <div>
+                      <span className="text-muted-foreground uppercase font-mono text-[9px] block">Created</span>
+                      <strong className="text-foreground/90">{new Date(campaignDetail.createdAt).toLocaleString('en-IN')}</strong>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground uppercase font-mono text-[9px] block">Sent At</span>
+                      <strong className="text-foreground/90">{campaignDetail.sentAt ? new Date(campaignDetail.sentAt).toLocaleString('en-IN') : 'N/A'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground uppercase font-mono text-[9px] block">Target Segment</span>
+                      <strong className="text-foreground/90 capitalize">{campaignDetail.targetSegment}</strong>
+                    </div>
+                    {campaignDetail.scheduledAt && (
+                      <div>
+                        <span className="text-muted-foreground uppercase font-mono text-[9px] block">Scheduled</span>
+                        <strong className="text-amber-500">{new Date(campaignDetail.scheduledAt).toLocaleString('en-IN')}</strong>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Recipients Table */}
+                  {campaignDetail.recipients && campaignDetail.recipients.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-foreground/60 uppercase tracking-wider">
+                        Recipients ({campaignDetail.recipients.length})
+                      </h4>
+                      <div className="max-h-[300px] overflow-y-auto rounded-xl border border-foreground/10">
+                        <table className="w-full text-xs">
+                          <thead className="bg-foreground/[0.02] sticky top-0 border-b border-foreground/10">
+                            <tr>
+                              <th className="text-left font-medium text-foreground/60 px-4 py-2.5">Phone</th>
+                              <th className="text-left font-medium text-foreground/60 px-4 py-2.5">Name</th>
+                              <th className="text-left font-medium text-foreground/60 px-4 py-2.5">Status</th>
+                              <th className="text-left font-medium text-foreground/60 px-4 py-2.5">Sent At</th>
+                              <th className="text-right font-medium text-foreground/60 px-4 py-2.5">Message ID</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-foreground/5">
+                            {campaignDetail.recipients.map((r: any) => (
+                              <tr key={r.id} className="hover:bg-foreground/[0.02] transition-colors">
+                                <td className="px-4 py-2 font-mono">{r.phone}</td>
+                                <td className="px-4 py-2">{r.name || "—"}</td>
+                                <td className="px-4 py-2">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                                    r.status === "sent" || r.status === "delivered" || r.status === "read" 
+                                      ? "border-emerald-500/20 text-emerald-500 bg-emerald-500/10"
+                                      : r.status === "failed" || r.status === "cancelled"
+                                      ? "border-rose-500/20 text-rose-500 bg-rose-500/10"
+                                      : "border-amber-500/20 text-amber-500 bg-amber-500/10"
+                                  }`}>
+                                    {r.status.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 text-muted-foreground">
+                                  {r.sentAt ? new Date(r.sentAt).toLocaleString('en-IN') : "—"}
+                                </td>
+                                <td className="px-4 py-2 text-right font-mono text-muted-foreground truncate max-w-[120px]" title={r.messageId}>
+                                  {r.messageId ? r.messageId.substring(0, 16) + '...' : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="py-16 text-center text-muted-foreground text-sm">
+                  Failed to load campaign details.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="flex items-center justify-between p-4 border-t border-foreground/10 bg-foreground/[0.02]">
+              <div className="flex gap-2">
+                {selectedCampaign.status === "sending" && (
+                  <button
+                    onClick={() => handleCampaignAction(selectedCampaign.id, "pause", "Pausing")}
+                    className="px-3 py-1.5 text-xs font-semibold text-violet-500 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-lg transition-colors"
+                  >
+                    Pause Campaign
+                  </button>
+                )}
+                {selectedCampaign.status === "paused" && (
+                  <button
+                    onClick={() => handleCampaignAction(selectedCampaign.id, "resume", "Resuming")}
+                    className="px-3 py-1.5 text-xs font-semibold text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors"
+                  >
+                    Resume Campaign
+                  </button>
+                )}
+                {["sending", "paused", "scheduled"].includes(selectedCampaign.status) && (
+                  <button
+                    onClick={() => handleCampaignAction(selectedCampaign.id, "cancel", "Cancelling")}
+                    className="px-3 py-1.5 text-xs font-semibold text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-lg transition-colors"
+                  >
+                    Cancel Campaign
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDuplicate(selectedCampaign)}
+                  className="px-3 py-1.5 text-xs font-semibold text-foreground/60 bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 rounded-lg transition-colors"
+                >
+                  Duplicate
+                </button>
+              </div>
+              <div className="flex gap-2">
+                {selectedCampaign.status !== "sending" && (
+                  <button
+                    onClick={() => handleCampaignAction(selectedCampaign.id, "delete", "Deleting")}
+                    className="px-3 py-1.5 text-xs font-semibold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-colors"
+                  >
+                    Delete Campaign
+                  </button>
+                )}
+                <button
+                  onClick={() => { setSelectedCampaign(null); setCampaignDetail(null); }}
+                  className="px-3 py-1.5 text-xs font-semibold bg-foreground/5 text-foreground hover:bg-foreground/10 border border-foreground/10 rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
+
+
 
 /* ==========================================================================
    SECTION E: ABANDONED CART RECOVERY
