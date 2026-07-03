@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -374,6 +375,33 @@ export async function PATCH(req: Request) {
       where: { id: shop.id },
       data,
     });
+
+    // Synchronize all other shop records in the database to prevent desyncs
+    try {
+      const syncData = { ...data };
+      delete syncData.domain;
+      delete syncData.accessToken;
+      
+      await prisma.shop.updateMany({
+        where: {
+          id: { not: shop.id }
+        },
+        data: syncData
+      });
+      console.log(`[Settings API] Synchronized settings to all other shop records.`);
+    } catch (syncErr: any) {
+      console.warn(`[Settings API] Failed to synchronize other shop records: ${syncErr.message}`);
+    }
+
+    try {
+      revalidatePath('/');
+      revalidatePath('/products/[id]', 'page');
+      revalidatePath('/policies/[handle]', 'page');
+      revalidateTag('homepage');
+      console.log(`[Settings API] Purged storefront caches successfully.`);
+    } catch (revalidateErr: any) {
+      console.warn(`[Settings API] Cache revalidation warning: ${revalidateErr.message}`);
+    }
 
     console.log(`[Settings API] Saved settings for ${updatedShop.domain}`);
     return NextResponse.json({ success: true, shopDomain: updatedShop.domain });

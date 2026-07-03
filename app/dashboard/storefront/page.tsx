@@ -13,6 +13,7 @@ interface SettingsData {
   shopDomain: string;
   heroImage: string;
   heroVideo: string;
+  heroVideoMobile: string;
   heroTitle: string;
   heroSubtitle: string;
   heroButtonText: string;
@@ -102,7 +103,7 @@ function SettingsRow({
     <div className="flex flex-col md:flex-row md:items-center justify-between py-5 border-b border-foreground/[0.05] last:border-0 gap-4 md:gap-0">
       <div className="flex items-center gap-4">
         {Icon && (
-          <div className="w-8 h-8 rounded-md bg-foreground/[0.02] flex items-center justify-center text-foreground/60 border border-foreground/[0.05]">
+          <div className="w-8 h-8 rounded-md bg-foreground/[0.02] flex items-center justify-center text-foreground/80 dark:text-foreground/60 border border-foreground/[0.05]">
             <Icon className="w-4 h-4" />
           </div>
         )}
@@ -151,7 +152,7 @@ function SettingsGroup({ title, children, icon: Icon }: { title?: string; childr
     >
       {title && (
         <div className="flex items-center gap-2 px-6">
-           {Icon && <Icon className="w-3.5 h-3.5 text-foreground/50" />}
+           {Icon && <Icon className="w-3.5 h-3.5 text-foreground/60" />}
            <h3 className="text-[9px] font-semibold uppercase tracking-widest text-foreground/50">{title}</h3>
         </div>
       )}
@@ -304,7 +305,7 @@ export default function StorefrontSettingsPage() {
     setSaveStatus('idle');
 
     const storefrontKeys: (keyof SettingsData)[] = [
-        'heroImage', 'heroVideo', 'heroTitle', 'heroSubtitle', 'heroButtonText',
+        'heroImage', 'heroVideo', 'heroVideoMobile', 'heroTitle', 'heroSubtitle', 'heroButtonText',
         'latestCurationTitle', 'latestCurationSubtitle', 'archiveTitle', 'archiveSubtitle',
         'blueprintTitle', 'blueprintSubtitle', 'showHeroText', 'showLatestCuration',
         'showArchive', 'showBlueprint', 'showProductVideo', 'showSizeChart',
@@ -353,12 +354,12 @@ export default function StorefrontSettingsPage() {
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-      <Loader2 className="w-5 h-5 text-foreground/50 animate-spin" />
-      <span className="text-[10px] font-medium uppercase tracking-widest text-foreground/50">Loading Storefront...</span>
+      <Loader2 className="w-5 h-5 text-foreground/60 animate-spin" />
+      <span className="text-[10px] font-medium uppercase tracking-widest text-foreground/60">Loading Web Storefront...</span>
     </div>
   );
 
-   return (
+  return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -367,13 +368,13 @@ export default function StorefrontSettingsPage() {
     >
       
       {/* Header */}
-       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-2 pt-4 relative z-10">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-2 pt-4 relative z-10">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
-            Storefront
+            Web Storefront Layout Settings
           </h1>
           <p className="text-[11px] text-foreground/50 tracking-wide max-w-xl">
-            Content curation and visual configuration for both the mobile app and web storefront.
+            Configure visual assets, campaigns, collections menus, and curated streetwear grids specifically for zicabella.com. Updates saved here will **NEVER** affect the mobile applications.
           </p>
         </div>
         
@@ -395,7 +396,7 @@ export default function StorefrontSettingsPage() {
         </button>
       </div>
 
-       <div className="grid grid-cols-1 gap-8">
+      <div className="grid grid-cols-1 gap-8">
         
         {/* Cinematic Assets */}
         <SettingsGroup title="Media Assets" icon={Layers}>
@@ -404,6 +405,9 @@ export default function StorefrontSettingsPage() {
           </SettingsRow>
           <SettingsRow label="Hero Video" icon={Video} description="Hero background MP4 link">
              <MediaPicker value={settings.heroVideo!} onChange={set('heroVideo')} label="Hero Video" type="video" />
+          </SettingsRow>
+          <SettingsRow label="Mobile Hero Video" icon={Video} description="Mobile background MP4 link">
+             <MediaPicker value={settings.heroVideoMobile!} onChange={set('heroVideoMobile')} label="Mobile Hero Video" type="video" />
           </SettingsRow>
           <SettingsRow label="Footer Video (Desktop)" icon={Video} description="Desktop footer video (landscape)">
              <MediaPicker value={settings.footerVideo!} onChange={set('footerVideo')} label="Footer Video (Desktop)" type="video" />
@@ -533,7 +537,7 @@ export default function StorefrontSettingsPage() {
           <div className="px-4 py-3 bg-foreground/[0.02] rounded-md border border-foreground/[0.05] flex items-center gap-3 mt-1">
              <Info className="w-4 h-4 text-foreground/50 shrink-0" />
              <p className="text-[10px] font-medium text-foreground/50 uppercase tracking-widest">
-                Configure the main 12-product grid on your storefront and mobile app.
+                Configure the main 12-product grid shown on your web storefront homepage.
              </p>
           </div>
           <SettingsRow label="Collection Handle" description="Shopify collection to show (e.g. tshirts)">
@@ -558,7 +562,7 @@ export default function StorefrontSettingsPage() {
           <div className="px-4 py-3 bg-foreground/[0.02] rounded-md border border-foreground/[0.05] flex items-center gap-3 mt-1">
              <Info className="w-4 h-4 text-foreground/50 shrink-0" />
              <p className="text-[10px] font-medium text-foreground/50 uppercase tracking-widest">
-                Configure the &quot;Authentic Streetwear&quot; grid.
+                Configure the "Authentic Streetwear" grid on the web storefront.
              </p>
           </div>
           <SettingsRow label="Section Title">
@@ -589,7 +593,7 @@ export default function StorefrontSettingsPage() {
           <div className="px-4 py-3 bg-foreground/[0.02] rounded-md border border-foreground/[0.05] flex items-center gap-3 mt-1">
              <Info className="w-4 h-4 text-foreground/50 shrink-0" />
              <p className="text-[10px] font-medium text-foreground/50 uppercase tracking-widest">
-                Configure the scroll reveal section.
+                Configure the web scroll reveal feature section.
              </p>
           </div>
           <SettingsRow label="Image URL (Desktop)" icon={ImageIcon} description="Desktop revealing image (landscape)">
@@ -769,7 +773,7 @@ export default function StorefrontSettingsPage() {
       <div className="text-center pt-8">
          <div className="inline-flex items-center gap-2 px-4 py-2 border border-foreground/[0.05] rounded-md bg-background shadow-sm">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[9px] font-semibold uppercase tracking-widest text-foreground/50">Storefront Active</span>
+            <span className="text-[9px] font-semibold uppercase tracking-widest text-foreground/50">Web Storefront Configuration Isolated</span>
          </div>
       </div>
     </motion.div>
