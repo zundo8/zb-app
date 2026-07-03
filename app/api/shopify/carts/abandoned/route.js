@@ -37,28 +37,32 @@ export async function GET() {
       console.warn('[First Party Carts API] Fetch failed:', apiErr.message);
     }
 
-    // Cross reference with local whatsapp_messages database to see which ones are already sent
-    const sentPhones = new Set();
+    // Cross reference with local whatsapp_messages database to count how many recovery messages are sent per phone number
+    const recoveryCounts = {};
     try {
       const logs = await prisma.whatsAppMessage.findMany({
         where: {
-          templateName: { in: ['zica_cart_recovery_v1', 'zb_abandoned_cart'] },
-          status: 'sent'
+          templateName: { in: ['zica_cart_recovery_v1', 'zb_cart_followup', 'zb_cart_final'] }
         },
-        select: { phoneNumber: true },
-        distinct: ['phoneNumber']
+        select: { phoneNumber: true }
       });
       if (logs && Array.isArray(logs)) {
-        logs.forEach(l => sentPhones.add(l.phoneNumber));
+        logs.forEach(l => {
+          if (l.phoneNumber) {
+            recoveryCounts[l.phoneNumber] = (recoveryCounts[l.phoneNumber] || 0) + 1;
+          }
+        });
       }
     } catch (dbErr) {
-      console.warn('[First Party Carts API] Failed to fetch sent recovery logs:', dbErr.message);
+      console.warn('[First Party Carts API] Failed to fetch recovery counts:', dbErr.message);
     }
 
     const carts = localCarts.map(c => {
       const phone = c.phone || c.customer?.phone || '';
       const formatted = phone ? formatPhone(phone) : '';
-      const isSent = formatted ? sentPhones.has(formatted) : false;
+      const count = formatted ? (recoveryCounts[formatted] || 0) : 0;
+      const recovery_step = count === 0 ? 'pending' : count === 1 ? 'step1_sent' : count === 2 ? 'step2_sent' : 'final_sent';
+      const isSent = count > 0;
 
       const itemsList = c.items
         ?.map(item => `${item.title} (x${item.quantity || 1})`)
@@ -70,9 +74,17 @@ export async function GET() {
         phone: phone,
         cart_value: `₹${parseFloat(c.subtotal || 0).toLocaleString('en-IN')}`,
         items: itemsList,
+        itemsRaw: c.items.map(item => ({
+          title: item.title,
+          image: item.image,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        productImageUrl: c.items[0]?.image || '',
         abandoned_at: c.lastActivityAt,
         status: isSent ? 'sent' : 'pending',
-        abandoned_checkout_url: `https://zicabella.com/checkout?recover=${c.id}`
+        recovery_step,
+        abandoned_checkout_url: `https://app.zicabella.com/checkout?recover=${c.id}`
       };
     });
 

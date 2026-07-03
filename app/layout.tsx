@@ -169,13 +169,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://cdn.shopify.com" />
         <link rel="preconnect" href="https://flagcdn.com" />
         <link rel="preconnect" href="https://db.zicabella.com" />
-        <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
-        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
-        <Script
-          type="module"
-          src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"
-          strategy="lazyOnload"
-        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

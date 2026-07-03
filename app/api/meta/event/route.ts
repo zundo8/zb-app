@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendCapiEvent, getReportedValue } from '@/lib/metaCapi';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/app/api/auth/[...nextauth]/options';
+import prisma from '@/lib/db';
 
 function normalizePhone(p: string | undefined): string | undefined {
   if (!p) return undefined;
@@ -34,7 +35,17 @@ export async function POST(req: NextRequest) {
 
     const session = await getServerSession(authOptions);
 
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 
+    // Issue 4 diagnostics
+    if (process.env.NODE_ENV !== 'production' || process.env.META_TEST_EVENT_CODE) {
+      const headersObj: Record<string, string> = {};
+      req.headers.forEach((value, key) => {
+        headersObj[key] = value;
+      });
+      console.log(`[Meta CAPI Route IP Diagnostics] Event: ${eventName} | Raw Headers:`, JSON.stringify(headersObj));
+    }
+
+    const ip = req.headers.get('do-connecting-ip') ||
+               req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 
                req.headers.get('x-real-ip') || 
                req.ip || 
                '127.0.0.1';
@@ -52,6 +63,7 @@ export async function POST(req: NextRequest) {
     const guestCity = req.cookies.get('zb_guest_ct')?.value;
     const guestZip = req.cookies.get('zb_guest_zp')?.value;
     const fbLoginId = req.cookies.get('zb_fb_login_id')?.value;
+    const guestDob = req.cookies.get('zb_guest_dob')?.value;
 
     const sessionUserData: Record<string, any> = {};
     if (session?.user) {
@@ -65,6 +77,21 @@ export async function POST(req: NextRequest) {
         if (parts.length > 1) sessionUserData.ln = parts.slice(1).join(' ');
       }
       sessionUserData.external_id = (session.user as any).id || undefined;
+
+      const customerId = (session.user as any).id;
+      if (customerId) {
+        const member = await prisma.communityMember.findUnique({
+          where: { customerId },
+          select: { dob: true, isVerified: true }
+        });
+        if (member?.isVerified && member?.dob) {
+          const d = new Date(member.dob);
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          sessionUserData.db = `${yyyy}${mm}${dd}`;
+        }
+      }
     }
 
     // Merge user identity data. Priority: body userData (client-forwarded cookies, most reliable)
@@ -85,6 +112,7 @@ export async function POST(req: NextRequest) {
       ct: userData?.ct || guestCity,
       zp: userData?.zp || guestZip,
       fb_login_id: userData?.fb_login_id || fbLoginId,
+      db: userData?.db || guestDob || sessionUserData.db,
     };
 
     // Issue 4 fix: For PageView events without an authenticated session,
@@ -127,7 +155,13 @@ export async function POST(req: NextRequest) {
       actionSource: actionSource ?? 'website',
     });
 
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    const responsePayload: Record<string, any> = { ...result };
+    if (['Purchase', 'InitiateCheckout'].includes(eventName)) {
+      responsePayload.reportedValue = adjustedCustomData?.value;
+      responsePayload.currency = adjustedCustomData?.currency;
+    }
+
+    return NextResponse.json(responsePayload, { status: result.success ? 200 : 400 });
   } catch (err: any) {
     console.error('[Meta CAPI Route Error]', err);
     return NextResponse.json({ success: false, error: err.message || 'Internal server error' }, { status: 500 });

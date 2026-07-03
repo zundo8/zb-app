@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import prisma from "@/lib/db";
 import { sendOrderShippedEmail, sendOrderDeliveredEmail } from "@/lib/services/orderEmailService";
 import { returnUpdateTemplate, renderDBTemplate } from "@/lib/email-templates";

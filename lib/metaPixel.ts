@@ -72,6 +72,7 @@ export function getMetaIdentityCookies(): Record<string, string | undefined> {
     ct: getClientCookie('zb_guest_ct') || undefined,
     zp: getClientCookie('zb_guest_zp') || undefined,
     fb_login_id: getClientCookie('zb_fb_login_id') || undefined,
+    db: getClientCookie('zb_guest_dob') || undefined,
     client_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
   };
 }
@@ -96,6 +97,7 @@ export const initPixel = (additionalData: Record<string, any> = {}) => {
     const guestState = getClientCookie('zb_guest_st');
     const guestCity = getClientCookie('zb_guest_ct');
     const guestZip = getClientCookie('zb_guest_zp');
+    const guestDob = getClientCookie('zb_guest_dob');
 
     if (guestEmail) userData.em = guestEmail;
     if (guestPhone) userData.ph = guestPhone;
@@ -105,6 +107,7 @@ export const initPixel = (additionalData: Record<string, any> = {}) => {
     if (guestState) userData.st = guestState;
     if (guestCity) userData.ct = guestCity;
     if (guestZip) userData.zp = guestZip;
+    if (guestDob) userData.db = guestDob;
 
     const guestFbLoginId = getClientCookie('zb_fb_login_id');
     if (guestFbLoginId) userData.fb_login_id = guestFbLoginId;
@@ -119,7 +122,7 @@ function cleanStringNoSpaces(val: string | undefined): string {
   return val.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function cleanCountry(country: string | undefined): string {
+export function cleanCountry(country: string | undefined): string {
   if (!country) return "";
   const c = country.trim().toLowerCase();
   if (c === 'india' || c === 'ind' || c === 'in') return 'in';
@@ -136,6 +139,7 @@ export async function saveUserDataToCookies(data: {
   zip?: string;
   country?: string;
   fbLoginId?: string;
+  dob?: string;
 }) {
   if (typeof window === 'undefined') return;
 
@@ -182,6 +186,13 @@ export async function saveUserDataToCookies(data: {
   if (data.fbLoginId) {
     setClientCookie('zb_fb_login_id', data.fbLoginId.trim(), 365); // Do NOT hash fb_login_id
   }
+  if (data.dob) {
+    const cleanDob = data.dob.replace(/\D/g, "").slice(0, 8);
+    if (cleanDob.length === 8) {
+      const hashedDob = await sha256(cleanDob);
+      setClientCookie('zb_guest_dob', hashedDob, 365);
+    }
+  }
 }
 
 export async function saveUserDataToCookiesAndReinit(data: {
@@ -193,6 +204,7 @@ export async function saveUserDataToCookiesAndReinit(data: {
   zip?: string;
   country?: string;
   fbLoginId?: string;
+  dob?: string;
 }) {
   await saveUserDataToCookies(data);
   initPixel();

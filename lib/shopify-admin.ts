@@ -1093,6 +1093,22 @@ export async function fetchCollectionByHandle(handle: string, limit = 24): Promi
   products: ShopifyProduct[];
 }> {
   try {
+    if (handle?.toLowerCase() === 'all') {
+      const productsData = await shopifyFetch<{ products: ShopifyProduct[] }>('products.json', {
+        limit: String(limit),
+      });
+      return {
+        collection: {
+          id: 0,
+          title: "All Products",
+          handle: "all",
+          body_html: "All products in the store",
+          image: undefined
+        },
+        products: productsData.products || []
+      };
+    }
+
     const allCollections = await fetchCollections();
     const collection = allCollections.find(c => c.handle?.toLowerCase() === handle?.toLowerCase()) as any;
     

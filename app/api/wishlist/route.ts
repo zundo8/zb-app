@@ -3,7 +3,7 @@ import prisma from "@/lib/db";
 import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import { fetchProductById, shopifyFetch, ShopifyProduct } from "@/lib/shopify-admin";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "../auth/[...nextauth]/options";
 
 export const dynamic = "force-dynamic";
 

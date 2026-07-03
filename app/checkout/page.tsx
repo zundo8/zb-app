@@ -143,6 +143,7 @@ export default function CheckoutPage() {
 
   // Saved addresses
   const [savedAddresses, setSavedAddresses] = useState<DBAddress[]>([]);
+  const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [selectedSavedId, setSelectedSavedId] = useState<string>("");
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [upiId, setUpiId] = useState("");
@@ -155,7 +156,9 @@ export default function CheckoutPage() {
   }, []);
 
   useEffect(() => {
-    if (items.length > 0 && !initiatedPixel) {
+    const canFire = status === "unauthenticated" || (status === "authenticated" && addressesLoaded);
+
+    if (items.length > 0 && !initiatedPixel && canFire) {
       setInitiatedPixel(true);
       const joinedCategories = items.map(item => item.category).filter(Boolean).join(', ') || undefined;
       const contentIds = items.map(item => item.productId);
@@ -164,7 +167,26 @@ export default function CheckoutPage() {
         quantity: item.quantity,
         item_price: parseFloat(item.price)
       }));
-      trackInitiateCheckout(subtotal, items.length, 'INR', joinedCategories, contentIds, undefined, contents);
+
+      // Parse the pre-filled/saved address state into userData
+      let userData: any = undefined;
+      if (address.email || address.phone || address.city) {
+        const nameParts = (address.name || "").trim().split(/\s+/);
+        const fn = nameParts[0] || undefined;
+        const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
+        userData = {
+          country: address.country || undefined,
+          st: address.state || undefined,
+          ct: address.city || undefined,
+          zp: address.zip || undefined,
+          fn,
+          ln,
+          em: address.email || undefined,
+          ph: address.phone || undefined,
+        };
+      }
+
+      trackInitiateCheckout(subtotal, items.length, 'INR', joinedCategories, contentIds, userData, contents);
 
       // Track Checkout Started event server-side
       trackStorefrontEvent('Checkout Started', {
@@ -178,7 +200,7 @@ export default function CheckoutPage() {
         }
       });
     }
-  }, [items, subtotal, initiatedPixel, session, address.phone]);
+  }, [items, subtotal, initiatedPixel, session, address, status, addressesLoaded]);
 
 
   const [addressErrors, setAddressErrors] = useState<Record<string, string>>({});
@@ -217,6 +239,7 @@ export default function CheckoutPage() {
             const postcode = addr.postcode || "";
             const cityName = addr.city || addr.town || addr.village || addr.county || "";
             const stateName = addr.state || "";
+            const houseNumber = addr.house_number || addr.building || addr.amenity || addr.office || addr.shop || "";
 
             let matchedState = "";
             if (stateName) {
@@ -232,6 +255,7 @@ export default function CheckoutPage() {
             // Update form state
             setAddress(prev => ({
               ...prev,
+              houseNo: houseNumber || prev.houseNo,
               street: roadName || prev.street,
               zip: postcode ? postcode.replace(/\s/g, "").slice(0, 6) : prev.zip,
               city: cityName || prev.city,
@@ -323,7 +347,11 @@ export default function CheckoutPage() {
 
   // Fetch saved addresses callback
   const fetchSavedAddresses = useCallback(async (selectDefault = false) => {
-    if (status !== "authenticated") return;
+    if (status === "loading") return;
+    if (status !== "authenticated") {
+      setAddressesLoaded(true);
+      return;
+    }
     try {
       const res = await fetch("/api/customer/addresses");
       const data = await res.json();
@@ -354,6 +382,8 @@ export default function CheckoutPage() {
     } catch (err) {
       console.error("Error loading addresses:", err);
       setShowAddressForm(true);
+    } finally {
+      setAddressesLoaded(true);
     }
   }, [status]);
 
@@ -1222,13 +1252,7 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {/* Error Banner */}
-        {error && (
-          <div className="flex items-center gap-2.5 p-3 rounded-xl border border-red-500/10 bg-red-500/[0.03] text-red-400 text-[10px] font-semibold mb-4 animate-in shake duration-300">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
-            <p>{error}</p>
-          </div>
-        )}
+
       </div>
     );
   };
@@ -1505,6 +1529,12 @@ export default function CheckoutPage() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start flex-1 w-full">
           {/* Left Column: Flow Steps */}
           <div className="col-span-12 md:col-span-7 flex flex-col w-full">
+            {error && (
+              <div className="flex items-center gap-2.5 p-3 rounded-xl border border-red-500/10 bg-red-500/[0.03] text-red-400 text-[10px] font-semibold mb-4 animate-in shake duration-300">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                <p>{error}</p>
+              </div>
+            )}
             <AnimatePresence mode="wait">
               {step === 1 ? (
                 <motion.div
@@ -1669,13 +1699,16 @@ export default function CheckoutPage() {
                         <div className="col-span-12">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.name ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
+                              id="address-name"
+                              name="name"
                               type="text"
                               placeholder="Full Name"
                               aria-label="Full Name"
+                              autoComplete="name"
                               required
                               value={address.name}
                               onChange={(e) => updateField("name", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
                           {addressErrors.name && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.name}</p>}
@@ -1685,13 +1718,16 @@ export default function CheckoutPage() {
                         <div className="col-span-12">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.email ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
+                              id="address-email"
+                              name="email"
                               type="email"
                               placeholder="Email Address"
                               aria-label="Email"
+                              autoComplete="email"
                               required
                               value={address.email}
                               onChange={(e) => updateField("email", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
                           {addressErrors.email && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.email}</p>}
@@ -1700,61 +1736,71 @@ export default function CheckoutPage() {
                         {/* Mobile Number */}
                         <div className="col-span-12">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.phone ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
-                            <div className="flex items-center text-[13px] font-semibold text-foreground/70 select-none mr-2">
+                            <div className="flex items-center text-[16px] md:text-[13px] font-semibold text-foreground/70 select-none mr-2">
                               <span>+91</span>
                             </div>
-                            <div className="h-4.5 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2.5" />
+                            <div className="h-4 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2.5" />
                             <input
+                              id="address-phone"
+                              name="phone"
                               type="tel"
                               placeholder="Mobile Number"
                               aria-label="Mobile Number"
+                              autoComplete="tel"
+                              inputMode="tel"
                               required
                               value={address.phone.startsWith("+91") ? address.phone.slice(3) : address.phone}
                               onChange={(e) => updateField("phone", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
                           {addressErrors.phone && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.phone}</p>}
                         </div>
 
                         {/* House / Flat / Building & Street / Road */}
-                        <div className="col-span-4">
+                        <div className="col-span-12 md:col-span-4">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.houseNo ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
+                              id="address-house"
+                              name="houseNo"
                               type="text"
                               placeholder="House/Flat"
                               aria-label="House or Flat Number"
+                              autoComplete="address-line2"
                               required
                               value={address.houseNo}
                               onChange={(e) => updateField("houseNo", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
                           {addressErrors.houseNo && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.houseNo}</p>}
                         </div>
 
-                        <div className="col-span-8">
+                        <div className="col-span-12 md:col-span-8">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.street ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
+                              id="address-street"
+                              name="street"
                               type="text"
                               placeholder="Street / Road / Area"
                               aria-label="Street, Road, or Area"
+                              autoComplete="address-line1"
                               required
                               value={address.street}
                               onChange={(e) => updateField("street", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                             <button
                               type="button"
                               onClick={handleDetectLocation}
                               disabled={locating}
                               title="Detect current location"
-                              className="p-1.5 text-foreground/45 hover:text-foreground/90 hover:bg-foreground/5 rounded-lg transition-colors flex items-center justify-center shrink-0 ml-1.5"
+                              className="p-2 text-foreground/70 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center shrink-0 ml-1"
                             >
                               {locating ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <Loader2 className="w-4 h-4 animate-spin text-foreground/70" />
                               ) : (
-                                <Navigation className="w-3.5 h-3.5 rotate-45" />
+                                <Navigation className="w-4 h-4 text-foreground/70 rotate-45" />
                               )}
                             </button>
                           </div>
@@ -1762,12 +1808,16 @@ export default function CheckoutPage() {
                         </div>
 
                         {/* PIN Code & City */}
-                        <div className="col-span-5">
+                        <div className="col-span-12 md:col-span-5">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.zip ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
+                              id="address-zip"
+                              name="zip"
                               type="text"
                               placeholder="PIN Code"
                               aria-label="PIN Code"
+                              autoComplete="postal-code"
+                              inputMode="numeric"
                               required
                               maxLength={6}
                               value={address.zip}
@@ -1775,7 +1825,7 @@ export default function CheckoutPage() {
                                 const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                                 updateField("zip", val);
                               }}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                             {zipLoading && (
                               <Loader2 className="w-3.5 h-3.5 animate-spin text-foreground/30 ml-1.5" />
@@ -1784,50 +1834,59 @@ export default function CheckoutPage() {
                           {addressErrors.zip && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.zip}</p>}
                         </div>
 
-                        <div className="col-span-7">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.city ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                        <div className="col-span-12 md:col-span-7">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.city ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
                             <input
+                              id="address-city"
+                              name="city"
                               type="text"
                               placeholder="City"
                               aria-label="City"
+                              autoComplete="address-level2"
                               required
                               value={address.city}
                               onChange={(e) => updateField("city", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
                           {addressErrors.city && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.city}</p>}
                         </div>
 
                         {/* Landmark & State */}
-                        <div className="col-span-5">
+                        <div className="col-span-12 md:col-span-5">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5`}>
                             <input
+                              id="address-landmark"
+                              name="landmark"
                               type="text"
                               placeholder="Landmark (Opt)"
                               aria-label="Landmark"
+                              autoComplete="address-line3"
                               value={address.landmark}
                               onChange={(e) => updateField("landmark", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
                             />
                           </div>
                         </div>
 
-                        <div className="col-span-7">
+                        <div className="col-span-12 md:col-span-7">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.state ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
-                            <span className={`text-[13px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/30" : "text-foreground"}`}>
+                            <span className={`text-[16px] md:text-[13px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/30" : "text-foreground"}`}>
                               {address.state || "Select State"}
                             </span>
                             <ChevronDown className="absolute right-3.5 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
                             <select
+                              id="address-state"
+                              name="state"
                               required
+                              autoComplete="address-level1"
                               value={address.state}
                               onChange={(e) => updateField("state", e.target.value)}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-[16px] md:text-[13px]"
                             >
                               <option value="" disabled>Select State</option>
                               {INDIAN_STATES.map(s => (
-                                <option key={s} value={s} className="bg-background text-foreground">{s}</option>
+                                <option key={s} value={s} className="bg-background text-foreground text-[16px] md:text-[13px]">{s}</option>
                               ))}
                             </select>
                           </div>

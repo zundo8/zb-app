@@ -39,6 +39,17 @@ const PRODUCTION_TEMPLATES = [
             ['Karthik', '1024']
           ]
         }
+      },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          {
+            type: 'URL',
+            text: 'View Order',
+            url: 'https://app.zicabella.com/orders/{{1}}',
+            example: ['1024']
+          }
+        ]
       }
     ]
   },
@@ -55,6 +66,17 @@ const PRODUCTION_TEMPLATES = [
             ['Karthik', '1024', '1234567890']
           ]
         }
+      },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          {
+            type: 'URL',
+            text: 'Track Order',
+            url: 'https://app.zicabella.com/orders/{{1}}',
+            example: ['1024']
+          }
+        ]
       }
     ]
   },
@@ -71,6 +93,17 @@ const PRODUCTION_TEMPLATES = [
             ['Karthik', '1024']
           ]
         }
+      },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          {
+            type: 'URL',
+            text: 'Rate Your Experience',
+            url: 'https://app.zicabella.com/orders/{{1}}',
+            example: ['1024']
+          }
+        ]
       }
     ]
   },
@@ -104,18 +137,125 @@ const PRODUCTION_TEMPLATES = [
     ]
   },
   {
-    name: 'zica_cart_recovery_v1',
+    name: 'zica_cart_recovery_v3',
+    category: 'MARKETING',
+    language: 'en',
+    components: [
+      {
+        type: 'HEADER',
+        format: 'IMAGE',
+        example: {
+          header_url: ['https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=400&auto=format&fit=crop']
+        }
+      },
+      {
+        type: 'BODY',
+        text: 'Hello {{1}}, we noticed you left *{{2}}* in your cart. You can review the product here: {{3}}. Complete your purchase securely directly from WhatsApp by paying below!',
+        example: {
+          body_text: [
+            ['Karthik', 'Premium Heavyweight Fit Tee', 'https://app.zicabella.com/products/premium-tee']
+          ]
+        }
+      },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          {
+            type: 'URL',
+            text: 'Complete Purchase',
+            url: 'https://app.zicabella.com/{{1}}',
+            example: ['api/pay/example-cart-id']
+          }
+        ]
+      }
+    ]
+  },
+  {
+    name: 'zb_cart_followup',
     category: 'MARKETING',
     language: 'en',
     components: [
       {
         type: 'BODY',
-        text: 'Hello {{1}}, we noticed you left some items in your cart. Complete your purchase today to get them shipped soon.',
+        text: 'Hi {{1}}, your cart items are still waiting for you! Use code {{2}} for an exclusive discount. Shop now before they sell out.',
+        example: {
+          body_text: [
+            ['Karthik', 'ZICA10']
+          ]
+        }
+      },
+      {
+        type: 'FOOTER',
+        text: 'Reply STOP to opt out'
+      },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          {
+            type: 'URL',
+            text: 'Claim Discount',
+            url: 'https://app.zicabella.com/{{1}}',
+            example: ['checkout']
+          }
+        ]
+      }
+    ]
+  },
+  {
+    name: 'zb_cart_final',
+    category: 'MARKETING',
+    language: 'en',
+    components: [
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, this is your last chance! Your cart items are about to be released. Complete your purchase now to secure them.',
         example: {
           body_text: [
             ['Karthik']
           ]
         }
+      },
+      {
+        type: 'FOOTER',
+        text: 'Reply STOP to opt out'
+      },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          {
+            type: 'URL',
+            text: 'Buy Now',
+            url: 'https://app.zicabella.com/{{1}}',
+            example: ['checkout']
+          }
+        ]
+      }
+    ]
+  },
+  {
+    name: 'zb_order_tracking',
+    category: 'UTILITY',
+    language: 'en',
+    components: [
+      {
+        type: 'BODY',
+        text: 'Hello {{1}}, your order {{2}} is on its way! Track the latest status using the button below.',
+        example: {
+          body_text: [
+            ['Karthik', '1024']
+          ]
+        }
+      },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          {
+            type: 'URL',
+            text: 'Track Order',
+            url: 'https://app.zicabella.com/orders/{{1}}',
+            example: ['1024']
+          }
+        ]
       }
     ]
   }

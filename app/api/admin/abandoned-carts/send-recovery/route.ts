@@ -29,15 +29,25 @@ export async function POST(req: Request) {
     const phone = cart.phone || cart.customer?.phone;
     const email = cart.email || cart.customer?.email;
     const name = cart.customer?.name || "Customer";
-    const checkoutUrl = `https://zicabella.com/checkout?recover=${cart.id}`;
+    const checkoutUrl = `https://app.zicabella.com/checkout?recover=${cart.id}`;
 
     if (channel === "whatsapp") {
       if (!phone) return NextResponse.json({ error: "No phone number available for this cart" }, { status: 400 });
       
+      const firstItem = cart.items?.[0] || {};
+      const productImageUrl = firstItem.image || '';
+      const productName = firstItem.title || '';
+      const cartTotal = String(cart.subtotal || '0.00');
+      const itemCount = cart.items?.length || 0;
+
       const result = await sendAbandonedCart({
         phone,
         customerName: name,
-        checkoutUrl
+        checkoutUrl,
+        productImageUrl,
+        productName,
+        cartTotal,
+        itemCount
       });
 
       if (!result.success) {

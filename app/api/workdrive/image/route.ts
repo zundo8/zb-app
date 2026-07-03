@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { downloadFile } from '@/lib/workdrive/api'
 import { createClient } from '@/lib/supabase/server'
 import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { authOptions } from "@/app/api/auth/[...nextauth]/options"
 
 export const dynamic = 'force-dynamic'
 

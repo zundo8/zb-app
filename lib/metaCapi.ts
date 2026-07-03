@@ -70,6 +70,7 @@ export interface CapiEventPayload {
     ph?: string;
     external_id?: string;
     fb_login_id?: string;
+    db?: string;             // DOB (YYYYMMDD), hashed before sending
   };
   customData?: Record<string, any>;
   actionSource?: 'website' | 'app' | 'email' | 'phone_call' | 'physical_store' | 'system_generated' | 'other';
@@ -108,6 +109,7 @@ const normalizeCountry = (c: string) => {
 
 const normalizeGeneric = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeEmail = (e: string) => e.trim().toLowerCase();
+const normalizeDob = (d: string) => d.trim().replace(/\D/g, "");
 
 export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ success: boolean; data?: any; error?: any; fbtrace_id?: string }> {
   // Pre-request validation
@@ -161,6 +163,7 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
     const ct = cleanAndHash(payload.userData.ct, normalizeGeneric);
     const zp = cleanAndHash(payload.userData.zp, normalizeGeneric);
     const ge = cleanAndHash(payload.userData.ge, normalizeGeneric);
+    const db = cleanAndHash(payload.userData.db, normalizeDob);
 
     if (em) userData.em = [em];
     if (ph) userData.ph = [ph];
@@ -171,6 +174,7 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
     if (ct) userData.ct = [ct];
     if (zp) userData.zp = [zp];
     if (ge) userData.ge = [ge];
+    if (db) userData.db = [db];
 
     // Hash external_id with SHA-256 as Meta requires for proper matching
     if (payload.userData.external_id) {

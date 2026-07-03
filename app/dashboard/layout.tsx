@@ -50,7 +50,9 @@ import {
   BookOpen,
   Database,
   ShieldCheck,
-  Search
+  Search,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -70,6 +72,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navScrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
   useRealtimeSync();
+
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    const val = localStorage.getItem("admin_sidebar_collapsed");
+    setIsCollapsed(val === "true");
+  }, []);
+
+  const toggleCollapse = () => {
+    setIsCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem("admin_sidebar_collapsed", String(next));
+      return next;
+    });
+  };
 
   // Close mobile sidebar and profile dropdown on navigation — but DON'T touch scroll
   useEffect(() => {
@@ -272,7 +289,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Link
           ref={active ? activeRef : undefined}
           href={item.href}
-          className={`group flex items-center gap-4 px-5 py-2.5 rounded-2xl transition-all duration-300 relative overflow-hidden ${
+          title={isCollapsed ? item.name : undefined}
+          className={`group flex items-center transition-all duration-300 relative overflow-hidden ${
+            isCollapsed
+              ? "lg:p-0 lg:justify-center lg:h-10 lg:w-10 lg:mx-auto lg:rounded-xl gap-4 px-5 py-2.5 rounded-2xl w-full lg:w-auto"
+              : "gap-4 px-5 py-2.5 rounded-2xl w-full"
+          } ${
             active
               ? "text-foreground bg-foreground/10 shadow-lg border border-foreground/10"
               : "text-foreground/60 hover:text-foreground hover:bg-foreground/5"
@@ -284,22 +306,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             }`}
             strokeWidth={active ? 2 : 1.5}
           />
-          <span className="text-[12px] font-medium relative z-10 truncate">{item.name}</span>
+          <span className={`text-[12px] font-medium relative z-10 truncate ${isCollapsed ? "lg:hidden" : ""}`}>{item.name}</span>
           {active && (
             <motion.div
               layoutId="activeNav"
-              className="absolute inset-0 bg-gradient-to-r from-foreground/5 to-transparent -z-10"
+              className={`absolute inset-0 bg-gradient-to-r from-foreground/5 to-transparent -z-10 ${isCollapsed ? "lg:hidden" : ""}`}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
             />
           )}
         </Link>
       );
     },
-    [isActive]
+    [isActive, isCollapsed]
   );
 
   const SectionLabel = ({ children: label }: { children: React.ReactNode }) => (
-    <div className="mb-2 px-5">
+    <div className={`mb-2 px-5 transition-all duration-300 ${isCollapsed ? "lg:opacity-0 lg:h-0 lg:overflow-hidden lg:mb-0" : ""}`}>
       <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
         {label}
       </span>
@@ -346,15 +368,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* ──────── Sidebar ──────── */}
       <aside
-        className={`fixed inset-y-0 left-0 w-72 lg:m-4 lg:rounded-[2.5rem] glass overflow-hidden border-r lg:border border-foreground/5 shadow-3xl z-[60] flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 lg:m-4 lg:rounded-[2.5rem] glass overflow-hidden border-r lg:border border-foreground/5 shadow-3xl z-[60] flex flex-col transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:translate-x-0 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        } ${isCollapsed ? "lg:w-20 w-72" : "w-72"}`}
       >
-        <div className="flex flex-col h-full px-4 lg:px-6 pt-6 lg:pt-10 pb-4 lg:pb-8">
+        <div className={`flex flex-col h-full pt-6 lg:pt-10 pb-4 lg:pb-8 transition-all duration-300 ${isCollapsed ? "lg:px-2 px-4" : "px-4 lg:px-6"}`}>
           {/* Brand + close button (mobile) */}
-          <div className="mb-8 lg:mb-10 px-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-foreground/5 text-foreground rounded-2xl flex items-center justify-center shadow-lg border border-foreground/10 backdrop-blur-md">
+          <div className={`mb-8 lg:mb-10 flex items-center justify-between ${isCollapsed ? "lg:px-0 lg:flex-col lg:gap-3 lg:justify-center px-4" : "px-4"}`}>
+            <div className={`flex items-center gap-4 ${isCollapsed ? "lg:flex-col lg:justify-center" : ""}`}>
+              <div className="w-10 h-10 bg-foreground/5 text-foreground rounded-2xl flex items-center justify-center shadow-lg border border-foreground/10 backdrop-blur-md shrink-0">
                 <Image
                   src="/zb-logo-220px.png"
                   alt="Logo"
@@ -364,7 +386,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   className="dark:brightness-200 dark:grayscale dark:contrast-200"
                 />
               </div>
-              <div className="flex flex-col">
+              <div className={`flex flex-col ${isCollapsed ? "lg:hidden" : ""}`}>
                 <span className="text-[14px] font-semibold text-foreground/90 font-inter">
                   Zica Bella
                 </span>
@@ -373,6 +395,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
               </div>
             </div>
+
+            {/* Collapse toggle button on desktop */}
+            <button
+              onClick={toggleCollapse}
+              className={`flex max-lg:hidden p-1.5 rounded-lg bg-foreground/5 text-foreground/50 hover:text-foreground hover:bg-foreground/10 border border-foreground/10 transition-all shrink-0 ${isCollapsed ? "mt-2" : ""}`}
+              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+            </button>
+
             <button
               onClick={() => setIsSidebarOpen(false)}
               className="lg:hidden p-2 rounded-xl text-foreground/40 hover:text-foreground hover:bg-foreground/5"
@@ -532,17 +564,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 ref={pathname === "/dashboard/settings" ? activeRef : undefined}
                 href="/dashboard/settings"
-                className={`flex items-center gap-3 px-5 py-2.5 rounded-xl transition-all duration-300 ${
+                title={isCollapsed ? "Settings" : undefined}
+                className={`flex items-center transition-all duration-300 ${
+                  isCollapsed
+                    ? "lg:p-0 lg:justify-center lg:h-10 lg:w-10 lg:mx-auto lg:rounded-xl gap-3 px-5 py-2.5 rounded-xl w-full"
+                    : "gap-3 px-5 py-2.5 rounded-xl w-full"
+                } ${
                   pathname === "/dashboard/settings"
                     ? "bg-foreground text-background shadow-lg shadow-black/10"
                     : "text-foreground/50 hover:text-foreground hover:bg-foreground/[0.04]"
                 }`}
               >
                 <Settings
-                  className="w-4 h-4"
+                  className="w-4 h-4 shrink-0"
                   strokeWidth={pathname === "/dashboard/settings" ? 2 : 1.5}
                 />
-                <span className="text-[12px] font-medium font-inter">Settings</span>
+                <span className={`text-[12px] font-medium font-inter ${isCollapsed ? "lg:hidden" : ""}`}>Settings</span>
               </Link>
             </div>
           )}
@@ -550,7 +587,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* ──────── Main content ──────── */}
-      <main className="flex-1 lg:ml-80 flex flex-col min-h-[100dvh] relative z-10 overflow-x-hidden">
+      <main className={`flex-1 flex flex-col min-h-[100dvh] relative z-10 overflow-x-hidden transition-all duration-300 ${
+        isCollapsed ? "lg:ml-28" : "lg:ml-80"
+      }`}>
         {/* Header */}
         <header className="h-14 lg:h-16 flex items-center justify-between px-4 lg:px-8 m-2 lg:mx-8 lg:my-6 rounded-3xl glass shadow-2xl sticky top-2 lg:top-6 z-40 border border-foreground/5 shrink-0">
           <div className="flex items-center gap-3 lg:gap-6 min-w-0">
@@ -559,6 +598,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className="lg:hidden p-2 rounded-2xl bg-foreground/5 text-foreground/60 hover:text-foreground transition-colors border border-foreground/10"
             >
               <Menu className="w-5 h-5" />
+            </button>
+            {/* Desktop toggle collapse */}
+            <button
+              onClick={toggleCollapse}
+              className="flex max-lg:hidden p-2 rounded-2xl bg-foreground/5 text-foreground/60 hover:text-foreground hover:bg-foreground/10 transition-colors border border-foreground/10 shrink-0"
+              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
             <h2 className="text-[14px] lg:text-[16px] font-semibold text-foreground font-inter truncate">
               {pageTitle}

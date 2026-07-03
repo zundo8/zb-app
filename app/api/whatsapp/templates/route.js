@@ -151,6 +151,27 @@ function auditAndRebuildComponents(components) {
           throw new Error('Header text is required when HEADER type is TEXT.');
         }
         headerComp.text = String(comp.text).trim();
+        // Check for variables in header text
+        const headerVars = headerComp.text.match(/\{\{\d+\}\}/g) || [];
+        if (headerVars.length > 0) {
+          headerComp.example = comp.example || {
+            header_text: headerVars.map((_, i) => `Example ${i + 1}`)
+          };
+        }
+      } else if (format === 'IMAGE' || format === 'VIDEO' || format === 'DOCUMENT') {
+        // Media headers require example with header_handle or header_url for Meta approval
+        if (comp.example?.header_handle) {
+          headerComp.example = { header_handle: comp.example.header_handle };
+        } else if (comp.example?.header_url) {
+          headerComp.example = { header_url: comp.example.header_url };
+        } else {
+          const defaultUrls = {
+            IMAGE: ['https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=400&auto=format&fit=crop'],
+            VIDEO: ['https://www.w3schools.com/html/mov_bbb.mp4'],
+            DOCUMENT: ['https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf']
+          };
+          headerComp.example = { header_url: defaultUrls[format] };
+        }
       }
       cleanComponents.push(headerComp);
     } else if (type === 'BODY') {
@@ -180,13 +201,20 @@ function auditAndRebuildComponents(components) {
       if (!comp.text || String(comp.text).trim() === '') {
         throw new Error('FOOTER component must contain a non-empty text field.');
       }
+      const footerText = String(comp.text).trim();
+      if (footerText.length > 60) {
+        throw new Error('FOOTER text must be 60 characters or fewer.');
+      }
       cleanComponents.push({
         type: 'FOOTER',
-        text: String(comp.text).trim()
+        text: footerText
       });
     } else if (type === 'BUTTONS') {
       if (!Array.isArray(comp.buttons) || comp.buttons.length === 0) {
         throw new Error('BUTTONS component must contain at least one button.');
+      }
+      if (comp.buttons.length > 10) {
+        throw new Error('BUTTONS component can have a maximum of 10 buttons.');
       }
       const cleanButtons = comp.buttons.map((btn, idx) => {
         if (!btn || typeof btn !== 'object') {
@@ -200,11 +228,16 @@ function auditAndRebuildComponents(components) {
           if (!btn.url || String(btn.url).trim() === '') {
             throw new Error(`URL Button at index ${idx} is missing URL.`);
           }
-          return {
+          const urlBtn = {
             type: 'URL',
             text: String(btn.text).trim(),
             url: String(btn.url).trim()
           };
+          // Add URL example if URL contains dynamic suffix {{1}}
+          if (urlBtn.url.includes('{{1}}')) {
+            urlBtn.example = btn.example || ['example-path'];
+          }
+          return urlBtn;
         } else if (bType === 'QUICK_REPLY') {
           if (!btn.text || String(btn.text).trim() === '') {
             throw new Error(`Quick Reply Button at index ${idx} is missing text.`);
@@ -225,8 +258,20 @@ function auditAndRebuildComponents(components) {
             text: String(btn.text).trim(),
             phone_number: String(btn.phone_number).trim()
           };
+        } else if (bType === 'COPY_CODE') {
+          if (!btn.example) {
+            throw new Error(`Copy Code Button at index ${idx} requires an example code.`);
+          }
+          return {
+            type: 'COPY_CODE',
+            example: String(btn.example).trim()
+          };
+        } else if (bType === 'CATALOG') {
+          return {
+            type: 'CATALOG'
+          };
         } else {
-          throw new Error(`Button type ${bType} is not supported.`);
+          throw new Error(`Button type ${bType} is not supported. Allowed: URL, QUICK_REPLY, PHONE_NUMBER, COPY_CODE, CATALOG.`);
         }
       });
       cleanComponents.push({

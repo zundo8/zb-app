@@ -14,7 +14,8 @@ const TOGGLE_KEYS = [
   'order_shipped',
   'out_for_delivery',
   'order_delivered',
-  'return_confirmed'
+  'return_confirmed',
+  'cart_recovery_enabled'
 ];
 
 /**

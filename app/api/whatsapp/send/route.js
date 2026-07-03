@@ -25,6 +25,9 @@ const SENDER_MAP = {
   restock_alert: templates.sendRestockAlert,
   welcome: templates.sendWelcome,
   cod_confirmation: templates.sendCODConfirmation,
+  cart_followup: templates.sendCartRecoveryFollowUp,
+  cart_final: templates.sendCartRecoveryFinalReminder,
+  order_tracking: templates.sendOrderTrackingUpdate,
 };
 
 export async function POST(req) {

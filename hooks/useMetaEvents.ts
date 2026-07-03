@@ -9,7 +9,7 @@ function uuidv4() {
   });
 }
 
-async function sendToCapiRoute(payload: Record<string, any>) {
+async function sendToCapiRoute(payload: Record<string, any>): Promise<any> {
   try {
     // Always include identity cookies (fbc, fbp, external_id, PII) for maximum
     // Meta Event Match Quality. Explicit userData from event callers takes priority.
@@ -23,14 +23,18 @@ async function sendToCapiRoute(payload: Record<string, any>) {
         ...callerUserData,
       },
     };
-    await fetch('/api/meta/event', {
+    const res = await fetch('/api/meta/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(enrichedPayload),
     });
+    if (res.ok) {
+      return await res.json();
+    }
   } catch (err) {
     console.error('[CAPI send error]', err);
   }
+  return null;
 }
 
 function getBasePayload(eventName: string) {
@@ -211,18 +215,6 @@ export function useMetaEvents() {
     }
     const finalContents = contents || (contentIds ? contentIds.map(id => ({ id, quantity: 1 })) : []);
     
-    // Client-side fbq call omits value — the server CAPI call carries the
-    // adjusted value computed server-side for security.
-    const fbqCustomData = cleanCustomData({
-      num_items: numItems,
-      currency,
-      content_category: contentCategory,
-      content_ids: contentIds,
-      content_type: 'product',
-      contents: finalContents
-    });
-    trackEvent('InitiateCheckout', fbqCustomData, base.eventId);
-
     // Server CAPI receives the real value — adjustment happens server-side
     const capiCustomData = cleanCustomData({
       value,
@@ -233,11 +225,44 @@ export function useMetaEvents() {
       content_type: 'product',
       contents: finalContents
     });
-    sendToCapiRoute({ 
+
+    // Start CAPI call
+    const capiPromise = sendToCapiRoute({ 
       ...base, 
       customData: capiCustomData,
       userData: { client_user_agent: navigator.userAgent, ...userData }
     });
+
+    // Timeout of 800ms
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
+
+    let fired = false;
+    const firePixel = (reportedVal?: number, repCurrency?: string) => {
+      if (fired) return;
+      fired = true;
+      const fbqCustomData = cleanCustomData({
+        value: reportedVal,
+        currency: repCurrency || currency,
+        num_items: numItems,
+        content_category: contentCategory,
+        content_ids: contentIds,
+        content_type: 'product',
+        contents: finalContents
+      });
+      trackEvent('InitiateCheckout', fbqCustomData, base.eventId);
+    };
+
+    Promise.race([capiPromise, timeoutPromise])
+      .then((res: any) => {
+        if (res && res.reportedValue !== undefined) {
+          firePixel(res.reportedValue, res.currency);
+        } else {
+          firePixel();
+        }
+      })
+      .catch(() => {
+        firePixel();
+      });
     
     // GA4 equivalent: begin_checkout (uses full original value)
     trackGAEvent('begin_checkout', {
@@ -277,19 +302,6 @@ export function useMetaEvents() {
     }
     const finalContents = contents || contentIds.map(id => ({ id, quantity: 1, item_price: value / (contentIds.length || 1) }));
 
-    // Client-side fbq call omits value — the server CAPI call carries the
-    // adjusted value computed server-side for security.
-    const fbqCustomData = cleanCustomData({
-      currency,
-      content_ids: contentIds,
-      order_id: orderId,
-      content_category: contentCategory,
-      content_type: 'product',
-      contents: finalContents,
-      num_items: finalContents.reduce((sum, item) => sum + item.quantity, 0)
-    });
-    trackEvent('Purchase', fbqCustomData, base.eventId);
-
     // Server CAPI receives the real value — adjustment happens server-side
     const capiCustomData = cleanCustomData({
       value,
@@ -301,11 +313,45 @@ export function useMetaEvents() {
       contents: finalContents,
       num_items: finalContents.reduce((sum, item) => sum + item.quantity, 0)
     });
-    sendToCapiRoute({
+
+    // Start CAPI call
+    const capiPromise = sendToCapiRoute({
       ...base,
       customData: capiCustomData,
       userData: { client_user_agent: navigator.userAgent, ...userData },
     });
+
+    // Timeout of 800ms
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
+
+    let fired = false;
+    const firePixel = (reportedVal?: number, repCurrency?: string) => {
+      if (fired) return;
+      fired = true;
+      const fbqCustomData = cleanCustomData({
+        value: reportedVal,
+        currency: repCurrency || currency,
+        content_ids: contentIds,
+        order_id: orderId,
+        content_category: contentCategory,
+        content_type: 'product',
+        contents: finalContents,
+        num_items: finalContents.reduce((sum, item) => sum + item.quantity, 0)
+      });
+      trackEvent('Purchase', fbqCustomData, base.eventId);
+    };
+
+    Promise.race([capiPromise, timeoutPromise])
+      .then((res: any) => {
+        if (res && res.reportedValue !== undefined) {
+          firePixel(res.reportedValue, res.currency);
+        } else {
+          firePixel();
+        }
+      })
+      .catch(() => {
+        firePixel();
+      });
     
     // GA4 equivalent: purchase (uses full original value)
     trackGAEvent('purchase', {
@@ -384,7 +430,7 @@ export function useMetaEvents() {
     trackGAEvent('start_trial');
   };
 
-  const trackSubscribe = (value: number = 50, currency = 'INR', contentName = 'Newsletter Signup') => {
+  const trackSubscribe = (value?: number, currency?: string, contentName = 'Newsletter Signup') => {
     const base = getBasePayload('Subscribe');
     const customData = cleanCustomData({
       value,
@@ -396,7 +442,11 @@ export function useMetaEvents() {
     sendToCapiRoute({ ...base, customData });
     
     // GA4 equivalent: subscribe
-    trackGAEvent('subscribe', { value, currency });
+    if (value !== undefined) {
+      trackGAEvent('subscribe', { value, currency: currency || 'INR' });
+    } else {
+      trackGAEvent('subscribe');
+    }
   };
 
   const trackLead = (value?: number, currency = 'INR', contentCategory?: string, contentName?: string) => {

@@ -342,12 +342,24 @@ export default function TemplatesManagerPage() {
                         className="bg-[#202c33] rounded-2xl rounded-tl-none p-3 shadow-lg max-w-[85%] border border-foreground/10 text-xs space-y-2 text-foreground/90"
                       >
                         {/* Header preview if image */}
-                        {getHeaderComponent(selectedTemplate.components)?.format === "IMAGE" && (
-                          <div className="w-full h-24 bg-foreground/10 rounded-lg flex items-center justify-center text-[10px] text-muted-foreground gap-1.5 border border-foreground/5">
-                            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>Campaign Header Image</span>
-                          </div>
-                        )}
+                        {getHeaderComponent(selectedTemplate.components)?.format === "IMAGE" && (() => {
+                          const isCart = selectedTemplate.name.includes("cart_recovery");
+                          const isCollection = selectedTemplate.name.includes("collection");
+                          const imgUrl = isCart 
+                            ? "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=400&auto=format&fit=crop"
+                            : isCollection
+                            ? "https://images.unsplash.com/photo-1578587018452-892bacefd3f2?q=80&w=400&auto=format&fit=crop"
+                            : "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=400&auto=format&fit=crop";
+                          return (
+                            <div className="w-full h-28 bg-foreground/10 rounded-lg overflow-hidden border border-foreground/5 mb-1 shrink-0 relative group">
+                              <img src={imgUrl} alt="Template Header Product" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-2">
+                                <span className="text-[7px] text-emerald-400 font-bold uppercase tracking-wider font-mono">Premium Heavyweight Fit</span>
+                                <span className="text-[9px] font-bold text-white tracking-wide truncate">Zica Bella® Limited Capsule</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {getHeaderComponent(selectedTemplate.components)?.format === "TEXT" && (
                           <strong className="text-[11px] block font-bold text-foreground border-b border-foreground/5 pb-1">
                             {getHeaderComponent(selectedTemplate.components)?.text}

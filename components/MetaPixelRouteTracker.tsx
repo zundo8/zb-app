@@ -8,8 +8,17 @@ import {
   getClientCookie,
   setClientCookie,
   sha256,
+  cleanCountry,
 } from '@/lib/metaPixel';
 import { pageview as trackGAPageView } from '@/lib/gtag';
+
+let cachedProfileData: {
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+  dob?: string;
+} | null = null;
 
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -94,6 +103,53 @@ export function MetaPixelRouteTracker() {
             const hashedLn = await sha256(cleanStringNoSpaces(parts.slice(1).join('')));
             sessionUserData.ln = hashedLn;
             setClientCookie('zb_guest_ln', hashedLn, 365);
+          }
+        }
+
+        // Fetch default address and DOB for logged-in user if not cached
+        if (!cachedProfileData) {
+          try {
+            const res = await fetch('/api/customers/me/default-address');
+            if (res.ok) {
+              cachedProfileData = await res.json();
+            }
+          } catch (e) {
+            console.error('Failed to fetch default address/profile:', e);
+          }
+        }
+
+        if (cachedProfileData) {
+          const { city, state, zip, country, dob } = cachedProfileData;
+          if (city) {
+            const hashedCity = await sha256(cleanStringNoSpaces(city));
+            sessionUserData.ct = hashedCity;
+            setClientCookie('zb_guest_ct', hashedCity, 365);
+          }
+          if (state) {
+            const hashedState = await sha256(cleanStringNoSpaces(state));
+            sessionUserData.st = hashedState;
+            setClientCookie('zb_guest_st', hashedState, 365);
+          }
+          if (zip) {
+            const hashedZip = await sha256(cleanStringNoSpaces(zip));
+            sessionUserData.zp = hashedZip;
+            setClientCookie('zb_guest_zp', hashedZip, 365);
+          }
+          if (country) {
+            const cleanC = cleanCountry(country);
+            if (cleanC) {
+              const hashedCountry = await sha256(cleanC);
+              sessionUserData.country = hashedCountry;
+              setClientCookie('zb_guest_country', hashedCountry, 365);
+            }
+          }
+          if (dob) {
+            const cleanD = dob.replace(/\D/g, "").slice(0, 8);
+            if (cleanD.length === 8) {
+              const hashedDob = await sha256(cleanD);
+              sessionUserData.db = hashedDob;
+              setClientCookie('zb_guest_dob', hashedDob, 365);
+            }
           }
         }
       }

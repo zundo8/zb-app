@@ -45,7 +45,6 @@ export async function GET(req: Request) {
     // Filter by search query (customer name, email, phone)
     if (searchQuery) {
       where.OR = [
-        { name: { contains: searchQuery, mode: "insensitive" } },
         { email: { contains: searchQuery, mode: "insensitive" } },
         { phone: { contains: searchQuery, mode: "insensitive" } },
         {

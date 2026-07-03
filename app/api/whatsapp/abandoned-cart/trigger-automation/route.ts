@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { sendAbandonedCart } from '@/lib/whatsapp/templates';
 import { getConfig } from '@/lib/whatsapp/client';
+import { getWhatsAppSetting } from '@/lib/whatsapp/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,11 @@ export async function POST() {
   const config = await getConfig();
   if (!config.configured) {
     return NextResponse.json({ error: 'WhatsApp not configured' }, { status: 503 });
+  }
+
+  const isEnabled = await getWhatsAppSetting('cart_recovery_enabled', 'true');
+  if (isEnabled === 'false') {
+    return NextResponse.json({ skipped: 'automation_disabled' });
   }
 
   try {
@@ -63,11 +69,21 @@ export async function POST() {
         continue;
       }
 
+      const firstItem = cart.items?.[0] || {};
+      const productImageUrl = firstItem.image || '';
+      const productName = firstItem.title || '';
+      const cartTotal = String(cart.subtotal || '0.00');
+      const itemCount = cart.items?.length || 0;
+
       // 3. Trigger sendAbandonedCart (includes consent checking and DB logging)
       const res = await sendAbandonedCart({
         phone,
         customerName: cart.customer?.name || 'there',
-        checkoutUrl: `https://zicabella.com/checkout?recover=${cart.id}`
+        checkoutUrl: `https://app.zicabella.com/checkout?recover=${cart.id}`,
+        productImageUrl,
+        productName,
+        cartTotal,
+        itemCount
       });
 
       // Update cart status to 'abandoned' in DB

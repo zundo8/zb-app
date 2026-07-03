@@ -443,7 +443,7 @@ export default function AbandonedCartsPage() {
                         <ChevronRight className="w-4 h-4" />
                       </button>
 
-                      {cart.computedStatus === "abandoned" && (cart.phone || cart.customer?.phone) && (
+                      {cart.computedStatus !== "converted" && (cart.phone || cart.customer?.phone) && (
                         <button
                           onClick={() => handleSendWhatsApp(cart)}
                           className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 transition-all hover:scale-105 active:scale-95 font-bold uppercase tracking-widest text-[9px]"
@@ -549,7 +549,7 @@ export default function AbandonedCartsPage() {
               </div>
 
               {/* Engage Shopper / Recovery actions */}
-              {selectedCart.computedStatus === "abandoned" && (
+              {selectedCart.computedStatus !== "converted" && (
                 <div className="p-6 rounded-3xl bg-neutral-50 dark:bg-foreground/[0.02] border border-neutral-200 dark:border-foreground/[0.06] space-y-6">
                   <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-neutral-200 dark:border-foreground/5 pb-2">Engage Shopper</span>
                   

@@ -31,7 +31,6 @@
     "dotenv": "^17.3.1",
     "expo-server-sdk": "^6.1.0",
     "framer-motion": "^11.11.17",
-    "html2canvas": "^1.4.1",
     "imap-simple": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
@@ -74,5 +73,13 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
     "wait-on": "^9.0.4"
-  }
+  },
+  "browserslist": [
+    "chrome >= 100",
+    "edge >= 100",
+    "firefox >= 100",
+    "safari >= 15",
+    "ios_saf >= 15",
+    "samsung >= 20"
+  ]
 }

@@ -6,7 +6,7 @@ import { resolveRazorpayCredentials } from "@/lib/razorpay-credentials";
 import { sendMail } from "@/lib/mailer";
 import { sendOrderConfirmationEmail, sendOrderCodConfirmationEmail } from "@/lib/services/orderEmailService";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "../../auth/[...nextauth]/options";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {

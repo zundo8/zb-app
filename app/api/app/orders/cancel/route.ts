@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   } else {
     // Fallback to NextAuth session for web store users
     const { getServerSession } = await import('next-auth');
-    const { authOptions } = await import('../../../auth/[...nextauth]/route');
+    const { authOptions } = await import('../../../auth/[...nextauth]/options');
     const session = await getServerSession(authOptions);
     if (session?.user) {
       const sessionUserId = (session.user as any).id;

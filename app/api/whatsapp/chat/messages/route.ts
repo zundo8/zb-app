@@ -46,22 +46,38 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST — Send a free-form message to customer within 24h window
+ * POST — Send a message (text, media, or template) to customer
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { phone, text } = body;
+    const { phone, text, mediaUrl, mediaType, templateName, components } = body;
 
-    if (!phone || !text) {
-      return NextResponse.json({ error: 'Missing phone or text parameter' }, { status: 400 });
+    if (!phone) {
+      return NextResponse.json({ error: 'Missing phone parameter' }, { status: 400 });
     }
 
     const formattedPhone = WhatsAppService.formatPhone(phone);
+    let waMessageId = null;
+    let messageBody = text || '';
 
-    // Call WhatsApp API via service
-    const result = await WhatsAppService.sendTextMessage(formattedPhone, text);
-    const waMessageId = result?.messages?.[0]?.id || null;
+    if (templateName) {
+      // 1. Send template message
+      const result = await WhatsAppService.sendTemplateMessage(formattedPhone, templateName, 'en', components || []);
+      waMessageId = result?.messages?.[0]?.id || null;
+      messageBody = `[Template: ${templateName}] ${text || ''}`;
+    } else if (mediaUrl && mediaType) {
+      // 2. Send media message
+      const result = await WhatsAppService.sendMediaMessage(formattedPhone, mediaType, mediaUrl, text || undefined);
+      waMessageId = result?.messages?.[0]?.id || null;
+      messageBody = text ? `[Media: ${mediaType}] ${text}` : `[Media: ${mediaType}] ${mediaUrl}`;
+    } else if (text) {
+      // 3. Send standard text message
+      const result = await WhatsAppService.sendTextMessage(formattedPhone, text);
+      waMessageId = result?.messages?.[0]?.id || null;
+    } else {
+      return NextResponse.json({ error: 'Missing message parameters (text, media, or template)' }, { status: 400 });
+    }
 
     // Retrieve userId if customer exists
     const customer = await prisma.customer.findFirst({
@@ -75,7 +91,7 @@ export async function POST(req: NextRequest) {
         waMessageId,
         phoneNumber: phone,
         userId: customer?.id || null,
-        body: text,
+        body: messageBody,
         status: 'sent',
         sentAt: new Date()
       }

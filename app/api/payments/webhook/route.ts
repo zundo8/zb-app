@@ -12,6 +12,7 @@ import { NextResponse, NextRequest } from "next/server";
 import crypto from "crypto";
 import prisma from "@/lib/db";
 import { shipOrder } from "@/lib/services/logistics";
+import { createOrder, createCustomer } from "@/lib/shopify-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -98,17 +99,165 @@ export async function POST(req: NextRequest) {
           });
 
           if (order) {
+            // Update address if captured by Razorpay
+            let addressToUse = null;
+            if (payment.shipping_address) {
+              const sa = payment.shipping_address;
+              const formattedAddress = {
+                name: payment.customer_name || order.customer?.name || "Customer",
+                phone: payment.customer_contact || order.customer?.phone || "",
+                email: payment.customer_email || order.customer?.email || "",
+                street: sa.line1 || "",
+                address2: sa.line2 || "",
+                city: sa.city || "",
+                state: sa.state || "",
+                zip: sa.postal_code || "",
+                country: sa.country || "India"
+              };
+              addressToUse = formattedAddress;
+            } else if (order.shippingAddress) {
+              try {
+                addressToUse = JSON.parse(order.shippingAddress);
+              } catch {}
+            }
+
+            const updateData: any = {
+              paymentStatus: "paid",
+              razorpayPaymentId,
+              paymentCapturedAt: new Date(),
+              paymentMethod: payment?.method || "razorpay",
+            };
+
+            if (addressToUse) {
+              updateData.shippingAddress = JSON.stringify(addressToUse);
+              updateData.billingAddress = JSON.stringify(addressToUse);
+            }
+
             await prisma.order.update({
               where: { id: order.id },
-              data: {
-                paymentStatus: "paid",
-                razorpayPaymentId,
-                paymentCapturedAt: new Date(),
-                paymentMethod: payment?.method || "razorpay",
-              },
+              data: updateData,
             });
 
             console.log(`[Razorpay Webhook] payment.captured → Order ${order.id} marked paid`);
+
+            // Mark corresponding Cart as converted
+            const matchCart = (order.tags || "").match(/cart-([A-Za-z0-9_-]+)/);
+            const cartId = matchCart ? matchCart[1] : null;
+            if (cartId) {
+              try {
+                await prisma.cart.update({
+                  where: { id: cartId },
+                  data: {
+                    status: "converted",
+                    convertedOrderId: order.id
+                  }
+                });
+                console.log(`[Razorpay Webhook] Cart ${cartId} successfully converted.`);
+              } catch (cartErr: any) {
+                console.error("[Razorpay Webhook] Cart conversion update failed:", cartErr.message);
+              }
+            }
+
+            // Sync to Shopify if not already synced
+            if (!order.shopifyOrderId || order.shopifySyncStatus !== "synced") {
+              try {
+                console.log(`[Razorpay Webhook] Syncing CartRecovery order ${order.id} to Shopify...`);
+                
+                let shopifyCustomerId = order.customer?.shopifyId;
+                if (!shopifyCustomerId || shopifyCustomerId.startsWith('temp_')) {
+                  try {
+                    const sCustomer = await createCustomer({
+                      first_name: addressToUse?.name?.split(' ')[0] || order.customer?.name || "Customer",
+                      last_name: addressToUse?.name?.split(' ').slice(1).join(' ') || ".",
+                      email: addressToUse?.email || order.customer?.email,
+                      phone: addressToUse?.phone || order.customer?.phone,
+                      verified_email: true,
+                    });
+                    shopifyCustomerId = sCustomer.id.toString();
+                    await prisma.customer.update({
+                      where: { id: order.customerId },
+                      data: { shopifyId: shopifyCustomerId }
+                    });
+                  } catch (custErr: any) {
+                    console.error("[Razorpay Webhook] Shopify customer sync failed:", custErr.message);
+                  }
+                }
+
+                const shopifyLineItems = order.items.map((item: any) => {
+                  let variantId: number | undefined;
+                  if (item.sku) {
+                    const rawId = String(item.sku).split('/').pop() || '';
+                    variantId = parseInt(rawId, 10);
+                    if (isNaN(variantId)) variantId = undefined;
+                  }
+                  if (variantId) {
+                    return { variant_id: variantId, quantity: item.quantity };
+                  }
+                  return {
+                    title: item.title,
+                    price: parseFloat(String(item.price)).toFixed(2),
+                    quantity: item.quantity,
+                    requires_shipping: true,
+                  };
+                });
+
+                const shopifyOrderData: any = {
+                  line_items: shopifyLineItems,
+                  financial_status: "paid",
+                  note: `Paid via Razorpay Link from WhatsApp Cart Recovery (Payment ID: ${razorpayPaymentId})`,
+                  tags: `WebStoreOrder, WebStore, Razorpay, CartRecovery, zb-order-${order.internalOrderNumber}`,
+                  note_attributes: [
+                    { name: 'internal_order_number', value: order.internalOrderNumber || "" }
+                  ],
+                  total_tax: 0,
+                  currency: "INR"
+                };
+
+                if (shopifyCustomerId && !isNaN(parseInt(shopifyCustomerId)) && parseInt(shopifyCustomerId) > 0) {
+                  shopifyOrderData.customer = { id: parseInt(shopifyCustomerId) };
+                }
+
+                if (addressToUse) {
+                  const shopifyAddress = {
+                    first_name: addressToUse.name?.split(' ')[0] || "",
+                    last_name: addressToUse.name?.split(' ').slice(1).join(' ') || ".",
+                    address1: addressToUse.street || "",
+                    city: addressToUse.city || "",
+                    province: addressToUse.state || "",
+                    zip: addressToUse.zip || "",
+                    country: addressToUse.country || "India",
+                    phone: addressToUse.phone || ""
+                  };
+                  shopifyOrderData.shipping_address = shopifyAddress;
+                  shopifyOrderData.billing_address = shopifyAddress;
+                  shopifyOrderData.phone = addressToUse.phone;
+                }
+
+                const sOrder = await createOrder(shopifyOrderData);
+                const newShopifyOrderId = sOrder.id.toString();
+
+                await prisma.order.update({
+                  where: { id: order.id },
+                  data: {
+                    shopifyOrderId: newShopifyOrderId,
+                    shopifyOrderName: sOrder.name,
+                    shopifySyncStatus: 'synced',
+                    shopifySyncError: null,
+                  }
+                });
+
+                console.log(`[Razorpay Webhook] Successfully created Shopify order ${newShopifyOrderId} for recovered cart`);
+              } catch (syncErr: any) {
+                console.error(`[Razorpay Webhook] Failed to sync recovered order to Shopify:`, syncErr.message);
+                await prisma.order.update({
+                  where: { id: order.id },
+                  data: {
+                    shopifySyncStatus: 'failed',
+                    shopifySyncError: syncErr.message,
+                  }
+                });
+              }
+            }
 
             // Update corresponding MobileOrder status
             const match = (order.tags || '').match(/zb-order-([A-Za-z0-9-]+)/);
@@ -133,7 +282,7 @@ export async function POST(req: NextRequest) {
 
             // Auto-create shipment after payment captured
             try {
-              const shippingAddress = order.shippingAddress ? JSON.parse(order.shippingAddress) : null;
+              const shippingAddress = addressToUse || (order.shippingAddress ? JSON.parse(order.shippingAddress) : null);
               if (shippingAddress) {
                 await shipOrder(
                   order.id,

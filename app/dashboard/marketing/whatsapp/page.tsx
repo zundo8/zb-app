@@ -158,16 +158,46 @@ export default function WhatsAppHubPage() {
 }
 
 /* ==========================================================================
-   SECTION B: TEMPLATE LIBRARY & CRUD
+   SECTION B: TEMPLATE LIBRARY & CRUD — MODERN VISUAL BUILDER
    ========================================================================== */
+
+const TEMPLATE_PRESETS = [
+  {
+    id: 'cart_recovery', label: '🛒 Cart Recovery', desc: 'Recover abandoned carts with product image',
+    preset: { category: 'MARKETING', headerType: 'IMAGE', headerImage: '', bodyText: 'Hello {{1}}, we noticed you left some items in your cart. Complete your purchase today to get them shipped soon.', footerText: 'Reply STOP to opt out', buttons: [{ type: 'URL', text: 'Complete Purchase', url: 'https://app.zicabella.com/{{1}}' }] }
+  },
+  {
+    id: 'new_collection', label: '✨ New Collection', desc: 'Announce a new collection with image',
+    preset: { category: 'MARKETING', headerType: 'IMAGE', headerImage: '', bodyText: 'Hi {{1}}, our new {{2}} collection is live! {{3}}. Shop the latest styles before they sell out.', footerText: 'Reply STOP to opt out', buttons: [{ type: 'URL', text: 'Shop Now', url: 'https://app.zicabella.com/collections/{{1}}' }] }
+  },
+  {
+    id: 'sale_alert', label: '🔥 Sale Alert', desc: 'Announce sales with discount % and CTA',
+    preset: { category: 'MARKETING', headerType: 'IMAGE', headerImage: '', bodyText: 'Hi {{1}}, enjoy up to {{2}}% OFF on your favorites! Sale ends {{3}}. Shop now!', footerText: 'Reply STOP to opt out', buttons: [{ type: 'URL', text: 'Shop Sale', url: 'https://app.zicabella.com/collections/{{1}}' }] }
+  },
+  {
+    id: 'order_confirmation', label: '📦 Order Confirm', desc: 'Confirm order with tracking link',
+    preset: { category: 'UTILITY', headerType: 'NONE', headerImage: '', bodyText: 'Thank you for your order, {{1}}! Your order {{2}} has been confirmed successfully.', footerText: '', buttons: [{ type: 'URL', text: 'View Order', url: 'https://app.zicabella.com/orders/{{1}}' }] }
+  },
+  {
+    id: 'welcome', label: '👋 Welcome', desc: 'Welcome new subscribers',
+    preset: { category: 'MARKETING', headerType: 'NONE', headerImage: '', bodyText: 'Welcome to Zica Bella, {{1}}! Thank you for joining us. Explore our latest collections and enjoy exclusive offers.', footerText: 'Reply STOP to opt out', buttons: [{ type: 'URL', text: 'Start Shopping', url: 'https://app.zicabella.com/' }] }
+  },
+  {
+    id: 'review_request', label: '⭐ Review Request', desc: 'Ask for product review after delivery',
+    preset: { category: 'UTILITY', headerType: 'NONE', headerImage: '', bodyText: 'Hi {{1}}, we hope you love your order {{2}}! Would you mind sharing a quick review? Your feedback helps us improve.', footerText: '', buttons: [{ type: 'URL', text: 'Leave Review', url: 'https://app.zicabella.com/orders/{{1}}' }] }
+  }
+];
+
 function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [testingTemplate, setTestingTemplate] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<any>(null);
+  const [wizardStep, setWizardStep] = useState(0);
+  const wizardSteps = ['Basics', 'Header', 'Body', 'Footer', 'Buttons', 'Preview'];
 
-  // Form State
   const [name, setName] = useState("");
   const [category, setCategory] = useState("MARKETING");
   const [language, setLanguage] = useState("en_US");
@@ -176,97 +206,47 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
   const [headerImage, setHeaderImage] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [footerText, setFooterText] = useState("");
-  const [buttonType, setButtonType] = useState("NONE");
-  const [buttonText, setButtonText] = useState("");
-  const [buttonUrl, setButtonUrl] = useState("");
+  const [buttons, setButtons] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [templateSearch, setTemplateSearch] = useState("");
   const [templateCategoryFilter, setTemplateCategoryFilter] = useState("ALL");
+  const [templateStatusFilter, setTemplateStatusFilter] = useState("ALL");
+  const [sendTestTemplate, setSendTestTemplate] = useState<any>(null);
+  const [sendTestPhone, setSendTestPhone] = useState("+917907914512");
+  const [sendTestParams, setSendTestParams] = useState<Record<string, string>>({});
+  const [sendingTest, setSendingTest] = useState(false);
 
   const fetchTemplates = async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/whatsapp/templates");
       const data = await res.json();
-      if (res.ok) {
-        setTemplates(data.templates || []);
-      } else {
-        toast.error(data.error || "Failed to load templates.");
-      }
-    } catch (e) {
-      toast.error("Network error loading templates.");
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) setTemplates(data.templates || []);
+      else toast.error(data.error || "Failed to load templates.");
+    } catch (e) { toast.error("Network error loading templates."); }
+    finally { setLoading(false); }
   };
 
   const filteredTemplates = templates.filter(t => {
-    const matchesSearch = t.name.toLowerCase().includes(templateSearch.toLowerCase());
-    const matchesCategory = templateCategoryFilter === "ALL" || t.category === templateCategoryFilter;
-    return matchesSearch && matchesCategory;
+    const s = t.name.toLowerCase().includes(templateSearch.toLowerCase());
+    const c = templateCategoryFilter === "ALL" || t.category === templateCategoryFilter;
+    const st = templateStatusFilter === "ALL" || t.status === templateStatusFilter;
+    return s && c && st;
   });
 
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
+  useEffect(() => { fetchTemplates(); }, []);
 
   const handleTestTemplate = async () => {
     setTestingTemplate(true);
     const toastId = toast.loading("Running WABA Integration test...");
-    
-    const testPayload = {
-      name: "zb_test_template",
-      category: "MARKETING",
-      language: "en_US",
-      components: [
-        {
-          type: "BODY",
-          text: "Hello from Zica Bella."
-        }
-      ]
-    };
-
     try {
-      // Attempt deletion first to prevent "content already exists" error
-      await fetch("/api/whatsapp/templates", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "zb_test_template" })
-      }).catch(() => {});
-
-      const res = await fetch("/api/whatsapp/templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(testPayload)
-      });
+      await fetch("/api/whatsapp/templates", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "zb_test_template" }) }).catch(() => {});
+      const res = await fetch("/api/whatsapp/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "zb_test_template", category: "MARKETING", language: "en_US", components: [{ type: "BODY", text: "Hello from Zica Bella." }] }) });
       const data = await res.json();
-      
-      if (res.ok) {
-        toast.success("WABA Integration Test Succeeded! Test template submitted successfully.", { id: toastId });
-        fetchTemplates();
-      } else {
-        if (data.code || data.subcode) {
-          const errorMsg = (
-            <div className="space-y-1 text-xs">
-              <div className="font-bold text-red-500">WABA Integration Test Failed:</div>
-              <div>{data.error}</div>
-              <div className="text-[10px] text-foreground/60 mt-1">
-                <div>Error Code: {data.code}</div>
-                <div>Subcode: {data.subcode}</div>
-              </div>
-            </div>
-          );
-          toast.error(errorMsg, { id: toastId, duration: 10000 });
-        } else {
-          toast.error(data.error || "WABA Integration Test Failed.", { id: toastId });
-        }
-      }
-    } catch (e) {
-      toast.error("Network error during WABA Integration test.", { id: toastId });
-    } finally {
-      setTestingTemplate(false);
-    }
+      if (res.ok) { toast.success("WABA Integration Test Succeeded!", { id: toastId }); fetchTemplates(); }
+      else toast.error(data.error || "WABA Test Failed.", { id: toastId });
+    } catch (e) { toast.error("Network error during test.", { id: toastId }); }
+    finally { setTestingTemplate(false); }
   };
 
   const handleSeed = async () => {
@@ -275,513 +255,519 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
     try {
       const res = await fetch("/api/whatsapp/templates/seed", { method: "POST" });
       const data = await res.json();
-      if (res.ok) {
-        toast.success(`Successfully seeded ${data.seeded}/${data.total} templates!`, { id: toastId });
-        fetchTemplates();
-        onRefresh();
-      } else {
-        toast.error(data.error || "Templates seeding failed.", { id: toastId });
-      }
-    } catch (e) {
-      toast.error("Network error during seeder process.", { id: toastId });
-    } finally {
-      setSeeding(false);
-    }
+      if (res.ok) { toast.success(`Seeded ${data.seeded}/${data.total} templates!`, { id: toastId }); fetchTemplates(); onRefresh(); }
+      else toast.error(data.error || "Seeding failed.", { id: toastId });
+    } catch (e) { toast.error("Network error.", { id: toastId }); }
+    finally { setSeeding(false); }
   };
 
   const handleDelete = async (tname: string) => {
-    if (!confirm(`Are you sure you want to delete template "${tname}"? This cannot be undone.`)) return;
-    
+    if (!confirm(`Delete template "${tname}"?`)) return;
     const toastId = toast.loading(`Deleting ${tname}...`);
     try {
-      const res = await fetch("/api/whatsapp/templates", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: tname })
-      });
-      if (res.ok) {
-        toast.success(`Template ${tname} deleted successfully!`, { id: toastId });
-        fetchTemplates();
-      } else {
-        const data = await res.json();
-        toast.error(data.error || "Delete template failed.", { id: toastId });
-      }
-    } catch (e) {
-      toast.error("Network error deleting template.", { id: toastId });
-    }
+      const res = await fetch("/api/whatsapp/templates", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: tname }) });
+      if (res.ok) { toast.success(`Deleted ${tname}!`, { id: toastId }); fetchTemplates(); if (selectedDetail?.name === tname) setSelectedDetail(null); }
+      else { const d = await res.json(); toast.error(d.error || "Delete failed.", { id: toastId }); }
+    } catch (e) { toast.error("Network error.", { id: toastId }); }
   };
+
+  const applyPreset = (preset: any) => {
+    setCategory(preset.category); setHeaderType(preset.headerType); setHeaderImage(preset.headerImage || '');
+    setBodyText(preset.bodyText); setFooterText(preset.footerText || ''); setButtons(preset.buttons || []);
+    setWizardStep(2);
+  };
+
+  const resetForm = () => {
+    setName(""); setCategory("MARKETING"); setLanguage("en_US"); setHeaderType("NONE"); setHeaderText(""); setHeaderImage("");
+    setBodyText(""); setFooterText(""); setButtons([]); setWizardStep(0);
+  };
+
+  const addButton = (type: string) => {
+    if (buttons.length >= 10) { toast.error("Maximum 10 buttons."); return; }
+    if (type === 'URL') setButtons([...buttons, { type: 'URL', text: '', url: '' }]);
+    else if (type === 'QUICK_REPLY') setButtons([...buttons, { type: 'QUICK_REPLY', text: '' }]);
+    else if (type === 'PHONE_NUMBER') setButtons([...buttons, { type: 'PHONE_NUMBER', text: '', phone_number: '' }]);
+    else if (type === 'CATALOG') setButtons([...buttons, { type: 'CATALOG' }]);
+  };
+
+  const updateButton = (idx: number, field: string, value: string) => setButtons(prev => prev.map((b, i) => i === idx ? { ...b, [field]: value } : b));
+  const removeButton = (idx: number) => setButtons(prev => prev.filter((_, i) => i !== idx));
 
   const getPayloadJson = () => {
-    const componentsList: any[] = [];
-    if (headerType === "TEXT" && headerText) {
-      componentsList.push({
-        type: "HEADER",
-        format: "TEXT",
-        text: headerText
-      });
-    } else if (headerType === "IMAGE") {
-      componentsList.push({
-        type: "HEADER",
-        format: "IMAGE"
-      });
-    }
-
-    componentsList.push({
-      type: "BODY",
-      text: bodyText
-    });
-
-    if (footerText) {
-      componentsList.push({
-        type: "FOOTER",
-        text: footerText
-      });
-    }
-
-    if (buttonType === "URL" && buttonText && buttonUrl) {
-      componentsList.push({
-        type: "BUTTONS",
-        buttons: [
-          {
-            type: "URL",
-            text: buttonText,
-            url: buttonUrl
-          }
-        ]
-      });
-    }
-
-    return {
-      name: name || "template_name",
-      category,
-      language,
-      components: componentsList
-    };
+    const cl: any[] = [];
+    if (headerType === "TEXT" && headerText) cl.push({ type: "HEADER", format: "TEXT", text: headerText });
+    else if (headerType === "IMAGE") cl.push({ type: "HEADER", format: "IMAGE", example: { header_url: ["https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=400&auto=format&fit=crop"] } });
+    else if (headerType === "VIDEO") cl.push({ type: "HEADER", format: "VIDEO", example: { header_url: ["https://www.w3schools.com/html/mov_bbb.mp4"] } });
+    else if (headerType === "DOCUMENT") cl.push({ type: "HEADER", format: "DOCUMENT", example: { header_url: ["https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"] } });
+    cl.push({ type: "BODY", text: bodyText });
+    if (footerText) cl.push({ type: "FOOTER", text: footerText });
+    if (buttons.length > 0) cl.push({ type: "BUTTONS", buttons: buttons.filter(b => b.type === 'CATALOG' || b.text) });
+    return { name: name || "template_name", category, language, components: cl };
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
+    if (!name) { toast.error("Template name is required."); setWizardStep(0); return; }
+    if (!bodyText) { toast.error("Body text is required."); setWizardStep(2); return; }
     setIsSubmitting(true);
-
-    const componentsPayload = getPayloadJson().components;
-
     try {
-      const res = await fetch("/api/whatsapp/templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, category, language, components: componentsPayload })
-      });
+      const res = await fetch("/api/whatsapp/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(getPayloadJson()) });
       const data = await res.json();
-      if (res.ok) {
-        toast.success("Template submitted for Meta review");
-        setShowCreateModal(false);
-        // Reset form
-        setName("");
-        setBodyText("");
-        setFooterText("");
-        setHeaderText("");
-        setButtonText("");
-        setButtonUrl("");
-        fetchTemplates();
-      } else {
-        if (data.code || data.subcode) {
-          const errorMsg = (
-            <div className="space-y-1 text-xs">
-              <div className="font-bold text-red-500">Meta Error:</div>
-              <div>{data.error}</div>
-              <div className="text-[10px] text-foreground/60 mt-1">
-                <div>Error Code: {data.code}</div>
-                <div>Subcode: {data.subcode}</div>
-              </div>
-            </div>
-          );
-          toast.error(errorMsg, { duration: 10000 });
-        } else {
-          toast.error(data.error || "Failed to create template.");
-        }
-      }
-    } catch (err) {
-      toast.error("Network error creating template.");
-    } finally {
-      setIsSubmitting(false);
-    }
+      if (res.ok) { toast.success("Template submitted for Meta review!"); setShowCreateModal(false); resetForm(); fetchTemplates(); }
+      else toast.error(data.error || "Failed to create template.", { duration: 10000 });
+    } catch (err) { toast.error("Network error creating template."); }
+    finally { setIsSubmitting(false); }
   };
 
-  // Preview body render replaces {{1}}, {{2}} with highlight tags
+  const handleSendTest = async () => {
+    if (!sendTestTemplate || !sendTestPhone) return;
+    setSendingTest(true);
+    const toastId = toast.loading("Sending test...");
+    const bodyComp = sendTestTemplate.components?.find((c: any) => c.type === "BODY");
+    const variables = bodyComp?.text?.match(/\{\{\d+\}\}/g) || [];
+    const components: any[] = [];
+    if (variables.length > 0) components.push({ type: "body", parameters: variables.map((v: string) => ({ type: "text", text: sendTestParams[v.replace(/[{}]/g, "")] || `Test ${v}` })) });
+    const headerComp = sendTestTemplate.components?.find((c: any) => c.type === "HEADER");
+    if (headerComp?.format === "IMAGE") components.unshift({ type: "header", parameters: [{ type: "image", image: { link: "https://app.zicabella.com/logo.png" } }] });
+    try {
+      const res = await fetch("/api/whatsapp/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: sendTestPhone, templateName: sendTestTemplate.name, languageCode: sendTestTemplate.language || "en_US", components }) });
+      const data = await res.json();
+      if (res.ok && data.success) toast.success(`Test sent! ID: ${data.messageId}`, { id: toastId });
+      else toast.error(data.error || "Failed to send test.", { id: toastId });
+    } catch (e) { toast.error("Network error.", { id: toastId }); }
+    finally { setSendingTest(false); }
+  };
+
   const renderPreview = (text: string) => {
     if (!text) return "Hi customer, welcome to Zica Bella...";
-    return text.split(/(\{\{\d\}\})/).map((part, i) => {
-      if (part.match(/^\{\{\d\}\}$/)) {
-        return <span key={i} className="bg-emerald-500/20 text-emerald-500 px-1 py-0.5 rounded font-mono text-xs">{part}</span>;
-      }
+    return text.split(/(\{\{\d+\}\})/).map((part, i) => {
+      if (part.match(/^\{\{\d+\}\}$/)) return <span key={i} className="bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded font-mono text-[10px]">{part}</span>;
       return part;
     });
   };
 
+  const statusCounts = { APPROVED: templates.filter(t => t.status === "APPROVED").length, PENDING: templates.filter(t => t.status === "PENDING").length, REJECTED: templates.filter(t => !["APPROVED", "PENDING"].includes(t.status)).length };
+
   return (
     <div className="space-y-6">
+      {/* Top Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h3 className="text-lg font-semibold">Meta Template Library</h3>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleTestTemplate}
-            disabled={testingTemplate}
-            className="border border-foreground/10 hover:bg-foreground/5 text-foreground px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
-          >
-            {testingTemplate ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4 text-emerald-500" />}
-            Test WABA Integration
+        <div>
+          <h3 className="text-lg font-semibold">Meta Template Library</h3>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold font-mono">{statusCounts.APPROVED} Approved</span>
+            <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full font-semibold font-mono">{statusCounts.PENDING} Pending</span>
+            {statusCounts.REJECTED > 0 && <span className="text-[10px] bg-rose-500/10 text-rose-500 border border-rose-500/20 px-2 py-0.5 rounded-full font-semibold font-mono">{statusCounts.REJECTED} Rejected</span>}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={handleTestTemplate} disabled={testingTemplate} className="border border-foreground/10 hover:bg-foreground/5 text-foreground px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2">
+            {testingTemplate ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />} Test WABA
           </button>
-          <button
-            onClick={handleSeed}
-            disabled={seeding}
-            className="border border-foreground/10 hover:bg-foreground/5 text-foreground px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
-          >
-            {seeding ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-amber-500" />}
-            Seed Zica Bella Templates
+          <button onClick={handleSeed} disabled={seeding} className="border border-foreground/10 hover:bg-foreground/5 text-foreground px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2">
+            {seeding ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-amber-500" />} Seed Templates
           </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-emerald-500 hover:bg-emerald-600 text-foreground px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Create Template
+          <button onClick={fetchTemplates} className="border border-foreground/10 hover:bg-foreground/5 text-foreground px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2">
+            <RefreshCcw className="w-3.5 h-3.5" /> Sync
+          </button>
+          <button onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-emerald-500 hover:bg-emerald-600 text-foreground px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 shadow-lg">
+            <Plus className="w-4 h-4" /> Create Template
           </button>
         </div>
       </div>
 
-      {/* Search & Category Filter */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-foreground/5 p-4 rounded-xl border border-foreground/10">
-        <div className="relative md:col-span-2">
+      {/* Filters */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search templates by name..."
-            value={templateSearch}
-            onChange={(e) => setTemplateSearch(e.target.value)}
-            className="w-full bg-background/5 border border-foreground/10 rounded-lg pl-9 pr-4 py-2 outline-none focus:border-emerald-500/50 text-xs text-foreground"
-          />
+          <input type="text" placeholder="Search templates..." value={templateSearch} onChange={(e) => setTemplateSearch(e.target.value)}
+            className="w-full bg-foreground/5 border border-foreground/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm text-foreground" />
         </div>
-        <div>
-          <select
-            value={templateCategoryFilter}
-            onChange={(e) => setTemplateCategoryFilter(e.target.value)}
-            className="w-full bg-background/5 border border-foreground/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-500/50 text-xs text-foreground"
-          >
-            <option value="ALL">All Categories</option>
-            <option value="MARKETING">Marketing</option>
-            <option value="UTILITY">Utility</option>
-            <option value="AUTHENTICATION">Authentication</option>
+        <div className="flex gap-2">
+          <select value={templateCategoryFilter} onChange={(e) => setTemplateCategoryFilter(e.target.value)} className="bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none text-xs text-foreground">
+            <option value="ALL">All Categories</option><option value="MARKETING">Marketing</option><option value="UTILITY">Utility</option><option value="AUTHENTICATION">Authentication</option>
+          </select>
+          <select value={templateStatusFilter} onChange={(e) => setTemplateStatusFilter(e.target.value)} className="bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none text-xs text-foreground">
+            <option value="ALL">All Status</option><option value="APPROVED">Approved</option><option value="PENDING">Pending</option><option value="REJECTED">Rejected</option>
           </select>
         </div>
       </div>
 
+      {/* Template Card Grid */}
       {loading ? (
-        <div className="flex justify-center py-20">
-          <RefreshCcw className="w-8 h-8 animate-spin text-emerald-500" />
+        <div className="flex justify-center py-20"><RefreshCcw className="w-8 h-8 animate-spin text-emerald-500" /></div>
+      ) : filteredTemplates.length === 0 ? (
+        <div className="glass-card p-16 text-center space-y-3">
+          <FileText className="w-12 h-12 text-muted-foreground/30 mx-auto" />
+          <p className="text-sm font-semibold text-muted-foreground">No templates found.</p>
+          <p className="text-xs text-muted-foreground">Click &quot;Create Template&quot; or &quot;Seed Templates&quot; to get started.</p>
         </div>
       ) : (
-        <div className="glass-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-foreground/[0.02] border-b border-foreground/10">
-              <tr>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Name</th>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Category</th>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Language</th>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Status</th>
-                <th className="text-right font-medium text-foreground/60 px-5 py-3.5">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-foreground/10">
-              {filteredTemplates.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-10 text-muted-foreground text-sm">
-                    No matching templates registered. Click &quot;Seed Zica Bella Templates&quot; or create a new one.
-                  </td>
-                </tr>
-              ) : (
-                filteredTemplates.map((t, idx) => (
-                  <tr key={t.id || idx} className="hover:bg-foreground/5 transition-colors">
-                    <td className="px-5 py-4 font-mono font-medium text-xs">{t.name}</td>
-                    <td className="px-5 py-4 text-xs font-semibold uppercase text-muted-foreground">{t.category}</td>
-                    <td className="px-5 py-4 text-xs">{t.language}</td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
-                        t.status === 'APPROVED' ? 'border-emerald-500/20 text-emerald-600 bg-emerald-500/10' :
-                        t.status === 'PENDING' ? 'border-amber-500/20 text-amber-600 bg-amber-500/10' :
-                        'border-rose-500/20 text-rose-600 bg-rose-500/10'
-                      }`}>
-                        {t.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <button 
-                        onClick={() => handleDelete(t.name)}
-                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 p-2 rounded-xl transition-all"
-                        title="Delete template"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* CREATE TEMPLATE MODAL / DRAWER */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-background border border-foreground/10 rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[90vh]"
-          >
-            {/* Form Side */}
-            <form onSubmit={handleSubmit} className="flex-1 p-6 space-y-4 overflow-y-auto max-h-[90vh] md:max-h-none border-b md:border-b-0 md:border-r border-foreground/10">
-              <div className="flex justify-between items-center pb-2 border-b border-foreground/10">
-                <h3 className="font-semibold text-lg">Create Custom Template</h3>
-                <button type="button" onClick={() => setShowCreateModal(false)} className="text-muted-foreground hover:text-foreground text-sm">Close</button>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Template Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. zb_spring_discount_alert"
-                    value={name}
-                    onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
-                    className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono"
-                  />
-                  <span className="text-[10px] text-muted-foreground mt-1 block">Lowercase letters and underscores only. No spaces.</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Category</label>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-                    >
-                      <option value="MARKETING">Marketing</option>
-                      <option value="UTILITY">Utility</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Language</label>
-                    <select
-                      value={language}
-                      onChange={(e) => setLanguage(e.target.value)}
-                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-                    >
-                      <option value="en_US">English (en_US)</option>
-                      <option value="en">English (en)</option>
-                      <option value="hi">Hindi (hi)</option>
-                      <option value="en_IN">English (India)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="border-t border-foreground/5 pt-3">
-                  <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Header Type</label>
-                  <select
-                    value={headerType}
-                    onChange={(e) => setHeaderType(e.target.value)}
-                    className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-                  >
-                    <option value="NONE">None</option>
-                    <option value="TEXT">Text Header</option>
-                    <option value="IMAGE">Image Media Header</option>
-                  </select>
-                </div>
-
-                {headerType === "TEXT" && (
-                  <div>
-                    <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Header Text</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. New Drop Live!"
-                      value={headerText}
-                      onChange={(e) => setHeaderText(e.target.value)}
-                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-                    />
-                  </div>
-                )}
-
-                {headerType === "IMAGE" && (
-                  <div>
-                    <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Header Image Mock URL</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. https://zicabella.com/drop.jpg"
-                      value={headerImage}
-                      onChange={(e) => setHeaderImage(e.target.value)}
-                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5 flex justify-between">
-                    <span>Body Text</span>
-                    <span className="text-[10px] lowercase font-normal">Use {"{{1}}"}, {"{{2}}"} as variables</span>
-                  </label>
-                  <textarea
-                    required
-                    rows={4}
-                    placeholder="Hi {{1}}, welcome to Zica Bella! Check out {{2}}."
-                    value={bodyText}
-                    onChange={(e) => setBodyText(e.target.value)}
-                    className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Footer Text (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="Reply STOP to opt out"
-                    value={footerText}
-                    onChange={(e) => setFooterText(e.target.value)}
-                    className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 border-t border-foreground/5 pt-3">
-                  <div>
-                    <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Button Type</label>
-                    <select
-                      value={buttonType}
-                      onChange={(e) => setButtonType(e.target.value)}
-                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-                    >
-                      <option value="NONE">None</option>
-                      <option value="URL">Call To Action URL Button</option>
-                    </select>
-                  </div>
-
-                  {buttonType === "URL" && (
-                    <div>
-                      <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Button Label</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Shop Now"
-                        value={buttonText}
-                        onChange={(e) => setButtonText(e.target.value)}
-                        className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-                      />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredTemplates.map((t, idx) => {
+            const bodyComp = t.components?.find((c: any) => c.type === "BODY");
+            const headerComp = t.components?.find((c: any) => c.type === "HEADER");
+            const buttonsComp = t.components?.find((c: any) => c.type === "BUTTONS");
+            const footerComp = t.components?.find((c: any) => c.type === "FOOTER");
+            return (
+              <motion.div key={t.id || idx} layout className="glass-card overflow-hidden hover:border-foreground/20 transition-all cursor-pointer group" onClick={() => setSelectedDetail(t)}>
+                <div className="p-4 pb-0">
+                  <div className="flex justify-between items-start gap-2 mb-3">
+                    <div className="flex flex-col min-w-0">
+                      <span className={`text-[9px] font-bold font-mono uppercase tracking-wider ${t.category === 'MARKETING' ? 'text-violet-400' : t.category === 'UTILITY' ? 'text-blue-400' : 'text-amber-400'}`}>{t.category}</span>
+                      <h4 className="font-semibold text-sm text-foreground/90 group-hover:text-foreground mt-0.5 truncate">{t.name}</h4>
                     </div>
-                  )}
+                    <span className={`shrink-0 flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full font-bold font-mono border ${t.status === 'APPROVED' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/10' : t.status === 'PENDING' ? 'border-amber-500/20 text-amber-500 bg-amber-500/10' : 'border-rose-500/20 text-rose-500 bg-rose-500/10'}`}>
+                      {t.status === 'APPROVED' && <CheckCircle2 className="w-2.5 h-2.5" />}{t.status}
+                    </span>
+                  </div>
                 </div>
-
-                {buttonType === "URL" && (
-                  <div>
-                    <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Button Base URL</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. https://zicabella.com/{{1}}"
-                      value={buttonUrl}
-                      onChange={(e) => setButtonUrl(e.target.value)}
-                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono text-xs"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="flex-1 bg-foreground/5 text-foreground py-2.5 rounded-xl font-medium text-sm hover:bg-foreground/10 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-[2] bg-emerald-500 text-foreground py-2.5 rounded-xl font-medium text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isSubmitting ? <RefreshCcw className="w-4 h-4 animate-spin" /> : "Submit to Meta"}
-                </button>
-              </div>
-            </form>
-
-            {/* Preview Side */}
-            <div className="hidden md:flex flex-1 flex-col items-center justify-between p-6 bg-gradient-to-br from-background to-emerald-500/5 relative overflow-y-auto max-h-[90vh] scrollbar-hide">
-              <div className="text-xs text-muted-foreground self-start font-semibold uppercase tracking-wider mb-2">Device Preview</div>
-              
-              <div className="w-[260px] h-[280px] border-[6px] border-foreground/10 rounded-[2rem] relative bg-background shadow-2xl flex flex-col overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-4 bg-foreground/10 z-10 rounded-t-3xl" />
-                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-20 h-4 bg-background rounded-full z-20" />
-
-                <div 
-                  className="flex-1 bg-[#efeae2] dark:bg-[#0b141a] pt-10 px-2.5 flex flex-col overflow-y-auto scrollbar-hide" 
-                  style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundSize: 'cover' }}
-                >
-                  <div className="text-center mb-3 bg-[#efeae2]/90 dark:bg-[#0b141a]/90 backdrop-blur-sm py-1.5 rounded-xl border border-foreground/5 shadow-sm">
-                    <h3 className="text-[10px] font-semibold text-foreground">Zica Bella</h3>
-                    <p className="text-[8px] text-emerald-500">Business Account</p>
-                  </div>
-
-                  <div className="space-y-1.5 self-end max-w-[85%] bg-background dark:bg-[#005c4b] text-foreground p-2 rounded-xl rounded-tr-sm shadow-md border border-foreground/5 text-xs">
-                    {headerType === "IMAGE" && (
-                      <div className="w-full h-24 bg-foreground/5 rounded-lg flex items-center justify-center overflow-hidden border border-foreground/10 mb-1">
-                        {headerImage ? (
-                          <img src={headerImage} alt="Header" className="w-full h-full object-cover" />
-                        ) : (
-                          <ImageIcon className="w-8 h-8 text-muted-foreground/50" />
-                        )}
+                {/* WhatsApp-style Preview */}
+                <div className="px-4 pb-3">
+                  <div className="bg-[#0b141a] rounded-xl p-3 space-y-2 border border-foreground/5">
+                    {headerComp?.format === "IMAGE" && <div className="w-full h-16 bg-foreground/5 rounded-lg flex items-center justify-center text-[9px] text-muted-foreground gap-1 border border-foreground/5"><ImageIcon className="w-3 h-3 text-emerald-500/50" /> Image Header</div>}
+                    {headerComp?.format === "TEXT" && <div className="text-[10px] font-bold text-foreground/80 border-b border-foreground/5 pb-1">{headerComp.text}</div>}
+                    <div className="text-[10px] text-foreground/70 line-clamp-3 leading-relaxed whitespace-pre-wrap">{bodyComp?.text || "—"}</div>
+                    {footerComp && <div className="text-[8px] text-muted-foreground/50">{footerComp.text}</div>}
+                    {buttonsComp?.buttons && buttonsComp.buttons.length > 0 && (
+                      <div className="space-y-1 pt-1 border-t border-foreground/5">
+                        {buttonsComp.buttons.slice(0, 2).map((btn: any, bi: number) => (
+                          <div key={bi} className="text-center py-1 text-[9px] text-emerald-400 font-semibold bg-foreground/5 rounded-lg flex items-center justify-center gap-1">{btn.text || btn.type}{btn.type === 'URL' && <ExternalLink className="w-2.5 h-2.5" />}</div>
+                        ))}
+                        {buttonsComp.buttons.length > 2 && <div className="text-[8px] text-muted-foreground text-center">+{buttonsComp.buttons.length - 2} more</div>}
                       </div>
                     )}
-                    {headerType === "TEXT" && headerText && (
-                      <div className="font-bold text-xs text-foreground/80 mb-1">{headerText}</div>
-                    )}
-                    <div className="whitespace-pre-wrap leading-relaxed text-foreground/90">{renderPreview(bodyText)}</div>
-                    {footerText && (
-                      <div className="text-[9px] text-muted-foreground dark:text-foreground/50 mt-1 border-t border-foreground/5 pt-1">{footerText}</div>
-                    )}
-                    <div className="text-[8px] text-muted-foreground/60 text-right mt-1">12:00 PM</div>
                   </div>
+                </div>
+                <div className="px-4 py-2.5 border-t border-foreground/5 flex justify-between items-center" onClick={e => e.stopPropagation()}>
+                  <span className="text-[9px] text-muted-foreground font-mono">{t.language}</span>
+                  <div className="flex items-center gap-1">
+                    {t.status === 'APPROVED' && <button onClick={(e) => { e.stopPropagation(); setSendTestTemplate(t); setSendTestParams({}); }} className="text-[9px] font-bold text-emerald-500 hover:bg-emerald-500/10 px-2 py-1 rounded-lg transition-colors">Send Test</button>}
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(t.name); }} className="text-rose-500/50 hover:text-rose-500 hover:bg-rose-500/10 p-1.5 rounded-lg transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
 
-                  {buttonType === "URL" && buttonText && (
-                    <div className="mt-1.5 self-end w-[85%] bg-background dark:bg-zinc-800 text-blue-500 text-center py-2.5 rounded-xl shadow-sm text-xs font-semibold cursor-pointer border border-foreground/5 flex items-center justify-center gap-1.5 hover:bg-foreground/5">
-                      <span>{buttonText}</span>
-                      <ExternalLink className="w-3 h-3" />
+      {/* Send Test Modal */}
+      <AnimatePresence>
+        {sendTestTemplate && (
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-background border border-foreground/10 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-sm">Send Test: <span className="font-mono text-emerald-500">{sendTestTemplate.name}</span></h3>
+                <button onClick={() => setSendTestTemplate(null)} className="text-muted-foreground hover:text-foreground p-1 rounded">✕</button>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1">Phone</label>
+                <input type="text" value={sendTestPhone} onChange={e => setSendTestPhone(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono" />
+              </div>
+              {(() => {
+                const bodyVars = sendTestTemplate.components?.find((c: any) => c.type === "BODY")?.text?.match(/\{\{\d+\}\}/g) || [];
+                if (bodyVars.length === 0) return null;
+                return (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-foreground/60 uppercase">Parameters</label>
+                    {bodyVars.map((v: string) => {
+                      const num = v.replace(/[{}]/g, "");
+                      return <input key={num} type="text" placeholder={`Value for {{${num}}}`} value={sendTestParams[num] || ""} onChange={e => setSendTestParams(p => ({ ...p, [num]: e.target.value }))} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2 outline-none focus:border-emerald-500/50 text-sm" />;
+                    })}
+                  </div>
+                );
+              })()}
+              <button onClick={handleSendTest} disabled={sendingTest} className="w-full bg-emerald-500 hover:bg-emerald-600 text-foreground py-2.5 rounded-xl font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {sendingTest ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send Test
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Detail Slide-Over */}
+      <AnimatePresence>
+        {selectedDetail && (
+          <div className="fixed inset-0 z-50 flex items-center justify-end">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedDetail(null)} className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="glass-card absolute right-0 top-0 bottom-0 max-w-md w-full h-full border-l border-foreground/10 shadow-2xl flex flex-col z-10">
+              <div className="flex justify-between items-center p-5 border-b border-foreground/5">
+                <div className="flex flex-col min-w-0">
+                  <span className={`text-[9px] font-bold font-mono uppercase tracking-wider ${selectedDetail.category === 'MARKETING' ? 'text-violet-400' : 'text-blue-400'}`}>{selectedDetail.category}</span>
+                  <h3 className="font-semibold text-base truncate">{selectedDetail.name}</h3>
+                </div>
+                <button onClick={() => setSelectedDetail(null)} className="p-1.5 hover:bg-foreground/5 text-muted-foreground hover:text-foreground rounded-lg"><span className="text-lg">✕</span></button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
+                <div className="grid grid-cols-3 gap-3 text-xs">
+                  <div className="bg-foreground/[0.02] p-3 rounded-xl border border-foreground/5 text-center">
+                    <span className="text-[8px] text-muted-foreground uppercase block">Status</span>
+                    <span className={`font-bold text-xs ${selectedDetail.status === 'APPROVED' ? 'text-emerald-500' : selectedDetail.status === 'PENDING' ? 'text-amber-500' : 'text-rose-500'}`}>{selectedDetail.status}</span>
+                  </div>
+                  <div className="bg-foreground/[0.02] p-3 rounded-xl border border-foreground/5 text-center">
+                    <span className="text-[8px] text-muted-foreground uppercase block">Language</span>
+                    <span className="font-bold text-xs font-mono text-foreground/90">{selectedDetail.language}</span>
+                  </div>
+                  <div className="bg-foreground/[0.02] p-3 rounded-xl border border-foreground/5 text-center">
+                    <span className="text-[8px] text-muted-foreground uppercase block">Updated</span>
+                    <span className="font-bold text-[10px] text-foreground/90">{new Date(selectedDetail.updatedAt).toLocaleDateString('en-IN')}</span>
+                  </div>
+                </div>
+
+                {/* WhatsApp Phone Preview */}
+                <div className="flex justify-center">
+                  <div className="relative w-72 h-[400px] bg-[#0c1317] rounded-[2rem] border-4 border-foreground/15 shadow-2xl overflow-hidden flex flex-col">
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 w-20 h-4 bg-foreground/10 rounded-full z-20 flex items-center justify-center"><div className="w-8 h-1 bg-black rounded-full" /></div>
+                    <div className="bg-[#121b22] px-4 pt-6 pb-2 border-b border-foreground/5 z-10 flex items-center gap-2">
+                      <div className="w-7 h-7 bg-foreground/10 text-emerald-500 rounded-full flex items-center justify-center font-bold text-xs">ZB</div>
+                      <div className="flex flex-col"><span className="text-[10px] font-bold text-foreground/90 leading-tight">Zica Bella Store</span><span className="text-[8px] text-emerald-500 font-semibold leading-none mt-0.5">Online</span></div>
                     </div>
+                    <div className="flex-1 p-3 overflow-y-auto flex flex-col justify-end gap-2 z-10 relative">
+                      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#202c33] rounded-2xl rounded-tl-none p-3 shadow-lg max-w-[85%] border border-foreground/10 text-xs space-y-2 text-foreground/90">
+                        {(() => {
+                          const hdr = selectedDetail.components?.find((c: any) => c.type === "HEADER");
+                          if (hdr?.format === "IMAGE") {
+                            const isCart = selectedDetail.name.includes("cart_recovery");
+                            const isCollection = selectedDetail.name.includes("collection");
+                            const imgUrl = isCart 
+                              ? "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=400&auto=format&fit=crop"
+                              : isCollection
+                              ? "https://images.unsplash.com/photo-1578587018452-892bacefd3f2?q=80&w=400&auto=format&fit=crop"
+                              : "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=400&auto=format&fit=crop";
+                            return (
+                              <div className="w-full h-28 bg-foreground/10 rounded-lg overflow-hidden border border-foreground/5 mb-1 shrink-0 relative group">
+                                <img src={imgUrl} alt="Template Header Product" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-2">
+                                  <span className="text-[7px] text-emerald-400 font-bold uppercase tracking-wider font-mono">Premium Heavyweight Fit</span>
+                                  <span className="text-[9px] font-bold text-white tracking-wide truncate">Zica Bella® Limited Capsule</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          if (hdr?.format === "TEXT") return <strong className="text-[11px] block font-bold text-foreground border-b border-foreground/5 pb-1">{hdr.text}</strong>;
+                          if (hdr?.format === "VIDEO") return <div className="w-full h-24 bg-foreground/10 rounded-lg flex items-center justify-center text-[10px] text-muted-foreground gap-1.5 border border-foreground/5">▶ Video Component</div>;
+                          return null;
+                        })()}
+                        <div className="whitespace-pre-wrap leading-relaxed">{renderPreview(selectedDetail.components?.find((c: any) => c.type === "BODY")?.text || "")}</div>
+                        {(() => { const ftr = selectedDetail.components?.find((c: any) => c.type === "FOOTER"); return ftr ? <span className="text-[9px] text-muted-foreground block">{ftr.text}</span> : null; })()}
+                        <div className="text-[8px] text-muted-foreground/50 text-right">12:00 PM ✓✓</div>
+                      </motion.div>
+                      {(() => {
+                        const btns = selectedDetail.components?.find((c: any) => c.type === "BUTTONS")?.buttons || [];
+                        if (btns.length === 0) return null;
+                        return (
+                          <div className="flex flex-col gap-1 max-w-[85%]">
+                            {btns.map((btn: any, bi: number) => <div key={bi} className="bg-[#202c33]/90 text-emerald-400 font-semibold text-center py-2 rounded-xl text-[10px] border border-foreground/10 flex items-center justify-center gap-1">{btn.text || btn.type}{btn.type === "URL" && <ExternalLink className="w-2.5 h-2.5" />}</div>)}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">Components JSON</div>
+                  <pre className="bg-zinc-950 border border-foreground/10 text-zinc-400 p-3 rounded-xl font-mono text-[9px] overflow-auto max-h-[200px] scrollbar-hide select-all">{JSON.stringify(selectedDetail.components, null, 2)}</pre>
+                </div>
+              </div>
+              <div className="p-4 border-t border-foreground/5 flex justify-between items-center gap-2">
+                {selectedDetail.status === 'APPROVED' && <button onClick={() => { setSendTestTemplate(selectedDetail); setSendTestParams({}); setSelectedDetail(null); }} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-foreground py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2"><Send className="w-3.5 h-3.5" /> Send Test</button>}
+                <button onClick={() => handleDelete(selectedDetail.name)} className="px-4 py-2 bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500/20 rounded-xl text-xs font-semibold">Delete</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Template Wizard Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-background border border-foreground/10 rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[92vh]">
+              {/* Left: Form Wizard */}
+              <div className="flex-1 flex flex-col overflow-hidden border-b md:border-b-0 md:border-r border-foreground/10">
+                <div className="flex items-center gap-1 px-5 pt-4 pb-3 border-b border-foreground/5 overflow-x-auto scrollbar-hide">
+                  {wizardSteps.map((step, i) => (
+                    <button key={step} onClick={() => setWizardStep(i)} className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-all ${wizardStep === i ? 'bg-emerald-500 text-foreground shadow-lg' : i < wizardStep ? 'bg-emerald-500/10 text-emerald-500' : 'bg-foreground/5 text-muted-foreground hover:text-foreground'}`}>
+                      {i + 1}. {step}
+                    </button>
+                  ))}
+                  <div className="flex-1" />
+                  <button onClick={() => { setShowCreateModal(false); resetForm(); }} className="text-muted-foreground hover:text-foreground text-sm p-1 rounded">✕</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                  <AnimatePresence mode="wait">
+                    <motion.div key={wizardStep} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.15 }}>
+
+                      {wizardStep === 0 && (
+                        <div className="space-y-4">
+                          <div><h4 className="text-sm font-semibold mb-1">Template Name & Category</h4><p className="text-xs text-muted-foreground mb-4">Choose a unique name and category for Meta approval.</p></div>
+                          <div>
+                            <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Template Name</label>
+                            <input type="text" placeholder="e.g. zb_summer_sale_2026" value={name} onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono" />
+                            <span className="text-[10px] text-muted-foreground mt-1 block">Lowercase letters, numbers, and underscores only.</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Category</label>
+                              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none text-sm"><option value="MARKETING">Marketing</option><option value="UTILITY">Utility</option></select>
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Language</label>
+                              <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none text-sm"><option value="en_US">English (en_US)</option><option value="en">English (en)</option><option value="hi">Hindi</option></select>
+                            </div>
+                          </div>
+                          <div className="pt-3 border-t border-foreground/5">
+                            <label className="text-xs font-semibold text-foreground/60 uppercase block mb-2">Quick Start Presets</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {TEMPLATE_PRESETS.map(p => (
+                                <button key={p.id} onClick={() => applyPreset(p.preset)} className="text-left bg-foreground/[0.02] border border-foreground/10 rounded-xl p-3 hover:bg-foreground/5 hover:border-foreground/20 transition-all group">
+                                  <div className="text-xs font-semibold group-hover:text-emerald-500 transition-colors">{p.label}</div>
+                                  <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{p.desc}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {wizardStep === 1 && (
+                        <div className="space-y-4">
+                          <div><h4 className="text-sm font-semibold mb-1">Header</h4><p className="text-xs text-muted-foreground mb-4">Optional header at the top of the message.</p></div>
+                          <select value={headerType} onChange={(e) => setHeaderType(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none text-sm">
+                            <option value="NONE">No Header</option><option value="TEXT">Text Header</option><option value="IMAGE">Image Header</option><option value="VIDEO">Video Header</option><option value="DOCUMENT">Document Header</option>
+                          </select>
+                          {headerType === "TEXT" && <div><label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Header Text</label><input type="text" placeholder="e.g. New Drop Live!" value={headerText} onChange={(e) => setHeaderText(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm" /></div>}
+                          {headerType === "IMAGE" && (
+                            <div className="space-y-3">
+                              <label className="text-xs font-semibold text-foreground/60 uppercase block">Preview Image URL (Optional)</label>
+                              <input type="text" placeholder="https://app.zicabella.com/images/collection.jpg" value={headerImage} onChange={(e) => setHeaderImage(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm" />
+                              <p className="text-[10px] text-muted-foreground">The actual image is uploaded when sending. This is for preview.</p>
+                              {headerImage && <div className="w-full h-32 rounded-xl border border-foreground/10 overflow-hidden bg-foreground/5"><img src={headerImage} alt="Preview" className="w-full h-full object-cover" onError={(e: any) => { e.target.style.display = 'none'; }} /></div>}
+                            </div>
+                          )}
+                          {(headerType === "VIDEO" || headerType === "DOCUMENT") && <div className="p-4 bg-foreground/[0.02] border border-foreground/5 rounded-xl text-xs text-muted-foreground text-center"><p className="font-semibold mb-1">{headerType} Header</p><p>The {headerType.toLowerCase()} file will be uploaded when sending.</p></div>}
+                        </div>
+                      )}
+
+                      {wizardStep === 2 && (
+                        <div className="space-y-4">
+                          <div><h4 className="text-sm font-semibold mb-1">Body Text</h4><p className="text-xs text-muted-foreground mb-4">Use {"{{1}}"}, {"{{2}}"}, etc. for dynamic variables.</p></div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-xs font-semibold text-foreground/60 uppercase">Message Body</label>
+                              <div className="flex items-center gap-1">{[1,2,3,4,5].map(n => <button key={n} onClick={() => setBodyText(prev => prev + `{{${n}}}`)} className="text-[9px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono hover:bg-emerald-500/20">{`{{${n}}}`}</button>)}</div>
+                            </div>
+                            <textarea rows={6} placeholder="Hi {{1}}, welcome to Zica Bella!" value={bodyText} onChange={(e) => setBodyText(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm resize-none" />
+                            <div className="flex justify-between mt-1"><span className="text-[10px] text-muted-foreground">{(bodyText.match(/\{\{\d+\}\}/g) || []).length} variables</span><span className={`text-[10px] ${bodyText.length > 1024 ? 'text-rose-500' : 'text-muted-foreground'}`}>{bodyText.length}/1024</span></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {wizardStep === 3 && (
+                        <div className="space-y-4">
+                          <div><h4 className="text-sm font-semibold mb-1">Footer Text</h4><p className="text-xs text-muted-foreground mb-4">Optional small text below the message.</p></div>
+                          <input type="text" placeholder="Reply STOP to opt out" value={footerText} onChange={(e) => setFooterText(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm" />
+                          <span className={`text-[10px] block ${footerText.length > 60 ? 'text-rose-500' : 'text-muted-foreground'}`}>{footerText.length}/60</span>
+                        </div>
+                      )}
+
+                      {wizardStep === 4 && (
+                        <div className="space-y-4">
+                          <div><h4 className="text-sm font-semibold mb-1">Call-to-Action Buttons</h4><p className="text-xs text-muted-foreground mb-4">Add buttons for quick actions. Maximum 10.</p></div>
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={() => addButton('URL')} className="text-xs bg-blue-500/10 text-blue-500 border border-blue-500/20 px-3 py-1.5 rounded-xl hover:bg-blue-500/20 flex items-center gap-1"><ExternalLink className="w-3 h-3" /> URL</button>
+                            <button onClick={() => addButton('QUICK_REPLY')} className="text-xs bg-violet-500/10 text-violet-500 border border-violet-500/20 px-3 py-1.5 rounded-xl hover:bg-violet-500/20 flex items-center gap-1"><MessageCircle className="w-3 h-3" /> Quick Reply</button>
+                            <button onClick={() => addButton('PHONE_NUMBER')} className="text-xs bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-xl hover:bg-amber-500/20 flex items-center gap-1">📞 Phone</button>
+                            <button onClick={() => addButton('CATALOG')} className="text-xs bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded-xl hover:bg-emerald-500/20 flex items-center gap-1">🛍 Catalog</button>
+                          </div>
+                          <div className="space-y-3">
+                            {buttons.length === 0 && <div className="text-xs text-muted-foreground italic py-4 text-center">No buttons added.</div>}
+                            {buttons.map((btn, idx) => (
+                              <div key={idx} className="bg-foreground/[0.02] border border-foreground/10 rounded-xl p-3 space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <span className={`text-[9px] font-bold uppercase font-mono px-2 py-0.5 rounded ${btn.type === 'URL' ? 'bg-blue-500/10 text-blue-500' : btn.type === 'QUICK_REPLY' ? 'bg-violet-500/10 text-violet-500' : btn.type === 'PHONE_NUMBER' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{btn.type}</span>
+                                  <button onClick={() => removeButton(idx)} className="text-rose-500/50 hover:text-rose-500 text-xs">Remove</button>
+                                </div>
+                                {btn.type !== 'CATALOG' && <input type="text" placeholder="Button Label" value={btn.text || ''} onChange={(e) => updateButton(idx, 'text', e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-500/50 text-xs" />}
+                                {btn.type === 'URL' && <input type="text" placeholder="https://app.zicabella.com/{{1}}" value={btn.url || ''} onChange={(e) => updateButton(idx, 'url', e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-500/50 text-xs font-mono" />}
+                                {btn.type === 'PHONE_NUMBER' && <input type="text" placeholder="+919876543210" value={btn.phone_number || ''} onChange={(e) => updateButton(idx, 'phone_number', e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-500/50 text-xs font-mono" />}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {wizardStep === 5 && (
+                        <div className="space-y-4">
+                          <div><h4 className="text-sm font-semibold mb-1">Review & Submit</h4><p className="text-xs text-muted-foreground mb-4">{category === 'UTILITY' ? 'UTILITY templates are auto-approved by Meta.' : 'MARKETING templates require Meta review (1–48 hours).'}</p></div>
+                          <div className="bg-foreground/[0.02] p-4 rounded-xl border border-foreground/5 space-y-2 text-xs">
+                            <div><span className="text-muted-foreground">Name:</span> <strong className="font-mono">{name || '—'}</strong></div>
+                            <div><span className="text-muted-foreground">Category:</span> <strong>{category}</strong></div>
+                            <div><span className="text-muted-foreground">Language:</span> <strong className="font-mono">{language}</strong></div>
+                            <div><span className="text-muted-foreground">Header:</span> <strong>{headerType === 'NONE' ? 'None' : `${headerType}${headerType === 'TEXT' ? `: ${headerText}` : ''}`}</strong></div>
+                            <div><span className="text-muted-foreground">Variables:</span> <strong>{(bodyText.match(/\{\{\d+\}\}/g) || []).length}</strong></div>
+                            <div><span className="text-muted-foreground">Buttons:</span> <strong>{buttons.length}</strong></div>
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-semibold mb-1">
+                              <span>API Payload</span>
+                              <button type="button" onClick={() => { navigator.clipboard.writeText(JSON.stringify(getPayloadJson(), null, 2)); toast.success("Copied!"); }} className="text-emerald-500 hover:text-emerald-400 font-bold lowercase">Copy JSON</button>
+                            </div>
+                            <pre className="bg-zinc-950 border border-foreground/10 text-zinc-300 p-2.5 rounded-xl font-mono text-[9px] overflow-auto max-h-[200px] select-all scrollbar-hide">{JSON.stringify(getPayloadJson(), null, 2)}</pre>
+                          </div>
+                        </div>
+                      )}
+
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                <div className="flex items-center justify-between p-4 border-t border-foreground/5 bg-foreground/[0.01]">
+                  <button onClick={() => setWizardStep(Math.max(0, wizardStep - 1))} disabled={wizardStep === 0} className="px-4 py-2 bg-foreground/5 text-foreground rounded-xl text-xs font-medium hover:bg-foreground/10 disabled:opacity-30">Back</button>
+                  {wizardStep < wizardSteps.length - 1 ? (
+                    <button onClick={() => setWizardStep(wizardStep + 1)} className="px-6 py-2 bg-emerald-500 text-foreground rounded-xl text-xs font-semibold hover:bg-emerald-600 shadow-lg">Next →</button>
+                  ) : (
+                    <button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-2 bg-emerald-500 text-foreground rounded-xl text-xs font-semibold hover:bg-emerald-600 shadow-lg disabled:opacity-50 flex items-center gap-2">
+                      {isSubmitting ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Submit to Meta
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Template Payload Preview Inspector */}
-              <div className="w-full mt-4 flex flex-col min-h-[160px] max-h-[220px]">
-                <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-semibold mb-1">
-                  <span>Template Payload Preview</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(JSON.stringify(getPayloadJson(), null, 2));
-                      toast.success("Payload copied to clipboard!");
-                    }}
-                    className="text-emerald-500 hover:text-emerald-400 font-bold lowercase flex items-center gap-1"
-                  >
-                    Copy JSON
-                  </button>
+              {/* Right: Live WhatsApp Preview */}
+              <div className="hidden md:flex flex-col items-center justify-center p-6 bg-gradient-to-br from-background to-emerald-500/5 w-[340px] shrink-0 overflow-y-auto max-h-[92vh] scrollbar-hide">
+                <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-3">Live Preview</div>
+                <div className="w-[260px] h-[340px] border-[6px] border-foreground/10 rounded-[2rem] relative bg-background shadow-2xl flex flex-col overflow-hidden">
+                  <div className="absolute top-0 inset-x-0 h-4 bg-foreground/10 z-10 rounded-t-3xl" />
+                  <div className="absolute top-1 left-1/2 -translate-x-1/2 w-20 h-4 bg-background rounded-full z-20" />
+                  <div className="flex-1 bg-[#0b141a] pt-8 px-2.5 flex flex-col overflow-y-auto scrollbar-hide">
+                    <div className="text-center mb-2 bg-[#0b141a]/90 py-1 rounded-xl border border-foreground/5">
+                      <h3 className="text-[10px] font-semibold text-foreground">Zica Bella</h3>
+                      <p className="text-[8px] text-emerald-500">Business Account</p>
+                    </div>
+                    <div className="space-y-1.5 self-end max-w-[85%] bg-[#005c4b] text-foreground p-2 rounded-xl rounded-tr-sm shadow-md border border-foreground/5 text-[10px]">
+                      {headerType === "IMAGE" && <div className="w-full h-20 bg-foreground/5 rounded-lg flex items-center justify-center overflow-hidden border border-foreground/10 mb-1">{headerImage ? <img src={headerImage} alt="Header" className="w-full h-full object-cover" /> : <ImageIcon className="w-6 h-6 text-muted-foreground/50" />}</div>}
+                      {headerType === "VIDEO" && <div className="w-full h-20 bg-foreground/5 rounded-lg flex items-center justify-center border border-foreground/10 mb-1 text-muted-foreground/50">▶ Video</div>}
+                      {headerType === "TEXT" && headerText && <div className="font-bold text-[10px] text-foreground/80 mb-1">{headerText}</div>}
+                      <div className="whitespace-pre-wrap leading-relaxed text-foreground/90">{renderPreview(bodyText)}</div>
+                      {footerText && <div className="text-[8px] text-foreground/50 mt-1 border-t border-foreground/5 pt-1">{footerText}</div>}
+                      <div className="text-[7px] text-foreground/40 text-right mt-0.5">12:00 PM</div>
+                    </div>
+                    {buttons.filter(b => b.type === 'CATALOG' || b.text).length > 0 && (
+                      <div className="mt-1 space-y-1 self-end w-[85%]">
+                        {buttons.filter(b => b.type === 'CATALOG' || b.text).map((btn, bi) => <div key={bi} className="bg-zinc-800 text-blue-400 text-center py-2 rounded-xl shadow-sm text-[9px] font-semibold border border-foreground/5 flex items-center justify-center gap-1">{btn.text || btn.type}{btn.type === 'URL' && <ExternalLink className="w-2.5 h-2.5" />}</div>)}
+                      </div>
+                    )}
+                    <div className="h-4" />
+                  </div>
                 </div>
-                <pre className="flex-1 bg-zinc-950 border border-foreground/10 text-zinc-300 p-2.5 rounded-xl font-mono text-[9px] overflow-auto select-all scrollbar-hide">
-                  {JSON.stringify(getPayloadJson(), null, 2)}
-                </pre>
               </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -799,6 +785,11 @@ function QuickSendMessage() {
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  // Opted-in customers search
+  const [optedInCustomers, setOptedInCustomers] = useState<any[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+
   const fetchTemplates = async () => {
     setTemplatesLoading(true);
     try {
@@ -806,8 +797,7 @@ function QuickSendMessage() {
       const data = await res.json();
       if (res.ok && data.templates) {
         setTemplates(data.templates);
-        // Default select 'hello_world' if exists, otherwise first one
-        const helloWorld = data.templates.find((t: any) => t.name === "hello_world");
+        const helloWorld = data.templates.find((t: any) => t.name === "zica_cart_recovery_v1");
         if (helloWorld) {
           setSelectedTemplate(helloWorld);
         } else if (data.templates.length > 0) {
@@ -821,13 +811,39 @@ function QuickSendMessage() {
     }
   };
 
+  const fetchOptedInCustomers = async () => {
+    try {
+      const res = await fetch("/api/whatsapp/recipients?audience=all_customers");
+      const data = await res.json();
+      if (res.ok && data.recipients) {
+        setOptedInCustomers(data.recipients);
+      }
+    } catch (e) {
+      console.error("Failed to load opted-in customers", e);
+    }
+  };
+
   useEffect(() => {
     fetchTemplates();
+    fetchOptedInCustomers();
   }, []);
 
-  // Extract parameter variables from the selected template's BODY text (e.g. {{1}}, {{2}})
   const bodyText = selectedTemplate?.components?.find((c: any) => c.type === "BODY")?.text || "";
-  const variables = bodyText.match(/\{\{\d\}\}/g) || [];
+  const headerComp = selectedTemplate?.components?.find((c: any) => c.type === "HEADER");
+  const footerComp = selectedTemplate?.components?.find((c: any) => c.type === "FOOTER");
+  const textHeader = selectedTemplate?.components?.find((c: any) => c.type === "HEADER" && c.format === "TEXT")?.text || "";
+  const buttonsComp = selectedTemplate?.components?.find((c: any) => c.type === "BUTTONS");
+  const variables = bodyText.match(/\{\{\d+\}\}/g) || [];
+
+  const handleSelectCustomer = (cust: any) => {
+    setPhone(cust.phone);
+    // Autofill first variable with customer name if applicable
+    if (variables.length > 0) {
+      setParams(prev => ({ ...prev, "1": cust.customerName }));
+    }
+    setCustomerSearch(cust.customerName);
+    setShowCustomerDropdown(false);
+  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -845,7 +861,6 @@ function QuickSendMessage() {
     setSendError(null);
     const toastId = toast.loading("Sending message...");
 
-    // Build components parameters
     const components: any[] = [];
     if (variables.length > 0) {
       const bodyParams = variables.map((v: string) => {
@@ -858,6 +873,14 @@ function QuickSendMessage() {
       components.push({
         type: "body",
         parameters: bodyParams
+      });
+    }
+
+    // Add dummy header if IMAGE template
+    if (headerComp?.format === "IMAGE") {
+      components.unshift({
+        type: "header",
+        parameters: [{ type: "image", image: { link: "https://app.zicabella.com/logo.png" } }]
       });
     }
 
@@ -891,123 +914,209 @@ function QuickSendMessage() {
     }
   };
 
+  const renderLivePreview = () => {
+    if (!bodyText) return "Preview will appear here...";
+    let text = bodyText;
+    variables.forEach((v: string) => {
+      const num = v.replace(/[^0-9]/g, "");
+      const val = params[num] || `[Variable {{${num}}}]`;
+      text = text.replace(v, val);
+    });
+    return text;
+  };
+
+  const filteredCustomers = optedInCustomers.filter(c =>
+    c.customerName.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    c.phone.toLowerCase().includes(customerSearch.toLowerCase())
+  );
+
   return (
-    <div className="max-w-2xl mx-auto glass-card p-6 mt-4 space-y-6">
-      <div>
-        <h3 className="font-semibold text-lg font-mono">Send Test Message</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">Send template notifications directly using Graph API v19.0</p>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
+      {/* Send Input Form */}
+      <div className="lg:col-span-2 glass-card p-6 space-y-6">
+        <div>
+          <h3 className="font-semibold text-lg">Quick Send Portal</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Send transaction or marketing notifications directly to consented numbers.</p>
+        </div>
+
+        <form onSubmit={handleSend} className="space-y-4">
+          {/* Customer Lookup Search */}
+          <div className="relative">
+            <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5 font-mono">1. Customer Opt-In Search (Optional)</label>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search opted-in customer by name or phone..."
+                value={customerSearch}
+                onChange={(e) => {
+                  setCustomerSearch(e.target.value);
+                  setShowCustomerDropdown(true);
+                }}
+                onFocus={() => setShowCustomerDropdown(true)}
+                className="w-full bg-foreground/5 border border-foreground/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
+              />
+            </div>
+
+            {/* Dropdown Results */}
+            {showCustomerDropdown && customerSearch && (
+              <div className="absolute left-0 right-0 mt-1 bg-[#121b22] border border-foreground/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto z-30 custom-scrollbar">
+                {filteredCustomers.length === 0 ? (
+                  <div className="p-3 text-xs text-muted-foreground text-center">No consented subscribers found</div>
+                ) : (
+                  filteredCustomers.map((cust, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleSelectCustomer(cust)}
+                      className="w-full text-left p-3 text-xs hover:bg-foreground/5 border-b border-foreground/5 flex justify-between items-center transition-colors"
+                    >
+                      <span className="font-semibold text-foreground">{cust.customerName}</span>
+                      <span className="font-mono text-muted-foreground">{cust.phone}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Phone */}
+            <div>
+              <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5 font-mono">2. Recipient Phone</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. +919876543210"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono"
+              />
+            </div>
+
+            {/* Template Selector */}
+            <div>
+              <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5 font-mono">3. Select Template</label>
+              {templatesLoading ? (
+                <div className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 text-sm text-muted-foreground flex items-center gap-2">
+                  <RefreshCcw className="w-4 h-4 animate-spin text-emerald-500" />
+                  <span>Loading templates...</span>
+                </div>
+              ) : (
+                <select
+                  value={selectedTemplate?.name || ""}
+                  onChange={(e) => {
+                    const found = templates.find(t => t.name === e.target.value);
+                    setSelectedTemplate(found || null);
+                    setParams({});
+                  }}
+                  className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
+                >
+                  {templates.length === 0 ? (
+                    <option value="">No templates registered</option>
+                  ) : (
+                    templates.map(t => (
+                      <option key={t.id} value={t.name}>
+                        {t.name} ({t.status})
+                      </option>
+                    ))
+                  )}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Parameters Inputs */}
+          {selectedTemplate && variables.length > 0 && (
+            <div className="space-y-3 pt-3 border-t border-foreground/5">
+              <label className="text-xs font-semibold text-foreground/60 uppercase block font-mono">4. Dynamic Variables</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {variables.map((v: string) => {
+                  const num = v.replace(/[^0-9]/g, "");
+                  return (
+                    <div key={num}>
+                      <label className="text-[10px] text-muted-foreground block mb-1 font-mono">Placeholder {`{{${num}}}`}</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder={`Value for {{${num}}}`}
+                        value={params[num] || ""}
+                        onChange={(e) => setParams(prev => ({ ...prev, [num]: e.target.value }))}
+                        className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {sendSuccess && (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold rounded-xl flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{sendSuccess}</span>
+            </div>
+          )}
+
+          {sendError && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold rounded-xl flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="break-words leading-relaxed">{sendError}</span>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !selectedTemplate}
+            className="w-full bg-emerald-500 text-foreground py-3 rounded-xl font-semibold text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 mt-4 shadow-lg"
+          >
+            {loading ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            <span>Deliver Template Message</span>
+          </button>
+        </form>
       </div>
 
-      <form onSubmit={handleSend} className="space-y-4">
-        <div>
-          <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Recipient Phone</label>
-          <input
-            type="text"
-            required
-            placeholder="e.g. +91 79079 14512"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono"
-          />
-        </div>
+      {/* Real-time WhatsApp Device Preview */}
+      <div className="glass-card p-6 flex flex-col items-center justify-center bg-gradient-to-br from-background to-emerald-500/5">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Device Preview</span>
 
-        <div>
-          <label className="text-xs font-semibold text-foreground/60 uppercase block mb-1.5">Template Selector</label>
-          {templatesLoading ? (
-            <div className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 text-sm text-muted-foreground flex items-center gap-2">
-              <RefreshCcw className="w-4 h-4 animate-spin text-emerald-500" />
-              <span>Loading templates from Meta...</span>
+        <div className="relative w-64 h-[350px] bg-[#0c1317] rounded-[2rem] border-[6px] border-foreground/10 shadow-2xl overflow-hidden flex flex-col">
+          <div className="absolute top-0 inset-x-0 h-4 bg-foreground/10 z-10 rounded-t-3xl" />
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 w-20 h-4 bg-background rounded-full z-20" />
+
+          <div className="flex-1 bg-[#0b141a] pt-8 px-2.5 flex flex-col overflow-y-auto scrollbar-hide">
+            <div className="text-center mb-2 bg-[#0b141a]/90 py-1 rounded-xl border border-foreground/5">
+              <h3 className="text-[10px] font-semibold text-foreground">Zica Bella</h3>
+              <p className="text-[8px] text-emerald-500">Business Account</p>
             </div>
-          ) : (
-            <select
-              value={selectedTemplate?.name || ""}
-              onChange={(e) => {
-                const found = templates.find(t => t.name === e.target.value);
-                setSelectedTemplate(found || null);
-                setParams({});
-              }}
-              className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
-            >
-              {templates.length === 0 ? (
-                <option value="">No templates registered</option>
-              ) : (
-                templates.map(t => (
-                  <option key={t.id} value={t.name}>
-                    {t.name} ({t.status})
-                  </option>
-                ))
+
+            <div className="space-y-1.5 self-end max-w-[85%] bg-[#005c4b] text-foreground p-2 rounded-xl rounded-tr-sm shadow-md border border-foreground/5 text-[10px]">
+              {headerComp?.format === "IMAGE" && (
+                <div className="w-full h-20 bg-foreground/5 rounded-lg flex items-center justify-center overflow-hidden border border-foreground/10 mb-1">
+                  <ImageIcon className="w-6 h-6 text-muted-foreground/35" />
+                </div>
               )}
-            </select>
-          )}
-
-          {selectedTemplate && (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Status:</span>
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
-                selectedTemplate.status === "APPROVED" ? "border-emerald-500/20 text-emerald-500 bg-emerald-500/10" :
-                selectedTemplate.status === "PENDING" ? "border-amber-500/20 text-amber-500 bg-amber-500/10" :
-                "border-rose-500/20 text-rose-500 bg-rose-500/10"
-              }`}>
-                {selectedTemplate.status}
-              </span>
+              {headerComp?.format === "TEXT" && textHeader && (
+                <div className="font-bold text-[10px] text-foreground/80 mb-1">{textHeader}</div>
+              )}
+              <div className="whitespace-pre-wrap leading-relaxed text-foreground/90">{renderLivePreview()}</div>
+              {footerComp && <div className="text-[8px] text-foreground/50 mt-1 border-t border-foreground/5 pt-1">{footerComp.text}</div>}
+              <div className="text-[7px] text-foreground/40 text-right mt-0.5">12:00 PM</div>
             </div>
-          )}
-        </div>
 
-        {selectedTemplate && bodyText && (
-          <div className="bg-foreground/[0.02] border border-foreground/5 p-4 rounded-xl space-y-2">
-            <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider">Template Preview</h4>
-            <p className="text-sm font-mono bg-background/50 p-3 rounded-lg whitespace-pre-wrap leading-relaxed border border-foreground/5 text-foreground/80">{bodyText}</p>
-          </div>
-        )}
-
-        {selectedTemplate && variables.length > 0 && (
-          <div className="space-y-3 pt-3 border-t border-foreground/5">
-            <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-2">Template Parameters</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {variables.map((v: string) => {
-                const num = v.replace(/[^0-9]/g, "");
-                return (
-                  <div key={num}>
-                    <label className="text-xs text-muted-foreground block mb-1 font-mono">Variable {`{{${num}}}`}</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder={`Enter value for {{${num}}}`}
-                      value={params[num] || ""}
-                      onChange={(e) => setParams(prev => ({ ...prev, [num]: e.target.value }))}
-                      className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3.5 py-2 outline-none focus:border-emerald-500/50 text-sm"
-                    />
+            {buttonsComp?.buttons && buttonsComp.buttons.length > 0 && (
+              <div className="mt-1 space-y-1 self-end w-[85%]">
+                {buttonsComp.buttons.map((btn: any, bi: number) => (
+                  <div key={bi} className="bg-[#202c33]/90 text-emerald-400 font-semibold text-center py-2 rounded-xl shadow-sm text-[9px] font-semibold border border-foreground/5 flex items-center justify-center gap-1">
+                    {btn.text || btn.type}
+                    {btn.type === 'URL' && <ExternalLink className="w-2.5 h-2.5" />}
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-
-        {sendSuccess && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold rounded-xl flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>{sendSuccess}</span>
-          </div>
-        )}
-
-        {sendError && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold rounded-xl flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            <span className="break-words leading-relaxed">{sendError}</span>
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading || !selectedTemplate}
-          className="w-full bg-emerald-500 text-foreground py-3 rounded-xl font-medium text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 mt-4"
-        >
-          {loading ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          <span>Send Message</span>
-        </button>
-      </form>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1938,16 +2047,50 @@ function CartRecovery() {
   const [loading, setLoading] = useState(true);
   const [isBulkSending, setIsBulkSending] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [automationEnabled, setAutomationEnabled] = useState(true);
+  const [selectedCart, setSelectedCart] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchStats = async () => {
     try {
       const res = await fetch("/api/whatsapp/abandoned-cart/stats");
       const data = await res.json();
-      if (res.ok) {
-        setStats(data);
-      }
+      if (res.ok) setStats(data);
     } catch (e) {
       console.error("Failed to load cart recovery stats:", e);
+    }
+  };
+
+  const fetchAutomationSetting = async () => {
+    try {
+      const res = await fetch("/api/whatsapp/settings");
+      const data = await res.json();
+      if (res.ok && data.settings) {
+        setAutomationEnabled(data.settings.cart_recovery_enabled !== false);
+      }
+    } catch (e) {
+      console.error("Failed to load automation settings:", e);
+    }
+  };
+
+  const toggleAutomation = async () => {
+    const nextVal = !automationEnabled;
+    setAutomationEnabled(nextVal);
+    try {
+      const res = await fetch("/api/whatsapp/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cart_recovery_enabled: nextVal })
+      });
+      if (res.ok) {
+        toast.success(`Cart Recovery automation ${nextVal ? 'enabled' : 'disabled'}.`);
+      } else {
+        toast.error("Failed to save automation setting.");
+        setAutomationEnabled(!nextVal);
+      }
+    } catch (e) {
+      toast.error("Network error saving automation setting.");
+      setAutomationEnabled(!nextVal);
     }
   };
 
@@ -1971,33 +2114,40 @@ function CartRecovery() {
   useEffect(() => {
     fetchCarts();
     fetchStats();
+    fetchAutomationSetting();
   }, []);
 
-  const handleSendRecovery = async (cart: any) => {
-    const toastId = toast.loading(`Sending recovery to ${cart.customer}...`);
+  const handleSendRecoveryStep = async (cart: any, stepType: 'abandoned_cart' | 'cart_followup' | 'cart_final') => {
+    const labelMap = {
+      'abandoned_cart': 'Initial Reminder (Step 1)',
+      'cart_followup': 'Follow-Up (Step 2)',
+      'cart_final': 'Final Reminder (Step 3)'
+    };
+    const toastId = toast.loading(`Sending ${labelMap[stepType]} to ${cart.customer}...`);
     try {
       const res = await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "abandoned_cart",
+          type: stepType,
           to: cart.phone,
           payload: {
             phone: cart.phone,
             customerName: cart.customer,
-            checkoutUrl: cart.abandoned_checkout_url
+            checkoutUrl: cart.abandoned_checkout_url,
+            productImageUrl: cart.productImageUrl,
+            cartTotal: cart.cart_value.replace(/[^0-9.]/g, ''),
+            itemCount: cart.itemsRaw?.length || 1
           }
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success(`Recovery message triggered successfully!`, { id: toastId });
-        
-        // Update local cart state to 'sent'
-        setCarts(prev => prev.map(c => c.id === cart.id ? { ...c, status: "sent" } : c));
+        toast.success(`${labelMap[stepType]} sent successfully!`, { id: toastId });
+        fetchCarts();
         fetchStats();
       } else {
-        toast.error(data.error || "Recovery failed.", { id: toastId });
+        toast.error(data.error || "Failed to send recovery.", { id: toastId });
       }
     } catch (e) {
       toast.error("Network error triggering recovery.", { id: toastId });
@@ -2028,17 +2178,18 @@ function CartRecovery() {
             payload: {
               phone: cart.phone,
               customerName: cart.customer,
-              checkoutUrl: cart.abandoned_checkout_url
+              checkoutUrl: cart.abandoned_checkout_url,
+              productImageUrl: cart.productImageUrl,
+              cartTotal: cart.cart_value.replace(/[^0-9.]/g, ''),
+              itemCount: cart.itemsRaw?.length || 1
             }
           })
         });
         const data = await res.json();
         if (res.ok && data.success) {
           sentCount++;
-          // Update status in real time
-          setCarts(prev => prev.map(c => c.id === cart.id ? { ...c, status: "sent" } : c));
+          setCarts(prev => prev.map(c => c.id === cart.id ? { ...c, status: "sent", recovery_step: 'step1_sent' } : c));
         }
-        // Small delay
         await new Promise(r => setTimeout(r, 80));
       } catch (e) {
         console.error("Bulk cart recovery error for cart id: " + cart.id);
@@ -2050,10 +2201,16 @@ function CartRecovery() {
     fetchStats();
   };
 
+  const filteredCarts = carts.filter(c => 
+    c.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.items.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       {/* Recovery stats cards grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="glass-card p-5">
           <span className="text-xs font-semibold text-foreground/50 tracking-wider uppercase block mb-1">Recovered Revenue</span>
           <span className="text-2xl font-bold tracking-tight text-emerald-500">
@@ -2080,79 +2237,246 @@ function CartRecovery() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <h3 className="text-lg font-semibold">Abandoned Carts (Shopify)</h3>
-        <button
-          onClick={handleSendAllPending}
-          disabled={loading || isBulkSending}
-          className="bg-emerald-500 hover:bg-emerald-600 text-foreground px-4 py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
-        >
-          Send All Pending
-        </button>
+      {/* Action Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-semibold">Abandoned Carts (Shopify)</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Track and send WhatsApp reminders to customers who left items in checkouts.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Automation Switch */}
+          <div className="flex items-center gap-2 bg-foreground/5 border border-foreground/10 px-3 py-1.5 rounded-xl text-xs">
+            <span className="text-muted-foreground font-medium">Auto-pilot (Multi-step):</span>
+            <button onClick={toggleAutomation} className="text-emerald-500 hover:opacity-90 transition-opacity">
+              {automationEnabled ? (
+                <ToggleRight className="w-10 h-6 text-emerald-500 cursor-pointer" />
+              ) : (
+                <ToggleLeft className="w-10 h-6 text-muted-foreground cursor-pointer" />
+              )}
+            </button>
+          </div>
+
+          <button
+            onClick={handleSendAllPending}
+            disabled={loading || isBulkSending || carts.filter(c => c.status === "pending").length === 0}
+            className="bg-emerald-500 hover:bg-emerald-600 text-foreground px-4 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-lg"
+          >
+            <Send className="w-3.5 h-3.5" />
+            Send All Pending
+          </button>
+        </div>
       </div>
 
+      {/* Search Filter */}
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input 
+          type="text" 
+          placeholder="Search by customer name, phone, or products..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-foreground/5 border border-foreground/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm text-foreground"
+        />
+      </div>
+
+      {/* Carts Table */}
       {loading ? (
         <div className="flex justify-center py-20">
           <RefreshCcw className="w-8 h-8 animate-spin text-emerald-500" />
         </div>
       ) : (
         <div className="glass-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-foreground/[0.02] border-b border-foreground/10">
-              <tr>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Customer</th>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Phone</th>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Cart Value</th>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Items</th>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Abandoned At</th>
-                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Status</th>
-                <th className="text-right font-medium text-foreground/60 px-5 py-3.5">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-foreground/10">
-              {carts.length === 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-foreground/[0.02] border-b border-foreground/10">
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
-                    No recent abandoned checkouts found.
-                  </td>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Customer</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Phone</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Products Preview</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Cart Value</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Abandoned At</th>
+                  <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Recovery Step</th>
+                  <th className="text-right font-medium text-foreground/60 px-5 py-3.5">Action</th>
                 </tr>
-              ) : (
-                carts.map((row) => (
-                  <tr key={row.id} className="hover:bg-foreground/5 transition-colors">
-                    <td className="px-5 py-4 font-medium">{row.customer}</td>
-                    <td className="px-5 py-4 font-mono text-xs">{row.phone}</td>
-                    <td className="px-5 py-4">{row.cart_value}</td>
-                    <td className="px-5 py-4 text-xs text-muted-foreground max-w-xs truncate" title={row.items}>{row.items}</td>
-                    <td className="px-5 py-4 text-xs text-muted-foreground">
-                      {new Date(row.abandoned_at).toLocaleString('en-IN', {
-                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                      })}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
-                        row.status === 'sent' ? 'border-emerald-500/20 text-emerald-600 bg-emerald-500/10' :
-                        'border-amber-500/20 text-amber-600 bg-amber-500/10'
-                      }`}>
-                        {row.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      {row.status === 'pending' && (
-                        <button 
-                          onClick={() => handleSendRecovery(row)}
-                          className="text-xs font-semibold bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-lg hover:bg-emerald-500 hover:text-foreground transition-all"
-                        >
-                          Send Recovery
-                        </button>
-                      )}
+              </thead>
+              <tbody className="divide-y divide-foreground/10">
+                {filteredCarts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
+                      No matching abandoned checkouts found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredCarts.map((row) => (
+                    <tr key={row.id} className="hover:bg-foreground/5 transition-colors cursor-pointer group" onClick={() => setSelectedCart(row)}>
+                      <td className="px-5 py-4">
+                        <span className="font-semibold text-foreground group-hover:text-emerald-500 transition-colors block">{row.customer}</span>
+                        <span className="text-[10px] text-muted-foreground">ID: {row.id}</span>
+                      </td>
+                      <td className="px-5 py-4 font-mono text-xs text-foreground/80">{row.phone || '—'}</td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2 max-w-xs">
+                          {row.productImageUrl ? (
+                            <img src={row.productImageUrl} alt="Product preview" className="w-8 h-8 rounded-lg object-cover bg-foreground/5 border border-foreground/10 shrink-0" onError={(e: any) => { e.target.style.display = 'none'; }} />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-foreground/5 border border-foreground/10 flex items-center justify-center shrink-0">
+                              <ImageIcon className="w-3.5 h-3.5 text-muted-foreground/45" />
+                            </div>
+                          )}
+                          <span className="truncate text-xs text-foreground/80 font-medium" title={row.items}>{row.items}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 font-bold text-foreground">{row.cart_value}</td>
+                      <td className="px-5 py-4 text-xs text-muted-foreground">
+                        {new Date(row.abandoned_at).toLocaleString('en-IN', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border font-mono ${
+                          row.recovery_step === 'step1_sent' ? 'border-blue-500/20 text-blue-500 bg-blue-500/10' :
+                          row.recovery_step === 'step2_sent' ? 'border-purple-500/20 text-purple-500 bg-purple-500/10' :
+                          row.recovery_step === 'final_sent' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/10' :
+                          'border-amber-500/20 text-amber-500 bg-amber-500/10'
+                        }`}>
+                          {row.recovery_step === 'step1_sent' ? 'STEP 1 SENT' :
+                           row.recovery_step === 'step2_sent' ? 'STEP 2 SENT' :
+                           row.recovery_step === 'final_sent' ? 'FINAL SENT' :
+                           'PENDING'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {row.recovery_step === 'pending' && (
+                            <button 
+                              onClick={() => handleSendRecoveryStep(row, 'abandoned_cart')}
+                              className="text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2.5 py-1 rounded-lg hover:bg-emerald-500 hover:text-foreground transition-all"
+                            >
+                              Send Step 1
+                            </button>
+                          )}
+                          {row.recovery_step === 'step1_sent' && (
+                            <button 
+                              onClick={() => handleSendRecoveryStep(row, 'cart_followup')}
+                              className="text-[10px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2.5 py-1 rounded-lg hover:bg-blue-500 hover:text-foreground transition-all"
+                            >
+                              Send Step 2
+                            </button>
+                          )}
+                          {row.recovery_step === 'step2_sent' && (
+                            <button 
+                              onClick={() => handleSendRecoveryStep(row, 'cart_final')}
+                              className="text-[10px] font-bold bg-purple-500/10 text-purple-500 border border-purple-500/20 px-2.5 py-1 rounded-lg hover:bg-purple-500 hover:text-foreground transition-all"
+                            >
+                              Send Final
+                            </button>
+                          )}
+                          <a 
+                            href={row.abandoned_checkout_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="p-1.5 bg-foreground/5 border border-foreground/10 rounded-lg text-muted-foreground hover:text-foreground transition-all"
+                            title="Direct Recover Checkout Link"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
+      {/* Cart Items Detail Slide-over Drawer */}
+      <AnimatePresence>
+        {selectedCart && (
+          <div className="fixed inset-0 z-50 flex items-center justify-end">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedCart(null)} className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="glass-card absolute right-0 top-0 bottom-0 max-w-md w-full h-full border-l border-foreground/10 shadow-2xl flex flex-col z-10">
+              <div className="flex justify-between items-center p-5 border-b border-foreground/5">
+                <div>
+                  <h3 className="font-semibold text-base">Cart Details</h3>
+                  <span className="text-xs text-muted-foreground">{selectedCart.customer}</span>
+                </div>
+                <button onClick={() => setSelectedCart(null)} className="p-1.5 hover:bg-foreground/5 text-muted-foreground hover:text-foreground rounded-lg"><span className="text-lg">✕</span></button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+                <div className="bg-foreground/5 p-4 rounded-xl border border-foreground/10 space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Phone:</span> <strong className="font-mono">{selectedCart.phone || '—'}</strong></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Status:</span> <strong>{selectedCart.status.toUpperCase()}</strong></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Step state:</span> <strong className="text-emerald-500 uppercase">{selectedCart.recovery_step.replace('_', ' ')}</strong></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Total value:</span> <strong className="text-foreground">{selectedCart.cart_value}</strong></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Abandoned at:</span> <strong>{new Date(selectedCart.abandoned_at).toLocaleString('en-IN')}</strong></div>
+                </div>
+
+                {/* Items List */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-semibold text-foreground/60 uppercase">Cart Items ({selectedCart.itemsRaw?.length || 0})</h4>
+                  <div className="space-y-2.5">
+                    {selectedCart.itemsRaw?.map((item: any, i: number) => (
+                      <div key={i} className="flex gap-3 bg-foreground/[0.02] border border-foreground/5 p-3 rounded-xl hover:bg-foreground/[0.04] transition-all">
+                        {item.image ? (
+                          <img src={item.image} alt={item.title} className="w-12 h-12 rounded-lg object-cover bg-foreground/5 border border-foreground/10 shrink-0" onError={(e: any) => { e.target.style.display = 'none'; }} />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-foreground/5 border border-foreground/10 flex items-center justify-center shrink-0">
+                            <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-xs text-foreground/90 block truncate">{item.title}</span>
+                          <span className="text-[10px] text-muted-foreground block mt-0.5">Quantity: {item.quantity || 1}</span>
+                          <span className="text-[10px] text-muted-foreground font-semibold block">₹{parseFloat(item.price || 0).toLocaleString('en-IN')} each</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recovery actions inside drawer */}
+                <div className="space-y-2.5 pt-3 border-t border-foreground/5">
+                  <h4 className="text-xs font-semibold text-foreground/60 uppercase">Trigger Recovery Template</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button 
+                      onClick={() => handleSendRecoveryStep(selectedCart, 'abandoned_cart')}
+                      className="px-2.5 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-foreground rounded-xl text-[10px] font-bold transition-all"
+                    >
+                      Step 1 (Initial)
+                    </button>
+                    <button 
+                      onClick={() => handleSendRecoveryStep(selectedCart, 'cart_followup')}
+                      className="px-2.5 py-2 bg-blue-500/10 text-blue-500 border border-blue-500/20 hover:bg-blue-500 hover:text-foreground rounded-xl text-[10px] font-bold transition-all"
+                    >
+                      Step 2 (Promo)
+                    </button>
+                    <button 
+                      onClick={() => handleSendRecoveryStep(selectedCart, 'cart_final')}
+                      className="px-2.5 py-2 bg-purple-500/10 text-purple-500 border border-purple-500/20 hover:bg-purple-500 hover:text-foreground rounded-xl text-[10px] font-bold transition-all"
+                    >
+                      Step 3 (Urgent)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-foreground/5 bg-foreground/[0.01] flex gap-2">
+                <a 
+                  href={selectedCart.abandoned_checkout_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-foreground py-2.5 rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 shadow-lg"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Direct Checkout Link
+                </a>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
