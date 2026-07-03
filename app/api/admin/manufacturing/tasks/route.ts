@@ -40,7 +40,7 @@ export async function GET(req: Request) {
       },
     });
 
-    let combinedTasks = manualTasks.map(t => ({
+    let combinedTasks = manualTasks.map((t: any) => ({
       id: t.id,
       title: t.title,
       description: t.description,
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
         orderBy: { updatedAt: "desc" },
       });
 
-      const productionTasks = pendingBatches.map(b => ({
+      const productionTasks = pendingBatches.map((b: any) => ({
         id: `PROD-${b.id}`,
         title: `Production: ${b.productName} (${b.batchCode})`,
         description: `Currently at: ${b.currentStage}. Quantity: ${b.quantity}`,
@@ -250,7 +250,7 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: "Could not allocate batch code" }, { status: 500 });
       }
 
-      const batch = await prisma.$transaction(async (tx) => {
+      const batch = await prisma.$transaction(async (tx: any) => {
         const newBatch = await tx.mfgProductionBatch.create({
           data: {
             batchCode,
@@ -311,7 +311,7 @@ export async function PATCH(req: Request) {
 
       const dName = sourceTask.designName || sourceTask.title;
 
-      const vendorTask = await prisma.$transaction(async (tx) => {
+      const vendorTask = await prisma.$transaction(async (tx: any) => {
         // Create new VENDOR_SELECTION task
         const newTask = await tx.mfgTask.create({
           data: {

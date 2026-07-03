@@ -64,6 +64,9 @@ const prismaClientSingleton = () => {
 
   if (!pgUrl || pgUrl.includes('placeholder') || pgUrl === '' || pgUrl.includes('(not available)')) {
     console.error('[DB] No database URL found. Set DATABASE_URL.');
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[DB] Critical database configuration error: SUPABASE_DATABASE_URL / DATABASE_URL is missing or invalid in production!');
+    }
     return createMockPrismaClient('no_db_url');
   }
 
@@ -159,6 +162,9 @@ const prismaClientSingleton = () => {
     return extendedClient as any;
   } catch (error: any) {
     console.error('[DB] Critical Prisma initialization error:', error.message);
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`[DB] Critical Prisma initialization error in production: ${error.message}`);
+    }
     return createMockPrismaClient(`init_error: ${error.message}`);
   }
 };

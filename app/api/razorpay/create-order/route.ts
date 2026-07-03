@@ -7,7 +7,7 @@ import Razorpay from 'razorpay';
 
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const { allowed, remaining } = rateLimit(ip, { maxRequests: 10, windowMs: 60_000 });
+  const { allowed, remaining } = await rateLimit(ip, { maxRequests: 10, windowMs: 60_000 });
 
   if (!allowed) {
     paymentLog('warn', 'create-order', { ip, message: 'Rate limit exceeded' });

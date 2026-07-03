@@ -45,6 +45,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { mfgFetch } from "@/lib/manufacturing/mfg-fetch";
 import { formatDateTimeIST } from "@/lib/manufacturing/ist";
+import WorkDriveGallery from "@/components/workdrive/WorkDriveGallery";
 
 
 type TaskType = "MANUAL" | "PRODUCTION" | "VENDOR_SELECTION" | "VENDOR_SEARCH" | "DESIGN_SELECTION" | "DESIGN_APPROVAL";

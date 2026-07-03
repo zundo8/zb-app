@@ -94,7 +94,7 @@ export async function GET(req: Request) {
     });
 
     // Process carts to map final computed status
-    const mappedCarts = carts.map(cart => {
+    const mappedCarts = carts.map((cart: any) => {
       let computedStatus = cart.status;
       if (cart.status === "active" && cart.lastActivityAt <= thirtyMinutesAgo) {
         computedStatus = "abandoned";

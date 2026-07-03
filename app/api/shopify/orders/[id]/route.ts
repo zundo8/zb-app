@@ -75,12 +75,12 @@ export async function GET(
                 estimatedDelivery: status.estimatedDelivery ? new Date(status.estimatedDelivery) : undefined,
                 events: JSON.stringify(status.events)
               }
-            }).catch(e => console.error('[Order API] DB status update failed:', e));
+            }).catch((e: any) => console.error('[Order API] DB status update failed:', e));
 
             prisma.order.update({
               where: { id: localOrder.id },
               data: { deliveryStatus: status.status }
-            }).catch(e => console.error('[Order API] DB order update failed:', e));
+            }).catch((e: any) => console.error('[Order API] DB order update failed:', e));
           }
         }
       } catch (e) {

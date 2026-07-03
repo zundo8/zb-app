@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const sample = await prisma.$transaction(async (tx) => {
+    const sample = await prisma.$transaction(async (tx: any) => {
       // 1. Create the sample
       const newSample = await tx.mfgSample.create({
         data: {

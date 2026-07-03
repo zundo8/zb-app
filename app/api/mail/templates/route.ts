@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Map htmlBody column to html to match Module 4 requirements
-    const formattedTemplates = templates.map((t) => ({
+    const formattedTemplates = templates.map((t: any) => ({
       id: t.id,
       name: t.name,
       subject: t.subject,

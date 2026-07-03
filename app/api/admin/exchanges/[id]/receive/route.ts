@@ -27,7 +27,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: "Exchange must be in approved/return_created status to mark as received" }, { status: 400 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Update exchange request status
       const finalQcStatus = qcStatus || "passed";
       const newStatus = finalQcStatus === "passed" ? "qc_passed" : "received";

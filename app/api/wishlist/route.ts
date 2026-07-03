@@ -78,8 +78,8 @@ export async function GET(req: Request) {
 
     // Extract all shopify product IDs
     const shopifyProductIds = wishlistItems
-      .map(item => item.product.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//, ''))
-      .filter(id => !!id);
+      .map((item: any) => item.product.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//, ''))
+      .filter((id: any) => !!id);
 
     let shopifyProducts: ShopifyProduct[] = [];
     if (shopifyProductIds.length > 0) {
@@ -94,7 +94,7 @@ export async function GET(req: Request) {
     }
 
     // Map to a more useful format for the app
-    const items = wishlistItems.map(item => {
+    const items = wishlistItems.map((item: any) => {
       const cleanId = item.product.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//, '');
       const shopifyProduct = shopifyProducts.find(p => String(p.id) === cleanId);
 

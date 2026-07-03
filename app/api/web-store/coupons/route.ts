@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Coupon code already exists" }, { status: 400 });
     }
 
-    const newCoupon = await prisma.$transaction(async (tx) => {
+    const newCoupon = await prisma.$transaction(async (tx: any) => {
       // 1. Create WebStoreCoupon
       const coupon = await tx.webStoreCoupon.create({
         data: {

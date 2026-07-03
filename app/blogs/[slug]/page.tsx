@@ -11,7 +11,7 @@ interface BlogPostProps {
   };
 }
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 // Generate dynamic SEO metadata for search engines and crawlers
 export async function generateMetadata({ params }: BlogPostProps): Promise<Metadata> {

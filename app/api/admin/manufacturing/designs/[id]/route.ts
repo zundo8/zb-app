@@ -42,7 +42,7 @@ export async function GET(
       where: {
         OR: [
           { entityId: id },
-          { entityId: { in: design.samples.map((s) => s.id) } }
+          { entityId: { in: design.samples.map((s: any) => s.id) } }
         ]
       },
       orderBy: { createdAt: "desc" }
@@ -103,7 +103,7 @@ export async function DELETE(
 
     const actor = await getManufacturingActorName();
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // 1. Delete design attachments
       await tx.mfgDesignAttachment.deleteMany({
         where: { assignmentId: id }

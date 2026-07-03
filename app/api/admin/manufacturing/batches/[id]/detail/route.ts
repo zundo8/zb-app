@@ -30,8 +30,8 @@ export async function GET(
       where: { productionBatchId: id, type: "OUT" },
     });
 
-    const fabricTotal = fabricMovs.reduce((s, m) => s + (m.totalValue || 0), 0);
-    const miscTotal = batch.miscExpenses.reduce((s, m) => s + m.amount, 0);
+    const fabricTotal = fabricMovs.reduce((s: any, m: any) => s + (m.totalValue || 0), 0);
+    const miscTotal = batch.miscExpenses.reduce((s: any, m: any) => s + m.amount, 0);
 
     const breakdown = computeBatchCostBreakdown({
       quantity: batch.quantity,
@@ -40,7 +40,7 @@ export async function GET(
       miscTotal,
     });
 
-    const timeline = batch.stageLogs.map((l) => ({
+    const timeline = batch.stageLogs.map((l: any) => ({
       id: l.id,
       action: l.action,
       fromStage: l.fromStage,

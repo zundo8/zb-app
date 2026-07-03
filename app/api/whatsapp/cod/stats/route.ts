@@ -81,7 +81,7 @@ export async function GET() {
       }
     });
 
-    const verifications = recentOrders.map(o => ({
+    const verifications = recentOrders.map((o: any) => ({
       id: o.id,
       shopifyOrderId: o.shopifyOrderId || o.id,
       customerName: o.customer?.name || 'Customer',

@@ -30,8 +30,8 @@ export async function GET() {
     });
 
     const activeChatUsers = customers
-      .filter(c => c._count.communityMessages > 0)
-      .map(c => ({
+      .filter((c: any) => c._count.communityMessages > 0)
+      .map((c: any) => ({
         id: c.id,
         name: c.name,
         email: c.email,
@@ -42,7 +42,7 @@ export async function GET() {
         lastActive: c.communityMessages[0]?.createdAt || c.createdAt,
         joinedAt: c.createdAt,
       }))
-      .sort((a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime());
+      .sort((a: any, b: any) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime());
 
     // Analytics: Growth over last 30 days
     const thirtyDaysAgo = new Date();
@@ -50,7 +50,7 @@ export async function GET() {
 
     // Process growth data for chart (group by date)
     const growthData: Record<string, number> = {};
-    activeChatUsers.forEach(u => {
+    activeChatUsers.forEach((u: any) => {
       const date = new Date(u.joinedAt).toISOString().split('T')[0];
       if (new Date(u.joinedAt) >= thirtyDaysAgo) {
         growthData[date] = (growthData[date] || 0) + 1;

@@ -155,7 +155,7 @@ export async function POST(req: Request) {
         })
         .then(res => res.json())
         .then(resData => console.log('[Cancel Order] Email webhook success:', resData))
-        .catch(err => console.error('[Cancel Order] Email webhook fetch error:', err));
+        .catch((err: any) => console.error('[Cancel Order] Email webhook fetch error:', err));
       }
     } catch (emailErr) {
       console.error('[Cancel Order] Background email trigger failed:', emailErr);

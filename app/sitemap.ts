@@ -2,6 +2,8 @@ import { MetadataRoute } from 'next'
 import { fetchProducts, fetchCollections } from '@/lib/shopify-admin'
 import prisma from '@/lib/db'
 
+export const revalidate = 3600; // ISR: regenerate every 1 hour
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://zicabella.com'
 
@@ -105,14 +107,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85,
   }))
 
-  const collectionPages: MetadataRoute.Sitemap = collections.map((c) => ({
+  const collectionPages: MetadataRoute.Sitemap = collections.map((c: any) => ({
     url: `${baseUrl}/collections/${c.handle}`,
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
     priority: 0.9,
   }))
 
-  const policyPages: MetadataRoute.Sitemap = policies.map((policy) => ({
+  const policyPages: MetadataRoute.Sitemap = policies.map((policy: any) => ({
     url: `${baseUrl}/policies/${policy.handle}`,
     lastModified: new Date(policy.updatedAt || Date.now()),
     changeFrequency: 'monthly' as const,

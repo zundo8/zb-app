@@ -87,17 +87,17 @@ export async function GET(req: Request) {
         embroidery += ca;
     }
 
-    const fabricTotal = fabricMovs.reduce((s, m) => s + (m.totalValue || 0), 0);
-    const miscTotal = misc.reduce((s, m) => s + m.amount, 0);
-    const stageLogTotal = logs.reduce((s, l) => s + (l.costAmount || 0), 0);
+    const fabricTotal = fabricMovs.reduce((s: any, m: any) => s + (m.totalValue || 0), 0);
+    const miscTotal = misc.reduce((s: any, m: any) => s + m.amount, 0);
+    const stageLogTotal = logs.reduce((s: any, l: any) => s + (l.costAmount || 0), 0);
     const grand = fabricTotal + stageLogTotal + miscTotal;
 
     const batchIds = new Set<string>();
-    logs.forEach((l) => batchIds.add(l.batchId));
-    misc.forEach((m) => {
+    logs.forEach((l: any) => batchIds.add(l.batchId));
+    misc.forEach((m: any) => {
       if (m.batchId) batchIds.add(m.batchId);
     });
-    fabricMovs.forEach((m) => {
+    fabricMovs.forEach((m: any) => {
       if (m.productionBatchId) batchIds.add(m.productionBatchId);
     });
 
@@ -117,10 +117,10 @@ export async function GET(req: Request) {
       batches = [];
     }
 
-    const byBatch = batches.map((b) => {
-      const bLogs = logs.filter((l) => l.batchId === b.id);
-      const bMisc = misc.filter((m) => m.batchId === b.id);
-      const bFab = fabricMovs.filter((m) => m.productionBatchId === b.id);
+    const byBatch = batches.map((b: any) => {
+      const bLogs = logs.filter((l: any) => l.batchId === b.id);
+      const bMisc = misc.filter((m: any) => m.batchId === b.id);
+      const bFab = fabricMovs.filter((m: any) => m.productionBatchId === b.id);
 
       let bw = 0;
       let bp = 0;
@@ -133,9 +133,9 @@ export async function GET(req: Request) {
         else if (l.action === "SEND_PRINTING" || l.action === "RETURN_PRINTING") bp += ca;
         else if (l.action === "SEND_EMBROIDERY" || l.action === "RETURN_EMBROIDERY") be += ca;
       }
-      const bFabric = bFab.reduce((s, m) => s + (m.totalValue || 0), 0);
-      const bMiscSum = bMisc.reduce((s, m) => s + m.amount, 0);
-      const total = bFabric + bLogs.reduce((s, l) => s + (l.costAmount || 0), 0) + bMiscSum;
+      const bFabric = bFab.reduce((s: any, m: any) => s + (m.totalValue || 0), 0);
+      const bMiscSum = bMisc.reduce((s: any, m: any) => s + m.amount, 0);
+      const total = bFabric + bLogs.reduce((s: any, l: any) => s + (l.costAmount || 0), 0) + bMiscSum;
       const qty = Math.max(1, b.quantity);
       const washRounded = Math.round(bw * 100) / 100;
       return {
@@ -167,7 +167,7 @@ export async function GET(req: Request) {
         totalMiscellaneous: Math.round(miscTotal * 100) / 100,
         grandTotalManufacturing: Math.round(grand * 100) / 100,
       },
-      batches: byBatch.sort((a, b) => a.batchCode.localeCompare(b.batchCode)),
+      batches: byBatch.sort((a: any, b: any) => a.batchCode.localeCompare(b.batchCode)),
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

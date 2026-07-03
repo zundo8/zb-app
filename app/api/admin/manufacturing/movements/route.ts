@@ -118,7 +118,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const { row, totalValue } = await prisma.$transaction(async (tx) => {
+    const { row, totalValue } = await prisma.$transaction(async (tx: any) => {
       return executeFabricMovement(tx, {
         fabricId,
         type,

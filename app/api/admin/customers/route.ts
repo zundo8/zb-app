@@ -92,10 +92,10 @@ export async function GET(req: Request) {
       })();
     }
 
-    let payload = dbCustomers.map((c) => {
+    let payload = dbCustomers.map((c: any) => {
       const displayName = c.name || c.email || (c.shopifyId !== 'anonymous' ? c.shopifyId : 'Anonymous User');
       const totalOrders = c.ordersCount || c.orders.length;
-      const totalSpent = c.totalSpent || c.orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+      const totalSpent = c.totalSpent || c.orders.reduce((sum: any, o: any) => sum + (o.totalPrice || 0), 0);
 
       return {
         id: c.id,
@@ -108,7 +108,7 @@ export async function GET(req: Request) {
         totalOrders,
         totalSpent: isNaN(totalSpent) ? 0 : totalSpent,
         tags: '',
-        orders: c.orders.map((o) => ({
+        orders: c.orders.map((o: any) => ({
           id: o.id,
           shopifyOrderId: o.shopifyOrderId,
           status: o.status,
@@ -116,7 +116,7 @@ export async function GET(req: Request) {
           paymentStatus: o.paymentStatus,
           fulfillmentStatus: o.fulfillmentStatus,
           createdAt: o.createdAt,
-          items: o.items.map((i) => ({
+          items: o.items.map((i: any) => ({
             id: i.id,
             title: i.title,
             quantity: i.quantity,

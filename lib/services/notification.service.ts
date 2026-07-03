@@ -88,7 +88,7 @@ export const NotificationService = {
     let failureCount = 0;
 
     // Send to ALL tokens on ALL devices for this user for redundancy and speed
-    const deliveryPromises = devices.map(async (device) => {
+    const deliveryPromises = devices.map(async (device: any) => {
       let deviceSuccess = false;
 
       // 1. Direct APNs (Primary for iOS)

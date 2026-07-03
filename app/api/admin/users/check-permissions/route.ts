@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 
     if (permission.pages && path && !isApi) {
       const allowedPages = permission.pages.split(',');
-      const hasPageAccess = allowedPages.some(allowedPage => 
+      const hasPageAccess = allowedPages.some((allowedPage: any) => 
         path === allowedPage || path.startsWith(allowedPage + "/")
       );
       if (!hasPageAccess) {

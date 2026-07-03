@@ -36,7 +36,7 @@ export async function PATCH(
 
     const actor = await getManufacturingActorName();
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // 1. Update the revision details
       const updateData: any = {};
       if (designerResponse !== undefined) updateData.designerResponse = designerResponse;

@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
               if (shippingAddress) {
                 await shipOrder(
                   order.id,
-                  order.items.map(i => ({
+                  order.items.map((i: any) => ({
                     title: i.title,
                     sku: i.sku || undefined,
                     quantity: i.quantity,

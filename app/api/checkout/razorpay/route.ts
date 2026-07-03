@@ -36,7 +36,13 @@ function getPublicKeyId(): string {
   return process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || "";
 }
 
+import { checkRateLimit } from "@/lib/rate-limit";
+
 export async function POST(req: Request) {
+  const rateLimitResult = await checkRateLimit(req, "checkout-razorpay", { maxRequests: 30, windowMs: 60_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
+  }
   try {
     const body = await req.json();
     const { amount, currency, receipt, notes } = body;

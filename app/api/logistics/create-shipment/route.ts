@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    const items = order.items.map(i => ({
+    const items = order.items.map((i: any) => ({
       title: i.title,
       sku: i.sku || undefined,
       quantity: i.quantity,

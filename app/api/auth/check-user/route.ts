@@ -4,7 +4,13 @@ import { searchCustomerByPhone } from "@/lib/shopify-admin";
 
 export const dynamic = "force-dynamic";
 
+import { checkRateLimit } from "@/lib/rate-limit";
+
 export async function POST(req: Request) {
+  const rateLimitResult = await checkRateLimit(req, "auth-check-user", { maxRequests: 30, windowMs: 60_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
+  }
   try {
     const { phone } = await req.json();
 

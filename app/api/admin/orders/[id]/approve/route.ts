@@ -135,7 +135,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         })
         .then(res => res.json())
         .then(resData => console.log('[Admin Order Approve Status Trigger] Email status webhook success:', resData))
-        .catch(err => console.error('[Admin Order Approve Status Trigger] Email status webhook fetch error:', err));
+        .catch((err: any) => console.error('[Admin Order Approve Status Trigger] Email status webhook fetch error:', err));
       }
     } catch (emailErr) {
       console.error('[Admin Order Approve Status Trigger] Background email trigger failed:', emailErr);

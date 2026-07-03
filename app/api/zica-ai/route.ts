@@ -2,6 +2,7 @@ import { OpenAI } from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import prisma from "@/lib/db";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // Helper to format text line by line
 const ZICA_OPENAI_SYSTEM_PROMPT = `You are Zica, the intelligent personal fashion AI for Zica Bella — a premium fashion brand based in India.
@@ -26,6 +27,10 @@ BEHAVIOR & TONE RULES:
 5. Keep responses direct and under 180 words.`;
 
 export async function POST(req: NextRequest) {
+  const rateLimitResult = await checkRateLimit(req, "zica-ai", { maxRequests: 30, windowMs: 60_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
+  }
   try {
     // Validate API key is present
     if (!process.env.OPENAI_API_KEY) {
@@ -100,8 +105,8 @@ export async function POST(req: NextRequest) {
         });
 
         if (topProducts.length > 0 || topTrends.length > 0) {
-          const productNames = topProducts.map(p => p.key).join(", ");
-          const trendNames = topTrends.map(t => t.key).join(", ");
+          const productNames = topProducts.map((p: any) => p.key).join(", ");
+          const trendNames = topTrends.map((t: any) => t.key).join(", ");
           globalContext = `\n\nCurrently trending at Zica Bella: ${productNames}.`;
           if (trendNames) {
             globalContext += ` Common trends include: ${trendNames}.`;
@@ -125,7 +130,7 @@ export async function POST(req: NextRequest) {
         });
         
         if (history.length > 0) {
-          const historyText = history.reverse().map(h => `User: ${h.userMessage}\nZica: ${h.aiResponse}`).join("\n\n");
+          const historyText = history.reverse().map((h: any) => `User: ${h.userMessage}\nZica: ${h.aiResponse}`).join("\n\n");
           userContext += `\n\nRecent Conversation History:\n${historyText}`;
         }
       } catch (err) {
@@ -146,7 +151,7 @@ export async function POST(req: NextRequest) {
       model,
       messages: [
         { role: "system" as const, content: systemPrompt },
-        ...openaiMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ...openaiMessages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
       ],
       max_tokens: 1024,
     });
@@ -155,7 +160,7 @@ export async function POST(req: NextRequest) {
 
     // Build conversation history for useClaude hook persistence
     returnConversationHistory = [
-      ...openaiMessages.map(m => ({ role: m.role, content: m.content })),
+      ...openaiMessages.map((m: any) => ({ role: m.role, content: m.content })),
       { role: "assistant", content: text },
     ];
 

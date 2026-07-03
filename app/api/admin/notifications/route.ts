@@ -121,7 +121,7 @@ export async function GET(req: Request) {
 
     // Map each table to a unified notification schema
     const mappedNotifications = [
-      ...auditLogs.map((item) => ({
+      ...auditLogs.map((item: any) => ({
         id: item.id,
         userId: item.userId,
         action: item.action,
@@ -136,7 +136,7 @@ export async function GET(req: Request) {
           : null,
       })),
 
-      ...orders.map((item) => ({
+      ...orders.map((item: any) => ({
         id: `order-${item.id}`,
         userId: item.customerId,
         action: "ORDER_PLACED",
@@ -155,7 +155,7 @@ export async function GET(req: Request) {
           : null,
       })),
 
-      ...returnRequests.map((item) => ({
+      ...returnRequests.map((item: any) => ({
         id: `return-${item.id}`,
         userId: item.customerId,
         action: "RETURN_REQUESTED",
@@ -173,7 +173,7 @@ export async function GET(req: Request) {
           : null,
       })),
 
-      ...exchangeRequests.map((item) => ({
+      ...exchangeRequests.map((item: any) => ({
         id: `exchange-${item.id}`,
         userId: item.customerId,
         action: "EXCHANGE_REQUESTED",
@@ -191,7 +191,7 @@ export async function GET(req: Request) {
           : null,
       })),
 
-      ...customers.map((item) => ({
+      ...customers.map((item: any) => ({
         id: `cust-${item.id}`,
         userId: item.id,
         action: "CUSTOMER_SIGNUP",
@@ -207,7 +207,7 @@ export async function GET(req: Request) {
         user: { name: item.name, email: item.email, role: "CUSTOMER" },
       })),
 
-      ...supportTickets.map((item) => ({
+      ...supportTickets.map((item: any) => ({
         id: `ticket-${item.id}`,
         userId: item.customerId,
         action: "SUPPORT_TICKET_CREATED",
@@ -227,7 +227,7 @@ export async function GET(req: Request) {
         },
       })),
 
-      ...pushNotifications.map((item) => ({
+      ...pushNotifications.map((item: any) => ({
         id: `push-${item.id}`,
         userId: null,
         action: "PUSH_NOTIFICATION_SENT",
@@ -243,7 +243,7 @@ export async function GET(req: Request) {
         user: { name: "System", email: item.createdBy, role: "SUPER_ADMIN" },
       })),
 
-      ...scanRecords.map((item) => ({
+      ...scanRecords.map((item: any) => ({
         id: `scan-${item.id}`,
         userId: null,
         action: `INVENTORY_${item.actionType}`,
@@ -259,7 +259,7 @@ export async function GET(req: Request) {
         user: { name: item.staffName, email: "", role: "ADMIN" },
       })),
 
-      ...appLogins.map((item) => ({
+      ...appLogins.map((item: any) => ({
         id: `login-${item.id}`,
         userId: null,
         action: `MOBILE_APP_LOGIN_${item.status}`,
@@ -397,7 +397,7 @@ export async function GET(req: Request) {
     }
 
     const counts = await Promise.all(countPromises);
-    const totalCount = counts.reduce((acc, curr) => acc + curr, 0);
+    const totalCount = counts.reduce((acc: any, curr: any) => acc + curr, 0);
 
     return NextResponse.json({
       notifications: paginatedNotifications,

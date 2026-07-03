@@ -21,7 +21,7 @@ export async function GET() {
           createdAt: "desc",
         },
       });
-      const validCoupons = coupons.filter((coupon) => {
+      const validCoupons = coupons.filter((coupon: any) => {
         if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
           return false;
         }
@@ -101,7 +101,7 @@ export async function GET() {
           createdAt: "desc",
         },
       });
-      const validCoupons = coupons.filter((coupon) => {
+      const validCoupons = coupons.filter((coupon: any) => {
         if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
           return false;
         }

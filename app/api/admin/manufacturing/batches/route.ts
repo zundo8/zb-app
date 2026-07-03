@@ -44,7 +44,7 @@ export async function GET(req: Request) {
       },
     });
 
-    const ids = batches.map((b) => b.id);
+    const ids = batches.map((b: any) => b.id);
     const fabBy = new Map<string, number>();
     const stageBy = new Map<string, number>();
     const miscBy = new Map<string, number>();
@@ -80,7 +80,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const enriched = batches.map((b) => {
+    const enriched = batches.map((b: any) => {
       const totalCostSoFar =
         (fabBy.get(b.id) || 0) + (stageBy.get(b.id) || 0) + (miscBy.get(b.id) || 0);
       return {
@@ -121,7 +121,7 @@ export async function POST(req: Request) {
 
     const actor = await getManufacturingActorName();
 
-    const batch = await prisma.$transaction(async (tx) => {
+    const batch = await prisma.$transaction(async (tx: any) => {
       let batchCode = "";
       for (let i = 0; i < 12; i++) {
         const candidate = suggestBatchCode();

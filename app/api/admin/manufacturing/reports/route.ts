@@ -160,7 +160,7 @@ export async function GET(req: Request) {
         designsPerUser,
         sampleApprovalBreakdown,
         productionStageDistribution,
-        delayedTasks: delayedTasks.map((t) => ({
+        delayedTasks: delayedTasks.map((t: any) => ({
           styleCode: t.styleCode,
           styleName: t.styleName,
           deadline: t.submissionDeadline,
@@ -221,12 +221,12 @@ export async function GET(req: Request) {
         }
       });
       const topPerformers = users
-        .map((u) => ({
+        .map((u: any) => ({
           name: u.name || u.email,
-          scoreDelta: u.mfgPerformanceEvents.reduce((acc, c) => acc + c.scoreDelta, 0)
+          scoreDelta: u.mfgPerformanceEvents.reduce((acc: any, c: any) => acc + c.scoreDelta, 0)
         }))
-        .filter((u) => u.scoreDelta > 0)
-        .sort((a, b) => b.scoreDelta - a.scoreDelta)
+        .filter((u: any) => u.scoreDelta > 0)
+        .sort((a: any, b: any) => b.scoreDelta - a.scoreDelta)
         .slice(0, 5);
 
       // vendorUsage

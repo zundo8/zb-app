@@ -5,20 +5,14 @@ import Razorpay from 'razorpay';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import prisma from '@/lib/db';
 
-const corsJsonHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-} as const;
+import { getCorsHeaders, handleCorsOptions } from '@/lib/cors';
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: corsJsonHeaders,
-  });
+export async function OPTIONS(req: Request) {
+  return handleCorsOptions(req);
 }
 
 export async function POST(req: Request) {
+  const corsHeaders = getCorsHeaders(req);
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = await req.json();
     
@@ -26,7 +20,7 @@ export async function POST(req: Request) {
       console.error('[Verify] Missing fields:', { razorpay_order_id, razorpay_payment_id, has_signature: !!razorpay_signature });
       return NextResponse.json(
         { success: false, error: 'Missing payment fields' },
-        { status: 400, headers: corsJsonHeaders }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -38,7 +32,7 @@ export async function POST(req: Request) {
       console.error('[Verify] Credential resolution failed:', credErr.message);
       return NextResponse.json(
         { success: false, error: 'Payment gateway not configured correctly.' },
-        { status: 500, headers: corsJsonHeaders }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -62,7 +56,7 @@ export async function POST(req: Request) {
         });
         return NextResponse.json(
           { success: false, error: 'Payment verification failed: Signature mismatch.' },
-          { status: 400, headers: corsJsonHeaders }
+          { status: 400, headers: corsHeaders }
         );
       }
     } else {
@@ -81,14 +75,14 @@ export async function POST(req: Request) {
         });
         return NextResponse.json(
           { success: false, error: 'Payment verification failed: order mismatch.' },
-          { status: 400, headers: corsJsonHeaders }
+          { status: 400, headers: corsHeaders }
         );
       }
 
       if (!['captured', 'authorized'].includes(payment.status)) {
         return NextResponse.json(
           { success: false, error: `Payment is not complete yet (${payment.status}).` },
-          { status: 400, headers: corsJsonHeaders }
+          { status: 400, headers: corsHeaders }
         );
       }
     }
@@ -220,12 +214,12 @@ export async function POST(req: Request) {
       console.warn('[Verify] Failed to update local order:', dbErr.message);
     }
 
-    return NextResponse.json({ success: true, payment_id: razorpay_payment_id }, { headers: corsJsonHeaders });
+    return NextResponse.json({ success: true, payment_id: razorpay_payment_id }, { headers: corsHeaders });
   } catch (err: unknown) {
     console.error('[Verify] Internal Error:', err);
     return NextResponse.json(
       { success: false, error: 'Internal server error during verification' },
-      { status: 500, headers: corsJsonHeaders }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

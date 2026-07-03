@@ -68,7 +68,7 @@ export async function GET() {
       // Map customers to conversations
       for (const conv of conversations) {
         const conv10 = conv.phoneNumber.slice(-10);
-        const match = customers.find(c => c.phone && c.phone.replace(/\D/g, '').endsWith(conv10));
+        const match = customers.find((c: any) => c.phone && c.phone.replace(/\D/g, '').endsWith(conv10));
         if (match) {
           conv.customerName = match.name;
           conv.customerId = match.id;

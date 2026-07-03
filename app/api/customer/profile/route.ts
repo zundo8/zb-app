@@ -147,7 +147,7 @@ export async function GET() {
 
     // Enrich all customer orders
     const enrichedOrders = await Promise.all(
-      (customer.orders || []).map(async (o) => {
+      (customer.orders || []).map(async (o: any) => {
         const orderNumber = await enrichOrderNumber(o);
         return { ...o, orderNumber };
       })
@@ -155,7 +155,7 @@ export async function GET() {
 
     // Enrich return requests orders
     const enrichedReturnRequests = await Promise.all(
-      returnRequests.map(async (req) => {
+      returnRequests.map(async (req: any) => {
         const orderNumber = await enrichOrderNumber(req.order);
         return {
           ...req,
@@ -169,7 +169,7 @@ export async function GET() {
 
     // Enrich exchange requests orders
     const enrichedExchangeRequests = await Promise.all(
-      exchangeRequests.map(async (req) => {
+      exchangeRequests.map(async (req: any) => {
         const orderNumber = await enrichOrderNumber(req.order);
         return {
           ...req,

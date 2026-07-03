@@ -81,12 +81,12 @@ export async function POST(req: Request) {
       };
     }));
 
-    const returnRequest = await prisma.$transaction(async (tx) => {
+    const returnRequest = await prisma.$transaction(async (tx: any) => {
       const rr = await tx.returnRequest.create({
         data: {
           orderId,
           customerId,
-          estimatedRefund: parseFloat(estimatedRefund) || resolvedItems.reduce((acc, i) => acc + i.refundAmount, 0),
+          estimatedRefund: parseFloat(estimatedRefund) || resolvedItems.reduce((acc: any, i: any) => acc + i.refundAmount, 0),
           status: 'pending_approval',
           returns: {
             create: resolvedItems.map((item: any) => ({

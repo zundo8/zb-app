@@ -24,7 +24,7 @@ export async function voidExpiredCredits(customerId: string) {
       const toVoid = cred.remainingAmount;
       if (toVoid <= 0) continue;
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         // Double check within transaction
         const currentCred = await tx.storeCredit.findUnique({
           where: { id: cred.id }
@@ -114,7 +114,7 @@ export async function debitStoreCredits(customerId: string, amountToDebit: numbe
 
   let remainingDebit = amountToDebit;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     for (const cred of sortedCredits) {
       if (remainingDebit <= 0) break;
 

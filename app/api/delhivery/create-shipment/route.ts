@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       shopifyOrderId: order.shopifyOrderId.replace('#', ''),
       paymentMode: order.paymentMethod === 'COD' ? 'COD' : 'Prepaid',
       total: order.totalPrice,
-      quantity: order.items.reduce((acc, item) => acc + item.quantity, 0),
+      quantity: order.items.reduce((acc: any, item: any) => acc + item.quantity, 0),
       weight: weight ? Number(weight) : 500,
       shipment_length: shipment_length ? Number(shipment_length) : 30,
       shipment_width: shipment_width ? Number(shipment_width) : 20,
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         state: shippingAddr.province || shippingAddr.state || '',
         phone: shippingAddr.phone || order.customer?.phone || '',
       },
-      items: order.items.map(i => ({
+      items: order.items.map((i: any) => ({
         title: i.title,
       })),
     };

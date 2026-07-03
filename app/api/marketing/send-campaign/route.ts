@@ -24,11 +24,11 @@ export async function POST(req: Request) {
     });
 
     if (targetAudience === 'vip') {
-      targetCustomers = targetCustomers.filter(c => (c.totalOrders || 0) > 2 || (c.totalSpent || 0) > 10000);
+      targetCustomers = targetCustomers.filter((c: any) => (c.totalOrders || 0) > 2 || (c.totalSpent || 0) > 10000);
     } else if (targetAudience === 'recent') {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      targetCustomers = targetCustomers.filter(c => c.lastOrderDate && new Date(c.lastOrderDate) > thirtyDaysAgo);
+      targetCustomers = targetCustomers.filter((c: any) => c.lastOrderDate && new Date(c.lastOrderDate) > thirtyDaysAgo);
     }
 
     if (targetCustomers.length === 0) {
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     // 2. Dispatch Campaign
     if (channel === 'email') {
-      const emails = targetCustomers.map(c => c.email).filter(Boolean) as string[];
+      const emails = targetCustomers.map((c: any) => c.email).filter(Boolean) as string[];
       try {
         await EmailService.sendEmail(emails, subject || 'Zica Bella Exclusive', messageBody);
         successCount = emails.length;

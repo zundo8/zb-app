@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
+import { getCorsHeaders, handleCorsOptions } from '@/lib/cors';
 
-const corsJsonHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-} as const;
-
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsJsonHeaders });
+export async function OPTIONS(req: Request) {
+  return handleCorsOptions(req);
 }
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const corsHeaders = getCorsHeaders(req);
   try {
     const { id } = params;
     let { key_id, key_secret } = await resolveRazorpayCredentials();
@@ -30,7 +26,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const data = await response.json();
 
     if (!response.ok) {
-      return NextResponse.json({ error: 'Failed to fetch status' }, { status: response.status, headers: corsJsonHeaders });
+      return NextResponse.json({ error: 'Failed to fetch status' }, { status: response.status, headers: corsHeaders });
     }
 
     return NextResponse.json({
@@ -39,8 +35,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       amount: data.amount,
       error_code: data.error_code,
       error_description: data.error_description,
-    }, { headers: corsJsonHeaders });
+    }, { headers: corsHeaders });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500, headers: corsJsonHeaders });
+    return NextResponse.json({ error: err.message }, { status: 500, headers: corsHeaders });
   }
 }

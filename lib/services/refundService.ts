@@ -68,7 +68,7 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
       order.paymentMethod?.toLowerCase().includes('cash') ||
       webStoreOrder?.paymentMethod?.toUpperCase() === 'COD' ||
       webStoreOrder?.paymentMethod?.toLowerCase().includes('cash') ||
-      order.tags?.split(',').map(t => t.trim().toUpperCase()).includes('COD') ||
+      order.tags?.split(',').map((t: any) => t.trim().toUpperCase()).includes('COD') ||
       order.note?.toLowerCase().includes('cod order');
 
     const paymentId = isCod 

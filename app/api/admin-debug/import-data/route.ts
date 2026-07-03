@@ -4,7 +4,7 @@ import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get('secret');
   
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[IMPORT-DATA] Shop record synchronized successfully: ${shop.id}`);
 
-    return new Promise((resolve) => {
+    return new Promise<Response>((resolve) => {
       // Step 2: Import customers from customers_export.csv
       exec('npx tsx scripts/import-customers.ts', { cwd: projectRoot }, (custError, custStdout, custStderr) => {
         const custLogs = {

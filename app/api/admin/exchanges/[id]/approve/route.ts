@@ -27,7 +27,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: "Exchange request is not pending approval" }, { status: 400 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // 1. Create a ReturnRequest for the original items (customer needs to send them back)
       const returnItemsData = exchangeRequest.exchanges.map((ex: any) => {
         // Find the matching order item for the original product

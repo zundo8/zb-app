@@ -31,7 +31,7 @@ export default async function WebhooksPage() {
             <p className="text-foreground/20 italic">No webhook signals detected yet.</p>
           </div>
         ) : (
-          events.map((event) => (
+          events.map((event: any) => (
             <div key={event.id} className="bg-foreground/5 border border-foreground/10 rounded-2xl overflow-hidden">
               <div className="p-4 flex items-center justify-between border-b border-foreground/10">
                 <div className="flex items-center gap-4">

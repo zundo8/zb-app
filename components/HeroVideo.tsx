@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { VolumeX, Volume2 } from "lucide-react";
+import NextImage from "next/image";
 
 interface HeroVideoProps {
   src: string;
@@ -15,7 +16,10 @@ export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = fa
   const [isInView, setIsInView] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [saveData, setSaveData] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const defaultPoster = poster || "/zb-video-hero-poster.jpg";
 
   useEffect(() => {
     setMounted(true);
@@ -23,11 +27,25 @@ export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = fa
     setIsMobile(mediaQuery.matches);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mediaQuery.addEventListener("change", handler);
+
+    // Check for Save-Data / metered connections
+    const conn = (navigator as any).connection;
+    if (conn?.saveData) {
+      setSaveData(true);
+    } else if (conn?.effectiveType && ['slow-2g', '2g'].includes(conn.effectiveType)) {
+      setSaveData(true);
+    }
+    // Also check the prefers-reduced-data media query (CSS-level fallback)
+    const reducedDataQuery = window.matchMedia("(prefers-reduced-data: reduce)");
+    if (reducedDataQuery.matches) {
+      setSaveData(true);
+    }
+
     return () => mediaQuery.removeEventListener("change", handler);
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || saveData) return;
     const observer = new IntersectionObserver(
       ([entry]) => setIsInView(entry.isIntersecting),
       { threshold: 0.1 }
@@ -36,7 +54,7 @@ export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = fa
     return () => {
       if (videoRef.current) observer.unobserve(videoRef.current);
     };
-  }, [mounted, isMobile]); // Re-observe when video element changes
+  }, [mounted, isMobile, saveData]); // Re-observe when video element changes
 
   useEffect(() => {
     if (videoRef.current) {
@@ -57,6 +75,21 @@ export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = fa
 
   const activeSrc = (mounted && isMobile && mobileSrc) ? mobileSrc : src;
 
+  // Save-Data / reduced-data: show poster image instead of video
+  if (saveData && mounted) {
+    return (
+      <div className="absolute inset-0 w-full h-full">
+        <NextImage
+          src={defaultPoster}
+          alt="Hero"
+          fill
+          priority
+          className="object-cover"
+        />
+      </div>
+    );
+  }
+
   return (
     <div 
       className="absolute inset-0 w-full h-full cursor-pointer group/hero"
@@ -67,16 +100,18 @@ export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = fa
         <video
           ref={videoRef}
           key={activeSrc}
-          src={activeSrc}
           autoPlay
           muted
           loop
           playsInline
-          preload={mounted ? "auto" : "metadata"}
-          poster={poster || undefined}
+          preload="metadata"
+          poster={defaultPoster}
           className="w-full h-full object-cover transition-all duration-700"
           suppressHydrationWarning
-        />
+        >
+          <source src={activeSrc.replace('.mp4', '.webm')} type="video/webm" />
+          <source src={activeSrc} type="video/mp4" />
+        </video>
       )}
       
       {/* Absolute minimal mute icon */}
@@ -100,4 +135,3 @@ export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = fa
     </div>
   );
 }
-

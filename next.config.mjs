@@ -37,7 +37,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
@@ -73,29 +73,34 @@ const nextConfig = {
           },
         ],
       },
-      {
-        source: '/api/app/payment/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, Accept' },
-        ],
-      },
-      {
-        source: '/api/razorpay/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, Accept' },
-        ],
-      },
+      // NOTE: CORS for /api/app/payment/* and /api/razorpay/* is now handled
+      // dynamically in each route handler via lib/cors.ts (origin allow-list)
+      // instead of static wildcard headers here.
       {
         // HSTS — force HTTPS for 2 years
         source: '/:path*',
         headers: [
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+        ],
+      },
+      {
+        // CSP for public storefront routes
+        source: '/((?:collections|products|cart|checkout|blogs|policies|search)(?:/.*)?|$)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://ajax.googleapis.com",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "font-src 'self' https://fonts.gstatic.com https://cdn.shopify.com",
+              "img-src 'self' data: blob: https://cdn.shopify.com https://*.supabase.co https://images.unsplash.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com https://flagcdn.com https://db.zicabella.com",
+              "connect-src 'self' https://*.supabase.co https://cdn.shopify.com https://api.razorpay.com https://lux.razorpay.com https://connect.facebook.net https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com https://region1.google-analytics.com wss://*.pusher.com https://sockjs.pusher.com",
+              "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://www.googletagmanager.com",
+              "media-src 'self' blob: https://*.supabase.co https://cdn.shopify.com",
+              "worker-src 'self' blob:",
+            ].join("; "),
+          },
         ],
       },
       {

@@ -16,7 +16,7 @@ import LazyVideo from "@/components/LazyVideo";
 import { handleImageError } from "@/components/ImagePlaceholder";
 import { Metadata } from "next";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getStoreSettings('homepage');
@@ -440,12 +440,12 @@ export default async function Home() {
                     {featuredMedia ? (
                       <LazyVideo
                         src={featuredMedia}
-                        fallbackImage={featuredMediaImage || "/section-image1.PNG"}
+                        fallbackImage={featuredMediaImage || "/section-image1.webp"}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
                       />
                     ) : (
                       <NextImage
-                        src={featuredMediaImage || "/section-image1.PNG"}
+                        src={featuredMediaImage || "/section-image1.webp"}
                         alt="Featured Media"
                         fill
                         sizes="100vw"
@@ -495,12 +495,12 @@ export default async function Home() {
                     {featuredMediaMobile ? (
                       <LazyVideo
                         src={featuredMediaMobile}
-                        fallbackImage={featuredMediaImageMobile || featuredMediaImage || "/section-image1.PNG"}
+                        fallbackImage={featuredMediaImageMobile || featuredMediaImage || "/section-image1.webp"}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
                       />
                     ) : (featuredMediaImageMobile || featuredMediaImage) ? (
                       <NextImage
-                        src={featuredMediaImageMobile || featuredMediaImage || "/section-image1.PNG"}
+                        src={featuredMediaImageMobile || featuredMediaImage || "/section-image1.webp"}
                         alt="Featured Media Mobile"
                         fill
                         sizes="100vw"
@@ -512,12 +512,12 @@ export default async function Home() {
                     ) : featuredMedia ? (
                       <LazyVideo
                         src={featuredMedia}
-                        fallbackImage={featuredMediaImage || "/section-image1.PNG"}
+                        fallbackImage={featuredMediaImage || "/section-image1.webp"}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
                       />
                     ) : (
                       <NextImage
-                        src="/section-image1.PNG"
+                        src="/section-image1.webp"
                         alt="Featured Media Fallback"
                         fill
                         sizes="100vw"

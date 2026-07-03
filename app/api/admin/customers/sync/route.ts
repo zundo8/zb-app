@@ -19,7 +19,7 @@ export async function POST() {
       });
     }
 
-    const shopifyCustomers = await fetchAllCustomers(250).catch((e) => {
+    const shopifyCustomers = await fetchAllCustomers(250).catch((e: any) => {
       console.error("[Customers Sync Manual] fetchAllCustomers failed:", e);
       return [];
     });
@@ -49,7 +49,7 @@ export async function POST() {
           ordersCount: sc.orders_count || 0,
           totalSpent: parseFloat(sc.total_spent || "0"),
         }
-      }).catch((e) => {
+      }).catch((e: any) => {
         console.error(`[Sync upsert failed] shopifyId: ${shopifyId}`, e.message);
       });
 

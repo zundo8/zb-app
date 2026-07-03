@@ -66,7 +66,7 @@ export const eventTracker = {
     let dbSettings: Record<string, string> = {};
     try {
       const list = await db.whatsAppSetting.findMany();
-      dbSettings = Object.fromEntries(list.map(s => [s.key, s.value]));
+      dbSettings = Object.fromEntries(list.map((s: any) => [s.key, s.value]));
       if (dbSettings['enable_meta_events'] !== undefined) {
         isMetaEventsEnabled = dbSettings['enable_meta_events'] === 'true';
       }

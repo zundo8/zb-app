@@ -5,17 +5,10 @@ import { getAppAuthFromRequest } from '@/lib/appAuth';
 import prisma from '@/lib/db';
 import { allocateOrderNumber } from '@/lib/order-utils';
 
-const corsJsonHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-} as const;
+import { getCorsHeaders, handleCorsOptions } from '@/lib/cors';
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: corsJsonHeaders,
-  });
+export async function OPTIONS(req: Request) {
+  return handleCorsOptions(req);
 }
 
 function razorpayErrMessage(err: unknown): string {
@@ -62,10 +55,11 @@ async function resolveMobileCustomer(shopId: string, orderData: any, userAuth: N
 }
 
 export async function POST(req: Request) {
+  const corsHeaders = getCorsHeaders(req);
   try {
     const userAuth = getAppAuthFromRequest(req);
     if (!userAuth) {
-      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401, headers: corsJsonHeaders });
+      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401, headers: corsHeaders });
     }
 
     let { key_id, key_secret, source } = await resolveRazorpayCredentials();
@@ -81,7 +75,7 @@ export async function POST(req: Request) {
     const { amount, currency = 'INR', receipt: receiptIn, orderData } = body;
     const amountRupees = Number(amount);
     if (!Number.isFinite(amountRupees) || amountRupees <= 0) {
-      return NextResponse.json({ error: 'Invalid amount' }, { status: 400, headers: corsJsonHeaders });
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400, headers: corsHeaders });
     }
 
     // Razorpay receipt: required, max 40 chars
@@ -252,11 +246,11 @@ export async function POST(req: Request) {
         currency: order.currency,
         key_id,
       },
-      { headers: corsJsonHeaders }
+      { headers: corsHeaders }
     );
   } catch (err: unknown) {
     console.error('Razorpay create-order error:', err);
     const message = err instanceof Error ? err.message : razorpayErrMessage(err);
-    return NextResponse.json({ error: message }, { status: 500, headers: corsJsonHeaders });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
 }

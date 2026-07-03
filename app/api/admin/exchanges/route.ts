@@ -89,7 +89,7 @@ export async function POST(req: Request) {
       };
     }));
 
-    const exchangeRequest = await prisma.$transaction(async (tx) => {
+    const exchangeRequest = await prisma.$transaction(async (tx: any) => {
       const er = await tx.exchangeRequest.create({
         data: {
           orderId,

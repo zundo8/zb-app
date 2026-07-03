@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
         where: { email: { not: null } },
         select: { email: true }
       });
-      finalRecipients = users.map(u => u.email).filter(Boolean) as string[];
+      finalRecipients = users.map((u: any) => u.email).filter(Boolean) as string[];
     } else if (Array.isArray(recipients)) {
       finalRecipients = recipients;
     }
@@ -40,12 +40,12 @@ export async function POST(req: NextRequest) {
       for (let i = 0; i < finalRecipients.length; i += BATCH_SIZE) {
         const batch = finalRecipients.slice(i, i + BATCH_SIZE);
         
-        const promises = batch.map(email => 
+        const promises = batch.map((email: any) => 
           sendMail({
             to: email,
             subject,
             html: htmlBody,
-          }).catch(e => {
+          }).catch((e: any) => {
             console.error('Failed to send to', email, e);
             hasError = true;
             errorMsg = e.message;

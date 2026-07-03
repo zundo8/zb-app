@@ -126,9 +126,9 @@ async function getDashboardSummary(): Promise<string> {
       prisma.mfgProductionBatch.count({ where: { NOT: [{ currentStage: "QC_PASSED" }, { currentStage: "REJECTED_REWORK" }] } }),
     ]);
 
-  const totalRevenue = orders.reduce((sum, o) => sum + o.totalPrice, 0);
-  const paidOrders = orders.filter((o) => o.paymentStatus === "paid").length;
-  const unfulfilledOrders = orders.filter((o) => o.fulfillmentStatus !== "fulfilled").length;
+  const totalRevenue = orders.reduce((sum: any, o: any) => sum + o.totalPrice, 0);
+  const paidOrders = orders.filter((o: any) => o.paymentStatus === "paid").length;
+  const unfulfilledOrders = orders.filter((o: any) => o.fulfillmentStatus !== "fulfilled").length;
 
   return JSON.stringify({
     totalOrders: orders.length,
@@ -141,7 +141,7 @@ async function getDashboardSummary(): Promise<string> {
     pendingExchanges,
     pendingTasks,
     activeBatches,
-    recentOrders: orders.slice(0, 5).map((o) => ({
+    recentOrders: orders.slice(0, 5).map((o: any) => ({
       id: o.id,
       shopifyOrderId: o.shopifyOrderId,
       customer: o.customer?.name || "Guest",
@@ -167,7 +167,7 @@ async function getProductionBatches(stage?: string): Promise<string> {
   });
 
   return JSON.stringify(
-    batches.map((b) => ({
+    batches.map((b: any) => ({
       id: b.id,
       batchCode: b.batchCode,
       productName: b.productName,
@@ -276,7 +276,7 @@ async function getPendingTasks(status?: string): Promise<string> {
   });
 
   return JSON.stringify(
-    tasks.map((t) => ({
+    tasks.map((t: any) => ({
       id: t.id,
       title: t.title,
       description: t.description,
@@ -360,7 +360,7 @@ async function getFabricInventory(): Promise<string> {
   const fabrics = await prisma.mfgFabric.findMany({ orderBy: { updatedAt: "desc" } });
 
   return JSON.stringify(
-    fabrics.map((f) => ({
+    fabrics.map((f: any) => ({
       id: f.id,
       sku: f.sku,
       name: f.name,
@@ -383,7 +383,7 @@ async function getLowStockProducts(threshold?: number): Promise<string> {
   });
 
   return JSON.stringify(
-    inventoryItems.map((inv) => ({
+    inventoryItems.map((inv: any) => ({
       product: inv.product?.title,
       sku: inv.product?.sku,
       shopifyProductId: inv.product?.shopifyProductId,
@@ -473,7 +473,7 @@ async function getOrdersSummary(limit?: number, status?: string, userContext?: a
   });
 
   return JSON.stringify(
-    orders.map((o) => ({
+    orders.map((o: any) => ({
       id: o.id,
       shopifyOrderId: o.shopifyOrderId,
       customer: o.customer?.name || "Guest",
@@ -483,7 +483,7 @@ async function getOrdersSummary(limit?: number, status?: string, userContext?: a
       fulfillmentStatus: o.fulfillmentStatus,
       deliveryStatus: o.deliveryStatus,
       itemCount: o.items.length,
-      items: o.items.map((i) => `${i.title} x${i.quantity}`),
+      items: o.items.map((i: any) => `${i.title} x${i.quantity}`),
       note: o.note,
       tags: o.tags,
       createdAt: o.createdAt,
@@ -530,7 +530,7 @@ async function getReturnsExchanges(type?: string): Promise<string> {
         order: { select: { shopifyOrderId: true } },
       },
     });
-    results.returns = returns.map((r) => ({
+    results.returns = returns.map((r: any) => ({
       id: r.id, product: r.product?.title, customer: r.customer?.name,
       orderId: r.order?.shopifyOrderId, status: r.status, reason: r.reason,
       refundAmount: r.refundAmount ? `₹${r.refundAmount}` : null, requestedAt: r.requestedAt,
@@ -547,7 +547,7 @@ async function getReturnsExchanges(type?: string): Promise<string> {
         order: { select: { shopifyOrderId: true, customer: { select: { name: true } } } },
       },
     });
-    results.exchanges = exchanges.map((e) => ({
+    results.exchanges = exchanges.map((e: any) => ({
       id: e.id, originalProduct: e.originalProduct?.title, newProduct: e.newProduct?.title,
       customer: e.order?.customer?.name, orderId: e.order?.shopifyOrderId, status: e.status,
       priceDifference: `₹${e.priceDifference}`, createdAt: e.createdAt,
@@ -565,7 +565,7 @@ async function getVendors(category?: string): Promise<string> {
     orderBy: { name: "asc" },
   });
 
-  return JSON.stringify(vendors.map((v) => ({
+  return JSON.stringify(vendors.map((v: any) => ({
     id: v.id, name: v.name, category: v.category, address: v.address, mobile: v.mobile,
   })));
 }
@@ -590,12 +590,12 @@ async function getCostLedger(input: Record<string, any>): Promise<string> {
     include: { batch: { select: { batchCode: true, productName: true } } },
   });
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = expenses.reduce((sum: any, e: any) => sum + e.amount, 0);
 
   return JSON.stringify({
     totalExpenses: `₹${totalExpenses.toLocaleString("en-IN")}`,
     count: expenses.length,
-    entries: expenses.map((e) => ({
+    entries: expenses.map((e: any) => ({
       id: e.id, amount: `₹${e.amount.toLocaleString("en-IN")}`, description: e.description,
       type: e.expenseType, batch: e.batch?.batchCode || "General",
       product: e.batch?.productName || "-", date: e.expenseDate, loggedBy: e.createdByName,
@@ -634,7 +634,7 @@ async function getAIActionLog(limit?: number): Promise<string> {
   });
 
   return JSON.stringify(
-    logs.map((l) => ({
+    logs.map((l: any) => ({
       id: l.id,
       action: l.action,
       entityType: l.entityType,

@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { 
   Palette, Plus, Search, RefreshCw, Edit, Trash2, X, ChevronRight, Download, 
-  Upload, Eye, Check, Loader2, ArrowLeftRight, Beaker, FileText, ClipboardList, Activity 
+  Upload, Eye, Check, Loader2, ArrowLeftRight, Beaker, FileText, ClipboardList, Activity, ArrowRight 
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { mfgFetch } from "@/lib/manufacturing/mfg-fetch";

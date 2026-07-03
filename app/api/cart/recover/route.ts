@@ -3,7 +3,13 @@ import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+import { checkRateLimit } from "@/lib/rate-limit";
+
 export async function GET(req: Request) {
+  const rateLimitResult = await checkRateLimit(req, "cart-recover", { maxRequests: 60, windowMs: 60_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
+  }
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

@@ -37,8 +37,6 @@ export async function POST(req: Request) {
       const result = await sendAbandonedCart({
         phone,
         customerName: name,
-        itemCount: cart.items.length,
-        cartTotal: String(cart.subtotal),
         checkoutUrl
       });
 

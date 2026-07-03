@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unsupported event type' }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, ...result });
+    return NextResponse.json({ ...result, success: true });
   } catch (error: any) {
     console.error('[Trigger Review Event Error]:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });

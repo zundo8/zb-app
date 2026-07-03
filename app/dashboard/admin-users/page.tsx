@@ -182,7 +182,7 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   // Permission Checks
-  const currentUserRole = session?.user?.role;
+  const currentUserRole = (session?.user as any)?.role;
   const currentUserPermissions = (session?.user as any)?.permissions || [];
   const isSuperAdmin = currentUserRole === 'SUPER_ADMIN';
   const adminUsersPermission = currentUserPermissions.find((p: any) => p.module === 'ADMIN_USERS');

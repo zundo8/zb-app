@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import * as templates from '@/lib/whatsapp/templates';
-import { runBroadcastInBackground } from '../../whatsapp/broadcast/route';
+import { runBroadcastInBackground } from '../../whatsapp/broadcast/helper';
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
 
 export const dynamic = 'force-dynamic';

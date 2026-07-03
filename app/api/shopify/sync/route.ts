@@ -52,7 +52,7 @@ export async function POST() {
     const syncProducts = async () => {
       try {
         const products = await fetchAllProducts(250);
-        await Promise.all(products.map(async (p) => {
+        await Promise.all(products.map(async (p: any) => {
           const firstVariant = p.variants?.[0];
           await prisma.product.upsert({
             where: { shopifyProductId: String(p.id) },
@@ -87,7 +87,7 @@ export async function POST() {
     const syncCustomers = async () => {
       try {
         const customers = await fetchAllCustomers(250);
-        await Promise.all(customers.map(async (c) => {
+        await Promise.all(customers.map(async (c: any) => {
           await prisma.customer.upsert({
             where: { shopifyId: String(c.id) },
             create: {
@@ -295,7 +295,7 @@ export async function POST() {
           const locationIds = locations.map((l) => String(l.id));
           const levels = await fetchInventoryLevels(locationIds);
 
-          await Promise.all(levels.map(async (level) => {
+          await Promise.all(levels.map(async (level: any) => {
             const product = await prisma.product.findUnique({
               where: { inventoryItemId: String(level.inventory_item_id) },
             });
@@ -339,7 +339,7 @@ export async function POST() {
         if (activeShipments.length === 0) return;
 
         const { trackDelhiveryShipment } = await import('@/lib/delhivery');
-        const waybills = activeShipments.map(s => s.awb);
+        const waybills = activeShipments.map((s: any) => s.awb);
         const trackingData = await trackDelhiveryShipment(waybills);
 
         if (trackingData && trackingData.ShipmentData) {
@@ -347,7 +347,7 @@ export async function POST() {
             const waybill = data.Shipment?.AWB || data.Shipment?.Waybill;
             if (!waybill) return;
 
-            const shipment = activeShipments.find(s => s.awb === String(waybill));
+            const shipment = activeShipments.find((s: any) => s.awb === String(waybill));
             if (!shipment) return;
 
             const newStatus = (data.Shipment?.Status?.Status || 'pending').toLowerCase();

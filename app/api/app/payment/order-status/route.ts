@@ -2,14 +2,10 @@ import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 
-const corsJsonHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-} as const;
+import { getCorsHeaders, handleCorsOptions } from '@/lib/cors';
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsJsonHeaders });
+export async function OPTIONS(req: Request) {
+  return handleCorsOptions(req);
 }
 
 /**
@@ -23,6 +19,7 @@ export async function OPTIONS() {
  *   paymentId: string (only when status === 'paid')
  */
 export async function GET(req: Request) {
+  const corsHeaders = getCorsHeaders(req);
   try {
     const { searchParams } = new URL(req.url);
     const orderId = searchParams.get('orderId');
@@ -30,7 +27,7 @@ export async function GET(req: Request) {
     if (!orderId) {
       return NextResponse.json(
         { error: 'Missing orderId query parameter' },
-        { status: 400, headers: corsJsonHeaders },
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -63,13 +60,13 @@ export async function GET(req: Request) {
         amount: order.amount,
         paymentId,
       },
-      { headers: corsJsonHeaders },
+      { headers: corsHeaders },
     );
   } catch (err: any) {
     console.error('[order-status] Error:', err);
     return NextResponse.json(
       { error: err.message || 'Failed to fetch order status' },
-      { status: 500, headers: corsJsonHeaders },
+      { status: 500, headers: corsHeaders },
     );
   }
 }

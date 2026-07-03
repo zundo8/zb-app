@@ -10,6 +10,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing paymentId or amount' }, { status: 400 });
     }
 
+    if (!razorpay) {
+      return NextResponse.json({ error: 'Razorpay keys not configured' }, { status: 500 });
+    }
+
     const capture = await razorpay.payments.capture(paymentId, amount, currency);
 
     return NextResponse.json(capture);

@@ -7,8 +7,13 @@ import { sendMail } from "@/lib/mailer";
 import { sendOrderConfirmationEmail, sendOrderCodConfirmationEmail } from "@/lib/services/orderEmailService";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
+  const rateLimitResult = await checkRateLimit(req, "checkout-complete", { maxRequests: 30, windowMs: 60_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
+  }
   try {
     const body = await req.json();
     const { address, paymentMethod, items, total, subtotal, codFee, razorpay, couponCode, couponDiscount, applyAsStoreCredit, cashbackAmount } = body;

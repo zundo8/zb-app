@@ -106,7 +106,7 @@ export async function POST(
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
       await tx.mfgProductionStageLog.create({
         data: {
           batchId: id,

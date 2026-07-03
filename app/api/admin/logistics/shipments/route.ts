@@ -74,8 +74,8 @@ export async function GET(req: Request) {
     const unifiedShipments = [
       ...shipments,
       ...ordersNeedingShipmentRecord
-        .filter(o => !shipments.some(s => s.orderId === o.id)) // avoid duplicates
-        .map(o => ({
+        .filter((o: any) => !shipments.some((s: any) => s.orderId === o.id)) // avoid duplicates
+        .map((o: any) => ({
           id: `pending-${o.id}`,
           orderId: o.id,
           awb: o.delhivery_awb || null,

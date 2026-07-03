@@ -64,7 +64,7 @@ export async function PATCH(
     if (cashbackType !== undefined) data.cashbackType = cashbackType;
     if (cashbackValue !== undefined) data.cashbackValue = parseFloat(cashbackValue);
 
-    const updatedCoupon = await prisma.$transaction(async (tx) => {
+    const updatedCoupon = await prisma.$transaction(async (tx: any) => {
       const uCoupon = await tx.webStoreCoupon.update({
         where: { id: params.id },
         data,
@@ -116,7 +116,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Coupon not found" }, { status: 404 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Delete matching discount by code
       await tx.discount.deleteMany({
         where: { code: coupon.code },

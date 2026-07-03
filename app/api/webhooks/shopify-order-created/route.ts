@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       total,
       currency,
       orderDate,
-    }).catch(err => {
+    }).catch((err: any) => {
       console.error('[Shopify Webhook] sendOrderConfirmationEmail async error:', err);
     });
 

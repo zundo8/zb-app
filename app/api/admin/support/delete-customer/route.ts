@@ -40,13 +40,13 @@ export async function POST(req: Request) {
     console.log(`[Admin Support API] Starting account deletion for Customer: ${customer.name} (${customer.email || customer.phone}), ID: ${customerId}`);
 
     // 2. Perform all deletions within a database transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // a. Chat Reactions for messages by this customer
       const messages = await tx.communityMessage.findMany({
         where: { customerId },
         select: { id: true }
       });
-      const messageIds = messages.map(m => m.id);
+      const messageIds = messages.map((m: any) => m.id);
       if (messageIds.length > 0) {
         await tx.chatReaction.deleteMany({
           where: { messageId: { in: messageIds } }

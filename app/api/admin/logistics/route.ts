@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
       baseUrl,
       webhookUrl,
       webhookSecret: shop?.webhookSecret ? '••••••••' + (shop.webhookSecret.slice(-4)) : 'Not configured',
-      recentShipments: recentShipments.map(s => ({
+      recentShipments: recentShipments.map((s: any) => ({
         id: s.id,
         orderId: s.order.shopifyOrderId,
         trackingNumber: s.trackingNumber,

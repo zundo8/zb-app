@@ -133,7 +133,7 @@ export default async function PolicyPage({ params }: PolicyPageProps) {
     updatedAt: policy.updatedAt.toISOString(),
   };
 
-  const serializedAllPolicies = allPolicies.map(p => ({
+  const serializedAllPolicies = allPolicies.map((p: any) => ({
     handle: p.handle,
     title: p.title,
   }));

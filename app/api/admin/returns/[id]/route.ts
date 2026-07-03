@@ -44,8 +44,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       returnItemUpdateData.refundAmount = actualRefundAmount;
 
       // Check if refund needs to go to Razorpay (original method)
-      const isOriginalMethod = returnRequest.returns.some(r => r.refundMethod === 'original_method') || 
-                               !returnRequest.returns.some(r => r.storeCreditAmount && r.storeCreditAmount > 0);
+      const isOriginalMethod = returnRequest.returns.some((r: any) => r.refundMethod === 'original_method') || 
+                               !returnRequest.returns.some((r: any) => r.storeCreditAmount && r.storeCreditAmount > 0);
 
       if (isOriginalMethod && actualRefundAmount > 0) {
         const order = returnRequest.order;
@@ -110,7 +110,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
     }
 
-    const updatedReturnRequest = await prisma.$transaction(async (tx) => {
+    const updatedReturnRequest = await prisma.$transaction(async (tx: any) => {
       // 1. Update the ReturnRequest
       const reqUpdate = await tx.returnRequest.update({
         where: { id: returnRequestId },
@@ -135,7 +135,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         
         for (const item of returnRequest.returns) {
            const matchingLineItem = returnRequest.order.items.find(
-             (oi) => oi.sku === item.sku || oi.productId === item.productId
+             (oi: any) => oi.sku === item.sku || oi.productId === item.productId
            );
            
            if (matchingLineItem?.shopifyLineItemId) {

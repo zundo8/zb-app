@@ -23,7 +23,7 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/png',
         purpose: 'maskable',
       },
-    ],
+    ] as any[],
     screenshots: [
       {
         src: '/screenshot-home.jpg',
@@ -31,7 +31,7 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/jpeg',
         label: 'Zica Bella Home',
       },
-    ],
+    ] as any[],
     shortcuts: [
       {
         name: 'Graphic Tees',

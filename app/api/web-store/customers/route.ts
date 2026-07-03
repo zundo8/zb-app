@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
     // Map each customer to enrich them with order history count
     const enrichedCustomers = await Promise.all(
-      customers.map(async (customer) => {
+      customers.map(async (customer: any) => {
         const ordersCount = await prisma.webStoreOrder.count({
           where: {
             customerEmail: customer.email,

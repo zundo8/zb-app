@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     } else if (targetType === 'all') {
       // In production you would do this with a background worker, streaming from DB
       const devices = await db.deviceToken.findMany({ where: { isActive: true }, select: { fcmToken: true } });
-      const tokens = devices.map(d => d.fcmToken);
+      const tokens = devices.map((d: any) => d.fcmToken);
       result = await NotificationService.sendToTokens(tokens, title, msgBody, notificationPayload);
     } else if (targetType === 'segment') {
       // VIP Segment: Customers with more than 3 orders
@@ -61,12 +61,12 @@ export async function POST(req: Request) {
         where: { ordersCount: { gt: 3 } },
         select: { id: true }
       });
-      const customerIds = vipCustomers.map(c => c.id);
+      const customerIds = vipCustomers.map((c: any) => c.id);
       const devices = await db.deviceToken.findMany({ 
         where: { userId: { in: customerIds }, isActive: true }, 
         select: { fcmToken: true } 
       });
-      const tokens = devices.map(d => d.fcmToken);
+      const tokens = devices.map((d: any) => d.fcmToken);
       result = await NotificationService.sendToTokens(tokens, title, msgBody, notificationPayload);
     }
 

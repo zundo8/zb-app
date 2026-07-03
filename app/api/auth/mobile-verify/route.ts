@@ -6,7 +6,13 @@ import { SmsService } from "@/lib/services/sms.service";
 
 export const dynamic = "force-dynamic";
 
+import { checkRateLimit } from "@/lib/rate-limit";
+
 export async function POST(req: Request) {
+  const rateLimitResult = await checkRateLimit(req, "auth-mobile-verify", { maxRequests: 30, windowMs: 60_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
+  }
   try {
     const { phone, otp, name } = await req.json();
 
@@ -68,7 +74,7 @@ export async function POST(req: Request) {
               code: otp,
               expiresAt: new Date(Date.now() + 2 * 60 * 1000), // 2 min TTL
             }
-          }).catch(e => console.log("[Mobile Verify] Cache verified OTP:", e.message));
+          }).catch((e: any) => console.log("[Mobile Verify] Cache verified OTP:", e.message));
         }
       } catch (err: any) {
         console.log("[Mobile Verify] Twilio Verify check failed/skipped:", err.message);
@@ -123,7 +129,7 @@ export async function POST(req: Request) {
       include: { communityMember: true }
     });
 
-    let customer = customers.find(c => c.shopifyId && !c.shopifyId.startsWith("otp_") && !c.shopifyId.startsWith("mobile_"))
+    let customer = customers.find((c: any) => c.shopifyId && !c.shopifyId.startsWith("otp_") && !c.shopifyId.startsWith("mobile_"))
       || customers[0]
       || null;
 
@@ -197,7 +203,7 @@ export async function POST(req: Request) {
                   ordersCount: shopifyCustomer.orders_count || 0,
                   totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
                 }
-              }).catch(err => console.error("[Mobile Verify-BG] Retry sync failed:", err.message));
+              }).catch((err: any) => console.error("[Mobile Verify-BG] Retry sync failed:", err.message));
             } else {
               console.error("[Mobile Verify-BG] Update error:", e.message || e);
             }

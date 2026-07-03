@@ -113,7 +113,7 @@ export async function GET(req: Request) {
     ]);
 
     // Format Payments
-    const formattedPayments = payments.map(p => ({
+    const formattedPayments = payments.map((p: any) => ({
       id: p.id,
       source: 'payment',
       type: p.type.toUpperCase(), // CAPTURE, REFUND, etc.
@@ -131,7 +131,7 @@ export async function GET(req: Request) {
     }));
 
     // Format StoreCredits
-    const formattedStoreCredits = storeCredits.map(sc => ({
+    const formattedStoreCredits = storeCredits.map((sc: any) => ({
       id: sc.id,
       source: 'store_credit',
       type: sc.type, // DEBIT, REFUND, MANUAL, etc.
@@ -150,14 +150,14 @@ export async function GET(req: Request) {
     const formattedReturnRefunds = returnRequests
       // Only include return requests that were refunded to original method (not store credit)
       // to avoid duplication with store credit txns.
-      .filter(rr => rr.returns.some(r => r.refundMethod === 'original_method'))
-      .map(rr => ({
+      .filter((rr: any) => rr.returns.some((r: any) => r.refundMethod === 'original_method'))
+      .map((rr: any) => ({
         id: `ret_${rr.id}`,
         source: 'refund',
         type: 'REFUND',
         amount: rr.actualRefund || rr.estimatedRefund,
         status: 'SUCCESS',
-        gateway: rr.returns.find(r => r.refundMethod === 'original_method')?.refundMethod || 'gateway',
+        gateway: rr.returns.find((r: any) => r.refundMethod === 'original_method')?.refundMethod || 'gateway',
         orderId: rr.order.shopifyOrderId,
         customerId: rr.customerId,
         customerName: rr.order.customer?.name || 'Unknown',
@@ -167,10 +167,10 @@ export async function GET(req: Request) {
       }));
 
     // Format Synced Orders (which do not have explicit Payment table logs)
-    const existingOrderIds = new Set(payments.map(p => p.orderId));
+    const existingOrderIds = new Set(payments.map((p: any) => p.orderId));
     const formattedOrders = orders
-      .filter(o => !existingOrderIds.has(o.id) && o.payments.length === 0)
-      .map(o => ({
+      .filter((o: any) => !existingOrderIds.has(o.id) && o.payments.length === 0)
+      .map((o: any) => ({
         id: `ord_${o.id}`,
         source: 'payment',
         type: o.paymentStatus.toUpperCase() === 'REFUNDED' ? 'REFUND' : 'CAPTURE',
@@ -194,7 +194,7 @@ export async function GET(req: Request) {
       ...formattedReturnRefunds,
       ...formattedOrders
     ];
-    allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    allTransactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Apply pagination offset & limit
     const total = allTransactions.length;

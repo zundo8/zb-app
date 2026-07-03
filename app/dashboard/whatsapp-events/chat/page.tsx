@@ -180,7 +180,7 @@ export default function WhatsAppChatPage() {
       case "sent":
         return <Check className="w-3.5 h-3.5 text-zinc-400" />;
       case "failed":
-        return <AlertCircle className="w-3.5 h-3.5 text-rose-500" title="Delivery failed" />;
+        return <span title="Delivery failed"><AlertCircle className="w-3.5 h-3.5 text-rose-500" /></span>;
       default:
         return <Clock className="w-3.5 h-3.5 text-zinc-500 animate-pulse" />;
     }

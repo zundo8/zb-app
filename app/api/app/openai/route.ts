@@ -134,7 +134,7 @@ STORE CONTEXT:
         });
 
         if (recentOrders.length > 0) {
-          systemPrompt += `\n\nCustomer's Recent Orders:\n${recentOrders.map(o => 
+          systemPrompt += `\n\nCustomer's Recent Orders:\n${recentOrders.map((o: any) => 
             `- Order #${o.shopifyOrderId.replace(/^#/, "")} (${o.id}): ₹${o.totalPrice}, Status: ${o.status}, Payment: ${o.paymentStatus}, Delivery: ${o.deliveryStatus}, Date: ${o.createdAt.toLocaleDateString()}`
           ).join("\n")}`;
           
@@ -154,7 +154,7 @@ STORE CONTEXT:
 
       if (allProducts.length > 0) {
         systemPrompt += `\n\nZica Bella Product Catalog:\n`;
-        systemPrompt += allProducts.map(p => 
+        systemPrompt += allProducts.map((p: any) => 
           `- ${p.title}: ₹${p.price || 'N/A'}. Handle: ${p.handle}. Image: ${p.featuredImage || ''}`
         ).join("\n");
       }

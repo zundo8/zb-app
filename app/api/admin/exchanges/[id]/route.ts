@@ -86,7 +86,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // Build update data
     const updateData: any = { status };
 
-    const updatedRequest = await prisma.$transaction(async (tx) => {
+    const updatedRequest = await prisma.$transaction(async (tx: any) => {
       const updated = await tx.exchangeRequest.update({
         where: { id: exchangeId },
         data: updateData,

@@ -153,7 +153,7 @@ export async function POST(req: Request) {
         });
 
         if (recentOrders.length > 0) {
-          systemPrompt += `\n\nCustomer's Recent Orders:\n${recentOrders.map(o => 
+          systemPrompt += `\n\nCustomer's Recent Orders:\n${recentOrders.map((o: any) => 
             `- Order #${o.shopifyOrderId.replace(/^#/, "")} (${o.id}): ₹${o.totalPrice}, Status: ${o.status}, Payment: ${o.paymentStatus}, Delivery: ${o.deliveryStatus}, Date: ${o.createdAt.toLocaleDateString()}`
           ).join("\n")}`;
           
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
         systemPrompt += `- ALWAYS link collections using this exact scheme: [View Collection](zica://collections/handle)\n`;
         systemPrompt += `- Under every product recommendation, ALWAYS offer a direct action to add to cart like this: [Add to Bag 🛍️](zica://cart/add/handle). Make sure to present this action clearly so the user can add the item directly from the chat screen!\n\n`;
         
-        systemPrompt += allProducts.map(p => 
+        systemPrompt += allProducts.map((p: any) => 
           `- ${p.title}: ₹${p.price || 'N/A'}. View Link: zica://products/${p.handle || ''}. Add to Bag Link: zica://cart/add/${p.handle || ''}. Image: ${p.featuredImage || ''}`
         ).join("\n");
 

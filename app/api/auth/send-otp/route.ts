@@ -26,7 +26,13 @@ function checkRateLimit(phone: string): boolean {
   return true;
 }
 
+import { checkRateLimit as checkIpRateLimit } from "@/lib/rate-limit";
+
 export async function POST(req: Request) {
+  const rateLimitResult = await checkIpRateLimit(req, "auth-send-otp", { maxRequests: 20, windowMs: 600_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
+  }
   try {
     const { phone } = await req.json();
 

@@ -120,7 +120,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
   const [product, shop, allProducts] = await Promise.all([
     fetchProductByHandle(params.id).catch(() => null),
     prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } }).catch(() => null)
-      .then(s => s || prisma.shop.findFirst().catch(() => null)),
+      .then((s: any) => s || prisma.shop.findFirst().catch(() => null)),
     fetchProducts(12).catch(() => [])
   ]);
 

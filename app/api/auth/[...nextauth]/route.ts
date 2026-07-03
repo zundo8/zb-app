@@ -176,7 +176,7 @@ export const authOptions: AuthOptions = {
                     code: providedOtp,
                     expiresAt: new Date(Date.now() + 2 * 60 * 1000), // 2 min TTL
                   }
-                }).catch(e => console.log("[AUTH] Cache verified OTP:", e.message));
+                }).catch((e: any) => console.log("[AUTH] Cache verified OTP:", e.message));
               }
             } catch (err: any) {
               console.log("[AUTH] Twilio Verify check failed/skipped:", err.message);
@@ -212,7 +212,7 @@ export const authOptions: AuthOptions = {
             }
           });
 
-          let customer = customers.find(c => c.shopifyId && !c.shopifyId.startsWith("otp_") && !c.shopifyId.startsWith("mobile_"))
+          let customer = customers.find((c: any) => c.shopifyId && !c.shopifyId.startsWith("otp_") && !c.shopifyId.startsWith("mobile_"))
             || customers[0]
             || null;
 
@@ -291,7 +291,7 @@ export const authOptions: AuthOptions = {
                         ordersCount: shopifyCustomer.orders_count || 0,
                         totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
                       }
-                    }).catch(err => console.error("[AUTH-BG] Retry sync failed:", err.message));
+                    }).catch((err: any) => console.error("[AUTH-BG] Retry sync failed:", err.message));
                   } else {
                     console.error("[AUTH-BG] Customer update error:", e.message || e);
                   }
@@ -383,7 +383,7 @@ export const authOptions: AuthOptions = {
                             sku: item.sku || null,
                             image: itemImage || null,
                           }
-                        }).catch(e => console.error("[AUTH-BG] Order item upsert error:", e.message));
+                        }).catch((e: any) => console.error("[AUTH-BG] Order item upsert error:", e.message));
                       }
                     }
                   }
@@ -536,7 +536,7 @@ export const authOptions: AuthOptions = {
                             sku: item.sku || null,
                             image: itemImage || null,
                           }
-                        }).catch(e => console.error("[AUTH-BG] Order item upsert error:", e.message));
+                        }).catch((e: any) => console.error("[AUTH-BG] Order item upsert error:", e.message));
                       }
                     }
                   }
@@ -737,7 +737,7 @@ export const authOptions: AuthOptions = {
             name: user.name || "Admin",
             email: user.email,
             role: user.role,
-            permissions: permissions.map(p => ({
+            permissions: permissions.map((p: any) => ({
               module: p.module,
               canView: p.canView,
               canEdit: p.canEdit,
@@ -863,7 +863,7 @@ export const authOptions: AuthOptions = {
             const freshPermissions = await prisma.permission.findMany({
               where: { userId: token.id as string }
             });
-            (session.user as any).permissions = freshPermissions.map(p => ({
+            (session.user as any).permissions = freshPermissions.map((p: any) => ({
               module: p.module,
               canView: p.canView,
               canEdit: p.canEdit,

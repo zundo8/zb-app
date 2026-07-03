@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     ]);
 
     // Gather unique phone numbers from this batch of logins
-    const phones = Array.from(new Set(logins.map((l) => l.phone)));
+    const phones = Array.from(new Set(logins.map((l: any) => l.phone)));
 
     // Query both Order and WebStoreOrder tables to check order status
     // 1. Web Store orders (placed on the web checkout)
@@ -50,21 +50,21 @@ export async function GET(req: Request) {
 
     // Create a map of phone -> count of web store orders
     const webStoreOrdersMap = new Map<string, number>();
-    webStoreOrders.forEach((o) => {
+    webStoreOrders.forEach((o: any) => {
       const p = o.customerPhone;
       webStoreOrdersMap.set(p, (webStoreOrdersMap.get(p) || 0) + 1);
     });
 
     // 2. Local Customer and standard shopify Orders synced in NextAuth
-    const cleanPhones = phones.map(p => p.replace(/\D/g, ""));
-    const last10DigitsList = cleanPhones.map(p => p.slice(-10)).filter(Boolean);
+    const cleanPhones = phones.map((p: any) => p.replace(/\D/g, ""));
+    const last10DigitsList = cleanPhones.map((p: any) => p.slice(-10)).filter(Boolean);
 
     const customers = await prisma.customer.findMany({
       where: {
         OR: [
           { phone: { in: phones } },
-          { phone: { in: cleanPhones.map(p => `+${p}`) } },
-          ...last10DigitsList.map(digits => ({
+          { phone: { in: cleanPhones.map((p: any) => `+${p}`) } },
+          ...last10DigitsList.map((digits: any) => ({
             phone: { contains: digits }
           }))
         ]
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
 
     // Create a map of clean phone digits -> customer order count
     const customerOrdersMap = new Map<string, number>();
-    customers.forEach((c) => {
+    customers.forEach((c: any) => {
       if (c.phone) {
         const cleanP = c.phone.replace(/\D/g, "");
         const currentVal = customerOrdersMap.get(cleanP) || 0;
@@ -86,7 +86,7 @@ export async function GET(req: Request) {
     });
 
     // Enrich the logins with order count info
-    const enrichedLogins = logins.map((login) => {
+    const enrichedLogins = logins.map((login: any) => {
       const rawPhone = login.phone;
       const cleanPhone = rawPhone.replace(/\D/g, "");
       

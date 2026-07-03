@@ -6,17 +6,20 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 
 export const dynamic = "force-dynamic";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-};
+import { getCorsHeaders, handleCorsOptions } from "@/lib/cors";
 
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+export async function OPTIONS(req: Request) {
+  return handleCorsOptions(req);
 }
 
+import { checkRateLimit } from "@/lib/rate-limit";
+
 export async function POST(req: Request) {
+  const rateLimitResult = await checkRateLimit(req, "cart-sync", { maxRequests: 60, windowMs: 60_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
+  }
+  const corsHeaders = getCorsHeaders(req);
   try {
     const body = await req.json();
     const { items, guestId, name, email, phone, source } = body;
@@ -114,7 +117,7 @@ export async function POST(req: Request) {
     let syncedCount = 0;
 
     // Replace all items atomically
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.cartItem.deleteMany({
         where: { cartId: cart.id },
       });

@@ -97,8 +97,6 @@ function envSettings() {
     communityAgeRestricted: true,
     communityWhatsAppEnabled: true,
     footerLogo3dUrl: 'https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb',
-    homepageCollection: '',
-    homepageProducts: '',
     loginBgImage: '',
     loginBgVideo: '',
     loginBgImageMobile: '',

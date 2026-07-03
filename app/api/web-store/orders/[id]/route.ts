@@ -168,7 +168,7 @@ export async function PATCH(
             orderStatusUrl: `https://zicabella.com/account/orders`,
           };
 
-          const { subject, html } = await renderDBTemplate('RETURN_REFUND', variables, () => fallback.html);
+          const { subject, html } = await renderDBTemplate('RETURN_REFUND', variables, () => fallback);
 
           await sendEmail({
             to: updatedOrder.customerEmail,

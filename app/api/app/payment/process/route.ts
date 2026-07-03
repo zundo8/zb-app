@@ -3,14 +3,10 @@ import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
 
-const corsJsonHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-} as const;
+import { getCorsHeaders, handleCorsOptions } from '@/lib/cors';
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsJsonHeaders });
+export async function OPTIONS(req: Request) {
+  return handleCorsOptions(req);
 }
 
 /**
@@ -18,10 +14,11 @@ export async function OPTIONS() {
  * This allows initiating UPI and Netbanking payments without the Razorpay SDK UI.
  */
 export async function POST(req: Request) {
+  const corsHeaders = getCorsHeaders(req);
   try {
     const userAuth = getAppAuthFromRequest(req);
     if (!userAuth) {
-      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401, headers: corsJsonHeaders });
+      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401, headers: corsHeaders });
     }
 
     let { key_id, key_secret, source } = await resolveRazorpayCredentials();
@@ -39,7 +36,7 @@ export async function POST(req: Request) {
     const { order_id, amount, method, email, contact, name } = body;
 
     if (!order_id || !amount || !method) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsJsonHeaders });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsHeaders });
     }
 
     const auth = Buffer.from(`${key_id}:${key_secret}`).toString('base64');
@@ -93,15 +90,15 @@ export async function POST(req: Request) {
         error: msg,
         code: data.error?.code,
         source 
-      }, { status: response.status, headers: corsJsonHeaders });
+      }, { status: response.status, headers: corsHeaders });
     }
 
-    return NextResponse.json(data, { headers: corsJsonHeaders });
+    return NextResponse.json(data, { headers: corsHeaders });
   } catch (err: any) {
     console.error('Razorpay process server error:', err);
     return NextResponse.json(
       { error: err.message || 'Internal server error', source: 'server' },
-      { status: 500, headers: corsJsonHeaders }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

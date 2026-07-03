@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    const templates = templateMetrics.map(t => {
+    const templates = templateMetrics.map((t: any) => {
       const sent = t._sum.total_sent || 0;
       const read = t._sum.read_count || 0;
       const clicked = t._sum.click_count || 0;

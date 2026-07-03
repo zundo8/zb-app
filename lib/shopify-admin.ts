@@ -233,6 +233,11 @@ export interface ShopifyOrder {
   note: string | null;
   tags: string;
   total_tax?: string;
+  fulfillments?: any[];
+  status?: string;
+  cancelled_at?: string | null;
+  gateway?: string;
+  payment_gateway_names?: string[];
 }
 
 export async function fetchOrders(limit = 250, status = 'any'): Promise<ShopifyOrder[]> {
@@ -463,7 +468,7 @@ export async function fetchEnabledCollections(location: 'header' | 'page' | 'men
     const fieldName = fieldMap[location] as keyof typeof shop;
     const jsonValue = shop[fieldName] as string | null | undefined;
 
-    console.log(`[Shopify Admin] Fetching for location: ${location}, field: ${fieldName}`);
+    console.log(`[Shopify Admin] Fetching for location: ${location}, field: ${String(fieldName)}`);
 
     if (jsonValue === null || jsonValue === undefined) {
       console.log(`[Shopify Admin] No config for ${location}, showing all ${allCollections.length}`);
@@ -648,7 +653,8 @@ export async function setInventoryLevel(
 export async function createFulfillment(
   orderId: string,
   locationId: string,
-  lineItems?: { id: number; quantity: number }[]
+  lineItems?: { id: number; quantity: number }[],
+  tracking?: { number?: string; url?: string; company?: string }
 ): Promise<any> {
   const body: any = {
     fulfillment: {
@@ -658,6 +664,11 @@ export async function createFulfillment(
   };
   if (lineItems?.length) {
     body.fulfillment.line_items = lineItems;
+  }
+  if (tracking) {
+    if (tracking.number) body.fulfillment.tracking_number = tracking.number;
+    if (tracking.url) body.fulfillment.tracking_url = tracking.url;
+    if (tracking.company) body.fulfillment.tracking_company = tracking.company;
   }
   const data = await shopifyPost<{ fulfillment: any }>(
     `orders/${orderId}/fulfillments.json`,

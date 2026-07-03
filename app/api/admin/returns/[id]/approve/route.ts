@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const refundAmount = actualRefund !== undefined ? actualRefund : returnRequest.estimatedRefund;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // 1. Update the return request status
       const updatedRequest = await tx.returnRequest.update({
         where: { id },

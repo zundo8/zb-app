@@ -71,7 +71,7 @@ export async function PATCH(
     const designerId = sample.designAssignment.assignedToId;
 
     if (action === "APPROVE") {
-      const updatedSample = await prisma.$transaction(async (tx) => {
+      const updatedSample = await prisma.$transaction(async (tx: any) => {
         // 1. Update Sample
         const s = await tx.mfgSample.update({
           where: { id },
@@ -106,9 +106,8 @@ export async function PATCH(
             gsm: sample.gsm,
             composition: sample.composition,
             printingTechnique: sample.printingTechnique,
-            vendorId: sample.vendorId,
             accessoriesUsed: sample.accessoriesUsed,
-            sampleImages: sample.images.map((img) => img.imageUrl),
+            sampleImages: sample.images.map((img: any) => img.imageUrl),
             approvalDate: new Date()
           },
           update: {
@@ -120,7 +119,7 @@ export async function PATCH(
             printingTechnique: sample.printingTechnique,
             vendorId: sample.vendorId,
             accessoriesUsed: sample.accessoriesUsed,
-            sampleImages: sample.images.map((img) => img.imageUrl),
+            sampleImages: sample.images.map((img: any) => img.imageUrl),
             approvalDate: new Date()
           }
         });
@@ -146,7 +145,7 @@ export async function PATCH(
       return NextResponse.json(updatedSample);
 
     } else if (action === "REJECT") {
-      const updatedSample = await prisma.$transaction(async (tx) => {
+      const updatedSample = await prisma.$transaction(async (tx: any) => {
         const s = await tx.mfgSample.update({
           where: { id },
           data: {
@@ -192,7 +191,7 @@ export async function PATCH(
         return NextResponse.json({ error: "Change requests description is required for revisions" }, { status: 400 });
       }
 
-      const updatedSample = await prisma.$transaction(async (tx) => {
+      const updatedSample = await prisma.$transaction(async (tx: any) => {
         const s = await tx.mfgSample.update({
           where: { id },
           data: {

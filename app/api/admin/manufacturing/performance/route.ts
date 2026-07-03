@@ -37,8 +37,8 @@ export async function GET(req: Request) {
       });
 
       const aggregated = users
-        .map((u) => {
-          const sumDelta = u.mfgPerformanceEvents.reduce((acc, curr) => acc + curr.scoreDelta, 0);
+        .map((u: any) => {
+          const sumDelta = u.mfgPerformanceEvents.reduce((acc: any, curr: any) => acc + curr.scoreDelta, 0);
           return {
             userId: u.id,
             name: u.name,
@@ -48,9 +48,9 @@ export async function GET(req: Request) {
             eventsCount: u.mfgPerformanceEvents.length
           };
         })
-        .filter((user) => user.eventsCount > 0); // Only return users with performance events as requested
+        .filter((user: any) => user.eventsCount > 0); // Only return users with performance events as requested
 
-      aggregated.sort((a, b) => b.score - a.score);
+      aggregated.sort((a: any, b: any) => b.score - a.score);
 
       return NextResponse.json(aggregated);
     }

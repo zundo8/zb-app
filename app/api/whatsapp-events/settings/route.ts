@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     const list = await db.whatsAppSetting.findMany();
-    const settings = Object.fromEntries(list.map(s => [s.key, s.value]));
+    const settings = Object.fromEntries(list.map((s: any) => [s.key, s.value]));
     
     return NextResponse.json({
       enable_meta_events: settings['enable_meta_events'] === 'true',

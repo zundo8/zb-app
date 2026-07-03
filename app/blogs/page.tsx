@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function BlogsPage() {
   const posts = await prisma.blogPost.findMany({

@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     ]);
 
     // Format return refunds
-    const formattedReturnRefunds = returnRefunds.map(r => ({
+    const formattedReturnRefunds = returnRefunds.map((r: any) => ({
       id: `ret_${r.id}`,
       orderId: r.order.shopifyOrderId,
       customerName: r.order.customer.name,
@@ -63,11 +63,11 @@ export async function GET(req: Request) {
       status: "COMPLETED",
       date: r.updatedAt,
       reason: r.reason || "Product Return",
-      items: r.returns.map(item => item.product.title).join(", ")
+      items: r.returns.map((item: any) => item.product.title).join(", ")
     }));
 
     // Format payment refunds (order cancellations)
-    const formattedPaymentRefunds = paymentRefunds.map(p => ({
+    const formattedPaymentRefunds = paymentRefunds.map((p: any) => ({
       id: `pay_${p.id}`,
       orderId: p.order?.shopifyOrderId || p.orderId,
       customerName: p.customer?.name || "Guest",
@@ -81,11 +81,11 @@ export async function GET(req: Request) {
 
     // Combine and sort by date descending
     const allRefunds = [...formattedReturnRefunds, ...formattedPaymentRefunds];
-    allRefunds.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    allRefunds.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Filter by status if provided (all are COMPLETED in this query, but filter is good for compatibility)
     const filteredRefunds = status && status !== "all"
-      ? allRefunds.filter(r => r.status.toLowerCase() === status.toLowerCase())
+      ? allRefunds.filter((r: any) => r.status.toLowerCase() === status.toLowerCase())
       : allRefunds;
 
     return NextResponse.json({ refunds: filteredRefunds });

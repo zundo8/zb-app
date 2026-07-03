@@ -93,7 +93,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     // Update the exchange request with the new Shopify order
-    const updatedRequest = await prisma.$transaction(async (tx) => {
+    const updatedRequest = await prisma.$transaction(async (tx: any) => {
       const updated = await tx.exchangeRequest.update({
         where: { id },
         data: {

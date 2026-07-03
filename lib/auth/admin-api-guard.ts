@@ -59,7 +59,7 @@ export function withAdminApiGuard(
         req.headers.get("x-real-ip") ||
         "127.0.0.1";
       
-      const { allowed } = rateLimit(ip, { maxRequests: 100, windowMs: 60_000 });
+      const { allowed } = await rateLimit(ip, { maxRequests: 100, windowMs: 60_000 });
       if (!allowed) {
         return NextResponse.json(
           { error: "Too many requests. Please try again later." },

@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
 
     // Module 4: Run Background Global Insights Aggregation
     // In Next.js App Router, we can just fire this off without awaiting
-    runBackgroundAggregation(detectedProducts || [], intentTags).catch(err => {
+    runBackgroundAggregation(detectedProducts || [], intentTags).catch((err: any) => {
       console.error("[Zica AI] Background aggregation failed:", err);
     });
 
@@ -163,8 +163,8 @@ async function updateUserProfile(userId: string, products: string[], intentTags:
       });
     } else {
       // Very basic merge
-      const newFavs = existing.favouriteProducts.concat(products).filter((val, idx, self) => self.indexOf(val) === idx);
-      const newStyles = existing.styleTags.concat(intentTags).filter((val, idx, self) => self.indexOf(val) === idx);
+      const newFavs = existing.favouriteProducts.concat(products).filter((val: any, idx: any, self: any) => self.indexOf(val) === idx);
+      const newStyles = existing.styleTags.concat(intentTags).filter((val: any, idx: any, self: any) => self.indexOf(val) === idx);
       await prisma.zicaUserProfile.update({
         where: { userId },
         data: {
