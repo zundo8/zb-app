@@ -9,6 +9,7 @@ import {
   setClientCookie,
   sha256,
   cleanCountry,
+  withFbq,
 } from '@/lib/metaPixel';
 import { pageview as trackGAPageView } from '@/lib/gtag';
 
@@ -88,14 +89,14 @@ export function MetaPixelRouteTracker() {
     const eventTime = Math.floor(Date.now() / 1000);
 
     // Client-side pixel PageView — fires NOW, no awaits
-    if (typeof window !== 'undefined' && (window as any).fbq) {
+    withFbq((fbq) => {
       const options: Record<string, any> = { eventID: eventId };
       const testCode = process.env.NEXT_PUBLIC_META_TEST_EVENT_CODE;
       if (testCode) {
         options.test_event_code = testCode;
       }
-      (window as any).fbq('track', 'PageView', {}, options);
-    }
+      fbq('track', 'PageView', {}, options);
+    }, 'PageView');
 
     // Server-side CAPI PageView — fires NOW with sync-available identity data
     const identityData = getMetaIdentityCookies();

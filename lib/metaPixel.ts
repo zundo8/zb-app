@@ -1,9 +1,42 @@
 export const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID || '2049977412558608';
 
-export const pageview = () => {
-  if (typeof window !== 'undefined' && (window as any).fbq) {
-    (window as any).fbq('track', 'PageView');
+/**
+ * Defensive helper: ensures window.fbq exists before calling the callback.
+ * If fbq isn't available yet (e.g. base pixel script still loading), retries
+ * every 100ms for up to 3 seconds. After 3s, logs a visible warning instead
+ * of silently dropping the event.
+ */
+export function withFbq(callback: (fbq: any) => void, eventLabel = 'unknown'): void {
+  if (typeof window === 'undefined') return;
+
+  if ((window as any).fbq) {
+    callback((window as any).fbq);
+    return;
   }
+
+  const MAX_RETRIES = 30; // 30 × 100ms = 3 seconds
+  let attempt = 0;
+
+  const retry = () => {
+    attempt++;
+    if ((window as any).fbq) {
+      callback((window as any).fbq);
+      return;
+    }
+    if (attempt >= MAX_RETRIES) {
+      console.warn(`[Meta Pixel] fbq never became available — event dropped: ${eventLabel}`);
+      return;
+    }
+    setTimeout(retry, 100);
+  };
+
+  setTimeout(retry, 100);
+}
+
+export const pageview = () => {
+  withFbq((fbq) => {
+    fbq('track', 'PageView');
+  }, 'PageView');
 };
 
 export function setClientCookie(name: string, value: string, days: number) {
@@ -83,7 +116,7 @@ export function getMetaIdentityCookies(): Record<string, string | undefined> {
 let lastInitHash: string | null = null;
 
 export const initPixel = (additionalData: Record<string, any> = {}) => {
-  if (typeof window !== 'undefined' && (window as any).fbq) {
+  withFbq((fbq) => {
     const extId = getClientCookie('zb_external_id');
 
     // Build advanced matching user data for fbq('init').
@@ -127,8 +160,8 @@ export const initPixel = (additionalData: Record<string, any> = {}) => {
     }
     lastInitHash = currentHash;
 
-    (window as any).fbq('init', META_PIXEL_ID, merged);
-  }
+    fbq('init', META_PIXEL_ID, merged);
+  }, 'init');
 };
 
 function cleanStringNoSpaces(val: string | undefined): string {
@@ -246,7 +279,7 @@ export const trackEvent = (
   params: Record<string, any> = {},
   eventId?: string
 ) => {
-  if (typeof window !== 'undefined' && (window as any).fbq) {
+  withFbq((fbq) => {
     const options: Record<string, any> = {};
     if (eventId) options.eventID = eventId;
     
@@ -255,6 +288,6 @@ export const trackEvent = (
       options.test_event_code = testCode;
     }
     
-    (window as any).fbq('track', eventName, params, options);
-  }
+    fbq('track', eventName, params, options);
+  }, eventName);
 };

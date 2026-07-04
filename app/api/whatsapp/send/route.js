@@ -87,12 +87,14 @@ export async function POST(req) {
         }
       }
 
+      const actualLanguageCode = dbTemplate?.language || languageCode;
+
       try {
-        console.log(`[WhatsApp API Send Route] Sending template: ${templateName} to ${recipient}`);
+        console.log(`[WhatsApp API Send Route] Sending template: ${templateName} to ${recipient} (lang: ${actualLanguageCode})`);
         const result = await sendTemplate({
           to: recipient,
           templateName,
-          languageCode,
+          languageCode: actualLanguageCode,
           components
         });
 

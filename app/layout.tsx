@@ -207,7 +207,7 @@ export default function RootLayout({
           }}
         />
         {/* Meta Pixel Script */}
-        <Script id="fb-pixel" strategy="afterInteractive">
+        <Script id="fb-pixel" strategy="beforeInteractive">
           {`
             if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard')) {
               !function(f,b,e,v,n,t,s)

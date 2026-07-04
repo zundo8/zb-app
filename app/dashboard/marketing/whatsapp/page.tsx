@@ -327,7 +327,7 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
     const components: any[] = [];
     if (variables.length > 0) components.push({ type: "body", parameters: variables.map((v: string) => ({ type: "text", text: sendTestParams[v.replace(/[{}]/g, "")] || `Test ${v}` })) });
     const headerComp = sendTestTemplate.components?.find((c: any) => c.type === "HEADER");
-    if (headerComp?.format === "IMAGE") components.unshift({ type: "header", parameters: [{ type: "image", image: { link: "https://app.zicabella.com/logo.png" } }] });
+    if (headerComp?.format === "IMAGE") components.unshift({ type: "header", parameters: [{ type: "image", image: { link: "https://cdn.shopify.com/s/files/1/0955/5394/5881/files/zica-bella-logo_834c1ed2-2f09-4f73-bb9f-152a03f59ad2.png?v=1773354221" } }] });
     try {
       const res = await fetch("/api/whatsapp/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: sendTestPhone, templateName: sendTestTemplate.name, languageCode: sendTestTemplate.language || "en_US", components }) });
       const data = await res.json();
@@ -880,7 +880,7 @@ function QuickSendMessage() {
     if (headerComp?.format === "IMAGE") {
       components.unshift({
         type: "header",
-        parameters: [{ type: "image", image: { link: "https://app.zicabella.com/logo.png" } }]
+        parameters: [{ type: "image", image: { link: "https://cdn.shopify.com/s/files/1/0955/5394/5881/files/zica-bella-logo_834c1ed2-2f09-4f73-bb9f-152a03f59ad2.png?v=1773354221" } }]
       });
     }
 

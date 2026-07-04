@@ -2042,7 +2042,7 @@ export default function CheckoutPage() {
                             }
                             setShowAddressForm(false);
                           }}
-                          className="w-full h-14 px-4 rounded-2xl border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] backdrop-blur-md hover:bg-white/20 dark:hover:bg-white/[0.05] active:scale-[0.98] transition-all flex items-center justify-between text-foreground mb-5 cursor-pointer"
+                          className="w-full h-14 px-4 rounded-2xl border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] backdrop-blur-md hover:bg-black/[0.04] dark:hover:bg-white/[0.05] active:scale-[0.98] transition-all flex items-center justify-between text-foreground mb-5 cursor-pointer"
                         >
                           <div className="flex items-center gap-3">
                             <Folder className="w-5 h-5 text-foreground/70" />
@@ -2056,13 +2056,13 @@ export default function CheckoutPage() {
                       <div className="p-4 mb-5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/10 dark:bg-white/[0.02] backdrop-blur-md flex flex-col gap-3 shadow-sm">
                         <div className="flex flex-row gap-2.5 w-full">
                           {/* Autocomplete Input */}
-                          <div className="flex-1 relative flex items-center h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30">
+                          <div className="flex-1 relative flex items-center h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30">
                             <MapPin className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               ref={autocompleteInputRef}
                               type="text"
                               placeholder="Search area, locality, or landmark"
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                         </div>
@@ -2072,7 +2072,7 @@ export default function CheckoutPage() {
                           type="button"
                           onClick={handleDetectLocation}
                           disabled={locating}
-                          className="w-full h-[46px] rounded-xl border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.03] backdrop-blur-md text-foreground hover:bg-white/20 dark:hover:bg-white/[0.05] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-[14px] font-medium shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer"
+                          className="w-full h-[46px] rounded-xl border border-black/[0.08] dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] backdrop-blur-md text-foreground hover:bg-black/[0.05] dark:hover:bg-white/[0.05] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-[14px] font-medium shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer"
                         >
                           {locating ? (
                             <Loader2 className="w-4 h-4 animate-spin text-current" />
@@ -2090,7 +2090,7 @@ export default function CheckoutPage() {
                       <div className="grid grid-cols-12 gap-3.5 w-full mb-6">
                         {/* Full Name */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.name ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.name ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <User className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-name"
@@ -2102,7 +2102,7 @@ export default function CheckoutPage() {
                               required
                               value={address.name}
                               onChange={(e) => updateField("name", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.name && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.name}</p>}
@@ -2110,7 +2110,7 @@ export default function CheckoutPage() {
 
                         {/* Email Address */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.email ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.email ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <Mail className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-email"
@@ -2122,7 +2122,7 @@ export default function CheckoutPage() {
                               required
                               value={address.email}
                               onChange={(e) => updateField("email", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.email && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.email}</p>}
@@ -2130,8 +2130,8 @@ export default function CheckoutPage() {
 
                         {/* Mobile Number */}
                         <div className="col-span-12">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.phone ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
-                            <div className="flex items-center text-[14px] font-semibold text-foreground/60 select-none mr-2 pl-1">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.phone ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <div className="flex items-center text-[15px] font-semibold text-foreground/60 select-none mr-2 pl-1">
                               <span>+91</span>
                             </div>
                             <div className="h-4 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2.5 shrink-0" />
@@ -2146,7 +2146,7 @@ export default function CheckoutPage() {
                               required
                               value={address.phone.startsWith("+91") ? address.phone.slice(3) : address.phone}
                               onChange={(e) => updateField("phone", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.phone && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.phone}</p>}
@@ -2160,7 +2160,7 @@ export default function CheckoutPage() {
                       <div className="grid grid-cols-12 gap-3.5 w-full">
                         {/* House / Flat / Building */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.houseNo ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.houseNo ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <Home className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-house"
@@ -2172,7 +2172,7 @@ export default function CheckoutPage() {
                               required
                               value={address.houseNo}
                               onChange={(e) => updateField("houseNo", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.houseNo && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.houseNo}</p>}
@@ -2180,7 +2180,7 @@ export default function CheckoutPage() {
 
                         {/* Street / Road / Area */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.street ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.street ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <svg
                               className="w-4 h-4 text-foreground/40 mr-2 shrink-0"
                               viewBox="0 0 24 24"
@@ -2202,7 +2202,7 @@ export default function CheckoutPage() {
                               required
                               value={address.street}
                               onChange={(e) => updateField("street", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.street && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.street}</p>}
@@ -2210,7 +2210,7 @@ export default function CheckoutPage() {
 
                         {/* Landmark */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30`}>
                             <Tag className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-landmark"
@@ -2221,14 +2221,14 @@ export default function CheckoutPage() {
                               autoComplete="address-line3"
                               value={address.landmark}
                               onChange={(e) => updateField("landmark", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                         </div>
 
                         {/* PIN Code */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.zip ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.zip ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <Map className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-zip"
@@ -2245,7 +2245,7 @@ export default function CheckoutPage() {
                                 const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                                 updateField("zip", val);
                               }}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                             {zipLoading && (
                               <Loader2 className="w-3.5 h-3.5 animate-spin text-foreground/30 ml-1.5 shrink-0" />
@@ -2256,7 +2256,7 @@ export default function CheckoutPage() {
 
                         {/* City */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.city ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.city ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <Building2 className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-city"
@@ -2268,7 +2268,7 @@ export default function CheckoutPage() {
                               required
                               value={address.city}
                               onChange={(e) => updateField("city", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.city && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.city}</p>}
@@ -2276,9 +2276,9 @@ export default function CheckoutPage() {
 
                         {/* State */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.state ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.state ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <Globe className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
-                            <span className={`text-[14px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/35" : "text-foreground"}`}>
+                            <span className={`text-[15px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/35" : "text-foreground"}`}>
                               {address.state || "Select State"}
                             </span>
                             <ChevronDown className="absolute right-3 w-4 h-4 text-foreground/40 pointer-events-none" />
@@ -2289,11 +2289,11 @@ export default function CheckoutPage() {
                               autoComplete="address-level1"
                               value={address.state}
                               onChange={(e) => updateField("state", e.target.value)}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-[14px]"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-[15px]"
                             >
                               <option value="" disabled>Select State</option>
                               {INDIAN_STATES.map(s => (
-                                <option key={s} value={s} className="bg-background text-foreground text-[14px]">{s}</option>
+                                <option key={s} value={s} className="bg-background text-foreground text-[15px]">{s}</option>
                               ))}
                             </select>
                           </div>
