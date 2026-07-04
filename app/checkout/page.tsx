@@ -398,7 +398,7 @@ export default function CheckoutPage() {
 
           const parsed = parseAddressComponents(components);
 
-          let streetVal = parsed.streetName || prev.street;
+          let streetVal = parsed.streetName || address.street;
           if (!parsed.streetName && place.name) {
             const nameLower = place.name.toLowerCase();
             const cityLower = (parsed.city || "").toLowerCase();
@@ -479,7 +479,7 @@ export default function CheckoutPage() {
                   autocompleteInputRef.current.value = result.formatted_address || "";
                 }
 
-                let streetVal = parsed.streetName || prev.street;
+                let streetVal = parsed.streetName || address.street;
                 if (!parsed.streetName && result.formatted_address) {
                   const parts = result.formatted_address.split(",");
                   if (parts.length > 0) {
