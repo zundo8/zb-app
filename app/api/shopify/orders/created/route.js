@@ -57,11 +57,15 @@ export async function POST(req) {
 
     const orderTotal = payload.total_price || '0';
 
+    // Extract the first line item image for the WhatsApp IMAGE header
+    const firstLineItem = (payload.line_items || [])[0];
+    const productImageUrl = firstLineItem?.image?.src || firstLineItem?.image || '';
+
     const result = await sendOrderConfirmation({
       phone,
       customerName,
       orderId,
-      orderTotal
+      productImageUrl
     });
 
     return NextResponse.json({

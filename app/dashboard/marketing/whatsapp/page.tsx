@@ -2487,14 +2487,25 @@ function CartRecovery() {
 function OrderNotifications() {
   const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
+  const [approvedTemplates, setApprovedTemplates] = useState<any[]>([]);
 
   useEffect(() => {
-    async function fetchSettings() {
+    async function fetchAll() {
       try {
-        const res = await fetch("/api/whatsapp/settings");
-        const data = await res.json();
-        if (res.ok) {
-          setSettings(data.settings || {});
+        const [settingsRes, templatesRes] = await Promise.all([
+          fetch("/api/whatsapp/settings"),
+          fetch("/api/whatsapp/templates")
+        ]);
+        const settingsData = await settingsRes.json();
+        if (settingsRes.ok) {
+          setSettings(settingsData.settings || {});
+        }
+        const templatesData = await templatesRes.json();
+        if (templatesRes.ok) {
+          const approved = (templatesData.templates || []).filter(
+            (t: any) => t.status === "APPROVED"
+          );
+          setApprovedTemplates(approved);
         }
       } catch (err) {
         toast.error("Failed to load automation settings.");
@@ -2502,7 +2513,7 @@ function OrderNotifications() {
         setLoading(false);
       }
     }
-    fetchSettings();
+    fetchAll();
   }, []);
 
   const handleToggle = async (key: string) => {
@@ -2519,30 +2530,51 @@ function OrderNotifications() {
         toast.success("Settings updated successfully!");
       } else {
         toast.error("Failed to save changes.");
-        // revert state
         setSettings((s: any) => ({ ...s, [key]: !nextVal }));
       }
     } catch (e) {
       toast.error("Network error saving settings.");
-      // revert state
       setSettings((s: any) => ({ ...s, [key]: !nextVal }));
     }
   };
 
+  const handleTemplateChange = async (settingKey: string, templateName: string) => {
+    const prev = settings[settingKey] || '';
+    setSettings((s: any) => ({ ...s, [settingKey]: templateName }));
+
+    try {
+      const res = await fetch("/api/whatsapp/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [settingKey]: templateName })
+      });
+      if (res.ok) {
+        toast.success("Template mapping updated!");
+      } else {
+        toast.error("Failed to save template mapping.");
+        setSettings((s: any) => ({ ...s, [settingKey]: prev }));
+      }
+    } catch (e) {
+      toast.error("Network error saving template.");
+      setSettings((s: any) => ({ ...s, [settingKey]: prev }));
+    }
+  };
+
   const automations = [
-    { key: "order_confirmed", title: "Order Confirmation", desc: "Auto-send on Shopify order creation (orders/create webhook)." },
-    { key: "order_status", title: "Order Status Update", desc: "Auto-send on order state alterations (orders/updated webhook)." },
-    { key: "order_shipped", title: "Order Shipped", desc: "Auto-send on order fulfillment containing courier tracking (orders/fulfilled webhook)." },
-    { key: "out_for_delivery", title: "Out for Delivery", desc: "Auto-send when carrier status marks package as out for delivery." },
-    { key: "order_delivered", title: "Delivered Confirmation", desc: "Auto-send notification validating package drop-off." },
-    { key: "return_confirmed", title: "Return Request Confirmed", desc: "Auto-send receipt validation containing credit processing status." }
+    { key: "order_confirmed", templateKey: "template_order_confirmed", defaultTemplate: "zica_order_confirmed_v1", title: "Order Confirmation", desc: "Auto-send on Shopify order creation (orders/create webhook)." },
+    { key: "order_shipped", templateKey: "template_order_shipped", defaultTemplate: "zica_order_shipped", title: "Order Shipped", desc: "Auto-send on order fulfillment containing courier tracking (orders/fulfilled webhook)." },
+    { key: "order_delivered", templateKey: "template_order_delivered", defaultTemplate: "zica_order_delivered_v1", title: "Delivered Confirmation", desc: "Auto-send notification validating package drop-off." },
+    { key: "order_status", templateKey: undefined, defaultTemplate: undefined, title: "Order Status Update", desc: "Auto-send on order state alterations (orders/updated webhook)." },
+    { key: "out_for_delivery", templateKey: undefined, defaultTemplate: undefined, title: "Out for Delivery", desc: "Auto-send when carrier status marks package as out for delivery." },
+    { key: "return_confirmed", templateKey: undefined, defaultTemplate: undefined, title: "Return Request Confirmed", desc: "Auto-send receipt validation containing credit processing status." },
+    { key: "cart_recovery_enabled", templateKey: "template_abandoned_cart", defaultTemplate: "zica_cart_recovery_v1", title: "Cart Recovery (Step 1)", desc: "Initial abandoned cart reminder sent when a cart goes inactive." },
   ];
 
   return (
     <div className="max-w-3xl mx-auto glass-card p-6 mt-4">
       <h3 className="font-semibold text-lg mb-2">Automated Notifications</h3>
       <p className="text-xs text-muted-foreground border-b border-foreground/5 pb-4 mb-4">
-        Toggle automated transactional notifications triggered by Shopify actions or inventory flows.
+        Toggle automated notifications and choose which Meta-approved template is used for each event.
       </p>
 
       {loading ? (
@@ -2550,23 +2582,43 @@ function OrderNotifications() {
           <RefreshCcw className="w-6 h-6 animate-spin text-emerald-500" />
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {automations.map((a) => (
-            <div key={a.key} className="flex justify-between items-center gap-4 p-3 rounded-xl hover:bg-foreground/5 transition-all">
-              <div>
-                <h4 className="text-sm font-semibold">{a.title}</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">{a.desc}</p>
+            <div key={a.key} className="p-3 rounded-xl hover:bg-foreground/5 transition-all border border-foreground/5">
+              <div className="flex justify-between items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-semibold">{a.title}</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">{a.desc}</p>
+                </div>
+                <button 
+                  onClick={() => handleToggle(a.key)}
+                  className="shrink-0 hover:opacity-90 transition-opacity"
+                >
+                  {settings[a.key] ? (
+                    <ToggleRight className="w-12 h-8 text-emerald-500 cursor-pointer" />
+                  ) : (
+                    <ToggleLeft className="w-12 h-8 text-muted-foreground cursor-pointer" />
+                  )}
+                </button>
               </div>
-              <button 
-                onClick={() => handleToggle(a.key)}
-                className="text-emerald-500 hover:opacity-90 transition-opacity"
-              >
-                {settings[a.key] ? (
-                  <ToggleRight className="w-12 h-8 text-emerald-500 cursor-pointer" />
-                ) : (
-                  <ToggleLeft className="w-12 h-8 text-muted-foreground cursor-pointer" />
-                )}
-              </button>
+              {/* Template selector dropdown — only for events that have a templateKey */}
+              {a.templateKey && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground whitespace-nowrap">Template:</span>
+                  <select
+                    value={settings[a.templateKey] || ''}
+                    onChange={(e) => handleTemplateChange(a.templateKey!, e.target.value)}
+                    className="flex-1 text-xs bg-foreground/5 border border-foreground/10 rounded-lg px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                  >
+                    <option value="">Default ({a.defaultTemplate})</option>
+                    {approvedTemplates.map((t: any) => (
+                      <option key={t.name} value={t.name}>
+                        {t.name} ({t.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           ))}
         </div>

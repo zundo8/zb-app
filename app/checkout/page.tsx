@@ -87,14 +87,22 @@ interface GoogleAddressComponent {
 
 const parseAddressComponents = (components: GoogleAddressComponent[]) => {
   let city = "";
+  let district = "";
   let state = "";
   let pincode = "";
+  
+  let streetNumber = "";
+  let premise = "";
+  let subpremise = "";
+  let route = "";
+  let sublocality3 = "";
+  let sublocality2 = "";
+  let sublocality1 = "";
   let sublocality = "";
   let neighborhood = "";
-  let route = "";
 
   components.forEach(comp => {
-    const name = comp.longText || comp.long_name || comp.shortText || comp.short_name || "";
+    const name = comp.long_name || comp.longText || comp.short_name || comp.shortText || "";
     const types = comp.types || [];
 
     if (types.includes("postal_code")) {
@@ -103,31 +111,62 @@ const parseAddressComponents = (components: GoogleAddressComponent[]) => {
       state = name;
     } else if (types.includes("locality")) {
       city = name;
-    } else if (types.includes("sublocality_level_1") || types.includes("sublocality")) {
+    } else if (types.includes("administrative_area_level_2")) {
+      district = name;
+    } else if (types.includes("sublocality_level_3")) {
+      sublocality3 = name;
+    } else if (types.includes("sublocality_level_2")) {
+      sublocality2 = name;
+    } else if (types.includes("sublocality_level_1")) {
+      sublocality1 = name;
+    } else if (types.includes("sublocality")) {
       sublocality = name;
     } else if (types.includes("neighborhood")) {
       neighborhood = name;
     } else if (types.includes("route")) {
       route = name;
+    } else if (types.includes("street_number")) {
+      streetNumber = name;
+    } else if (types.includes("premise")) {
+      premise = name;
+    } else if (types.includes("subpremise")) {
+      subpremise = name;
     }
   });
 
-  const streetParts = [sublocality, neighborhood, route].filter(Boolean);
-  const streetName = streetParts.join(", ");
+  // In India, locality is typically the city (e.g. Noida, New Delhi). 
+  // Fall back to administrative_area_level_2 (district) or sublocalities if not present.
+  const finalCity = city || district || sublocality1 || sublocality || "";
+
+  const streetParts = [
+    subpremise,
+    premise,
+    streetNumber,
+    route,
+    sublocality3,
+    sublocality2,
+    sublocality1,
+    sublocality,
+    neighborhood
+  ].filter(Boolean);
+  
+  // Remove duplicates while preserving original order
+  const uniqueStreetParts = streetParts.filter((item, index) => streetParts.indexOf(item) === index);
+  const streetName = uniqueStreetParts.join(", ");
 
   let matchedState = "";
   if (state) {
     const lowerState = state.toLowerCase().trim();
-    const found = INDIAN_STATES.find(s => 
-      s.toLowerCase() === lowerState || 
-      lowerState.includes(s.toLowerCase()) || 
+    const found = INDIAN_STATES.find(s =>
+      s.toLowerCase() === lowerState ||
+      lowerState.includes(s.toLowerCase()) ||
       s.toLowerCase().includes(lowerState)
     );
     if (found) matchedState = found;
   }
 
   return {
-    city,
+    city: finalCity,
     state: matchedState || state,
     pincode: pincode.replace(/\s/g, "").slice(0, 6),
     streetName
@@ -341,7 +380,7 @@ export default function CheckoutPage() {
 
         const autocomplete = new Autocomplete(autocompleteInputRef.current, {
           componentRestrictions: { country: "IN" },
-          fields: ["address_components", "geometry", "place_id"],
+          fields: ["address_components", "geometry", "place_id", "formatted_address", "name"],
           types: ["geocode", "establishment"]
         });
 
@@ -359,9 +398,19 @@ export default function CheckoutPage() {
 
           const parsed = parseAddressComponents(components);
 
+          let streetVal = parsed.streetName || prev.street;
+          if (!parsed.streetName && place.name) {
+            const nameLower = place.name.toLowerCase();
+            const cityLower = (parsed.city || "").toLowerCase();
+            const stateLower = (parsed.state || "").toLowerCase();
+            if (nameLower !== cityLower && nameLower !== stateLower && nameLower !== "india") {
+              streetVal = place.name;
+            }
+          }
+
           setAddress(prev => ({
             ...prev,
-            street: parsed.streetName || prev.street,
+            street: streetVal,
             city: parsed.city || prev.city,
             state: parsed.state || prev.state,
             zip: parsed.pincode || prev.zip,
@@ -426,9 +475,21 @@ export default function CheckoutPage() {
                 const result = results[0];
                 const parsed = parseAddressComponents(result.address_components || []);
 
+                if (autocompleteInputRef.current) {
+                  autocompleteInputRef.current.value = result.formatted_address || "";
+                }
+
+                let streetVal = parsed.streetName || prev.street;
+                if (!parsed.streetName && result.formatted_address) {
+                  const parts = result.formatted_address.split(",");
+                  if (parts.length > 0) {
+                    streetVal = parts[0].trim();
+                  }
+                }
+
                 setAddress(prev => ({
                   ...prev,
-                  street: parsed.streetName || prev.street,
+                  street: streetVal,
                   city: parsed.city || prev.city,
                   state: parsed.state || prev.state,
                   zip: parsed.pincode || prev.zip,
@@ -467,7 +528,7 @@ export default function CheckoutPage() {
             const data = await response.json();
             if (data && data.address) {
               const addr = data.address;
-              
+
               const roadName = addr.road || addr.suburb || addr.neighbourhood || addr.village || "";
               const postcode = addr.postcode || "";
               const cityName = addr.city || addr.town || addr.village || addr.county || "";
@@ -477,9 +538,9 @@ export default function CheckoutPage() {
               let matchedState = "";
               if (stateName) {
                 const lowerState = stateName.toLowerCase().trim();
-                const found = INDIAN_STATES.find(s => 
-                  s.toLowerCase() === lowerState || 
-                  lowerState.includes(s.toLowerCase()) || 
+                const found = INDIAN_STATES.find(s =>
+                  s.toLowerCase() === lowerState ||
+                  lowerState.includes(s.toLowerCase()) ||
                   s.toLowerCase().includes(lowerState)
                 );
                 if (found) matchedState = found;
@@ -1766,7 +1827,7 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-[100dvh] relative bg-background text-foreground font-sans">
       <div className="relative z-10 max-w-xl md:max-w-5xl mx-auto px-4 pt-16 pb-8 md:pt-24 md:pb-12 flex flex-col" style={{ minHeight: '100dvh' }}>
-        
+
         {/* Page Title & H1 */}
         <div className="mb-4 md:mb-6">
           <p className="text-[8px] font-extrabold uppercase tracking-[0.4em] text-foreground/40 mb-0.5 pl-0.5">YOUR PURCHASE</p>
@@ -1990,7 +2051,7 @@ export default function CheckoutPage() {
                           <ChevronRight className="w-5 h-5 text-foreground/70" />
                         </button>
                       )}
-                      
+
                       {/* Search and Geolocation Card */}
                       <div className="p-4 mb-5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/10 dark:bg-white/[0.02] backdrop-blur-md flex flex-col gap-3 shadow-sm">
                         <div className="flex flex-row gap-2.5 w-full">
@@ -2105,7 +2166,7 @@ export default function CheckoutPage() {
                               id="address-house"
                               name="houseNo"
                               type="text"
-                              placeholder="House/Flat/Tower/Bldg"
+                              placeholder="House/Flat"
                               aria-label="House, Flat, Tower, or Building Details"
                               autoComplete="address-line2"
                               required
@@ -2155,7 +2216,7 @@ export default function CheckoutPage() {
                               id="address-landmark"
                               name="landmark"
                               type="text"
-                              placeholder="Landmark (Optional)"
+                              placeholder="Landmark"
                               aria-label="Landmark"
                               autoComplete="address-line3"
                               value={address.landmark}

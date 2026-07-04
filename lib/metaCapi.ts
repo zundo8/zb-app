@@ -116,12 +116,14 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
   const tokenErr = validateTokenFormat(ACCESS_TOKEN);
   if (tokenErr) {
     console.error('[Meta CAPI] Token validation failed:', tokenErr);
+    console.error('[Meta CAPI CONFIG ERROR]', tokenErr, '— check DigitalOcean App Platform env vars');
     return { success: false, error: tokenErr };
   }
 
   const pixelErr = validatePixelIdFormat(PIXEL_ID);
   if (pixelErr) {
     console.error('[Meta CAPI] Pixel ID validation failed:', pixelErr);
+    console.error('[Meta CAPI CONFIG ERROR]', pixelErr, '— check DigitalOcean App Platform env vars');
     return { success: false, error: pixelErr };
   }
 

@@ -41,8 +41,7 @@ export function MetaPixelRouteTracker() {
     // Don't fire any pixel/CAPI events on admin dashboard routes
     if (pathname.startsWith('/dashboard')) return;
 
-    // Single merged effect: setup identity → reinit pixel → fire PageView.
-    // This guarantees the pixel has full user data BEFORE any events fire.
+    // ─── STEP 1: Synchronous setup (cookies, fbclid capture) ───
 
     // 1. Generate/verify visitor UUID (external_id)
     let extId = getClientCookie('zb_external_id');
@@ -83,8 +82,69 @@ export function MetaPixelRouteTracker() {
         .catch(() => {}); // silently ignore — proxy headers are fallback
     }
 
-    // 5. Async: hash session PII → update cookies → reinit pixel → THEN fire PageView
-    const setupAndFirePageView = async () => {
+    // ─── STEP 2: Fire PageView IMMEDIATELY with sync-available data ───
+
+    const eventId = 'pv.' + uuidv4();
+    const eventTime = Math.floor(Date.now() / 1000);
+
+    // Client-side pixel PageView — fires NOW, no awaits
+    if (typeof window !== 'undefined' && (window as any).fbq) {
+      const options: Record<string, any> = { eventID: eventId };
+      const testCode = process.env.NEXT_PUBLIC_META_TEST_EVENT_CODE;
+      if (testCode) {
+        options.test_event_code = testCode;
+      }
+      (window as any).fbq('track', 'PageView', {}, options);
+    }
+
+    // Server-side CAPI PageView — fires NOW with sync-available identity data
+    const identityData = getMetaIdentityCookies();
+
+    // For anonymous PageView events, strip all PII fields (em, ph, fn, ln, address, DOB, fb_login_id).
+    // Standard pageviews for guests must only contain available browser identifier parameters (fbp, fbc, external_id).
+    if (!session?.user) {
+      delete identityData.em;
+      delete identityData.ph;
+      delete identityData.fn;
+      delete identityData.ln;
+      delete identityData.country;
+      delete identityData.st;
+      delete identityData.ct;
+      delete identityData.zp;
+      delete identityData.db;
+      delete identityData.fb_login_id;
+    }
+
+    // Clean empty fields from identityData
+    const cleanedIdentity: Record<string, any> = {};
+    for (const [key, val] of Object.entries(identityData)) {
+      if (val !== undefined && val !== null && val !== '') {
+        cleanedIdentity[key] = val;
+      }
+    }
+
+    fetch('/api/meta/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventName: 'PageView',
+        eventId,
+        eventTime,
+        eventSourceUrl: window.location.href,
+        userAgent: navigator.userAgent,
+        actionSource: 'website',
+        userData: cleanedIdentity,
+      }),
+    }).catch(err => console.warn('[Tracker Client] PageView CAPI failed:', err));
+
+    // GA PageView
+    trackGAPageView(pathname);
+
+    // ─── STEP 3: Async identity enrichment (runs AFTER PageView) ───
+    // This improves identity data for the NEXT event on this page (ViewContent, AddToCart, etc.)
+    // but never gates or delays PageView itself.
+
+    const enrichIdentityAsync = async () => {
       const sessionUserData: Record<string, any> = {};
 
       if (session?.user) {
@@ -170,81 +230,23 @@ export function MetaPixelRouteTracker() {
             }
           }
         }
-      } else {
-        setClientCookie('zb_user_logged_in', 'false', 365);
-      }
 
-      // Reinit pixel. Logged-in users initialize with full user data.
-      // Guest/non-logged-in users initialize with browser parameters only (external_id).
-      if (session?.user) {
+        // Reinit pixel with full enriched user data for subsequent events
         initPixel(sessionUserData);
       } else {
-        initPixel({}); // only uses extId inside initPixel
+        setClientCookie('zb_user_logged_in', 'false', 365);
+        // Reinit pixel with browser-only params for subsequent events
+        initPixel({});
       }
-
-      // NOW fire PageView — pixel has full identity at this point
-      const eventId = 'pv.' + uuidv4();
-      const eventTime = Math.floor(Date.now() / 1000);
-
-      // Client-side pixel PageView
-      if (typeof window !== 'undefined' && (window as any).fbq) {
-        const options: Record<string, any> = { eventID: eventId };
-        const testCode = process.env.NEXT_PUBLIC_META_TEST_EVENT_CODE;
-        if (testCode) {
-          options.test_event_code = testCode;
-        }
-        (window as any).fbq('track', 'PageView', {}, options);
-      }
-
-      // Server-side CAPI PageView
-      const identityData = getMetaIdentityCookies();
-
-      // For anonymous PageView events, strip all PII fields (em, ph, fn, ln, address, DOB, fb_login_id).
-      // Standard pageviews for guests must only contain available browser identifier parameters (fbp, fbc, external_id).
-      if (!session?.user) {
-        delete identityData.em;
-        delete identityData.ph;
-        delete identityData.fn;
-        delete identityData.ln;
-        delete identityData.country;
-        delete identityData.st;
-        delete identityData.ct;
-        delete identityData.zp;
-        delete identityData.db;
-        delete identityData.fb_login_id;
-      }
-
-      // Clean empty fields from identityData
-      const cleanedIdentity: Record<string, any> = {};
-      for (const [key, val] of Object.entries(identityData)) {
-        if (val !== undefined && val !== null && val !== '') {
-          cleanedIdentity[key] = val;
-        }
-      }
-
-      fetch('/api/meta/event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventName: 'PageView',
-          eventId,
-          eventTime,
-          eventSourceUrl: window.location.href,
-          userAgent: navigator.userAgent,
-          actionSource: 'website',
-          userData: cleanedIdentity,
-        }),
-      }).catch(err => console.warn('[Tracker Client] PageView CAPI failed:', err));
-
-      // GA PageView
-      trackGAPageView(pathname);
     };
 
-    setupAndFirePageView();
+    // Fire enrichment in background — NEVER blocks PageView
+    enrichIdentityAsync().catch(err => {
+      console.warn('[Meta Pixel Enrichment] Identity enrichment failed (non-fatal):', err);
+    });
   }, [session, pathname]);
 
   return null;
 }
 
 export default MetaPixelRouteTracker;
-

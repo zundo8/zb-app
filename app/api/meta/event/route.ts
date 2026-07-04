@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
         customData: adjustedCustomData,
         actionSource: actionSource ?? 'website',
       }).catch((err: any) => {
-        console.error(`[Meta CAPI Background ${eventName}] Error:`, err);
+        console.error(`[Meta CAPI Background ${eventName}] eventId=${eventId} Error:`, err);
       });
 
       return NextResponse.json({

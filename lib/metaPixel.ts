@@ -77,6 +77,11 @@ export function getMetaIdentityCookies(): Record<string, string | undefined> {
   };
 }
 
+// Module-level guard to prevent redundant fbq('init') calls with identical data.
+// The layout.tsx inline script handles the base init (no user data).
+// This function only re-inits when advanced matching data actually changes.
+let lastInitHash: string | null = null;
+
 export const initPixel = (additionalData: Record<string, any> = {}) => {
   if (typeof window !== 'undefined' && (window as any).fbq) {
     const extId = getClientCookie('zb_external_id');
@@ -113,6 +118,15 @@ export const initPixel = (additionalData: Record<string, any> = {}) => {
     if (guestFbLoginId) userData.fb_login_id = guestFbLoginId;
 
     const merged = { ...userData, ...additionalData };
+
+    // Dedup guard: skip fbq('init') if the merged userData is identical to last call.
+    // This prevents the "Duplicate Pixel ID" warning from fbevents.js.
+    const currentHash = JSON.stringify(merged, Object.keys(merged).sort());
+    if (currentHash === lastInitHash) {
+      return; // Data unchanged — skip redundant init
+    }
+    lastInitHash = currentHash;
+
     (window as any).fbq('init', META_PIXEL_ID, merged);
   }
 };
