@@ -69,12 +69,27 @@ export function MetaPixelRouteTracker() {
       setClientCookie('_fbc', fbcVal, 90);
     }
 
-    // 4. Async: hash session PII → update cookies → reinit pixel → THEN fire PageView
+    // 4. Resolve client public IP (IPv6 preferred) in background — non-blocking.
+    // The cookie will be available for CAPI calls on this and subsequent page loads.
+    const cachedIp = getClientCookie('zb_client_ip');
+    if (!cachedIp) {
+      fetch('https://api64.ipify.org?format=json')
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.ip) {
+            setClientCookie('zb_client_ip', data.ip, 1);
+          }
+        })
+        .catch(() => {}); // silently ignore — proxy headers are fallback
+    }
+
+    // 5. Async: hash session PII → update cookies → reinit pixel → THEN fire PageView
     const setupAndFirePageView = async () => {
-      // Hash session user data and persist to cookies for advanced matching
       const sessionUserData: Record<string, any> = {};
 
       if (session?.user) {
+        setClientCookie('zb_user_logged_in', 'true', 365);
+
         const email = session.user.email;
         if (email) {
           const hashedEmail = await sha256(email.trim().toLowerCase());
@@ -155,10 +170,17 @@ export function MetaPixelRouteTracker() {
             }
           }
         }
+      } else {
+        setClientCookie('zb_user_logged_in', 'false', 365);
       }
 
-      // Reinit pixel with ALL available user data (cookies + session)
-      initPixel(sessionUserData);
+      // Reinit pixel. Logged-in users initialize with full user data.
+      // Guest/non-logged-in users initialize with browser parameters only (external_id).
+      if (session?.user) {
+        initPixel(sessionUserData);
+      } else {
+        initPixel({}); // only uses extId inside initPixel
+      }
 
       // NOW fire PageView — pixel has full identity at this point
       const eventId = 'pv.' + uuidv4();
@@ -174,15 +196,30 @@ export function MetaPixelRouteTracker() {
         (window as any).fbq('track', 'PageView', {}, options);
       }
 
-      // Server-side CAPI PageView with full identity for deduplication
+      // Server-side CAPI PageView
       const identityData = getMetaIdentityCookies();
 
-      // Issue 4 fix: Do not send ph for anonymous PageView events.
-      // ph should only be included when we have a real, per-user phone number
-      // (i.e., from an authenticated session). Sending a stale/shared cookie value
-      // on anonymous pageviews causes the duplicate phone hash bug in Meta.
+      // For anonymous PageView events, strip all PII fields (em, ph, fn, ln, address, DOB, fb_login_id).
+      // Standard pageviews for guests must only contain available browser identifier parameters (fbp, fbc, external_id).
       if (!session?.user) {
+        delete identityData.em;
         delete identityData.ph;
+        delete identityData.fn;
+        delete identityData.ln;
+        delete identityData.country;
+        delete identityData.st;
+        delete identityData.ct;
+        delete identityData.zp;
+        delete identityData.db;
+        delete identityData.fb_login_id;
+      }
+
+      // Clean empty fields from identityData
+      const cleanedIdentity: Record<string, any> = {};
+      for (const [key, val] of Object.entries(identityData)) {
+        if (val !== undefined && val !== null && val !== '') {
+          cleanedIdentity[key] = val;
+        }
       }
 
       fetch('/api/meta/event', {
@@ -195,7 +232,7 @@ export function MetaPixelRouteTracker() {
           eventSourceUrl: window.location.href,
           userAgent: navigator.userAgent,
           actionSource: 'website',
-          userData: identityData,
+          userData: cleanedIdentity,
         }),
       }).catch(err => console.warn('[Tracker Client] PageView CAPI failed:', err));
 

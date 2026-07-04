@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract request-scoped data (synchronous — no I/O)
-    const ip = req.headers.get('do-connecting-ip') ||
+    const ip = req.cookies.get('zb_client_ip')?.value ||
+               req.headers.get('do-connecting-ip') ||
                req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 
                req.headers.get('x-real-ip') || 
                req.ip || 
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
     const fbp = req.cookies.get('_fbp')?.value;
     const fbc = req.cookies.get('_fbc')?.value;
     const externalId = req.cookies.get('zb_external_id')?.value;
+    const isLoggedIn = req.cookies.get('zb_user_logged_in')?.value === 'true';
 
     const guestEmail = req.cookies.get('zb_guest_email')?.value;
     const guestPhone = req.cookies.get('zb_guest_phone')?.value;
@@ -204,11 +206,22 @@ export async function POST(req: NextRequest) {
       db: userData?.db || guestDob || sessionUserData.db,
     };
 
-    // Issue 4 fix: For PageView events without an authenticated session,
-    // strip ph to prevent duplicate phone hash being sent for anonymous visitors.
-    // ph should only be sent when we have a real per-user phone number.
-    if (eventName === 'PageView' && !session?.user) {
+    const userIsLoggedIn = isLoggedIn || !!session?.user;
+    const isCheckoutEvent = ['InitiateCheckout', 'AddPaymentInfo', 'Purchase'].includes(eventName);
+
+    // If the visitor is not logged in and it's not a checkout event, strip all PII parameters.
+    // Omit em, ph, name, address, DOB, fb_login_id. Keep only browser parameters.
+    if (!userIsLoggedIn && !isCheckoutEvent) {
+      delete mergedUserData.em;
       delete mergedUserData.ph;
+      delete mergedUserData.fn;
+      delete mergedUserData.ln;
+      delete mergedUserData.country;
+      delete mergedUserData.st;
+      delete mergedUserData.ct;
+      delete mergedUserData.zp;
+      delete mergedUserData.db;
+      delete mergedUserData.fb_login_id;
     }
 
     // Log identifier coverage summary (what identifiers are present, not the actual values)

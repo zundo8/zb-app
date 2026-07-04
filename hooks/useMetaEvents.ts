@@ -1,4 +1,4 @@
-import { trackEvent, initPixel, getMetaIdentityCookies } from '@/lib/metaPixel';
+import { trackEvent, initPixel, getMetaIdentityCookies, getClientCookie } from '@/lib/metaPixel';
 import { event as trackGAEvent } from '@/lib/gtag';
 
 function uuidv4() {
@@ -15,13 +15,34 @@ async function sendToCapiRoute(payload: Record<string, any>): Promise<any> {
     // Meta Event Match Quality. Explicit userData from event callers takes priority.
     // Clean both objects to prevent undefined/empty fields from overwriting valid values.
     const identityData = cleanCustomData(getMetaIdentityCookies());
+    
+    // Check user logged in status
+    const isLoggedIn = getClientCookie('zb_user_logged_in') === 'true';
+    const isCheckoutEvent = ['InitiateCheckout', 'AddPaymentInfo', 'Purchase'].includes(payload.eventName);
+    
+    // For guests/non-logged-in users on non-checkout events, strip PII parameters to avoid mismatch or stale data.
+    if (!isLoggedIn && !isCheckoutEvent) {
+      delete identityData.em;
+      delete identityData.ph;
+      delete identityData.fn;
+      delete identityData.ln;
+      delete identityData.country;
+      delete identityData.st;
+      delete identityData.ct;
+      delete identityData.zp;
+      delete identityData.db;
+      delete identityData.fb_login_id;
+    }
+
     const callerUserData = cleanCustomData(payload.userData || {});
+    const mergedUserData = cleanCustomData({
+      ...identityData,
+      ...callerUserData,
+    });
+
     const enrichedPayload = {
       ...payload,
-      userData: {
-        ...identityData,
-        ...callerUserData,
-      },
+      userData: mergedUserData,
     };
     const res = await fetch('/api/meta/event', {
       method: 'POST',
