@@ -34,7 +34,8 @@ import {
   User,
   Mail,
   Globe,
-  Map
+  Map,
+  Folder
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -177,8 +178,8 @@ export default function CheckoutPage() {
 
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
   const [googleMapsError, setGoogleMapsError] = useState(false);
-  const autocompleteContainerRef = useRef<HTMLDivElement>(null);
-  const placeAutocompleteRef = useRef<any>(null);
+  const autocompleteInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<any>(null);
 
   const [step, setStep] = useState(1); // 1: Address, 2: Payment
   const [loading, setLoading] = useState(false);
@@ -293,7 +294,7 @@ export default function CheckoutPage() {
   const [zipLoading, setZipLoading] = useState(false);
   const [locating, setLocating] = useState(false);
 
-  // Load Google Maps API Script
+  // Load Google Maps API
   useEffect(() => {
     if (googleMapsLoaded || googleMapsError) return;
 
@@ -306,7 +307,8 @@ export default function CheckoutPage() {
 
     try {
       setOptions({
-        key: apiKey
+        key: apiKey,
+        v: "weekly"
       });
 
       importLibrary("places")
@@ -323,135 +325,59 @@ export default function CheckoutPage() {
     }
   }, [googleMapsLoaded, googleMapsError]);
 
-  // Initialize Place Autocomplete Element
+  // Initialize Place Autocomplete
   useEffect(() => {
-    if (!googleMapsLoaded || !autocompleteContainerRef.current) return;
-    
-    // Clear container to prevent duplicate elements on re-render/re-mount
-    autocompleteContainerRef.current.innerHTML = "";
+    if (!googleMapsLoaded || !autocompleteInputRef.current) return;
 
     let active = true;
 
     const initAutocomplete = async () => {
       try {
-        const { PlaceAutocompleteElement } = await importLibrary("places") as any;
+        const { Autocomplete } = await importLibrary("places") as any;
         if (!active) return;
-        if (!PlaceAutocompleteElement) {
-          throw new Error("PlaceAutocompleteElement not supported in this version of Maps API.");
+        if (!Autocomplete) {
+          throw new Error("Autocomplete constructor not found in places library.");
         }
 
-        // Hack attachment to attachShadow so we can style the closed Shadow DOM
-        if (!(Element.prototype as any)._attachShadow) {
-          (Element.prototype as any)._attachShadow = Element.prototype.attachShadow;
-          Element.prototype.attachShadow = function (init) {
-            if (init && init.mode === "closed") {
-              init.mode = "open";
-            }
-            return (this as any)._attachShadow(init);
-          };
-        }
+        const autocomplete = new Autocomplete(autocompleteInputRef.current, {
+          componentRestrictions: { country: "IN" },
+          fields: ["address_components", "geometry", "place_id"],
+          types: ["geocode", "establishment"]
+        });
 
-        const placeAutocomplete = new PlaceAutocompleteElement();
-        placeAutocomplete.includedRegionCodes = ["IN"];
-        placeAutocomplete.placeholder = "Search area, locality, or landmark...";
-        
-        placeAutocomplete.style.width = "100%";
-        placeAutocomplete.style.height = "100%";
-        placeAutocomplete.style.border = "none";
-        placeAutocomplete.style.background = "transparent";
-        placeAutocomplete.style.outline = "none";
+        autocompleteRef.current = autocomplete;
 
-        if (autocompleteContainerRef.current) {
-          autocompleteContainerRef.current.innerHTML = "";
-          autocompleteContainerRef.current.appendChild(placeAutocomplete);
-        }
-        placeAutocompleteRef.current = placeAutocomplete;
-
-        // Stylize Shadow DOM elements programmatically
-        setTimeout(() => {
+        autocomplete.addListener("place_changed", () => {
           if (!active) return;
-          try {
-            const shadow = placeAutocomplete.shadowRoot;
-            if (shadow) {
-              const style = document.createElement("style");
-              style.textContent = `
-                input {
-                  font-family: inherit !important;
-                  font-size: 14px !important;
-                  color: currentColor !important;
-                  background: transparent !important;
-                  border: none !important;
-                  box-shadow: none !important;
-                  outline: none !important;
-                  padding: 0 !important;
-                  width: 100% !important;
-                  height: 100% !important;
-                }
-                .widget-container {
-                  border: none !important;
-                  background: transparent !important;
-                  box-shadow: none !important;
-                  padding: 0 !important;
-                  margin: 0 !important;
-                  height: 100% !important;
-                  display: flex !important;
-                  align-items: center !important;
-                }
-                .search-icon, .clear-button {
-                  display: none !important;
-                }
-              `;
-              shadow.appendChild(style);
-            }
-          } catch (e) {
-            console.error("Shadow DOM styling failed:", e);
-          }
-        }, 50);
+          const place = autocomplete.getPlace();
+          if (!place || !place.address_components) return;
 
-        // Event listener for place selection
-        placeAutocomplete.addEventListener("gmp-placeselect", async (event: any) => {
-          const place = event.place;
-          if (!place) return;
+          const lat = place.geometry?.location?.lat();
+          const lng = place.geometry?.location?.lng();
+          const placeId = place.place_id;
+          const components = place.address_components;
 
-          setLoading(true);
-          setError("");
-          try {
-            await place.fetchFields({
-              fields: ["id", "addressComponents", "location"]
-            });
+          const parsed = parseAddressComponents(components);
 
-            const lat = place.location?.lat();
-            const lng = place.location?.lng();
-            const placeId = place.id;
-            const components = place.addressComponents || [];
+          setAddress(prev => ({
+            ...prev,
+            street: parsed.streetName || prev.street,
+            city: parsed.city || prev.city,
+            state: parsed.state || prev.state,
+            zip: parsed.pincode || prev.zip,
+            lat: lat != null ? lat : prev.lat,
+            lng: lng != null ? lng : prev.lng,
+            placeId: placeId || prev.placeId,
+          }));
 
-            const parsed = parseAddressComponents(components);
-
-            setAddress(prev => ({
-              ...prev,
-              street: parsed.streetName || prev.street,
-              city: parsed.city || prev.city,
-              state: parsed.state || prev.state,
-              zip: parsed.pincode || prev.zip,
-              lat: lat != null ? lat : prev.lat,
-              lng: lng != null ? lng : prev.lng,
-              placeId: placeId || prev.placeId,
-            }));
-
-            setAddressErrors(prev => {
-              const next = { ...prev };
-              delete next.street;
-              delete next.city;
-              delete next.state;
-              delete next.zip;
-              return next;
-            });
-          } catch (err) {
-            console.error("Error fetching place details:", err);
-            setError("Failed to fetch location details. Please fill manually.");
-          } finally {
-            setLoading(false);
-          }
+          setAddressErrors(prev => {
+            const next = { ...prev };
+            delete next.street;
+            delete next.city;
+            delete next.state;
+            delete next.zip;
+            return next;
+          });
         });
       } catch (err) {
         console.error("Error initializing Google Autocomplete:", err);
@@ -463,8 +389,15 @@ export default function CheckoutPage() {
 
     return () => {
       active = false;
-      if (autocompleteContainerRef.current) {
-        autocompleteContainerRef.current.innerHTML = "";
+      if (autocompleteRef.current) {
+        try {
+          const googleObj = (window as any).google;
+          if (googleObj && googleObj.maps && googleObj.maps.event) {
+            googleObj.maps.event.clearInstanceListeners(autocompleteRef.current);
+          }
+        } catch (e) {
+          console.error("Failed to clean up Google Autocomplete listeners:", e);
+        }
       }
     };
   }, [googleMapsLoaded, showAddressForm]);
@@ -483,8 +416,11 @@ export default function CheckoutPage() {
         const { latitude, longitude } = position.coords;
         try {
           if (googleMapsLoaded) {
-            const { Geocoder } = await importLibrary("geocoding") as any;
-            const geocoder = new Geocoder();
+            const googleObj = (window as any).google;
+            if (!googleObj || !googleObj.maps) {
+              throw new Error("Google Maps API not loaded");
+            }
+            const geocoder = new googleObj.maps.Geocoder();
             geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
               if (status === "OK" && results && results[0]) {
                 const result = results[0];
@@ -2000,6 +1936,41 @@ export default function CheckoutPage() {
 
                   {showAddressForm && (
                     <form id="address-form" onSubmit={handleAddressSubmit} className="flex-1 flex flex-col w-full">
+                      <style>{`
+                        .pac-container {
+                          background-color: #121212 !important;
+                          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                          border-radius: 12px !important;
+                          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5) !important;
+                          font-family: inherit !important;
+                          margin-top: 4px !important;
+                          z-index: 9999 !important;
+                        }
+                        .pac-item {
+                          border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+                          padding: 10px 14px !important;
+                          color: rgba(255, 255, 255, 0.8) !important;
+                          font-size: 13px !important;
+                          cursor: pointer !important;
+                          display: flex !important;
+                          align-items: center !important;
+                        }
+                        .pac-item:hover, .pac-item-selected {
+                          background-color: rgba(255, 255, 255, 0.05) !important;
+                        }
+                        .pac-item-query {
+                          font-size: 13px !important;
+                          color: #ffffff !important;
+                          padding-right: 4px !important;
+                        }
+                        .pac-matched {
+                          font-weight: 700 !important;
+                        }
+                        .pac-icon {
+                          margin-right: 10px !important;
+                          filter: invert(1) !important;
+                        }
+                      `}</style>
                       {savedAddresses.length > 0 && (
                         <button
                           type="button"
@@ -2010,48 +1981,45 @@ export default function CheckoutPage() {
                             }
                             setShowAddressForm(false);
                           }}
-                          className="w-full h-10 text-[9px] font-black uppercase tracking-[0.18em] bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 backdrop-blur-md active:scale-[0.98] rounded-xl text-foreground/70 transition-all flex items-center justify-center mb-5 whitespace-nowrap cursor-pointer"
+                          className="w-full h-14 px-4 rounded-2xl border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] backdrop-blur-md hover:bg-white/20 dark:hover:bg-white/[0.05] active:scale-[0.98] transition-all flex items-center justify-between text-foreground mb-5 cursor-pointer"
                         >
-                          Back to Saved Addresses
+                          <div className="flex items-center gap-3">
+                            <Folder className="w-5 h-5 text-foreground/70" />
+                            <span className="text-[14px] font-medium">Use saved addresses</span>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-foreground/70" />
                         </button>
                       )}
                       
                       {/* Search and Geolocation Card */}
                       <div className="p-4 mb-5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/10 dark:bg-white/[0.02] backdrop-blur-md flex flex-col gap-3 shadow-sm">
-                        <div className="flex flex-col gap-0.5">
-                          <p className="text-[8px] font-black uppercase tracking-[0.2em] text-foreground/45">Search Delivery Address</p>
-                          <p className="text-[10px] text-foreground/60 leading-tight">Start typing your address or use current location to auto-fill the form fields below.</p>
-                        </div>
                         <div className="flex flex-row gap-2.5 w-full">
                           {/* Autocomplete Input */}
                           <div className="flex-1 relative flex items-center h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30">
                             <MapPin className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
-                            {googleMapsError ? (
-                              <input
-                                type="text"
-                                placeholder="Search area, locality, or landmark..."
-                                className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] text-foreground placeholder:text-foreground/35 p-0"
-                              />
-                            ) : (
-                              <div ref={autocompleteContainerRef} className="flex-1 h-full w-full flex items-center text-[14px]" />
-                            )}
+                            <input
+                              ref={autocompleteInputRef}
+                              type="text"
+                              placeholder="Search area, locality, or landmark"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] text-foreground placeholder:text-foreground/35 p-0"
+                            />
                           </div>
-                          {/* Use Current Location Button */}
-                          <button
-                            type="button"
-                            onClick={handleDetectLocation}
-                            disabled={locating}
-                            className="h-[46px] px-3.5 rounded-xl border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.03] backdrop-blur-md text-foreground hover:bg-white/20 dark:hover:bg-white/[0.05] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-[10px] font-black tracking-[0.16em] uppercase shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer"
-                          >
-                            {locating ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-current" />
-                            ) : (
-                              <Navigation className="w-3.5 h-3.5 rotate-45 text-current shrink-0" />
-                            )}
-                            <span className="hidden sm:inline">Use Current Location</span>
-                            <span className="sm:hidden">Use Location</span>
-                          </button>
                         </div>
+
+                        {/* Use Current Location Button */}
+                        <button
+                          type="button"
+                          onClick={handleDetectLocation}
+                          disabled={locating}
+                          className="w-full h-[46px] rounded-xl border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.03] backdrop-blur-md text-foreground hover:bg-white/20 dark:hover:bg-white/[0.05] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-[14px] font-medium shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer"
+                        >
+                          {locating ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-current" />
+                          ) : (
+                            <Navigation className="w-3.5 h-3.5 rotate-45 text-current shrink-0" />
+                          )}
+                          <span>Detect my location</span>
+                        </button>
                       </div>
 
                       {/* Section 1: Contact Details */}
@@ -2130,7 +2098,7 @@ export default function CheckoutPage() {
                       </div>
                       <div className="grid grid-cols-12 gap-3.5 w-full">
                         {/* House / Flat / Building */}
-                        <div className="col-span-4">
+                        <div className="col-span-6">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.houseNo ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <Home className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
@@ -2150,9 +2118,19 @@ export default function CheckoutPage() {
                         </div>
 
                         {/* Street / Road / Area */}
-                        <div className="col-span-8">
+                        <div className="col-span-6">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.street ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
-                            <MapPin className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
+                            <svg
+                              className="w-4 h-4 text-foreground/40 mr-2 shrink-0"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 22L14 2M6 22L10 2M12 2v4M12 9v3M12 15v3" />
+                            </svg>
                             <input
                               id="address-street"
                               name="street"
