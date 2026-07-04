@@ -58,8 +58,23 @@ function cleanCustomData(data: Record<string, any>): Record<string, any> {
   return cleaned;
 }
 
+const firedEventsCache = new Map<string, number>();
+
+function shouldFireEvent(key: string): boolean {
+  const now = Date.now();
+  const lastFired = firedEventsCache.get(key);
+  if (lastFired && now - lastFired < 1000) {
+    return false; // Deduplicate rapid multiple fires (e.g. from React Strict Mode in development)
+  }
+  firedEventsCache.set(key, now);
+  return true;
+}
+
 export function useMetaEvents() {
   const trackViewContent = (contentId: string, contentName: string, value?: number, currency = 'INR', contentCategory?: string) => {
+    const cacheKey = `ViewContent-${contentId}`;
+    if (!shouldFireEvent(cacheKey)) return;
+
     const base = getBasePayload('ViewContent');
     const contents = value !== undefined ? [{ id: contentId, quantity: 1, item_price: value }] : [{ id: contentId, quantity: 1 }];
     const customData = cleanCustomData({
@@ -89,6 +104,9 @@ export function useMetaEvents() {
   };
 
   const trackAddToCart = (contentId: string, contentName: string, value: number, currency = 'INR', contentCategory?: string) => {
+    const cacheKey = `AddToCart-${contentId}`;
+    if (!shouldFireEvent(cacheKey)) return;
+
     const base = getBasePayload('AddToCart');
     const customData = cleanCustomData({
       content_ids: [contentId],
@@ -207,15 +225,31 @@ export function useMetaEvents() {
     contentCategory?: string,
     contentIds?: string[],
     userData?: any,
-    contents?: { id: string; quantity: number; item_price?: number }[]
+    contents?: { id: string; quantity: number; item_price?: number; title?: string; category?: string }[]
   ) => {
+    const cacheKey = `InitiateCheckout-${value}-${numItems}`;
+    if (!shouldFireEvent(cacheKey)) return;
+
     const base = getBasePayload('InitiateCheckout');
     if (userData) {
       initPixel(userData);
     }
-    const finalContents = contents || (contentIds ? contentIds.map(id => ({ id, quantity: 1 })) : []);
     
-    // Server CAPI receives the real value — adjustment happens server-side
+    // Map contents to include title, category, and standard price parameters
+    const rawContents = contents || (contentIds ? contentIds.map(id => ({ id, quantity: 1 })) : []);
+    const mappedContents = rawContents.map((item: any) => {
+      const priceVal = item.item_price !== undefined ? item.item_price : (value / (rawContents.length || 1));
+      return {
+        id: item.id,
+        quantity: item.quantity || 1,
+        price: priceVal,
+        item_price: priceVal,
+        title: (item as any).title || undefined,
+        category: (item as any).category || undefined
+      };
+    });
+    
+    // Server CAPI receives the real value and mapped contents — adjustment happens server-side
     const capiCustomData = cleanCustomData({
       value,
       num_items: numItems,
@@ -223,23 +257,47 @@ export function useMetaEvents() {
       content_category: contentCategory,
       content_ids: contentIds,
       content_type: 'product',
-      contents: finalContents
+      contents: mappedContents
     });
-
-    // Start CAPI call
-    const capiPromise = sendToCapiRoute({ 
-      ...base, 
-      customData: capiCustomData,
-      userData: { client_user_agent: navigator.userAgent, ...userData }
-    });
-
-    // Timeout of 800ms
-    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
 
     let fired = false;
-    const firePixel = (reportedVal?: number, repCurrency?: string) => {
+    const firePixel = (reportedVal?: number, repCurrency?: string, adjustedContents?: any[]) => {
       if (fired) return;
       fired = true;
+      
+      // Cache adjusted value and contents in sessionStorage for fallback on subsequent events
+      if (reportedVal !== undefined) {
+        try {
+          sessionStorage.setItem('zb_meta_rv', JSON.stringify({
+            v: reportedVal,
+            c: repCurrency || currency,
+            contents: adjustedContents
+          }));
+          if (value > 0) {
+            sessionStorage.setItem('zb_meta_ratio', (reportedVal / value).toString());
+          }
+        } catch {}
+      }
+
+      // Determine final contents with scaled prices
+      let finalFbqContents = adjustedContents;
+      if (!finalFbqContents) {
+        try {
+          const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio');
+          if (cachedRatioStr) {
+            const ratio = parseFloat(cachedRatioStr);
+            finalFbqContents = mappedContents.map(item => ({
+              ...item,
+              price: Math.round(item.price * ratio * 100) / 100,
+              item_price: Math.round(item.item_price * ratio * 100) / 100
+            }));
+          }
+        } catch {}
+      }
+      if (!finalFbqContents) {
+        finalFbqContents = mappedContents;
+      }
+
       const fbqCustomData = cleanCustomData({
         value: reportedVal,
         currency: repCurrency || currency,
@@ -247,28 +305,70 @@ export function useMetaEvents() {
         content_category: contentCategory,
         content_ids: contentIds,
         content_type: 'product',
-        contents: finalContents
+        contents: finalFbqContents
       });
       trackEvent('InitiateCheckout', fbqCustomData, base.eventId);
     };
 
-    Promise.race([capiPromise, timeoutPromise])
-      .then((res: any) => {
-        if (res && res.reportedValue !== undefined) {
-          firePixel(res.reportedValue, res.currency);
-        } else {
-          firePixel();
+    const attemptCapi = () => sendToCapiRoute({
+      ...base,
+      customData: capiCustomData,
+      userData: { client_user_agent: navigator.userAgent, ...userData }
+    });
+    const timeout = (ms: number) => new Promise<null>(r => setTimeout(() => r(null), ms));
+
+    // Retry flow with sessionStorage fallback — pixel always fires
+    (async () => {
+      // First attempt: 2500ms timeout
+      let res = await Promise.race([attemptCapi(), timeout(2500)]);
+      if (res && res.reportedValue !== undefined) {
+        firePixel(res.reportedValue, res.currency, res.contents);
+        return;
+      }
+
+      // Retry: 1500ms timeout
+      res = await Promise.race([attemptCapi(), timeout(1500)]);
+      if (res && res.reportedValue !== undefined) {
+        firePixel(res.reportedValue, res.currency, res.contents);
+        return;
+      }
+
+      // Both failed — try sessionStorage fallback or ratio scaling
+      try {
+        const cached = sessionStorage.getItem('zb_meta_rv');
+        const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio');
+        if (cached) {
+          const { v, c, contents: cachedContents } = JSON.parse(cached);
+          if (v !== undefined) {
+            console.warn('[Meta Pixel] InitiateCheckout fired using cached adjusted value — CAPI round-trip failed twice');
+            firePixel(v, c, cachedContents);
+            return;
+          }
         }
-      })
-      .catch(() => {
-        firePixel();
-      });
+        if (cachedRatioStr) {
+          const ratio = parseFloat(cachedRatioStr);
+          const scaledValue = Math.round(value * ratio * 100) / 100;
+          const scaledContents = mappedContents.map(item => ({
+            ...item,
+            price: Math.round(item.price * ratio * 100) / 100,
+            item_price: Math.round(item.item_price * ratio * 100) / 100
+          }));
+          console.warn('[Meta Pixel] InitiateCheckout fired using scaled cached ratio — CAPI round-trip failed twice');
+          firePixel(scaledValue, currency, scaledContents);
+          return;
+        }
+      } catch {}
+
+      // Absolute last resort — fire without value and log
+      console.error('[Meta Pixel] InitiateCheckout fired without value — CAPI round-trip failed twice, no sessionStorage fallback');
+      firePixel();
+    })();
     
     // GA4 equivalent: begin_checkout (uses full original value)
     trackGAEvent('begin_checkout', {
       value,
       currency,
-      items: finalContents.map(item => ({
+      items: mappedContents.map(item => ({
         item_id: item.id,
         quantity: item.quantity
       }))
@@ -294,15 +394,31 @@ export function useMetaEvents() {
       fb_login_id?: string;
     },
     contentCategory?: string,
-    contents?: { id: string; quantity: number; item_price?: number }[]
+    contents?: { id: string; quantity: number; item_price?: number; title?: string; category?: string }[]
   ) => {
+    const cacheKey = `Purchase-${orderId}`;
+    if (!shouldFireEvent(cacheKey)) return;
+
     const base = { ...getBasePayload('Purchase'), eventId: orderId }; // use order ID as event ID for dedup
     if (userData) {
       initPixel(userData);
     }
-    const finalContents = contents || contentIds.map(id => ({ id, quantity: 1, item_price: value / (contentIds.length || 1) }));
+    
+    // Map contents to include title, category, and standard price parameters
+    const rawContents = contents || contentIds.map(id => ({ id, quantity: 1, item_price: value / (contentIds.length || 1) }));
+    const mappedContents = rawContents.map((item: any) => {
+      const priceVal = item.item_price !== undefined ? item.item_price : (value / (rawContents.length || 1));
+      return {
+        id: item.id,
+        quantity: item.quantity || 1,
+        price: priceVal,
+        item_price: priceVal,
+        title: (item as any).title || undefined,
+        category: (item as any).category || undefined
+      };
+    });
 
-    // Server CAPI receives the real value — adjustment happens server-side
+    // Server CAPI receives the real value and mapped contents — adjustment happens server-side
     const capiCustomData = cleanCustomData({
       value,
       currency,
@@ -310,24 +426,48 @@ export function useMetaEvents() {
       order_id: orderId,
       content_category: contentCategory,
       content_type: 'product',
-      contents: finalContents,
-      num_items: finalContents.reduce((sum, item) => sum + item.quantity, 0)
+      contents: mappedContents,
+      num_items: mappedContents.reduce((sum, item) => sum + item.quantity, 0)
     });
-
-    // Start CAPI call
-    const capiPromise = sendToCapiRoute({
-      ...base,
-      customData: capiCustomData,
-      userData: { client_user_agent: navigator.userAgent, ...userData },
-    });
-
-    // Timeout of 800ms
-    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
 
     let fired = false;
-    const firePixel = (reportedVal?: number, repCurrency?: string) => {
+    const firePixel = (reportedVal?: number, repCurrency?: string, adjustedContents?: any[]) => {
       if (fired) return;
       fired = true;
+      
+      // Cache adjusted value and contents in sessionStorage for fallback on subsequent events
+      if (reportedVal !== undefined) {
+        try {
+          sessionStorage.setItem('zb_meta_rv', JSON.stringify({
+            v: reportedVal,
+            c: repCurrency || currency,
+            contents: adjustedContents
+          }));
+          if (value > 0) {
+            sessionStorage.setItem('zb_meta_ratio', (reportedVal / value).toString());
+          }
+        } catch {}
+      }
+
+      // Determine final contents with scaled prices
+      let finalFbqContents = adjustedContents;
+      if (!finalFbqContents) {
+        try {
+          const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio');
+          if (cachedRatioStr) {
+            const ratio = parseFloat(cachedRatioStr);
+            finalFbqContents = mappedContents.map(item => ({
+              ...item,
+              price: Math.round(item.price * ratio * 100) / 100,
+              item_price: Math.round(item.item_price * ratio * 100) / 100
+            }));
+          }
+        } catch {}
+      }
+      if (!finalFbqContents) {
+        finalFbqContents = mappedContents;
+      }
+
       const fbqCustomData = cleanCustomData({
         value: reportedVal,
         currency: repCurrency || currency,
@@ -335,30 +475,72 @@ export function useMetaEvents() {
         order_id: orderId,
         content_category: contentCategory,
         content_type: 'product',
-        contents: finalContents,
-        num_items: finalContents.reduce((sum, item) => sum + item.quantity, 0)
+        contents: finalFbqContents,
+        num_items: finalFbqContents.reduce((sum, item) => sum + item.quantity, 0)
       });
       trackEvent('Purchase', fbqCustomData, base.eventId);
     };
 
-    Promise.race([capiPromise, timeoutPromise])
-      .then((res: any) => {
-        if (res && res.reportedValue !== undefined) {
-          firePixel(res.reportedValue, res.currency);
-        } else {
-          firePixel();
+    const attemptCapi = () => sendToCapiRoute({
+      ...base,
+      customData: capiCustomData,
+      userData: { client_user_agent: navigator.userAgent, ...userData },
+    });
+    const timeout = (ms: number) => new Promise<null>(r => setTimeout(() => r(null), ms));
+
+    // Retry flow with sessionStorage fallback — pixel always fires
+    (async () => {
+      // First attempt: 2500ms timeout
+      let res = await Promise.race([attemptCapi(), timeout(2500)]);
+      if (res && res.reportedValue !== undefined) {
+        firePixel(res.reportedValue, res.currency, res.contents);
+        return;
+      }
+
+      // Retry: 1500ms timeout
+      res = await Promise.race([attemptCapi(), timeout(1500)]);
+      if (res && res.reportedValue !== undefined) {
+        firePixel(res.reportedValue, res.currency, res.contents);
+        return;
+      }
+
+      // Both failed — try sessionStorage fallback or ratio scaling
+      try {
+        const cached = sessionStorage.getItem('zb_meta_rv');
+        const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio');
+        if (cached) {
+          const { v, c, contents: cachedContents } = JSON.parse(cached);
+          if (v !== undefined) {
+            console.warn('[Meta Pixel] Purchase fired using cached adjusted value — CAPI round-trip failed twice');
+            firePixel(v, c, cachedContents);
+            return;
+          }
         }
-      })
-      .catch(() => {
-        firePixel();
-      });
+        if (cachedRatioStr) {
+          const ratio = parseFloat(cachedRatioStr);
+          const scaledValue = Math.round(value * ratio * 100) / 100;
+          const scaledContents = mappedContents.map(item => ({
+            ...item,
+            price: Math.round(item.price * ratio * 100) / 100,
+            item_price: Math.round(item.item_price * ratio * 100) / 100
+          }));
+          console.warn('[Meta Pixel] Purchase fired using scaled cached ratio — CAPI round-trip failed twice');
+          firePixel(scaledValue, currency, scaledContents);
+          return;
+        }
+      } catch {}
+
+      // Absolute last resort — fire without value and log
+      console.error('[Meta Pixel] Purchase fired without value — CAPI round-trip failed twice, no sessionStorage fallback');
+      firePixel();
+    })();
     
     // GA4 equivalent: purchase (uses full original value)
     trackGAEvent('purchase', {
       transaction_id: orderId,
       value,
       currency,
-      items: finalContents.map(item => ({
+      items: mappedContents.map(item => ({
         item_id: item.id,
         quantity: item.quantity,
         price: item.item_price

@@ -147,7 +147,9 @@ export async function GET(req: Request) {
             option3: v.option3 || '',
             compareAtPrice: v.compare_at_price ? String(v.compare_at_price) : null,
             inventoryQuantity: v.inventory_quantity,
+            inventory_quantity: v.inventory_quantity,
             inventoryManagement: v.inventory_management,
+            inventory_management: v.inventory_management,
             isSoldOut: v.inventory_management && v.inventory_quantity <= 0
           }));
         }
@@ -179,7 +181,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { productId, action } = await req.json();
+    const { productId, variantId, size, action } = await req.json();
 
     if (!productId) {
       return NextResponse.json({ error: "Product ID is required" }, { status: 400 });
@@ -189,16 +191,20 @@ export async function POST(req: Request) {
     const cleanId = productId.replace(/^gid:\/\/shopify\/Product\//, '');
 
     if (action === "remove") {
-      await prisma.wishlist.deleteMany({
-        where: {
-          customerId: customer.id,
-          product: {
-            OR: [
-              { id: productId },
-              { shopifyProductId: cleanId }
-            ]
-          }
+      const deleteWhere: any = {
+        customerId: customer.id,
+        product: {
+          OR: [
+            { id: productId },
+            { shopifyProductId: cleanId }
+          ]
         }
+      };
+      if (variantId) {
+        deleteWhere.variantId = variantId;
+      }
+      await prisma.wishlist.deleteMany({
+        where: deleteWhere
       });
       return NextResponse.json({ success: true, message: "Removed from wishlist" });
     } else {
@@ -240,19 +246,32 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Product not found" }, { status: 404 });
       }
 
-      const item = await prisma.wishlist.upsert({
+      const existing = await prisma.wishlist.findFirst({
         where: {
-          customerId_productId: {
-            customerId: customer.id,
-            productId: product.id
-          }
-        },
-        create: {
           customerId: customer.id,
-          productId: product.id
-        },
-        update: {}
+          productId: product.id,
+          variantId: variantId || null
+        }
       });
+
+      let item;
+      if (existing) {
+        item = await prisma.wishlist.update({
+          where: { id: existing.id },
+          data: {
+            size: size || existing.size
+          }
+        });
+      } else {
+        item = await prisma.wishlist.create({
+          data: {
+            customerId: customer.id,
+            productId: product.id,
+            variantId: variantId || null,
+            size: size || null
+          }
+        });
+      }
 
       return NextResponse.json({ success: true, item });
     }

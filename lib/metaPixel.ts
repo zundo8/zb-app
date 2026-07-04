@@ -233,6 +233,14 @@ export const trackEvent = (
   eventId?: string
 ) => {
   if (typeof window !== 'undefined' && (window as any).fbq) {
-    (window as any).fbq('track', eventName, params, eventId ? { eventID: eventId } : {});
+    const options: Record<string, any> = {};
+    if (eventId) options.eventID = eventId;
+    
+    const testCode = process.env.NEXT_PUBLIC_META_TEST_EVENT_CODE;
+    if (testCode) {
+      options.test_event_code = testCode;
+    }
+    
+    (window as any).fbq('track', eventName, params, options);
   }
 };

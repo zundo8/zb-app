@@ -24,6 +24,25 @@ export default function WishlistPage() {
 
   const handleQuickAdd = (product: any) => {
     const variants = product.variants || [];
+    
+    // If the product in the wishlist already has a selected variant/size, use it directly!
+    if (product.selectedVariantId) {
+      const variant = variants.find((v: any) => v.id.toString() === product.selectedVariantId.toString());
+      if (variant) {
+        addToCart({
+          productId: product.id.toString(),
+          handle: product.handle,
+          variantId: variant.id.toString(),
+          title: product.title,
+          size: product.selectedSize || (variant.option1 === "Default Title" ? null : (variant.option1 || null)),
+          price: variant.price,
+          image: product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png"
+        });
+        toast.success(`${product.title} added to bag`);
+        return;
+      }
+    }
+
     if (variants.length <= 1) {
       const variant = variants[0];
       if (!variant) {
@@ -171,6 +190,7 @@ export default function WishlistPage() {
       {selectedProduct && (
         <QuickAddModal 
           product={selectedProduct} 
+          initialSize={selectedProduct.selectedSize || undefined}
           onClose={() => setSelectedProduct(null)} 
         />
       )}

@@ -23,6 +23,23 @@ export default function BookmarkDrawer({ isOpen, onClose }: BookmarkDrawerProps)
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   const handleQuickAdd = (product: any) => {
+    const variants = product.variants || [];
+    
+    if (product.selectedVariantId) {
+      const variant = variants.find((v: any) => v.id.toString() === product.selectedVariantId.toString());
+      if (variant) {
+        addToCart({
+          productId: product.id.toString(),
+          handle: product.handle,
+          variantId: variant.id.toString(),
+          title: product.title,
+          size: product.selectedSize || (variant.option1 === "Default Title" ? null : (variant.option1 || null)),
+          price: variant.price,
+          image: product.image?.src || product.images?.[0]?.src || "/zb-logo-220px.png"
+        });
+        return;
+      }
+    }
     setSelectedProduct(product);
   };
 
@@ -153,6 +170,7 @@ export default function BookmarkDrawer({ isOpen, onClose }: BookmarkDrawerProps)
       {selectedProduct && (
         <QuickAddModal 
           product={selectedProduct} 
+          initialSize={selectedProduct.selectedSize || undefined}
           onClose={() => setSelectedProduct(null)} 
         />
       )}

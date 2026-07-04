@@ -33,9 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const session = await getServerSession(authOptions);
-
-    // Issue 4 diagnostics
+    // Issue 4 diagnostics (no session dependency — runs before fast path)
     if (process.env.NODE_ENV !== 'production' || process.env.META_TEST_EVENT_CODE) {
       const headersObj: Record<string, string> = {};
       req.headers.forEach((value, key) => {
@@ -44,6 +42,7 @@ export async function POST(req: NextRequest) {
       console.log(`[Meta CAPI Route IP Diagnostics] Event: ${eventName} | Raw Headers:`, JSON.stringify(headersObj));
     }
 
+    // Extract request-scoped data (synchronous — no I/O)
     const ip = req.headers.get('do-connecting-ip') ||
                req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 
                req.headers.get('x-real-ip') || 
@@ -64,6 +63,96 @@ export async function POST(req: NextRequest) {
     const guestZip = req.cookies.get('zb_guest_zp')?.value;
     const fbLoginId = req.cookies.get('zb_fb_login_id')?.value;
     const guestDob = req.cookies.get('zb_guest_dob')?.value;
+
+    // Issue 5 fix: Apply server-side value adjustment for Purchase and InitiateCheckout.
+    // The client sends the real order/cart value; the adjustment happens here so
+    // the real value is never exposed in browser JS or network traffic to Meta.
+    // This runs BEFORE any I/O so it's available for the fast-path response.
+    let adjustedCustomData = customData ? { ...customData } : undefined;
+    if (adjustedCustomData?.value !== undefined) {
+      const realValue = adjustedCustomData.value;
+      const reportedValue = getReportedValue(eventName, realValue);
+      if (reportedValue !== undefined && reportedValue !== realValue) {
+        // Dev-only: log both values for internal debugging (never sent to Meta or client)
+        if (process.env.NODE_ENV !== 'production' || process.env.META_TEST_EVENT_CODE) {
+          console.log(`[Meta CAPI Route] ${eventName} value adjustment — realValue=${realValue}, reportedValue=${reportedValue}, currency=${adjustedCustomData.currency || 'NOT SET'}`);
+        }
+        adjustedCustomData.value = reportedValue;
+
+        // Scale individual product prices in contents array to avoid mismatch
+        if (realValue > 0 && Array.isArray(adjustedCustomData.contents)) {
+          const ratio = reportedValue / realValue;
+          adjustedCustomData.contents = adjustedCustomData.contents.map((item: any) => {
+            const originalItemPrice = item.price !== undefined ? item.price : item.item_price;
+            if (originalItemPrice !== undefined && originalItemPrice !== null) {
+              const scaledPrice = Math.round(originalItemPrice * ratio * 100) / 100;
+              return {
+                ...item,
+                price: scaledPrice,
+                item_price: scaledPrice
+              };
+            }
+            return item;
+          });
+        }
+      }
+    }
+
+    // === FAST PATH: Purchase/InitiateCheckout ===
+    // Return reportedValue/currency immediately; fire session/Prisma/CAPI in background.
+    // This ensures the client receives the adjusted value well within the 2500ms timeout,
+    // eliminating the Pixel↔CAPI value mismatch that was degrading Data Quality Score.
+    if (['Purchase', 'InitiateCheckout'].includes(eventName)) {
+      // Build mergedUserData from cookies + body userData (no session await needed).
+      // By the time a user reaches checkout/purchase, MetaPixelRouteTracker has already
+      // hashed and stored all session PII in cookies (email, phone, name, DOB, address).
+      const mergedUserData: Record<string, any> = {
+        client_ip_address: ip,
+        client_user_agent: userData?.client_user_agent || userAgent,
+        fbp: userData?.fbp || fbp,
+        fbc: userData?.fbc || fbc,
+        external_id: userData?.external_id || externalId,
+        em: userData?.em || guestEmail,
+        ph: userData?.ph || guestPhone,
+        fn: userData?.fn || guestFn,
+        ln: userData?.ln || guestLn,
+        country: userData?.country || guestCountry,
+        st: userData?.st || guestState,
+        ct: userData?.ct || guestCity,
+        zp: userData?.zp || guestZip,
+        fb_login_id: userData?.fb_login_id || fbLoginId,
+        db: userData?.db || guestDob,
+      };
+
+      const presentKeys = Object.entries(mergedUserData)
+        .filter(([_, value]) => value !== undefined && value !== null && value !== '')
+        .map(([key]) => key);
+      console.log(`[Meta CAPI Event Received] ${eventName} — Deduplication ID: ${eventId} — Customer Identifiers Present: [${presentKeys.join(', ')}]`);
+
+      // Fire CAPI send in background — do NOT await before responding
+      sendCapiEvent({
+        eventName,
+        eventId,
+        eventTime,
+        eventSourceUrl,
+        userAgent,
+        userData: mergedUserData,
+        customData: adjustedCustomData,
+        actionSource: actionSource ?? 'website',
+      }).catch((err: any) => {
+        console.error(`[Meta CAPI Background ${eventName}] Error:`, err);
+      });
+
+      return NextResponse.json({
+        success: true,
+        reportedValue: adjustedCustomData?.value,
+        currency: adjustedCustomData?.currency,
+        contents: adjustedCustomData?.contents
+      });
+    }
+
+    // === STANDARD PATH: All other events (sequential — existing behavior) ===
+    const session = await getServerSession(authOptions);
 
     const sessionUserData: Record<string, any> = {};
     if (session?.user) {
@@ -97,7 +186,7 @@ export async function POST(req: NextRequest) {
     // Merge user identity data. Priority: body userData (client-forwarded cookies, most reliable)
     // → server-side cookies → session data. The client always forwards identity cookies in the
     // body for reliability, since server-side cookie access can fail on edge/CDN.
-    const mergedUserData = {
+    const mergedUserData: Record<string, any> = {
       client_ip_address: ip,
       client_user_agent: userData?.client_user_agent || userAgent,
       fbp: userData?.fbp || fbp,
@@ -128,22 +217,6 @@ export async function POST(req: NextRequest) {
       .map(([key]) => key);
     console.log(`[Meta CAPI Event Received] ${eventName} — Deduplication ID: ${eventId} — Customer Identifiers Present: [${presentKeys.join(', ')}]`);
 
-    // Issue 5 fix: Apply server-side value adjustment for Purchase and InitiateCheckout.
-    // The client sends the real order/cart value; the adjustment happens here so
-    // the real value is never exposed in browser JS or network traffic to Meta.
-    let adjustedCustomData = customData ? { ...customData } : undefined;
-    if (adjustedCustomData?.value !== undefined) {
-      const realValue = adjustedCustomData.value;
-      const reportedValue = getReportedValue(eventName, realValue);
-      if (reportedValue !== realValue) {
-        // Dev-only: log both values for internal debugging (never sent to Meta or client)
-        if (process.env.NODE_ENV !== 'production' || process.env.META_TEST_EVENT_CODE) {
-          console.log(`[Meta CAPI Route] ${eventName} value adjustment — realValue=${realValue}, reportedValue=${reportedValue}, currency=${adjustedCustomData.currency || 'NOT SET'}`);
-        }
-        adjustedCustomData.value = reportedValue;
-      }
-    }
-
     const result = await sendCapiEvent({
       eventName,
       eventId,
@@ -155,13 +228,7 @@ export async function POST(req: NextRequest) {
       actionSource: actionSource ?? 'website',
     });
 
-    const responsePayload: Record<string, any> = { ...result };
-    if (['Purchase', 'InitiateCheckout'].includes(eventName)) {
-      responsePayload.reportedValue = adjustedCustomData?.value;
-      responsePayload.currency = adjustedCustomData?.currency;
-    }
-
-    return NextResponse.json(responsePayload, { status: result.success ? 200 : 400 });
+    return NextResponse.json({ ...result }, { status: result.success ? 200 : 400 });
   } catch (err: any) {
     console.error('[Meta CAPI Route Error]', err);
     return NextResponse.json({ success: false, error: err.message || 'Internal server error' }, { status: 500 });

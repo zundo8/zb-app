@@ -38,6 +38,9 @@ export function MetaPixelRouteTracker() {
   const { data: session } = useSession();
 
   useEffect(() => {
+    // Don't fire any pixel/CAPI events on admin dashboard routes
+    if (pathname.startsWith('/dashboard')) return;
+
     // Single merged effect: setup identity → reinit pixel → fire PageView.
     // This guarantees the pixel has full user data BEFORE any events fire.
 
@@ -163,7 +166,12 @@ export function MetaPixelRouteTracker() {
 
       // Client-side pixel PageView
       if (typeof window !== 'undefined' && (window as any).fbq) {
-        (window as any).fbq('track', 'PageView', {}, { eventID: eventId });
+        const options: Record<string, any> = { eventID: eventId };
+        const testCode = process.env.NEXT_PUBLIC_META_TEST_EVENT_CODE;
+        if (testCode) {
+          options.test_event_code = testCode;
+        }
+        (window as any).fbq('track', 'PageView', {}, options);
       }
 
       // Server-side CAPI PageView with full identity for deduplication

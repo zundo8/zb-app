@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, phone, email, address1, address2, city, state, zip, country, isDefault } = body;
+    const { name, phone, email, address1, address2, city, state, zip, country, isDefault, lat, lng, placeId } = body;
 
     if (!address1 || !city || !state || !zip) {
       return NextResponse.json({ error: "Missing required address fields" }, { status: 400 });
@@ -119,6 +119,9 @@ export async function POST(req: Request) {
         zip,
         country: country || "India",
         isDefault: isDefault || false,
+        lat: lat != null ? parseFloat(lat) : null,
+        lng: lng != null ? parseFloat(lng) : null,
+        placeId: placeId || null,
       }
     });
 
@@ -167,7 +170,7 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { id, name, phone, email, address1, address2, city, state, zip, country, isDefault } = body;
+    const { id, name, phone, email, address1, address2, city, state, zip, country, isDefault, lat, lng, placeId } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Address ID is required" }, { status: 400 });
@@ -237,7 +240,10 @@ export async function PUT(req: Request) {
         state,
         zip,
         country,
-        isDefault
+        isDefault,
+        lat: lat != null ? parseFloat(lat) : undefined,
+        lng: lng != null ? parseFloat(lng) : undefined,
+        placeId: placeId !== undefined ? (placeId || null) : undefined,
       }
     });
 

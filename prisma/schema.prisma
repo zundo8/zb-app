@@ -1176,11 +1176,13 @@ model Wishlist {
   id         String   @id @default(cuid())
   customerId String
   productId  String
+  variantId  String?
+  size       String?
   createdAt  DateTime @default(now())
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([customerId, productId])
+  @@unique([customerId, productId, variantId])
   @@index([customerId])
   @@index([productId])
 }
@@ -1198,6 +1200,9 @@ model Address {
   zip        String
   country    String   @default("India")
   isDefault  Boolean  @default(false)
+  lat        Float?
+  lng        Float?
+  placeId    String?  @map("place_id")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)

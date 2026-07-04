@@ -6,11 +6,11 @@ import { useSession } from "next-auth/react";
 import { trackStorefrontEvent } from "@/lib/track-client";
 
 interface BookmarkContextType {
-  bookmarks: ShopifyProduct[];
-  addBookmark: (product: ShopifyProduct) => void;
-  removeBookmark: (productId: string) => void;
-  isBookmarked: (productId: string) => boolean;
-  toggleBookmark: (product: ShopifyProduct) => void;
+  bookmarks: (ShopifyProduct & { selectedVariantId?: string | null; selectedSize?: string | null })[];
+  addBookmark: (product: ShopifyProduct, variantId?: string, size?: string) => void;
+  removeBookmark: (productId: string, variantId?: string) => void;
+  isBookmarked: (productId: string, variantId?: string) => boolean;
+  toggleBookmark: (product: ShopifyProduct, variantId?: string, size?: string) => void;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
 }
@@ -20,7 +20,7 @@ const BookmarkContext = createContext<BookmarkContextType | null>(null);
 const STORAGE_KEY = "zb_bookmarks_v1";
 
 export function BookmarkProvider({ children }: { children: React.ReactNode }) {
-  const [bookmarks, setBookmarks] = useState<ShopifyProduct[]>([]);
+  const [bookmarks, setBookmarks] = useState<(ShopifyProduct & { selectedVariantId?: string | null; selectedSize?: string | null })[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const { data: session, status } = useSession();
 
@@ -50,25 +50,40 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
           if (res.ok) {
             const data = await res.json();
             if (data.items && Array.isArray(data.items)) {
-              const dbProducts = data.items.map((item: any) => item.product);
+              const dbProducts = data.items.map((item: any) => ({
+                ...item.product,
+                selectedVariantId: item.variantId || null,
+                selectedSize: item.size || null
+              }));
               
               setBookmarks((prev) => {
                 const merged = [...prev];
                 
                 // Add DB items to local state if missing
                 for (const p of dbProducts) {
-                  if (!merged.some((m) => m.id.toString() === p.id.toString())) {
+                  const exists = merged.some((m) => 
+                    m.id.toString() === p.id.toString() && 
+                    (m.selectedVariantId === p.selectedVariantId || (!m.selectedVariantId && !p.selectedVariantId))
+                  );
+                  if (!exists) {
                     merged.push(p);
                   }
                 }
 
                 // Add local-only items to the database
-                const localOnly = prev.filter(p => !dbProducts.some((db: any) => db.id.toString() === p.id.toString()));
+                const localOnly = prev.filter(p => !dbProducts.some((db: any) => 
+                  db.id.toString() === p.id.toString() && 
+                  (db.selectedVariantId === p.selectedVariantId || (!db.selectedVariantId && !p.selectedVariantId))
+                ));
                 for (const p of localOnly) {
                   fetch("/api/wishlist", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ productId: p.id.toString() })
+                    body: JSON.stringify({ 
+                      productId: p.id.toString(),
+                      variantId: p.selectedVariantId || undefined,
+                      size: p.selectedSize || undefined
+                    })
                   }).catch(err => console.error("Failed to sync local bookmark to DB:", err));
                 }
 
@@ -84,48 +99,76 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
     }
   }, [status, session]);
 
-  const addBookmark = useCallback((product: ShopifyProduct) => {
+  const addBookmark = useCallback((product: ShopifyProduct, variantId?: string, size?: string) => {
     // Track Add To Wishlist event
     trackStorefrontEvent('Add To Wishlist', {
       productId: product.id.toString(),
       metadata: {
         title: product.title,
-        price: product.variants?.[0]?.price
+        price: product.variants?.[0]?.price,
+        variantId,
+        size
       }
     });
 
+    const productWithSelection = {
+      ...product,
+      selectedVariantId: variantId || null,
+      selectedSize: size || null
+    };
+
     setBookmarks((prev) => {
-      if (prev.find((p) => p.id === product.id)) return prev;
-      return [...prev, product];
+      const exists = prev.some((p) => 
+        p.id.toString() === product.id.toString() && 
+        (p.selectedVariantId === (variantId || null))
+      );
+      if (exists) return prev;
+      return [...prev, productWithSelection];
     });
 
     if (status === "authenticated") {
       fetch("/api/wishlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: product.id.toString() })
+        body: JSON.stringify({ 
+          productId: product.id.toString(),
+          variantId: variantId || undefined,
+          size: size || undefined
+        })
       }).catch(err => console.error("Failed to add bookmark to DB:", err));
     }
   }, [status]);
 
-  const removeBookmark = useCallback((productId: string) => {
-    setBookmarks((prev) => prev.filter((p) => p.id.toString() !== productId.toString()));
+  const removeBookmark = useCallback((productId: string, variantId?: string) => {
+    setBookmarks((prev) => prev.filter((p) => 
+      !(p.id.toString() === productId.toString() && (variantId === undefined || p.selectedVariantId === variantId))
+    ));
 
     if (status === "authenticated") {
       fetch("/api/wishlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: productId.toString(), action: "remove" })
+        body: JSON.stringify({ 
+          productId: productId.toString(), 
+          variantId: variantId || undefined,
+          action: "remove" 
+        })
       }).catch(err => console.error("Failed to remove bookmark from DB:", err));
     }
   }, [status]);
 
-  const isBookmarked = useCallback((productId: string) => {
-    return bookmarks.some((p) => p.id.toString() === productId.toString());
+  const isBookmarked = useCallback((productId: string, variantId?: string) => {
+    return bookmarks.some((p) => 
+      p.id.toString() === productId.toString() && 
+      (variantId === undefined || p.selectedVariantId === variantId)
+    );
   }, [bookmarks]);
 
-  const toggleBookmark = useCallback((product: ShopifyProduct) => {
-    const isCurrentlyBookmarked = bookmarks.some((p) => p.id.toString() === product.id.toString());
+  const toggleBookmark = useCallback((product: ShopifyProduct, variantId?: string, size?: string) => {
+    const isCurrentlyBookmarked = bookmarks.some((p) => 
+      p.id.toString() === product.id.toString() && 
+      (variantId === undefined || p.selectedVariantId === (variantId || null))
+    );
     const action = isCurrentlyBookmarked ? "remove" : "add";
 
     // Track Toggle (AddToWishlist if currently not bookmarked)
@@ -134,16 +177,25 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
         productId: product.id.toString(),
         metadata: {
           title: product.title,
-          price: product.variants?.[0]?.price
+          price: product.variants?.[0]?.price,
+          variantId,
+          size
         }
       });
     }
 
     setBookmarks((prev) => {
       if (isCurrentlyBookmarked) {
-        return prev.filter((p) => p.id.toString() !== product.id.toString());
+        return prev.filter((p) => 
+          !(p.id.toString() === product.id.toString() && (variantId === undefined || p.selectedVariantId === (variantId || null)))
+        );
       }
-      return [...prev, product];
+      const productWithSelection = {
+        ...product,
+        selectedVariantId: variantId || null,
+        selectedSize: size || null
+      };
+      return [...prev, productWithSelection];
     });
 
     if (status === "authenticated") {
@@ -152,6 +204,8 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           productId: product.id.toString(), 
+          variantId: variantId || undefined,
+          size: size || undefined,
           action: action
         })
       }).catch(err => console.error("Failed to toggle bookmark in DB:", err));

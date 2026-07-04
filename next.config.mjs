@@ -85,7 +85,7 @@ const nextConfig = {
       },
       {
         // CSP for public storefront routes
-        source: '/((?:collections|products|cart|checkout|blogs|policies|search)(?:/.*)?|$)',
+        source: '/((?:blogs|cart|chat|checkout|collaborations|collections|community|faq|login|orders|policies|portal|products|profile|search|story|support|unauthorized|web-store|wishlist)(?:/.*)?|$)',
         headers: [
           {
             key: 'Content-Security-Policy',

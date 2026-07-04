@@ -667,7 +667,10 @@ export async function POST(req: Request) {
             state: address.state,
             zip: address.zip,
             country: address.country || "India",
-            isDefault: addressesCount === 0
+            isDefault: addressesCount === 0,
+            lat: address.lat != null ? parseFloat(address.lat) : null,
+            lng: address.lng != null ? parseFloat(address.lng) : null,
+            placeId: address.placeId || null,
           }
         });
         console.log(`[Checkout] Saved new shipping address for customer: ${localCustomer.id}`);

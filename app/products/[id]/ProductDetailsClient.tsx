@@ -428,8 +428,10 @@ export default function ProductDetailsClient({
                     setTimeout(() => setSizeError(false), 1500);
                     return;
                   }
-                  const wasBookmarked = isBookmarked(product.id.toString());
-                  toggleBookmark(product);
+                  const activeVariant = selectedSize ? product.variants?.find(v => v.option1 === selectedSize) : product.variants?.[0];
+                  const variantIdStr = activeVariant?.id?.toString();
+                  const wasBookmarked = isBookmarked(product.id.toString(), variantIdStr);
+                  toggleBookmark(product, variantIdStr, selectedSize || activeVariant?.option1 || undefined);
                   setIsOpen(true);
                   if (!wasBookmarked) {
                     trackAddToWishlist(product.id.toString(), product.title, product.product_type);
@@ -438,7 +440,10 @@ export default function ProductDetailsClient({
                 }}
                 className="w-8 h-8 rounded-full bg-foreground/5 border border-foreground/5 flex items-center justify-center hover:bg-foreground/10 transition-all active:scale-90 flex-shrink-0"
               >
-                <Bookmark className={`w-3.5 h-3.5 ${isBookmarked(product.id.toString()) ? "text-primary fill-primary" : "text-foreground/50"}`} />
+                <Bookmark className={`w-3.5 h-3.5 ${(() => {
+                  const activeVariant = selectedSize ? product.variants?.find(v => v.option1 === selectedSize) : product.variants?.[0];
+                  return isBookmarked(product.id.toString(), activeVariant?.id?.toString()) ? "text-primary fill-primary" : "text-foreground/50";
+                })()}`} />
               </button>
             </div>
 
@@ -732,8 +737,10 @@ export default function ProductDetailsClient({
                       setTimeout(() => setSizeError(false), 1500);
                       return;
                     }
-                    const wasBookmarked = isBookmarked(product.id.toString());
-                    toggleBookmark(product);
+                    const activeVariant = selectedSize ? product.variants?.find(v => v.option1 === selectedSize) : product.variants?.[0];
+                    const variantIdStr = activeVariant?.id?.toString();
+                    const wasBookmarked = isBookmarked(product.id.toString(), variantIdStr);
+                    toggleBookmark(product, variantIdStr, selectedSize || activeVariant?.option1 || undefined);
                     setIsOpen(true);
                     if (!wasBookmarked) {
                       trackAddToWishlist(product.id.toString(), product.title, product.product_type);
@@ -742,7 +749,10 @@ export default function ProductDetailsClient({
                   }}
                   className="w-8 h-8 rounded-full bg-foreground/5 border border-foreground/5 flex items-center justify-center hover:bg-foreground/10 transition-all active:scale-90"
                 >
-                  <Bookmark className={`w-3.5 h-3.5 ${isBookmarked(product.id.toString()) ? "text-primary fill-primary" : "text-foreground/60 dark:text-foreground/40"}`} />
+                  <Bookmark className={`w-3.5 h-3.5 ${(() => {
+                    const activeVariant = selectedSize ? product.variants?.find(v => v.option1 === selectedSize) : product.variants?.[0];
+                    return isBookmarked(product.id.toString(), activeVariant?.id?.toString()) ? "text-primary fill-primary" : "text-foreground/60 dark:text-foreground/40";
+                  })()}`} />
                 </button>
               </div>
 

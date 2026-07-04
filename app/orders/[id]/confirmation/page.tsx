@@ -64,7 +64,8 @@ export default function OrderConfirmationPage() {
         const contents = order.items?.map((item: any) => ({
           id: item.variantId || item.productId,
           quantity: item.quantity || 1,
-          item_price: parseFloat(item.price || "0")
+          item_price: parseFloat(item.price || "0"),
+          title: item.title
         })) || [];
 
         trackPurchase(order.id, val, 'INR', contentIds, userData, storedCategory, contents);

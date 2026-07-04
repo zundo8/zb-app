@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
@@ -39,6 +39,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
+import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 
 type Address = {
   name: string;
@@ -51,6 +52,9 @@ type Address = {
   state: string;
   zip: string;
   country: string;
+  lat?: number;
+  lng?: number;
+  placeId?: string;
 };
 
 type DBAddress = {
@@ -65,9 +69,69 @@ type DBAddress = {
   zip: string;
   country: string;
   isDefault: boolean;
+  lat?: number | null;
+  lng?: number | null;
+  placeId?: string | null;
 };
 
 type PaymentMethod = "UPI" | "CARD" | "COD" | "PAYLATER" | "EMI";
+
+interface GoogleAddressComponent {
+  long_name?: string;
+  short_name?: string;
+  longText?: string;
+  shortText?: string;
+  types: string[];
+}
+
+const parseAddressComponents = (components: GoogleAddressComponent[]) => {
+  let city = "";
+  let state = "";
+  let pincode = "";
+  let sublocality = "";
+  let neighborhood = "";
+  let route = "";
+
+  components.forEach(comp => {
+    const name = comp.longText || comp.long_name || comp.shortText || comp.short_name || "";
+    const types = comp.types || [];
+
+    if (types.includes("postal_code")) {
+      pincode = name;
+    } else if (types.includes("administrative_area_level_1")) {
+      state = name;
+    } else if (types.includes("locality")) {
+      city = name;
+    } else if (types.includes("sublocality_level_1") || types.includes("sublocality")) {
+      sublocality = name;
+    } else if (types.includes("neighborhood")) {
+      neighborhood = name;
+    } else if (types.includes("route")) {
+      route = name;
+    }
+  });
+
+  const streetParts = [sublocality, neighborhood, route].filter(Boolean);
+  const streetName = streetParts.join(", ");
+
+  let matchedState = "";
+  if (state) {
+    const lowerState = state.toLowerCase().trim();
+    const found = INDIAN_STATES.find(s => 
+      s.toLowerCase() === lowerState || 
+      lowerState.includes(s.toLowerCase()) || 
+      s.toLowerCase().includes(lowerState)
+    );
+    if (found) matchedState = found;
+  }
+
+  return {
+    city,
+    state: matchedState || state,
+    pincode: pincode.replace(/\s/g, "").slice(0, 6),
+    streetName
+  };
+};
 
 /* ─── Validation helpers ────────────────────────────────────── */
 const BLOCKED_CHARS = /[`~!@#$%^&*()_+={}[\]|\\:;"'<>?/]/g;
@@ -93,8 +157,10 @@ export default function CheckoutPage() {
   const [mounted, setMounted] = useState(false);
   const { trackInitiateCheckout, trackAddPaymentInfo } = useMetaEvents();
 
+  const initialName = session?.user?.name || "";
+  const isPhoneName = /^\+?[0-9\s\-]{8,15}$/.test(initialName.trim());
   const [address, setAddress] = useState<Address>({
-    name: session?.user?.name || "",
+    name: isPhoneName ? "" : initialName,
     email: session?.user?.email || "",
     phone: (session as any)?.customer?.phone || "",
     houseNo: "",
@@ -104,7 +170,15 @@ export default function CheckoutPage() {
     state: "",
     zip: "",
     country: "India",
+    lat: undefined,
+    lng: undefined,
+    placeId: undefined,
   });
+
+  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+  const [googleMapsError, setGoogleMapsError] = useState(false);
+  const autocompleteContainerRef = useRef<HTMLDivElement>(null);
+  const placeAutocompleteRef = useRef<any>(null);
 
   const [step, setStep] = useState(1); // 1: Address, 2: Payment
   const [loading, setLoading] = useState(false);
@@ -137,6 +211,16 @@ export default function CheckoutPage() {
     }
   }, [address.email, address.phone, address.name, items]);
   const [error, setError] = useState("");
+
+  // Clear error automatically after 4 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError("");
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
   const [initiatedPixel, setInitiatedPixel] = useState(false);
   const [paymentInfoFired, setPaymentInfoFired] = useState(false);
   const [isOrderPlaced, setIsOrderPlaced] = useState(false);
@@ -165,7 +249,9 @@ export default function CheckoutPage() {
       const contents = items.map(item => ({
         id: item.productId,
         quantity: item.quantity,
-        item_price: parseFloat(item.price)
+        item_price: parseFloat(item.price),
+        title: item.title,
+        category: item.category
       }));
 
       // Parse the pre-filled/saved address state into userData
@@ -207,6 +293,182 @@ export default function CheckoutPage() {
   const [zipLoading, setZipLoading] = useState(false);
   const [locating, setLocating] = useState(false);
 
+  // Load Google Maps API Script
+  useEffect(() => {
+    if (googleMapsLoaded || googleMapsError) return;
+
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.warn("Google Maps API key not found in env variables.");
+      setGoogleMapsError(true);
+      return;
+    }
+
+    try {
+      setOptions({
+        key: apiKey
+      });
+
+      importLibrary("places")
+        .then(() => {
+          setGoogleMapsLoaded(true);
+        })
+        .catch((err) => {
+          console.error("Failed to load Google Maps script:", err);
+          setGoogleMapsError(true);
+        });
+    } catch (err) {
+      console.error("Error configuring Google Maps loader:", err);
+      setGoogleMapsError(true);
+    }
+  }, [googleMapsLoaded, googleMapsError]);
+
+  // Initialize Place Autocomplete Element
+  useEffect(() => {
+    if (!googleMapsLoaded || !autocompleteContainerRef.current) return;
+    
+    // Clear container to prevent duplicate elements on re-render/re-mount
+    autocompleteContainerRef.current.innerHTML = "";
+
+    let active = true;
+
+    const initAutocomplete = async () => {
+      try {
+        const { PlaceAutocompleteElement } = await importLibrary("places") as any;
+        if (!active) return;
+        if (!PlaceAutocompleteElement) {
+          throw new Error("PlaceAutocompleteElement not supported in this version of Maps API.");
+        }
+
+        // Hack attachment to attachShadow so we can style the closed Shadow DOM
+        if (!(Element.prototype as any)._attachShadow) {
+          (Element.prototype as any)._attachShadow = Element.prototype.attachShadow;
+          Element.prototype.attachShadow = function (init) {
+            if (init && init.mode === "closed") {
+              init.mode = "open";
+            }
+            return (this as any)._attachShadow(init);
+          };
+        }
+
+        const placeAutocomplete = new PlaceAutocompleteElement();
+        placeAutocomplete.includedRegionCodes = ["IN"];
+        placeAutocomplete.placeholder = "Search area, locality, or landmark...";
+        
+        placeAutocomplete.style.width = "100%";
+        placeAutocomplete.style.height = "100%";
+        placeAutocomplete.style.border = "none";
+        placeAutocomplete.style.background = "transparent";
+        placeAutocomplete.style.outline = "none";
+
+        if (autocompleteContainerRef.current) {
+          autocompleteContainerRef.current.innerHTML = "";
+          autocompleteContainerRef.current.appendChild(placeAutocomplete);
+        }
+        placeAutocompleteRef.current = placeAutocomplete;
+
+        // Stylize Shadow DOM elements programmatically
+        setTimeout(() => {
+          if (!active) return;
+          try {
+            const shadow = placeAutocomplete.shadowRoot;
+            if (shadow) {
+              const style = document.createElement("style");
+              style.textContent = `
+                input {
+                  font-family: inherit !important;
+                  font-size: 14px !important;
+                  color: currentColor !important;
+                  background: transparent !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  outline: none !important;
+                  padding: 0 !important;
+                  width: 100% !important;
+                  height: 100% !important;
+                }
+                .widget-container {
+                  border: none !important;
+                  background: transparent !important;
+                  box-shadow: none !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  height: 100% !important;
+                  display: flex !important;
+                  align-items: center !important;
+                }
+                .search-icon, .clear-button {
+                  display: none !important;
+                }
+              `;
+              shadow.appendChild(style);
+            }
+          } catch (e) {
+            console.error("Shadow DOM styling failed:", e);
+          }
+        }, 50);
+
+        // Event listener for place selection
+        placeAutocomplete.addEventListener("gmp-placeselect", async (event: any) => {
+          const place = event.place;
+          if (!place) return;
+
+          setLoading(true);
+          setError("");
+          try {
+            await place.fetchFields({
+              fields: ["id", "addressComponents", "location"]
+            });
+
+            const lat = place.location?.lat();
+            const lng = place.location?.lng();
+            const placeId = place.id;
+            const components = place.addressComponents || [];
+
+            const parsed = parseAddressComponents(components);
+
+            setAddress(prev => ({
+              ...prev,
+              street: parsed.streetName || prev.street,
+              city: parsed.city || prev.city,
+              state: parsed.state || prev.state,
+              zip: parsed.pincode || prev.zip,
+              lat: lat != null ? lat : prev.lat,
+              lng: lng != null ? lng : prev.lng,
+              placeId: placeId || prev.placeId,
+            }));
+
+            setAddressErrors(prev => {
+              const next = { ...prev };
+              delete next.street;
+              delete next.city;
+              delete next.state;
+              delete next.zip;
+              return next;
+            });
+          } catch (err) {
+            console.error("Error fetching place details:", err);
+            setError("Failed to fetch location details. Please fill manually.");
+          } finally {
+            setLoading(false);
+          }
+        });
+      } catch (err) {
+        console.error("Error initializing Google Autocomplete:", err);
+        setGoogleMapsError(true);
+      }
+    };
+
+    initAutocomplete();
+
+    return () => {
+      active = false;
+      if (autocompleteContainerRef.current) {
+        autocompleteContainerRef.current.innerHTML = "";
+      }
+    };
+  }, [googleMapsLoaded, showAddressForm]);
+
   const handleDetectLocation = async () => {
     if (!navigator.geolocation) {
       setError("Geolocation is not supported by your browser");
@@ -220,52 +482,89 @@ export default function CheckoutPage() {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-            {
-              headers: {
-                "Accept-Language": "en",
-                "User-Agent": "ZicaBellaStorefront/1.0"
-              },
-            }
-          );
-          if (!response.ok) throw new Error("Failed to resolve address details");
-          const data = await response.json();
-          if (data && data.address) {
-            const addr = data.address;
-            
-            // Extract fields
-            const roadName = addr.road || addr.suburb || addr.neighbourhood || addr.village || addr.suburb || "";
-            const postcode = addr.postcode || "";
-            const cityName = addr.city || addr.town || addr.village || addr.county || "";
-            const stateName = addr.state || "";
-            const houseNumber = addr.house_number || addr.building || addr.amenity || addr.office || addr.shop || "";
+          if (googleMapsLoaded) {
+            const { Geocoder } = await importLibrary("geocoding") as any;
+            const geocoder = new Geocoder();
+            geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
+              if (status === "OK" && results && results[0]) {
+                const result = results[0];
+                const parsed = parseAddressComponents(result.address_components || []);
 
-            let matchedState = "";
-            if (stateName) {
-              const lowerState = stateName.toLowerCase().trim();
-              const found = INDIAN_STATES.find(s => 
-                s.toLowerCase() === lowerState || 
-                lowerState.includes(s.toLowerCase()) || 
-                s.toLowerCase().includes(lowerState)
-              );
-              if (found) matchedState = found;
-            }
+                setAddress(prev => ({
+                  ...prev,
+                  street: parsed.streetName || prev.street,
+                  city: parsed.city || prev.city,
+                  state: parsed.state || prev.state,
+                  zip: parsed.pincode || prev.zip,
+                  lat: latitude,
+                  lng: longitude,
+                  placeId: result.place_id || prev.placeId,
+                }));
 
-            // Update form state
-            setAddress(prev => ({
-              ...prev,
-              houseNo: houseNumber || prev.houseNo,
-              street: roadName || prev.street,
-              zip: postcode ? postcode.replace(/\s/g, "").slice(0, 6) : prev.zip,
-              city: cityName || prev.city,
-              state: matchedState || prev.state || stateName,
-            }));
+                setAddressErrors(prev => {
+                  const next = { ...prev };
+                  delete next.street;
+                  delete next.city;
+                  delete next.state;
+                  delete next.zip;
+                  return next;
+                });
+                setLocating(false);
+              } else {
+                console.error("Geocoder failed with status:", status);
+                // Fallback to manual
+                setError("Unable to resolve address. Please fill manually.");
+                setLocating(false);
+              }
+            });
+          } else {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+              {
+                headers: {
+                  "Accept-Language": "en",
+                  "User-Agent": "ZicaBellaStorefront/1.0"
+                },
+              }
+            );
+            if (!response.ok) throw new Error("Failed to resolve address details");
+            const data = await response.json();
+            if (data && data.address) {
+              const addr = data.address;
+              
+              const roadName = addr.road || addr.suburb || addr.neighbourhood || addr.village || "";
+              const postcode = addr.postcode || "";
+              const cityName = addr.city || addr.town || addr.village || addr.county || "";
+              const stateName = addr.state || "";
+              const houseNumber = addr.house_number || addr.building || "";
+
+              let matchedState = "";
+              if (stateName) {
+                const lowerState = stateName.toLowerCase().trim();
+                const found = INDIAN_STATES.find(s => 
+                  s.toLowerCase() === lowerState || 
+                  lowerState.includes(s.toLowerCase()) || 
+                  s.toLowerCase().includes(lowerState)
+                );
+                if (found) matchedState = found;
+              }
+
+              setAddress(prev => ({
+                ...prev,
+                houseNo: houseNumber || prev.houseNo,
+                street: roadName || prev.street,
+                zip: postcode ? postcode.replace(/\s/g, "").slice(0, 6) : prev.zip,
+                city: cityName || prev.city,
+                state: matchedState || prev.state || stateName,
+                lat: latitude,
+                lng: longitude,
+              }));
+            }
+            setLocating(false);
           }
         } catch (err: any) {
           console.error("Error reverse geocoding:", err);
           setError("Unable to retrieve address details. Please fill manually.");
-        } finally {
           setLocating(false);
         }
       },
@@ -273,7 +572,9 @@ export default function CheckoutPage() {
         console.error("Geolocation error:", err);
         setLocating(false);
         if (err.code === err.PERMISSION_DENIED) {
-          setError("Location access denied. Please check site permissions.");
+          setError("Location access denied. Please allow location access in your browser's address settings (click the lock icon in the address bar), then try again.");
+        } else if (err.code === err.TIMEOUT) {
+          setError("Location request timed out. Please check your signal and try again.");
         } else {
           setError("Unable to detect location. Please fill manually.");
         }
@@ -336,9 +637,12 @@ export default function CheckoutPage() {
   // Auto-fill address details from session once authenticated
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
+      const initialName = session?.user?.name || "";
+      const isPhoneName = /^\+?[0-9\s\-]{8,15}$/.test(initialName.trim());
+      const cleanName = isPhoneName ? "" : initialName;
       setAddress(prev => ({
         ...prev,
-        name: prev.name || session?.user?.name || "",
+        name: prev.name || cleanName,
         email: prev.email || session?.user?.email || "",
         phone: prev.phone || (session as any)?.customer?.phone || (session?.user as any)?.phone || "",
       }));
@@ -373,6 +677,9 @@ export default function CheckoutPage() {
             state: def.state || "",
             zip: def.zip || "",
             country: def.country || "India",
+            lat: def.lat || undefined,
+            lng: def.lng || undefined,
+            placeId: def.placeId || undefined,
           });
           setShowAddressForm(false);
         }
@@ -405,6 +712,9 @@ export default function CheckoutPage() {
       state: addr.state || "",
       zip: addr.zip || "",
       country: addr.country || "India",
+      lat: addr.lat || undefined,
+      lng: addr.lng || undefined,
+      placeId: addr.placeId || undefined,
     });
     setAddressErrors({});
     setShowAddressForm(false);
@@ -496,6 +806,9 @@ export default function CheckoutPage() {
           zip: updatedAddress.zip,
           country: updatedAddress.country,
           isDefault: true,
+          lat: updatedAddress.lat,
+          lng: updatedAddress.lng,
+          placeId: updatedAddress.placeId,
         }),
       });
 
@@ -1529,12 +1842,21 @@ export default function CheckoutPage() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start flex-1 w-full">
           {/* Left Column: Flow Steps */}
           <div className="col-span-12 md:col-span-7 flex flex-col w-full">
-            {error && (
-              <div className="flex items-center gap-2.5 p-3 rounded-xl border border-red-500/10 bg-red-500/[0.03] text-red-400 text-[10px] font-semibold mb-4 animate-in shake duration-300">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
-                <p>{error}</p>
-              </div>
-            )}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, y: -10 }}
+                  animate={{ opacity: 1, height: "auto", y: 0 }}
+                  exit={{ opacity: 0, height: 0, y: -10 }}
+                  className="overflow-hidden mb-4"
+                >
+                  <div className="flex items-start gap-2.5 p-3 rounded-xl border border-red-500/20 bg-red-500/[0.04] backdrop-blur-md text-red-400 text-[10px] font-semibold">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400 mt-0.5" />
+                    <p className="leading-relaxed">{error}</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <AnimatePresence mode="wait">
               {step === 1 ? (
                 <motion.div
@@ -1688,16 +2010,59 @@ export default function CheckoutPage() {
                             }
                             setShowAddressForm(false);
                           }}
-                          className="w-full h-10 text-[9px] font-black uppercase tracking-[0.18em] bg-white/20 dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.08] backdrop-blur-md hover:bg-foreground/[0.02] active:scale-[0.98] rounded-xl text-foreground/50 transition-all flex items-center justify-center mb-4 whitespace-nowrap"
+                          className="w-full h-10 text-[9px] font-black uppercase tracking-[0.18em] bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 backdrop-blur-md active:scale-[0.98] rounded-xl text-foreground/70 transition-all flex items-center justify-center mb-5 whitespace-nowrap cursor-pointer"
                         >
                           Back to Saved Addresses
                         </button>
                       )}
                       
-                      <div className="grid grid-cols-12 gap-3.5 w-full">
+                      {/* Search and Geolocation Card */}
+                      <div className="p-4 mb-5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/10 dark:bg-white/[0.02] backdrop-blur-md flex flex-col gap-3 shadow-sm">
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[8px] font-black uppercase tracking-[0.2em] text-foreground/45">Search Delivery Address</p>
+                          <p className="text-[10px] text-foreground/60 leading-tight">Start typing your address or use current location to auto-fill the form fields below.</p>
+                        </div>
+                        <div className="flex flex-row gap-2.5 w-full">
+                          {/* Autocomplete Input */}
+                          <div className="flex-1 relative flex items-center h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30">
+                            <MapPin className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
+                            {googleMapsError ? (
+                              <input
+                                type="text"
+                                placeholder="Search area, locality, or landmark..."
+                                className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] text-foreground placeholder:text-foreground/35 p-0"
+                              />
+                            ) : (
+                              <div ref={autocompleteContainerRef} className="flex-1 h-full w-full flex items-center text-[14px]" />
+                            )}
+                          </div>
+                          {/* Use Current Location Button */}
+                          <button
+                            type="button"
+                            onClick={handleDetectLocation}
+                            disabled={locating}
+                            className="h-[46px] px-3.5 rounded-xl border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.03] backdrop-blur-md text-foreground hover:bg-white/20 dark:hover:bg-white/[0.05] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-[10px] font-black tracking-[0.16em] uppercase shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer"
+                          >
+                            {locating ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-current" />
+                            ) : (
+                              <Navigation className="w-3.5 h-3.5 rotate-45 text-current shrink-0" />
+                            )}
+                            <span className="hidden sm:inline">Use Current Location</span>
+                            <span className="sm:hidden">Use Location</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Section 1: Contact Details */}
+                      <div className="flex flex-col gap-0.5 mb-3.5 pl-0.5">
+                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-foreground/45">Contact Details</p>
+                      </div>
+                      <div className="grid grid-cols-12 gap-3.5 w-full mb-6">
                         {/* Full Name */}
-                        <div className="col-span-12">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.name ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                        <div className="col-span-6">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.name ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <User className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-name"
                               name="name"
@@ -1708,15 +2073,16 @@ export default function CheckoutPage() {
                               required
                               value={address.name}
                               onChange={(e) => updateField("name", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.name && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.name}</p>}
                         </div>
 
                         {/* Email Address */}
-                        <div className="col-span-12">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.email ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                        <div className="col-span-6">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.email ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <Mail className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-email"
                               name="email"
@@ -1727,7 +2093,7 @@ export default function CheckoutPage() {
                               required
                               value={address.email}
                               onChange={(e) => updateField("email", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.email && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.email}</p>}
@@ -1735,11 +2101,11 @@ export default function CheckoutPage() {
 
                         {/* Mobile Number */}
                         <div className="col-span-12">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.phone ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
-                            <div className="flex items-center text-[16px] md:text-[13px] font-semibold text-foreground/70 select-none mr-2">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.phone ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <div className="flex items-center text-[14px] font-semibold text-foreground/60 select-none mr-2 pl-1">
                               <span>+91</span>
                             </div>
-                            <div className="h-4 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2.5" />
+                            <div className="h-4 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2.5 shrink-0" />
                             <input
                               id="address-phone"
                               name="phone"
@@ -1751,65 +2117,80 @@ export default function CheckoutPage() {
                               required
                               value={address.phone.startsWith("+91") ? address.phone.slice(3) : address.phone}
                               onChange={(e) => updateField("phone", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.phone && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.phone}</p>}
                         </div>
+                      </div>
 
-                        {/* House / Flat / Building & Street / Road */}
-                        <div className="col-span-12 md:col-span-4">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.houseNo ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/70 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                      {/* Section 2: Shipping Address */}
+                      <div className="flex flex-col gap-0.5 mb-3.5 pl-0.5">
+                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-foreground/45">Delivery Address</p>
+                      </div>
+                      <div className="grid grid-cols-12 gap-3.5 w-full">
+                        {/* House / Flat / Building */}
+                        <div className="col-span-4">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.houseNo ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <Home className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-house"
                               name="houseNo"
                               type="text"
-                              placeholder="House/Flat"
-                              aria-label="House or Flat Number"
+                              placeholder="House/Flat/Tower/Bldg"
+                              aria-label="House, Flat, Tower, or Building Details"
                               autoComplete="address-line2"
                               required
                               value={address.houseNo}
                               onChange={(e) => updateField("houseNo", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.houseNo && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.houseNo}</p>}
                         </div>
 
-                        <div className="col-span-12 md:col-span-8">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.street ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                        {/* Street / Road / Area */}
+                        <div className="col-span-8">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.street ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <MapPin className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-street"
                               name="street"
                               type="text"
-                              placeholder="Street / Road / Area"
+                              placeholder="Street/Road"
                               aria-label="Street, Road, or Area"
                               autoComplete="address-line1"
                               required
                               value={address.street}
                               onChange={(e) => updateField("street", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
-                            <button
-                              type="button"
-                              onClick={handleDetectLocation}
-                              disabled={locating}
-                              title="Detect current location"
-                              className="p-2 text-foreground/70 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center shrink-0 ml-1"
-                            >
-                              {locating ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-foreground/70" />
-                              ) : (
-                                <Navigation className="w-4 h-4 text-foreground/70 rotate-45" />
-                              )}
-                            </button>
                           </div>
                           {addressErrors.street && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.street}</p>}
                         </div>
 
-                        {/* PIN Code & City */}
-                        <div className="col-span-12 md:col-span-5">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.zip ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                        {/* Landmark */}
+                        <div className="col-span-6">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30`}>
+                            <Tag className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
+                            <input
+                              id="address-landmark"
+                              name="landmark"
+                              type="text"
+                              placeholder="Landmark (Optional)"
+                              aria-label="Landmark"
+                              autoComplete="address-line3"
+                              value={address.landmark}
+                              onChange={(e) => updateField("landmark", e.target.value, true)}
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                            />
+                          </div>
+                        </div>
+
+                        {/* PIN Code */}
+                        <div className="col-span-6">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.zip ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <Map className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-zip"
                               name="zip"
@@ -1825,17 +2206,19 @@ export default function CheckoutPage() {
                                 const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                                 updateField("zip", val);
                               }}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                             {zipLoading && (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-foreground/30 ml-1.5" />
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-foreground/30 ml-1.5 shrink-0" />
                             )}
                           </div>
                           {addressErrors.zip && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.zip}</p>}
                         </div>
 
-                        <div className="col-span-12 md:col-span-7">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.city ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
+                        {/* City */}
+                        <div className="col-span-6">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.city ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <Building2 className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
                             <input
                               id="address-city"
                               name="city"
@@ -1846,35 +2229,20 @@ export default function CheckoutPage() {
                               required
                               value={address.city}
                               onChange={(e) => updateField("city", e.target.value)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
+                              className="flex-1 h-full bg-transparent border-0 outline-none text-[14px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
                             />
                           </div>
                           {addressErrors.city && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.city}</p>}
                         </div>
 
-                        {/* Landmark & State */}
-                        <div className="col-span-12 md:col-span-5">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5`}>
-                            <input
-                              id="address-landmark"
-                              name="landmark"
-                              type="text"
-                              placeholder="Landmark (Opt)"
-                              aria-label="Landmark"
-                              autoComplete="address-line3"
-                              value={address.landmark}
-                              onChange={(e) => updateField("landmark", e.target.value, true)}
-                              className="flex-1 h-full bg-transparent border-0 outline-none text-[16px] md:text-[13px] font-sans font-normal text-foreground placeholder:text-foreground/30 p-0"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="col-span-12 md:col-span-7">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3.5 transition-all duration-300 backdrop-blur-md ${addressErrors.state ? "border border-red-500/40 bg-red-500/[0.02] focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/20" : "border border-white/30 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] shadow-[inset_0_1.5px_1.5px_rgba(255,255,255,0.4),0_1px_2px_rgba(0,0,0,0.01)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_1.5px_2px_rgba(0,0,0,0.2)] focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/5"}`}>
-                            <span className={`text-[16px] md:text-[13px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/30" : "text-foreground"}`}>
+                        {/* State */}
+                        <div className="col-span-6">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.state ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <Globe className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
+                            <span className={`text-[14px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/35" : "text-foreground"}`}>
                               {address.state || "Select State"}
                             </span>
-                            <ChevronDown className="absolute right-3.5 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+                            <ChevronDown className="absolute right-3 w-4 h-4 text-foreground/40 pointer-events-none" />
                             <select
                               id="address-state"
                               name="state"
@@ -1882,11 +2250,11 @@ export default function CheckoutPage() {
                               autoComplete="address-level1"
                               value={address.state}
                               onChange={(e) => updateField("state", e.target.value)}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-[16px] md:text-[13px]"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-[14px]"
                             >
                               <option value="" disabled>Select State</option>
                               {INDIAN_STATES.map(s => (
-                                <option key={s} value={s} className="bg-background text-foreground text-[16px] md:text-[13px]">{s}</option>
+                                <option key={s} value={s} className="bg-background text-foreground text-[14px]">{s}</option>
                               ))}
                             </select>
                           </div>
@@ -1898,10 +2266,10 @@ export default function CheckoutPage() {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="w-full h-11 bg-black text-white dark:bg-white dark:text-black rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm mt-5 md:hidden"
+                        className="w-full h-11 bg-foreground text-background dark:bg-white dark:text-black rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-md mt-6 md:hidden cursor-pointer"
                       >
                         {loading ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin text-current" />
                         ) : (
                           <>
                             <span>Continue to Payment</span>
