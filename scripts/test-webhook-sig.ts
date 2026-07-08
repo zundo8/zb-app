@@ -43,16 +43,20 @@ function runTests() {
     'Signature with sha256= prefix should validate'
   );
 
-  // Case 4: Signature with Bearer prefix -> still validates correctly after stripping (specifically Delhivery plain comparison)
+  // Case 4: Signature with Bearer prefix -> still validates correctly after stripping (computed using HMAC)
+  const delhiveryEmptyPayloadHmac = crypto
+    .createHmac('sha256', secret)
+    .update('')
+    .digest('hex');
   assert(
-    validateWebhookSignature('', `Bearer ${secret}`, secret, 'delhivery') === true,
+    validateWebhookSignature('', `Bearer ${delhiveryEmptyPayloadHmac}`, secret, 'delhivery') === true,
     'Delhivery validation with Bearer prefix should validate'
   );
 
-  // Case 5: Delhivery plain signature -> validates
+  // Case 5: Delhivery signature using HMAC -> validates
   assert(
-    validateWebhookSignature('', secret, secret, 'delhivery') === true,
-    'Delhivery validation without prefix should validate'
+    validateWebhookSignature('', delhiveryEmptyPayloadHmac, secret, 'delhivery') === true,
+    'Delhivery validation with HMAC should validate'
   );
 
   // Case 6: Missing secret or missing signature -> returns false without throwing
