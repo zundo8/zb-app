@@ -84,7 +84,7 @@ export async function GET() {
         abandoned_at: c.lastActivityAt,
         status: isSent ? 'sent' : 'pending',
         recovery_step,
-        abandoned_checkout_url: `https://app.zicabella.com/checkout?recover=${c.id}`
+        abandoned_checkout_url: `https://app.zicabella.com/cart?recover=${c.id}`
       };
     });
 

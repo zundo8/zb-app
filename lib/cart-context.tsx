@@ -33,6 +33,7 @@ interface CartContextType {
   remove: (id: string) => void;
   update: (id: string, quantity: number) => void;
   clear: () => void;
+  loadFromDB: (dbItems: CartItem[]) => void;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -46,49 +47,12 @@ const STORAGE_KEY = "zb_cart_v1";
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
-  // Load from localStorage on mount and check for cart recovery URL
+  // Load from localStorage on mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setItems(JSON.parse(raw));
     } catch {}
-
-    // Check for "?recover=CART_ID" in the browser query parameters
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const recoverId = params.get("recover");
-      if (recoverId) {
-        const loadRecoveredCart = async () => {
-          try {
-            const res = await fetch(`/api/cart/recover?id=${recoverId}`);
-            if (res.ok) {
-              const data = await res.json();
-              if (data && Array.isArray(data.items) && data.items.length > 0) {
-                const mappedItems = data.items.map((item: any) => ({
-                  id: `${item.productId}_${item.variantId || ""}_${item.size || "one-size"}`,
-                  productId: item.productId,
-                  variantId: item.variantId || "",
-                  handle: item.handle || "",
-                  title: item.title || "Product",
-                  price: String(item.price || 0),
-                  image: item.image || "",
-                  quantity: item.quantity || 1,
-                  size: item.size || null,
-                }));
-                setItems(mappedItems);
-                
-                // Remove recover parameter from URL
-                const newUrl = window.location.pathname;
-                window.history.replaceState({}, document.title, newUrl);
-              }
-            }
-          } catch (err) {
-            console.error("Cart recovery failed:", err);
-          }
-        };
-        loadRecoveredCart();
-      }
-    }
   }, []);
 
   // Persist to localStorage on change
@@ -180,6 +144,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clear = useCallback(() => setItems([]), []);
 
+  // Replace local cart state with items fetched from the database
+  const loadFromDB = useCallback((dbItems: CartItem[]) => {
+    setItems(dbItems);
+  }, []);
+
   const count = useMemo(() => items.reduce((s, i) => s + i.quantity, 0), [items]);
   const subtotal = useMemo(
     () => items.reduce((s, i) => s + parseFloat(i.price) * i.quantity, 0),
@@ -187,7 +156,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <CartContext.Provider value={{ items, count, subtotal, add, remove, update, clear }}>
+    <CartContext.Provider value={{ items, count, subtotal, add, remove, update, clear, loadFromDB }}>
       {children}
     </CartContext.Provider>
   );

@@ -79,7 +79,7 @@ export async function POST() {
       const res = await sendAbandonedCart({
         phone,
         customerName: cart.customer?.name || 'there',
-        checkoutUrl: `https://app.zicabella.com/checkout?recover=${cart.id}`,
+        checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
         productImageUrl,
         productName,
         cartTotal,

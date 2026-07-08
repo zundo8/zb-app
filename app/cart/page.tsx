@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Minus, Plus, Trash2, ShoppingBag, Loader2, Lock, LogIn, User } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
@@ -13,12 +14,51 @@ const CheckoutWebView = dynamic(() => import("@/components/CheckoutWebView"), { 
 const OrderSuccess = dynamic(() => import("@/components/OrderSuccess"), { ssr: false });
 
 export default function CartPage() {
+  const { data: session, status } = useSession();
   const router = useRouter();
-  const { items, count, subtotal, remove, update, clear } = useCart();
+  const searchParams = useSearchParams();
+  const { items, count, subtotal, remove, update, clear, loadFromDB } = useCart();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [dbLoading, setDbLoading] = useState(false);
+  const dbLoadedRef = useRef(false);
+
+  const recoverId = searchParams.get("recover");
+
+  // Once authenticated, fetch cart from database
+  useEffect(() => {
+    if (status !== "authenticated" || dbLoadedRef.current) return;
+    dbLoadedRef.current = true;
+
+    const fetchCartFromDB = async () => {
+      setDbLoading(true);
+      try {
+        const url = recoverId
+          ? `/api/cart/me?recover=${encodeURIComponent(recoverId)}`
+          : "/api/cart/me";
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.items) && data.items.length > 0) {
+            loadFromDB(data.items);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load cart from database:", err);
+      } finally {
+        setDbLoading(false);
+        // Clean recover param from URL after loading
+        if (recoverId && typeof window !== "undefined") {
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      }
+    };
+
+    fetchCartFromDB();
+  }, [status, recoverId, loadFromDB]);
 
   const handleCheckout = () => {
     router.push("/checkout");
@@ -34,6 +74,126 @@ export default function CartPage() {
     clear();
   };
 
+  // Build the login redirect URL, preserving the recover param if present
+  const loginCallbackUrl = recoverId
+    ? `/cart?recover=${encodeURIComponent(recoverId)}`
+    : "/cart";
+
+  // ─── LOADING STATE ──────────────────────────────────────────
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen relative">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-32">
+          <div className="mb-8">
+            <p className="glass-label mb-0.5">Your</p>
+            <h1 className="glass-heading text-[13px] flex items-center gap-2">Cart</h1>
+          </div>
+          <div className="flex flex-col items-center justify-center pt-20 gap-4">
+            <div className="glass-panel inline-flex p-5 rounded-full">
+              <Loader2 className="w-6 h-6 text-foreground/30 animate-spin" />
+            </div>
+            <p className="text-[9px] font-extralight uppercase tracking-[0.25em] text-foreground/30">
+              Loading your cart…
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── UNAUTHENTICATED: LOGIN PROMPT ──────────────────────────
+  if (status === "unauthenticated") {
+    return (
+      <div className="min-h-screen relative">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-32">
+          <div className="mb-8">
+            <p className="glass-label mb-0.5">Your</p>
+            <h1 className="glass-heading text-[13px] flex items-center gap-2">Cart</h1>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-col items-center justify-center pt-12 pb-8"
+          >
+            {/* Lock icon with glow */}
+            <div className="relative mb-6">
+              <div
+                className="absolute inset-0 rounded-full blur-[30px] opacity-30"
+                style={{
+                  background: "radial-gradient(circle, rgba(212,175,55,0.3) 0%, rgba(120,40,200,0.15) 60%, transparent 100%)",
+                }}
+              />
+              <div className="glass-panel relative p-7 rounded-full border border-foreground/[0.06]">
+                <Lock className="w-8 h-8 text-foreground/25" strokeWidth={1.2} />
+              </div>
+            </div>
+
+            {/* Heading */}
+            <h2 className="glass-heading text-[11px] mb-2 text-foreground/50">
+              Login to View Your Cart
+            </h2>
+            <p className="text-[8px] font-extralight text-foreground/30 tracking-widest uppercase text-center max-w-xs leading-relaxed mb-8">
+              Sign in to access your saved cart items,<br />
+              track orders, and checkout securely.
+            </p>
+
+            {/* Login CTA Button */}
+            <Link
+              href={`/login?callbackUrl=${encodeURIComponent(loginCallbackUrl)}`}
+              className="glass-cta px-10 py-4 text-[9px] tracking-[0.35em] flex items-center justify-center gap-2.5 rounded-2xl"
+            >
+              <LogIn className="w-3.5 h-3.5" strokeWidth={1.5} />
+              LOGIN TO CONTINUE
+            </Link>
+
+            {/* Trust signals */}
+            <div className="flex items-center gap-5 mt-8">
+              <div className="flex items-center gap-1.5 text-foreground/20">
+                <Lock className="w-2.5 h-2.5" strokeWidth={1.2} />
+                <span className="text-[6.5px] font-extralight uppercase tracking-[0.15em]">Secure</span>
+              </div>
+              <div className="w-px h-2.5 bg-foreground/10" />
+              <div className="flex items-center gap-1.5 text-foreground/20">
+                <ShoppingBag className="w-2.5 h-2.5" strokeWidth={1.2} />
+                <span className="text-[6.5px] font-extralight uppercase tracking-[0.15em]">Saved Cart</span>
+              </div>
+              <div className="w-px h-2.5 bg-foreground/10" />
+              <div className="flex items-center gap-1.5 text-foreground/20">
+                <User className="w-2.5 h-2.5" strokeWidth={1.2} />
+                <span className="text-[6.5px] font-extralight uppercase tracking-[0.15em]">Personalized</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── AUTHENTICATED: DB LOADING STATE ────────────────────────
+  if (dbLoading) {
+    return (
+      <div className="min-h-screen relative">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-32">
+          <div className="mb-8">
+            <p className="glass-label mb-0.5">Your</p>
+            <h1 className="glass-heading text-[13px] flex items-center gap-2">Cart</h1>
+          </div>
+          <div className="flex flex-col items-center justify-center pt-20 gap-4">
+            <div className="glass-panel inline-flex p-5 rounded-full">
+              <Loader2 className="w-6 h-6 text-foreground/30 animate-spin" />
+            </div>
+            <p className="text-[9px] font-extralight uppercase tracking-[0.25em] text-foreground/30">
+              Loading your saved cart…
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── AUTHENTICATED: CART VIEW ───────────────────────────────
   return (
     <div className="min-h-screen relative">
 

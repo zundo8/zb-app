@@ -53,7 +53,7 @@ export async function POST(req) {
       || '0.00';
       
     const checkoutUrl = checkout.abandoned_checkout_url 
-      || `https://app.zicabella.com/checkout?recover=${checkout.id}`;
+      || `https://app.zicabella.com/cart?recover=${checkout.id}`;
 
     const firstItem = checkout.line_items?.[0] || checkout.items?.[0] || {};
     const productImageUrl = firstItem.image_url || firstItem.image || '';

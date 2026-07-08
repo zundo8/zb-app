@@ -812,8 +812,7 @@ export async function resolveWebhookSecret(): Promise<{ secret: string; source: 
 
 /**
  * Validate a webhook signature from the logistics partner.
- * Delhivery uses a plain Bearer token — direct string comparison.
- * Shiprocket / generic providers use HMAC-SHA256 signature verification.
+ * All providers use HMAC-SHA256 hex signature verification.
  */
 export function validateWebhookSignature(
   payload: string,
@@ -830,16 +829,7 @@ export function validateWebhookSignature(
       .trim();
     const cleanSecret = secret.trim();
 
-    // Delhivery uses plain Bearer token — direct string comparison
-    if (provider === 'delhivery') {
-      const maxLength = Math.max(cleanSignature.length, cleanSecret.length, 64);
-      return crypto.timingSafeEqual(
-        Buffer.from(cleanSignature.padEnd(maxLength)),
-        Buffer.from(cleanSecret.padEnd(maxLength))
-      );
-    }
-
-    // Shiprocket / generic — HMAC-SHA256
+    // All providers — HMAC-SHA256 hex comparison
     const expectedSignature = crypto
       .createHmac('sha256', cleanSecret)
       .update(payload)
