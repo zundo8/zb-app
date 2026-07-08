@@ -42,6 +42,12 @@ interface Cart {
   lastActivityAt: string;
   abandonedAt: string | null;
   convertedOrderId: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   customer?: {
     id: string;
     name: string | null;
@@ -557,6 +563,41 @@ export default function AbandonedCartsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Geolocation Details */}
+              {(selectedCart.city || selectedCart.state || selectedCart.zip || selectedCart.country) && (
+                <div className="p-6 rounded-3xl bg-neutral-50 dark:bg-foreground/[0.02] border border-neutral-200 dark:border-foreground/[0.06] space-y-4">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-neutral-200 dark:border-foreground/5 pb-2">Location Telemetry (Allowed Access)</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-foreground/[0.04] rounded-xl border border-foreground/5 text-lg">
+                        📍
+                      </div>
+                      <div>
+                        <p className="text-[14px] font-black italic text-foreground leading-none">
+                          {[selectedCart.city, selectedCart.state].filter(Boolean).join(", ")}
+                        </p>
+                        <p className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest mt-1">
+                          {[selectedCart.zip, selectedCart.country].filter(Boolean).join(" • ")}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedCart.latitude !== null && selectedCart.latitude !== undefined && selectedCart.longitude !== null && selectedCart.longitude !== undefined && (
+                      <div className="flex items-center justify-between text-[11px] font-mono text-foreground/30 border-t border-foreground/5 pt-2.5">
+                        <span>Coordinates: {selectedCart.latitude.toFixed(4)}°, {selectedCart.longitude.toFixed(4)}°</span>
+                        <a 
+                          href={`https://www.google.com/maps/search/?api=1&query=${selectedCart.latitude},${selectedCart.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors"
+                        >
+                          View Map ↗
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Engage Shopper / Recovery actions */}
               {selectedCart.computedStatus !== "converted" && (

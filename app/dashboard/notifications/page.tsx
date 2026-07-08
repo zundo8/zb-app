@@ -9,11 +9,13 @@ import {
   History, RefreshCw, CheckCircle2, XCircle, ChevronRight,
   Filter, Layers, Target, Activity
 } from "lucide-react";
+import { Suspense } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
-export default function PushNotificationsPage() {
+function PushNotificationsContent() {
   const searchParams = useSearchParams();
+  const [isMounted, setIsMounted] = useState(false);
   const [title, setTitle] = useState(searchParams.get("title") || "");
   const [body, setBody] = useState(searchParams.get("body") || "");
   const [imageUrl, setImageUrl] = useState("");
@@ -42,6 +44,7 @@ export default function PushNotificationsPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    setIsMounted(true);
     fetchHistory();
     fetchStats();
   }, []);
@@ -151,7 +154,7 @@ export default function PushNotificationsPage() {
             </div>
             <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block mb-2">Total Reach</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black italic">{statsLoading ? '...' : stats.activeDevices.toLocaleString()}</span>
+              <span className="text-3xl font-black italic">{isMounted && !statsLoading ? stats.activeDevices.toLocaleString() : '...'}</span>
               <span className="text-[10px] font-bold opacity-30">PTS</span>
             </div>
           </div>
@@ -348,9 +351,9 @@ export default function PushNotificationsPage() {
              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-amber-500/70 leading-relaxed">
                 <span className="text-amber-500 block mb-1">Protocol Warning:</span>
                 {targetType === 'all' 
-                  ? `Global broadcast targets ${stats.activeDevices.toLocaleString()} endpoints. ` 
+                  ? `Global broadcast targets ${isMounted ? stats.activeDevices.toLocaleString() : '...'} endpoints. ` 
                   : targetType === 'segment' 
-                  ? `Targeting ${stats.vipCount.toLocaleString()} high-value nodes. ` 
+                  ? `Targeting ${isMounted ? stats.vipCount.toLocaleString() : '...'} high-value nodes. ` 
                   : 'Individual node targeting active. '}
                 Transmission is irreversible once the neural handshake is complete.
              </p>
@@ -515,7 +518,7 @@ export default function PushNotificationsPage() {
                              <td className="px-10 py-10">
                                 <div className="flex flex-col gap-1.5">
                                    <span className="text-[14px] font-black italic">
-                                      {format(new Date(record.createdAt), "MMM d, HH:mm")}
+                                      {isMounted ? format(new Date(record.createdAt), "MMM d, HH:mm") : ""}
                                    </span>
                                    <span className="text-[10px] font-bold text-foreground/20 uppercase tracking-widest">
                                       ID: {record.id.slice(-6)}
@@ -597,5 +600,18 @@ export default function PushNotificationsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PushNotificationsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <RefreshCw className="w-8 h-8 animate-spin text-foreground/40" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-foreground/40">Loading Dashboard...</span>
+      </div>
+    }>
+      <PushNotificationsContent />
+    </Suspense>
   );
 }

@@ -169,6 +169,14 @@ model Cart {
   lastActivityAt    DateTime   @default(now()) @map("last_activity_at")
   abandonedAt       DateTime?  @map("abandoned_at")
   convertedOrderId  String?    @unique @map("converted_order_id")
+  
+  // Geolocation enrichment
+  city              String?
+  state             String?
+  zip               String?
+  country           String?
+  latitude          Float?
+  longitude         Float?
 
   customer          Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   convertedOrder    Order?     @relation("ConvertedOrder", fields: [convertedOrderId], references: [id])

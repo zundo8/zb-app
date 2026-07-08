@@ -72,13 +72,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     const syncCartWithBackend = async () => {
       try {
+        let geoDetails = {};
+        try {
+          const cachedGeo = sessionStorage.getItem('zb_geo_data');
+          if (cachedGeo) {
+            const parsedGeo = JSON.parse(cachedGeo);
+            geoDetails = {
+              city: parsedGeo.city || undefined,
+              state: parsedGeo.state || undefined,
+              zip: parsedGeo.zip || undefined,
+              country: parsedGeo.country || undefined,
+              latitude: parsedGeo.latitude || undefined,
+              longitude: parsedGeo.longitude || undefined,
+            };
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+
         await fetch("/api/cart/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             items,
             guestId: deviceId,
-            source: "webstore"
+            source: "webstore",
+            ...geoDetails
           })
         });
       } catch (err) {

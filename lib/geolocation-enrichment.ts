@@ -31,8 +31,11 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
     // Guard: browser environment only
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
 
-    // Guard: single-shot per session
-    if (sessionStorage.getItem(SESSION_KEY)) return;
+    // Guard: NEVER run or prompt on admin dashboard, admin routes, or API endpoints
+    const path = window.location.pathname;
+    if (path.startsWith('/dashboard') || path.startsWith('/admin') || path.startsWith('/api')) {
+      return;
+    }
 
     // Guard: Geolocation API available
     if (!navigator.geolocation) {
@@ -55,6 +58,13 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
     // If explicitly denied, respect the user's choice — don't call getCurrentPosition
     if (permissionState === 'denied') {
       sessionStorage.setItem(SESSION_KEY, 'denied');
+      return;
+    }
+
+    // Guard: if it's 'prompt' or 'unknown' (which triggers the browser dialog),
+    // enforce the single-shot per session limit to avoid annoying the user.
+    // If it is already 'granted', we bypass this guard to silently fetch the location.
+    if (permissionState !== 'granted' && sessionStorage.getItem(SESSION_KEY)) {
       return;
     }
 
@@ -150,6 +160,8 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
       zip: parsed.zip,
       country: parsed.country,
       countryCode: parsed.countryCode,
+      latitude,
+      longitude,
     }));
 
     // Save to Meta PII cookies (hashed) via the existing pipeline

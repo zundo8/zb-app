@@ -22,7 +22,10 @@ export async function POST(req: Request) {
   const corsHeaders = getCorsHeaders(req);
   try {
     const body = await req.json();
-    const { items, guestId, name, email, phone, source } = body;
+    const { 
+      items, guestId, name, email, phone, source,
+      city, state, zip, country, latitude, longitude 
+    } = body;
     
     // 1. Resolve customer identity (Mobile Auth vs NextAuth Session)
     const auth = getAppAuthFromRequest(req);
@@ -92,7 +95,13 @@ export async function POST(req: Request) {
           phone: phone || null,
           email: email || null,
           subtotal: calculatedSubtotal,
-          lastActivityAt: new Date()
+          lastActivityAt: new Date(),
+          city: city || null,
+          state: state || null,
+          zip: zip || null,
+          country: country || null,
+          latitude: latitude !== undefined && latitude !== null ? parseFloat(String(latitude)) : null,
+          longitude: longitude !== undefined && longitude !== null ? parseFloat(String(longitude)) : null,
         }
       });
     } else {
@@ -105,7 +114,13 @@ export async function POST(req: Request) {
           subtotal: calculatedSubtotal,
           phone: phone || undefined,
           email: email || undefined,
-          source: cartSource // Ensure source is kept up-to-date
+          source: cartSource, // Ensure source is kept up-to-date
+          city: city || undefined,
+          state: state || undefined,
+          zip: zip || undefined,
+          country: country || undefined,
+          latitude: latitude !== undefined && latitude !== null ? parseFloat(String(latitude)) : undefined,
+          longitude: longitude !== undefined && longitude !== null ? parseFloat(String(longitude)) : undefined,
         }
       });
     }
