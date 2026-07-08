@@ -10,7 +10,11 @@ import {
   sha256,
   cleanCountry,
   withFbq,
+  isDemoValue,
+  clearGuestPiiCookies,
 } from '@/lib/metaPixel';
+import { buildClientUserData } from '@/lib/buildMetaUserData';
+import { enrichSessionWithGeolocation } from '@/lib/geolocation-enrichment';
 import { pageview as trackGAPageView } from '@/lib/gtag';
 
 let cachedProfileData: {
@@ -99,29 +103,23 @@ export function MetaPixelRouteTracker() {
     }, 'PageView');
 
     // Server-side CAPI PageView — fires NOW with sync-available identity data
-    const identityData = getMetaIdentityCookies();
+    // Use the shared builder for consistent empty-value filtering and demo blocking.
+    const rawIdentity = getMetaIdentityCookies();
+    const builtIdentity: Record<string, any> = { ...buildClientUserData(rawIdentity) };
 
-    // For anonymous PageView events, strip all PII fields (em, ph, fn, ln, address, DOB, fb_login_id).
-    // Standard pageviews for guests must only contain available browser identifier parameters (fbp, fbc, external_id).
+    // For anonymous PageView events, strip all PII fields.
+    // Standard pageviews for guests must only contain browser identifiers (fbp, fbc, external_id).
     if (!session?.user) {
-      delete identityData.em;
-      delete identityData.ph;
-      delete identityData.fn;
-      delete identityData.ln;
-      delete identityData.country;
-      delete identityData.st;
-      delete identityData.ct;
-      delete identityData.zp;
-      delete identityData.db;
-      delete identityData.fb_login_id;
-    }
-
-    // Clean empty fields from identityData
-    const cleanedIdentity: Record<string, any> = {};
-    for (const [key, val] of Object.entries(identityData)) {
-      if (val !== undefined && val !== null && val !== '') {
-        cleanedIdentity[key] = val;
-      }
+      delete builtIdentity.em;
+      delete builtIdentity.ph;
+      delete builtIdentity.fn;
+      delete builtIdentity.ln;
+      delete builtIdentity.country;
+      delete builtIdentity.st;
+      delete builtIdentity.ct;
+      delete builtIdentity.zp;
+      delete builtIdentity.db;
+      delete builtIdentity.fb_login_id;
     }
 
     fetch('/api/meta/event', {
@@ -134,7 +132,7 @@ export function MetaPixelRouteTracker() {
         eventSourceUrl: window.location.href,
         userAgent: navigator.userAgent,
         actionSource: 'website',
-        userData: cleanedIdentity,
+        userData: builtIdentity,
       }),
     }).catch(err => console.warn('[Tracker Client] PageView CAPI failed:', err));
 
@@ -152,14 +150,14 @@ export function MetaPixelRouteTracker() {
         setClientCookie('zb_user_logged_in', 'true', 365);
 
         const email = session.user.email;
-        if (email) {
+        if (email && !isDemoValue('email', email)) {
           const hashedEmail = await sha256(email.trim().toLowerCase());
           sessionUserData.em = hashedEmail;
           setClientCookie('zb_guest_email', hashedEmail, 365);
         }
 
         const phone = (session.user as any).phone || (session as any).customer?.phone;
-        if (phone) {
+        if (phone && !isDemoValue('phone', phone)) {
           const digits = phone.replace(/\D/g, "");
           let baseNumber = digits;
           if (digits.length === 12 && digits.startsWith("91")) baseNumber = digits.slice(2);
@@ -171,7 +169,7 @@ export function MetaPixelRouteTracker() {
         }
 
         const name = session.user.name;
-        if (name) {
+        if (name && !isDemoValue('name', name)) {
           const parts = name.trim().split(/\s+/);
           if (parts[0]) {
             const hashedFn = await sha256(cleanStringNoSpaces(parts[0]));
@@ -236,6 +234,9 @@ export function MetaPixelRouteTracker() {
         initPixel(sessionUserData);
       } else {
         setClientCookie('zb_user_logged_in', 'false', 365);
+        // Clear all guest PII cookies to prevent stale identity data from a
+        // previous user leaking into another user's Meta events on shared devices.
+        clearGuestPiiCookies();
         // Reinit pixel with browser-only params for subsequent events
         initPixel({});
       }
@@ -244,6 +245,14 @@ export function MetaPixelRouteTracker() {
     // Fire enrichment in background — NEVER blocks PageView
     enrichIdentityAsync().catch(err => {
       console.warn('[Meta Pixel Enrichment] Identity enrichment failed (non-fatal):', err);
+    });
+
+    // Fire one-shot geolocation enrichment for EMQ address fields (ct/st/zp/country).
+    // Runs after PageView and identity enrichment, fully fire-and-forget.
+    // The sessionStorage guard inside ensures it only runs once per session,
+    // even across route changes. Never blocks rendering or hydration.
+    enrichSessionWithGeolocation().catch(() => {
+      // Fail completely silently — geolocation is a nice-to-have enrichment
     });
   }, [session, pathname]);
 

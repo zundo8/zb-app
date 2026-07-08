@@ -3,6 +3,9 @@ import { sendCapiEvent, getReportedValue } from '@/lib/metaCapi';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/options';
 import prisma from '@/lib/db';
+import { DEMO_PHONES_RAW, DEMO_EMAILS_RAW } from '@/lib/metaPixel';
+import { buildServerUserData } from '@/lib/buildMetaUserData';
+import crypto from 'crypto';
 
 function normalizePhone(p: string | undefined): string | undefined {
   if (!p) return undefined;
@@ -11,6 +14,67 @@ function normalizePhone(p: string | undefined): string | undefined {
   if (digits.length === 12 && digits.startsWith("91")) base = digits.slice(2);
   else if (digits.length === 11 && digits.startsWith("0")) base = digits.slice(1);
   return `91${base}`;
+}
+
+// ── Dev-mode duplicate PII detection safeguard ──
+// Tracks how many distinct external_id values send the same em/ph hash.
+// If a single hash appears for >5 distinct identities in 10 minutes,
+// logs a warning so this class of bug surfaces immediately.
+const DEDUP_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const DEDUP_THRESHOLD = 5;
+const dedupTracker = new Map<string, { ids: Set<string>; firstSeen: number }>();
+
+function checkDuplicatePii(field: string, hashedValue: string | undefined, externalId: string | undefined): void {
+  if (!hashedValue || !externalId) return;
+  // Only run in dev or when test event code is set
+  if (process.env.NODE_ENV === 'production' && !process.env.META_TEST_EVENT_CODE) return;
+
+  const key = `${field}:${hashedValue}`;
+  const now = Date.now();
+  let entry = dedupTracker.get(key);
+
+  if (!entry || (now - entry.firstSeen) > DEDUP_WINDOW_MS) {
+    entry = { ids: new Set(), firstSeen: now };
+    dedupTracker.set(key, entry);
+  }
+
+  entry.ids.add(externalId);
+
+  if (entry.ids.size > DEDUP_THRESHOLD) {
+    console.warn(
+      `[Meta CAPI DUPLICATE WARNING] ⚠️ Same ${field} hash sent for ${entry.ids.size} distinct external_ids ` +
+      `in the last ${Math.round((now - entry.firstSeen) / 1000)}s. Hash prefix: ${hashedValue.slice(0, 12)}... ` +
+      `This may trigger Meta's duplicate PII warning.`
+    );
+  }
+
+  // Prune old entries periodically (keep map bounded)
+  if (dedupTracker.size > 500) {
+    for (const [k, v] of dedupTracker) {
+      if ((now - v.firstSeen) > DEDUP_WINDOW_MS) dedupTracker.delete(k);
+    }
+  }
+}
+
+/** Pre-compute demo phone hashes so we can block them on the server side too. */
+const DEMO_PHONE_HASHES = DEMO_PHONES_RAW.map(p => {
+  const digits = p.replace(/\D/g, '');
+  let base = digits;
+  if (digits.length === 12 && digits.startsWith('91')) base = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith('0')) base = digits.slice(1);
+  return crypto.createHash('sha256').update(`91${base}`).digest('hex');
+});
+const DEMO_EMAIL_HASHES = DEMO_EMAILS_RAW.map(e =>
+  crypto.createHash('sha256').update(e.trim().toLowerCase()).digest('hex')
+);
+
+/** Check if a hashed value matches a known demo account hash. */
+function isDemoHash(field: 'em' | 'ph', hash: string | undefined): boolean {
+  if (!hash) return false;
+  const clean = hash.trim().toLowerCase();
+  return field === 'ph'
+    ? DEMO_PHONE_HASHES.includes(clean)
+    : DEMO_EMAIL_HASHES.includes(clean);
 }
 
 export async function POST(req: NextRequest) {
@@ -108,7 +172,7 @@ export async function POST(req: NextRequest) {
       // Build mergedUserData from cookies + body userData (no session await needed).
       // By the time a user reaches checkout/purchase, MetaPixelRouteTracker has already
       // hashed and stored all session PII in cookies (email, phone, name, DOB, address).
-      const mergedUserData: Record<string, any> = {
+      const mergedUserData = buildServerUserData({
         client_ip_address: ip,
         client_user_agent: userData?.client_user_agent || userAgent,
         fbp: userData?.fbp || fbp,
@@ -124,7 +188,11 @@ export async function POST(req: NextRequest) {
         zp: userData?.zp || guestZip,
         fb_login_id: userData?.fb_login_id || fbLoginId,
         db: userData?.db || guestDob,
-      };
+      });
+
+      // Duplicate detection safeguard
+      checkDuplicatePii('em', mergedUserData.em as string, mergedUserData.external_id as string);
+      checkDuplicatePii('ph', mergedUserData.ph as string, mergedUserData.external_id as string);
 
       const presentKeys = Object.entries(mergedUserData)
         .filter(([_, value]) => value !== undefined && value !== null && value !== '')
@@ -158,11 +226,20 @@ export async function POST(req: NextRequest) {
 
     const sessionUserData: Record<string, any> = {};
     if (session?.user) {
-      sessionUserData.em = session.user.email || undefined;
+      // Block demo account values from reaching Meta
+      const rawEmail = session.user.email || undefined;
       const rawPhone = (session.user as any).phone || (session as any).customer?.phone || undefined;
-      sessionUserData.ph = normalizePhone(rawPhone);
+      const rawPhoneDigits = rawPhone ? rawPhone.replace(/\D/g, '').slice(-10) : '';
+      const isPhoneDemo = DEMO_PHONES_RAW.some(d => d.replace(/\D/g, '').slice(-10) === rawPhoneDigits);
+      const isEmailDemo = rawEmail ? DEMO_EMAILS_RAW.includes(rawEmail.trim().toLowerCase()) : false;
+
+      if (!isEmailDemo) sessionUserData.em = rawEmail;
+      if (!isPhoneDemo) sessionUserData.ph = normalizePhone(rawPhone);
+
       const name = session.user.name;
-      if (name) {
+      // Block "Demo User" name
+      const isDemoName = name ? name.trim().toLowerCase() === 'demo user' : false;
+      if (name && !isDemoName) {
         const parts = name.trim().split(/\s+/);
         if (parts[0]) sessionUserData.fn = parts[0];
         if (parts.length > 1) sessionUserData.ln = parts.slice(1).join(' ');
@@ -188,7 +265,7 @@ export async function POST(req: NextRequest) {
     // Merge user identity data. Priority: body userData (client-forwarded cookies, most reliable)
     // → server-side cookies → session data. The client always forwards identity cookies in the
     // body for reliability, since server-side cookie access can fail on edge/CDN.
-    const mergedUserData: Record<string, any> = {
+    const mergedUserData = buildServerUserData({
       client_ip_address: ip,
       client_user_agent: userData?.client_user_agent || userAgent,
       fbp: userData?.fbp || fbp,
@@ -204,7 +281,11 @@ export async function POST(req: NextRequest) {
       zp: userData?.zp || guestZip,
       fb_login_id: userData?.fb_login_id || fbLoginId,
       db: userData?.db || guestDob || sessionUserData.db,
-    };
+    });
+
+    // Duplicate detection safeguard
+    checkDuplicatePii('em', mergedUserData.em as string, mergedUserData.external_id as string);
+    checkDuplicatePii('ph', mergedUserData.ph as string, mergedUserData.external_id as string);
 
     const userIsLoggedIn = isLoggedIn || !!session?.user;
     const isCheckoutEvent = ['InitiateCheckout', 'AddPaymentInfo', 'Purchase'].includes(eventName);

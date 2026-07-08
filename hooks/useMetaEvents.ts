@@ -1,5 +1,6 @@
 import { trackEvent, initPixel, getMetaIdentityCookies, getClientCookie } from '@/lib/metaPixel';
 import { event as trackGAEvent } from '@/lib/gtag';
+import { buildClientUserData } from '@/lib/buildMetaUserData';
 
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -11,16 +12,18 @@ function uuidv4() {
 
 async function sendToCapiRoute(payload: Record<string, any>): Promise<any> {
   try {
-    // Always include identity cookies (fbc, fbp, external_id, PII) for maximum
-    // Meta Event Match Quality. Explicit userData from event callers takes priority.
-    // Clean both objects to prevent undefined/empty fields from overwriting valid values.
-    const identityData = cleanCustomData(getMetaIdentityCookies());
+    // Build identity data via the shared builder — ensures demo values are filtered,
+    // empty fields are omitted, and all events get consistent identity enrichment.
+    const rawIdentity = getMetaIdentityCookies();
+    const builtIdentity = buildClientUserData(rawIdentity);
     
     // Check user logged in status
     const isLoggedIn = getClientCookie('zb_user_logged_in') === 'true';
     const isCheckoutEvent = ['InitiateCheckout', 'AddPaymentInfo', 'Purchase'].includes(payload.eventName);
     
-    // For guests/non-logged-in users on non-checkout events, strip PII parameters to avoid mismatch or stale data.
+    // For guests/non-logged-in users on non-checkout events, strip PII parameters
+    // to avoid mismatch or stale data. Keep only browser identifiers.
+    const identityData: Record<string, any> = { ...builtIdentity };
     if (!isLoggedIn && !isCheckoutEvent) {
       delete identityData.em;
       delete identityData.ph;
