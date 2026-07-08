@@ -5,12 +5,15 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const order = await prisma.order.findUnique({
+    const order = await prisma.mobileOrder.findUnique({
       where: { id: params.id },
       include: {
-        items: true,
+        items: {
+          include: {
+            product: { select: { featuredImage: true, title: true } }
+          }
+        },
         customer: { select: { id: true, name: true, email: true, phone: true } },
-        shipments: { orderBy: { createdAt: 'desc' } },
       },
     });
 
@@ -23,12 +26,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       shippingAddress = null;
     }
 
-    const orderNumber =
-      String(order.tags || '').match(/zb-order-(ZB[71\d-]+)/i)?.[1]?.toUpperCase() ||
-      String(order.shopifyOrderId || '').replace(/^#/, '') ||
-      order.id;
+    const orderNumber = order.orderNumber || order.id;
 
-    const latestShipment = order.shipments?.[0] || null;
+    let latestShipment = null;
+    if (order.shopifyOrderId) {
+      const syncedOrder = await prisma.order.findFirst({
+        where: { shopifyOrderId: order.shopifyOrderId },
+        include: { shipments: { orderBy: { createdAt: 'desc' } } }
+      });
+      latestShipment = syncedOrder?.shipments?.[0] || null;
+    }
 
     return NextResponse.json({
       order: {
@@ -45,11 +52,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         currency: order.currency,
         note: order.note,
         tags: order.tags,
-        razorpayPaymentId: order.razorpayPaymentId,
+        razorpayPaymentId: order.paymentId,
         shopifyOrderId: order.shopifyOrderId && /^\d+$/.test(String(order.shopifyOrderId)) ? order.shopifyOrderId : null,
         shippingAddress,
         customer: order.customer,
-        items: order.items,
+        items: order.items.map((item: any) => ({
+          ...item,
+          image: item.image || item.product?.featuredImage || null,
+          title: item.title || item.product?.title || 'Unknown Product',
+        })),
         shipment: latestShipment
           ? {
               awb: latestShipment.awb || latestShipment.trackingNumber || null,
@@ -80,7 +91,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const body = await req.json();
     const { status, paymentStatus, fulfillmentStatus, deliveryStatus, note, tags } = body;
 
-    const updated = await prisma.order.update({
+    const updated = await prisma.mobileOrder.update({
       where: { id: params.id },
       data: {
         status: status !== undefined ? status : undefined,
@@ -98,4 +109,3 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: e?.message || 'Internal server error' }, { status: 500 });
   }
 }
-

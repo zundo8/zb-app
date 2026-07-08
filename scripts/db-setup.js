@@ -79,7 +79,17 @@ async function main() {
       DECLARE
           seq_val INTEGER;
           ym VARCHAR(4);
+          existing_num VARCHAR(50);
       BEGIN
+          -- If this is an upsert/insert where shopifyOrderId already exists, reuse the existing internal_order_number
+          IF NEW."shopifyOrderId" IS NOT NULL AND NEW."shopifyOrderId" <> '' THEN
+              SELECT internal_order_number INTO existing_num FROM "Order" WHERE "shopifyOrderId" = NEW."shopifyOrderId" LIMIT 1;
+              IF existing_num IS NOT NULL AND existing_num <> '' THEN
+                  NEW.internal_order_number := existing_num;
+                  RETURN NEW;
+              END IF;
+          END IF;
+
           IF NEW.internal_order_number IS NULL OR NEW.internal_order_number = '' THEN
               ym := to_char(CURRENT_DATE, 'YYMM');
               

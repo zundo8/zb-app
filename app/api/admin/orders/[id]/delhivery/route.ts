@@ -4,9 +4,22 @@ import { createDelhiveryShipment, cancelDelhiveryShipment, getShippingLabel, get
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const { id } = params;
+    let { id } = params;
     const body = await req.json();
     const { action } = body;
+
+    // Check if it is a MobileOrder ID
+    const mobileOrder = await prisma.mobileOrder.findUnique({
+      where: { id }
+    });
+    if (mobileOrder && mobileOrder.shopifyOrderId) {
+      const syncedOrder = await prisma.order.findUnique({
+        where: { shopifyOrderId: mobileOrder.shopifyOrderId }
+      });
+      if (syncedOrder) {
+        id = syncedOrder.id;
+      }
+    }
 
     const order = await prisma.order.findUnique({
       where: { id },

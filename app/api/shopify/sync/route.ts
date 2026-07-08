@@ -7,6 +7,7 @@ import {
   fetchInventoryLevels,
 } from '@/lib/shopify-admin';
 import prisma from '@/lib/db';
+import { registerWebhooks } from '@/lib/shopify-webhooks';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,15 @@ export async function POST() {
         data: { accessToken: envToken }
       });
       console.log(`[Sync Route] Updated shop ${shopDomain} with real token from environment.`);
+    }
+
+    // Register webhooks automatically to ensure real-time sync works
+    try {
+      console.log('[Sync Route] Running webhook registration check...');
+      await registerWebhooks();
+    } catch (whErr: any) {
+      console.warn('[Sync Route] Webhook registration failed:', whErr.message);
+      results.errors.push(`Webhook registration: ${whErr.message}`);
     }
 
     // ─── Parallel Syncing ──────────────────────────────────────────

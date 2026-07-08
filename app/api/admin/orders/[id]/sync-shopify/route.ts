@@ -14,13 +14,196 @@ export async function POST(
     const orderId = params.id;
 
     // Fetch the local order with full details
-    const order = await prisma.order.findUnique({
+    let order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
         items: true,
         customer: true,
       },
     });
+
+    if (!order) {
+      // Check if it's a mobile order
+      const mobileOrder = await prisma.mobileOrder.findUnique({
+        where: { id: orderId },
+        include: {
+          customer: true,
+          items: true,
+        }
+      });
+
+      if (mobileOrder) {
+        // If already synced (numeric Shopify order id), skip.
+        if (mobileOrder.shopifyOrderId && /^\d+$/.test(String(mobileOrder.shopifyOrderId))) {
+          return NextResponse.json({
+            success: true,
+            shopifyOrderId: mobileOrder.shopifyOrderId,
+            message: 'Order already synced to Shopify'
+          });
+        }
+
+        // Update DB authority first to approved
+        await prisma.mobileOrder.update({
+          where: { id: mobileOrder.id },
+          data: { status: 'approved' },
+        });
+
+        // Parse shipping address
+        let shippingAddress: any = {};
+        try {
+          shippingAddress = mobileOrder.shippingAddress ? JSON.parse(mobileOrder.shippingAddress) : {};
+        } catch {
+          shippingAddress = {};
+        }
+
+        // Resolve Shopify customer (best-effort)
+        let shopifyCustomerId = mobileOrder.customer?.shopifyId;
+        if (!shopifyCustomerId || shopifyCustomerId.startsWith('temp_') || shopifyCustomerId.startsWith('google_') || shopifyCustomerId.startsWith('mobile_') || shopifyCustomerId.startsWith('otp_') || shopifyCustomerId.startsWith('csv_')) {
+          try {
+            const customerName = mobileOrder.customer?.name || shippingAddress?.name || 'App User';
+            const nameParts = String(customerName).split(' ');
+            const createdCustomer = await createCustomer({
+              first_name: nameParts[0] || 'App',
+              last_name: nameParts.slice(1).join(' ') || 'User',
+              email: mobileOrder.customer?.email || shippingAddress?.email || '',
+              phone: mobileOrder.customer?.phone || shippingAddress?.phone || '',
+              verified_email: true,
+              addresses: (shippingAddress?.address1 || shippingAddress?.line1)
+                ? [
+                    {
+                      address1: shippingAddress.address1 || shippingAddress.line1 || '',
+                      address2: shippingAddress.address2 || shippingAddress.line2 || '',
+                      city: shippingAddress.city || '',
+                      province: shippingAddress.province || shippingAddress.state || '',
+                      zip: shippingAddress.zip || shippingAddress.pincode || '',
+                      country: shippingAddress.country || 'India',
+                      default: true,
+                    },
+                  ]
+                : [],
+            });
+            shopifyCustomerId = String(createdCustomer.id);
+            if (mobileOrder.customer?.id) {
+              await prisma.customer.update({ where: { id: mobileOrder.customer.id }, data: { shopifyId: shopifyCustomerId } });
+            }
+          } catch (e) {
+            console.error('[Admin Detail Sync] Customer sync failed:', e);
+          }
+        }
+
+        // Build Shopify order payload
+        const shopifyOrderPayload: any = {
+          line_items: mobileOrder.items.map((item: any) => {
+            if (item.variantId && /^\d+$/.test(String(item.variantId))) {
+              return { variant_id: parseInt(String(item.variantId), 10), quantity: item.quantity };
+            }
+            const sku = item.sku || '';
+            const m = sku.match(/variant:(\d+)/i);
+            if (m?.[1]) return { variant_id: parseInt(m[1], 10), quantity: item.quantity };
+            return { title: item.title, quantity: item.quantity, price: item.price.toFixed(2), requires_shipping: true };
+          }),
+          email: mobileOrder.customer?.email || '',
+          financial_status: String(mobileOrder.paymentStatus || '').toLowerCase() === 'paid' ? 'paid' : 'pending',
+          tags: `mobile-app, zb-order-${mobileOrder.orderNumber}, ${mobileOrder.paymentMethod || ''}, SyncedFromAdminDetail`.replace(/\s+/g, ' ').trim(),
+          note: `mobile-app | InternalOrderId: ${mobileOrder.id} | Payment: ${mobileOrder.paymentMethod || 'Unknown'}`,
+          currency: mobileOrder.currency || 'INR',
+        };
+
+        if (shopifyCustomerId && /^\d+$/.test(String(shopifyCustomerId))) {
+          shopifyOrderPayload.customer = { id: parseInt(String(shopifyCustomerId), 10) };
+        }
+
+        if (shippingAddress?.name || shippingAddress?.address1 || shippingAddress?.line1) {
+          const nameParts = String(shippingAddress.name || mobileOrder.customer?.name || '').split(' ');
+          shopifyOrderPayload.shipping_address = {
+            first_name: nameParts[0] || 'App',
+            last_name: nameParts.slice(1).join(' ') || 'User',
+            address1: shippingAddress.address1 || shippingAddress.line1 || '',
+            address2: shippingAddress.address2 || shippingAddress.line2 || '',
+            city: shippingAddress.city || '',
+            province: shippingAddress.province || shippingAddress.state || '',
+            zip: shippingAddress.zip || shippingAddress.pincode || '',
+            country: shippingAddress.country || 'India',
+            phone: shippingAddress.phone || mobileOrder.customer?.phone || '',
+          };
+          shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
+        }
+
+        const createdOrder = await createOrder(shopifyOrderPayload);
+        const shopifyOrderId = String(createdOrder.id);
+
+        // Update mobile order
+        await prisma.mobileOrder.update({
+          where: { id: mobileOrder.id },
+          data: {
+            shopifyOrderId,
+            status: 'synced',
+            syncedAt: new Date(),
+            tags: `${mobileOrder.tags || ''}, synced`.replace(/\s+/g, ' ').trim(),
+          },
+        });
+
+        // Create local standard Order
+        const existingOrder = await prisma.order.findUnique({
+          where: { shopifyOrderId }
+        });
+
+        if (!existingOrder) {
+          const orderLineItems = mobileOrder.items.map((item: any, index: number) => ({
+            shopifyLineItemId: `synced_${createdOrder.id}_${index}_${Date.now()}`,
+            title: item.title,
+            quantity: item.quantity,
+            price: item.price,
+            sku: item.sku,
+            productId: item.productId
+          }));
+
+          await prisma.order.create({
+            data: {
+              shopId: mobileOrder.customer.shopId,
+              shopifyOrderId,
+              customerId: mobileOrder.customerId,
+              status: 'approved',
+              totalPrice: mobileOrder.totalPrice,
+              subtotalPrice: mobileOrder.subtotalPrice || mobileOrder.totalPrice,
+              totalTax: mobileOrder.totalTax || 0,
+              currency: mobileOrder.currency || 'INR',
+              paymentStatus: mobileOrder.paymentStatus || 'pending',
+              fulfillmentStatus: mobileOrder.fulfillmentStatus || 'unfulfilled',
+              deliveryStatus: mobileOrder.deliveryStatus || 'pending',
+              shippingAddress: mobileOrder.shippingAddress,
+              billingAddress: mobileOrder.billingAddress,
+              note: mobileOrder.note || null,
+              tags: `mobile-app, zb-order-${mobileOrder.orderNumber}, synced`,
+              createdAt: new Date(),
+              items: {
+                create: orderLineItems
+              }
+            }
+          });
+        }
+
+        // Push notification
+        try {
+          const orderNumber = mobileOrder.orderNumber || 'your order';
+          const { NotificationService } = await import('@/lib/services/notification.service');
+          await NotificationService.sendToUser(
+            mobileOrder.customerId,
+            'Zica Bella Order Update',
+            `Your order ${orderNumber} has been approved and synced!`,
+            { orderId: mobileOrder.id, status: 'approved' }
+          );
+        } catch (pushErr) {
+          console.error('[Admin Detail Sync] approve push failed:', pushErr);
+        }
+
+        return NextResponse.json({
+          success: true,
+          shopifyOrderId,
+          shopifyOrderName: createdOrder.name,
+        });
+      }
+    }
 
     if (!order) {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });

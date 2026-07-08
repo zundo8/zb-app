@@ -6,7 +6,20 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const { id } = params;
+    let { id } = params;
+
+    // Check if it is a MobileOrder ID
+    const mobileOrder = await prisma.mobileOrder.findUnique({
+      where: { id }
+    });
+    if (mobileOrder && mobileOrder.shopifyOrderId) {
+      const syncedOrder = await prisma.order.findUnique({
+        where: { shopifyOrderId: mobileOrder.shopifyOrderId }
+      });
+      if (syncedOrder) {
+        id = syncedOrder.id;
+      }
+    }
 
     // Get session to log email and verify role
     const session = (await getServerSession(authOptions as any)) as any;

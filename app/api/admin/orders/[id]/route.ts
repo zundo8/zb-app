@@ -54,7 +54,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   try {
     const { id } = params;
 
-    const order = await prisma.order.findUnique({
+    let order = await prisma.order.findUnique({
       where: { id },
       include: {
         customer: true,
@@ -65,6 +65,100 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         payments: true,
       },
     });
+
+    if (!order) {
+      // Check if it's a mobile order
+      const mobileOrder = await prisma.mobileOrder.findUnique({
+        where: { id },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: true
+            }
+          }
+        }
+      });
+
+      if (mobileOrder) {
+        // If the mobile order is already synced, try to find the synced Order
+        if (mobileOrder.shopifyOrderId) {
+          const syncedOrder = await prisma.order.findFirst({
+            where: { shopifyOrderId: mobileOrder.shopifyOrderId },
+            include: {
+              customer: true,
+              items: true,
+              shipments: {
+                orderBy: { createdAt: 'desc' }
+              },
+              payments: true,
+            }
+          });
+          if (syncedOrder) {
+            return NextResponse.json({ success: true, order: syncedOrder });
+          }
+        }
+
+        // Format the unsynced MobileOrder to match OrderDetail schema
+        const mappedOrder = {
+          id: mobileOrder.id,
+          shopId: mobileOrder.customer.shopId,
+          shopifyOrderId: mobileOrder.shopifyOrderId,
+          customerId: mobileOrder.customerId,
+          status: mobileOrder.status,
+          totalPrice: mobileOrder.totalPrice,
+          subtotalPrice: mobileOrder.subtotalPrice || mobileOrder.totalPrice,
+          totalTax: mobileOrder.totalTax || 0,
+          currency: mobileOrder.currency,
+          paymentStatus: mobileOrder.paymentStatus,
+          fulfillmentStatus: mobileOrder.fulfillmentStatus,
+          deliveryStatus: mobileOrder.deliveryStatus,
+          shippingAddress: mobileOrder.shippingAddress,
+          billingAddress: mobileOrder.billingAddress,
+          note: mobileOrder.note,
+          createdAt: mobileOrder.createdAt,
+          updatedAt: mobileOrder.updatedAt,
+          orderType: 'MOBILE',
+          tags: mobileOrder.tags,
+          aiRiskRecommendation: null,
+          codConfirmationMethod: null,
+          codConfirmationStatus: null,
+          codConfirmedAt: null,
+          paymentCapturedAt: null,
+          paymentMethod: mobileOrder.paymentMethod,
+          razorpayOrderId: null,
+          razorpayPaymentId: mobileOrder.paymentId,
+          rtoRiskFactors: null,
+          rtoRiskScore: null,
+          discountAmount: mobileOrder.discountAmount,
+          discountCode: mobileOrder.discountCode,
+          customer: mobileOrder.customer,
+          items: mobileOrder.items.map((item: any) => ({
+            id: item.id,
+            orderId: item.mobileOrderId,
+            productId: item.productId,
+            variantId: item.variantId,
+            title: item.title,
+            quantity: item.quantity,
+            price: item.price,
+            sku: item.sku,
+            image: item.image || item.product?.featuredImage || null,
+          })),
+          payments: [],
+          shipments: [],
+          delhivery_awb: null,
+          tracking_status: null,
+          internalOrderNumber: mobileOrder.orderNumber,
+          shopifyOrderName: mobileOrder.shopifyOrderId ? `#${mobileOrder.shopifyOrderId}` : null,
+          shopifySyncStatus: mobileOrder.shopifyOrderId ? 'synced' : 'pending',
+          shopifySyncError: null,
+          refundStatus: 'not_applicable',
+          refundError: null,
+          refundAttempts: 0,
+        };
+        return NextResponse.json({ success: true, order: mappedOrder });
+      }
+    }
 
     if (!order) {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
@@ -82,14 +176,35 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const { id } = params;
     const body = await req.json();
 
+    let isMobileOrder = false;
+    let oldOrder = await prisma.order.findUnique({
+      where: { id },
+      select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true }
+    });
+
+    if (!oldOrder) {
+      const oldMobileOrder = await prisma.mobileOrder.findUnique({
+        where: { id },
+        select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true }
+      });
+      if (oldMobileOrder) {
+        oldOrder = oldMobileOrder as any;
+        isMobileOrder = true;
+      }
+    }
+
+    if (!oldOrder) {
+      return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
+    }
+
     // Handle individual OrderItem SKU updates if provided
     if (body.items && Array.isArray(body.items)) {
       for (const item of body.items) {
         if (item.id && 'sku' in item) {
-          // Fetch the OrderItem to validate
-          const orderItem = await prisma.orderItem.findUnique({
-            where: { id: item.id }
-          });
+          // Fetch the OrderItem or MobileOrderItem to validate
+          const orderItem = isMobileOrder
+            ? await prisma.mobileOrderItem.findUnique({ where: { id: item.id } })
+            : await prisma.orderItem.findUnique({ where: { id: item.id } });
           
           if (!orderItem) {
             return NextResponse.json({ success: false, error: 'Order item not found' }, { status: 404 });
@@ -258,23 +373,21 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             }
           }
 
-          // Update the OrderItem SKU in database
-          await prisma.orderItem.update({
-            where: { id: item.id },
-            data: { sku: item.sku || null }
-          });
+          // Update the OrderItem/MobileOrderItem SKU in database
+          if (isMobileOrder) {
+            await prisma.mobileOrderItem.update({
+              where: { id: item.id },
+              data: { sku: item.sku || null }
+            });
+          } else {
+            await prisma.orderItem.update({
+              where: { id: item.id },
+              data: { sku: item.sku || null }
+            });
+          }
         }
       }
       delete body.items; // Remove items so they are not updated on Order object directly
-    }
-
-    const oldOrder = await prisma.order.findUnique({
-      where: { id },
-      select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true }
-    });
-
-    if (!oldOrder) {
-      return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
     }
 
     // Auto-cancel sub-statuses if status is set to cancelled
@@ -292,24 +405,44 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       body.cancelledAt = new Date();
       body.cancelledBy = 'admin';
       
-      const order = await prisma.order.findUnique({ where: { id } });
-      if (order && order.shopifyOrderId && !order.shopifyOrderId.startsWith('#') && !order.shopifyOrderId.startsWith('app_pending_')) {
-        try {
-          const { cancelOrder } = await import('@/lib/shopify-admin');
-          await cancelOrder(order.shopifyOrderId);
-        } catch (shopifyErr) {
-          console.error('[Admin Order PATCH] Failed to cancel order in Shopify:', shopifyErr);
+      if (!isMobileOrder) {
+        const order = await prisma.order.findUnique({ where: { id } });
+        if (order && order.shopifyOrderId && !order.shopifyOrderId.startsWith('#') && !order.shopifyOrderId.startsWith('app_pending_')) {
+          try {
+            const { cancelOrder } = await import('@/lib/shopify-admin');
+            await cancelOrder(order.shopifyOrderId);
+          } catch (shopifyErr) {
+            console.error('[Admin Order PATCH] Failed to cancel order in Shopify:', shopifyErr);
+          }
+        }
+      } else {
+        const mobOrder = await prisma.mobileOrder.findUnique({ where: { id } });
+        if (mobOrder && mobOrder.shopifyOrderId && !mobOrder.shopifyOrderId.startsWith('local_') && !mobOrder.shopifyOrderId.startsWith('app_')) {
+          try {
+            const { cancelOrder } = await import('@/lib/shopify-admin');
+            await cancelOrder(mobOrder.shopifyOrderId);
+          } catch (shopifyErr) {
+            console.error('[Admin Mobile Order PATCH] Failed to cancel order in Shopify:', shopifyErr);
+          }
         }
       }
     }
 
-    const updated = await prisma.order.update({
-      where: { id },
-      data: body,
-    });
+    let updated;
+    if (isMobileOrder) {
+      updated = await prisma.mobileOrder.update({
+        where: { id },
+        data: body,
+      });
+    } else {
+      updated = await prisma.order.update({
+        where: { id },
+        data: body,
+      });
+    }
 
     // Trigger auto refund if order status was set to cancelled
-    if (body.status === 'cancelled') {
+    if (body.status === 'cancelled' && !isMobileOrder) {
       try {
         const { processOrderRefund } = await import('@/lib/services/refundService');
         await processOrderRefund(id);

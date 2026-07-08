@@ -12,15 +12,23 @@ export async function POST(req: Request) {
   }
 
   const rawBody = await req.text();
-  const webhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || process.env.SHOPIFY_API_SECRET || 'test_api_secret';
-  const generatedHash = crypto
-    .createHmac('sha256', webhookSecret)
-    .update(rawBody, 'utf8')
-    .digest('base64');
+  let verified = false;
+  if (process.env.SHOPIFY_API_SECRET) {
+    const hash = crypto.createHmac('sha256', process.env.SHOPIFY_API_SECRET).update(rawBody, 'utf8').digest('base64');
+    if (hash === hmac) verified = true;
+  }
+  if (!verified && process.env.SHOPIFY_WEBHOOK_SECRET) {
+    const hash = crypto.createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET).update(rawBody, 'utf8').digest('base64');
+    if (hash === hmac) verified = true;
+  }
 
-  if (generatedHash !== hmac) {
+  if (!verified) {
     console.warn('Webhook HMAC validation failed (Warning only for dev/testing)');
-    // We shouldn't block the request in dev/testing, but in production we should return 401.
+    // If NOT in development and we have configured secrets, reject the request
+    if (process.env.NODE_ENV === 'production') {
+      console.error('Webhook signature validation failed in production. Blocking request.');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const payload = JSON.parse(rawBody);
