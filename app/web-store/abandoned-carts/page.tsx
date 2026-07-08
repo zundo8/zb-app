@@ -146,6 +146,12 @@ export default function AbandonedCartsPage() {
       return;
     }
 
+    const firstItem = cart.items?.[0] || {};
+    const productImageUrl = firstItem.image || '';
+    const productName = firstItem.title || '';
+    const cartTotal = String(cart.subtotal || '0.00');
+    const itemCount = cart.items?.length || 0;
+
     const toastId = toast.loading(`Sending WhatsApp recovery to ${cart.customer?.name || "Guest"}...`);
     try {
       const res = await fetch("/api/whatsapp/send", {
@@ -157,7 +163,11 @@ export default function AbandonedCartsPage() {
           payload: {
             phone,
             customerName: cart.customer?.name || "there",
-            checkoutUrl: `https://zicabella.com/cart?recover=${cart.id}`
+            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
+            productImageUrl,
+            productName,
+            cartTotal,
+            itemCount
           }
         })
       });
