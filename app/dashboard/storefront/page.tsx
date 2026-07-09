@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Save, CheckCircle, RefreshCw,
   Layout, ImageIcon, Video, Monitor, Globe, Navigation,
-  Sparkles, Layers, MessageSquare, Info, Loader2, Upload, X, Link as LinkIcon
+  Sparkles, Layers, MessageSquare, Info, Loader2, Upload, X, Link as LinkIcon,
+  GripVertical, Package
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, Reorder } from 'framer-motion';
+import Image from 'next/image';
 
 interface SettingsData {
   id: string;
@@ -273,6 +275,121 @@ const safeParseArray = (val: any) => {
   }
 };
 
+function HomepageProductsEditor({
+  value,
+  onChange,
+  allProducts
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  allProducts: any[];
+}) {
+  const selectedIds = useMemo(() => {
+    return value ? value.split(',').map(id => id.trim()).filter(Boolean) : [];
+  }, [value]);
+
+  const selectedProducts = useMemo(() => {
+    return selectedIds
+      .map(id => allProducts.find(p => String(p.id) === id))
+      .filter((p): p is any => !!p);
+  }, [selectedIds, allProducts]);
+
+  const handleReorder = (newProducts: any[]) => {
+    const newIds = newProducts.map(p => String(p.id)).join(',');
+    onChange(newIds);
+  };
+
+  const handleRemove = (productId: string) => {
+    const nextIds = selectedIds.filter(id => id !== productId).join(',');
+    onChange(nextIds);
+  };
+
+  const handleAdd = (productId: string) => {
+    if (selectedIds.includes(productId)) return;
+    const nextIds = [...selectedIds, productId].join(',');
+    onChange(nextIds);
+  };
+
+  const availableProducts = useMemo(() => {
+    return allProducts.filter(p => !selectedIds.includes(String(p.id)));
+  }, [allProducts, selectedIds]);
+
+  return (
+    <div className="space-y-3 w-full text-left">
+      {selectedProducts.length > 0 ? (
+        <Reorder.Group
+          axis="y"
+          values={selectedProducts}
+          onReorder={handleReorder}
+          className="space-y-1.5 max-h-[300px] overflow-y-auto border border-foreground/[0.05] rounded-lg p-2 bg-foreground/[0.01]"
+        >
+          {selectedProducts.map(product => (
+            <Reorder.Item
+              key={product.id}
+              value={product}
+              className="flex items-center gap-3 px-3 py-2 bg-background border border-foreground/[0.04] rounded-md shadow-sm select-none"
+            >
+              <div className="cursor-grab active:cursor-grabbing text-foreground/30 hover:text-foreground/50 transition-colors py-1 px-0.5">
+                <GripVertical className="w-3.5 h-3.5" />
+              </div>
+              <div className="relative w-8 h-8 rounded overflow-hidden border border-foreground/[0.06] bg-foreground/[0.02] shrink-0">
+                {product.images?.[0]?.src || product.image?.src ? (
+                  <Image
+                    src={product.images?.[0]?.src || product.image?.src}
+                    alt={product.title}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Package className="w-3 h-3 text-foreground/15" />
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-[11px] font-semibold text-foreground truncate">{product.title}</h4>
+                <p className="text-[9px] text-foreground/45 font-mono truncate">ID: {product.id}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemove(String(product.id))}
+                className="text-[10px] text-red-500 hover:text-red-600 transition-colors px-2 py-1 font-semibold hover:bg-red-500/5 rounded"
+              >
+                Remove
+              </button>
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+      ) : (
+        <div className="text-center py-6 border border-dashed border-foreground/[0.08] rounded-lg bg-foreground/[0.01]">
+          <p className="text-[11px] text-foreground/45 font-semibold">No specific products selected. Showing newest products by default.</p>
+        </div>
+      )}
+
+      {availableProducts.length > 0 && (
+        <div className="flex gap-2">
+          <select
+            onChange={e => {
+              if (e.target.value) {
+                handleAdd(e.target.value);
+                e.target.value = "";
+              }
+            }}
+            className="flex-1 bg-foreground/[0.02] px-3 py-2 rounded-lg border border-foreground/[0.05] focus:border-foreground/20 text-[11px] font-medium text-foreground outline-none transition-colors"
+          >
+            <option value="">+ Add product to homepage...</option>
+            {availableProducts.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.title} (ID: {p.id})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StorefrontSettingsPage() {
   const [settings, setSettings] = useState<Partial<SettingsData>>({});
   const [loading, setLoading] = useState(true);
@@ -294,7 +411,7 @@ export default function StorefrontSettingsPage() {
       .then(r => r.json())
       .then(data => data.products && setAllProducts(data.products));
 
-    fetch('/api/shopify/collections')
+    fetch('/api/shopify/collections?all=true')
       .then(r => r.json())
       .then(data => Array.isArray(data) && setAllCollections(data));
   }, []);
@@ -552,8 +669,12 @@ export default function StorefrontSettingsPage() {
                ))}
              </select>
           </SettingsRow>
-          <SettingsRow label="Specific Products" description="Optional: Comma-separated Shopify IDs to show">
-             <InputField value={settings.homepageProducts!} onChange={set('homepageProducts')} placeholder="GID1, GID2..." />
+          <SettingsRow label="Specific Products" description="Search, drag to sort, and manage homepage products list">
+             <HomepageProductsEditor
+               value={settings.homepageProducts || ''}
+               onChange={set('homepageProducts')}
+               allProducts={allProducts}
+             />
           </SettingsRow>
         </SettingsGroup>
 

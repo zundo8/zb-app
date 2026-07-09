@@ -17,8 +17,10 @@ import {
   CheckSquare,
   Square,
   ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ShopifyCollection {
@@ -46,6 +48,7 @@ export default function CollectionsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [success, setSuccess] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   // Advanced filter state
   const [showFilters, setShowFilters] = useState(false);
@@ -55,6 +58,20 @@ export default function CollectionsAdminPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const syncFromShopify = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/admin/collections/sync", { method: "POST" });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to sync from Shopify:", err);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   async function fetchData() {
     try {
@@ -225,6 +242,18 @@ export default function CollectionsAdminPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={syncFromShopify}
+            disabled={syncing}
+            className="glass-button flex items-center gap-2 px-3.5 py-2 text-[11px] font-medium !rounded-lg disabled:opacity-50"
+          >
+            {syncing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            Sync from Shopify
+          </button>
           <button
             onClick={syncAll}
             className="glass-button flex items-center gap-2 px-3.5 py-2 text-[11px] font-medium !rounded-lg"
@@ -507,9 +536,15 @@ export default function CollectionsAdminPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-[13px] font-medium text-foreground truncate">
+                          <Link
+                            href={`/dashboard/collections/${collection.id}`}
+                            className="text-[13px] font-medium text-foreground hover:text-foreground/75 hover:underline truncate flex items-center gap-1.5"
+                          >
                             {collection.title}
-                          </h3>
+                            <span className="text-[9px] text-foreground/45 font-normal border border-foreground/[0.08] px-1.5 py-0.5 rounded bg-foreground/[0.02]">
+                              Manage
+                            </span>
+                          </Link>
                           <div
                             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                               visStatus === "full"

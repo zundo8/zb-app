@@ -23,6 +23,11 @@ export { getShopConfig, shopifyFetch, adminUrl, headers, clearShopConfigCache, s
 const pageCache = new Map<string, { data: any, nextPageUrl?: string, timestamp: number }>();
 const PAGE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export function clearShopifyCache() {
+  pageCache.clear();
+  clearShopConfigCache();
+}
+
 async function shopifyFetchPage<T>(urlStr: string): Promise<{ data: T; nextPageUrl?: string }> {
   const now = Date.now();
   const cached = pageCache.get(urlStr);
@@ -478,8 +483,8 @@ export async function fetchEnabledCollections(location: 'header' | 'page' | 'men
     const enabledHandles: string[] = JSON.parse(jsonValue).map((h: string) => h.trim().toLowerCase());
     
     if (enabledHandles.length === 0) {
-      console.log(`[Shopify Admin] Config for ${location} is empty array, showing all ${allCollections.length}`);
-      return allCollections;
+      console.log(`[Shopify Admin] Config for ${location} is explicitly empty, returning empty list`);
+      return [];
     }
     
     const filtered = allCollections.filter((c: any) => {
@@ -1119,7 +1124,34 @@ export async function fetchCollectionByHandle(handle: string, limit = 24): Promi
       limit: String(limit),
     });
 
-    return { collection, products: productsData.products || [] };
+    const products = productsData.products || [];
+
+    // Sort according to custom product order if available
+    try {
+      const shop = await prisma.shop.findFirst({
+        select: { collectionProductOrders: true }
+      });
+      if (shop?.collectionProductOrders) {
+        const ordersMap = JSON.parse(shop.collectionProductOrders);
+        const orderedProductIds = ordersMap[String(collection.id)] || ordersMap[collection.handle] || [];
+        if (Array.isArray(orderedProductIds) && orderedProductIds.length > 0) {
+          const idOrderMap = new Map<string, number>();
+          orderedProductIds.forEach((id, index) => {
+            idOrderMap.set(String(id), index);
+          });
+          
+          products.sort((a, b) => {
+            const aIndex = idOrderMap.has(String(a.id)) ? idOrderMap.get(String(a.id))! : 999999;
+            const bIndex = idOrderMap.has(String(b.id)) ? idOrderMap.get(String(b.id))! : 999999;
+            return aIndex - bIndex;
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[Shopify Admin] Error sorting products by custom order:", err);
+    }
+
+    return { collection, products };
   } catch (e) {
     console.error('fetchCollectionByHandle error:', e);
     return { collection: null, products: [] };
