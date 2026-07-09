@@ -588,6 +588,10 @@ export async function POST(req: Request) {
         currency: 'INR',
         orderDate: new Date(localOrder.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' }),
         paymentMethod: paymentMethod,
+        subtotal: Number(subtotal),
+        shipping: paymentMethod.toLowerCase() === 'cod' ? 99 : 0,
+        discount: Number(couponDiscount) || 0,
+        shippingAddress: `${address.street || ''}, ${address.city || ''}, ${address.state || ''} - ${address.zip || ''}, ${address.country || 'India'}`,
       };
 
       if (paymentMethod.toLowerCase() === 'cod') {

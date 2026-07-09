@@ -33,6 +33,10 @@ export async function POST(request: NextRequest) {
       courier,
       currency,
       orderDate,
+      subtotal,
+      shipping,
+      discount,
+      shippingAddress,
     } = body;
 
     if (!orderId || !newStatus || !customerEmail) {
@@ -58,6 +62,10 @@ export async function POST(request: NextRequest) {
       total: resolvedTotal,
       currency: currency || 'INR',
       orderDate: orderDate,
+      subtotal: subtotal !== undefined ? Number(subtotal) : undefined,
+      shipping: shipping !== undefined ? Number(shipping) : undefined,
+      discount: discount !== undefined ? Number(discount) : undefined,
+      shippingAddress: shippingAddress || undefined,
     };
 
     // 3. Based on newStatus, trigger the right email

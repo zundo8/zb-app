@@ -33,6 +33,10 @@ export interface OrderData {
   currency?: string;
   orderDate?: string;
   paymentMethod?: string;
+  subtotal?: number;
+  shipping?: number;
+  discount?: number;
+  shippingAddress?: string;
 }
 
 async function getItemsHtml(items: OrderData['items'], currencySymbol: string): Promise<string> {
@@ -104,6 +108,10 @@ async function sendDynamicEmail(
     products: itemsHtml,
     paymentMethod: order.paymentMethod || 'Prepaid',
     orderStatusUrl: `https://zicabella.com/orders/${order.orderId}`,
+    subtotal: order.subtotal !== undefined ? `${currencySymbol}${order.subtotal}` : `${currencySymbol}${order.total}`,
+    shipping: order.shipping !== undefined ? `${currencySymbol}${order.shipping}` : `${currencySymbol}0`,
+    discount: order.discount !== undefined ? `${currencySymbol}${order.discount}` : `${currencySymbol}0`,
+    shippingAddress: order.shippingAddress || 'N/A',
     ...extraVars
   };
 
@@ -132,6 +140,11 @@ export async function sendOrderConfirmationEmail(order: OrderData): Promise<void
       total: order.total,
       currency: order.currency || 'INR',
       orderDate: order.orderDate,
+      subtotal: order.subtotal,
+      shipping: order.shipping,
+      discount: order.discount,
+      shippingAddress: order.shippingAddress,
+      paymentMethod: order.paymentMethod,
     });
 
     await sendDynamicEmail('ORDER_CONFIRMATION', order, fallback.subject, fallback.html, fallback.text);
@@ -157,6 +170,11 @@ export async function sendOrderCodConfirmationEmail(order: OrderData): Promise<v
       total: order.total,
       currency: order.currency || 'INR',
       orderDate: order.orderDate,
+      subtotal: order.subtotal,
+      shipping: order.shipping,
+      discount: order.discount,
+      shippingAddress: order.shippingAddress,
+      paymentMethod: order.paymentMethod || 'COD',
     });
 
     fallback.subject = `COD Order Confirmed — #${order.orderId} | Zica Bella`;

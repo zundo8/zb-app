@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       const firstItem = cart.items?.[0] || {};
       const productImageUrl = firstItem.image || '';
       const productName = firstItem.title || '';
+      const productHandle = firstItem.handle || '';
       const cartTotal = String(cart.subtotal || '0.00');
       const itemCount = cart.items?.length || 0;
 
@@ -47,7 +48,8 @@ export async function POST(req: Request) {
         productImageUrl,
         productName,
         cartTotal,
-        itemCount
+        itemCount,
+        productHandle
       });
 
       if (!result.success) {

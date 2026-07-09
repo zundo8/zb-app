@@ -43,8 +43,17 @@ export async function POST(request: NextRequest) {
     }));
 
     const total = Number(payload.total_price || 0);
+    const subtotal = Number(payload.subtotal_price || total);
+    const shipping = Number(payload.total_shipping_price_set?.shop_money?.amount || payload.shipping_lines?.[0]?.price || 0);
+    const discount = Number(payload.total_discounts || 0);
     const currency = payload.currency || 'INR';
     const orderDate = payload.created_at ? new Date(payload.created_at).toLocaleDateString('en-IN', { dateStyle: 'long' }) : undefined;
+    const paymentMethod = payload.gateway || payload.payment_gateway_names?.[0] || 'Credit Card';
+
+    const sa = payload.shipping_address;
+    const shippingAddress = sa 
+      ? `${sa.name ? sa.name + '\n' : ''}${sa.address1 || ''}${sa.address2 ? ', ' + sa.address2 : ''}\n${sa.city || ''}, ${sa.province || ''} - ${sa.zip || ''}\n${sa.country || ''}`
+      : 'N/A';
 
     console.log(`[Shopify Webhook] Triggering confirmation email for order ${orderId} (Email: ${customerEmail})`);
 
@@ -57,6 +66,11 @@ export async function POST(request: NextRequest) {
       total,
       currency,
       orderDate,
+      subtotal,
+      shipping,
+      discount,
+      shippingAddress,
+      paymentMethod,
     }).catch((err: any) => {
       console.error('[Shopify Webhook] sendOrderConfirmationEmail async error:', err);
     });

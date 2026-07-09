@@ -58,6 +58,7 @@ export async function POST(req) {
     const firstItem = checkout.line_items?.[0] || checkout.items?.[0] || {};
     const productImageUrl = firstItem.image_url || firstItem.image || '';
     const productName = firstItem.title || '';
+    const productHandle = firstItem.handle || firstItem.product_handle || '';
 
     const result = await sendAbandonedCart({
       phone,
@@ -66,7 +67,8 @@ export async function POST(req) {
       cartTotal,
       checkoutUrl,
       productImageUrl,
-      productName
+      productName,
+      productHandle
     });
 
     if (result.success) {
