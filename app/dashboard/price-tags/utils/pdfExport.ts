@@ -235,7 +235,7 @@ export async function downloadTagsPDF(
   // Pre-load the official circular SVG logo
   let logoDataUrl: string | null = null
   try {
-    logoDataUrl = await loadImageAsDataURL('/ZB-logo-silver.svg')
+    logoDataUrl = await loadImageAsDataURL('/zb-price-tag-logo.png')
   } catch {
     console.warn('Could not load logo for PDF, using text fallback')
   }
@@ -279,7 +279,7 @@ export async function printTagsPDF(
 
   let logoDataUrl: string | null = null
   try {
-    logoDataUrl = await loadImageAsDataURL('/ZB-logo-silver.svg')
+    logoDataUrl = await loadImageAsDataURL('/zb-price-tag-logo.png')
   } catch {
     console.warn('Could not load logo for PDF print')
   }

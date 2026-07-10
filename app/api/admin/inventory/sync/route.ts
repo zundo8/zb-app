@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/db";
-import { adjustInventoryLevel, fetchLocations, fetchAllProducts } from '@/lib/shopify-admin';
+import { adjustInventoryLevel, fetchLocations, fetchAllProducts, fetchProductById } from '@/lib/shopify-admin';
 
 function normalizeSku(raw: string): string {
   if (!raw) return '';
@@ -23,76 +23,129 @@ export async function POST(req: Request) {
     let matchedVariant = null;
     let resolvedLocalProduct = null;
 
-    // 1. Search locally by ID, shopifyProductId, SKU, or Barcode
-    const localProduct = await prisma.product.findFirst({
-      where: {
-        OR: [
-          { id: code },
-          { shopifyProductId: code },
-          { sku: normalizedCode },
-          { barcode: normalizedCode }
-        ]
-      },
-      include: {
-        inventory: true
+    // 1. Search in custom product_skus table FIRST (most specific printed price tags)
+    let skuRecord = null;
+    try {
+      const skuRecords: any[] = await prisma.$queryRawUnsafe(
+        `SELECT * FROM product_skus WHERE UPPER(sku) = $1`,
+        normalizedCode
+      );
+      if (skuRecords.length > 0) {
+        skuRecord = skuRecords[0];
       }
-    });
+    } catch (e) {
+      console.error('Error querying product_skus table in sync lookup:', e);
+    }
 
-    if (localProduct) {
-      resolvedLocalProduct = localProduct;
-      matchedProduct = {
-        id: localProduct.shopifyProductId,
-        title: localProduct.title,
-        handle: localProduct.handle,
-        variants: [
-          {
-            id: localProduct.shopifyProductId, // fallback variant ID
-            title: 'Default Variant',
-            price: String(localProduct.price || 0),
-            sku: localProduct.sku,
-            barcode: localProduct.barcode,
-            inventory_item_id: localProduct.inventoryItemId,
-            inventory_quantity: localProduct.inventory[0]?.stockQuantity || 0
+    if (skuRecord) {
+      const dbProduct = await prisma.product.findUnique({
+        where: { id: skuRecord.product_id },
+        include: { inventory: true }
+      });
+      if (dbProduct) {
+        resolvedLocalProduct = dbProduct;
+        
+        // Fetch product from Shopify to get correct variants
+        try {
+          const shopifyProduct = await fetchProductById(dbProduct.shopifyProductId);
+          if (shopifyProduct && shopifyProduct.variants) {
+            // Find variant matching size
+            const targetVariant = shopifyProduct.variants.find((v: any) => 
+              (v.option1 && v.option1.toUpperCase() === skuRecord.size.toUpperCase()) ||
+              (v.title && v.title.toUpperCase() === skuRecord.size.toUpperCase()) ||
+              (v.sku && normalizeSku(v.sku) === normalizedCode)
+            );
+            if (targetVariant) {
+              matchedProduct = shopifyProduct;
+              matchedVariant = targetVariant;
+            }
           }
-        ]
-      };
-      matchedVariant = matchedProduct.variants[0];
-    } else {
-      // 2. Search in custom product_skus table
-      try {
-        const skuRecords: any[] = await prisma.$queryRawUnsafe(
-          `SELECT * FROM product_skus WHERE UPPER(sku) = $1`,
-          normalizedCode
-        );
-        if (skuRecords.length > 0) {
-          const skuRecord = skuRecords[0];
-          const dbProduct = await prisma.product.findUnique({
-            where: { id: skuRecord.product_id },
-            include: { inventory: true }
-          });
-          if (dbProduct) {
-            resolvedLocalProduct = dbProduct;
-            matchedProduct = {
-              id: dbProduct.shopifyProductId,
-              title: dbProduct.title,
-              handle: dbProduct.handle,
-              variants: [
-                {
-                  id: dbProduct.shopifyProductId, // fallback variant ID
-                  title: `Size ${skuRecord.size}`,
-                  price: String(dbProduct.price || 0),
-                  sku: skuRecord.sku,
-                  barcode: dbProduct.barcode,
-                  inventory_item_id: dbProduct.inventoryItemId,
-                  inventory_quantity: skuRecord.quantity // individual SKU's quantity!
-                }
-              ]
-            };
-            matchedVariant = matchedProduct.variants[0];
-          }
+        } catch (err) {
+          console.error(`Failed to fetch Shopify product variants for ${dbProduct.shopifyProductId}:`, err);
         }
-      } catch (e) {
-        console.error('Error querying product_skus table in sync lookup:', e);
+
+        // Fallback to local default variant if Shopify fetch failed or variant not found
+        if (!matchedProduct) {
+          matchedProduct = {
+            id: dbProduct.shopifyProductId,
+            title: dbProduct.title,
+            handle: dbProduct.handle,
+            variants: [
+              {
+                id: dbProduct.shopifyProductId,
+                title: `Size ${skuRecord.size}`,
+                price: String(dbProduct.price || 0),
+                sku: skuRecord.sku,
+                barcode: dbProduct.barcode,
+                inventory_item_id: dbProduct.inventoryItemId,
+                inventory_quantity: skuRecord.quantity
+              }
+            ]
+          };
+          matchedVariant = matchedProduct.variants[0];
+        }
+      }
+    }
+
+    // 2. Search locally by Product ID, shopifyProductId, SKU, or Barcode
+    if (!matchedProduct) {
+      const localProduct = await prisma.product.findFirst({
+        where: {
+          OR: [
+            { id: code },
+            { shopifyProductId: code },
+            { sku: normalizedCode },
+            { barcode: normalizedCode }
+          ]
+        },
+        include: {
+          inventory: true
+        }
+      });
+
+      if (localProduct) {
+        resolvedLocalProduct = localProduct;
+        
+        // Fetch product from Shopify to get correct variants
+        try {
+          const shopifyProduct = await fetchProductById(localProduct.shopifyProductId);
+          if (shopifyProduct && shopifyProduct.variants) {
+            let targetVariant = shopifyProduct.variants.find((v: any) => 
+              v.id.toString() === code ||
+              (v.sku && normalizeSku(v.sku) === normalizedCode) ||
+              (v.barcode && normalizeSku(v.barcode) === normalizedCode)
+            );
+            if (!targetVariant) {
+              targetVariant = shopifyProduct.variants[0];
+            }
+            if (targetVariant) {
+              matchedProduct = shopifyProduct;
+              matchedVariant = targetVariant;
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to fetch Shopify product variants for ${localProduct.shopifyProductId}:`, err);
+        }
+
+        if (!matchedProduct) {
+          matchedProduct = {
+            id: localProduct.shopifyProductId,
+            title: localProduct.title,
+            handle: localProduct.handle,
+            variants: [
+              {
+                id: localProduct.shopifyProductId,
+                title: 'Default Variant',
+                price: String(localProduct.price || 0),
+                sku: localProduct.sku,
+                barcode: localProduct.barcode,
+                inventory_item_id: localProduct.inventoryItemId,
+                inventory_quantity: localProduct.inventory[0]?.stockQuantity || 0
+              }
+            ]
+          };
+          matchedVariant = matchedProduct.variants[0];
+        }
       }
     }
 
@@ -170,6 +223,7 @@ export async function POST(req: Request) {
               where: {
                 OR: [
                   { sku: normalizedCode },
+                  { sku: matchedVariant?.sku ? normalizeSku(matchedVariant.sku) : '' },
                   { productId: resolvedLocalProduct?.id || '' }
                 ],
                 status: { notIn: ['RECEIVED', 'REFUNDED'] }

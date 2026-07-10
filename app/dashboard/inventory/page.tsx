@@ -203,6 +203,25 @@ export default function InventoryPage() {
 
   const [editingSku, setEditingSku] = useState<Record<number, string>>({});
   const [savingSku, setSavingSku] = useState<Record<number, boolean>>({});
+  const [expandedVariantSkus, setExpandedVariantSkus] = useState<Record<number, boolean>>({});
+
+  const toggleVariantSkus = (variantId: number) => {
+    setExpandedVariantSkus(prev => ({ ...prev, [variantId]: !prev[variantId] }));
+  };
+
+  const getVariantCustomSkus = (variant: ShopifyVariant, productId: number) => {
+    const allSkus = customSkus[productId] || [];
+    const variantSize = (variant.option1 || variant.title || "").trim().toUpperCase();
+    
+    return allSkus.filter((skuItem: any) => {
+      const skuSize = (skuItem.size || "").trim().toUpperCase();
+      return skuSize === variantSize || 
+             `SIZE ${skuSize}` === variantSize || 
+             variantSize === `SIZE ${skuSize}` ||
+             (variantSize === 'DEFAULT TITLE' && skuSize === 'DEFAULT') ||
+             (variantSize === 'STANDARD' && skuSize === 'STANDARD');
+    });
+  };
 
   const handleSkuChange = (variantId: number, value: string) => {
     setEditingSku(prev => ({ ...prev, [variantId]: value }));
@@ -620,144 +639,192 @@ export default function InventoryPage() {
                               const isVariantLow = displayQty < 5 && displayQty > 0;
                               const isVariantOut = displayQty <= 0;
                               const currentEditingSku = editingSku[variant.id];
+                              const vCustomSkus = getVariantCustomSkus(variant, product.id);
+                              const isSkuExpanded = !!expandedVariantSkus[variant.id];
 
                               return (
-                                <div
-                                  key={variant.id}
-                                  className="grid grid-cols-1 md:grid-cols-[1fr,140px,120px,160px,56px] gap-3 px-5 pl-6 md:pl-[72px] py-3 border-b border-foreground/[0.03] last:border-b-0 items-center"
-                                >
-                                  {/* Variant name */}
-                                  <div className="flex items-center gap-2.5">
-                                    <div
-                                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                        isVariantOut
-                                          ? "bg-red-500"
-                                          : isVariantLow
-                                            ? "bg-amber-500"
-                                            : "bg-emerald-500"
-                                      }`}
-                                    />
-                                    <span className="text-[12px] font-medium text-foreground truncate">
-                                      {variant.title === "Default Title" ? "Standard" : variant.title}
-                                    </span>
-                                  </div>
-
-                                  {/* SKU — editable */}
-                                  <div className="flex items-center">
-                                    {currentEditingSku !== undefined ? (
-                                      <div className="flex items-center gap-1 w-full">
-                                        <input
-                                          autoFocus
-                                          type="text"
-                                          value={currentEditingSku}
-                                          onChange={(e) => handleSkuChange(variant.id, e.target.value)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter") saveSku(variant.id, variant.sku || "");
-                                            if (e.key === "Escape") setEditingSku((prev) => {
-                                              const n = { ...prev };
-                                              delete n[variant.id];
-                                              return n;
-                                            });
-                                          }}
-                                          className="glass-input text-[11px] w-full px-2 py-1 font-mono !rounded-md"
-                                        />
-                                        <button
-                                          onClick={() => saveSku(variant.id, variant.sku || "")}
-                                          disabled={isSavingSku}
-                                          className="text-foreground/50 hover:text-foreground shrink-0"
-                                        >
-                                          {isSavingSku ? (
-                                            <Loader2 className="w-3 h-3 animate-spin" />
-                                          ) : (
-                                            <Check className="w-3 h-3" />
-                                          )}
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        onClick={() => handleSkuChange(variant.id, variant.sku || "")}
-                                        className="text-[11px] text-foreground/40 font-mono hover:text-foreground transition-colors truncate text-left"
-                                      >
-                                        {variant.sku || "—"}
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {/* Price */}
-                                  <div className="hidden md:flex justify-center">
-                                    <span className="text-[12px] text-foreground/60 tabular-nums">
-                                      ₹{parseFloat(variant.price || "0").toLocaleString("en-IN")}
-                                    </span>
-                                  </div>
-
-                                  {/* Quantity stepper */}
-                                  <div className="flex items-center justify-center gap-2">
-                                    <div className="flex items-center gap-0 border border-foreground/[0.08] rounded-lg overflow-hidden bg-background">
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); handleDelta(variant.id, -1); }}
-                                        disabled={isLoading}
-                                        className="w-8 h-8 flex items-center justify-center text-foreground/50 hover:bg-foreground/[0.04] hover:text-foreground disabled:opacity-40 transition-colors"
-                                      >
-                                        <Minus className="w-3 h-3" />
-                                      </button>
-                                      <div className="w-12 h-8 flex items-center justify-center border-x border-foreground/[0.08]">
-                                        <span
-                                          className={`text-[13px] font-semibold tabular-nums ${
-                                            isVariantOut
-                                              ? "text-red-500"
-                                              : isVariantLow
-                                                ? "text-amber-500"
-                                                : "text-foreground"
-                                          }`}
-                                        >
-                                          {displayQty}
+                                <div key={variant.id} className="border-b border-foreground/[0.03] last:border-b-0 py-3">
+                                  <div className="grid grid-cols-1 md:grid-cols-[1fr,140px,120px,160px,56px] gap-3 px-5 pl-6 md:pl-[72px] items-center">
+                                    {/* Variant name */}
+                                    <div className="flex items-center gap-2.5">
+                                      <div
+                                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                          isVariantOut
+                                            ? "bg-red-500"
+                                            : isVariantLow
+                                              ? "bg-amber-500"
+                                              : "bg-emerald-500"
+                                        }`}
+                                      />
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="text-[12px] font-medium text-foreground truncate">
+                                          {variant.title === "Default Title" ? "Standard" : variant.title}
                                         </span>
+                                        {vCustomSkus.length > 0 && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); toggleVariantSkus(variant.id); }}
+                                            className="text-[9px] font-bold text-[#007AFF] hover:opacity-80 flex items-center gap-0.5 mt-0.5 text-left bg-transparent border-none p-0 cursor-pointer"
+                                          >
+                                            <span>{vCustomSkus.length} tag SKU{vCustomSkus.length > 1 ? 's' : ''}</span>
+                                            <ChevronDown className={`w-2.5 h-2.5 transition-transform ${isSkuExpanded ? 'rotate-180' : ''}`} />
+                                          </button>
+                                        )}
                                       </div>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); handleDelta(variant.id, 1); }}
-                                        disabled={isLoading}
-                                        className="w-8 h-8 flex items-center justify-center text-foreground/50 hover:bg-foreground/[0.04] hover:text-foreground disabled:opacity-40 transition-colors"
-                                      >
-                                        <Plus className="w-3 h-3" />
-                                      </button>
                                     </div>
 
-                                    {/* Pending delta badge */}
-                                    {pendingDelta !== 0 && (
-                                      <span
-                                        className={`text-[10px] font-semibold tabular-nums ${
-                                          pendingDelta > 0 ? "text-emerald-500" : "text-red-500"
-                                        }`}
-                                      >
-                                        {pendingDelta > 0 ? "+" : ""}{pendingDelta}
+                                    {/* SKU — editable */}
+                                    <div className="flex items-center">
+                                      {currentEditingSku !== undefined ? (
+                                        <div className="flex items-center gap-1 w-full">
+                                          <input
+                                            autoFocus
+                                            type="text"
+                                            value={currentEditingSku}
+                                            onChange={(e) => handleSkuChange(variant.id, e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") saveSku(variant.id, variant.sku || "");
+                                              if (e.key === "Escape") setEditingSku((prev) => {
+                                                const n = { ...prev };
+                                                delete n[variant.id];
+                                                return n;
+                                              });
+                                            }}
+                                            className="glass-input text-[11px] w-full px-2 py-1 font-mono !rounded-md"
+                                          />
+                                          <button
+                                            onClick={() => saveSku(variant.id, variant.sku || "")}
+                                            disabled={isSavingSku}
+                                            className="text-foreground/50 hover:text-foreground shrink-0"
+                                          >
+                                            {isSavingSku ? (
+                                              <Loader2 className="w-3 h-3 animate-spin" />
+                                            ) : (
+                                              <Check className="w-3 h-3" />
+                                            )}
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => handleSkuChange(variant.id, variant.sku || "")}
+                                          className="text-[11px] text-foreground/40 font-mono hover:text-foreground transition-colors truncate text-left"
+                                        >
+                                          {variant.sku || "—"}
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    {/* Price */}
+                                    <div className="hidden md:flex justify-center">
+                                      <span className="text-[12px] text-foreground/60 tabular-nums">
+                                        ₹{parseFloat(variant.price || "0").toLocaleString("en-IN")}
                                       </span>
-                                    )}
+                                    </div>
+
+                                    {/* Quantity stepper */}
+                                    <div className="flex items-center justify-center gap-2">
+                                      <div className="flex items-center gap-0 border border-foreground/[0.08] rounded-lg overflow-hidden bg-background">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDelta(variant.id, -1); }}
+                                          disabled={isLoading}
+                                          className="w-8 h-8 flex items-center justify-center text-foreground/50 hover:bg-foreground/[0.04] hover:text-foreground disabled:opacity-40 transition-colors"
+                                        >
+                                          <Minus className="w-3 h-3" />
+                                        </button>
+                                        <div className="w-12 h-8 flex items-center justify-center border-x border-foreground/[0.08]">
+                                          <span
+                                            className={`text-[13px] font-semibold tabular-nums ${
+                                              isVariantOut
+                                                ? "text-red-500"
+                                                : isVariantLow
+                                                  ? "text-amber-500"
+                                                  : "text-foreground"
+                                            }`}
+                                          >
+                                            {displayQty}
+                                          </span>
+                                        </div>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDelta(variant.id, 1); }}
+                                          disabled={isLoading}
+                                          className="w-8 h-8 flex items-center justify-center text-foreground/50 hover:bg-foreground/[0.04] hover:text-foreground disabled:opacity-40 transition-colors"
+                                        >
+                                          <Plus className="w-3 h-3" />
+                                        </button>
+                                      </div>
+
+                                      {/* Pending delta badge */}
+                                      {pendingDelta !== 0 && (
+                                        <span
+                                          className={`text-[10px] font-semibold tabular-nums ${
+                                            pendingDelta > 0 ? "text-emerald-500" : "text-red-500"
+                                          }`}
+                                        >
+                                          {pendingDelta > 0 ? "+" : ""}{pendingDelta}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Apply button */}
+                                    <div className="flex justify-center">
+                                      <AnimatePresence>
+                                        {pendingDelta !== 0 && (
+                                          <motion.button
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.8 }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              applyAdjustment(variant, product.title);
+                                            }}
+                                            disabled={isLoading}
+                                            className="w-8 h-8 bg-foreground text-background rounded-lg flex items-center justify-center disabled:opacity-50 hover:opacity-90 transition-opacity"
+                                          >
+                                            {isLoading ? (
+                                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                              <Check className="w-3.5 h-3.5" />
+                                            )}
+                                          </motion.button>
+                                        )}
+                                      </AnimatePresence>
+                                    </div>
                                   </div>
 
-                                  {/* Apply button */}
-                                  <div className="flex justify-center">
-                                    <AnimatePresence>
-                                      {pendingDelta !== 0 && (
-                                        <motion.button
-                                          initial={{ opacity: 0, scale: 0.8 }}
-                                          animate={{ opacity: 1, scale: 1 }}
-                                          exit={{ opacity: 0, scale: 0.8 }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            applyAdjustment(variant, product.title);
-                                          }}
-                                          disabled={isLoading}
-                                          className="w-8 h-8 bg-foreground text-background rounded-lg flex items-center justify-center disabled:opacity-50 hover:opacity-90 transition-opacity"
-                                        >
-                                          {isLoading ? (
-                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                          ) : (
-                                            <Check className="w-3.5 h-3.5" />
-                                          )}
-                                        </motion.button>
-                                      )}
-                                    </AnimatePresence>
-                                  </div>
+                                  {/* Collapsible tags block */}
+                                  <AnimatePresence>
+                                    {isSkuExpanded && vCustomSkus.length > 0 && (
+                                      <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                                        className="overflow-hidden px-5 pl-12 md:pl-[96px] pr-8 mt-3"
+                                      >
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-foreground/[0.03]">
+                                          {vCustomSkus.map((skuItem: any) => (
+                                            <div 
+                                              key={skuItem.id} 
+                                              className="flex items-center justify-between p-2.5 rounded-xl border border-foreground/[0.04] bg-foreground/[0.015] hover:bg-foreground/[0.03] transition-colors"
+                                            >
+                                              <div className="min-w-0">
+                                                <p className="text-[10px] font-mono font-bold text-foreground select-all truncate">{skuItem.sku}</p>
+                                                <p className="text-[8px] text-foreground/30 font-bold uppercase tracking-wider">Created: {new Date(skuItem.created_at).toLocaleDateString()}</p>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                <div className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${
+                                                  skuItem.status === 'IN_STOCK'
+                                                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                                                    : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                                                }`}>
+                                                  {skuItem.status.replace('_', ' ')}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
                                 </div>
                               );
                             })}

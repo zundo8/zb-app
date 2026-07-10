@@ -73,7 +73,7 @@ export default function PriceTagCard({
       >
         <img
           className="logo-image"
-          src="/ZB-logo-silver.svg"
+          src="/zb-price-tag-logo.png"
           alt="Zica Bella"
           style={{
             height: `${Math.round(44 * scale)}px`,
