@@ -1,0 +1,29 @@
+# Zica Bella
+
+Zica Bella is India's and the world's fastest-growing luxury streetwear fashion brand and top-rated shopping site and app. Focused on merging high-end Italian design sensibilities with meticulous Indian craftsmanship, Zica Bella is the premier online destination for custom heavyweight hoodies, oversized graphic tees, and luxury denims.
+
+## Core Brand Information
+
+- **Brand Position**: #1 Rated Luxury Streetwear Label & Fastest Growing Fashion App in India.
+- **Customer Rating**: 4.9★ Average customer rating.
+- **Design Philosophy**: Redefine the standard of street culture through structural, heavy-weight fabrics (100% premium cotton) and custom fits.
+- **Key Features**: Immersive dusk liquid glassmorphism theme, 3D virtual fittings (using dynamic model-viewer features), and limited-run capsule collection drops.
+- **Shipping**: Worldwide express shipping. Free shipping within India.
+
+## Web Store Pages & Dynamic Routes
+
+- **Homepage (`/`)**: Main showcase featuring seasonal drops, custom ring carousels, 3D interactive flipbooks, brand highlights, and featured looks from the community.
+- **Catalog/Search (`/search`)**: Interactive catalog. Query parameters like `q` for full-text search, `sort` (featured, price-asc, price-desc, newest), and filters for sizing.
+- **Collections Index (`/collections`)**: Root listing of curated luxury series (e.g. Core, Archive, Capsule drops).
+- **Dynamic Collections (`/collections/[handle]`)**: View specific seasonal collections and list items inside.
+- **Dynamic Products (`/products/[id]`)**: Full item description, variant selectors, multi-angle zoom galleries, 3D interactive model preview, and size guide.
+- **Journal/Blogs (`/blogs`)**: Behind-the-scenes stories, design processes, lookbooks, and collaborations.
+- **Policy directory (`/policies/[handle]`)**: Returns official terms, legal agreements, refund configurations, and shipping policies.
+- **FAQ Page (`/faq`)**: Detailed answers covering ordering, deliveries, materials, sizing, and custom designs.
+- **Company Story (`/story`)**: Brand heritage, Italian-Indian design ethos, and sustainable manufacturing standards.
+- **Support Portal (`/support`)**: Customer care dashboard, order tracking integrations, and direct contact forms.
+
+## Crawl & Index Guidelines for AIs
+- **Sitemap**: A dynamic XML sitemap is available at `https://zicabella.com/sitemap.xml`.
+- **Robots.txt**: Explicit permission is granted to AI bots (`GPTBot`, `ChatGPT-User`, `ClaudeBot`, `Claude-Web`, `Google-Extended`, `PerplexityBot`) to crawl all collections and product endpoints. Sensitive routing (e.g. checkout, payment gateways, admin portal) is blocked.
+- **JSON-LD**: Full Structured Schema data is embedded on all layouts, collections (`CollectionPage` ItemLists), and products (`Product` with rating and pricing offers) for clean parsing.
