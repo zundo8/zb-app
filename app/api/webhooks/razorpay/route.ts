@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const eventData = JSON.parse(payload);
   const eventType = eventData.event;
 
-  await prisma.webhookEvent.create({
+  const webhookRecord = await prisma.webhookEvent.create({
     data: {
       source: 'razorpay',
       eventType,
@@ -131,9 +131,16 @@ export async function POST(req: Request) {
       }
     }
 
+    // Mark event as processed
+    await prisma.webhookEvent.update({
+      where: { id: webhookRecord.id },
+      data: { processed: true, processedAt: new Date() },
+    });
+
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Razorpay Webhook] Processing error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: errMessage }, { status: 500 });
   }
 }

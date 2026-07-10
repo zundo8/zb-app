@@ -282,6 +282,9 @@ export default function CheckoutPage() {
   const [upiVpaError, setUpiVpaError] = useState("");
   const [isInAppWebView, setIsInAppWebView] = useState(false);
 
+  const paymentLockRef = useRef<boolean>(false);
+  const timeoutRef = useRef<any>(null);
+
   const isDark = resolvedTheme === "dark";
 
   useEffect(() => {
@@ -293,7 +296,18 @@ export default function CheckoutPage() {
       const isWebView = /FBAN|FBAV|Instagram|Line\/|Snapchat|TikTok|BytedanceWebview|WebView/i.test(ua);
       setIsInAppWebView(isWebView);
     }
+
+    // Restore cached UPI apps
+    try {
+      const cached = sessionStorage.getItem("zb_supported_upi_apps");
+      if (cached) {
+        setSupportedUpiApps(JSON.parse(cached));
+        setUpiAppsChecked(true);
+      }
+    } catch {}
   }, []);
+
+
 
   useEffect(() => {
     const canFire = status === "unauthenticated" || (status === "authenticated" && addressesLoaded);
@@ -638,6 +652,37 @@ export default function CheckoutPage() {
   const [isManualCoupon, setIsManualCoupon] = useState(false);
 
   const total = subtotal - (applyAsStoreCredit ? 0 : couponDiscount) + (paymentMethod === "COD" ? codFee : 0) + shipping;
+
+  // Dynamically load supported UPI apps when entering payment step or switching to UPI
+  useEffect(() => {
+    if ((paymentMethod === "UPI" || paymentMethod === "COD") && !upiAppsChecked && typeof window !== "undefined") {
+      const RazorpayClass = (window as any).Razorpay;
+      if (RazorpayClass && typeof RazorpayClass.getSupportedUpiIntentApps === "function") {
+        setUpiAppsChecked(true);
+        RazorpayClass.getSupportedUpiIntentApps()
+          .then((response: any) => {
+            console.log("[Razorpay] Supported UPI Intent apps response:", response);
+            let appsList: string[] = [];
+            if (response && response.supportedApps && Array.isArray(response.supportedApps)) {
+              appsList = response.supportedApps;
+            } else if (Array.isArray(response)) {
+              appsList = response;
+            } else if (response && typeof response === "object") {
+              appsList = Object.keys(response).filter(key => response[key] === true || response[key] === "true");
+            }
+            if (appsList.length > 0) {
+              setSupportedUpiApps(appsList);
+              try {
+                sessionStorage.setItem("zb_supported_upi_apps", JSON.stringify(appsList));
+              } catch {}
+            }
+          })
+          .catch((err: any) => {
+            console.error("[Razorpay] Error fetching supported UPI apps:", err);
+          });
+      }
+    }
+  }, [paymentMethod, upiAppsChecked]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -1150,15 +1195,31 @@ export default function CheckoutPage() {
   }, [paymentMethod, isManualCoupon]);
 
   const handlePlaceOrder = async () => {
+    // Synchronous double-submit lock check
+    if (paymentLockRef.current) {
+      console.warn("[Razorpay] Blocked rapid double-tap trigger.");
+      return;
+    }
+    paymentLockRef.current = true;
+
     setLoading(true);
     setError("");
     setUpiVpaError("");
+
+    // Setup helper to clear client timeout
+    const clearPaymentTimeout = () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
 
     try {
       // Ensure Razorpay SDK is loaded
       if (!(window as any).Razorpay) {
         setError("Payment gateway is loading. Please try again in a moment.");
         setLoading(false);
+        paymentLockRef.current = false;
         return;
       }
 
@@ -1175,6 +1236,7 @@ export default function CheckoutPage() {
         if (!vpaRegex.test(upiId.trim())) {
           setUpiVpaError("Enter a valid UPI ID (e.g. name@upi)");
           setLoading(false);
+          paymentLockRef.current = false;
           return;
         }
       }
@@ -1208,6 +1270,7 @@ export default function CheckoutPage() {
 
       // Shared success handler — same payload shape as the old Standard Checkout handler
       const handlePaymentSuccess = async (response: any) => {
+        clearPaymentTimeout();
         try {
           setPaymentInProgress(false);
           setAwaitingApp("");
@@ -1240,19 +1303,26 @@ export default function CheckoutPage() {
             clear();
             router.push(`/orders/${verifyData.orderId}/confirmation`);
           } else {
-            setError(verifyData.error || "Payment verification failed");
+            // CRITICAL: Payment was captured successfully, but database registration failed.
+            // Do not allow retry to prevent double-charging the customer.
+            setError(`Your payment of ₹${paymentAmount} was successful (ID: ${response.razorpay_payment_id || "N/A"}), but we encountered an issue registering your order. Please do NOT try paying again. Contact support at support@zicabella.com with your payment ID so we can verify and manually create your order.`);
             setLoading(false);
           }
-        } catch (verifyErr: any) {
-          setError(verifyErr.message || "Payment verification failed. Please contact support.");
+        } catch {
+          setError(`Your payment of ₹${paymentAmount} was successful (ID: ${response.razorpay_payment_id || "N/A"}), but we encountered a connection issue confirming your order. Please do NOT try paying again. Contact support at support@zicabella.com with your payment ID so we can confirm your order manually.`);
           setLoading(false);
+        } finally {
+          paymentLockRef.current = false;
         }
       };
 
       // Shared error handler
       const handlePaymentError = (error: any) => {
+        clearPaymentTimeout();
         setPaymentInProgress(false);
         setAwaitingApp("");
+        paymentLockRef.current = false;
+
         const errorDesc = error?.error?.description || error?.description || "Payment failed. Please try again.";
         const errorCode = error?.error?.code || error?.code || "";
         const errorReason = error?.error?.reason || "";
@@ -1268,6 +1338,28 @@ export default function CheckoutPage() {
 
         setError(`${friendlyMessage}${errorCode ? ` (${errorCode})` : ''}`);
         setLoading(false);
+      };
+
+      // Helper to trigger 3-minute client safety timeout for UPI Intent and Collect requests
+      const triggerUpiSessionTimeout = () => {
+        clearPaymentTimeout();
+        timeoutRef.current = setTimeout(() => {
+          if (paymentLockRef.current || paymentInProgress) {
+            console.log("[Razorpay] UPI Payment session timed out on client.");
+            if (razorpayRef.current) {
+              try {
+                razorpayRef.current.emit('payment.cancel');
+              } catch (e) {
+                console.error("[Razorpay] Cancel emit timed out:", e);
+              }
+            }
+            setPaymentInProgress(false);
+            setAwaitingApp("");
+            setLoading(false);
+            paymentLockRef.current = false;
+            setError("We didn't receive confirmation from your UPI app in time. Please check your banking app to see if the amount was debited, or try again.");
+          }
+        }, 180000); // 3 minutes
       };
 
       // ═══════════════════════════════════════════════════════════
@@ -1300,21 +1392,32 @@ export default function CheckoutPage() {
 
           setPaymentInProgress(true);
           setAwaitingApp(appNames[selectedUpiApp] || selectedUpiApp);
+          triggerUpiSessionTimeout();
 
-          rzp.createPayment(basePayload, { app: selectedUpiApp });
+          try {
+            rzp.createPayment(basePayload, { app: selectedUpiApp });
+          } catch (sdkErr: any) {
+            handlePaymentError(sdkErr);
+          }
         } else if (upiId.trim()) {
           // ── UPI Collect flow (VPA entered)
           setPaymentInProgress(true);
           setAwaitingApp(""); // No specific app — generic "check your UPI app" screen
+          triggerUpiSessionTimeout();
 
-          rzp.createPayment({
-            ...basePayload,
-            vpa: upiId.trim(),
-          });
+          try {
+            rzp.createPayment({
+              ...basePayload,
+              vpa: upiId.trim(),
+            });
+          } catch (sdkErr: any) {
+            handlePaymentError(sdkErr);
+          }
         } else {
           // No UPI app selected and no VPA entered
           setError("Please select a UPI app or enter your UPI ID.");
           setLoading(false);
+          paymentLockRef.current = false;
           return;
         }
 
@@ -1346,6 +1449,7 @@ export default function CheckoutPage() {
             ondismiss: function () {
               setLoading(false);
               setPaymentInProgress(false);
+              paymentLockRef.current = false;
             },
             confirm_close: true,
           },
@@ -1386,10 +1490,12 @@ export default function CheckoutPage() {
       }
 
     } catch (err: any) {
+      clearPaymentTimeout();
       setError(err.message || "An error occurred");
       setLoading(false);
       setPaymentInProgress(false);
       setAwaitingApp("");
+      paymentLockRef.current = false;
     }
   };
 
@@ -1576,7 +1682,12 @@ export default function CheckoutPage() {
                       </div>
                     )
                   }
-                ].map((app) => {
+                ].filter(app => {
+                  if (supportedUpiApps.length === 0) return true;
+                  return supportedUpiApps.includes(app.id) || 
+                         supportedUpiApps.includes(app.id.replace("_", "")) ||
+                         supportedUpiApps.includes(app.name.toLowerCase());
+                }).map((app) => {
                   const isSelected = selectedUpiApp === app.id;
                   const isDisabled = isInAppWebView;
                   return (
