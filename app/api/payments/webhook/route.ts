@@ -125,8 +125,11 @@ export async function POST(req: NextRequest) {
               paymentStatus: "paid",
               razorpayPaymentId,
               paymentCapturedAt: new Date(),
-              paymentMethod: payment?.method || "razorpay",
             };
+
+            if (order.paymentMethod !== "COD") {
+              updateData.paymentMethod = payment?.method || "razorpay";
+            }
 
             if (addressToUse) {
               updateData.shippingAddress = JSON.stringify(addressToUse);

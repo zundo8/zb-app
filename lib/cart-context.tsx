@@ -90,13 +90,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           // Ignore parse errors
         }
 
+        const { getTrafficSource } = await import("@/lib/traffic-source");
+        const trafficSource = getTrafficSource();
+
         await fetch("/api/cart/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             items,
             guestId: deviceId,
-            source: "webstore",
+            source: trafficSource,
             ...geoDetails
           })
         });

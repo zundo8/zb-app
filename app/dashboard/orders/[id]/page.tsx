@@ -92,6 +92,7 @@ interface OrderDetail {
   refundStatus?: string | null;
   refundError?: string | null;
   refundAttempts?: number;
+  cartSession?: { source: string } | null;
 }
 
 function isCustomSku(sku: string | null | undefined): boolean {
@@ -167,7 +168,9 @@ export default function OrderDetailPage() {
         paymentStatus: order.paymentStatus,
         fulfillmentStatus: order.fulfillmentStatus,
         deliveryStatus: order.deliveryStatus || 'pending',
-        paymentMethod: order.paymentMethod || 'PREPAID'
+        paymentMethod: order.tags?.includes('store-credit-used') 
+          ? 'STORE CREDIT' 
+          : (order.paymentMethod === 'COD' ? 'COD' : 'PREPAID')
       });
     }
   }, [order]);
@@ -467,7 +470,7 @@ export default function OrderDetailPage() {
               { 
                 label: "Method", 
                 key: 'paymentMethod', 
-                value: isEditing ? editValues.paymentMethod : (order.tags?.includes('store-credit-used') ? 'STORE CREDIT' : (order.paymentMethod || 'PREPAID')), 
+                value: isEditing ? editValues.paymentMethod : (order.tags?.includes('store-credit-used') ? 'STORE CREDIT' : (order.paymentMethod === 'COD' ? 'COD' : 'PREPAID')), 
                 icon: Zap,
                 options: ['PREPAID', 'COD', 'STORE CREDIT']
               },
@@ -649,6 +652,27 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
+          {/* Conversion Source Card */}
+          <div className="p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-10 shadow-2xl relative overflow-hidden">
+             <div className="absolute -right-20 -bottom-20 w-40 h-40 bg-blue-500/10 blur-[80px] rounded-full" />
+             
+             <h3 className="text-[10px] font-bold text-foreground/20 uppercase tracking-[0.4em] relative z-10">Conversion Vector</h3>
+             
+             <div className="space-y-4 relative z-10">
+                <div className="flex items-center gap-4 p-4 rounded-[20px] bg-foreground/[0.03] border border-foreground/5 group hover:border-foreground/20 transition-all">
+                   <Globe className="w-4 h-4 text-foreground/20 group-hover:text-blue-500 transition-colors" />
+                   <div>
+                     <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest leading-none">Referrer / Source</p>
+                     <p className="text-[14px] font-semibold text-foreground tracking-tight mt-1">
+                       {order.cartSession?.source ? (
+                         order.cartSession.source === "webstore" ? "Direct / WebStore" : order.cartSession.source
+                       ) : "Direct / WebStore"}
+                     </p>
+                   </div>
+                </div>
+             </div>
+          </div>
+
           {/* Logistics Target */}
           <div className="p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-10 shadow-2xl relative overflow-hidden">
              <div className="absolute -right-20 -bottom-20 w-40 h-40 bg-purple-500/10 blur-[80px] rounded-full" />
@@ -659,7 +683,7 @@ export default function OrderDetailPage() {
               <div className="space-y-8 relative z-10">
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest">Primary Vector</p>
-                  <p className="text-[14px] font-semibold text-foreground/80 leading-relaxed italic">"{shippingAddr.address1}, {shippingAddr.address2}"</p>
+                  <p className="text-[14px] font-semibold text-foreground/80 leading-relaxed italic">&quot;{shippingAddr.address1}, {shippingAddr.address2}&quot;</p>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-6">

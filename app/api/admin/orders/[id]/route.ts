@@ -63,6 +63,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
           orderBy: { createdAt: 'desc' }
         },
         payments: true,
+        cartSession: true,
       },
     });
 
@@ -92,6 +93,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
                 orderBy: { createdAt: 'desc' }
               },
               payments: true,
+              cartSession: true,
             }
           });
           if (syncedOrder) {

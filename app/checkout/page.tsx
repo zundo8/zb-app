@@ -229,6 +229,9 @@ export default function CheckoutPage() {
       const syncCheckoutDetails = async () => {
         try {
           const guestId = getClientCookie("zb_device_id");
+          const { getTrafficSource } = await import("@/lib/traffic-source");
+          const trafficSource = getTrafficSource();
+
           await fetch("/api/cart/sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -238,7 +241,7 @@ export default function CheckoutPage() {
               name: address.name || undefined,
               email: address.email || undefined,
               phone: address.phone || undefined,
-              source: "webstore"
+              source: trafficSource
             }),
           });
         } catch (e) {

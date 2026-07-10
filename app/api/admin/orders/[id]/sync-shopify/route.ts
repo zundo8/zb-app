@@ -277,6 +277,16 @@ export async function POST(
             quantity: item.quantity,
           };
         }
+
+        // Webstore checkout stores numeric variant ID or gid (e.g. gid://shopify/ProductVariant/123456)
+        const rawId = sku.split('/').pop() || '';
+        if (/^\d+$/.test(rawId)) {
+          return {
+            variant_id: parseInt(rawId, 10),
+            quantity: item.quantity,
+          };
+        }
+
         // Fallback: create custom item (not ideal, but keeps admin unblocked).
         return {
           title: item.title,
@@ -286,9 +296,11 @@ export async function POST(
         };
       }),
       email: order.customer?.email || '',
-      financial_status: order.paymentStatus === 'paid' ? 'paid' : 'pending',
-      note: `Synced from Admin Dashboard | Payment: ${order.paymentMethod || 'Unknown'} | InternalOrderId: ${order.id}`,
-      tags: `mobile-app, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
+      financial_status: order.paymentMethod === 'COD' ? 'pending' : (order.paymentStatus === 'paid' ? 'paid' : 'pending'),
+      note: order.paymentMethod === 'COD'
+        ? `COD Order Synced from Admin Dashboard | Upfront Fee paid via Razorpay (Payment ID: ${order.razorpayPaymentId || 'N/A'})`
+        : `Synced from Admin Dashboard | Payment: ${order.paymentMethod || 'Unknown'} | InternalOrderId: ${order.id}`,
+      tags: `WebStoreOrder, WebStore, ${order.paymentMethod === 'COD' ? 'COD' : 'Prepaid'}, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
       note_attributes: [
         { name: 'internal_order_number', value: order.internalOrderNumber || '' }
       ],
