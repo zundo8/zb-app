@@ -273,10 +273,26 @@ export default function CheckoutPage() {
   const [upiId, setUpiId] = useState("");
   const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
 
+  // Custom Checkout state
+  const razorpayRef = useRef<any>(null);
+  const [paymentInProgress, setPaymentInProgress] = useState(false);
+  const [awaitingApp, setAwaitingApp] = useState<string>(""); // App name shown on UPI intent waiting screen
+  const [supportedUpiApps, setSupportedUpiApps] = useState<string[]>([]); // From getSupportedUpiIntentApps()
+  const [upiAppsChecked, setUpiAppsChecked] = useState(false);
+  const [upiVpaError, setUpiVpaError] = useState("");
+  const [isInAppWebView, setIsInAppWebView] = useState(false);
+
   const isDark = resolvedTheme === "dark";
 
   useEffect(() => {
     setMounted(true);
+
+    // Detect in-app WebViews (Instagram, Facebook, TikTok, etc.) — UPI Intent doesn't work there
+    if (typeof navigator !== "undefined") {
+      const ua = navigator.userAgent || "";
+      const isWebView = /FBAN|FBAV|Instagram|Line\/|Snapchat|TikTok|BytedanceWebview|WebView/i.test(ua);
+      setIsInAppWebView(isWebView);
+    }
   }, []);
 
   useEffect(() => {
@@ -1136,6 +1152,7 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async () => {
     setLoading(true);
     setError("");
+    setUpiVpaError("");
 
     try {
       // Ensure Razorpay SDK is loaded
@@ -1151,6 +1168,16 @@ export default function CheckoutPage() {
 
       // If COD, amount to pay upfront is codFee (99), otherwise it is total
       const paymentAmount = paymentMethod === "COD" ? codFee : total;
+
+      // Validate UPI ID if using collect flow
+      if ((paymentMethod === "UPI" || paymentMethod === "COD") && upiId && !selectedUpiApp) {
+        const vpaRegex = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
+        if (!vpaRegex.test(upiId.trim())) {
+          setUpiVpaError("Enter a valid UPI ID (e.g. name@upi)");
+          setLoading(false);
+          return;
+        }
+      }
 
       const res = await fetch("/api/checkout/razorpay", {
         method: "POST",
@@ -1175,211 +1202,194 @@ export default function CheckoutPage() {
         }
       });
 
+      const keyId = orderData.keyId || orderData.key_id;
+      const orderId = orderData.id || orderData.razorpay_order_id;
       const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
 
-      const options: any = {
-        key: orderData.keyId || orderData.key_id,
-        amount: orderData.amount,
-        currency: "INR",
-        name: "Zica Bella",
-        description: paymentMethod === "COD" ? "COD Upfront Fee ₹99" : "Order Payment",
-        order_id: orderData.id || orderData.razorpay_order_id,
-        handler: async function (response: any) {
-          try {
-            const verifyRes = await fetch("/api/checkout/complete", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                address: checkoutAddress,
-                paymentMethod,
-                items,
-                total,
-                subtotal,
-                codFee: paymentMethod === "COD" ? codFee : 0,
-                razorpay: response,
-                couponCode: couponValid ? couponCode : null,
-                couponDiscount: couponDiscount,
-                applyAsStoreCredit,
-                cashbackAmount,
-              }),
-            });
+      // Shared success handler — same payload shape as the old Standard Checkout handler
+      const handlePaymentSuccess = async (response: any) => {
+        try {
+          setPaymentInProgress(false);
+          setAwaitingApp("");
+          const verifyRes = await fetch("/api/checkout/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              address: checkoutAddress,
+              paymentMethod,
+              items,
+              total,
+              subtotal,
+              codFee: paymentMethod === "COD" ? codFee : 0,
+              razorpay: response,
+              couponCode: couponValid ? couponCode : null,
+              couponDiscount: couponDiscount,
+              applyAsStoreCredit,
+              cashbackAmount,
+            }),
+          });
 
-            const verifyData = await verifyRes.json();
-            if (verifyRes.ok) {
-              setIsOrderPlaced(true);
-              if (typeof window !== "undefined") {
-                sessionStorage.setItem("last_placed_order_id", verifyData.orderId);
-                const joinedCategories = items.map(item => item.category).filter(Boolean).join(', ');
-                sessionStorage.setItem(`order_categories_${verifyData.orderId}`, joinedCategories);
-              }
-              clear();
-              router.push(`/orders/${verifyData.orderId}/confirmation`);
-            } else {
-              setError(verifyData.error || "Payment verification failed");
+          const verifyData = await verifyRes.json();
+          if (verifyRes.ok) {
+            setIsOrderPlaced(true);
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("last_placed_order_id", verifyData.orderId);
+              const joinedCategories = items.map(item => item.category).filter(Boolean).join(', ');
+              sessionStorage.setItem(`order_categories_${verifyData.orderId}`, joinedCategories);
             }
-          } catch (verifyErr: any) {
-            setError(verifyErr.message || "Payment verification failed. Please contact support.");
-          }
-        },
-        prefill: {
-          name: address.name,
-          email: address.email,
-          contact: address.phone,
-          method: (paymentMethod === "UPI" || paymentMethod === "COD") ? "upi" : paymentMethod === "CARD" ? "card" : paymentMethod === "PAYLATER" ? "paylater" : paymentMethod === "EMI" ? "emi" : undefined,
-        },
-        theme: {
-          color: "#000000",
-          backdrop_color: "rgba(0,0,0,0.7)",
-        },
-        modal: {
-          ondismiss: function () {
+            clear();
+            router.push(`/orders/${verifyData.orderId}/confirmation`);
+          } else {
+            setError(verifyData.error || "Payment verification failed");
             setLoading(false);
-          },
-          confirm_close: true,
-        },
+          }
+        } catch (verifyErr: any) {
+          setError(verifyErr.message || "Payment verification failed. Please contact support.");
+          setLoading(false);
+        }
       };
 
-      // Configure display blocks for UPI, Card, PayLater, or EMI
+      // Shared error handler
+      const handlePaymentError = (error: any) => {
+        setPaymentInProgress(false);
+        setAwaitingApp("");
+        const errorDesc = error?.error?.description || error?.description || "Payment failed. Please try again.";
+        const errorCode = error?.error?.code || error?.code || "";
+        const errorReason = error?.error?.reason || "";
+        console.error('[Razorpay] Payment error:', error?.error || error);
+
+        // Map specific error reasons to friendly messages
+        let friendlyMessage = errorDesc;
+        if (errorReason === "payment_cancelled") {
+          friendlyMessage = "Payment was cancelled. You can try again.";
+        } else if (errorReason === "intent_no_apps_error") {
+          friendlyMessage = "No UPI app found on this device. Please enter your UPI ID instead.";
+        }
+
+        setError(`${friendlyMessage}${errorCode ? ` (${errorCode})` : ''}`);
+        setLoading(false);
+      };
+
+      // ═══════════════════════════════════════════════════════════
+      // UPI Custom Checkout Flow (including COD upfront via UPI)
+      // ═══════════════════════════════════════════════════════════
       if (paymentMethod === "UPI" || paymentMethod === "COD") {
-        if (selectedUpiApp) {
-          options.config = {
-            display: {
-              blocks: {
-                upi: {
-                  name: "Direct UPI App",
-                  instruments: [
-                    {
-                      method: "upi",
-                      flows: ["intent"],
-                      apps: [selectedUpiApp],
-                    }
-                  ]
-                }
-              },
-              sequence: ["block.upi"],
-              preferences: {
-                show_default_blocks: false
-              }
-            }
+        // Create a fresh Custom Checkout instance for this payment
+        const rzp = new (window as any).Razorpay({ key: keyId });
+        razorpayRef.current = rzp;
+
+        // Register listeners
+        rzp.on('payment.success', handlePaymentSuccess);
+        rzp.on('payment.error', handlePaymentError);
+
+        const basePayload: any = {
+          amount: orderData.amount,
+          currency: "INR",
+          email: address.email,
+          contact: address.phone,
+          order_id: orderId,
+          method: "upi",
+        };
+
+        if (selectedUpiApp && isMobile && !isInAppWebView) {
+          // ── UPI Intent flow (mobile only, not in-app WebView)
+          const appNames: Record<string, string> = {
+            google_pay: "Google Pay", phonepe: "PhonePe", paytm: "Paytm", bhim: "BHIM",
+            cred: "CRED", amazon_pay: "Amazon Pay",
           };
-        } else if (upiId) {
-          options.prefill.vpa = upiId;
-          options.config = {
-            display: {
-              blocks: {
-                upi: {
-                  name: "UPI Collect Request",
-                  instruments: [
-                    {
-                      method: "upi",
-                      flows: ["collect"],
-                      vpa: upiId,
-                    }
-                  ]
-                }
-              },
-              sequence: ["block.upi"],
-              preferences: {
-                show_default_blocks: false
-              }
-            }
-          };
+
+          setPaymentInProgress(true);
+          setAwaitingApp(appNames[selectedUpiApp] || selectedUpiApp);
+
+          rzp.createPayment(basePayload, { app: selectedUpiApp });
+        } else if (upiId.trim()) {
+          // ── UPI Collect flow (VPA entered)
+          setPaymentInProgress(true);
+          setAwaitingApp(""); // No specific app — generic "check your UPI app" screen
+
+          rzp.createPayment({
+            ...basePayload,
+            vpa: upiId.trim(),
+          });
         } else {
+          // No UPI app selected and no VPA entered
+          setError("Please select a UPI app or enter your UPI ID.");
+          setLoading(false);
+          return;
+        }
+
+      // ═══════════════════════════════════════════════════════════
+      // Card / PayLater / EMI — Option B Hybrid (Razorpay Standard Checkout)
+      // Razorpay's own hosted UI for these methods to keep PCI scope at SAQ A.
+      // Styled with brand-matching theme colors.
+      // ═══════════════════════════════════════════════════════════
+      } else if (paymentMethod === "CARD" || paymentMethod === "PAYLATER" || paymentMethod === "EMI") {
+        const options: any = {
+          key: keyId,
+          amount: orderData.amount,
+          currency: "INR",
+          name: "Zica Bella",
+          description: "Order Payment",
+          order_id: orderId,
+          handler: handlePaymentSuccess,
+          prefill: {
+            name: address.name,
+            email: address.email,
+            contact: address.phone,
+            method: paymentMethod === "CARD" ? "card" : paymentMethod === "PAYLATER" ? "paylater" : "emi",
+          },
+          theme: {
+            color: "#000000",
+            backdrop_color: "rgba(0,0,0,0.85)",
+          },
+          modal: {
+            ondismiss: function () {
+              setLoading(false);
+              setPaymentInProgress(false);
+            },
+            confirm_close: true,
+          },
+        };
+
+        // Configure display blocks to show only the selected method
+        if (paymentMethod === "CARD") {
           options.config = {
             display: {
-              blocks: {
-                upi: {
-                  name: "Pay via UPI",
-                  instruments: [
-                    {
-                      method: "upi",
-                      flows: isMobile ? ["intent", "collect"] : ["qr", "collect"],
-                      apps: isMobile ? ["google_pay", "phonepe", "paytm"] : undefined,
-                    }
-                  ]
-                }
-              },
-              sequence: ["block.upi"],
-              preferences: {
-                show_default_blocks: false
-              }
+              blocks: { card: { name: "Pay via Card", instruments: [{ method: "card" }] } },
+              sequence: ["block.card"],
+              preferences: { show_default_blocks: false }
+            }
+          };
+        } else if (paymentMethod === "PAYLATER") {
+          options.config = {
+            display: {
+              blocks: { paylater: { name: "Pay Later", instruments: [{ method: "paylater" }] } },
+              sequence: ["block.paylater"],
+              preferences: { show_default_blocks: false }
+            }
+          };
+        } else if (paymentMethod === "EMI") {
+          options.config = {
+            display: {
+              blocks: { emi: { name: "EMI Options", instruments: [{ method: "emi" }] } },
+              sequence: ["block.emi"],
+              preferences: { show_default_blocks: false }
             }
           };
         }
-      } else if (paymentMethod === "CARD") {
-        options.config = {
-          display: {
-            blocks: {
-              card: {
-                name: "Pay via Card",
-                instruments: [
-                  {
-                    method: "card"
-                  }
-                ]
-              }
-            },
-            sequence: ["block.card"],
-            preferences: {
-              show_default_blocks: false
-            }
-          }
-        };
-      } else if (paymentMethod === "PAYLATER") {
-        options.config = {
-          display: {
-            blocks: {
-              paylater: {
-                name: "Pay Later",
-                instruments: [
-                  {
-                    method: "paylater"
-                  }
-                ]
-              }
-            },
-            sequence: ["block.paylater"],
-            preferences: {
-              show_default_blocks: false
-            }
-          }
-        };
-      } else if (paymentMethod === "EMI") {
-        options.config = {
-          display: {
-            blocks: {
-              emi: {
-                name: "EMI Options",
-                instruments: [
-                  {
-                    method: "emi"
-                  }
-                ]
-              }
-            },
-            sequence: ["block.emi"],
-            preferences: {
-              show_default_blocks: false
-            }
-          }
-        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.on('payment.failed', function (response: any) {
+          handlePaymentError(response);
+        });
+        rzp.open();
       }
 
-      const rzp = new (window as any).Razorpay(options);
-
-      // Handle payment failure
-      rzp.on('payment.failed', function (response: any) {
-        const errorDesc = response?.error?.description || "Payment failed. Please try again.";
-        const errorCode = response?.error?.code || "";
-        console.error('[Razorpay] Payment failed:', response?.error);
-        setError(`${errorDesc}${errorCode ? ` (${errorCode})` : ''}`);
-        setLoading(false);
-      });
-
-      rzp.open();
     } catch (err: any) {
       setError(err.message || "An error occurred");
       setLoading(false);
+      setPaymentInProgress(false);
+      setAwaitingApp("");
     }
   };
 
@@ -1467,21 +1477,36 @@ export default function CheckoutPage() {
           })}
         </div>
 
-        {/* UPI details */}
-        {paymentMethod === "UPI" && (
+        {/* UPI details — shown for both UPI and COD (COD pays ₹99 upfront via UPI) */}
+        {(paymentMethod === "UPI" || paymentMethod === "COD") && (
           <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-300 mb-4 w-full">
+            {paymentMethod === "COD" && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
+                <Banknote className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+                <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
+                  Pay ₹{codFee} upfront via UPI. Remaining ₹{(total - codFee).toLocaleString("en-IN")} due at delivery.
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">ENTER UPI ID</label>
               <div className="relative">
                 <input
                   type="text"
+                  inputMode="text"
+                  autoComplete="off"
                   placeholder="mobile@upi"
                   value={upiId}
                   onChange={(e) => {
                     setUpiId(e.target.value);
                     setSelectedUpiApp("");
+                    setUpiVpaError("");
                   }}
-                  className="w-full h-11 px-4 pr-11 rounded-xl bg-foreground/[0.02] border border-foreground/5 text-foreground text-[11px] font-light placeholder:text-foreground/20 focus:border-foreground/20 focus:outline-none transition-all tracking-wide"
+                  className={`w-full h-11 px-4 pr-11 rounded-xl bg-foreground/[0.02] border text-foreground text-[16px] sm:text-[11px] font-light placeholder:text-foreground/20 focus:outline-none transition-all tracking-wide ${
+                    upiVpaError ? "border-red-500/40 focus:border-red-500/60" : "border-foreground/5 focus:border-foreground/20"
+                  }`}
+                  style={{ fontSize: '16px' }}
                 />
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none flex items-center justify-center">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
@@ -1489,10 +1514,24 @@ export default function CheckoutPage() {
                   </svg>
                 </div>
               </div>
+              {upiVpaError && (
+                <p className="text-[8px] text-red-400 font-light pl-1 animate-in fade-in duration-200">{upiVpaError}</p>
+              )}
             </div>
 
+            {isInAppWebView && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/15">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
+                <p className="text-[8px] font-light text-amber-400/80 leading-relaxed">
+                  UPI app payments aren&apos;t supported in this browser. Enter your UPI ID above instead.
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
-              <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">OR PAY WITH</label>
+              <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">
+                {isInAppWebView ? "UPI APPS (UNAVAILABLE IN THIS BROWSER)" : "OR PAY WITH"}
+              </label>
               <div className="grid grid-cols-4 gap-1 text-center mt-1">
                 {[
                   {
@@ -1539,17 +1578,22 @@ export default function CheckoutPage() {
                   }
                 ].map((app) => {
                   const isSelected = selectedUpiApp === app.id;
+                  const isDisabled = isInAppWebView;
                   return (
                     <button
                       key={app.id}
                       type="button"
+                      disabled={isDisabled}
                       onClick={() => {
                         setSelectedUpiApp(app.id);
                         setUpiId("");
+                        setUpiVpaError("");
                       }}
-                      className={`flex flex-col items-center justify-center gap-1 py-1 transition-all duration-300 hover:scale-105 active:scale-95 ${selectedUpiApp === "" || isSelected
-                        ? "opacity-100 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]"
-                        : "opacity-35"
+                      className={`flex flex-col items-center justify-center gap-1 py-1 min-h-[44px] min-w-[44px] transition-all duration-300 hover:scale-105 active:scale-95 ${isDisabled
+                        ? "opacity-20 cursor-not-allowed"
+                        : selectedUpiApp === "" || isSelected
+                          ? "opacity-100 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]"
+                          : "opacity-35"
                         }`}
                     >
                       {app.logo}
@@ -1559,6 +1603,54 @@ export default function CheckoutPage() {
                 })}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* UPI Payment In-Progress Overlay */}
+        {paymentInProgress && (paymentMethod === "UPI" || paymentMethod === "COD") && (
+          <div className="flex flex-col items-center justify-center gap-4 p-6 rounded-2xl bg-foreground/[0.03] border border-foreground/5 mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full border-2 border-foreground/10 border-t-foreground/60 animate-spin" />
+            </div>
+            {awaitingApp ? (
+              <div className="text-center">
+                <p className="text-[11px] font-medium text-foreground/80 mb-1">
+                  Waiting for you to approve in {awaitingApp}…
+                </p>
+                <p className="text-[8px] font-light text-foreground/40 uppercase tracking-widest">
+                  Complete the payment in the app
+                </p>
+              </div>
+            ) : (
+              <div className="text-center">
+                <p className="text-[11px] font-medium text-foreground/80 mb-1">
+                  Check your UPI app for a payment request
+                </p>
+                <p className="text-[8px] font-light text-foreground/40 uppercase tracking-widest">
+                  Approve the request to complete payment
+                </p>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                // Cancel the payment
+                if (razorpayRef.current) {
+                  try {
+                    razorpayRef.current.emit('payment.cancel');
+                  } catch (e) {
+                    console.error('[Razorpay] Cancel emit error:', e);
+                  }
+                }
+                setPaymentInProgress(false);
+                setAwaitingApp("");
+                setLoading(false);
+                setError("Payment was cancelled. You can try again.");
+              }}
+              className="h-9 px-6 rounded-xl bg-foreground/[0.03] border border-foreground/10 text-foreground/60 text-[9px] font-light uppercase tracking-[0.12em] hover:bg-foreground/[0.06] hover:text-foreground/80 active:scale-[0.98] transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+            >
+              Cancel Payment
+            </button>
           </div>
         )}
 
@@ -1802,15 +1894,15 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={handlePlaceOrder}
-              disabled={loading}
+              disabled={loading || paymentInProgress}
               className={`w-full ${paymentMethod === "COD" ? "h-13 pl-13" : "h-11 pl-11"
                 } rounded-xl bg-black dark:bg-white text-white dark:text-black hover:opacity-95 active:scale-[0.98] border border-black/10 dark:border-white/10 transition-all flex items-center justify-between pr-1.5 disabled:opacity-50 shadow-sm`}
             >
               <span className="text-[9.5px] font-bold tracking-[0.16em] uppercase text-center flex-1 whitespace-nowrap">
-                {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
+                {loading || paymentInProgress ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
               </span>
               <div className="w-8 h-8 rounded-lg bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" strokeWidth={2.5} />}
+                {loading || paymentInProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" strokeWidth={2.5} />}
               </div>
             </button>
           )}
