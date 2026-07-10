@@ -284,6 +284,7 @@ export default function CheckoutPage() {
   const [upiAppsChecked, setUpiAppsChecked] = useState(false);
   const [upiVpaError, setUpiVpaError] = useState("");
   const [isInAppWebView, setIsInAppWebView] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   const paymentLockRef = useRef<boolean>(false);
   const timeoutRef = useRef<any>(null);
@@ -293,11 +294,13 @@ export default function CheckoutPage() {
   useEffect(() => {
     setMounted(true);
 
-    // Detect in-app WebViews (Instagram, Facebook, TikTok, etc.) — UPI Intent doesn't work there
     if (typeof navigator !== "undefined") {
       const ua = navigator.userAgent || "";
       const isWebView = /FBAN|FBAV|Instagram|Line\/|Snapchat|TikTok|BytedanceWebview|WebView/i.test(ua);
       setIsInAppWebView(isWebView);
+
+      const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(ua);
+      setIsMobileDevice(isMobile);
     }
 
     // Restore cached UPI apps
@@ -1247,7 +1250,14 @@ export default function CheckoutPage() {
       const res = await fetch("/api/checkout/razorpay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: paymentAmount }),
+        body: JSON.stringify({
+          amount: paymentAmount,
+          notes: {
+            name: address.name,
+            email: address.email,
+            contact: address.phone,
+          }
+        }),
       });
 
       const orderData = await res.json();
@@ -1384,6 +1394,11 @@ export default function CheckoutPage() {
           contact: address.phone,
           order_id: orderId,
           method: "upi",
+          prefill: {
+            name: address.name || "Customer",
+            email: address.email,
+            contact: address.phone,
+          }
         };
 
         if (selectedUpiApp && isMobile && !isInAppWebView) {
@@ -1637,86 +1652,106 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">
-                {isInAppWebView ? "UPI APPS (UNAVAILABLE IN THIS BROWSER)" : "OR PAY WITH"}
-              </label>
-              <div className="grid grid-cols-4 gap-1 text-center mt-1">
-                {[
-                  {
-                    id: "google_pay", name: "GPay", logo: (
-                      <div className="flex items-center justify-center gap-1 h-5 shrink-0">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05" />
-                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                        </svg>
-                        <span className="text-[9px] font-black text-foreground tracking-tight pt-0.5">Pay</span>
-                      </div>
-                    )
-                  },
-                  {
-                    id: "phonepe", name: "PhonePe", logo: (
-                      <div className="flex items-center justify-center h-5 w-5 rounded bg-[#5f259f] shrink-0 mx-auto">
-                        <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                        </svg>
-                      </div>
-                    )
-                  },
-                  {
-                    id: "paytm", name: "Paytm", logo: (
-                      <div className="flex items-center justify-center h-5 w-9 bg-white rounded shrink-0 mx-auto border border-black/5">
-                        <span className="text-[8px] font-black italic tracking-tighter leading-none">
-                          <span className="text-[#002e6e]">pay</span>
-                          <span className="text-[#00baf2]">tm</span>
-                        </span>
-                      </div>
-                    )
-                  },
-                  {
-                    id: "bhim", name: "BHIM", logo: (
-                      <div className="flex items-center justify-center h-5 w-8 bg-[#e4e4e4] rounded shrink-0 mx-auto border border-black/5">
-                        <span className="text-[7px] font-black tracking-tight leading-none text-black italic">
-                          <span className="text-orange-500">BH</span>
-                          <span className="text-green-600">IM</span>
-                        </span>
-                      </div>
-                    )
-                  }
-                ].filter(app => {
-                  if (supportedUpiApps.length === 0) return true;
-                  return supportedUpiApps.includes(app.id) || 
-                         supportedUpiApps.includes(app.id.replace("_", "")) ||
-                         supportedUpiApps.includes(app.name.toLowerCase());
-                }).map((app) => {
-                  const isSelected = selectedUpiApp === app.id;
-                  const isDisabled = isInAppWebView;
-                  return (
-                    <button
-                      key={app.id}
-                      type="button"
-                      disabled={isDisabled}
-                      onClick={() => {
-                        setSelectedUpiApp(app.id);
-                        setUpiId("");
-                        setUpiVpaError("");
-                      }}
-                      className={`flex flex-col items-center justify-center gap-1 py-1 min-h-[44px] min-w-[44px] transition-all duration-300 hover:scale-105 active:scale-95 ${isDisabled
-                        ? "opacity-20 cursor-not-allowed"
-                        : selectedUpiApp === "" || isSelected
-                          ? "opacity-100 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]"
-                          : "opacity-35"
-                        }`}
-                    >
-                      {app.logo}
-                      <span className="text-[8px] font-light tracking-wide text-foreground/50">{app.name}</span>
-                    </button>
-                  );
-                })}
+            {isMobileDevice && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">
+                  {isInAppWebView ? "UPI APPS (UNAVAILABLE IN THIS BROWSER)" : "OR PAY WITH UPI APP"}
+                </label>
+                <div className="grid grid-cols-2 gap-2 mt-1.5">
+                  {[
+                    {
+                      id: "google_pay",
+                      name: "GPay",
+                      logo: (
+                        <div className="flex items-center justify-center gap-1.5 py-1 w-full">
+                          <svg className="w-4.5 h-4.5 shrink-0" viewBox="0 0 24 24">
+                            <path d="M21.35 11.1H12v3.8h5.38c-.24 1.28-.96 2.37-2.05 3.1l3.2 2.5c1.87-1.73 2.95-4.28 2.95-7.3 0-.74-.07-1.4-.18-2.1z" fill="#4285F4" />
+                            <path d="M12 23c2.97 0 5.46-.97 7.28-2.66l-3.2-2.5c-.9.6-2.06.96-3.28.96-2.53 0-4.68-1.7-5.44-4.02H4.1v2.6C5.9 20.97 8.74 23 12 23z" fill="#34A853" />
+                            <path d="M6.56 14.78A6.87 6.87 0 0 1 6.2 12c0-.98.17-1.92.47-2.78V6.62H4.1a11.02 11.02 0 0 0 0 10.76l2.46-2.6z" fill="#FBBC05" />
+                            <path d="M12 5.08c1.62 0 3.08.56 4.22 1.64l3.15-3.15C17.44 1.93 14.97 1 12 1c-3.26 0-6.1 2.03-7.9 5.62l2.46 2.6c.76-2.32 2.91-4.14 5.44-4.14z" fill="#EA4335" />
+                          </svg>
+                          <span className="text-[11px] font-bold text-foreground tracking-tight pt-0.5">Pay</span>
+                        </div>
+                      )
+                    },
+                    {
+                      id: "phonepe",
+                      name: "PhonePe",
+                      logo: (
+                        <div className="flex items-center justify-center gap-1.5 py-1 w-full">
+                          <svg className="w-5 h-5 shrink-0" viewBox="0 0 40 40" fill="none">
+                            <rect width="40" height="40" rx="10" fill="#5f259f" />
+                            <path d="M11 20.5c0-4.69 3.81-8.5 8.5-8.5h6v4.5h-6c-2.21 0-4 1.79-4 4s1.79 4 4 4h6v4.5h-6c-4.69 0-8.5-3.81-8.5-8.5z" fill="#FFFFFF" />
+                            <path d="M21.5 25v-13h4v13h-4z" fill="#FFFFFF" />
+                          </svg>
+                          <span className="text-[11px] font-bold text-foreground tracking-tight">PhonePe</span>
+                        </div>
+                      )
+                    },
+                    {
+                      id: "paytm",
+                      name: "Paytm",
+                      logo: (
+                        <div className="flex items-center justify-center py-1 w-full">
+                          <svg className="h-3 shrink-0" viewBox="0 0 110 32" fill="none">
+                            <path d="M17.1 2.6H8.5c-.3 0-.5.2-.5.5v25.2c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-8h3.5c4.7 0 8.3-2.6 8.3-8.8 0-6.3-3.6-8.9-8.3-8.9zm-.4 12.3h-3.1V7.5h3.1c2.1 0 3.3.9 3.3 3.7 0 2.7-1.2 3.7-3.3 3.7zM35.6 13c-2.1 0-3.6 1-4.2 2.6V13.5c0-.3-.2-.5-.5-.5h-4.3c-.3 0-.5.2-.5.5v14.8c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-7.9c0-2.3 1.4-3.6 3.1-3.6 1.7 0 2.6.9 2.6 2.8V28.3c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-9.6c0-4-2-6.2-5.4-6.2z" fill="#00baf2" />
+                            <path d="M60.1 13.5c0-.3-.2-.5-.5-.5h-4.7c-.3 0-.5.2-.5.5v10.5c-.7-.5-1.9-.9-3.1-.9-3.2 0-5.7 2.3-5.7 5.7 0 3.3 2.5 5.7 5.7 5.7 1.3 0 2.4-.4 3.1-.9v1.2c0 .3.2.5.5.5h4.7c.3 0 .5-.2.5-.5V13.5zm-5.7 17.5c-1.4 0-2.4-1.1-2.4-2.4 0-1.3 1.1-2.4 2.4-2.4 1.4 0 2.4 1.1 2.4 2.4 0 1.3-1 2.4-2.4 2.4zM73.5 13.5c0-.3-.2-.5-.5-.5H68c-.3 0-.5.2-.5.5V18h-2.1c-.3 0-.5.2-.5.5v3.6c0 .3.2.5.5.5h2.1v5.7c0 3.2 1.6 4.9 4.8 4.9.9 0 1.7-.1 2.3-.4.3-.1.4-.3.4-.6v-3.7c0-.2-.1-.4-.3-.4-.3.1-.6.1-.9.1-1.2 0-1.7-.6-1.7-1.9v-5.7H73c.3 0 .5-.2.5-.5V18.5c0-.3-.2-.5-.5-.5h-1.5v-4.5zM83.4 13c-2.3 0-4.1.9-4.8 2.2V13.5c0-.3-.2-.5-.5-.5h-4.3c-.3 0-.5.2-.5.5v22.8c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5V25.2c.7 1.3 2.5 2.2 4.8 2.2 4.4 0 7.8-3.4 7.8-7.2S87.8 13 83.4 13zm-.4 10c-1.8 0-3-1.4-3-3.1s1.3-3.1 3-3.1 3.1 1.4 3.1 3.1-1.3 3.1-3.1 3.1zM93.3 13.5c0-.3-.2-.5-.5-.5h-4.3c-.3 0-.5.2-.5.5v14.8c0 .3.2.5.5.5h4.3c.3 0 .5-.2.5-.5V13.5z" fill="#002e6e" />
+                            <path d="M102.3 13c-2.1 0-3.6 1-4.2 2.6V13.5c0-.3-.2-.5-.5-.5h-4.3c-.3 0-.5.2-.5.5v14.8c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-7.9c0-2.3 1.4-3.6 3.1-3.6 1.7 0 2.6.9 2.6 2.8V28.3c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-9.6c0-4-2-6.2-5.4-6.2z" fill="#002e6e" />
+                          </svg>
+                        </div>
+                      )
+                    },
+                    {
+                      id: "bhim",
+                      name: "BHIM",
+                      logo: (
+                        <div className="flex items-center justify-center gap-1.5 py-1 w-full">
+                          <svg className="w-5 h-5 shrink-0" viewBox="0 0 40 40" fill="none">
+                            <rect width="40" height="40" rx="8" fill="#F0F0F0" />
+                            <path d="M8 12l8 16h6L14 12H8z" fill="#E65100" />
+                            <path d="M22 12l8 16h-6l-8-16h6z" fill="#1B5E20" />
+                            <path d="M16 12h12v4.5H16V12z" fill="#1A237E" />
+                            <path d="M16 23.5h12V28H16v-4.5z" fill="#1A237E" />
+                            <path d="M16 18h9v4h-9v-4z" fill="#1A237E" />
+                          </svg>
+                          <span className="text-[10px] font-bold text-foreground tracking-tight leading-none">BHIM</span>
+                        </div>
+                      )
+                    }
+                  ].filter(app => {
+                    if (supportedUpiApps.length === 0) return true;
+                    const normalizedApps = supportedUpiApps.map(a => a.toLowerCase().replace(/[^a-z0-9]/g, ""));
+                    return normalizedApps.includes(app.id) || 
+                           normalizedApps.includes(app.id.replace("_", "")) ||
+                           normalizedApps.includes(app.name.toLowerCase()) ||
+                           (app.id === "google_pay" && (normalizedApps.includes("gpay") || normalizedApps.includes("googlepay")));
+                  }).map((app) => {
+                    const isSelected = selectedUpiApp === app.id;
+                    const isDisabled = isInAppWebView;
+                    return (
+                      <button
+                        key={app.id}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => {
+                          setSelectedUpiApp(app.id);
+                          setUpiId("");
+                          setUpiVpaError("");
+                        }}
+                        className={`flex items-center justify-center p-3.5 rounded-xl border transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${isDisabled
+                          ? "opacity-25 cursor-not-allowed bg-foreground/[0.01] border-foreground/5"
+                          : isSelected
+                            ? "bg-foreground/[0.07] border-foreground/35 shadow-[0_0_12px_rgba(255,255,255,0.06)]"
+                            : "bg-foreground/[0.02] border-foreground/5 hover:border-foreground/20 hover:bg-foreground/[0.04]"
+                          }`}
+                      >
+                        {app.logo}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -1777,7 +1812,7 @@ export default function CheckoutPage() {
     return (
       <div className="flex flex-col gap-3.5 w-full">
         {/* Product Preview Card */}
-        <div className="apple-glass-capsule p-3.5 rounded-2xl flex flex-col gap-2.5 max-h-[140px] overflow-y-auto scrollbar-none">
+        <div className="apple-glass-capsule p-4.5 rounded-[24px] flex flex-col gap-3.5">
           {items.map((item) => (
             <div key={item.id} className="flex gap-3 items-center">
               <div className="w-10 h-13 rounded-lg bg-foreground/[0.02] border border-foreground/10 overflow-hidden shrink-0 relative">
