@@ -22,7 +22,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getStoreSettings('homepage');
   const title = settings?.homePageTitle || 'Zica Bella® | Premium Streetwear, Heavyweight Hoodies & Oversized Tees';
   const description = settings?.metaDescription || 'Zica Bella crafts luxury Indian streetwear for modern men, oversized heavyweight tees, acid-wash finishes, cargos and modern denim designed for bold everyday style.';
-  const imageUrl = settings?.socialImageUrl || 'https://www.zicabella.com/og-image.jpg';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+  const imageUrl = settings?.socialImageUrl || `${appUrl}/og-image.jpg`;
   const twitterCardType = settings?.twitterCardType || 'summary_large_image';
 
   return {
@@ -39,7 +40,7 @@ export async function generateMetadata(): Promise<Metadata> {
           alt: settings?.socialImageAlt || title,
         }
       ],
-      url: 'https://zicabella.com',
+      url: appUrl,
       siteName: 'Zica Bella',
       type: 'website',
     },

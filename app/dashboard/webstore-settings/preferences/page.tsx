@@ -9,9 +9,9 @@ import {
   AlertTriangle,
   Save,
   Undo,
-  Check,
   Loader2,
-  HelpCircle
+  HelpCircle,
+  Plus
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -24,6 +24,14 @@ interface Settings {
   socialImageUrl?: string | null;
   socialImageAlt?: string | null;
   twitterCardType?: string;
+}
+
+interface SocialLinkItem {
+  id: string;
+  platform: string;
+  label: string;
+  url: string;
+  placements: string[];
 }
 
 export default function WebStorePreferences() {
@@ -47,8 +55,11 @@ export default function WebStorePreferences() {
     twitterCardType: "summary_large_image"
   });
 
+  const [socialLinks, setSocialLinks] = useState<SocialLinkItem[]>([]);
+  const [initialSocialLinks, setInitialSocialLinks] = useState<SocialLinkItem[]>([]);
+
   const [lastUpdatedBy, setLastUpdatedBy] = useState<string>("System");
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string>("");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string>("Never");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,29 +67,47 @@ export default function WebStorePreferences() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const res = await fetch("/api/webstore-settings/homepage");
-        if (!res.ok) {
+        const [seoRes, socialRes] = await Promise.all([
+          fetch("/api/webstore-settings/homepage"),
+          fetch("/api/webstore-settings/social_links")
+        ]);
+
+        if (!seoRes.ok || !socialRes.ok) {
           throw new Error("Failed to fetch preferences settings.");
         }
-        const data = await res.json();
-        if (data.success && data.settings) {
+
+        const seoData = await seoRes.json();
+        const socialData = await socialRes.json();
+
+        if (seoData.success && seoData.settings) {
           const loaded = {
-            id: data.settings.id,
-            pageKey: data.settings.pageKey,
-            homePageTitle: data.settings.homePageTitle || "",
-            metaDescription: data.settings.metaDescription || "",
-            socialImageUrl: data.settings.socialImageUrl || null,
-            socialImageAlt: data.settings.socialImageAlt || "",
-            twitterCardType: data.settings.twitterCardType || "summary_large_image"
+            id: seoData.settings.id,
+            pageKey: seoData.settings.pageKey,
+            homePageTitle: seoData.settings.homePageTitle || "",
+            metaDescription: seoData.settings.metaDescription || "",
+            socialImageUrl: seoData.settings.socialImageUrl || null,
+            socialImageAlt: seoData.settings.socialImageAlt || "",
+            twitterCardType: seoData.settings.twitterCardType || "summary_large_image"
           };
           setSettings(loaded);
           setInitialSettings(loaded);
         }
-        if (data.lastUpdatedBy) {
-          setLastUpdatedBy(data.lastUpdatedBy);
+
+        if (socialData.success && socialData.settings) {
+          try {
+            const parsed = JSON.parse(socialData.settings.metaDescription || "[]");
+            setSocialLinks(parsed);
+            setInitialSocialLinks(parsed);
+          } catch (e) {
+            console.error("Error parsing social links:", e);
+          }
         }
-        if (data.lastUpdatedAt) {
-          setLastUpdatedAt(new Date(data.lastUpdatedAt).toLocaleString("en-IN", {
+
+        if (seoData.lastUpdatedBy) {
+          setLastUpdatedBy(seoData.lastUpdatedBy);
+        }
+        if (seoData.lastUpdatedAt) {
+          setLastUpdatedAt(new Date(seoData.lastUpdatedAt).toLocaleString("en-IN", {
             dateStyle: "medium",
             timeStyle: "short"
           }));
@@ -92,12 +121,14 @@ export default function WebStorePreferences() {
     loadSettings();
   }, []);
 
+  const isSocialLinksDirty = JSON.stringify(socialLinks) !== JSON.stringify(initialSocialLinks);
   const isDirty =
     settings.homePageTitle !== initialSettings.homePageTitle ||
     settings.metaDescription !== initialSettings.metaDescription ||
     settings.socialImageUrl !== initialSettings.socialImageUrl ||
     settings.socialImageAlt !== initialSettings.socialImageAlt ||
-    settings.twitterCardType !== initialSettings.twitterCardType;
+    settings.twitterCardType !== initialSettings.twitterCardType ||
+    isSocialLinksDirty;
 
   // Handle Input Changes
   const handleInputChange = (field: keyof Settings, value: string | null) => {
@@ -217,6 +248,7 @@ export default function WebStorePreferences() {
   // Discard Changes
   const handleDiscard = () => {
     setSettings(initialSettings);
+    setSocialLinks(initialSocialLinks);
     toast.success("Changes discarded.");
   };
 
@@ -235,32 +267,49 @@ export default function WebStorePreferences() {
     const saveToast = toast.loading("Saving store preferences...");
 
     try {
-      const res = await fetch("/api/webstore-settings/homepage", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(settings)
-      });
+      const [seoSaveRes, socialSaveRes] = await Promise.all([
+        fetch("/api/webstore-settings/homepage", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(settings)
+        }),
+        fetch("/api/webstore-settings/social_links", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            pageKey: "social_links",
+            metaDescription: JSON.stringify(socialLinks)
+          })
+        })
+      ]);
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to save preferences.");
+      if (!seoSaveRes.ok || !socialSaveRes.ok) {
+        throw new Error("Failed to save preferences settings.");
       }
 
-      const data = await res.json();
-      if (data.success && data.settings) {
-        const updated = {
-          id: data.settings.id,
-          pageKey: data.settings.pageKey,
-          homePageTitle: data.settings.homePageTitle || "",
-          metaDescription: data.settings.metaDescription || "",
-          socialImageUrl: data.settings.socialImageUrl || null,
-          socialImageAlt: data.settings.socialImageAlt || "",
-          twitterCardType: data.settings.twitterCardType || "summary_large_image"
+      const seoData = await seoSaveRes.json();
+      const socialData = await socialSaveRes.json();
+
+      if (seoData.success && seoData.settings && socialData.success && socialData.settings) {
+        const updatedSeo = {
+          id: seoData.settings.id,
+          pageKey: seoData.settings.pageKey,
+          homePageTitle: seoData.settings.homePageTitle || "",
+          metaDescription: seoData.settings.metaDescription || "",
+          socialImageUrl: seoData.settings.socialImageUrl || null,
+          socialImageAlt: seoData.settings.socialImageAlt || "",
+          twitterCardType: seoData.settings.twitterCardType || "summary_large_image"
         };
-        setSettings(updated);
-        setInitialSettings(updated);
+        setSettings(updatedSeo);
+        setInitialSettings(updatedSeo);
+
+        const parsedSocial = JSON.parse(socialData.settings.metaDescription || "[]");
+        setSocialLinks(parsedSocial);
+        setInitialSocialLinks(parsedSocial);
         
         // Refresh editor audit logs
         const refreshRes = await fetch("/api/webstore-settings/homepage");
@@ -282,6 +331,62 @@ export default function WebStorePreferences() {
     }
   };
 
+  const handleAddSocialLink = () => {
+    const newItem: SocialLinkItem = {
+      id: Math.random().toString(36).substring(2, 11),
+      platform: "instagram",
+      label: "Instagram",
+      url: "",
+      placements: ["footer", "mobile"]
+    };
+    setSocialLinks((prev) => [...prev, newItem]);
+  };
+
+  const handleRemoveSocialLink = (index: number) => {
+    setSocialLinks((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSocialLinkChange = (index: number, key: keyof SocialLinkItem, value: any) => {
+    setSocialLinks((prev) =>
+      prev.map((item, i) => {
+        if (i === index) {
+          if (key === "platform") {
+            const labelsMap: Record<string, string> = {
+              instagram: "Instagram",
+              spotify: "Spotify",
+              apple: "Apple Music",
+              youtube: "YouTube",
+              tiktok: "TikTok",
+              twitter: "Twitter / X",
+              pinterest: "Pinterest",
+              facebook: "Facebook",
+              snapchat: "Snapchat",
+              whatsapp: "WhatsApp",
+              website: "Website"
+            };
+            return { ...item, platform: value, label: labelsMap[value] || value };
+          }
+          return { ...item, [key]: value };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleTogglePlacement = (index: number, placementKey: string) => {
+    setSocialLinks((prev) =>
+      prev.map((item, i) => {
+        if (i === index) {
+          const placements = item.placements.includes(placementKey)
+            ? item.placements.filter((p) => p !== placementKey)
+            : [...item.placements, placementKey];
+          return { ...item, placements };
+        }
+        return item;
+      })
+    );
+  };
+
   if (loading) {
     return (
       <div className="space-y-8 animate-pulse p-4">
@@ -301,7 +406,7 @@ export default function WebStorePreferences() {
   const descLength = settings.metaDescription.length;
 
   return (
-    <div className="space-y-8 pb-24 p-2 md:p-4">
+    <div className="space-y-8 pb-32 p-2 md:p-4">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -371,7 +476,7 @@ export default function WebStorePreferences() {
               {/* Text metadata block below image */}
               <div className="p-4 border-t border-foreground/5 space-y-1 bg-[#1A1A1A]/90">
                 <span className="text-[9px] font-bold tracking-widest text-foreground/35 uppercase font-inter block">
-                  WWW.ZICABELLA.COM
+                  APP.ZICABELLA.COM
                 </span>
                 <h3 className="text-[13px] font-bold text-foreground/80 line-clamp-1 font-inter">
                   {settings.homePageTitle || "Zica Bella | Luxury Indian Streetwear"}
@@ -520,6 +625,138 @@ export default function WebStorePreferences() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Full-width Social Links & Placement Configuration Card */}
+      <div className="glass rounded-[2rem] border border-foreground/5 p-6 space-y-6 mt-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-[13px] font-bold uppercase tracking-wider text-foreground/75 font-inter flex items-center gap-1.5">
+              Social Link Placements & Redirections
+            </h2>
+            <p className="text-[11px] text-foreground/45 mt-1 leading-relaxed">
+              Add store redirection links and toggle which placements they should be active in (Footer or Mobile App).
+            </p>
+          </div>
+          <button
+            onClick={handleAddSocialLink}
+            className="px-4 py-2 rounded-xl bg-foreground text-background text-[11px] font-bold hover:opacity-90 transition-opacity flex items-center gap-1 shrink-0 self-start md:self-auto"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Link Placement</span>
+          </button>
+        </div>
+
+        {/* Social Links List */}
+        {socialLinks.length === 0 ? (
+          <div className="text-center p-8 border border-dashed border-foreground/10 rounded-2xl">
+            <p className="text-sm text-foreground/40">No custom social link placements added yet.</p>
+            <button
+              onClick={handleAddSocialLink}
+              className="text-[11px] font-bold text-foreground underline mt-2 hover:opacity-85"
+            >
+              Add your first link
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {socialLinks.map((link, index) => (
+              <div
+                key={link.id || index}
+                className="flex flex-col xl:flex-row xl:items-center gap-4 p-5 bg-[#141414]/90 border border-foreground/10 rounded-2xl relative group transition-all"
+              >
+                {/* Platform Select */}
+                <div className="flex-1 min-w-[150px]">
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/45 font-inter block mb-1">
+                    Platform
+                  </label>
+                  <select
+                    value={link.platform}
+                    onChange={(e) => handleSocialLinkChange(index, "platform", e.target.value)}
+                    className="w-full bg-[#1A1A1A] border border-foreground/5 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-inter"
+                  >
+                    <option value="instagram">Instagram</option>
+                    <option value="spotify">Spotify</option>
+                    <option value="apple">Apple Music</option>
+                    <option value="youtube">YouTube</option>
+                    <option value="tiktok">TikTok</option>
+                    <option value="twitter">Twitter / X</option>
+                    <option value="pinterest">Pinterest</option>
+                    <option value="facebook">Facebook</option>
+                    <option value="snapchat">Snapchat</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="website">Custom Website</option>
+                  </select>
+                </div>
+
+                {/* Custom Label */}
+                <div className="flex-[1.5] min-w-[180px]">
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/45 font-inter block mb-1">
+                    Link Title / Label
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Follow us on Instagram"
+                    value={link.label}
+                    onChange={(e) => handleSocialLinkChange(index, "label", e.target.value)}
+                    className="w-full bg-[#1A1A1A] border border-foreground/5 rounded-xl px-3 py-2 text-xs text-foreground placeholder-foreground/35 focus:outline-none focus:ring-1 focus:ring-foreground/20 font-inter"
+                  />
+                </div>
+
+                {/* URL */}
+                <div className="flex-[3] min-w-[240px]">
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/45 font-inter block mb-1">
+                    Target URL
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={link.url}
+                    onChange={(e) => handleSocialLinkChange(index, "url", e.target.value)}
+                    className="w-full bg-[#1A1A1A] border border-foreground/5 rounded-xl px-3 py-2 text-xs text-foreground placeholder-foreground/35 focus:outline-none focus:ring-1 focus:ring-foreground/20 font-inter"
+                  />
+                </div>
+
+                {/* Placements checkboxes */}
+                <div className="flex-[2] min-w-[200px]">
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/45 font-inter block mb-1">
+                    Placements
+                  </label>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-1">
+                    {[
+                      { key: "footer", label: "Storefront Footer" },
+                      { key: "mobile", label: "Mobile App" }
+                    ].map((placement) => {
+                      const active = link.placements.includes(placement.key);
+                      return (
+                        <label key={placement.key} className="flex items-center gap-1.5 cursor-pointer text-xs select-none">
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={() => handleTogglePlacement(index, placement.key)}
+                            className="accent-foreground w-3.5 h-3.5 rounded border-foreground/20 cursor-pointer"
+                          />
+                          <span className="text-foreground/70 text-[11px] font-inter">{placement.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Actions (Delete) */}
+                <div className="flex items-center xl:self-end mt-2 xl:mt-0 xl:mb-1">
+                  <button
+                    onClick={() => handleRemoveSocialLink(index)}
+                    className="p-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/10 rounded-xl transition-all"
+                    title="Delete placement link"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Sticky Bottom Actions Bar */}

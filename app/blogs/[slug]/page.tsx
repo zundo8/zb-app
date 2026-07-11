@@ -27,6 +27,8 @@ export async function generateMetadata({ params }: BlogPostProps): Promise<Metad
   const description = post.metaDescription || post.excerpt || "";
   const robots = post.indexPref === false ? "noindex, nofollow" : "index, follow";
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+
   return {
     title,
     description,
@@ -35,7 +37,7 @@ export async function generateMetadata({ params }: BlogPostProps): Promise<Metad
       title,
       description,
       type: "article",
-      url: `https://zicabella.com/blogs/${post.slug}`,
+      url: `${appUrl}/blogs/${post.slug}`,
       images: post.coverImage ? [{ url: post.coverImage }] : undefined,
     },
     twitter: {

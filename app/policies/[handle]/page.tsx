@@ -17,16 +17,18 @@ export async function generateMetadata({ params }: PolicyPageProps): Promise<Met
 
   if (!policy) return { title: "Policy Not Found - Zica Bella" };
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+
   return {
     title: `${policy.title} | Zica Bella - Premium Luxury Streetwear`,
     description: `Official ${policy.title} for Zica Bella luxury streetwear. Crafted with premium loopback fabrics, Italian design elements, and modern architectural standards.`,
     alternates: {
-      canonical: `https://zicabella.com/policies/${params.handle}`
+      canonical: `${appUrl}/policies/${params.handle}`
     },
     openGraph: {
       title: `${policy.title} | Zica Bella - Premium Luxury Streetwear`,
       description: `Official ${policy.title} for Zica Bella luxury streetwear.`,
-      url: `https://zicabella.com/policies/${params.handle}`,
+      url: `${appUrl}/policies/${params.handle}`,
       siteName: "Zica Bella",
       locale: "en_IN",
       type: "website"

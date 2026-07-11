@@ -4,18 +4,30 @@ import StorefrontFooterClient from "./StorefrontFooterClient";
 export default async function StorefrontFooter() {
   let shop = null;
   let policies: any[] = [];
+  let socialLinks: any[] = [];
 
   try {
-    const [shopData, policiesData] = await Promise.all([
+    const [shopData, policiesData, socialLinksData] = await Promise.all([
       prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } }).catch(() => null)
         .then((s: any) => s || prisma.shop.findFirst().catch(() => null)),
       prisma.policy.findMany({ 
         select: { handle: true, title: true },
         orderBy: { title: 'asc' }
       }).catch(() => []),
+      prisma.storeSettings.findUnique({
+        where: { pageKey: 'social_links' }
+      }).catch(() => null)
     ]);
     shop = shopData;
     policies = policiesData as any[];
+    
+    if (socialLinksData?.metaDescription) {
+      try {
+        socialLinks = JSON.parse(socialLinksData.metaDescription);
+      } catch (e) {
+        console.error("[Footer] Error parsing social links JSON:", e);
+      }
+    }
   } catch (error) {
     console.error("[Footer] Error querying settings/policies:", error);
   }
@@ -36,5 +48,11 @@ export default async function StorefrontFooter() {
     title: p.title,
   }));
 
-  return <StorefrontFooterClient shop={serializedShop} policies={serializedPolicies} />;
+  return (
+    <StorefrontFooterClient 
+      shop={serializedShop} 
+      policies={serializedPolicies} 
+      socialLinks={socialLinks} 
+    />
+  );
 }

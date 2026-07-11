@@ -84,17 +84,19 @@ export async function generateMetadata({
     'premium cotton blanks',
   ].filter((v, i, self) => v && self.indexOf(v) === i).slice(0, 15);
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+
   return {
     title,
     description,
     keywords: customKeywords,
     alternates: {
-      canonical: `https://www.zicabella.com/products/${product.handle}`,
+      canonical: `${appUrl}/products/${product.handle}`,
     },
     openGraph: {
       title,
       description,
-      url: `https://www.zicabella.com/products/${product.handle}`,
+      url: `${appUrl}/products/${product.handle}`,
       type: 'website',
       images: product.images?.[0]?.src
         ? [
@@ -105,13 +107,13 @@ export async function generateMetadata({
               alt: product.title,
             },
           ]
-        : [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella®' }],
+        : [{ url: `${appUrl}/og-image.jpg`, width: 1200, height: 630, alt: 'Zica Bella®' }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: product.images?.[0]?.src ? [product.images[0].src] : ['/og-image.jpg'],
+      images: product.images?.[0]?.src ? [product.images[0].src] : [`${appUrl}/og-image.jpg`],
     },
   }
 }

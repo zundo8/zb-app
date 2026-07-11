@@ -26,8 +26,8 @@ import {
   Home,
   Navigation,
   Building2,
-  Smartphone,
   Banknote,
+  Smartphone,
   Sparkles,
   Lock,
   Sun,
@@ -273,18 +273,6 @@ export default function CheckoutPage() {
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [selectedSavedId, setSelectedSavedId] = useState<string>("");
   const [showAddressForm, setShowAddressForm] = useState(false);
-  const [upiId, setUpiId] = useState("");
-  const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
-
-  // Custom Checkout state
-  const razorpayRef = useRef<any>(null);
-  const [paymentInProgress, setPaymentInProgress] = useState(false);
-  const [awaitingApp, setAwaitingApp] = useState<string>(""); // App name shown on UPI intent waiting screen
-  const [supportedUpiApps, setSupportedUpiApps] = useState<string[]>([]); // From getSupportedUpiIntentApps()
-  const [upiAppsChecked, setUpiAppsChecked] = useState(false);
-  const [upiVpaError, setUpiVpaError] = useState("");
-  const [isInAppWebView, setIsInAppWebView] = useState(false);
-  const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [prefetchedOrder, setPrefetchedOrder] = useState<{
     id: string;
     amount: number;
@@ -292,30 +280,11 @@ export default function CheckoutPage() {
   } | null>(null);
 
   const paymentLockRef = useRef<boolean>(false);
-  const timeoutRef = useRef<any>(null);
 
   const isDark = resolvedTheme === "dark";
 
   useEffect(() => {
     setMounted(true);
-
-    if (typeof navigator !== "undefined") {
-      const ua = navigator.userAgent || "";
-      const isWebView = /FBAN|FBAV|Instagram|Line\/|Snapchat|TikTok|BytedanceWebview|WebView/i.test(ua);
-      setIsInAppWebView(isWebView);
-
-      const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(ua);
-      setIsMobileDevice(isMobile);
-    }
-
-    // Restore cached UPI apps
-    try {
-      const cached = sessionStorage.getItem("zb_supported_upi_apps");
-      if (cached) {
-        setSupportedUpiApps(JSON.parse(cached));
-        setUpiAppsChecked(true);
-      }
-    } catch {}
   }, []);
 
 
@@ -664,54 +633,7 @@ export default function CheckoutPage() {
 
   const total = subtotal - (applyAsStoreCredit ? 0 : couponDiscount) + (paymentMethod === "COD" ? codFee : 0) + shipping;
 
-  // Dynamically load supported UPI apps when entering payment step or switching to UPI
-  useEffect(() => {
-    if ((paymentMethod === "UPI" || paymentMethod === "COD") && !upiAppsChecked && typeof window !== "undefined") {
-      const loadUpiApps = async () => {
-        try {
-          const RazorpayClass = (window as any).Razorpay;
-          if (!RazorpayClass) return;
 
-          // Fetch credentials config to get keyId
-          const configRes = await fetch("/api/razorpay/config");
-          const configData = await configRes.json();
-          if (!configData.isConfigured || !configData.keyId) return;
-
-          setUpiAppsChecked(true);
-          const key = configData.keyId;
-          const tempRzp = new RazorpayClass({ key });
-          
-          if (tempRzp && typeof tempRzp.getSupportedUpiIntentApps === "function") {
-            tempRzp.getSupportedUpiIntentApps()
-              .then((response: any) => {
-                console.log("[Razorpay] Supported UPI Intent apps response:", response);
-                let appsList: string[] = [];
-                if (response && response.supportedApps && Array.isArray(response.supportedApps)) {
-                  appsList = response.supportedApps;
-                } else if (Array.isArray(response)) {
-                  appsList = response;
-                } else if (response && typeof response === "object") {
-                  appsList = Object.keys(response).filter(key => response[key] === true || response[key] === "true");
-                }
-                if (appsList.length > 0) {
-                  setSupportedUpiApps(appsList);
-                  try {
-                    sessionStorage.setItem("zb_supported_upi_apps", JSON.stringify(appsList));
-                  } catch {}
-                }
-              })
-              .catch((err: any) => {
-                console.error("[Razorpay] Error fetching supported UPI apps:", err);
-              });
-          }
-        } catch (e) {
-          console.error("[Razorpay] Error loading supported UPI apps:", e);
-        }
-      };
-
-      loadUpiApps();
-    }
-  }, [paymentMethod, upiAppsChecked]);
 
   // Background prefetch of the Razorpay order when entering Step 2 or changing payment configurations
   useEffect(() => {
@@ -1268,15 +1190,6 @@ export default function CheckoutPage() {
 
     setLoading(true);
     setError("");
-    setUpiVpaError("");
-
-    // Setup helper to clear client timeout
-    const clearPaymentTimeout = () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
 
     try {
       // Ensure Razorpay SDK is loaded
@@ -1293,17 +1206,6 @@ export default function CheckoutPage() {
 
       // If COD, amount to pay upfront is codFee (99), otherwise it is total
       const paymentAmount = paymentMethod === "COD" ? codFee : total;
-
-      // Validate UPI ID if using collect flow
-      if ((paymentMethod === "UPI" || paymentMethod === "COD") && upiId && !selectedUpiApp) {
-        const vpaRegex = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
-        if (!vpaRegex.test(upiId.trim())) {
-          setUpiVpaError("Enter a valid UPI ID (e.g. name@upi)");
-          setLoading(false);
-          paymentLockRef.current = false;
-          return;
-        }
-      }
 
       let orderId = "";
       let keyId = "";
@@ -1349,14 +1251,11 @@ export default function CheckoutPage() {
         }
       });
 
-      const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
-
-      // Shared success handler — same payload shape as the old Standard Checkout handler
+      // ═══════════════════════════════════════════════════════════
+      // Shared success handler — called by Razorpay Standard Checkout
+      // ═══════════════════════════════════════════════════════════
       const handlePaymentSuccess = async (response: any) => {
-        clearPaymentTimeout();
         try {
-          setPaymentInProgress(false);
-          setAwaitingApp("");
           const verifyRes = await fetch("/api/checkout/complete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1399,11 +1298,10 @@ export default function CheckoutPage() {
         }
       };
 
-      // Shared error handler
+      // ═══════════════════════════════════════════════════════════
+      // Shared error handler for payment.failed event
+      // ═══════════════════════════════════════════════════════════
       const handlePaymentError = (error: any) => {
-        clearPaymentTimeout();
-        setPaymentInProgress(false);
-        setAwaitingApp("");
         paymentLockRef.current = false;
 
         const errorDesc = error?.error?.description || error?.description || "Payment failed. Please try again.";
@@ -1416,173 +1314,102 @@ export default function CheckoutPage() {
         if (errorReason === "payment_cancelled") {
           friendlyMessage = "Payment was cancelled. You can try again.";
         } else if (errorReason === "intent_no_apps_error") {
-          friendlyMessage = "No UPI app found on this device. Please enter your UPI ID instead.";
+          friendlyMessage = "No UPI app found on this device. Please try entering your UPI ID in the payment window.";
         }
 
         setError(`${friendlyMessage}${errorCode ? ` (${errorCode})` : ''}`);
         setLoading(false);
       };
 
-      // Helper to trigger 3-minute client safety timeout for UPI Intent and Collect requests
-      const triggerUpiSessionTimeout = () => {
-        clearPaymentTimeout();
-        timeoutRef.current = setTimeout(() => {
-          if (paymentLockRef.current || paymentInProgress) {
-            console.log("[Razorpay] UPI Payment session timed out on client.");
-            if (razorpayRef.current) {
-              try {
-                razorpayRef.current.emit('payment.cancel');
-              } catch (e) {
-                console.error("[Razorpay] Cancel emit timed out:", e);
-              }
-            }
-            setPaymentInProgress(false);
-            setAwaitingApp("");
-            setLoading(false);
-            paymentLockRef.current = false;
-            setError("We didn't receive confirmation from your UPI app in time. Please check your banking app to see if the amount was debited, or try again.");
-          }
-        }, 180000); // 3 minutes
-      };
-
       // ═══════════════════════════════════════════════════════════
-      // UPI Custom Checkout Flow (including COD upfront via UPI)
+      // Razorpay Standard Checkout — used for ALL payment methods
+      // The Standard Checkout modal handles UPI Intent (auto-detects
+      // installed apps on mobile), UPI Collect (VPA entry), QR code
+      // (desktop), Cards, Pay Later, EMI — all within its own UI.
       // ═══════════════════════════════════════════════════════════
-      if (paymentMethod === "UPI" || paymentMethod === "COD") {
-        // Create a fresh Custom Checkout instance for this payment
-        const rzp = new (window as any).Razorpay({ key: keyId });
-        razorpayRef.current = rzp;
-
-        // Register listeners
-        rzp.on('payment.success', handlePaymentSuccess);
-        rzp.on('payment.error', handlePaymentError);
-
-        const basePayload: any = {
-          amount: orderData.amount,
-          currency: "INR",
+      const options: any = {
+        key: keyId,
+        amount: orderData.amount,
+        currency: "INR",
+        name: "Zica Bella",
+        description: paymentMethod === "COD" ? "COD Upfront Fee" : "Order Payment",
+        order_id: orderId,
+        handler: handlePaymentSuccess,
+        prefill: {
+          name: address.name,
           email: address.email,
           contact: address.phone,
-          order_id: orderId,
-          method: "upi",
-          prefill: {
-            name: address.name || "Customer",
-            email: address.email,
-            contact: address.phone,
-          }
-        };
-
-        if (selectedUpiApp && isMobile && !isInAppWebView) {
-          // ── UPI Intent flow (mobile only, not in-app WebView)
-          const appNames: Record<string, string> = {
-            google_pay: "Google Pay", phonepe: "PhonePe", paytm: "Paytm", bhim: "BHIM",
-            cred: "CRED", amazon_pay: "Amazon Pay",
-          };
-
-          setPaymentInProgress(true);
-          setAwaitingApp(appNames[selectedUpiApp] || selectedUpiApp);
-          triggerUpiSessionTimeout();
-
-          try {
-            rzp.createPayment(basePayload, { app: selectedUpiApp });
-          } catch (sdkErr: any) {
-            handlePaymentError(sdkErr);
-          }
-        } else if (upiId.trim()) {
-          // ── UPI Collect flow (VPA entered)
-          setPaymentInProgress(true);
-          setAwaitingApp(""); // No specific app — generic "check your UPI app" screen
-          triggerUpiSessionTimeout();
-
-          try {
-            rzp.createPayment({
-              ...basePayload,
-              vpa: upiId.trim(),
-            });
-          } catch (sdkErr: any) {
-            handlePaymentError(sdkErr);
-          }
-        } else {
-          // No UPI app selected and no VPA entered
-          setError("Please select a UPI app or enter your UPI ID.");
-          setLoading(false);
-          paymentLockRef.current = false;
-          return;
-        }
-
-      // ═══════════════════════════════════════════════════════════
-      // Card / PayLater / EMI — Option B Hybrid (Razorpay Standard Checkout)
-      // Razorpay's own hosted UI for these methods to keep PCI scope at SAQ A.
-      // Styled with brand-matching theme colors.
-      // ═══════════════════════════════════════════════════════════
-      } else if (paymentMethod === "CARD" || paymentMethod === "PAYLATER" || paymentMethod === "EMI") {
-        const options: any = {
-          key: keyId,
-          amount: orderData.amount,
-          currency: "INR",
-          name: "Zica Bella",
-          description: "Order Payment",
-          order_id: orderId,
-          handler: handlePaymentSuccess,
-          prefill: {
-            name: address.name,
-            email: address.email,
-            contact: address.phone,
-            method: paymentMethod === "CARD" ? "card" : paymentMethod === "PAYLATER" ? "paylater" : "emi",
+        },
+        theme: {
+          color: "#000000",
+          backdrop_color: "rgba(0,0,0,0.85)",
+        },
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+            paymentLockRef.current = false;
           },
-          theme: {
-            color: "#000000",
-            backdrop_color: "rgba(0,0,0,0.85)",
-          },
-          modal: {
-            ondismiss: function () {
-              setLoading(false);
-              setPaymentInProgress(false);
-              paymentLockRef.current = false;
+          confirm_close: true,
+        },
+      };
+
+      // Configure display blocks to show only the selected method in the Razorpay modal
+      if (paymentMethod === "UPI" || paymentMethod === "COD") {
+        // UPI: Standard Checkout auto-detects installed UPI apps on mobile,
+        // shows QR code on desktop, and supports VPA entry — all handled natively
+        options.prefill.method = "upi";
+        options.config = {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay using UPI",
+                instruments: [
+                  { method: "upi", flows: ["intent", "collect", "qr"] }
+                ]
+              }
             },
-            confirm_close: true,
-          },
+            sequence: ["block.upi"],
+            preferences: { show_default_blocks: false }
+          }
         };
-
-        // Configure display blocks to show only the selected method
-        if (paymentMethod === "CARD") {
-          options.config = {
-            display: {
-              blocks: { card: { name: "Pay via Card", instruments: [{ method: "card" }] } },
-              sequence: ["block.card"],
-              preferences: { show_default_blocks: false }
-            }
-          };
-        } else if (paymentMethod === "PAYLATER") {
-          options.config = {
-            display: {
-              blocks: { paylater: { name: "Pay Later", instruments: [{ method: "paylater" }] } },
-              sequence: ["block.paylater"],
-              preferences: { show_default_blocks: false }
-            }
-          };
-        } else if (paymentMethod === "EMI") {
-          options.config = {
-            display: {
-              blocks: { emi: { name: "EMI Options", instruments: [{ method: "emi" }] } },
-              sequence: ["block.emi"],
-              preferences: { show_default_blocks: false }
-            }
-          };
-        }
-
-        const rzp = new (window as any).Razorpay(options);
-        rzp.on('payment.failed', function (response: any) {
-          handlePaymentError(response);
-        });
-        rzp.open();
+      } else if (paymentMethod === "CARD") {
+        options.prefill.method = "card";
+        options.config = {
+          display: {
+            blocks: { card: { name: "Pay via Card", instruments: [{ method: "card" }] } },
+            sequence: ["block.card"],
+            preferences: { show_default_blocks: false }
+          }
+        };
+      } else if (paymentMethod === "PAYLATER") {
+        options.prefill.method = "paylater";
+        options.config = {
+          display: {
+            blocks: { paylater: { name: "Pay Later", instruments: [{ method: "paylater" }] } },
+            sequence: ["block.paylater"],
+            preferences: { show_default_blocks: false }
+          }
+        };
+      } else if (paymentMethod === "EMI") {
+        options.prefill.method = "emi";
+        options.config = {
+          display: {
+            blocks: { emi: { name: "EMI Options", instruments: [{ method: "emi" }] } },
+            sequence: ["block.emi"],
+            preferences: { show_default_blocks: false }
+          }
+        };
       }
 
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        handlePaymentError(response);
+      });
+      rzp.open();
+
     } catch (err: any) {
-      clearPaymentTimeout();
       setError(err.message || "An error occurred");
       setLoading(false);
-      setPaymentInProgress(false);
-      setAwaitingApp("");
       paymentLockRef.current = false;
     }
   };
@@ -1655,10 +1482,6 @@ export default function CheckoutPage() {
                     );
                     setPaymentInfoFired(true);
                   }
-                  if (method.id !== "UPI") {
-                    setSelectedUpiApp("");
-                    setUpiId("");
-                  }
                 }}
                 className={`py-2 px-0.5 text-[7px] min-[360px]:text-[8px] sm:text-[9.5px] font-normal uppercase tracking-[0.05em] min-[360px]:tracking-[0.1em] sm:tracking-[0.12em] rounded-lg text-center transition-all duration-300 border whitespace-nowrap ${isActive
                   ? "bg-foreground/[0.08] dark:bg-white/[0.1] border-foreground/15 dark:border-white/15 text-foreground scale-[1.02]"
@@ -1671,9 +1494,9 @@ export default function CheckoutPage() {
           })}
         </div>
 
-        {/* UPI details — shown for both UPI and COD (COD pays ₹99 upfront via UPI) */}
+        {/* UPI/COD info — Razorpay Standard Checkout handles UPI app selection natively */}
         {(paymentMethod === "UPI" || paymentMethod === "COD") && (
-          <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-300 mb-4 w-full">
+          <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-300 mb-4 w-full">
             {paymentMethod === "COD" && (
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
                 <Banknote className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
@@ -1682,197 +1505,16 @@ export default function CheckoutPage() {
                 </p>
               </div>
             )}
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">ENTER UPI ID</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  inputMode="text"
-                  autoComplete="off"
-                  placeholder="mobile@upi"
-                  value={upiId}
-                  onChange={(e) => {
-                    setUpiId(e.target.value);
-                    setSelectedUpiApp("");
-                    setUpiVpaError("");
-                  }}
-                  className={`w-full h-11 px-4 pr-11 rounded-xl bg-foreground/[0.02] border text-foreground text-[16px] sm:text-[11px] font-light placeholder:text-foreground/20 focus:outline-none transition-all tracking-wide ${
-                    upiVpaError ? "border-red-500/40 focus:border-red-500/60" : "border-foreground/5 focus:border-foreground/20"
-                  }`}
-                  style={{ fontSize: '16px' }}
-                />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none flex items-center justify-center">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                  </svg>
-                </div>
-              </div>
-              {upiVpaError && (
-                <p className="text-[8px] text-red-400 font-light pl-1 animate-in fade-in duration-200">{upiVpaError}</p>
-              )}
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
+              <CreditCard className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+              <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
+                {paymentMethod === "COD"
+                  ? "You\u2019ll be redirected to a secure payment window to complete the upfront fee via UPI."
+                  : "You\u2019ll be redirected to a secure payment window where you can pay using any UPI app, UPI ID, or scan a QR code."}
+              </p>
             </div>
-
-            {isInAppWebView && (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/15">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
-                <p className="text-[8px] font-light text-amber-400/80 leading-relaxed">
-                  UPI app payments aren&apos;t supported in this browser. Enter your UPI ID above instead.
-                </p>
-              </div>
-            )}
-
-            {isMobileDevice && (
-              <div className="flex flex-col gap-2">
-                <label className="text-[8px] font-light text-foreground/40 uppercase tracking-widest pl-1 leading-none">
-                  {isInAppWebView ? "UPI APPS (UNAVAILABLE IN THIS BROWSER)" : "OR PAY WITH UPI APP"}
-                </label>
-                <div className="grid grid-cols-2 gap-2 mt-1.5">
-                  {[
-                    {
-                      id: "google_pay",
-                      name: "GPay",
-                      logo: (
-                        <div className="flex items-center justify-center gap-1.5 py-1 w-full">
-                          <svg className="w-4.5 h-4.5 shrink-0" viewBox="0 0 24 24">
-                            <path d="M21.35 11.1H12v3.8h5.38c-.24 1.28-.96 2.37-2.05 3.1l3.2 2.5c1.87-1.73 2.95-4.28 2.95-7.3 0-.74-.07-1.4-.18-2.1z" fill="#4285F4" />
-                            <path d="M12 23c2.97 0 5.46-.97 7.28-2.66l-3.2-2.5c-.9.6-2.06.96-3.28.96-2.53 0-4.68-1.7-5.44-4.02H4.1v2.6C5.9 20.97 8.74 23 12 23z" fill="#34A853" />
-                            <path d="M6.56 14.78A6.87 6.87 0 0 1 6.2 12c0-.98.17-1.92.47-2.78V6.62H4.1a11.02 11.02 0 0 0 0 10.76l2.46-2.6z" fill="#FBBC05" />
-                            <path d="M12 5.08c1.62 0 3.08.56 4.22 1.64l3.15-3.15C17.44 1.93 14.97 1 12 1c-3.26 0-6.1 2.03-7.9 5.62l2.46 2.6c.76-2.32 2.91-4.14 5.44-4.14z" fill="#EA4335" />
-                          </svg>
-                          <span className="text-[11px] font-bold text-foreground tracking-tight pt-0.5">Pay</span>
-                        </div>
-                      )
-                    },
-                    {
-                      id: "phonepe",
-                      name: "PhonePe",
-                      logo: (
-                        <div className="flex items-center justify-center gap-1.5 py-1 w-full">
-                          <svg className="w-5 h-5 shrink-0" viewBox="0 0 40 40" fill="none">
-                            <rect width="40" height="40" rx="10" fill="#5f259f" />
-                            <path d="M11 20.5c0-4.69 3.81-8.5 8.5-8.5h6v4.5h-6c-2.21 0-4 1.79-4 4s1.79 4 4 4h6v4.5h-6c-4.69 0-8.5-3.81-8.5-8.5z" fill="#FFFFFF" />
-                            <path d="M21.5 25v-13h4v13h-4z" fill="#FFFFFF" />
-                          </svg>
-                          <span className="text-[11px] font-bold text-foreground tracking-tight">PhonePe</span>
-                        </div>
-                      )
-                    },
-                    {
-                      id: "paytm",
-                      name: "Paytm",
-                      logo: (
-                        <div className="flex items-center justify-center py-1 w-full">
-                          <svg className="h-3 shrink-0" viewBox="0 0 110 32" fill="none">
-                            <path d="M17.1 2.6H8.5c-.3 0-.5.2-.5.5v25.2c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-8h3.5c4.7 0 8.3-2.6 8.3-8.8 0-6.3-3.6-8.9-8.3-8.9zm-.4 12.3h-3.1V7.5h3.1c2.1 0 3.3.9 3.3 3.7 0 2.7-1.2 3.7-3.3 3.7zM35.6 13c-2.1 0-3.6 1-4.2 2.6V13.5c0-.3-.2-.5-.5-.5h-4.3c-.3 0-.5.2-.5.5v14.8c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-7.9c0-2.3 1.4-3.6 3.1-3.6 1.7 0 2.6.9 2.6 2.8V28.3c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-9.6c0-4-2-6.2-5.4-6.2z" fill="#00baf2" />
-                            <path d="M60.1 13.5c0-.3-.2-.5-.5-.5h-4.7c-.3 0-.5.2-.5.5v10.5c-.7-.5-1.9-.9-3.1-.9-3.2 0-5.7 2.3-5.7 5.7 0 3.3 2.5 5.7 5.7 5.7 1.3 0 2.4-.4 3.1-.9v1.2c0 .3.2.5.5.5h4.7c.3 0 .5-.2.5-.5V13.5zm-5.7 17.5c-1.4 0-2.4-1.1-2.4-2.4 0-1.3 1.1-2.4 2.4-2.4 1.4 0 2.4 1.1 2.4 2.4 0 1.3-1 2.4-2.4 2.4zM73.5 13.5c0-.3-.2-.5-.5-.5H68c-.3 0-.5.2-.5.5V18h-2.1c-.3 0-.5.2-.5.5v3.6c0 .3.2.5.5.5h2.1v5.7c0 3.2 1.6 4.9 4.8 4.9.9 0 1.7-.1 2.3-.4.3-.1.4-.3.4-.6v-3.7c0-.2-.1-.4-.3-.4-.3.1-.6.1-.9.1-1.2 0-1.7-.6-1.7-1.9v-5.7H73c.3 0 .5-.2.5-.5V18.5c0-.3-.2-.5-.5-.5h-1.5v-4.5zM83.4 13c-2.3 0-4.1.9-4.8 2.2V13.5c0-.3-.2-.5-.5-.5h-4.3c-.3 0-.5.2-.5.5v22.8c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5V25.2c.7 1.3 2.5 2.2 4.8 2.2 4.4 0 7.8-3.4 7.8-7.2S87.8 13 83.4 13zm-.4 10c-1.8 0-3-1.4-3-3.1s1.3-3.1 3-3.1 3.1 1.4 3.1 3.1-1.3 3.1-3.1 3.1zM93.3 13.5c0-.3-.2-.5-.5-.5h-4.3c-.3 0-.5.2-.5.5v14.8c0 .3.2.5.5.5h4.3c.3 0 .5-.2.5-.5V13.5z" fill="#002e6e" />
-                            <path d="M102.3 13c-2.1 0-3.6 1-4.2 2.6V13.5c0-.3-.2-.5-.5-.5h-4.3c-.3 0-.5.2-.5.5v14.8c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-7.9c0-2.3 1.4-3.6 3.1-3.6 1.7 0 2.6.9 2.6 2.8V28.3c0 .3.2.5.5.5h4.6c.3 0 .5-.2.5-.5v-9.6c0-4-2-6.2-5.4-6.2z" fill="#002e6e" />
-                          </svg>
-                        </div>
-                      )
-                    },
-                    {
-                      id: "bhim",
-                      name: "BHIM",
-                      logo: (
-                        <div className="flex items-center justify-center gap-1.5 py-1 w-full">
-                          <svg className="w-5 h-5 shrink-0" viewBox="0 0 40 40" fill="none">
-                            <rect width="40" height="40" rx="8" fill="#F0F0F0" />
-                            <path d="M8 12l8 16h6L14 12H8z" fill="#E65100" />
-                            <path d="M22 12l8 16h-6l-8-16h6z" fill="#1B5E20" />
-                            <path d="M16 12h12v4.5H16V12z" fill="#1A237E" />
-                            <path d="M16 23.5h12V28H16v-4.5z" fill="#1A237E" />
-                            <path d="M16 18h9v4h-9v-4z" fill="#1A237E" />
-                          </svg>
-                          <span className="text-[10px] font-bold text-foreground tracking-tight leading-none">BHIM</span>
-                        </div>
-                      )
-                    }
-                  ].filter(app => {
-                    if (supportedUpiApps.length === 0) return true;
-                    const normalizedApps = supportedUpiApps.map(a => a.toLowerCase().replace(/[^a-z0-9]/g, ""));
-                    return normalizedApps.includes(app.id) || 
-                           normalizedApps.includes(app.id.replace("_", "")) ||
-                           normalizedApps.includes(app.name.toLowerCase()) ||
-                           (app.id === "google_pay" && (normalizedApps.includes("gpay") || normalizedApps.includes("googlepay")));
-                  }).map((app) => {
-                    const isSelected = selectedUpiApp === app.id;
-                    const isDisabled = isInAppWebView;
-                    return (
-                      <button
-                        key={app.id}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => {
-                          setSelectedUpiApp(app.id);
-                          setUpiId("");
-                          setUpiVpaError("");
-                        }}
-                        className={`flex items-center justify-center p-3.5 rounded-xl border transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${isDisabled
-                          ? "opacity-25 cursor-not-allowed bg-foreground/[0.01] border-foreground/5"
-                          : isSelected
-                            ? "bg-foreground/[0.07] border-foreground/35 shadow-[0_0_12px_rgba(255,255,255,0.06)]"
-                            : "bg-foreground/[0.02] border-foreground/5 hover:border-foreground/20 hover:bg-foreground/[0.04]"
-                          }`}
-                      >
-                        {app.logo}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
         )}
-
-        {/* UPI Payment In-Progress Overlay */}
-        {paymentInProgress && (paymentMethod === "UPI" || paymentMethod === "COD") && (
-          <div className="flex flex-col items-center justify-center gap-4 p-6 rounded-2xl bg-foreground/[0.03] border border-foreground/5 mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full border-2 border-foreground/10 border-t-foreground/60 animate-spin" />
-            </div>
-            {awaitingApp ? (
-              <div className="text-center">
-                <p className="text-[11px] font-medium text-foreground/80 mb-1">
-                  Waiting for you to approve in {awaitingApp}…
-                </p>
-                <p className="text-[8px] font-light text-foreground/40 uppercase tracking-widest">
-                  Complete the payment in the app
-                </p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <p className="text-[11px] font-medium text-foreground/80 mb-1">
-                  Check your UPI app for a payment request
-                </p>
-                <p className="text-[8px] font-light text-foreground/40 uppercase tracking-widest">
-                  Approve the request to complete payment
-                </p>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                // Cancel the payment
-                if (razorpayRef.current) {
-                  try {
-                    razorpayRef.current.emit('payment.cancel');
-                  } catch (e) {
-                    console.error('[Razorpay] Cancel emit error:', e);
-                  }
-                }
-                setPaymentInProgress(false);
-                setAwaitingApp("");
-                setLoading(false);
-                setError("Payment was cancelled. You can try again.");
-              }}
-              className="h-9 px-6 rounded-xl bg-foreground/[0.03] border border-foreground/10 text-foreground/60 text-[9px] font-light uppercase tracking-[0.12em] hover:bg-foreground/[0.06] hover:text-foreground/80 active:scale-[0.98] transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
-            >
-              Cancel Payment
-            </button>
-          </div>
-        )}
-
 
       </div>
     );
@@ -2113,15 +1755,15 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={handlePlaceOrder}
-              disabled={loading || paymentInProgress}
+              disabled={loading}
               className={`w-full ${paymentMethod === "COD" ? "h-13 pl-13" : "h-11 pl-11"
                 } rounded-xl bg-black dark:bg-white text-white dark:text-black hover:opacity-95 active:scale-[0.98] border border-black/10 dark:border-white/10 transition-all flex items-center justify-between pr-1.5 disabled:opacity-50 shadow-sm`}
             >
               <span className="text-[9.5px] font-bold tracking-[0.16em] uppercase text-center flex-1 whitespace-nowrap">
-                {loading || paymentInProgress ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
+                {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
               </span>
               <div className="w-8 h-8 rounded-lg bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0">
-                {loading || paymentInProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" strokeWidth={2.5} />}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" strokeWidth={2.5} />}
               </div>
             </button>
           )}

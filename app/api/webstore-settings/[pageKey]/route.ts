@@ -32,6 +32,21 @@ export async function GET(
       });
     }
 
+    // If no row exists and pageKey is social_links, create seed defaults dynamically to avoid blank states
+    if (!settings && pageKey === 'social_links') {
+      settings = await prisma.storeSettings.create({
+        data: {
+          pageKey: 'social_links',
+          metaDescription: JSON.stringify([
+            { id: "instagram", platform: "instagram", label: "Instagram", url: "https://www.instagram.com/zica.bella", placements: ["footer", "mobile"] },
+            { id: "apple", platform: "apple", label: "Apple Music", url: "https://music.apple.com", placements: ["footer", "mobile"] },
+            { id: "spotify", platform: "spotify", label: "Spotify", url: "https://open.spotify.com", placements: ["footer", "mobile"] },
+            { id: "youtube", platform: "youtube", label: "YouTube", url: "https://www.youtube.com/@Zicabella", placements: ["footer", "mobile"] }
+          ])
+        }
+      });
+    }
+
     // Get last editor details from the audit log
     const lastAudit = await prisma.auditLog.findFirst({
       where: {
@@ -79,11 +94,13 @@ export async function PUT(
     } = body;
 
     // Server-side validation
-    if (homePageTitle && homePageTitle.length > 70) {
-      return NextResponse.json({ error: 'Title cannot exceed 70 characters.' }, { status: 400 });
-    }
-    if (metaDescription && metaDescription.length > 320) {
-      return NextResponse.json({ error: 'Meta description cannot exceed 320 characters.' }, { status: 400 });
+    if (pageKey !== 'social_links') {
+      if (homePageTitle && homePageTitle.length > 70) {
+        return NextResponse.json({ error: 'Title cannot exceed 70 characters.' }, { status: 400 });
+      }
+      if (metaDescription && metaDescription.length > 320) {
+        return NextResponse.json({ error: 'Meta description cannot exceed 320 characters.' }, { status: 400 });
+      }
     }
 
     // Upsert settings row

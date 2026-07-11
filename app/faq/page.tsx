@@ -22,12 +22,12 @@ export const metadata: Metadata = {
     "premium heavy-cotton graphic tees"
   ],
   alternates: {
-    canonical: "https://www.zicabella.com/faq",
+    canonical: (process.env.NEXT_PUBLIC_APP_URL || "https://app.zicabella.com") + "/faq",
   },
   openGraph: {
     title: "Frequently Asked Questions | Zica Bella - Premium Luxury Streetwear",
     description: "Learn about Zica Bella's premium oversized streetwear collections, upfront COD policies, sizing, and global design vs international brands.",
-    url: "https://www.zicabella.com/faq",
+    url: (process.env.NEXT_PUBLIC_APP_URL || "https://app.zicabella.com") + "/faq",
     siteName: "Zica Bella",
     locale: "en_IN",
     type: "website",

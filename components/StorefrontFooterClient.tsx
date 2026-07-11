@@ -15,7 +15,8 @@ import {
   MapPin, 
   CreditCard, 
   ChevronDown, 
-  ChevronUp
+  ChevronUp,
+  Globe
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
@@ -39,12 +40,21 @@ interface Shop {
   footerVideo?: string;
 }
 
+interface SocialLink {
+  id: string;
+  platform: string;
+  label: string;
+  url: string;
+  placements: string[];
+}
+
 interface StorefrontFooterClientProps {
   shop: Shop | null;
   policies: Policy[];
+  socialLinks?: SocialLink[];
 }
 
-export default function StorefrontFooterClient({ shop, policies }: StorefrontFooterClientProps) {
+export default function StorefrontFooterClient({ shop, policies, socialLinks }: StorefrontFooterClientProps) {
   const { trackSubscribe } = useMetaEvents();
   // Mobile accordion states
   const [shopOpen, setShopOpen] = useState(false);
@@ -100,12 +110,48 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
   const appleUrl = shop?.appleUrl || "https://music.apple.com";
   const youtubeUrl = shop?.youtubeUrl || "https://www.youtube.com/@Zicabella";
 
-  const socialLinks = [
-    { url: instagramUrl, icon: Instagram, label: "Instagram" },
-    { url: appleUrl,     icon: Music2Icon, label: "Apple Music" },
-    { url: spotifyUrl,   icon: SpotifyIcon, label: "Spotify" },
-    { url: youtubeUrl,   icon: Youtube,   label: "YouTube" },
+  const defaultSocialLinks = [
+    { url: instagramUrl, platform: "instagram", label: "Instagram" },
+    { url: appleUrl,     platform: "apple",     label: "Apple Music" },
+    { url: spotifyUrl,   platform: "spotify",   label: "Spotify" },
+    { url: youtubeUrl,   platform: "youtube",   label: "YouTube" },
   ];
+
+  const activeSocialLinks = socialLinks && socialLinks.length > 0
+    ? socialLinks
+        .filter((link: any) => link.placements?.includes("footer") && link.url)
+        .map((link: any) => ({
+          url: link.url,
+          platform: link.platform,
+          label: link.label
+        }))
+    : defaultSocialLinks;
+
+  const getSocialIcon = (platform: string) => {
+    switch (platform.toLowerCase()) {
+      case "instagram":
+        return Instagram;
+      case "youtube":
+        return Youtube;
+      case "spotify":
+        return SpotifyIcon;
+      case "apple":
+        return Music2Icon;
+      case "tiktok":
+        return TikTokIcon;
+      case "twitter":
+      case "x":
+        return XIcon;
+      case "pinterest":
+        return PinterestIcon;
+      case "snapchat":
+        return SnapchatIcon;
+      case "whatsapp":
+        return WhatsAppIcon;
+      default:
+        return Globe;
+    }
+  };
 
   return (
     <footer className="w-full relative z-10 bg-white dark:bg-black" aria-label="Storefront Footer">
@@ -177,14 +223,17 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
           <div className="col-span-2 space-y-4 pt-2 flex flex-col items-start">
             <h3 className="text-[8.5px] font-bold uppercase tracking-[0.25em] text-foreground/25">Connect</h3>
             <div className="flex flex-col gap-2.5 w-full">
-              {socialLinks.map(({ url, icon: Icon, label }) => (
-                <a key={label} href={url} target="_blank" rel="noopener noreferrer"
-                  className="group flex items-center justify-between text-foreground/45 hover:text-foreground transition-all duration-300 w-full max-w-[140px] py-1 border-b border-foreground/5 hover:border-foreground/10"
-                >
-                  <span className="text-[9.5px] font-normal tracking-[0.12em] uppercase">{label}</span>
-                  <Icon className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
-                </a>
-              ))}
+              {activeSocialLinks.map(({ url, platform, label }) => {
+                const Icon = getSocialIcon(platform);
+                return (
+                  <a key={label} href={url} target="_blank" rel="noopener noreferrer"
+                    className="group flex items-center justify-between text-foreground/45 hover:text-foreground transition-all duration-300 w-full max-w-[140px] py-1 border-b border-foreground/5 hover:border-foreground/10"
+                  >
+                    <span className="text-[9.5px] font-normal tracking-[0.12em] uppercase">{label}</span>
+                    <Icon className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                );
+              })}
             </div>
           </div>
 
@@ -252,29 +301,15 @@ export default function StorefrontFooterClient({ shop, policies }: StorefrontFoo
 
         {/* Premium Minimal Social Row */}
         <div className="flex justify-center gap-4 mb-8">
-          {/* Instagram */}
-          <a href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"
-            className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
-            <Instagram className="w-4 h-4" />
-          </a>
-          
-          {/* Spotify */}
-          <a href={spotifyUrl} target="_blank" rel="noopener noreferrer" aria-label="Spotify"
-            className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
-            <SpotifyIcon className="w-4 h-4" />
-          </a>
-
-          {/* Apple Music */}
-          <a href={appleUrl} target="_blank" rel="noopener noreferrer" aria-label="Apple Music"
-            className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
-            <Music2Icon className="w-4 h-4" />
-          </a>
-
-          {/* YouTube */}
-          <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label="YouTube"
-            className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
-            <Youtube className="w-4 h-4" />
-          </a>
+          {activeSocialLinks.map(({ url, platform, label }, i) => {
+            const Icon = getSocialIcon(platform);
+            return (
+              <a key={`${label}-${i}`} href={url} target="_blank" rel="noopener noreferrer" aria-label={label}
+                className="w-8 h-8 rounded-full border border-foreground/[0.08] dark:border-white/10 flex items-center justify-center text-foreground/50 dark:text-white/40 hover:text-foreground dark:hover:text-white transition-all bg-foreground/[0.01] dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20 active:scale-90 shadow-none">
+                <Icon className="w-4 h-4" />
+              </a>
+            );
+          })}
         </div>
 
         {/* Accordions & Newsletter Container */}
@@ -550,6 +585,51 @@ function Music2Icon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
       <path d="M19 3H9c-1.1 0-2 .9-2 2v11.5c-.75-.41-1.6-.5-2.5-.24-1.62.48-2.5 2.19-2 3.81.49 1.62 2.2 2.5 3.82 2 .98-.3 1.68-1.11 1.68-2.07V9h8v4.5c-.75-.41-1.6-.5-2.5-.24-1.62.48-2.5 2.19-2 3.81.49 1.62 2.2 2.5 3.82 2 .98-.3 1.68-1.11 1.68-2.07V5c0-1.1-.9-2-2-2z"/>
+    </svg>
+  );
+}
+
+// Custom TikTok SVG Icon
+function TikTokIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.86-.74-3.95-1.72-.1.08-.21.17-.3.26-.01 2.82.01 5.64-.01 8.46-.09 1.83-.75 3.73-2.07 4.96-1.57 1.48-3.9 2.06-5.96 1.81-2.19-.24-4.32-1.69-5.16-3.76-.98-2.33-.53-5.26 1.18-7.07 1.41-1.51 3.63-2.2 5.66-1.89v4.03c-1.07-.22-2.29.07-3.04.88-.78.83-.93 2.15-.4 3.12.56 1.05 1.78 1.67 2.95 1.54 1.1-.09 2.02-.99 2.12-2.1.04-1.92.01-3.85.02-5.77.01-4.04-.01-8.07.01-12.11z"/>
+    </svg>
+  );
+}
+
+// Custom X / Twitter SVG Icon
+function XIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+    </svg>
+  );
+}
+
+// Custom Pinterest SVG Icon
+function PinterestIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M12 2C6.48 2 2 6.48 2 12c0 4.27 2.68 7.91 6.46 9.33-.09-.8-.17-2.03.03-2.9.19-.82 1.2-5.18 1.2-5.18s-.3-.62-.3-1.54c0-1.44.84-2.52 1.88-2.52.88 0 1.31.67 1.31 1.47 0 1.25-.8 3.12-1.21 4.85-.24 1.04.53 1.89 1.55 1.89 1.87 0 3.3-1.97 3.3-4.8 0-2.5-1.8-4.26-4.38-4.26-2.98 0-4.73 2.24-4.73 4.55 0 .9.35 1.87.78 2.39.09.1.1.19.07.3l-.29 1.19c-.05.2-.16.24-.37.14-1.39-.65-2.26-2.67-2.26-4.3 0-3.5 2.54-6.7 7.32-6.7 3.84 0 6.83 2.74 6.83 6.4 0 3.82-2.4 6.9-5.74 6.9-1.12 0-2.18-.58-2.54-1.27l-.69 2.63c-.25.96-.93 2.16-1.39 2.9C10.02 21.87 11 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/>
+    </svg>
+  );
+}
+
+// Custom Snapchat SVG Icon
+function SnapchatIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M12 2c-3.79 0-6 2.5-6 4.96 0 1.59.85 2.92 1.63 3.63.26.24.45.54.34.92-.09.32-.42.92-1 .92-.3 0-.61-.17-.92-.17-.55 0-.91.53-.91.95 0 .39.29.62.62.77.72.33 1.48.33 2.24.33 1.23 0 2.26-.67 3.22-1.32.48-.33.95-.65 1.46-.65.29 0 .58.11.83.33 1.15 1.01 2.95 1.64 4.54 1.64.76 0 1.52 0 2.24-.33.33-.15.62-.38.62-.77 0-.42-.36-.95-.91-.95-.31 0-.62.17-.92.17-.58 0-.91-.6-1-.92-.11-.38.08-.68.34-.92.78-.71 1.63-2.04 1.63-3.63C18 4.5 15.79 2 12 2zm0 1.5c3 0 4.5 2 4.5 3.46 0 1.52-1 2.91-2.02 3.6-.54.37-1 .82-.87 1.52.09.47.53 1.08 1.39 1.08.38 0 .86-.2 1.23-.2.27 0 .27.35.08.43-.88.4-1.74.45-2.61.45-1.04 0-1.89-.5-2.73-1.07-.63-.44-1.26-.87-1.98-.87-.31 0-.62.08-.9.27-1.3 1.14-3 1.67-4.73 1.67-.87 0-1.73-.05-2.61-.45-.19-.08-.19-.43.08-.43.37 0 .85.2 1.23.2.86 0 1.3-.61 1.39-1.08.13-.7-.33-1.15-.87-1.52C5.5 8.96 4.5 7.57 4.5 6.96 4.5 5.5 6 3.5 9 3.5c1.17 0 2.12.56 3 .56.88 0 1.83-.56 3-.56z"/>
+    </svg>
+  );
+}
+
+// Custom WhatsApp SVG Icon
+function WhatsAppIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.248 8.477 3.517 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.458L0 24zm6.59-4.846c1.62.962 3.21 1.47 5.366 1.472 5.434 0 9.858-4.417 9.861-9.848.002-2.63-1.02-5.101-2.88-6.961C17.078 1.957 14.6 1.936 12.004 1.936c-5.438 0-9.863 4.418-9.866 9.85-.001 1.942.493 3.834 1.43 5.513l-.955 3.49 3.58-.936zm11.367-7.25c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.669.149-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
     </svg>
   );
 }

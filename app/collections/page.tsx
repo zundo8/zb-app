@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Subculture Collections & Limited Drops | Zica Bella®",
     description: "Explore Zica Bella's curated limited-edition streetwear drops and subculture collections. Discover boxy drop-shoulder oversized tees, double-yarn loopback hoodies, and custom acid-wash denims.",
-    url: "https://zicabella.com/collections",
+    url: (process.env.NEXT_PUBLIC_APP_URL || "https://app.zicabella.com") + "/collections",
     images: [
       {
         url: "/zb-logo-220px.png",

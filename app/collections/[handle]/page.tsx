@@ -51,27 +51,29 @@ export async function generateMetadata({
     'pre-shrunk cotton blanks',
   ];
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+
   return {
     title,
     description,
     keywords: customKeywords.join(', '),
     alternates: {
-      canonical: `https://www.zicabella.com/collections/${params.handle}`,
+      canonical: `${appUrl}/collections/${params.handle}`,
     },
     openGraph: {
       title,
       description,
-      url: `https://www.zicabella.com/collections/${params.handle}`,
+      url: `${appUrl}/collections/${params.handle}`,
       type: 'website',
       images: collection?.image?.src
         ? [{ url: collection.image.src, width: 800, height: 800, alt: collection.title }]
-        : [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Zica Bella®' }],
+        : [{ url: `${appUrl}/og-image.jpg`, width: 1200, height: 630, alt: 'Zica Bella®' }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: collection?.image?.src ? [collection.image.src] : ['/og-image.jpg'],
+      images: collection?.image?.src ? [collection.image.src] : [`${appUrl}/og-image.jpg`],
     },
   };
 }

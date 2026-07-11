@@ -11,6 +11,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Store configuration not found' }, { status: 404 });
     }
 
+    const socialLinksData = await prisma.storeSettings.findUnique({
+      where: { pageKey: 'social_links' }
+    }).catch(() => null);
+
     // Parse JSON fields safely
     const safeJsonParse = (val: string | null | undefined, fallback: any = []) => {
       if (!val) return fallback;
@@ -30,6 +34,42 @@ export async function GET() {
     };
 
     const s = shop as any;
+
+    let instagram = nullIfEmpty(s.instagramUrl);
+    let apple = nullIfEmpty(s.appleUrl);
+    let spotify = nullIfEmpty(s.spotifyUrl);
+    let youtube = nullIfEmpty(s.youtubeUrl);
+    let tiktok: string | null = null;
+    let twitter: string | null = null;
+    let facebook: string | null = null;
+    let pinterest: string | null = null;
+
+    if (socialLinksData?.metaDescription) {
+      try {
+        const parsed = JSON.parse(socialLinksData.metaDescription);
+        if (Array.isArray(parsed)) {
+          const instaItem = parsed.find((l: any) => l.platform === 'instagram' && (l.placements.includes('app') || l.placements.includes('mobile')));
+          const appleItem = parsed.find((l: any) => l.platform === 'apple' && (l.placements.includes('app') || l.placements.includes('mobile')));
+          const spotifyItem = parsed.find((l: any) => l.platform === 'spotify' && (l.placements.includes('app') || l.placements.includes('mobile')));
+          const youtubeItem = parsed.find((l: any) => l.platform === 'youtube' && (l.placements.includes('app') || l.placements.includes('mobile')));
+          const tiktokItem = parsed.find((l: any) => l.platform === 'tiktok' && (l.placements.includes('app') || l.placements.includes('mobile')));
+          const twitterItem = parsed.find((l: any) => (l.platform === 'twitter' || l.platform === 'x') && (l.placements.includes('app') || l.placements.includes('mobile')));
+          const facebookItem = parsed.find((l: any) => l.platform === 'facebook' && (l.placements.includes('app') || l.placements.includes('mobile')));
+          const pinterestItem = parsed.find((l: any) => l.platform === 'pinterest' && (l.placements.includes('app') || l.placements.includes('mobile')));
+
+          if (instaItem) instagram = instaItem.url || null;
+          if (appleItem) apple = appleItem.url || null;
+          if (spotifyItem) spotify = spotifyItem.url || null;
+          if (youtubeItem) youtube = youtubeItem.url || null;
+          if (tiktokItem) tiktok = tiktokItem.url || null;
+          if (twitterItem) twitter = twitterItem.url || null;
+          if (facebookItem) facebook = facebookItem.url || null;
+          if (pinterestItem) pinterest = pinterestItem.url || null;
+        }
+      } catch (err) {
+        console.error('[App API config social parsing failed]:', err);
+      }
+    }
 
     const config = {
       hero: {
@@ -68,10 +108,14 @@ export async function GET() {
         background: nullIfEmpty(s.pdpBackground),
       },
       social: {
-        instagram: nullIfEmpty(s.instagramUrl),
-        apple: nullIfEmpty(s.appleUrl),
-        spotify: nullIfEmpty(s.spotifyUrl),
-        youtube: nullIfEmpty(s.youtubeUrl),
+        instagram,
+        apple,
+        spotify,
+        youtube,
+        tiktok,
+        twitter,
+        facebook,
+        pinterest,
       },
       media: {
         featured: nullIfEmpty(s.featuredMedia),

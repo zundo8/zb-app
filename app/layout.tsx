@@ -44,7 +44,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://www.zicabella.com'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com'),
   title: {
     default: 'Zica Bella® | Premium Streetwear, Heavyweight Hoodies & Oversized Tees',
     template: '%s | Zica Bella® — Luxury Indian Streetwear',
@@ -68,7 +68,7 @@ export const metadata: Metadata = {
     'aesthetic oversized hoodies',
     'Indian streetwear design',
   ],
-  authors: [{ name: 'Zica Bella', url: 'https://www.zicabella.com' }],
+  authors: [{ name: 'Zica Bella', url: process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com' }],
   creator: 'Zica Bella',
   publisher: 'Zica Bella',
   category: 'Fashion & Apparel',
@@ -89,7 +89,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_IN',
-    url: 'https://www.zicabella.com',
+    url: process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com',
     siteName: 'Zica Bella',
     title: 'Zica Bella® | Premium Streetwear & Heavyweight Graphic Tees',
     description:
@@ -113,9 +113,9 @@ export const metadata: Metadata = {
     site: '@zicabella',
   },
   alternates: {
-    canonical: 'https://www.zicabella.com',
+    canonical: process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com',
     languages: {
-      'en-IN': 'https://www.zicabella.com',
+      'en-IN': process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com',
     },
   },
   icons: {
