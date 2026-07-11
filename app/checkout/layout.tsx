@@ -8,7 +8,7 @@ export default function CheckoutLayout({
   return (
     <>
       <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
-      <Script src="https://checkout.razorpay.com/v1/razorpay.js" strategy="afterInteractive" />
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       {children}
     </>
   );

@@ -285,6 +285,11 @@ export default function CheckoutPage() {
   const [upiVpaError, setUpiVpaError] = useState("");
   const [isInAppWebView, setIsInAppWebView] = useState(false);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [prefetchedOrder, setPrefetchedOrder] = useState<{
+    id: string;
+    amount: number;
+    keyId: string;
+  } | null>(null);
 
   const paymentLockRef = useRef<boolean>(false);
   const timeoutRef = useRef<any>(null);
@@ -662,33 +667,86 @@ export default function CheckoutPage() {
   // Dynamically load supported UPI apps when entering payment step or switching to UPI
   useEffect(() => {
     if ((paymentMethod === "UPI" || paymentMethod === "COD") && !upiAppsChecked && typeof window !== "undefined") {
-      const RazorpayClass = (window as any).Razorpay;
-      if (RazorpayClass && typeof RazorpayClass.getSupportedUpiIntentApps === "function") {
-        setUpiAppsChecked(true);
-        RazorpayClass.getSupportedUpiIntentApps()
-          .then((response: any) => {
-            console.log("[Razorpay] Supported UPI Intent apps response:", response);
-            let appsList: string[] = [];
-            if (response && response.supportedApps && Array.isArray(response.supportedApps)) {
-              appsList = response.supportedApps;
-            } else if (Array.isArray(response)) {
-              appsList = response;
-            } else if (response && typeof response === "object") {
-              appsList = Object.keys(response).filter(key => response[key] === true || response[key] === "true");
-            }
-            if (appsList.length > 0) {
-              setSupportedUpiApps(appsList);
-              try {
-                sessionStorage.setItem("zb_supported_upi_apps", JSON.stringify(appsList));
-              } catch {}
-            }
-          })
-          .catch((err: any) => {
-            console.error("[Razorpay] Error fetching supported UPI apps:", err);
-          });
-      }
+      const loadUpiApps = async () => {
+        try {
+          const RazorpayClass = (window as any).Razorpay;
+          if (!RazorpayClass) return;
+
+          // Fetch credentials config to get keyId
+          const configRes = await fetch("/api/razorpay/config");
+          const configData = await configRes.json();
+          if (!configData.isConfigured || !configData.keyId) return;
+
+          setUpiAppsChecked(true);
+          const key = configData.keyId;
+          const tempRzp = new RazorpayClass({ key });
+          
+          if (tempRzp && typeof tempRzp.getSupportedUpiIntentApps === "function") {
+            tempRzp.getSupportedUpiIntentApps()
+              .then((response: any) => {
+                console.log("[Razorpay] Supported UPI Intent apps response:", response);
+                let appsList: string[] = [];
+                if (response && response.supportedApps && Array.isArray(response.supportedApps)) {
+                  appsList = response.supportedApps;
+                } else if (Array.isArray(response)) {
+                  appsList = response;
+                } else if (response && typeof response === "object") {
+                  appsList = Object.keys(response).filter(key => response[key] === true || response[key] === "true");
+                }
+                if (appsList.length > 0) {
+                  setSupportedUpiApps(appsList);
+                  try {
+                    sessionStorage.setItem("zb_supported_upi_apps", JSON.stringify(appsList));
+                  } catch {}
+                }
+              })
+              .catch((err: any) => {
+                console.error("[Razorpay] Error fetching supported UPI apps:", err);
+              });
+          }
+        } catch (e) {
+          console.error("[Razorpay] Error loading supported UPI apps:", e);
+        }
+      };
+
+      loadUpiApps();
     }
   }, [paymentMethod, upiAppsChecked]);
+
+  // Background prefetch of the Razorpay order when entering Step 2 or changing payment configurations
+  useEffect(() => {
+    if (step === 2 && items.length > 0 && address.name && address.phone) {
+      const prefetchRazorpayOrder = async () => {
+        try {
+          const paymentAmount = paymentMethod === "COD" ? codFee : total;
+          const res = await fetch("/api/checkout/razorpay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: paymentAmount,
+              notes: {
+                name: address.name,
+                email: address.email || "",
+                contact: address.phone,
+              }
+            }),
+          });
+          const orderData = await res.json();
+          if (res.ok) {
+            setPrefetchedOrder({
+              id: orderData.id || orderData.razorpay_order_id,
+              amount: orderData.amount,
+              keyId: orderData.keyId || orderData.key_id,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to prefetch Razorpay order:", e);
+        }
+      };
+
+      prefetchRazorpayOrder();
+    }
+  }, [step, paymentMethod, total, codFee, address.name, address.email, address.phone, items.length]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -1247,28 +1305,42 @@ export default function CheckoutPage() {
         }
       }
 
-      const res = await fetch("/api/checkout/razorpay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: paymentAmount,
-          notes: {
-            name: address.name,
-            email: address.email,
-            contact: address.phone,
-          }
-        }),
-      });
+      let orderId = "";
+      let keyId = "";
+      let orderData: any = null;
 
-      const orderData = await res.json();
+      if (prefetchedOrder && Math.round(prefetchedOrder.amount / 100) === Math.round(paymentAmount)) {
+        orderId = prefetchedOrder.id;
+        keyId = prefetchedOrder.keyId;
+        orderData = prefetchedOrder;
+        console.log("[Razorpay] Using pre-fetched order:", orderId);
+      } else {
+        console.log("[Razorpay] Pre-fetched order missing or mismatch, fetching fresh...");
+        const res = await fetch("/api/checkout/razorpay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: paymentAmount,
+            notes: {
+              name: address.name,
+              email: address.email,
+              contact: address.phone,
+            }
+          }),
+        });
 
-      if (!res.ok) throw new Error(orderData.error || "Failed to initiate payment");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to initiate payment");
+        orderId = data.id || data.razorpay_order_id;
+        keyId = data.keyId || data.key_id;
+        orderData = data;
+      }
 
       // Track Payment Initiated event
       trackStorefrontEvent('Payment Initiated', {
         customerId: (session?.user as any)?.id || null,
         customerPhone: address.phone || null,
-        orderId: orderData.id || orderData.razorpay_order_id || null,
+        orderId: orderId,
         metadata: {
           amount: paymentAmount,
           currency: 'INR',
@@ -1277,8 +1349,6 @@ export default function CheckoutPage() {
         }
       });
 
-      const keyId = orderData.keyId || orderData.key_id;
-      const orderId = orderData.id || orderData.razorpay_order_id;
       const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
 
       // Shared success handler — same payload shape as the old Standard Checkout handler
