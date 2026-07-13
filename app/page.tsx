@@ -190,6 +190,7 @@ export default async function Home() {
   const blueprintSubtitle = nullIfEmpty(s?.blueprintSubtitle);
   const footerVideo    = s?.footerVideo;
   const footerVideoMobile = s?.footerVideoMobile;
+  const shopAllLink = s?.shopAllLink || '/collections/all';
   
   const socialLinks = [
     { url: s?.instagramUrl, icon: Instagram, label: "Instagram" },
@@ -265,7 +266,7 @@ export default async function Home() {
         {/* Bottom Center: Minimal "Shop all" link */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-1.5 animate-in fade-in duration-1000 delay-500">
           <Link 
-            href="/collections/all" 
+            href={shopAllLink} 
             className="text-[9px] font-bold text-white/50 hover:text-white uppercase tracking-[0.4em] transition-all hover:tracking-[0.45em] active:scale-95 duration-500 ease-out flex items-center gap-1"
           >
             Shop all

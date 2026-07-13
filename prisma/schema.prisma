@@ -114,9 +114,19 @@ model Shop {
   homepageCollection       String?    @default("")
   homepageProducts         String?    @default("")
   collectionProductOrders  String?    @default("{}")
+  shopAllLink              String?    @default("/collections/all")
   customers                Customer[]
   orders                   Order[]
   products                 Product[]
+}
+
+model ProductMoodBoard {
+  id               String   @id @default(cuid())
+  shopifyProductId String   @unique
+  images           String   @default("[]")
+  displayOrder     Int      @default(0)
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
 }
 
 model Customer {

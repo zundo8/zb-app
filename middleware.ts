@@ -26,7 +26,10 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
     "/web-store",
     "/web-store/orders",
     "/web-store/customers",
+    "/web-store/abandoned-carts",
     "/web-store/storefront",
+    "/web-store/homepage",
+    "/web-store/products",
     "/web-store/banners",
     "/web-store/coupons",
     "/web-store/logins",
@@ -181,10 +184,12 @@ export default withAuth(
       "/api/web-store": "STOREFRONT",
       "/dashboard/webstore-settings": "STOREFRONT",
       "/api/webstore-settings": "STOREFRONT",
+      "/api/admin/abandoned-carts": "STOREFRONT",
+      "/api/admin/mood-board": "STOREFRONT",
       
       // Admin API mappings for middleware double-guard
       "/api/admin/users": "ADMIN_USERS",
-      "/api/admin/audit-logs": "AUDIT_LOG",
+      "/api/admin/audit-logs": "ADMIN_USERS",
     };
 
     // Check module-specific page/API access
@@ -199,6 +204,8 @@ export default withAuth(
       "/api/webstore-settings": "/dashboard/webstore-settings/preferences",
       "/api/admin/users": "/dashboard/admin-users",
       "/api/admin/audit-logs": "/dashboard/audit-log",
+      "/api/admin/abandoned-carts": "/web-store/abandoned-carts",
+      "/api/admin/mood-board": "/web-store/products",
     };
 
     // Sort routes by length descending so that longest match runs first (e.g. /dashboard/admin-users before /dashboard)

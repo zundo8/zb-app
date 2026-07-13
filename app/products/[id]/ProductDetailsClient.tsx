@@ -71,6 +71,7 @@ export default function ProductDetailsClient({
   const [isAdded, setIsAdded] = useState(false);
   const [quickAddProduct, setQuickAddProduct] = useState<ShopifyProduct | null>(null);
   const [sizeError, setSizeError] = useState(false);
+  const [moodBoardImages, setMoodBoardImages] = useState<string[]>([]);
 
   // Sync zoom status on index switches
   useEffect(() => {
@@ -98,6 +99,20 @@ export default function ProductDetailsClient({
   const { add: addToCart } = useCart();
   const { toggleBookmark, isBookmarked, setIsOpen } = useBookmarks();
   const { addProduct: recordVisit, recentlyViewed } = useRecentlyViewed();
+
+  // Fetch mood board images for this product
+  useEffect(() => {
+    const productId = product.id?.toString();
+    if (!productId) return;
+    fetch(`/api/mood-board?productId=${productId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.images) && data.images.length > 0) {
+          setMoodBoardImages(data.images.filter(Boolean));
+        }
+      })
+      .catch(() => {});
+  }, [product.id]);
 
   useEffect(() => {
     setWinHeight(window.innerHeight);
@@ -150,6 +165,22 @@ export default function ProductDetailsClient({
   // Robust helper to get metafield by key (case-insensitive, space/hyphen agnostic)
   const getMeta = (key: string) => {
     if (!product.metafields) return null;
+    
+    // Explicit mapping for specific storefront tabs
+    const targetKey = key.toUpperCase();
+    if (targetKey === 'SHIPPING & RETURN') {
+      const found = product.metafields.find(
+        m => m.key === 'shipping_return' || matchKey(m.key, key)
+      );
+      return found?.value;
+    }
+    if (targetKey === 'SIZE & FIT') {
+      const found = product.metafields.find(
+        m => m.key === 'size_fit' || matchKey(m.key, key)
+      );
+      return found?.value;
+    }
+
     const found = product.metafields.find(m => matchKey(m.key, key));
     return found?.value;
   };
@@ -259,13 +290,20 @@ export default function ProductDetailsClient({
     }
   };
 
+  const tagsList = product.tags ? product.tags.split(',').map(t => t.trim().toLowerCase()) : [];
+  const hideDescription = tagsList.includes('hide:description');
+  const hideDetails = tagsList.includes('hide:details');
+  const hideSizeFit = tagsList.includes('hide:size_fit');
+  const hideCare = tagsList.includes('hide:care');
+  const hideShippingReturn = tagsList.includes('hide:shipping_return');
+
   const tabs = [
-    { id: 'details', label: 'Description', show: shopSettings?.showDetails ?? true },
-    { id: 'more-details', label: 'Details', show: (shopSettings?.showDetails ?? true) && !!getMeta('DETAILS') },
-    { id: 'size-fit', label: 'Size & Fit', show: (shopSettings?.showSizeFit ?? true) && !!getMeta('SIZE & FIT') },
-    { id: 'care', label: 'Care', show: (shopSettings?.showCare ?? true) && !!getMeta('CARE') },
-    { id: 'shipping', label: 'Shipping & Return', show: (shopSettings?.showShippingReturn ?? true) && !!getMeta('SHIPPING & RETURN') },
-    { id: 'brand', label: 'Brand', show: (shopSettings?.showBrand ?? true) && !!getMeta('BRAND') },
+    { id: 'details', label: 'Description', show: (shopSettings?.showDetails ?? true) && !hideDescription },
+    { id: 'more-details', label: 'Details', show: (shopSettings?.showDetails ?? true) && !hideDetails && !!getMeta('DETAILS') },
+    { id: 'size-fit', label: 'Size & Fit', show: (shopSettings?.showSizeFit ?? true) && !hideSizeFit && !!getMeta('SIZE & FIT') },
+    { id: 'care', label: 'Care', show: (shopSettings?.showCare ?? true) && !hideCare && !!getMeta('CARE') },
+    { id: 'shipping', label: 'Shipping & Return', show: (shopSettings?.showShippingReturn ?? true) && !hideShippingReturn && !!getMeta('SHIPPING & RETURN') },
+    { id: 'brand', label: 'Brand', show: false },
   ].filter(t => t.show);
 
   // Client-side randomization and categorization for Recommended Products
@@ -535,6 +573,29 @@ export default function ProductDetailsClient({
                 <div className="relative aspect-[9/16] max-w-[200px] mx-auto rounded-2xl overflow-hidden border border-foreground/5 shadow-inner cursor-pointer" onClick={() => setIsMuted(!isMuted)}>
                   <video src={productVideoUrl} autoPlay loop muted={isMuted} playsInline className="w-full h-full object-cover" />
                   <div className="absolute bottom-4 right-4 z-10">{isMuted ? <X className="w-3 h-3 text-white/50" /> : <div className="flex items-center gap-0.5 opacity-80"><div className="w-[1px] h-1.5 bg-white animate-pulse" /><div className="w-[1px] h-2 bg-white animate-pulse" style={{ animationDelay: '0.1s' }} /></div>}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Mood Board Section — Desktop */}
+            {moodBoardImages.length > 0 && (
+              <div className="space-y-3 mt-4">
+                <span className="text-[7.5px] font-bold uppercase tracking-[0.3em] text-foreground/40 block">Mood Board</span>
+                <div className="flex flex-col gap-3">
+                  {moodBoardImages.slice(0, 10).map((img, idx) => (
+                    <div
+                      key={`mb-desk-${idx}`}
+                      className="relative overflow-hidden bg-foreground/[0.02] rounded-[1.8rem] border border-foreground/[0.05] shadow-sm w-full"
+                      style={{ aspectRatio: '16/10' }}
+                    >
+                      <img
+                        src={img}
+                        alt={`${product.title} mood board ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -927,6 +988,29 @@ export default function ProductDetailsClient({
                           </div>
                         )}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mood Board Section — Mobile */}
+                {moodBoardImages.length > 0 && (
+                  <div className="mt-4 -mx-0.5 space-y-2.5">
+                    <span className="text-[7.5px] font-bold uppercase tracking-[0.4em] text-foreground/40 dark:text-foreground/20 ml-1 mb-2 block">Mood Board</span>
+                    <div className="flex flex-col gap-3">
+                      {moodBoardImages.slice(0, 10).map((img, idx) => (
+                        <div
+                          key={`mb-mob-${idx}`}
+                          className="relative overflow-hidden bg-foreground/[0.02] rounded-[1.8rem] border border-foreground/[0.05] shadow-sm w-full"
+                          style={{ aspectRatio: '16/10' }}
+                        >
+                          <img
+                            src={img}
+                            alt={`${product.title} mood ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

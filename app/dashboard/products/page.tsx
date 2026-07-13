@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import {
   PackageSearch,
   ExternalLink,
@@ -302,7 +303,10 @@ export default function ProductsPage() {
                     className="grid grid-cols-1 md:grid-cols-[1fr,100px,80px,100px,100px,44px] gap-3 md:gap-4 px-5 py-3.5 items-center hover:bg-foreground/[0.015] transition-colors"
                   >
                     {/* Product Info */}
-                    <div className="flex items-center gap-3.5 min-w-0">
+                    <Link
+                      href={`/dashboard/products/${product.id}`}
+                      className="flex items-center gap-3.5 min-w-0 hover:opacity-80 transition-all cursor-pointer"
+                    >
                       <div className="w-11 h-11 rounded-lg border border-foreground/[0.06] flex items-center justify-center shrink-0 overflow-hidden bg-foreground/[0.02]">
                         {product.image ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
@@ -316,7 +320,7 @@ export default function ProductsPage() {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="text-[13px] font-medium text-foreground truncate">
+                        <h3 className="text-[13px] font-medium text-foreground truncate hover:text-foreground/80 transition-colors">
                           {product.title}
                         </h3>
                         <div className="flex items-center gap-2 mt-0.5">
@@ -330,7 +334,7 @@ export default function ProductsPage() {
                           </span>
                         </div>
                       </div>
-                    </div>
+                    </Link>
 
                     {/* Mobile meta row */}
                     <div className="flex md:hidden items-center justify-between gap-3 -mt-1">

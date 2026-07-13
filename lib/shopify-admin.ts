@@ -687,7 +687,14 @@ export async function createFulfillment(
  */
 export async function updateProduct(
   productId: string,
-  updates: { status?: string; title?: string; tags?: string }
+  updates: {
+    status?: string;
+    title?: string;
+    tags?: string;
+    body_html?: string | null;
+    product_type?: string;
+    vendor?: string;
+  }
 ): Promise<ShopifyProduct> {
   const data = await shopifyPatch<{ product: ShopifyProduct }>(
     `products/${productId}.json`,
@@ -743,6 +750,20 @@ export async function fetchProductByHandle(handle: string): Promise<ShopifyProdu
 export async function fetchProductMetafields(productId: string): Promise<ShopifyMetafield[]> {
   const data = await shopifyFetch<{ metafields: ShopifyMetafield[] }>(`products/${productId}/metafields.json`);
   return data.metafields;
+}
+
+/**
+ * Create or update a product metafield.
+ */
+export async function updateProductMetafield(
+  productId: string,
+  metafield: { namespace: string; key: string; value: string; type: string }
+): Promise<ShopifyMetafield> {
+  const data = await shopifyPost<{ metafield: ShopifyMetafield }>(
+    `products/${productId}/metafields.json`,
+    { metafield }
+  );
+  return data.metafield;
 }
 
 const gidCache = new Map<string, { url: string; timestamp: number }>();
@@ -1098,33 +1119,34 @@ export async function fetchCollectionByHandle(handle: string, limit = 24): Promi
   products: ShopifyProduct[];
 }> {
   try {
+    let collection: any = null;
+    let products: ShopifyProduct[] = [];
+
     if (handle?.toLowerCase() === 'all') {
       const productsData = await shopifyFetch<{ products: ShopifyProduct[] }>('products.json', {
         limit: String(limit),
       });
-      return {
-        collection: {
-          id: 0,
-          title: "All Products",
-          handle: "all",
-          body_html: "All products in the store",
-          image: undefined
-        },
-        products: productsData.products || []
+      collection = {
+        id: 0,
+        title: "All Products",
+        handle: "all",
+        body_html: "All products in the store",
+        image: undefined
       };
+      products = productsData.products || [];
+    } else {
+      const allCollections = await fetchCollections();
+      collection = allCollections.find(c => c.handle?.toLowerCase() === handle?.toLowerCase()) as any;
+      
+      if (!collection) return { collection: null, products: [] };
+
+      const productsData = await shopifyFetch<{ products: ShopifyProduct[] }>('products.json', {
+        collection_id: String(collection.id),
+        limit: String(limit),
+      });
+
+      products = productsData.products || [];
     }
-
-    const allCollections = await fetchCollections();
-    const collection = allCollections.find(c => c.handle?.toLowerCase() === handle?.toLowerCase()) as any;
-    
-    if (!collection) return { collection: null, products: [] };
-
-    const productsData = await shopifyFetch<{ products: ShopifyProduct[] }>('products.json', {
-      collection_id: String(collection.id),
-      limit: String(limit),
-    });
-
-    const products = productsData.products || [];
 
     // Sort according to custom product order if available
     try {

@@ -106,6 +106,8 @@ function envSettings() {
     loginBgImageDark: '',
     loginBgImageLightMobile: '',
     loginBgImageDarkMobile: '',
+    shopAllLink: '/collections/all',
+    collectionProductOrders: '{}',
   };
 }
 
@@ -264,6 +266,8 @@ export async function GET(req: Request) {
       loginBgImageDark: s.loginBgImageDark || '',
       loginBgImageLightMobile: s.loginBgImageLightMobile || '',
       loginBgImageDarkMobile: s.loginBgImageDarkMobile || '',
+      shopAllLink: s.shopAllLink || '/collections/all',
+      collectionProductOrders: s.collectionProductOrders || '{}',
       claudeApiKey: s.claudeApiKey || '',
       claudeWebhookSecret: s.claudeWebhookSecret || '',
       openaiApiKey: s.openaiApiKey || process.env.OPENAI_API_KEY || '',
@@ -349,7 +353,8 @@ export async function PATCH(req: Request) {
       'homepageCollection', 'homepageProducts',
       'footerLogo3dUrl', 'claudeApiKey', 'claudeWebhookSecret', 'openaiApiKey', 'openaiWebhookSecret',
       'loginBgImage', 'loginBgVideo', 'loginBgImageMobile', 'loginBgVideoMobile',
-      'loginBgImageLight', 'loginBgImageDark', 'loginBgImageLightMobile', 'loginBgImageDarkMobile'
+      'loginBgImageLight', 'loginBgImageDark', 'loginBgImageLightMobile', 'loginBgImageDarkMobile',
+      'shopAllLink', 'collectionProductOrders'
     ] as const;
 
     const booleanKeys = [

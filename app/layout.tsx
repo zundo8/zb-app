@@ -156,6 +156,23 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          id="theme-fallback"
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var theme = localStorage.getItem('theme');
+                if (!theme) {
+                  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+                  if (!prefersDark && !prefersLight) {
+                    localStorage.setItem('theme', 'dark');
+                  }
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
         {/* Google Tag Manager */}
         <Script id="google-tag-manager" strategy="afterInteractive">
           {`
