@@ -18,9 +18,10 @@ import {
   Check,
   AlertTriangle,
   Move,
-  ShoppingBag
+  ShoppingBag,
+  GripVertical
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { toast } from "sonner";
 import NextImage from "next/image";
 
@@ -497,21 +498,33 @@ export default function HomepageProductsCMS() {
                 </div>
               )}
 
-              <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+              <Reorder.Group
+                axis="y"
+                values={selectedProducts}
+                onReorder={setSelectedProducts}
+                as="div"
+                className="space-y-2 max-h-[600px] overflow-y-auto pr-1"
+              >
                 <AnimatePresence initial={false}>
                   {selectedProducts.map((p, index) => {
                     const slot = getSlotDetails(index);
                     return (
-                      <motion.div
+                      <Reorder.Item
                         key={p.id}
-                        layout
+                        value={p}
+                        as="div"
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2 }}
-                        className="flex items-center justify-between p-3 bg-foreground/[0.01] hover:bg-foreground/[0.02] border border-foreground/[0.05] hover:border-foreground/10 rounded-xl gap-3 group transition-all"
+                        className="flex items-center justify-between p-3 bg-foreground/[0.01] hover:bg-foreground/[0.02] border border-foreground/[0.05] hover:border-foreground/10 rounded-xl gap-3 group transition-all cursor-grab active:cursor-grabbing select-none"
                       >
                         <div className="flex items-center gap-3 min-w-0">
+                          {/* Drag Handle */}
+                          <div className="text-foreground/20 group-hover:text-foreground/50 transition-colors shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-md hover:bg-foreground/[0.04]">
+                            <GripVertical className="w-3.5 h-3.5" />
+                          </div>
+
                           {/* Thumbnail */}
                           <div className="relative aspect-[3/4] w-12 rounded-lg overflow-hidden border border-foreground/10 shrink-0">
                             {p.image?.src ? (
@@ -540,27 +553,36 @@ export default function HomepageProductsCMS() {
                         {/* Controls */}
                         <div className="flex items-center gap-1 shrink-0">
                           <button
-                            onClick={() => handleMoveUp(index)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveUp(index);
+                            }}
                             disabled={index === 0}
                             className="w-7 h-7 flex items-center justify-center bg-foreground/[0.02] hover:bg-foreground/[0.05] disabled:opacity-20 disabled:pointer-events-none rounded-lg text-foreground transition-all border border-foreground/[0.04]"
                           >
                             <ArrowUp className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleMoveDown(index)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveDown(index);
+                            }}
                             disabled={index === selectedProducts.length - 1}
                             className="w-7 h-7 flex items-center justify-center bg-foreground/[0.02] hover:bg-foreground/[0.05] disabled:opacity-20 disabled:pointer-events-none rounded-lg text-foreground transition-all border border-foreground/[0.04]"
                           >
                             <ArrowDown className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleRemoveProduct(p.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveProduct(p.id);
+                            }}
                             className="w-7 h-7 flex items-center justify-center bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 rounded-lg text-red-400 transition-all ml-1.5"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      </motion.div>
+                      </Reorder.Item>
                     );
                   })}
                 </AnimatePresence>
@@ -572,7 +594,7 @@ export default function HomepageProductsCMS() {
                     <span className="text-[8px] text-muted-foreground/50 uppercase tracking-widest block">Choose products from the catalog on the right</span>
                   </div>
                 )}
-              </div>
+              </Reorder.Group>
             </div>
           </div>
 
