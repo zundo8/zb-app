@@ -104,6 +104,7 @@ const STATUS_THEME: Record<string, { label: string; color: string; bg: string; d
   paid: { label: "Settled", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
   success: { label: "Settled", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
   pending: { label: "Awaiting", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
+  cod_upfront_paid: { label: "COD (Upfront Paid)", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
   fulfilled: { label: "Dispatched", color: "text-blue-500", bg: "bg-blue-500/10", dot: "bg-blue-500" },
   unfulfilled: { label: "Draft", color: "text-foreground/40", bg: "bg-foreground/5", dot: "bg-foreground/20" },
   delivered: { label: "Arrived", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
@@ -112,7 +113,36 @@ const STATUS_THEME: Record<string, { label: string; color: string; bg: string; d
   failed: { label: "Failed", color: "text-rose-500", bg: "bg-rose-500/10", dot: "bg-rose-500" },
   payment_pending: { label: "Unpaid", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
   awaiting_approval: { label: "Reviewing", color: "text-purple-500", bg: "bg-purple-500/10", dot: "bg-purple-500" },
+  cod: { label: "COD", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
+  prepaid: { label: "Prepaid", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
+  razorpay: { label: "Prepaid", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
+  'store credit': { label: "Store Credit", color: "text-purple-500", bg: "bg-purple-500/10", dot: "bg-purple-500" },
 };
+
+/**
+ * Robustly detect if an order is COD by checking paymentMethod, tags, and notes.
+ * This handles cases where Shopify sync overwrites paymentMethod with gateway names.
+ */
+function detectPaymentMethod(order: OrderDetail): 'COD' | 'PREPAID' | 'STORE CREDIT' {
+  if (order.tags?.includes('store-credit-used')) return 'STORE CREDIT';
+  
+  const pm = (order.paymentMethod || '').toLowerCase();
+  const tags = (order.tags || '').toLowerCase();
+  const note = (order.note || '').toLowerCase();
+  
+  // Check multiple signals for COD
+  if (
+    pm === 'cod' ||
+    tags.includes('cod') ||
+    note.includes('cod order') ||
+    note.includes('cod upfront') ||
+    note.includes('upfront fee paid')
+  ) {
+    return 'COD';
+  }
+  
+  return 'PREPAID';
+}
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -163,14 +193,13 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (order) {
+      const detectedMethod = detectPaymentMethod(order);
       setEditValues({
         status: order.status,
         paymentStatus: order.paymentStatus,
         fulfillmentStatus: order.fulfillmentStatus,
         deliveryStatus: order.deliveryStatus || 'pending',
-        paymentMethod: order.tags?.includes('store-credit-used') 
-          ? 'STORE CREDIT' 
-          : (order.paymentMethod === 'COD' ? 'COD' : 'PREPAID')
+        paymentMethod: detectedMethod
       });
     }
   }, [order]);
@@ -470,7 +499,7 @@ export default function OrderDetailPage() {
               { 
                 label: "Method", 
                 key: 'paymentMethod', 
-                value: isEditing ? editValues.paymentMethod : (order.tags?.includes('store-credit-used') ? 'STORE CREDIT' : (order.paymentMethod === 'COD' ? 'COD' : 'PREPAID')), 
+                value: isEditing ? editValues.paymentMethod : detectPaymentMethod(order), 
                 icon: Zap,
                 options: ['PREPAID', 'COD', 'STORE CREDIT']
               },

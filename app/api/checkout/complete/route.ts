@@ -299,6 +299,8 @@ export async function POST(req: Request) {
     const shopifyOrderData: any = {
       line_items: shopifyLineItems,
       email: address.email,
+      send_receipt: false,
+      send_fulfillment_receipt: false,
       billing_address: {
         first_name: address.name.split(' ')[0],
         last_name: address.name.split(' ').slice(1).join(' ') || '.',
@@ -322,15 +324,38 @@ export async function POST(req: Request) {
       phone: address.phone,
       financial_status: paymentMethod === "COD" ? "pending" : "paid",
       note: paymentMethod === "COD" 
-        ? `COD Order from Web Store - ₹99 upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})` 
-        : "Paid via Razorpay from Web Store",
+        ? `COD Order from Web Store - ₹${codFee || 99} upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})` 
+        : `Paid via Razorpay from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
       tags: `WebStoreOrder, WebStore, ${paymentMethod === "COD" ? "COD" : "Razorpay"}, zb-order-${universalOrderNumber}`,
       note_attributes: [
-        { name: 'internal_order_number', value: universalOrderNumber }
+        { name: 'internal_order_number', value: universalOrderNumber },
+        { name: 'payment_method', value: paymentMethod === "COD" ? 'COD' : 'PREPAID' },
+        { name: 'razorpay_payment_id', value: razorpay?.razorpay_payment_id || '' }
       ],
       total_tax: 0,
       currency: "INR"
     };
+
+    // Add transactions so Shopify records the actual paid amount
+    if (paymentMethod !== "COD") {
+      // PREPAID: Full amount paid via Razorpay
+      shopifyOrderData.transactions = [{
+        kind: "sale",
+        status: "success",
+        amount: parseFloat(total).toFixed(2),
+        currency: "INR",
+        gateway: "razorpay",
+        authorization: razorpay?.razorpay_payment_id || null
+      }];
+    } else {
+      // COD: Only the upfront fee (₹99) is paid now, rest is collected on delivery
+      // financial_status stays "pending" because the full order isn't paid yet
+      // We record the upfront fee as a note attribute for reference
+      shopifyOrderData.note_attributes.push(
+        { name: 'cod_upfront_fee', value: String(codFee || 99) },
+        { name: 'cod_upfront_payment_id', value: razorpay?.razorpay_payment_id || '' }
+      );
+    }
 
     // Only add customer if we have a valid numeric Shopify ID
     if (!isNaN(customerId) && customerId > 0) {

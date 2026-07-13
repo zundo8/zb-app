@@ -203,6 +203,30 @@ export async function POST() {
             o.fulfillment_status = 'cancelled';
           }
 
+          // Derive correct payment method from tags and notes (not raw gateway)
+          const isCodOrder = lowerTags.includes('cod') || 
+            (o.note || '').toLowerCase().includes('cod') ||
+            o.financial_status === 'pending';
+          
+          // Determine the correct canonical payment method
+          const derivedPaymentMethod = isCodOrder ? 'COD' : 'razorpay';
+          
+          // For payment status on COD orders: use 'pending' since full amount isn't paid
+          // For prepaid orders: use Shopify's financial_status
+          const derivedPaymentStatus = isCodOrder ? 'pending' : (o.financial_status || 'pending');
+
+          // Check if a local order already exists with a correct paymentMethod set
+          const existingLocalOrder = await prisma.order.findUnique({
+            where: { shopifyOrderId: String(o.id) },
+            select: { paymentMethod: true, razorpayOrderId: true, razorpayPaymentId: true, orderType: true, internalOrderNumber: true }
+          });
+          
+          // Preserve local paymentMethod if it's already set correctly (e.g., from checkout/complete)
+          const finalPaymentMethod = existingLocalOrder?.paymentMethod && 
+            (existingLocalOrder.paymentMethod === 'COD' || existingLocalOrder.paymentMethod === 'razorpay')
+            ? existingLocalOrder.paymentMethod
+            : derivedPaymentMethod;
+
           const order = await prisma.order.upsert({
             where: { shopifyOrderId: String(o.id) },
             create: {
@@ -214,8 +238,8 @@ export async function POST() {
               subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
               totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
               currency: o.currency || 'INR',
-              paymentStatus: o.financial_status || 'pending',
-              paymentMethod: o.gateway || (o.payment_gateway_names && o.payment_gateway_names[0]) || null,
+              paymentStatus: derivedPaymentStatus,
+              paymentMethod: finalPaymentMethod,
               fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
               deliveryStatus: deliveryStatus,
               shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
@@ -230,8 +254,9 @@ export async function POST() {
               subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
               totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
               currency: o.currency || 'INR',
-              paymentStatus: o.financial_status || 'pending',
-              paymentMethod: o.gateway || (o.payment_gateway_names && o.payment_gateway_names[0]) || null,
+              paymentStatus: derivedPaymentStatus,
+              // Only update paymentMethod if we don't already have a correct local value
+              paymentMethod: finalPaymentMethod,
               fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
               deliveryStatus: deliveryStatus,
               shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,

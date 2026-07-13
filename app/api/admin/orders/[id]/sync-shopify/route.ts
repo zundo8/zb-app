@@ -296,17 +296,33 @@ export async function POST(
         };
       }),
       email: order.customer?.email || '',
+      send_receipt: false,
+      send_fulfillment_receipt: false,
       financial_status: order.paymentMethod === 'COD' ? 'pending' : (order.paymentStatus === 'paid' ? 'paid' : 'pending'),
       note: order.paymentMethod === 'COD'
         ? `COD Order Synced from Admin Dashboard | Upfront Fee paid via Razorpay (Payment ID: ${order.razorpayPaymentId || 'N/A'})`
-        : `Synced from Admin Dashboard | Payment: ${order.paymentMethod || 'Unknown'} | InternalOrderId: ${order.id}`,
-      tags: `WebStoreOrder, WebStore, ${order.paymentMethod === 'COD' ? 'COD' : 'Prepaid'}, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
+        : `Synced from Admin Dashboard | Payment: ${order.paymentMethod || 'Unknown'} | Razorpay Payment ID: ${order.razorpayPaymentId || 'N/A'} | InternalOrderId: ${order.id}`,
+      tags: `WebStoreOrder, WebStore, ${order.paymentMethod === 'COD' ? 'COD' : 'Razorpay'}, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
       note_attributes: [
-        { name: 'internal_order_number', value: order.internalOrderNumber || '' }
+        { name: 'internal_order_number', value: order.internalOrderNumber || '' },
+        { name: 'payment_method', value: order.paymentMethod === 'COD' ? 'COD' : 'PREPAID' },
+        { name: 'razorpay_payment_id', value: order.razorpayPaymentId || '' }
       ],
       total_tax: 0,
       currency: order.currency || 'INR',
     };
+
+    // Add transactions so Shopify records the actual paid amount
+    if (order.paymentMethod !== 'COD' && order.paymentStatus === 'paid') {
+      shopifyOrderPayload.transactions = [{
+        kind: "sale",
+        status: "success",
+        amount: order.totalPrice.toFixed(2),
+        currency: order.currency || "INR",
+        gateway: "razorpay",
+        authorization: order.razorpayPaymentId || null
+      }];
+    }
 
     // Add customer
     if (shopifyCustomerId && !shopifyCustomerId.startsWith('temp_') && !shopifyCustomerId.startsWith('google_')) {
