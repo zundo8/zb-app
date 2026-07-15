@@ -2507,7 +2507,7 @@ function OrderNotifications() {
           );
           setApprovedTemplates(approved);
         }
-      } catch (err) {
+      } catch {
         toast.error("Failed to load automation settings.");
       } finally {
         setLoading(false);
@@ -2532,7 +2532,7 @@ function OrderNotifications() {
         toast.error("Failed to save changes.");
         setSettings((s: any) => ({ ...s, [key]: !nextVal }));
       }
-    } catch (e) {
+    } catch {
       toast.error("Network error saving settings.");
       setSettings((s: any) => ({ ...s, [key]: !nextVal }));
     }
@@ -2554,27 +2554,70 @@ function OrderNotifications() {
         toast.error("Failed to save template mapping.");
         setSettings((s: any) => ({ ...s, [settingKey]: prev }));
       }
-    } catch (e) {
+    } catch {
       toast.error("Network error saving template.");
       setSettings((s: any) => ({ ...s, [settingKey]: prev }));
     }
   };
 
+  const handleDelaySave = async (key: string, value: string, unit: string) => {
+    const minutes = convertToMinutes(value, unit);
+    const prev = settings[key];
+    setSettings((s: any) => ({ ...s, [key]: String(minutes) }));
+
+    try {
+      const res = await fetch("/api/whatsapp/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: String(minutes) })
+      });
+      if (res.ok) {
+        toast.success("Delay timing updated!");
+      } else {
+        toast.error("Failed to save delay timing.");
+        setSettings((s: any) => ({ ...s, [key]: prev }));
+      }
+    } catch {
+      toast.error("Network error saving delay timing.");
+      setSettings((s: any) => ({ ...s, [key]: prev }));
+    }
+  };
+
+  const parseMinutes = (minutesStr: string) => {
+    const mins = parseInt(minutesStr, 10) || 0;
+    if (mins === 0) return { value: "0", unit: "minutes" };
+    if (mins % 10080 === 0) return { value: String(mins / 10080), unit: "weeks" };
+    if (mins % 1440 === 0) return { value: String(mins / 1440), unit: "days" };
+    if (mins % 60 === 0) return { value: String(mins / 60), unit: "hours" };
+    return { value: String(mins), unit: "minutes" };
+  };
+
+  const convertToMinutes = (val: string, unit: string) => {
+    const num = parseInt(val, 10) || 0;
+    if (unit === "weeks") return num * 10080;
+    if (unit === "days") return num * 1440;
+    if (unit === "hours") return num * 60;
+    return num;
+  };
+
   const automations = [
     { key: "order_confirmed", templateKey: "template_order_confirmed", defaultTemplate: "zica_order_confirmed_v1", title: "Order Confirmation", desc: "Auto-send on Shopify order creation (orders/create webhook)." },
+    { key: "order_status", templateKey: "template_order_status", defaultTemplate: "zb_order_status", title: "Order Status Update", desc: "Auto-send on order state alterations (orders/updated webhook)." },
     { key: "order_shipped", templateKey: "template_order_shipped", defaultTemplate: "zica_order_shipped", title: "Order Shipped", desc: "Auto-send on order fulfillment containing courier tracking (orders/fulfilled webhook)." },
+    { key: "out_for_delivery", templateKey: "template_out_for_delivery", defaultTemplate: "zb_out_for_delivery", title: "Out for Delivery", desc: "Auto-send when carrier status marks package as out for delivery." },
     { key: "order_delivered", templateKey: "template_order_delivered", defaultTemplate: "zica_order_delivered_v1", title: "Delivered Confirmation", desc: "Auto-send notification validating package drop-off." },
-    { key: "order_status", templateKey: undefined, defaultTemplate: undefined, title: "Order Status Update", desc: "Auto-send on order state alterations (orders/updated webhook)." },
-    { key: "out_for_delivery", templateKey: undefined, defaultTemplate: undefined, title: "Out for Delivery", desc: "Auto-send when carrier status marks package as out for delivery." },
-    { key: "return_confirmed", templateKey: undefined, defaultTemplate: undefined, title: "Return Request Confirmed", desc: "Auto-send receipt validation containing credit processing status." },
-    { key: "cart_recovery_enabled", templateKey: "template_abandoned_cart", defaultTemplate: "zica_cart_recovery_v1", title: "Cart Recovery (Step 1)", desc: "Initial abandoned cart reminder sent when a cart goes inactive." },
+    { key: "return_confirmed", templateKey: "template_return_confirmed", defaultTemplate: "zb_return_confirmed", title: "Return Request Confirmed", desc: "Auto-send receipt validation containing credit processing status." },
+    { key: "cod_confirmation_enabled", templateKey: "template_cod_confirmation", defaultTemplate: "zica_cod_confirmation_v1", title: "COD Confirmation", desc: "Auto-send confirmation request to Cash on Delivery orders." },
+    { key: "cart_recovery_enabled", templateKey: "template_abandoned_cart", defaultTemplate: "zica_cart_recovery_v1", delayKey: "delay_abandoned_cart_step1", title: "Cart Recovery (Step 1)", desc: "Initial abandoned cart reminder sent when a cart goes inactive." },
+    { key: "cart_recovery_step2_enabled", templateKey: "template_cart_followup", defaultTemplate: "zb_cart_followup", delayKey: "delay_abandoned_cart_step2", title: "Cart Recovery (Step 2)", desc: "Second reminder containing a discount code to recover abandoned items." },
+    { key: "cart_recovery_step3_enabled", templateKey: "template_cart_final", defaultTemplate: "zb_cart_final", delayKey: "delay_abandoned_cart_step3", title: "Cart Recovery (Step 3)", desc: "Final cart recovery reminder before cart expires." },
   ];
 
   return (
     <div className="max-w-3xl mx-auto glass-card p-6 mt-4">
       <h3 className="font-semibold text-lg mb-2">Automated Notifications</h3>
       <p className="text-xs text-muted-foreground border-b border-foreground/5 pb-4 mb-4">
-        Toggle automated notifications and choose which Meta-approved template is used for each event.
+        Toggle automated notifications, configure sending delays, and map events to Meta-approved templates.
       </p>
 
       {loading ? (
@@ -2601,22 +2644,36 @@ function OrderNotifications() {
                   )}
                 </button>
               </div>
-              {/* Template selector dropdown — only for events that have a templateKey */}
-              {a.templateKey && (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground whitespace-nowrap">Template:</span>
-                  <select
-                    value={settings[a.templateKey] || ''}
-                    onChange={(e) => handleTemplateChange(a.templateKey!, e.target.value)}
-                    className="flex-1 text-xs bg-foreground/5 border border-foreground/10 rounded-lg px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
-                  >
-                    <option value="">Default ({a.defaultTemplate})</option>
-                    {approvedTemplates.map((t: any) => (
-                      <option key={t.name} value={t.name}>
-                        {t.name} ({t.category})
-                      </option>
-                    ))}
-                  </select>
+
+              {settings[a.key] && (
+                <div className="mt-3 pt-3 border-t border-foreground/5 space-y-2.5">
+                  {/* Template selector dropdown */}
+                  {a.templateKey && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">Template:</span>
+                      <select
+                        value={settings[a.templateKey] || ''}
+                        onChange={(e) => handleTemplateChange(a.templateKey!, e.target.value)}
+                        className="flex-1 text-xs bg-foreground/5 border border-foreground/10 rounded-lg px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                      >
+                        <option value="">Default ({a.defaultTemplate})</option>
+                        {approvedTemplates.map((t: any) => (
+                          <option key={t.name} value={t.name}>
+                            {t.name} ({t.category})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Delay Input */}
+                  {a.delayKey && (
+                    <DelayInput
+                      delayKey={a.delayKey}
+                      defaultValue={settings[a.delayKey]}
+                      onSave={handleDelaySave}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -2625,6 +2682,53 @@ function OrderNotifications() {
       )}
     </div>
   );
+
+  // Sub-component for delay inputs
+  function DelayInput({ delayKey, defaultValue, onSave }: any) {
+    const [localValue, setLocalValue] = useState("");
+    const [localUnit, setLocalUnit] = useState("minutes");
+
+    useEffect(() => {
+      if (defaultValue !== undefined) {
+        const { value, unit } = parseMinutes(String(defaultValue));
+        setLocalValue(value);
+        setLocalUnit(unit);
+      }
+    }, [defaultValue]);
+
+    const handleBlur = () => {
+      onSave(delayKey, localValue, localUnit);
+    };
+
+    const handleUnitChange = (newUnit: string) => {
+      setLocalUnit(newUnit);
+      onSave(delayKey, localValue, newUnit);
+    };
+
+    return (
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-[11px] text-muted-foreground whitespace-nowrap font-mono text-[10px]">Send Delay:</span>
+        <input
+          type="number"
+          min="1"
+          value={localValue}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onBlur={handleBlur}
+          className="w-16 text-xs bg-foreground/5 border border-foreground/10 rounded-lg px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 font-medium"
+        />
+        <select
+          value={localUnit}
+          onChange={(e) => handleUnitChange(e.target.value)}
+          className="text-xs bg-foreground/5 border border-foreground/10 rounded-lg px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all font-medium"
+        >
+          <option value="minutes">Minutes</option>
+          <option value="hours">Hours</option>
+          <option value="days">Days</option>
+          <option value="weeks">Weeks</option>
+        </select>
+      </div>
+    );
+  }
 }
 
 /* ==========================================================================

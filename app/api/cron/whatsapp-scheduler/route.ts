@@ -3,6 +3,8 @@ import db from '@/lib/db';
 import * as templates from '@/lib/whatsapp/templates';
 import { runBroadcastInBackground } from '../../whatsapp/broadcast/helper';
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
+import { getWhatsAppSetting } from '@/lib/whatsapp/logger';
+import { formatPhone } from '@/lib/whatsapp/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -219,6 +221,119 @@ export async function GET(req: NextRequest) {
     }
   } catch (err: any) {
     results.errors.push(`Standard message retry error: ${err.message}`);
+  }
+
+  // 4. Process Automated Cart Recovery Sequences
+  try {
+    const isStep1Enabled = await getWhatsAppSetting('cart_recovery_enabled', 'true') === 'true';
+    const isStep2Enabled = await getWhatsAppSetting('cart_recovery_step2_enabled', 'true') === 'true';
+    const isStep3Enabled = await getWhatsAppSetting('cart_recovery_step3_enabled', 'true') === 'true';
+
+    const delay1 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step1', '5'), 10) || 5;
+    const delay2 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step2', '60'), 10) || 60;
+    const delay3 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step3', '10080'), 10) || 10080;
+
+    const now = new Date();
+
+    const carts = await db.cart.findMany({
+      where: {
+        convertedOrderId: null,
+        items: { some: {} },
+        OR: [
+          { phone: { not: null } },
+          { customer: { phone: { not: null } } }
+        ]
+      },
+      include: {
+        customer: true,
+        items: true
+      }
+    });
+
+    results.abandonedCartStep1Sent = 0;
+    results.abandonedCartStep2Sent = 0;
+    results.abandonedCartStep3Sent = 0;
+
+    for (const cart of carts) {
+      const phone = cart.phone || cart.customer?.phone;
+      if (!phone) continue;
+      
+      const formattedPhone = formatPhone(phone);
+      if (!formattedPhone) continue;
+
+      // Find recovery messages sent for this cart
+      const sentRecoveries = await db.whatsAppMessage.findMany({
+        where: {
+          phoneNumber: formattedPhone,
+          body: {
+            contains: cart.id
+          }
+        },
+        orderBy: {
+          createdAt: 'asc'
+        }
+      });
+
+      const lastActivityTime = new Date(cart.lastActivityAt).getTime();
+      const elapsedMinutes = (now.getTime() - lastActivityTime) / (60 * 1000);
+
+      if (sentRecoveries.length === 0) {
+        // Step 1
+        if (isStep1Enabled && elapsedMinutes >= delay1) {
+          const firstItem = cart.items?.[0] || {};
+          const res = await templates.sendAbandonedCart({
+            phone: formattedPhone,
+            customerName: cart.customer?.name || 'there',
+            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
+            productImageUrl: firstItem.image || '',
+            productName: firstItem.title || '',
+            cartTotal: String(cart.subtotal || '0.00'),
+            itemCount: cart.items.length,
+            productHandle: firstItem.handle || ''
+          });
+
+          if (cart.status === 'active') {
+            await db.cart.update({
+              where: { id: cart.id },
+              data: { status: 'abandoned', abandonedAt: new Date() }
+            });
+          }
+
+          if (res.success) results.abandonedCartStep1Sent++;
+        }
+      } else if (sentRecoveries.length === 1) {
+        // Step 2
+        const lastSentTime = new Date(sentRecoveries[0].createdAt).getTime();
+        const elapsedSinceLastSent = (now.getTime() - lastSentTime) / (60 * 1000);
+
+        if (isStep2Enabled && elapsedMinutes >= delay2 && elapsedSinceLastSent >= 15) {
+          const res = await templates.sendCartRecoveryFollowUp({
+            phone: formattedPhone,
+            customerName: cart.customer?.name || 'there',
+            discountCode: 'ZICA10',
+            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`
+          });
+
+          if (res.success) results.abandonedCartStep2Sent++;
+        }
+      } else if (sentRecoveries.length === 2) {
+        // Step 3
+        const lastSentTime = new Date(sentRecoveries[1].createdAt).getTime();
+        const elapsedSinceLastSent = (now.getTime() - lastSentTime) / (60 * 1000);
+
+        if (isStep3Enabled && elapsedMinutes >= delay3 && elapsedSinceLastSent >= 1440) { // at least 1 day since step 2
+          const res = await templates.sendCartRecoveryFinalReminder({
+            phone: formattedPhone,
+            customerName: cart.customer?.name || 'there',
+            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`
+          });
+
+          if (res.success) results.abandonedCartStep3Sent++;
+        }
+      }
+    }
+  } catch (err: any) {
+    results.errors.push(`Abandoned cart automation error: ${err.message}`);
   }
 
   return NextResponse.json({ success: true, results });

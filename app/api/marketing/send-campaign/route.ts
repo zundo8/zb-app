@@ -5,6 +5,8 @@ import { SmsService } from '@/lib/services/sms.service';
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
 // Assuming NotificationService has a way to send, or we just call the existing /api/notifications/send-manual
 import { fetchAllCustomers } from '@/lib/shopify-admin';
+import { isOptedIn } from '@/lib/whatsapp/templates';
+import { formatPhone } from '@/lib/whatsapp/client';
 
 export async function POST(req: Request) {
   try {
@@ -37,10 +39,33 @@ export async function POST(req: Request) {
 
     let successCount = 0;
     let failedCount = 0;
+    let skippedCount = 0;
 
     // 2. Dispatch Campaign
     if (channel === 'email') {
-      const emails = targetCustomers.map((c: any) => c.email).filter(Boolean) as string[];
+      // Filter email recipients through EmailOptIn table
+      const filteredCustomers = [];
+      for (const customer of targetCustomers) {
+        if (!customer.email) continue;
+        const phone = customer.phone;
+        if (phone) {
+          try {
+            const emailRecord = await db.emailOptIn.findUnique({
+              where: { phone: formatPhone(phone) },
+            });
+            // If there's an explicit opt-out record, skip
+            if (emailRecord && emailRecord.status === 'opted_out') {
+              skippedCount++;
+              continue;
+            }
+          } catch (err) {
+            // No record found — fall through to Customer.emailOptedOut (already filtered)
+          }
+        }
+        filteredCustomers.push(customer);
+      }
+
+      const emails = filteredCustomers.map((c: any) => c.email).filter(Boolean) as string[];
       try {
         await EmailService.sendEmail(emails, subject || 'Zica Bella Exclusive', messageBody);
         successCount = emails.length;
@@ -68,6 +93,13 @@ export async function POST(req: Request) {
         try {
           const formattedPhone = WhatsAppService.formatPhone(customer.phone);
           
+          // Check centralized WhatsAppOptIn table for marketing consent
+          const consented = await isOptedIn(formattedPhone);
+          if (!consented) {
+            skippedCount++;
+            continue;
+          }
+          
           if (mediaUrl) {
             // If media is provided, we send a media message with caption
             await WhatsAppService.sendMediaMessage(formattedPhone, 'image', mediaUrl, messageBody);
@@ -92,7 +124,7 @@ export async function POST(req: Request) {
           campaignId: `camp_${Date.now()}`,
           channel,
           eventType: 'sent',
-          metadata: JSON.stringify({ successCount, failedCount, targetAudience, templateId, hasMedia: !!mediaUrl })
+          metadata: JSON.stringify({ successCount, failedCount, skippedCount, targetAudience, templateId, hasMedia: !!mediaUrl })
         }
       });
     }
@@ -101,7 +133,8 @@ export async function POST(req: Request) {
       success: true, 
       sent: successCount, 
       failed: failedCount,
-      message: `Successfully sent to ${successCount} customers.`
+      skipped: skippedCount,
+      message: `Successfully sent to ${successCount} customers.${skippedCount > 0 ? ` ${skippedCount} skipped (not opted in).` : ''}`
     });
 
   } catch (error: any) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { sendAbandonedCart } from "@/lib/whatsapp/templates";
+import { sendAbandonedCart, sendCustomCartRecovery } from "@/lib/whatsapp/templates";
 import { SmsService } from "@/lib/services/sms.service";
 import { sendMail } from "@/lib/mailer";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const { cartId, channel, subject, messageBody } = await req.json();
+    const { cartId, channel, subject, messageBody, templateName } = await req.json();
 
     if (!cartId || !channel) {
       return NextResponse.json({ error: "Missing cartId or channel" }, { status: 400 });
@@ -41,16 +41,31 @@ export async function POST(req: Request) {
       const cartTotal = String(cart.subtotal || '0.00');
       const itemCount = cart.items?.length || 0;
 
-      const result = await sendAbandonedCart({
-        phone,
-        customerName: name,
-        checkoutUrl,
-        productImageUrl,
-        productName,
-        cartTotal,
-        itemCount,
-        productHandle
-      });
+      let result;
+      if (templateName) {
+        result = await sendCustomCartRecovery({
+          phone,
+          customerName: name,
+          checkoutUrl,
+          templateName,
+          productImageUrl,
+          productName,
+          cartTotal,
+          itemCount,
+          productHandle
+        });
+      } else {
+        result = await sendAbandonedCart({
+          phone,
+          customerName: name,
+          checkoutUrl,
+          productImageUrl,
+          productName,
+          cartTotal,
+          itemCount,
+          productHandle
+        });
+      }
 
       if (!result.success) {
         return NextResponse.json({ error: result.error || "WhatsApp recovery send failed" }, { status: 500 });

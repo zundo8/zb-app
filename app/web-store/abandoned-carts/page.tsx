@@ -92,6 +92,10 @@ export default function AbandonedCartsPage() {
   const [emailBody, setEmailBody] = useState("");
   const [smsBody, setSmsBody] = useState("");
   const [sendingRecovery, setSendingRecovery] = useState(false);
+  const [approvedTemplates, setApprovedTemplates] = useState<any[]>([]);
+  const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
+  const [recoveryModalCart, setRecoveryModalCart] = useState<Cart | null>(null);
+  const [selectedTemplateName, setSelectedTemplateName] = useState("");
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -133,6 +137,24 @@ export default function AbandonedCartsPage() {
     setPage(1);
   }, [statusFilter, sourceFilter, searchQuery]);
 
+  useEffect(() => {
+    async function fetchTemplates() {
+      try {
+        const res = await fetch("/api/whatsapp/templates");
+        const data = await res.json();
+        if (res.ok) {
+          const approved = (data.templates || []).filter(
+            (t: any) => t.status === "APPROVED"
+          );
+          setApprovedTemplates(approved);
+        }
+      } catch (err) {
+        console.error("Failed to fetch templates:", err);
+      }
+    }
+    fetchTemplates();
+  }, []);
+
   // Prefill default message templates on cart selection
   useEffect(() => {
     if (selectedCart) {
@@ -145,36 +167,32 @@ export default function AbandonedCartsPage() {
     }
   }, [selectedCart]);
 
-  const handleSendWhatsApp = async (cart: Cart) => {
+  const handleSendWhatsApp = (cart: Cart) => {
     const phone = cart.phone || cart.customer?.phone;
     if (!phone) {
       toast.error("No phone number captured for this cart.");
       return;
     }
+    setRecoveryModalCart(cart);
+    setSelectedTemplateName("");
+    setIsRecoveryModalOpen(true);
+  };
 
-    const firstItem = cart.items?.[0] || {};
-    const productImageUrl = firstItem.image || '';
-    const productName = firstItem.title || '';
-    const cartTotal = String(cart.subtotal || '0.00');
-    const itemCount = cart.items?.length || 0;
+  const triggerManualRecovery = async () => {
+    if (!recoveryModalCart) return;
+    const phone = recoveryModalCart.phone || recoveryModalCart.customer?.phone;
+    if (!phone) return;
 
-    const toastId = toast.loading(`Sending WhatsApp recovery to ${cart.customer?.name || "Guest"}...`);
+    setIsRecoveryModalOpen(false);
+    const toastId = toast.loading(`Triggering WhatsApp recovery...`);
     try {
-      const res = await fetch("/api/whatsapp/send", {
+      const res = await fetch("/api/admin/abandoned-carts/send-recovery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "abandoned_cart",
-          to: phone,
-          payload: {
-            phone,
-            customerName: cart.customer?.name || "there",
-            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
-            productImageUrl,
-            productName,
-            cartTotal,
-            itemCount
-          }
+          cartId: recoveryModalCart.id,
+          channel: "whatsapp",
+          templateName: selectedTemplateName || undefined
         })
       });
       const data = await res.json();
@@ -184,7 +202,7 @@ export default function AbandonedCartsPage() {
       } else {
         toast.error(data.error || "Failed to trigger WhatsApp message.", { id: toastId });
       }
-    } catch (err) {
+    } catch {
       toast.error("Network error triggering WhatsApp recovery.", { id: toastId });
     }
   };
@@ -629,7 +647,7 @@ export default function AbandonedCartsPage() {
                       </p>
                       {selectedCart.phone || selectedCart.customer?.phone ? (
                         <button
-                          onClick={() => handleSendRecoveryChannel("whatsapp")}
+                          onClick={() => handleSendWhatsApp(selectedCart)}
                           disabled={sendingRecovery}
                           className="w-full flex items-center justify-center gap-3 py-4 rounded-[1.5rem] bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-lg active:scale-95 transition-all disabled:opacity-50"
                         >
@@ -804,6 +822,76 @@ export default function AbandonedCartsPage() {
                     Close panel
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Recovery Template Selection Modal */}
+      <AnimatePresence>
+        {isRecoveryModalOpen && recoveryModalCart && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsRecoveryModalOpen(false)}
+              className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-x-4 top-[20%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-white dark:bg-neutral-900 rounded-[2.5rem] border border-neutral-200 dark:border-foreground/10 p-8 z-[101] shadow-2xl text-neutral-900 dark:text-neutral-100 space-y-6"
+            >
+              <div className="flex justify-between items-center border-b border-neutral-100 dark:border-foreground/10 pb-4">
+                <h3 className="text-2xl font-black italic uppercase tracking-tight text-foreground">Select Recovery Template</h3>
+                <button
+                  onClick={() => setIsRecoveryModalOpen(false)}
+                  className="w-8 h-8 rounded-full border border-neutral-200 dark:border-foreground/10 flex items-center justify-center text-foreground/45 hover:bg-foreground/5 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30">Recipient</span>
+                  <p className="text-sm font-bold text-foreground">{recoveryModalCart.customer?.name || "Guest Customer"}</p>
+                  <p className="text-xs text-foreground/40 font-mono">{recoveryModalCart.phone || recoveryModalCart.customer?.phone}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30">Select Template</span>
+                  <select
+                    value={selectedTemplateName}
+                    onChange={(e) => setSelectedTemplateName(e.target.value)}
+                    className="w-full bg-foreground/[0.03] border border-foreground/[0.08] rounded-xl px-4 py-3 text-[12px] font-bold text-foreground focus:outline-none focus:border-foreground/20 transition-all"
+                  >
+                    <option value="">Auto (Use mapped template in Automations settings)</option>
+                    {approvedTemplates.map((t) => (
+                      <option key={t.name} value={t.name}>
+                        {t.name} ({t.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-2">
+                <button
+                  onClick={() => setIsRecoveryModalOpen(false)}
+                  className="w-1/2 py-4 rounded-2xl bg-foreground/5 border border-neutral-200 dark:border-foreground/10 text-foreground text-[10px] font-black uppercase tracking-wider hover:bg-foreground/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={triggerManualRecovery}
+                  className="w-1/2 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider shadow-lg transition-colors"
+                >
+                  Send Template
+                </button>
               </div>
             </motion.div>
           </>

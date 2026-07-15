@@ -19,7 +19,10 @@ const TOGGLE_KEYS = [
   'out_for_delivery',
   'order_delivered',
   'return_confirmed',
-  'cart_recovery_enabled'
+  'cart_recovery_enabled',
+  'cart_recovery_step2_enabled',
+  'cart_recovery_step3_enabled',
+  'cod_confirmation_enabled'
 ];
 
 // String keys for template name mappings (admin can override which template
@@ -33,9 +36,25 @@ const TEMPLATE_MAPPING_KEYS = [
   'template_cart_final',
   'template_order_tracking',
   'template_cod_confirmation',
+  'template_order_status',
+  'template_out_for_delivery',
+  'template_return_confirmed'
 ];
 
-const ALL_KEYS = [...TOGGLE_KEYS, ...TEMPLATE_MAPPING_KEYS];
+// Timing keys for delays (in minutes)
+const TIMING_KEYS = [
+  'delay_abandoned_cart_step1',
+  'delay_abandoned_cart_step2',
+  'delay_abandoned_cart_step3'
+];
+
+const ALL_KEYS = [...TOGGLE_KEYS, ...TEMPLATE_MAPPING_KEYS, ...TIMING_KEYS];
+
+const TIMING_DEFAULTS = {
+  delay_abandoned_cart_step1: '5',
+  delay_abandoned_cart_step2: '60',
+  delay_abandoned_cart_step3: '10080'
+};
 
 /**
  * GET — Retrieve all order notification toggle settings + template mappings
@@ -51,6 +70,11 @@ export async function GET() {
     // Load template mapping keys (default to empty string = use built-in default)
     for (const key of TEMPLATE_MAPPING_KEYS) {
       const val = await getWhatsAppSetting(key, '');
+      settings[key] = val;
+    }
+    // Load timing keys
+    for (const key of TIMING_KEYS) {
+      const val = await getWhatsAppSetting(key, TIMING_DEFAULTS[key]);
       settings[key] = val;
     }
     return NextResponse.json({ settings });
@@ -78,6 +102,9 @@ export async function POST(req) {
       if (TOGGLE_KEYS.includes(key)) {
         // Boolean toggle
         await setWhatsAppSetting(key, val === true || val === 'true' ? 'true' : 'false');
+      } else if (TIMING_KEYS.includes(key)) {
+        // Delay settings
+        await setWhatsAppSetting(key, String(val || TIMING_DEFAULTS[key]));
       } else {
         // String template name
         await setWhatsAppSetting(key, String(val || ''));

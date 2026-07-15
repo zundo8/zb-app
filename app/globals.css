@@ -1671,6 +1671,78 @@ body.gallery-open .fixed.z-50 {
   text-decoration: underline;
 }
 
+/* ── Marketing Opt-In Section ── */
+.zb-login-optin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 18px 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--zb-login-divider, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--zb-login-divider, rgba(255, 255, 255, 0.08));
+}
+
+.zb-login-optin-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.2s;
+}
+
+.zb-login-optin-row--locked {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.zb-login-optin-checkbox {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border-radius: 2px;
+  border: 1px solid var(--zb-login-input-border, rgba(255, 255, 255, 0.35));
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  margin-top: 1px;
+}
+
+.zb-login-optin-checkbox--checked {
+  border-color: var(--zb-login-text, #fff);
+  background: transparent;
+}
+
+.zb-login-optin-checkbox-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--zb-login-text, #fff);
+  border-radius: 50%;
+}
+
+.zb-login-optin-checkbox--locked {
+  pointer-events: none;
+}
+
+.zb-login-optin-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+}
+
+.zb-login-optin-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--zb-login-text-muted, rgba(255, 255, 255, 0.6));
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+}
+
 /* ── Login Desktop / Responsive ── */
 @media (min-width: 768px) {
   .zb-login-root {

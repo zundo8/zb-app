@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Loader2, ChevronDown, ShieldCheck, BadgeCheck, Gem, Sun, Moon } from "lucide-react";
+import { ArrowRight, Loader2, ChevronDown, ShieldCheck, BadgeCheck, Gem, Sun, Moon, Check, Mail } from "lucide-react";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
@@ -46,6 +46,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Marketing opt-in state
+  const [optIn, setOptIn] = useState(true);
+  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
+  const [emailOptIn, setEmailOptIn] = useState(true);
+  const [hasOptedBefore, setHasOptedBefore] = useState(false);
+  const [optInLoaded, setOptInLoaded] = useState(false);
+  const [localOptInAccepted, setLocalOptInAccepted] = useState(false);
+  const showOptInSection = 
+    !localOptInAccepted && 
+    (phone.length < 7 || !optInLoaded || !hasOptedBefore || !whatsappOptIn || !emailOptIn);
+
   // Admin-configurable background images
   const [loginBgLight, setLoginBgLight] = useState("");
   const [loginBgDark, setLoginBgDark] = useState("");
@@ -61,6 +72,12 @@ export default function LoginPage() {
 
   useEffect(() => { 
     setMounted(true); 
+    if (typeof window !== "undefined") {
+      const accepted = localStorage.getItem("zb_marketing_optin_accepted");
+      if (accepted === "true") {
+        setLocalOptInAccepted(true);
+      }
+    }
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
     };
@@ -165,6 +182,64 @@ export default function LoginPage() {
     return data;
   };
 
+  // Fetch opt-in status when phone is long enough
+  const fetchOptInStatus = async (fullPhone: string) => {
+    try {
+      const res = await fetch(`/api/auth/marketing-optin-status?phone=${encodeURIComponent(fullPhone)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.hasOptedBefore) {
+          setHasOptedBefore(true);
+          setWhatsappOptIn(data.whatsappOptedIn);
+          setEmailOptIn(data.emailOptedIn);
+        }
+        setOptInLoaded(true);
+      }
+    } catch (err) {
+      // Non-critical — default to showing editable checkboxes
+      setOptInLoaded(true);
+    }
+  };
+
+  // Save marketing opt-in preferences
+  const saveOptInPreferences = async (fullPhone: string) => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("zb_marketing_optin_accepted", "true");
+        setLocalOptInAccepted(true);
+      }
+      await fetch("/api/auth/marketing-optin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: fullPhone,
+          whatsappOptIn: optIn,
+          emailOptIn: optIn,
+        }),
+      });
+    } catch (err) {
+      // Non-critical — consent save failure should not block login
+      console.warn("Failed to save marketing preferences:", err);
+    }
+  };
+
+  useEffect(() => {
+    let cleaned = phone.replace(/\D/g, "");
+    if (cleaned.startsWith("0")) {
+      cleaned = cleaned.slice(1);
+    }
+    if (cleaned.length >= 7) {
+      const fullPhone = country.code + cleaned;
+      fetchOptInStatus(fullPhone);
+    } else {
+      setHasOptedBefore(false);
+      setOptInLoaded(false);
+      setWhatsappOptIn(true);
+      setEmailOptIn(true);
+      setOptIn(true);
+    }
+  }, [phone, country.code]);
+
   const handleContinuePhone = async (e: React.FormEvent) => {
     e.preventDefault();
     let cleaned = phone.replace(/\D/g, "");
@@ -179,6 +254,11 @@ export default function LoginPage() {
 
     if (cleaned.length < 7) {
       setErrors({ phone: "Enter a valid number" });
+      return;
+    }
+
+    if (showOptInSection && !optIn) {
+      setErrors({ phone: "Please check the box to agree to updates." });
       return;
     }
 
@@ -202,6 +282,9 @@ export default function LoginPage() {
     setErrors({});
 
     try {
+      // Save marketing opt-in preferences (non-blocking for login flow)
+      await saveOptInPreferences(fullPhone);
+
       const checkRes = await fetch("/api/auth/check-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -503,7 +586,7 @@ export default function LoginPage() {
                 {/* SEND OTP Button */}
                 <button
                   type="submit"
-                  disabled={loading || phone.length < 7}
+                  disabled={loading || phone.length < 7 || (showOptInSection && !optIn)}
                   className="zb-login-send-btn"
                 >
                   <span className="zb-login-send-text">
@@ -516,6 +599,25 @@ export default function LoginPage() {
                   <ShieldCheck className="zb-login-security-icon" />
                   <span>We&apos;ll send a secure verification code to continue.</span>
                 </div>
+
+                {/* Marketing Opt-In Section */}
+                {showOptInSection && (
+                  <div className="zb-login-optin-section">
+                    <div
+                      className="zb-login-optin-row"
+                      onClick={() => setOptIn(!optIn)}
+                    >
+                      <div
+                        className={`zb-login-optin-checkbox ${optIn ? 'zb-login-optin-checkbox--checked' : ''}`}
+                      >
+                        {optIn && <div className="zb-login-optin-checkbox-dot" />}
+                      </div>
+                      <div className="zb-login-optin-text">
+                        <span className="zb-login-optin-label">I agree to receive order updates and community post on WhatsApp and Email.</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.form>
             )}
 

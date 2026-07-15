@@ -964,6 +964,18 @@ model WhatsAppOptIn {
   @@index([phone])
 }
 
+model EmailOptIn {
+  id          String   @id @default(cuid())
+  phone       String   @unique
+  email       String?
+  status      String   // opted_in, opted_out
+  consentDate DateTime @default(now())
+  source      String   // e.g. webstore_login, checkout, admin_dashboard
+
+  @@map("email_opt_ins")
+  @@index([phone])
+}
+
 model WhatsAppDeliveryStatus {
   id          String    @id @default(cuid())
   messageId   String    @unique
