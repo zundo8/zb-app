@@ -58,13 +58,16 @@ export async function POST(req) {
       }
     }
 
+    const trackingUrl = fulfillment.tracking_url || fulfillment.tracking_urls?.[0] || '';
+
     const result = await sendShippingUpdate({
       phone,
       customerName,
       orderId,
       courier,
       trackingNumber,
-      estimatedDelivery
+      estimatedDelivery,
+      trackingUrl
     });
 
     return NextResponse.json({

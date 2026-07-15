@@ -95,7 +95,8 @@ export async function POST(req) {
       customerName,
       orderId,
       status,
-      extraInfo
+      extraInfo,
+      orderStatusUrl: payload.order_status_url || ''
     });
 
     return NextResponse.json({

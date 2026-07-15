@@ -307,11 +307,18 @@ export async function GET(req: NextRequest) {
         const elapsedSinceLastSent = (now.getTime() - lastSentTime) / (60 * 1000);
 
         if (isStep2Enabled && elapsedMinutes >= delay2 && elapsedSinceLastSent >= 15) {
+          const firstItem = cart.items?.[0] || {};
           const res = await templates.sendCartRecoveryFollowUp({
             phone: formattedPhone,
             customerName: cart.customer?.name || 'there',
             discountCode: 'ZICA10',
-            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`
+            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
+            productId: firstItem.productId || '',
+            productImageUrl: firstItem.image || '',
+            productName: firstItem.title || '',
+            productHandle: firstItem.handle || '',
+            cartTotal: String(cart.subtotal || '0.00'),
+            itemCount: cart.items.length
           });
 
           if (res.success) results.abandonedCartStep2Sent++;
@@ -322,10 +329,17 @@ export async function GET(req: NextRequest) {
         const elapsedSinceLastSent = (now.getTime() - lastSentTime) / (60 * 1000);
 
         if (isStep3Enabled && elapsedMinutes >= delay3 && elapsedSinceLastSent >= 1440) { // at least 1 day since step 2
+          const firstItem = cart.items?.[0] || {};
           const res = await templates.sendCartRecoveryFinalReminder({
             phone: formattedPhone,
             customerName: cart.customer?.name || 'there',
-            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`
+            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
+            productId: firstItem.productId || '',
+            productImageUrl: firstItem.image || '',
+            productName: firstItem.title || '',
+            productHandle: firstItem.handle || '',
+            cartTotal: String(cart.subtotal || '0.00'),
+            itemCount: cart.items.length
           });
 
           if (res.success) results.abandonedCartStep3Sent++;

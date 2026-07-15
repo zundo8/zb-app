@@ -1368,3 +1368,60 @@ export async function flattenProduct(p: ShopifyProduct) {
     productVideo,
   };
 }
+
+/**
+ * Fetch product video URL (native video or video metafield) from Shopify
+ */
+export async function fetchProductVideoUrl(productId: string): Promise<string | null> {
+  if (!productId) return null;
+  const gid = productId.startsWith('gid://shopify/Product/') 
+    ? productId 
+    : `gid://shopify/Product/${productId}`;
+    
+  try {
+    const query = `
+      query getProductVideo($id: ID!) {
+        product(id: $id) {
+          media(first: 10) {
+            nodes {
+              mediaContentType
+              ... on Video {
+                sources {
+                  url
+                  mimeType
+                }
+              }
+            }
+          }
+          productVideo: metafield(namespace: "custom", key: "product_video") {
+            value
+          }
+          productVideo2: metafield(namespace: "custom", key: "product-video") {
+            value
+          }
+        }
+      }
+    `;
+    const res = await shopifyGraphqlFetch<any>(query, { id: gid });
+    
+    // 1. Try native media video
+    const mediaNodes = res?.product?.media?.nodes || [];
+    const videoNode = mediaNodes.find((m: any) => m.mediaContentType === 'VIDEO');
+    if (videoNode && videoNode.sources && videoNode.sources.length > 0) {
+      const mp4Source = videoNode.sources.find((s: any) => s.mimeType === 'video/mp4' || s.url.includes('.mp4'));
+      return mp4Source ? mp4Source.url : videoNode.sources[0].url;
+    }
+
+    // 2. Try metafield video GID or direct URL
+    const rawVideo = res?.product?.productVideo?.value || res?.product?.productVideo2?.value;
+    if (rawVideo) {
+      if (rawVideo.startsWith('gid://shopify/')) {
+        return await resolveShopifyGid(rawVideo);
+      }
+      return rawVideo;
+    }
+  } catch (err: any) {
+    console.error(`[fetchProductVideoUrl] Failed to fetch video for ${productId}:`, err.message);
+  }
+  return null;
+}
