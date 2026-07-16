@@ -2488,13 +2488,16 @@ function OrderNotifications() {
   const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [approvedTemplates, setApprovedTemplates] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchAll() {
       try {
-        const [settingsRes, templatesRes] = await Promise.all([
+        const [settingsRes, templatesRes, statsRes] = await Promise.all([
           fetch("/api/whatsapp/settings"),
-          fetch("/api/whatsapp/templates")
+          fetch("/api/whatsapp/templates"),
+          fetch("/api/whatsapp/scheduler-stats")
         ]);
         const settingsData = await settingsRes.json();
         if (settingsRes.ok) {
@@ -2507,10 +2510,16 @@ function OrderNotifications() {
           );
           setApprovedTemplates(approved);
         }
-      } catch {
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats(statsData);
+        }
+      } catch (err) {
+        console.error("Failed to load automation metrics:", err);
         toast.error("Failed to load automation settings.");
       } finally {
         setLoading(false);
+        setStatsLoading(false);
       }
     }
     fetchAll();
@@ -2625,7 +2634,78 @@ function OrderNotifications() {
           <RefreshCcw className="w-6 h-6 animate-spin text-emerald-500" />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* Scheduler Health status panel */}
+          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-lg relative overflow-hidden transition-all duration-300 hover:border-white/20">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">System Status</span>
+                <h4 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  WhatsApp Scheduler Health
+                </h4>
+              </div>
+              {stats && stats.lastRun && (
+                <span className="text-[10px] text-muted-foreground bg-foreground/5 px-2 py-0.5 rounded-full border border-foreground/5">
+                  Last Run: {new Date(stats.lastRun.createdAt).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+
+            {statsLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                <RefreshCcw className="w-3.5 h-3.5 animate-spin text-emerald-500" />
+                Fetching scheduler health metrics...
+              </div>
+            ) : stats ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-foreground/5 rounded-xl p-2.5 border border-foreground/5">
+                    <span className="text-muted-foreground block text-[10px]">Scheduler Heartbeat</span>
+                    <span className="font-semibold text-foreground block mt-0.5">
+                      {stats.lastRun ? (stats.lastRun.success ? 'Healthy' : 'Error') : 'No Heartbeat'}
+                    </span>
+                  </div>
+                  <div className="bg-foreground/5 rounded-xl p-2.5 border border-foreground/5">
+                    <span className="text-muted-foreground block text-[10px]">Carts Recovered (24h)</span>
+                    <span className="font-semibold text-foreground block mt-0.5">
+                      {(stats.sends24h?.['zica_cart_recovery_v1'] || 0) + 
+                       (stats.sends24h?.['zb_cart_followup'] || 0) + 
+                       (stats.sends24h?.['zb_cart_final'] || 0)} sends
+                    </span>
+                  </div>
+                </div>
+
+                {stats.lastRun && !stats.lastRun.success && stats.lastRun.errors && (
+                  <div className="text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl p-2.5 break-all max-h-20 overflow-y-auto">
+                    <span className="font-semibold block mb-0.5">Last Error Log:</span>
+                    {stats.lastRun.errors}
+                  </div>
+                )}
+
+                {Object.keys(stats.sends24h || {}).length > 0 && (
+                  <div className="pt-2 border-t border-foreground/5">
+                    <span className="text-[10px] text-muted-foreground font-semibold block mb-1.5">Template Activity (Last 24h)</span>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
+                      {Object.entries(stats.sends24h || {}).map(([template, count]: [string, any]) => (
+                        <div key={template} className="flex justify-between items-center bg-foreground/5 px-2 py-1 rounded-lg border border-foreground/5">
+                          <span className="text-muted-foreground truncate max-w-[160px]" title={template}>{template}</span>
+                          <span className="font-bold text-foreground bg-foreground/10 px-1.5 py-0.5 rounded text-[10px]">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground py-2">
+                No stats available. Set up the pinger worker to activate.
+              </div>
+            )}
+          </div>
+
           {automations.map((a) => (
             <div key={a.key} className="p-3 rounded-xl hover:bg-foreground/5 transition-all border border-foreground/5">
               <div className="flex justify-between items-center gap-4">

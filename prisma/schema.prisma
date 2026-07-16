@@ -20,7 +20,6 @@ model Shop {
   webhookSecret            String?
   heroImage                String?
   heroVideo                String?
-  heroVideoMobile          String?
   heroTitle                String?
   heroSubtitle             String?
   heroButtonText           String?    @default("Discover")
@@ -49,12 +48,6 @@ model Shop {
   featuredMedia            String?
   collectionsMedia         String?
   footerVideo              String?
-  featuredMediaMobile      String?
-  featuredMediaImageMobile String?
-  collectionsMediaMobile   String?
-  flipbookImageMobile      String?
-  flipbookVideoMobile      String?
-  footerVideoMobile        String?
   mainMenuHandle           String?
   secondaryMenuHandle      String?
   showTreeText             Boolean    @default(true)
@@ -100,19 +93,26 @@ model Shop {
   claudeWebhookSecret      String?
   openaiApiKey             String?
   openaiWebhookSecret      String?
-  loginBgImage             String?
-  loginBgVideo             String?
-  loginBgImageMobile       String?
-  loginBgVideoMobile       String?
-  loginBgImageLight        String?
-  loginBgImageDark         String?
-  loginBgImageLightMobile  String?
-  loginBgImageDarkMobile   String?
-  featuredMediaLink        String?
-  collectionsMediaLink     String?
-  flipbookLink             String?
   homepageCollection       String?    @default("")
   homepageProducts         String?    @default("")
+  heroVideoMobile          String?
+  collectionsMediaMobile   String?
+  featuredMediaImageMobile String?
+  featuredMediaMobile      String?
+  flipbookImageMobile      String?
+  flipbookVideoMobile      String?
+  footerVideoMobile        String?
+  loginBgImage             String?
+  loginBgImageMobile       String?
+  loginBgVideo             String?
+  loginBgVideoMobile       String?
+  loginBgImageDark         String?
+  loginBgImageDarkMobile   String?
+  loginBgImageLight        String?
+  loginBgImageLightMobile  String?
+  featuredMediaLink        String?
+  flipbookLink             String?
+  collectionsMediaLink     String?
   collectionProductOrders  String?    @default("{}")
   shopAllLink              String?    @default("/collections/all")
   customers                Customer[]
@@ -150,48 +150,45 @@ model Customer {
   whatsappOptedOut      Boolean            @default(false)
   lastLoginAt           DateTime?
   addresses             Address[]
-  carts                 Cart[]
   communityMember       CommunityMember?
   communityMessages     CommunityMessage[]
   shop                  Shop               @relation(fields: [shopId], references: [id])
   following             Follow[]           @relation("UserFollowing")
   followers             Follow[]           @relation("UserFollowers")
+  mobileOrders          MobileOrder[]
   orders                Order[]
   payments              Payment[]
   profileHistory        ProfileHistory[]
   returns               Return[]
   storeCreditTxns       StoreCredit[]
   wishlist              Wishlist[]
-  mobileOrders          MobileOrder[]
+  carts                 Cart[]
 }
 
 model Cart {
-  id                String     @id @default(cuid())
-  customerId        String?    @map("customer_id")
-  sessionToken      String?    @unique @map("session_token")
-  source            String     @default("webstore")
-  status            String     @default("active")
-  phone             String?    @map("phone_number")
-  email             String?
-  subtotal          Float      @default(0)
-  currency          String     @default("INR")
-  createdAt         DateTime   @default(now()) @map("created_at")
-  updatedAt         DateTime   @updatedAt @map("updated_at")
-  lastActivityAt    DateTime   @default(now()) @map("last_activity_at")
-  abandonedAt       DateTime?  @map("abandoned_at")
-  convertedOrderId  String?    @unique @map("converted_order_id")
-  
-  // Geolocation enrichment
-  city              String?
-  state             String?
-  zip               String?
-  country           String?
-  latitude          Float?
-  longitude         Float?
-
-  customer          Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  convertedOrder    Order?     @relation("ConvertedOrder", fields: [convertedOrderId], references: [id])
-  items             CartItem[]
+  id               String     @id @default(cuid())
+  customerId       String?    @map("customer_id")
+  sessionToken     String?    @unique @map("session_token")
+  source           String     @default("webstore")
+  status           String     @default("active")
+  phone            String?    @map("phone_number")
+  email            String?
+  subtotal         Float      @default(0)
+  currency         String     @default("INR")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  lastActivityAt   DateTime   @default(now()) @map("last_activity_at")
+  abandonedAt      DateTime?  @map("abandoned_at")
+  convertedOrderId String?    @unique @map("converted_order_id")
+  city             String?
+  country          String?
+  latitude         Float?
+  longitude        Float?
+  state            String?
+  zip              String?
+  items            CartItem[]
+  convertedOrder   Order?     @relation("ConvertedOrder", fields: [convertedOrderId], references: [id])
+  customer         Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@index([status])
@@ -280,6 +277,17 @@ model Order {
   rtoRiskScore          Int?
   discountAmount        Float?            @default(0)
   discountCode          String?
+  delhivery_awb         String?
+  tracking_status       String?
+  internalOrderNumber   String?           @unique @map("internal_order_number")
+  shopifyOrderName      String?           @map("shopify_order_name")
+  shopifySyncStatus     String            @default("synced") @map("shopify_sync_status")
+  shopifySyncError      String?           @map("shopify_sync_error")
+  refundStatus          String            @default("not_applicable") @map("refund_status")
+  refundError           String?           @map("refund_error")
+  refundAttempts        Int               @default(0) @map("refund_attempts")
+  cancelledAt           DateTime?         @map("cancelled_at")
+  cancelledBy           String?           @map("cancelled_by")
   exchanges             Exchange[]
   exchangeRequests      ExchangeRequest[]
   customer              Customer          @relation(fields: [customerId], references: [id])
@@ -289,19 +297,6 @@ model Order {
   returns               Return[]
   returnRequests        ReturnRequest[]
   shipments             Shipment[]
-  delhivery_awb         String?
-  tracking_status       String?
-
-  // Universal Numbering, Sync and Refund Columns
-  internalOrderNumber   String?           @unique @map("internal_order_number")
-  shopifyOrderName      String?           @map("shopify_order_name")
-  shopifySyncStatus     String            @default("synced") @map("shopify_sync_status") // synced, pending, failed
-  shopifySyncError      String?           @map("shopify_sync_error")
-  refundStatus          String            @default("not_applicable") @map("refund_status") // not_applicable, pending, processing, completed, failed
-  refundError           String?           @map("refund_error")
-  refundAttempts        Int               @default(0) @map("refund_attempts")
-  cancelledAt           DateTime?         @map("cancelled_at")
-  cancelledBy           String?           @map("cancelled_by")
   cartSession           Cart?             @relation("ConvertedOrder")
 }
 
@@ -320,26 +315,26 @@ model OrderItem {
 }
 
 model Product {
-  id                String      @id @default(cuid())
+  id                String            @id @default(cuid())
   shopId            String
-  shopifyProductId  String      @unique
+  shopifyProductId  String            @unique
   title             String
   sku               String?
   barcode           String?
-  inventoryItemId   String?     @unique
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  inventoryItemId   String?           @unique
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   featuredImage     String?
   handle            String?
   price             Float?
-  newExchanges      Exchange[]  @relation("NewProduct")
-  originalExchanges Exchange[]  @relation("OriginalProduct")
+  newExchanges      Exchange[]        @relation("NewProduct")
+  originalExchanges Exchange[]        @relation("OriginalProduct")
   inventory         Inventory[]
+  mobileOrderItems  MobileOrderItem[]
   orderItems        OrderItem[]
-  shop              Shop        @relation(fields: [shopId], references: [id])
+  shop              Shop              @relation(fields: [shopId], references: [id])
   returns           Return[]
   wishlist          Wishlist[]
-  mobileOrderItems  MobileOrderItem[]
 }
 
 model Inventory {
@@ -414,20 +409,20 @@ model Exchange {
 }
 
 model ExchangeRequest {
-  id               String     @id @default(cuid())
-  orderId          String
-  customerId       String
-  status           String     @default("pending_approval")
-  priceDifference  Float      @default(0)
-  paymentStatus    String     @default("not_required")
-  paymentId        String?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  reason           String?
-  returnRequestId  String?
+  id                String     @id @default(cuid())
+  orderId           String
+  customerId        String
+  status            String     @default("pending_approval")
+  priceDifference   Float      @default(0)
+  paymentStatus     String     @default("not_required")
+  paymentId         String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  reason            String?
+  returnRequestId   String?
   newShopifyOrderId String?
-  exchanges        Exchange[]
-  order            Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  exchanges         Exchange[]
+  order             Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Payment {
@@ -510,21 +505,21 @@ model Admin {
 }
 
 model BlogPost {
-  id         String   @id @default(cuid())
-  title      String
-  slug       String   @unique
-  excerpt    String?
-  content    String
-  coverImage String?
-  published  Boolean  @default(false)
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  excerpt         String?
+  content         String
+  coverImage      String?
+  published       Boolean  @default(false)
   author          String   @default("Zica Bella")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   metaTitle       String?  @map("meta_title")
   metaDescription String?  @map("meta_description")
   backlinkUrl     String?  @map("backlink_url")
   backlinkText    String?  @map("backlink_text")
   indexPref       Boolean  @default(true) @map("index_pref")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
 }
 
 model CommunityMember {
@@ -646,41 +641,41 @@ model MfgProductionBatch {
   isSampleDone         Boolean                 @default(false) @map("is_sample_done")
   isWashingDone        Boolean                 @default(false) @map("is_washing_done")
   isStitchingDone      Boolean                 @default(false) @map("is_stitching_done")
+  workdriveFolderId    String?                 @map("workdrive_folder_id")
+  workdriveUrl         String?                 @map("workdrive_url")
+  workdriveFolderName  String?                 @map("workdrive_folder_name")
   batchNotes           MfgBatchNote[]
   movements            MfgFabricMovement[]
   miscExpenses         MfgMiscExpense[]
-  fabric               MfgFabric?              @relation(fields: [fabricId], references: [id])
   stageLogs            MfgProductionStageLog[]
+  fabric               MfgFabric?              @relation(fields: [fabricId], references: [id])
   tasks                MfgTask[]
-  workdriveFolderId    String?                 @map("workdrive_folder_id")
-  workdriveFolderName  String?                 @map("workdrive_folder_name")
-  workdriveUrl         String?                 @map("workdrive_url")
 
   @@map("manufacturing_batches")
 }
 
 model MfgTask {
-  id                String              @id @default(cuid())
-  title             String
-  description       String?
-  status            String              @default("PENDING")
-  priority          String              @default("MEDIUM")
-  dueDate           DateTime?           @map("due_date")
-  completedAt       DateTime?           @map("completed_at")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-  createdByName     String              @default("Admin") @map("created_by_name")
-  batchId           String?             @map("batch_id")
-  batch             MfgProductionBatch? @relation(fields: [batchId], references: [id])
-  type              String              @default("MANUAL")
-  assignedToId      String?             @map("assigned_to_id")
-  assignedTo        User?               @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  workdriveUrl      String?             @map("workdrive_url")
-  workdriveFolderId String?             @map("workdrive_folder_id")
-  workdriveFolderName String?           @map("workdrive_folder_name")
-  approvalStatus    String?             @map("approval_status")
-  designName        String?             @map("design_name")
-  designImage       String?             @map("design_image")
+  id                  String              @id @default(cuid())
+  title               String
+  description         String?
+  status              String              @default("PENDING")
+  priority            String              @default("MEDIUM")
+  dueDate             DateTime?           @map("due_date")
+  completedAt         DateTime?           @map("completed_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  createdByName       String              @default("Admin") @map("created_by_name")
+  batchId             String?             @map("batch_id")
+  approvalStatus      String?             @map("approval_status")
+  assignedToId        String?             @map("assigned_to_id")
+  designImage         String?             @map("design_image")
+  designName          String?             @map("design_name")
+  type                String              @default("MANUAL")
+  workdriveFolderId   String?             @map("workdrive_folder_id")
+  workdriveUrl        String?             @map("workdrive_url")
+  workdriveFolderName String?             @map("workdrive_folder_name")
+  assignedTo          User?               @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  batch               MfgProductionBatch? @relation(fields: [batchId], references: [id])
 
   @@map("pending_tasks")
 }
@@ -739,20 +734,20 @@ model MfgAuditLog {
 }
 
 model MfgVendor {
-  id              String                    @id @default(cuid())
-  name            String
-  address         String?
-  mobile          String?
-  category        String
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
-  contactPerson   String?                   @map("contact_person")
-  email           String?
-  pricingNotes    String?                   @map("pricing_notes")
-  leadTimeDays    Int?                      @map("lead_time_days")
-  remarks         String?
-  samples         MfgSample[]
-  kbEntries       MfgProductKnowledgeBase[] @relation("KBVendor")
+  id            String                    @id @default(cuid())
+  name          String
+  address       String?
+  mobile        String?
+  category      String
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  contactPerson String?                   @map("contact_person")
+  email         String?
+  leadTimeDays  Int?                      @map("lead_time_days")
+  pricingNotes  String?                   @map("pricing_notes")
+  remarks       String?
+  kbEntries     MfgProductKnowledgeBase[] @relation("KBVendor")
+  samples       MfgSample[]
 }
 
 model MfgDesignTask {
@@ -765,12 +760,12 @@ model MfgDesignTask {
   workdriveFolderName String?   @map("workdrive_folder_name")
   approvedFileId      String?   @map("approved_file_id")
   approvedById        String?   @map("approved_by")
-  approvedBy          User?     @relation("DesignApprover", fields: [approvedById], references: [id])
   approvedAt          DateTime? @map("approved_at")
   createdById         String?   @map("created_by")
-  createdBy           User?     @relation("DesignCreator", fields: [createdById], references: [id])
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
+  approvedBy          User?     @relation("DesignApprover", fields: [approvedById], references: [id])
+  createdBy           User?     @relation("DesignCreator", fields: [createdById], references: [id])
 
   @@index([status])
   @@index([orderId])
@@ -855,50 +850,46 @@ model WhatsAppMessage {
   readAt       DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
-  // Added for queue retry mechanism
-  retryCount   Int       @default(0) @map("retry_count")
   nextRetryAt  DateTime? @map("next_retry_at")
+  retryCount   Int       @default(0) @map("retry_count")
 
-  @@map("whatsapp_messages")
   @@index([phoneNumber, createdAt])
   @@index([userId])
   @@index([campaignId])
   @@index([status])
+  @@map("whatsapp_messages")
 }
 
 model WhatsAppCampaign {
-  id             String    @id @default(cuid())
-  name           String
-  templateName   String
-  templateParams String?
-  targetSegment  String    @default("all")
-  scheduledAt    DateTime?
-  sentAt         DateTime?
-  status         String    @default("draft")
-  createdBy      String    @default("admin")
-  statsSent      Int       @default(0)
-  statsDelivered Int       @default(0)
-  statsRead      Int       @default(0)
-  statsReplied   Int       @default(0)
-  statsFailed    Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  recipients     WhatsAppCampaignRecipient[]
+  id                String                      @id @default(cuid())
+  name              String
+  templateName      String
+  templateParams    String?
+  targetSegment     String                      @default("all")
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  status            String                      @default("draft")
+  createdBy         String                      @default("admin")
+  statsSent         Int                         @default(0)
+  statsDelivered    Int                         @default(0)
+  statsRead         Int                         @default(0)
+  statsReplied      Int                         @default(0)
+  statsFailed       Int                         @default(0)
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  campaign_name     String?                     @map("campaign_name")
+  click_count       Int                         @default(0) @map("click_count")
+  conversions       Int                         @default(0)
+  delivered         Int                         @default(0)
+  read_count        Int                         @default(0) @map("read_count")
+  revenue_generated Float                       @default(0.0) @map("revenue_generated")
+  target_audience   String?                     @map("target_audience")
+  template_name     String?                     @map("template_name")
+  total_sent        Int                         @default(0) @map("total_sent")
+  recipients        WhatsAppCampaignRecipient[]
 
-  // New fields requested for Analytics and Meta Review:
-  campaign_name     String?   @map("campaign_name")
-  template_name     String?   @map("template_name")
-  target_audience   String?   @map("target_audience")
-  total_sent        Int       @default(0) @map("total_sent")
-  delivered         Int       @default(0)
-  read_count        Int       @default(0) @map("read_count")
-  click_count       Int       @default(0) @map("click_count")
-  conversions       Int       @default(0)
-  revenue_generated Float     @default(0.0) @map("revenue_generated")
-
-  @@map("whatsapp_campaigns")
   @@index([status, scheduledAt])
+  @@map("whatsapp_campaigns")
 }
 
 model WhatsAppSetting {
@@ -926,26 +917,24 @@ model WhatsAppCampaignRecipient {
   campaignId   String
   phone        String
   name         String?
-  status       String           @default("queued") // queued, sent, delivered, read, failed
+  status       String           @default("queued")
   messageId    String?
   errorMessage String?
   sentAt       DateTime?
   deliveredAt  DateTime?
   readAt       DateTime?
+  nextRetryAt  DateTime?        @map("next_retry_at")
+  retryCount   Int              @default(0) @map("retry_count")
   campaign     WhatsAppCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  // Added for queue retry mechanism
-  retryCount   Int       @default(0) @map("retry_count")
-  nextRetryAt  DateTime? @map("next_retry_at")
-
-  @@map("whatsapp_campaign_recipients")
   @@index([campaignId])
   @@index([phone])
+  @@map("whatsapp_campaign_recipients")
 }
 
 model WhatsAppWebhookEvent {
   id        String   @id @default(cuid())
-  eventType String   // messages, message_status, etc.
+  eventType String
   payload   Json
   processed Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -956,31 +945,31 @@ model WhatsAppWebhookEvent {
 model WhatsAppOptIn {
   id          String   @id @default(cuid())
   phone       String   @unique
-  status      String   // opted_in, opted_out
+  status      String
   consentDate DateTime @default(now())
-  source      String   // e.g. community_signup, checkout, admin_dashboard
+  source      String
 
-  @@map("whatsapp_opt_ins")
   @@index([phone])
+  @@map("whatsapp_opt_ins")
 }
 
 model EmailOptIn {
   id          String   @id @default(cuid())
   phone       String   @unique
   email       String?
-  status      String   // opted_in, opted_out
+  status      String
   consentDate DateTime @default(now())
-  source      String   // e.g. webstore_login, checkout, admin_dashboard
+  source      String
 
-  @@map("email_opt_ins")
   @@index([phone])
+  @@map("email_opt_ins")
 }
 
 model WhatsAppDeliveryStatus {
   id          String    @id @default(cuid())
   messageId   String    @unique
   phoneNumber String
-  status      String    // sent, delivered, read, failed
+  status      String
   errorCode   String?
   errorText   String?
   sentAt      DateTime?
@@ -988,27 +977,27 @@ model WhatsAppDeliveryStatus {
   readAt      DateTime?
   updatedAt   DateTime  @updatedAt
 
-  @@map("whatsapp_delivery_status")
   @@index([phoneNumber])
+  @@map("whatsapp_delivery_status")
 }
 
 model WhatsAppEvent {
-  id             String             @id @default(cuid())
-  eventName      String             @map("event_name")
-  customerId     String?            @map("customer_id")
-  customerPhone  String?            @map("customer_phone")
-  orderId        String?            @map("order_id")
-  productId      String?            @map("product_id")
-  eventSource    String             @default("system") @map("event_source")
-  metadataJson   String?            @map("metadata_json")
-  status         String             @default("pending")
-  createdAt      DateTime           @default(now()) @map("created_at")
-  logs           WhatsAppEventLog[]
+  id            String             @id @default(cuid())
+  eventName     String             @map("event_name")
+  customerId    String?            @map("customer_id")
+  customerPhone String?            @map("customer_phone")
+  orderId       String?            @map("order_id")
+  productId     String?            @map("product_id")
+  eventSource   String             @default("system") @map("event_source")
+  metadataJson  String?            @map("metadata_json")
+  status        String             @default("pending")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  logs          WhatsAppEventLog[]
 
-  @@map("whatsapp_events")
   @@index([eventName])
   @@index([customerPhone])
   @@index([status])
+  @@map("whatsapp_events")
 }
 
 model WhatsAppEventLog {
@@ -1021,10 +1010,9 @@ model WhatsAppEventLog {
   createdAt       DateTime      @default(now()) @map("created_at")
   event           WhatsAppEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  @@map("whatsapp_event_logs")
   @@index([eventId])
+  @@map("whatsapp_event_logs")
 }
-
 
 model EmailCampaign {
   id                String    @id @default(cuid())
@@ -1207,9 +1195,9 @@ model Wishlist {
   id         String   @id @default(cuid())
   customerId String
   productId  String
-  variantId  String?
-  size       String?
   createdAt  DateTime @default(now())
+  size       String?
+  variantId  String?
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -1231,11 +1219,11 @@ model Address {
   zip        String
   country    String   @default("India")
   isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
   lat        Float?
   lng        Float?
   placeId    String?  @map("place_id")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
@@ -1266,30 +1254,30 @@ model SupportMessage {
 }
 
 model User {
-  id                  String       @id @default(cuid())
-  email               String       @unique
-  passwordHash        String
-  name                String?
-  role                Role         @default(ADMIN)
-  isActive            Boolean      @default(true)
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-  createdBy           String?
-  failedLoginAttempts Int          @default(0)
-  lockUntil           DateTime?
-  needsPasswordChange Boolean      @default(false)
-  auditLogs           AuditLog[]
-  permissions         Permission[]
-  creator             User?        @relation("UserCreator", fields: [createdBy], references: [id])
-  createdUsers        User[]       @relation("UserCreator")
-  assignedMfgTasks         MfgTask[]        @relation("TaskAssignee")
-  designTasksApproved      MfgDesignTask[]  @relation("DesignApprover")
-  designTasksCreated       MfgDesignTask[]  @relation("DesignCreator")
-  mfgDesignAssignments    MfgDesignAssignment[] @relation("DesignAssignee")
-  mfgDesignAssignedBy     MfgDesignAssignment[] @relation("DesignAssigner")
-  mfgSamplesReviewed      MfgSample[]           @relation("SampleReviewer")
-  mfgKBDesigns            MfgProductKnowledgeBase[] @relation("KBDesigner")
-  mfgPerformanceEvents    MfgEmployeePerformance[]  @relation("EmployeePerf")
+  id                   String                    @id @default(cuid())
+  email                String                    @unique
+  passwordHash         String
+  name                 String?
+  role                 Role                      @default(ADMIN)
+  isActive             Boolean                   @default(true)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  createdBy            String?
+  failedLoginAttempts  Int                       @default(0)
+  lockUntil            DateTime?
+  needsPasswordChange  Boolean                   @default(false)
+  auditLogs            AuditLog[]
+  permissions          Permission[]
+  creator              User?                     @relation("UserCreator", fields: [createdBy], references: [id])
+  createdUsers         User[]                    @relation("UserCreator")
+  designTasksApproved  MfgDesignTask[]           @relation("DesignApprover")
+  designTasksCreated   MfgDesignTask[]           @relation("DesignCreator")
+  mfgDesignAssignedBy  MfgDesignAssignment[]     @relation("DesignAssigner")
+  mfgDesignAssignments MfgDesignAssignment[]     @relation("DesignAssignee")
+  mfgPerformanceEvents MfgEmployeePerformance[]  @relation("EmployeePerf")
+  mfgKBDesigns         MfgProductKnowledgeBase[] @relation("KBDesigner")
+  mfgSamplesReviewed   MfgSample[]               @relation("SampleReviewer")
+  assignedMfgTasks     MfgTask[]                 @relation("TaskAssignee")
 }
 
 model Permission {
@@ -1299,7 +1287,7 @@ model Permission {
   canView   Boolean @default(false)
   canEdit   Boolean @default(false)
   canDelete Boolean @default(false)
-  pages     String? // Comma-separated list of allowed page paths/IDs
+  pages     String?
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, module])
@@ -1323,10 +1311,10 @@ model AuditLog {
 }
 
 model AdminNotificationRead {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  lastReadAt  DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  lastReadAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([userId])
 }
@@ -1353,99 +1341,72 @@ model AIChatMessage {
   @@index([sessionId])
 }
 
-enum Role {
-  SUPER_ADMIN
-  ADMIN
-}
-
-enum Module {
-  DASHBOARD_HOME
-  SUPPORT
-  ORDERS
-  MOBILE_ORDERS
-  CUSTOMERS
-  PRODUCTS
-  INVENTORY
-  LOGISTICS
-  RETURNS_EXCHANGES
-  STOREFRONT
-  COMMUNITY
-  MARKETING
-  MANUFACTURING
-  FINANCIAL
-  INTEGRATIONS
-  AI_SERVICES
-  SETTINGS
-  ADMIN_USERS
-  AUDIT_LOG
-}
-
 model ZicaAiCache {
-  id                   String   @id @default(uuid())
-  userId               String
-  sessionId            String
-  turnIndex            Int
-  userMessage          String
-  aiResponse           String   @db.Text
-  detectedProducts     String[]
-  detectedCollections  String[]
-  intentTags           String[]
-  sentiment            String
-  timestamp            DateTime @default(now())
-  responseTokens       Int
-  helpfulFlag          Boolean?
+  id                  String   @id @default(uuid())
+  userId              String
+  sessionId           String
+  turnIndex           Int
+  userMessage         String
+  aiResponse          String
+  detectedProducts    String[]
+  detectedCollections String[]
+  intentTags          String[]
+  sentiment           String
+  timestamp           DateTime @default(now())
+  responseTokens      Int
+  helpfulFlag         Boolean?
 
   @@index([userId, timestamp])
 }
 
 model ZicaAiGlobalInsight {
-  id               String   @id @default(uuid())
-  insightType      String
-  key              String
-  frequency        Int      @default(1)
-  lastSeen         DateTime @default(now())
-  sampleQueries    String[]
-  confidenceScore  Float    @default(0.0)
+  id              String   @id @default(uuid())
+  insightType     String
+  key             String
+  frequency       Int      @default(1)
+  lastSeen        DateTime @default(now())
+  sampleQueries   String[]
+  confidenceScore Float    @default(0.0)
 
   @@unique([insightType, key])
 }
 
 model ZicaUserProfile {
-  userId             String   @id
+  userId              String   @id
   preferredCategories String[]
-  preferredSizes     String[]
-  styleTags          String[]
-  totalSessions      Int      @default(0)
-  lastActive         DateTime @default(now())
-  favouriteProducts  String[]
+  preferredSizes      String[]
+  styleTags           String[]
+  totalSessions       Int      @default(0)
+  lastActive          DateTime @default(now())
+  favouriteProducts   String[]
 }
 
 model MobileOrder {
-  id                String   @id @default(cuid())
-  orderNumber       String   @unique        // e.g. "ZB711168"
-  shopifyOrderId    String?                  // Populated after Shopify sync
+  id                String            @id @default(cuid())
+  orderNumber       String            @unique
+  shopifyOrderId    String?
   customerId        String
-  status            String   @default("pending")  // pending, approved, cancelled, synced
-  paymentStatus     String   @default("pending")
-  paymentMethod     String?                  // COD, PREPAID, STORE_CREDIT
-  paymentId         String?                  // Razorpay payment ID
-  totalPrice        Float    @default(0)
+  status            String            @default("pending")
+  paymentStatus     String            @default("pending")
+  paymentMethod     String?
+  paymentId         String?
+  totalPrice        Float             @default(0)
   subtotalPrice     Float?
   totalTax          Float?
-  discountAmount    Float?   @default(0)
+  discountAmount    Float?            @default(0)
   discountCode      String?
-  currency          String   @default("INR")
-  fulfillmentStatus String   @default("unfulfilled")
-  deliveryStatus    String   @default("pending")
-  shippingAddress   String?                  // JSON
-  billingAddress    String?                  // JSON
+  currency          String            @default("INR")
+  fulfillmentStatus String            @default("unfulfilled")
+  deliveryStatus    String            @default("pending")
+  shippingAddress   String?
+  billingAddress    String?
   note              String?
   tags              String?
-  source            String   @default("mobile_app")  // mobile_app, ios, android
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  source            String            @default("mobile_app")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   syncedAt          DateTime?
-  customer          Customer @relation(fields: [customerId], references: [id])
+  customer          Customer          @relation(fields: [customerId], references: [id])
   items             MobileOrderItem[]
 
   @@index([customerId])
@@ -1470,31 +1431,31 @@ model MobileOrderItem {
 }
 
 model WebStoreOrder {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderNumber        String   @unique @map("order_number")
-  customerName       String   @map("customer_name")
-  customerEmail      String   @map("customer_email")
-  customerPhone      String   @map("customer_phone")
-  shippingAddress    Json     @map("shipping_address")
-  items              Json     @map("items")
-  subtotal           Decimal  @db.Decimal(10, 2)
-  shippingCharge     Decimal  @map("shipping_charge") @db.Decimal(10, 2)
-  discountCode       String?  @map("discount_code")
-  discountAmount     Decimal  @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  totalAmount        Decimal  @map("total_amount") @db.Decimal(10, 2)
-  paymentStatus      String   @map("payment_status")
-  paymentMethod      String   @map("payment_method")
-  razorpayOrderId    String?  @map("razorpay_order_id")
-  razorpayPaymentId  String?  @map("razorpay_payment_id")
-  codUpfrontPaid       Decimal  @default(0) @map("cod_upfront_paid") @db.Decimal(10, 2)
-  codUpfrontPaymentId  String?  @map("cod_upfront_payment_id")
-  fulfillmentStatus    String   @default("unfulfilled") @map("fulfillment_status")
-  trackingNumber       String?  @map("tracking_number")
-  trackingUrl          String?  @map("tracking_url")
-  notes                String?
-  source               String   @default("web")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderNumber         String   @unique @map("order_number")
+  customerName        String   @map("customer_name")
+  customerEmail       String   @map("customer_email")
+  customerPhone       String   @map("customer_phone")
+  shippingAddress     Json     @map("shipping_address")
+  items               Json     @map("items")
+  subtotal            Decimal  @db.Decimal(10, 2)
+  shippingCharge      Decimal  @map("shipping_charge") @db.Decimal(10, 2)
+  discountCode        String?  @map("discount_code")
+  discountAmount      Decimal  @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  totalAmount         Decimal  @map("total_amount") @db.Decimal(10, 2)
+  paymentStatus       String   @map("payment_status")
+  paymentMethod       String   @map("payment_method")
+  razorpayOrderId     String?  @map("razorpay_order_id")
+  razorpayPaymentId   String?  @map("razorpay_payment_id")
+  fulfillmentStatus   String   @default("unfulfilled") @map("fulfillment_status")
+  trackingNumber      String?  @map("tracking_number")
+  trackingUrl         String?  @map("tracking_url")
+  notes               String?
+  source              String   @default("web")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
+  codUpfrontPaid      Decimal  @default(0) @map("cod_upfront_paid") @db.Decimal(10, 2)
+  codUpfrontPaymentId String?  @map("cod_upfront_payment_id")
 
   @@map("web_store_orders")
 }
@@ -1526,30 +1487,28 @@ model WebStoreWishlist {
 }
 
 model WebStoreCoupon {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code           String    @unique
-  discountType   String    @map("discount_type")
-  discountValue  Decimal   @map("discount_value") @db.Decimal(10, 2)
-  minOrderValue  Decimal   @default(0) @map("min_order_value") @db.Decimal(10, 2)
-  usageLimit     Int?      @map("usage_limit")
-  usedCount      Int       @default(0) @map("used_count")
-  validFrom      DateTime  @map("valid_from")
-  validUntil     DateTime  @map("valid_until")
-  isActive       Boolean   @default(true) @map("is_active")
-  createdAt      DateTime  @default(now()) @map("created_at")
-
-  // Advanced settings
-  applicability        String    @default("ALL") @map("applicability") // "ALL", "PREPAID_ONLY", "COD_ONLY", "CUSTOM_RATES"
-  prepaidDiscountType  String    @default("percentage") @map("prepaid_discount_type")
-  prepaidDiscountValue Decimal   @default(0) @map("prepaid_discount_value") @db.Decimal(10, 2)
-  codDiscountType      String    @default("percentage") @map("cod_discount_type")
-  codDiscountValue     Decimal   @default(0) @map("cod_discount_value") @db.Decimal(10, 2)
-  applyAsStoreCredit   Boolean   @default(false) @map("apply_as_store_credit")
-  cashbackEnabled      Boolean   @default(false) @map("cashback_enabled")
-  cashbackType         String    @default("percentage") @map("cashback_type")
-  cashbackValue        Decimal   @default(0) @map("cashback_value") @db.Decimal(10, 2)
-  autoApply            Boolean   @default(false) @map("auto_apply")
-  isSecure             Boolean   @default(false) @map("is_secure")
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                 String   @unique
+  discountType         String   @map("discount_type")
+  discountValue        Decimal  @map("discount_value") @db.Decimal(10, 2)
+  minOrderValue        Decimal  @default(0) @map("min_order_value") @db.Decimal(10, 2)
+  usageLimit           Int?     @map("usage_limit")
+  usedCount            Int      @default(0) @map("used_count")
+  validFrom            DateTime @map("valid_from")
+  validUntil           DateTime @map("valid_until")
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at")
+  applicability        String   @default("ALL") @map("applicability")
+  applyAsStoreCredit   Boolean  @default(false) @map("apply_as_store_credit")
+  codDiscountType      String   @default("percentage") @map("cod_discount_type")
+  codDiscountValue     Decimal  @default(0) @map("cod_discount_value") @db.Decimal(10, 2)
+  prepaidDiscountType  String   @default("percentage") @map("prepaid_discount_type")
+  prepaidDiscountValue Decimal  @default(0) @map("prepaid_discount_value") @db.Decimal(10, 2)
+  cashbackEnabled      Boolean  @default(false) @map("cashback_enabled")
+  cashbackType         String   @default("percentage") @map("cashback_type")
+  cashbackValue        Decimal  @default(0) @map("cashback_value") @db.Decimal(10, 2)
+  autoApply            Boolean  @default(false) @map("auto_apply")
+  isSecure             Boolean  @default(false) @map("is_secure")
 
   @@map("web_store_coupons")
 }
@@ -1570,38 +1529,37 @@ model WebStoreBanner {
 }
 
 model MfgCollection {
-  id          String   @id @default(cuid())
-  name        String
-  season      String?
-  status      String   @default("ACTIVE")  // ACTIVE | ARCHIVED
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  designs     MfgDesignAssignment[]
+  id        String                @id @default(cuid())
+  name      String
+  season    String?
+  status    String                @default("ACTIVE")
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt DateTime              @updatedAt @map("updated_at")
+  designs   MfgDesignAssignment[]
 
   @@map("mfg_collections")
 }
 
 model MfgDesignAssignment {
-  id               String         @id @default(cuid())
-  collectionId     String         @map("collection_id")
-  collection       MfgCollection  @relation(fields: [collectionId], references: [id])
-  styleCode        String         @unique @map("style_code")
-  styleName        String         @map("style_name")
-  productCategory  String         @map("product_category")
-  assignedToId     String?        @map("assigned_to_id")
-  assignedTo       User?          @relation("DesignAssignee", fields: [assignedToId], references: [id])
-  assignedById     String?        @map("assigned_by_id")
-  assignedBy       User?          @relation("DesignAssigner", fields: [assignedById], references: [id])
-  assignmentDate   DateTime       @default(now()) @map("assignment_date")
-  submissionDeadline DateTime?    @map("submission_deadline")
-  priority         String         @default("MEDIUM")  // LOW | MEDIUM | HIGH | URGENT
-  status           String         @default("Not Started")
-  // Values: Not Started | In Progress | Submitted | Approved | Rejected
-  notes            String?
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
-  attachments      MfgDesignAttachment[]
-  samples          MfgSample[]
+  id                 String                @id @default(cuid())
+  collectionId       String                @map("collection_id")
+  styleCode          String                @unique @map("style_code")
+  styleName          String                @map("style_name")
+  productCategory    String                @map("product_category")
+  assignedToId       String?               @map("assigned_to_id")
+  assignedById       String?               @map("assigned_by_id")
+  assignmentDate     DateTime              @default(now()) @map("assignment_date")
+  submissionDeadline DateTime?             @map("submission_deadline")
+  priority           String                @default("MEDIUM")
+  status             String                @default("Not Started")
+  notes              String?
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  assignedBy         User?                 @relation("DesignAssigner", fields: [assignedById], references: [id])
+  assignedTo         User?                 @relation("DesignAssignee", fields: [assignedToId], references: [id])
+  collection         MfgCollection         @relation(fields: [collectionId], references: [id])
+  attachments        MfgDesignAttachment[]
+  samples            MfgSample[]
 
   @@index([collectionId])
   @@index([assignedToId])
@@ -1611,39 +1569,38 @@ model MfgDesignAssignment {
 model MfgDesignAttachment {
   id           String              @id @default(cuid())
   assignmentId String              @map("assignment_id")
-  assignment   MfgDesignAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  type         String              // Reference Image | Mood Board | Design File | Tech Pack
+  type         String
   fileUrl      String              @map("file_url")
   fileName     String?             @map("file_name")
   uploadedAt   DateTime            @default(now()) @map("uploaded_at")
+  assignment   MfgDesignAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
 
   @@map("mfg_design_attachments")
 }
 
 model MfgSample {
-  id                 String               @id @default(cuid())
-  designAssignmentId String               @map("design_assignment_id")
-  designAssignment   MfgDesignAssignment  @relation(fields: [designAssignmentId], references: [id])
-  styleCode          String               @map("style_code")
-  productName        String               @map("product_name")
-  fabricType         String?              @map("fabric_type")
+  id                 String              @id @default(cuid())
+  designAssignmentId String              @map("design_assignment_id")
+  styleCode          String              @map("style_code")
+  productName        String              @map("product_name")
+  fabricType         String?             @map("fabric_type")
   gsm                String?
   composition        String?
-  printingTechnique  String?              @map("printing_technique")
-  embroideryDetails  String?              @map("embroidery_details")
-  accessoriesUsed    String?              @map("accessories_used")
-  vendorId           String?              @map("vendor_id")
-  vendor             MfgVendor?           @relation(fields: [vendorId], references: [id])
+  printingTechnique  String?             @map("printing_technique")
+  embroideryDetails  String?             @map("embroidery_details")
+  accessoriesUsed    String?             @map("accessories_used")
+  vendorId           String?             @map("vendor_id")
   remarks            String?
-  status             String               @default("Pending Review")
-  // Values: Pending Review | Approved | Rejected | Revision Required
-  submittedAt        DateTime             @default(now()) @map("submitted_at")
-  reviewedAt         DateTime?            @map("reviewed_at")
-  reviewedById       String?              @map("reviewed_by_id")
-  reviewedBy         User?                @relation("SampleReviewer", fields: [reviewedById], references: [id])
-  adminComments      String?              @map("admin_comments")
+  status             String              @default("Pending Review")
+  submittedAt        DateTime            @default(now()) @map("submitted_at")
+  reviewedAt         DateTime?           @map("reviewed_at")
+  reviewedById       String?             @map("reviewed_by_id")
+  adminComments      String?             @map("admin_comments")
   images             MfgSampleImage[]
   revisions          MfgSampleRevision[]
+  designAssignment   MfgDesignAssignment @relation(fields: [designAssignmentId], references: [id])
+  reviewedBy         User?               @relation("SampleReviewer", fields: [reviewedById], references: [id])
+  vendor             MfgVendor?          @relation(fields: [vendorId], references: [id])
 
   @@index([designAssignmentId])
   @@map("mfg_samples")
@@ -1652,9 +1609,9 @@ model MfgSample {
 model MfgSampleImage {
   id         String    @id @default(cuid())
   sampleId   String    @map("sample_id")
-  sample     MfgSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
   imageUrl   String    @map("image_url")
   uploadedAt DateTime  @default(now()) @map("uploaded_at")
+  sample     MfgSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
 
   @@map("mfg_sample_images")
 }
@@ -1662,34 +1619,34 @@ model MfgSampleImage {
 model MfgSampleRevision {
   id               String    @id @default(cuid())
   sampleId         String    @map("sample_id")
-  sample           MfgSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
   revisionNumber   Int       @map("revision_number")
   changeRequests   String    @map("change_requests")
   designerResponse String?   @map("designer_response")
   resubmissionDate DateTime? @map("resubmission_date")
   approvalDate     DateTime? @map("approval_date")
   createdAt        DateTime  @default(now()) @map("created_at")
+  sample           MfgSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
 
   @@map("mfg_sample_revisions")
 }
 
 model MfgProductKnowledgeBase {
-  id               String     @id @default(cuid())
-  styleCode        String     @unique @map("style_code")
-  productName      String     @map("product_name")
-  designerId       String?    @map("designer_id")
-  designer         User?      @relation("KBDesigner", fields: [designerId], references: [id])
-  fabricUsed       String?    @map("fabric_used")
-  gsm              String?
-  composition      String?
-  printingTechnique String?   @map("printing_technique")
-  vendorId         String?    @map("vendor_id")
-  vendor           MfgVendor? @relation("KBVendor", fields: [vendorId], references: [id])
-  accessoriesUsed  String?    @map("accessories_used")
-  sampleImages     String[]   @map("sample_images")
-  productionNotes  String?    @map("production_notes")
-  approvalDate     DateTime?  @map("approval_date")
-  createdAt        DateTime   @default(now()) @map("created_at")
+  id                String     @id @default(cuid())
+  styleCode         String     @unique @map("style_code")
+  productName       String     @map("product_name")
+  designerId        String?    @map("designer_id")
+  fabricUsed        String?    @map("fabric_used")
+  gsm               String?
+  composition       String?
+  printingTechnique String?    @map("printing_technique")
+  vendorId          String?    @map("vendor_id")
+  accessoriesUsed   String?    @map("accessories_used")
+  sampleImages      String[]   @map("sample_images")
+  productionNotes   String?    @map("production_notes")
+  approvalDate      DateTime?  @map("approval_date")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  designer          User?      @relation("KBDesigner", fields: [designerId], references: [id])
+  vendor            MfgVendor? @relation("KBVendor", fields: [vendorId], references: [id])
 
   @@map("mfg_product_knowledge_base")
 }
@@ -1697,13 +1654,13 @@ model MfgProductKnowledgeBase {
 model MfgEmployeePerformance {
   id            String   @id @default(cuid())
   userId        String   @map("user_id")
-  user          User     @relation("EmployeePerf", fields: [userId], references: [id])
   eventType     String   @map("event_type")
   scoreDelta    Float    @map("score_delta")
   referenceId   String?  @map("reference_id")
   referenceType String?  @map("reference_type")
   notes         String?
   createdAt     DateTime @default(now()) @map("created_at")
+  user          User     @relation("EmployeePerf", fields: [userId], references: [id])
 
   @@index([userId])
   @@map("mfg_employee_performance")
@@ -1718,8 +1675,8 @@ model StoreSettings {
   socialImageAlt  String?  @map("social_image_alt")
   twitterCardType String   @default("summary_large_image") @map("twitter_card_type")
   updatedBy       String?  @map("updated_by")
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("store_settings")
 }
@@ -1727,12 +1684,95 @@ model StoreSettings {
 model SyncLog {
   id        String   @id @default(cuid())
   orderId   String
-  action    String   // SHOPIFY_SYNC, RAZORPAY_REFUND
-  status    String   // SUCCESS, FAILED
+  action    String
+  status    String
   error     String?
-  payload   String?  // JSON string
+  payload   String?
   createdAt DateTime @default(now())
 }
 
+model RateLimitLog {
+  id        Int       @id @default(autoincrement())
+  key       String    @db.VarChar(255)
+  timestamp DateTime? @default(now()) @db.Timestamptz(6)
 
+  @@index([key, timestamp], map: "idx_ratelimit_key_timestamp")
+}
+
+model price_tag_batches {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_number   Int       @default(1)
+  product_id     String
+  product_name   String
+  generic_name   String
+  mrp            Decimal   @db.Decimal(10, 2)
+  size           String
+  quantity       Int       @default(1)
+  sku_prefix     String
+  tags_generated Json      @default("[]")
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model price_tag_sku_counters {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku_variant_key String    @unique
+  last_counter    Int       @default(0)
+  updated_at      DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model product_skus {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id         String
+  sku                String    @unique
+  size               String
+  quantity           Int       @default(1)
+  status             String    @default("IN_STOCK")
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+  shopify_variant_id String?
+  inventory_item_id  String?
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum Module {
+  DASHBOARD_HOME
+  SUPPORT
+  ORDERS
+  MOBILE_ORDERS
+  CUSTOMERS
+  PRODUCTS
+  INVENTORY
+  LOGISTICS
+  RETURNS_EXCHANGES
+  STOREFRONT
+  COMMUNITY
+  MARKETING
+  MANUFACTURING
+  FINANCIAL
+  INTEGRATIONS
+  AI_SERVICES
+  SETTINGS
+  ADMIN_USERS
+  AUDIT_LOG
+}
+
+model WhatsAppSchedulerRun {
+  id                         String   @id @default(cuid())
+  createdAt                  DateTime @default(now()) @map("created_at")
+  campaignsProcessed         Int      @default(0) @map("campaigns_processed")
+  campaignRecipientsRetried  Int      @default(0) @map("campaign_recipients_retried")
+  messagesRetried            Int      @default(0) @map("messages_retried")
+  abandonedCartStep1Sent     Int      @default(0) @map("abandoned_cart_step1_sent")
+  abandonedCartStep2Sent     Int      @default(0) @map("abandoned_cart_step2_sent")
+  abandonedCartStep3Sent     Int      @default(0) @map("abandoned_cart_step3_sent")
+  errorCount                 Int      @default(0) @map("error_count")
+  errors                     String?  @db.Text
+  success                    Boolean  @default(true)
+
+  @@map("whatsapp_scheduler_runs")
+}
 
