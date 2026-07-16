@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     const phone = cart.phone || cart.customer?.phone;
     const email = cart.email || cart.customer?.email;
     const name = cart.customer?.name || "Customer";
-    const checkoutUrl = `https://app.zicabella.com/cart?recover=${cart.id}`;
+    const checkoutUrl = `https://www.zicabella.com/cart?recover=${cart.id}`;
 
     if (channel === "whatsapp") {
       if (!phone) return NextResponse.json({ error: "No phone number available for this cart" }, { status: 400 });

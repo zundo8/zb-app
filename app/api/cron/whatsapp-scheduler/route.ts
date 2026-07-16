@@ -284,7 +284,7 @@ export async function GET(req: NextRequest) {
           const res = await templates.sendAbandonedCart({
             phone: formattedPhone,
             customerName: cart.customer?.name || 'there',
-            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
+            checkoutUrl: `https://www.zicabella.com/cart?recover=${cart.id}`,
             productImageUrl: firstItem.image || '',
             productName: firstItem.title || '',
             cartTotal: String(cart.subtotal || '0.00'),
@@ -312,7 +312,7 @@ export async function GET(req: NextRequest) {
             phone: formattedPhone,
             customerName: cart.customer?.name || 'there',
             discountCode: 'ZICA10',
-            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
+            checkoutUrl: `https://www.zicabella.com/cart?recover=${cart.id}`,
             productId: firstItem.productId || '',
             productImageUrl: firstItem.image || '',
             productName: firstItem.title || '',
@@ -333,7 +333,7 @@ export async function GET(req: NextRequest) {
           const res = await templates.sendCartRecoveryFinalReminder({
             phone: formattedPhone,
             customerName: cart.customer?.name || 'there',
-            checkoutUrl: `https://app.zicabella.com/cart?recover=${cart.id}`,
+            checkoutUrl: `https://www.zicabella.com/cart?recover=${cart.id}`,
             productId: firstItem.productId || '',
             productImageUrl: firstItem.image || '',
             productName: firstItem.title || '',
