@@ -244,7 +244,7 @@ export async function GET(req: NextRequest) {
       const delay3 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step3', '10080'), 10) || 10080;
 
       const now = new Date();
-      const cutoffDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+      const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // Only carts from the last 24 hours
 
       const carts = await db.cart.findMany({
         where: {
@@ -261,7 +261,7 @@ export async function GET(req: NextRequest) {
           customer: true,
           items: true
         },
-        take: 10
+        take: 50
       });
 
       // Optimize: Fetch all recovery messages sent in the last 30 days in one single query
