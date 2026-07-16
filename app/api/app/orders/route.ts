@@ -495,7 +495,7 @@ export async function POST(req: Request) {
         title: li.title,
       })).filter((li: any) => li.variant_id),
       financial_status: financial_status === 'paid' ? 'paid' : 'pending',
-      tags: `AppOrder, ${payment_method.toUpperCase()}${creditReduction > 0 ? `, Credit: ${creditReduction}` : ''}`,
+      tags: `AppOrder, ${payment_method.toUpperCase() === 'COD' ? 'COD' : 'Prepaid, Razorpay'}${creditReduction > 0 ? `, Credit: ${creditReduction}` : ''}`,
       note: `Ordered via Zica Bella App. Method: ${payment_method.toUpperCase()}. ${creditReduction > 0 ? `Used ${creditReduction} credits.` : ''}`,
       shipping_address,
       use_customer_default_address: !shipping_address,
@@ -509,6 +509,18 @@ export async function POST(req: Request) {
         first_name: customer.name?.split(' ')[0] || 'App',
         last_name: customer.name?.split(' ').slice(1).join(' ') || 'User',
       };
+    }
+
+    // Add transactions for prepaid orders so Shopify records the correct gateway
+    if (financial_status === 'paid' && payment_method.toUpperCase() !== 'COD') {
+      shopifyOrderPayload.transactions = [{
+        kind: "sale",
+        status: "success",
+        amount: parseFloat(String(total_price || 0)).toFixed(2),
+        currency: currency || "INR",
+        gateway: "razorpay",
+        authorization: payment_id || null
+      }];
     }
 
     

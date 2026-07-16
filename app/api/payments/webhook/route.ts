@@ -208,12 +208,20 @@ export async function POST(req: NextRequest) {
                   line_items: shopifyLineItems,
                   financial_status: "paid",
                   note: `Paid via Razorpay Link from WhatsApp Cart Recovery (Payment ID: ${razorpayPaymentId})`,
-                  tags: `WebStoreOrder, WebStore, Razorpay, CartRecovery, zb-order-${order.internalOrderNumber}`,
+                  tags: `WebStoreOrder, WebStore, Prepaid, Razorpay, CartRecovery, zb-order-${order.internalOrderNumber}`,
                   note_attributes: [
                     { name: 'internal_order_number', value: order.internalOrderNumber || "" }
                   ],
                   total_tax: 0,
-                  currency: "INR"
+                  currency: "INR",
+                  transactions: [{
+                    kind: "sale",
+                    status: "success",
+                    amount: parseFloat(String(order.totalPrice || 0)).toFixed(2),
+                    currency: "INR",
+                    gateway: "razorpay",
+                    authorization: razorpayPaymentId || null
+                  }]
                 };
 
                 if (shopifyCustomerId && !isNaN(parseInt(shopifyCustomerId)) && parseInt(shopifyCustomerId) > 0) {

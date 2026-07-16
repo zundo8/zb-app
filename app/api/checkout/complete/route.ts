@@ -326,7 +326,7 @@ export async function POST(req: Request) {
       note: paymentMethod === "COD" 
         ? `COD Order from Web Store - ₹${codFee || 99} upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})` 
         : `Paid via Razorpay from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
-      tags: `WebStoreOrder, WebStore, ${paymentMethod === "COD" ? "COD" : "Razorpay"}, zb-order-${universalOrderNumber}`,
+      tags: `WebStoreOrder, WebStore, ${paymentMethod === "COD" ? "COD" : "Prepaid, Razorpay"}, zb-order-${universalOrderNumber}`,
       note_attributes: [
         { name: 'internal_order_number', value: universalOrderNumber },
         { name: 'payment_method', value: paymentMethod === "COD" ? 'COD' : 'PREPAID' },

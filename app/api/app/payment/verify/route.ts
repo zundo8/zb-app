@@ -140,7 +140,7 @@ export async function POST(req: Request) {
                 }).filter((li: any) => li.variant_id),
                 email: order.customer?.email || address?.email || '',
                 financial_status: 'paid',
-                tags: `${tags}, synced`,
+                tags: `${tags}, Prepaid, Razorpay, synced`,
                 note: `Verified App Order | Razorpay: ${razorpay_payment_id}`,
                 currency: 'INR',
                 customer: shopifyCustomerId && !shopifyCustomerId.includes('GUEST') ? { id: parseInt(shopifyCustomerId, 10) } : undefined,
@@ -155,6 +155,14 @@ export async function POST(req: Request) {
                     country: address?.country || 'India',
                     phone: address?.phone || '',
                 },
+                transactions: [{
+                    kind: "sale",
+                    status: "success",
+                    amount: parseFloat(String(order.totalPrice || 0)).toFixed(2),
+                    currency: "INR",
+                    gateway: "razorpay",
+                    authorization: razorpay_payment_id || null
+                }]
             });
             shopifyOrderId = String(shopifyOrderRes.id);
             tags = `${tags}, synced`;

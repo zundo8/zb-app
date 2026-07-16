@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/options';
 import prisma from '@/lib/db';
+import { fetchProductById } from '@/lib/shopify-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,11 +67,17 @@ async function ensureTablesExist() {
         product_id TEXT NOT NULL,
         sku TEXT UNIQUE NOT NULL,
         size TEXT NOT NULL,
-        quantity INTEGER NOT NULL DEFAULT 1,
-        status TEXT NOT NULL DEFAULT 'IN_STOCK',
+        quantity INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'PRINTED',
+        shopify_variant_id TEXT,
+        inventory_item_id TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+
+    // Add columns if table already exists (idempotent)
+    await prisma.$executeRawUnsafe(`ALTER TABLE product_skus ADD COLUMN IF NOT EXISTS shopify_variant_id TEXT`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE product_skus ADD COLUMN IF NOT EXISTS inventory_item_id TEXT`);
 
     isInitialized = true;
   } catch (error) {
@@ -196,19 +203,44 @@ export async function POST(request: Request) {
       );
 
       // Save individual SKUs to product_skus table
+      // Status = PRINTED (not sellable until scanned in via Scanner STOCK_IN)
       if (tagsGenerated && Array.isArray(tagsGenerated)) {
+        // Resolve Shopify variant IDs for this product+size
+        let variantMap: Record<string, { variantId: string; inventoryItemId: string }> = {};
+        try {
+          const localProduct = await prisma.product.findUnique({ where: { id: String(productId) } });
+          if (localProduct) {
+            const shopifyProduct = await fetchProductById(localProduct.shopifyProductId);
+            if (shopifyProduct?.variants) {
+              for (const v of shopifyProduct.variants) {
+                const key = (v.option1 || v.title || '').toUpperCase();
+                variantMap[key] = {
+                  variantId: String(v.id),
+                  inventoryItemId: String(v.inventory_item_id)
+                };
+              }
+            }
+          }
+        } catch (variantErr) {
+          console.error('[Price Tag Batch] Failed to resolve Shopify variants for variant linking:', variantErr);
+        }
+
         for (const tag of tagsGenerated) {
+          const sizeKey = String(tag.size).toUpperCase();
+          const variant = variantMap[sizeKey] || null;
           await prisma.$executeRawUnsafe(
-            `INSERT INTO product_skus (product_id, sku, size, quantity, status)
-             VALUES ($1, $2, $3, 1, 'IN_STOCK')
+            `INSERT INTO product_skus (product_id, sku, size, quantity, status, shopify_variant_id, inventory_item_id)
+             VALUES ($1, $2, $3, 0, 'PRINTED', $4, $5)
              ON CONFLICT (sku) DO UPDATE SET
                product_id = EXCLUDED.product_id,
                size = EXCLUDED.size,
-               quantity = 1,
-               status = 'IN_STOCK'`,
+               shopify_variant_id = COALESCE(EXCLUDED.shopify_variant_id, product_skus.shopify_variant_id),
+               inventory_item_id = COALESCE(EXCLUDED.inventory_item_id, product_skus.inventory_item_id)`,
             String(productId),
             String(tag.sku),
-            String(tag.size)
+            String(tag.size),
+            variant?.variantId || null,
+            variant?.inventoryItemId || null
           );
         }
       }

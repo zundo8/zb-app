@@ -214,7 +214,7 @@ export async function POST(req: Request) {
                 }).filter((li: any) => li.variant_id && !isNaN(li.variant_id)),
                 email: customerEmail || customer.email || shippingAddress?.email || '',
                 financial_status: paymentStatus === 'paid' ? 'paid' : 'pending',
-                tags: `${tags}, synced, zb-order-${orderNumber}`,
+                tags: `${tags}, ${paymentMethod === 'COD' ? 'COD' : 'Prepaid, Razorpay'}, synced, zb-order-${orderNumber}`,
                 note: note,
                 note_attributes: [
                     { name: 'internal_order_number', value: orderNumber }
@@ -243,6 +243,18 @@ export async function POST(req: Request) {
             }
 
             shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
+
+            // Add transactions for prepaid orders so Shopify records the correct gateway
+            if (paymentStatus === 'paid' && paymentMethod !== 'COD') {
+              shopifyOrderPayload.transactions = [{
+                kind: "sale",
+                status: "success",
+                amount: parseFloat(String(total || 0)).toFixed(2),
+                currency: "INR",
+                gateway: "razorpay",
+                authorization: paymentId || null
+              }];
+            }
 
             shopifyOrderRes = await createOrder(shopifyOrderPayload);
             finalShopifyOrderId = String(shopifyOrderRes.id);

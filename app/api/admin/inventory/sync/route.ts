@@ -49,15 +49,55 @@ export async function POST(req: Request) {
         try {
           const shopifyProduct = await fetchProductById(dbProduct.shopifyProductId);
           if (shopifyProduct && shopifyProduct.variants) {
-            // Find variant matching size
-            const targetVariant = shopifyProduct.variants.find((v: any) => 
-              (v.option1 && v.option1.toUpperCase() === skuRecord.size.toUpperCase()) ||
-              (v.title && v.title.toUpperCase() === skuRecord.size.toUpperCase()) ||
-              (v.sku && normalizeSku(v.sku) === normalizedCode)
-            );
+            // Hardened variant matching priority:
+            // 1. Exact inventory_item_id match (if stored on SKU record)
+            // 2. Exact sku match
+            // 3. Size/option1/title match (fallback)
+            let targetVariant = null;
+
+            if (skuRecord.inventory_item_id) {
+              targetVariant = shopifyProduct.variants.find((v: any) =>
+                String(v.inventory_item_id) === skuRecord.inventory_item_id
+              );
+            }
+
+            if (!targetVariant) {
+              targetVariant = shopifyProduct.variants.find((v: any) =>
+                v.sku && normalizeSku(v.sku) === normalizedCode
+              );
+            }
+
+            if (!targetVariant) {
+              const sizeUpper = skuRecord.size.toUpperCase().trim();
+              const sizeMatches = shopifyProduct.variants.filter((v: any) =>
+                (v.option1 && v.option1.toUpperCase().trim() === sizeUpper) ||
+                (v.title && v.title.toUpperCase().trim() === sizeUpper)
+              );
+              if (sizeMatches.length === 1) {
+                targetVariant = sizeMatches[0];
+              } else if (sizeMatches.length > 1) {
+                console.warn(`[Scanner] Ambiguous size match for "${skuRecord.size}" on product ${dbProduct.shopifyProductId}: ${sizeMatches.length} variants matched. Using first match.`);
+                targetVariant = sizeMatches[0];
+              }
+            }
+
             if (targetVariant) {
               matchedProduct = shopifyProduct;
               matchedVariant = targetVariant;
+
+              // Opportunistically backfill variant IDs on the SKU record if missing
+              if (!skuRecord.inventory_item_id || !skuRecord.shopify_variant_id) {
+                try {
+                  await prisma.$executeRawUnsafe(
+                    `UPDATE product_skus SET shopify_variant_id = $1, inventory_item_id = $2 WHERE id = $3 AND (shopify_variant_id IS NULL OR inventory_item_id IS NULL)`,
+                    String(targetVariant.id),
+                    String(targetVariant.inventory_item_id),
+                    skuRecord.id
+                  );
+                } catch (backfillErr) {
+                  console.error('[Scanner] Failed to backfill variant IDs:', backfillErr);
+                }
+              }
             }
           }
         } catch (err) {
@@ -77,7 +117,7 @@ export async function POST(req: Request) {
                 price: String(dbProduct.price || 0),
                 sku: skuRecord.sku,
                 barcode: dbProduct.barcode,
-                inventory_item_id: dbProduct.inventoryItemId,
+                inventory_item_id: skuRecord.inventory_item_id || dbProduct.inventoryItemId,
                 inventory_quantity: skuRecord.quantity
               }
             ]
@@ -115,8 +155,13 @@ export async function POST(req: Request) {
               (v.sku && normalizeSku(v.sku) === normalizedCode) ||
               (v.barcode && normalizeSku(v.barcode) === normalizedCode)
             );
+            // Only fall back to variants[0] for single-variant products
             if (!targetVariant) {
-              targetVariant = shopifyProduct.variants[0];
+              if (shopifyProduct.variants.length === 1) {
+                targetVariant = shopifyProduct.variants[0];
+              } else {
+                console.warn(`[Scanner] No exact variant match for code "${code}" on multi-variant product ${localProduct.shopifyProductId}. Skipping variants[0] fallback.`);
+              }
             }
             if (targetVariant) {
               matchedProduct = shopifyProduct;
@@ -205,6 +250,13 @@ export async function POST(req: Request) {
         message = `Injected ${qty} unit(s) of ${productName} into the grid.`;
       } 
       else if (mode === 'ORDER_OUT') {
+        // Enforce IN_STOCK status for ORDER_OUT
+        if (skuRecord && skuRecord.status !== 'IN_STOCK') {
+          const msg = skuRecord.status === 'PRINTED'
+            ? `SKU ${skuRecord.sku} has been printed but not scanned into stock yet. Scan it in via STOCK_IN first.`
+            : `SKU ${skuRecord.sku} is not available (status: ${skuRecord.status}).`;
+          return NextResponse.json({ error: msg }, { status: 400 });
+        }
         if (currentQty >= qty) {
           delta = -qty;
           message = `Fulfillment Complete: ${qty} unit(s) of ${productName} extracted from inventory.`;
@@ -283,6 +335,13 @@ export async function POST(req: Request) {
         }
       }
       else if (mode === 'EXCHANGE') {
+        // Enforce IN_STOCK status for EXCHANGE
+        if (skuRecord && skuRecord.status !== 'IN_STOCK') {
+          const msg = skuRecord.status === 'PRINTED'
+            ? `SKU ${skuRecord.sku} has been printed but not scanned into stock yet. Scan it in via STOCK_IN first.`
+            : `SKU ${skuRecord.sku} is not available for exchange (status: ${skuRecord.status}).`;
+          return NextResponse.json({ error: msg }, { status: 400 });
+        }
         if (currentQty >= qty) {
           delta = -qty;
           message = `Exchange Out: ${qty} unit(s) of ${productName} extracted for replacement.`;
@@ -338,12 +397,14 @@ export async function POST(req: Request) {
           );
           newStockQuantity = updatedLevel.available ?? newStockQuantity;
           
-          // Sync with Prisma DB if this variant is the primary one stored
+          // Always sync with local Prisma DB for the matched variant
+          // (Previously gated on localProduct.inventoryItemId matching — this caused
+          // non-first variants to silently skip local DB updates)
           const localProduct = await prisma.product.findUnique({
             where: { shopifyProductId: String(matchedProduct.id) }
           });
           
-          if (localProduct && localProduct.inventoryItemId === String(matchedVariant.inventory_item_id)) {
+          if (localProduct) {
             const inventory = await prisma.inventory.findFirst({
               where: { productId: localProduct.id }
             });
@@ -352,6 +413,16 @@ export async function POST(req: Request) {
               await prisma.inventory.update({
                 where: { id: inventory.id },
                 data: { stockQuantity: newStockQuantity }
+              });
+            } else {
+              // Create inventory record if it doesn't exist
+              await prisma.inventory.create({
+                data: {
+                  productId: localProduct.id,
+                  locationId: locationId!,
+                  stockQuantity: newStockQuantity,
+                  reservedQuantity: 0
+                }
               });
             }
           }

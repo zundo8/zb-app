@@ -23,6 +23,8 @@ interface SkuRecord {
   size: string;
   quantity: number;
   status: string;
+  shopify_variant_id: string | null;
+  inventory_item_id: string | null;
 }
 
 /**
@@ -53,10 +55,79 @@ async function updateSkuStatus(skuId: string, status: string, quantity: number):
 }
 
 /**
+ * Resolve the correct variant-level inventory_item_id for a SKU record.
+ * 
+ * Priority:
+ * 1. Use the inventory_item_id stored on the product_skus row (backfilled or set at print time)
+ * 2. Fall back to a live Shopify API lookup by product + size match
+ * 3. Fall back to Product.inventoryItemId as last resort (legacy behavior)
+ */
+async function resolveVariantInventoryItemId(skuRec: SkuRecord): Promise<string | null> {
+  // 1. Direct from SKU record (best case — already resolved)
+  if (skuRec.inventory_item_id) {
+    return skuRec.inventory_item_id;
+  }
+
+  // 2. Live Shopify lookup by product + size
+  try {
+    const dbProduct = await prisma.product.findUnique({
+      where: { id: skuRec.product_id }
+    });
+
+    if (dbProduct) {
+      const { fetchProductById } = await import('@/lib/shopify-admin');
+      const shopifyProduct = await fetchProductById(dbProduct.shopifyProductId);
+
+      if (shopifyProduct?.variants) {
+        const sizeUpper = skuRec.size.toUpperCase().trim();
+        const matchedVariant = shopifyProduct.variants.find((v: any) =>
+          (v.option1 && v.option1.toUpperCase().trim() === sizeUpper) ||
+          (v.title && v.title.toUpperCase().trim() === sizeUpper)
+        );
+
+        if (matchedVariant) {
+          const inventoryItemId = String(matchedVariant.inventory_item_id);
+
+          // Opportunistically backfill the SKU record
+          try {
+            await prisma.$executeRawUnsafe(
+              `UPDATE product_skus SET shopify_variant_id = $1, inventory_item_id = $2 WHERE id = $3`,
+              String(matchedVariant.id),
+              inventoryItemId,
+              skuRec.id
+            );
+            console.log(`[SkuService] Backfilled variant IDs for SKU ${skuRec.sku}: inv_item=${inventoryItemId}`);
+          } catch (e) {
+            console.error(`[SkuService] Failed to backfill variant IDs for SKU ${skuRec.sku}:`, e);
+          }
+
+          return inventoryItemId;
+        }
+      }
+
+      // 3. Last resort: Product-level inventoryItemId (legacy, may be wrong variant)
+      if (dbProduct.inventoryItemId) {
+        console.warn(`[SkuService] Using product-level inventoryItemId for SKU ${skuRec.sku} (variant lookup failed). This may adjust the wrong variant.`);
+        return dbProduct.inventoryItemId;
+      }
+    }
+  } catch (err) {
+    console.error(`[SkuService] Error resolving variant inventory_item_id for SKU ${skuRec.sku}:`, err);
+  }
+
+  return null;
+}
+
+/**
  * Adjust Shopify + local inventory for a product by delta (+1 or -1).
+ * Uses the variant-specific inventory_item_id, NOT the product-level one.
  * Silently catches errors to avoid breaking the parent flow.
  */
-async function adjustProductInventory(productId: string, delta: number): Promise<{ beforeStock: number; afterStock: number }> {
+async function adjustProductInventory(
+  productId: string,
+  inventoryItemId: string | null,
+  delta: number
+): Promise<{ beforeStock: number; afterStock: number }> {
   const dbProduct = await prisma.product.findUnique({
     where: { id: productId },
     include: { inventory: true }
@@ -65,7 +136,7 @@ async function adjustProductInventory(productId: string, delta: number): Promise
   const beforeStock = dbProduct?.inventory?.[0]?.stockQuantity ?? 0;
   let afterStock = Math.max(0, beforeStock + delta);
 
-  if (dbProduct && dbProduct.inventoryItemId) {
+  if (inventoryItemId) {
     try {
       const { adjustInventoryLevel, fetchLocations } = await import('@/lib/shopify-admin');
       const locations = await fetchLocations();
@@ -73,21 +144,23 @@ async function adjustProductInventory(productId: string, delta: number): Promise
       const locationId = activeLocation ? String(activeLocation.id) : null;
 
       if (locationId) {
-        const updatedLevel = await adjustInventoryLevel(dbProduct.inventoryItemId, locationId, delta);
+        const updatedLevel = await adjustInventoryLevel(inventoryItemId, locationId, delta);
         afterStock = updatedLevel.available ?? afterStock;
       }
     } catch (shopifyErr) {
-      console.error(`[SkuService] Shopify inventory adjust error for product ${productId}:`, shopifyErr);
+      console.error(`[SkuService] Shopify inventory adjust error for product ${productId} (inv_item=${inventoryItemId}):`, shopifyErr);
     }
 
     // Sync local inventory
-    const localInv = dbProduct.inventory?.[0];
+    const localInv = dbProduct?.inventory?.[0];
     if (localInv) {
       await prisma.inventory.update({
         where: { id: localInv.id },
         data: { stockQuantity: afterStock }
       });
     }
+  } else {
+    console.warn(`[SkuService] No inventoryItemId available for product ${productId}. Shopify inventory NOT adjusted.`);
   }
 
   return { beforeStock, afterStock };
@@ -172,6 +245,7 @@ export async function markSkuStatus(
 
 /**
  * Restore a SKU to IN_STOCK and increment inventory by 1.
+ * Uses the variant-specific inventory_item_id from the SKU record.
  * Used for cancellations, returns received, exchange QC passed, RTO.
  */
 export async function restoreSkuToStock(
@@ -195,12 +269,15 @@ export async function restoreSkuToStock(
 
   await updateSkuStatus(skuRec.id, 'IN_STOCK', 1);
 
+  // Resolve the variant-specific inventory_item_id
+  const variantInvItemId = await resolveVariantInventoryItemId(skuRec);
+
   const dbProduct = await prisma.product.findUnique({
     where: { id: skuRec.product_id },
     include: { inventory: true }
   });
 
-  const { beforeStock, afterStock } = await adjustProductInventory(skuRec.product_id, +1);
+  const { beforeStock, afterStock } = await adjustProductInventory(skuRec.product_id, variantInvItemId, +1);
 
   await createScanRecord({
     productId: skuRec.product_id,
@@ -214,7 +291,7 @@ export async function restoreSkuToStock(
     staffName
   });
 
-  console.log(`[SkuService] SKU ${sku} restored to IN_STOCK (+1 inventory) via ${actionType}`);
+  console.log(`[SkuService] SKU ${sku} restored to IN_STOCK (+1 inventory, inv_item=${variantInvItemId}) via ${actionType}`);
   return true;
 }
 
@@ -249,3 +326,4 @@ export async function restoreOrderSkus(
   console.log(`[SkuService] Restored ${restoredCount} SKUs for order ${orderId} (${actionType})`);
   return restoredCount;
 }
+

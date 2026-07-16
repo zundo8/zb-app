@@ -345,13 +345,34 @@ async function handleInventoryWebhook(shop: string, inventoryData: any) {
 
   if (!inventoryItemId || !locationId) return;
 
-  // Find product by inventoryItemId (which should be stored from product sync)
-  const product = await prisma.product.findUnique({
+  // 1. Try the legacy product-level lookup (matches the first variant stored on Product)
+  let product = await prisma.product.findUnique({
     where: { inventoryItemId }
   });
 
+  // 2. If not found, search product_skus for variant-level match
+  // This captures webhooks for non-first variants that the product-level lookup misses
   if (!product) {
-    console.warn(`Product not found for inventory item ${inventoryItemId}`);
+    try {
+      const skuRows: any[] = await prisma.$queryRawUnsafe(
+        `SELECT DISTINCT product_id FROM product_skus WHERE inventory_item_id = $1 LIMIT 1`,
+        inventoryItemId
+      );
+      if (skuRows.length > 0) {
+        product = await prisma.product.findUnique({
+          where: { id: skuRows[0].product_id }
+        });
+        if (product) {
+          console.log(`[Webhook] Matched inventory_item_id ${inventoryItemId} via product_skus → product ${product.id} (${product.title})`);
+        }
+      }
+    } catch (e) {
+      console.error(`[Webhook] Error searching product_skus for inventory_item_id ${inventoryItemId}:`, e);
+    }
+  }
+
+  if (!product) {
+    console.warn(`Product not found for inventory item ${inventoryItemId} (checked Product.inventoryItemId and product_skus.inventory_item_id)`);
     return;
   }
 
@@ -370,5 +391,5 @@ async function handleInventoryWebhook(shop: string, inventoryData: any) {
     }
   });
 
-  console.log(`Inventory updated for ${inventoryItemId} at ${locationId}`);
+  console.log(`Inventory updated for ${inventoryItemId} at ${locationId} (product: ${product.title})`);
 }

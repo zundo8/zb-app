@@ -104,7 +104,7 @@ export async function POST(
           }),
           email: mobileOrder.customer?.email || '',
           financial_status: String(mobileOrder.paymentStatus || '').toLowerCase() === 'paid' ? 'paid' : 'pending',
-          tags: `mobile-app, zb-order-${mobileOrder.orderNumber}, ${mobileOrder.paymentMethod || ''}, SyncedFromAdminDetail`.replace(/\s+/g, ' ').trim(),
+          tags: `mobile-app, zb-order-${mobileOrder.orderNumber}, ${String(mobileOrder.paymentMethod || '').toUpperCase() === 'COD' ? 'COD' : 'Prepaid, Razorpay'}, ${mobileOrder.paymentMethod || ''}, SyncedFromAdminDetail`.replace(/\s+/g, ' ').trim(),
           note: `mobile-app | InternalOrderId: ${mobileOrder.id} | Payment: ${mobileOrder.paymentMethod || 'Unknown'}`,
           currency: mobileOrder.currency || 'INR',
         };
@@ -127,6 +127,18 @@ export async function POST(
             phone: shippingAddress.phone || mobileOrder.customer?.phone || '',
           };
           shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
+        }
+
+        // Add transactions for prepaid orders so Shopify records the correct gateway
+        if (String(mobileOrder.paymentStatus || '').toLowerCase() === 'paid' && String(mobileOrder.paymentMethod || '').toUpperCase() !== 'COD') {
+          shopifyOrderPayload.transactions = [{
+            kind: "sale",
+            status: "success",
+            amount: parseFloat(String(mobileOrder.totalAmount || 0)).toFixed(2),
+            currency: mobileOrder.currency || "INR",
+            gateway: "razorpay",
+            authorization: mobileOrder.paymentId || null
+          }];
         }
 
         const createdOrder = await createOrder(shopifyOrderPayload);
@@ -302,7 +314,7 @@ export async function POST(
       note: order.paymentMethod === 'COD'
         ? `COD Order Synced from Admin Dashboard | Upfront Fee paid via Razorpay (Payment ID: ${order.razorpayPaymentId || 'N/A'})`
         : `Synced from Admin Dashboard | Payment: ${order.paymentMethod || 'Unknown'} | Razorpay Payment ID: ${order.razorpayPaymentId || 'N/A'} | InternalOrderId: ${order.id}`,
-      tags: `WebStoreOrder, WebStore, ${order.paymentMethod === 'COD' ? 'COD' : 'Razorpay'}, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
+      tags: `WebStoreOrder, WebStore, ${order.paymentMethod === 'COD' ? 'COD' : 'Prepaid, Razorpay'}, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
       note_attributes: [
         { name: 'internal_order_number', value: order.internalOrderNumber || '' },
         { name: 'payment_method', value: order.paymentMethod === 'COD' ? 'COD' : 'PREPAID' },

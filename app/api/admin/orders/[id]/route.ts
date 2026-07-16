@@ -1,6 +1,52 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { fetchProductById } from '@/lib/shopify-admin';
 
+/**
+ * Resolve the variant-specific inventory_item_id for a product_skus record.
+ * Priority: 1) from skuRec column, 2) live Shopify lookup by size, 3) Product.inventoryItemId fallback.
+ */
+async function resolveSkuInventoryItemId(skuRec: any): Promise<{ inventoryItemId: string | null; variantId: string | null }> {
+  // 1. Direct from SKU record
+  if (skuRec.inventory_item_id) {
+    return { inventoryItemId: skuRec.inventory_item_id, variantId: skuRec.shopify_variant_id || null };
+  }
+
+  // 2. Live Shopify lookup
+  try {
+    const dbProduct = await prisma.product.findUnique({ where: { id: skuRec.product_id } });
+    if (dbProduct) {
+      const shopifyProduct = await fetchProductById(dbProduct.shopifyProductId);
+      if (shopifyProduct?.variants) {
+        const sizeUpper = (skuRec.size || '').toUpperCase().trim();
+        const matched = shopifyProduct.variants.find((v: any) =>
+          (v.option1 && v.option1.toUpperCase().trim() === sizeUpper) ||
+          (v.title && v.title.toUpperCase().trim() === sizeUpper)
+        );
+        if (matched) {
+          const invItemId = String(matched.inventory_item_id);
+          const varId = String(matched.id);
+          // Opportunistic backfill
+          try {
+            await prisma.$executeRawUnsafe(
+              `UPDATE product_skus SET shopify_variant_id = $1, inventory_item_id = $2 WHERE id = $3`,
+              varId, invItemId, skuRec.id
+            );
+          } catch (_) {}
+          return { inventoryItemId: invItemId, variantId: varId };
+        }
+      }
+      // 3. Fallback to product-level
+      if (dbProduct.inventoryItemId) {
+        console.warn(`[Order Patch] Using product-level inventoryItemId for SKU ${skuRec.sku} — may adjust wrong variant`);
+        return { inventoryItemId: dbProduct.inventoryItemId, variantId: null };
+      }
+    }
+  } catch (e) {
+    console.error(`[Order Patch] Error resolving variant for SKU ${skuRec.sku}:`, e);
+  }
+  return { inventoryItemId: null, variantId: null };
+}
 function extractSize(orderItem: any): string {
   const sizes = ['XXXL', 'XXL', 'XL', 'XS', 'S', 'M', 'L']; // match longer sizes first (e.g. XXL before L)
   
@@ -233,13 +279,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                   skuRec.id
                 );
                 
+                // Resolve variant-specific inventory_item_id
+                const { inventoryItemId: variantInvItemId } = await resolveSkuInventoryItemId(skuRec);
+                
                 // Increment Shopify & local product inventory by 1
                 const dbProduct = await prisma.product.findUnique({
                   where: { id: skuRec.product_id },
                   include: { inventory: true }
                 });
                 
-                if (dbProduct && dbProduct.inventoryItemId) {
+                if (variantInvItemId) {
                   try {
                     const { adjustInventoryLevel, fetchLocations } = await import('@/lib/shopify-admin');
                     const locations = await fetchLocations();
@@ -247,10 +296,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                     const locationId = activeLocation ? String(activeLocation.id) : null;
                     
                     if (locationId) {
-                      const updatedLevel = await adjustInventoryLevel(dbProduct.inventoryItemId, locationId, 1);
+                      const updatedLevel = await adjustInventoryLevel(variantInvItemId, locationId, 1);
                       
                       // Sync local inventory count
-                      const localInv = dbProduct.inventory[0];
+                      const localInv = dbProduct?.inventory?.[0];
                       if (localInv) {
                         await prisma.inventory.update({
                           where: { id: localInv.id },
@@ -300,11 +349,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                   }, { status: 400 });
                 }
 
-                // 3. Validate Status (Prevent double selling)
-                if (skuRec.status === 'SOLD') {
+                // 3. Validate Status — only IN_STOCK SKUs can be assigned to orders
+                if (skuRec.status !== 'IN_STOCK') {
+                  const statusMessages: Record<string, string> = {
+                    'SOLD': `SKU Sold: This price tag (${newSku}) has already been shipped/sold.`,
+                    'PRINTED': `SKU Not Received: This price tag (${newSku}) has been printed but not yet scanned into inventory. Scan it in via the Scanner first.`,
+                    'PENDING_RECEIPT': `SKU Pending: This price tag (${newSku}) is pending receipt. Scan it in via the Scanner first.`,
+                  };
                   return NextResponse.json({
                     success: false,
-                    error: `SKU Sold: This specific price tag SKU (${newSku}) has already been shipped/sold.`
+                    error: statusMessages[skuRec.status] || `SKU unavailable (status: ${skuRec.status}). Only IN_STOCK SKUs can be assigned to orders.`
                   }, { status: 400 });
                 }
 
@@ -314,13 +368,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                   skuRec.id
                 );
                 
-                // Decrement overall Shopify & local product inventory by 1
+                // Resolve variant-specific inventory_item_id
+                const { inventoryItemId: variantInvItemId } = await resolveSkuInventoryItemId(skuRec);
+                
+                // Decrement Shopify & local product inventory by 1 for the correct variant
                 const dbProduct = await prisma.product.findUnique({
                   where: { id: skuRec.product_id },
                   include: { inventory: true }
                 });
                 
-                if (dbProduct && dbProduct.inventoryItemId) {
+                if (variantInvItemId) {
                   try {
                     const { adjustInventoryLevel, fetchLocations } = await import('@/lib/shopify-admin');
                     const locations = await fetchLocations();
@@ -328,10 +385,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                     const locationId = activeLocation ? String(activeLocation.id) : null;
                     
                     if (locationId) {
-                      const updatedLevel = await adjustInventoryLevel(dbProduct.inventoryItemId, locationId, -1);
+                      const updatedLevel = await adjustInventoryLevel(variantInvItemId, locationId, -1);
                       
                       // Sync local inventory count
-                      const localInv = dbProduct.inventory[0];
+                      const localInv = dbProduct?.inventory?.[0];
                       if (localInv) {
                         await prisma.inventory.update({
                           where: { id: localInv.id },

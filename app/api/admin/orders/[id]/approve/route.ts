@@ -90,6 +90,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       shopifyOrderData.customer = { id: parseInt(order.customer.shopifyId, 10) };
     }
 
+    // Add transactions for prepaid orders so Shopify records the correct gateway
+    if (order.paymentMethod !== 'COD') {
+      shopifyOrderData.transactions = [{
+        kind: "sale",
+        status: "success",
+        amount: parseFloat(String(order.totalPrice || 0)).toFixed(2),
+        currency: order.currency || "INR",
+        gateway: "razorpay",
+        authorization: order.razorpayPaymentId || null
+      }];
+    }
+
     // Create in Shopify
     const sOrder = await createOrder(shopifyOrderData);
     

@@ -331,9 +331,29 @@ export async function POST() {
           const levels = await fetchInventoryLevels(locationIds);
 
           await Promise.all(levels.map(async (level: any) => {
-            const product = await prisma.product.findUnique({
-              where: { inventoryItemId: String(level.inventory_item_id) },
+            const inventoryItemIdStr = String(level.inventory_item_id);
+            // 1. Try legacy product-level lookup
+            let product = await prisma.product.findUnique({
+              where: { inventoryItemId: inventoryItemIdStr },
             });
+
+            // 2. Try variant-level lookup from product_skus
+            if (!product) {
+              try {
+                const skuRows: any[] = await prisma.$queryRawUnsafe(
+                  `SELECT DISTINCT product_id FROM product_skus WHERE inventory_item_id = $1 LIMIT 1`,
+                  inventoryItemIdStr
+                );
+                if (skuRows.length > 0) {
+                  product = await prisma.product.findUnique({
+                    where: { id: skuRows[0].product_id }
+                  });
+                }
+              } catch (err) {
+                console.error(`[Sync] Error searching product_skus for inventory_item_id ${inventoryItemIdStr}:`, err);
+              }
+            }
+
             if (product) {
               await prisma.inventory.upsert({
                 where: {

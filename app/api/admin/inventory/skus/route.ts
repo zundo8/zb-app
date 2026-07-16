@@ -35,11 +35,16 @@ export async function GET(request: Request) {
           product_id TEXT NOT NULL,
           sku TEXT UNIQUE NOT NULL,
           size TEXT NOT NULL,
-          quantity INTEGER NOT NULL DEFAULT 1,
-          status TEXT NOT NULL DEFAULT 'IN_STOCK',
+          quantity INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'PRINTED',
+          shopify_variant_id TEXT,
+          inventory_item_id TEXT,
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
+      // Add columns if table already exists (idempotent)
+      await prisma.$executeRawUnsafe(`ALTER TABLE product_skus ADD COLUMN IF NOT EXISTS shopify_variant_id TEXT`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE product_skus ADD COLUMN IF NOT EXISTS inventory_item_id TEXT`);
     } catch (e) {
       console.error('Error ensuring product_skus table exists in skus API:', e);
     }
