@@ -1,0 +1,17 @@
+name: WhatsApp Automation Scheduler
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-scheduler:
+    name: Ping WhatsApp Scheduler
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping Webhook
+        run: |
+          curl --fail-with-body -sS -m 30 -X GET "https://app.zicabella.com/api/cron/whatsapp-scheduler" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
