@@ -234,10 +234,13 @@ export async function GET(req: NextRequest) {
     const delay3 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step3', '10080'), 10) || 10080;
 
     const now = new Date();
+    const cutoffDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
 
     const carts = await db.cart.findMany({
       where: {
         convertedOrderId: null,
+        status: { not: 'expired' },
+        lastActivityAt: { gte: cutoffDate },
         items: { some: {} },
         OR: [
           { phone: { not: null } },
