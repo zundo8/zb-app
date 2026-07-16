@@ -631,7 +631,7 @@ export default function CheckoutPage() {
   const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
   const [isManualCoupon, setIsManualCoupon] = useState(false);
 
-  const total = subtotal - (applyAsStoreCredit ? 0 : couponDiscount) + (paymentMethod === "COD" ? codFee : 0) + shipping;
+  const total = subtotal - (applyAsStoreCredit ? 0 : couponDiscount) + shipping;
 
 
 
@@ -1501,7 +1501,7 @@ export default function CheckoutPage() {
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
                 <Banknote className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
                 <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
-                  Pay ₹{codFee} upfront via UPI. Remaining ₹{(total - codFee).toLocaleString("en-IN")} due at delivery.
+                  Pay ₹{codFee} upfront via UPI (deducted from total). Remaining ₹{(total - codFee).toLocaleString("en-IN")} due at delivery.
                 </p>
               </div>
             )}
@@ -1568,8 +1568,8 @@ export default function CheckoutPage() {
 
           {paymentMethod === "COD" && (
             <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
-              <span className="text-foreground/45">COD Fee</span>
-              <span className="text-foreground/60">+ ₹{codFee}</span>
+              <span className="text-foreground/45">COD Upfront (included)</span>
+              <span className="text-foreground/60">₹{codFee}</span>
             </div>
           )}
 
@@ -1583,16 +1583,16 @@ export default function CheckoutPage() {
           {paymentMethod === "COD" ? (
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
-                <span className="text-foreground/40">Total</span>
+                <span className="text-foreground/40">Order Total</span>
                 <span className="text-foreground/75">₹{total.toLocaleString("en-IN")}</span>
               </div>
               <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
                 <span className="text-foreground/40">Due at Delivery</span>
-                <span className="text-foreground/75">₹{(total - codFee).toLocaleString("en-IN")}</span>
+                <span className="text-foreground/75">₹{Math.max(0, total - codFee).toLocaleString("en-IN")}</span>
               </div>
               <div className="h-[1px] bg-foreground/5 my-0.5" />
               <div className="flex justify-between items-center">
-                <span className="font-light text-[9px] text-foreground/45 uppercase tracking-widest">Pay Now</span>
+                <span className="font-light text-[9px] text-foreground/45 uppercase tracking-widest">Pay Now (Upfront)</span>
                 <span className="text-base font-medium text-foreground tracking-tight leading-none">₹{codFee}</span>
               </div>
             </div>

@@ -108,9 +108,49 @@ export async function GET(req: Request) {
 
     const total = await prisma.order.count({ where });
 
+    const enrichedOrders = await Promise.all(
+      orders.map(async (order: any) => {
+        let webStoreOrder = null;
+        if (order.razorpayOrderId) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: { razorpayOrderId: order.razorpayOrderId }
+          });
+        }
+        if (!webStoreOrder) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: { notes: { contains: `Local: ${order.id}` } }
+          });
+        }
+        if (!webStoreOrder && order.shopifyOrderId) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: { notes: { contains: `Shopify: ${order.shopifyOrderId}` } }
+          });
+        }
+
+        const codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
+        const paymentMethod = webStoreOrder?.paymentMethod || order.paymentMethod;
+        const paymentStatus = webStoreOrder?.paymentStatus || order.paymentStatus;
+        
+        let paidAmount = 0;
+        if (paymentMethod === 'COD' || paymentMethod === 'cod') {
+          paidAmount = codUpfrontPaid;
+        } else if (paymentStatus === 'paid' || paymentStatus === 'success') {
+          paidAmount = order.totalPrice;
+        }
+
+        return {
+          ...order,
+          codUpfrontPaid,
+          paymentMethod,
+          paymentStatus,
+          paidAmount
+        };
+      })
+    );
+
     return NextResponse.json({
       success: true,
-      orders,
+      orders: enrichedOrders,
       total,
       hasMore: total > offset + limit
     });

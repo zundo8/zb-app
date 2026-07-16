@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
@@ -93,6 +94,14 @@ interface OrderDetail {
   refundError?: string | null;
   refundAttempts?: number;
   cartSession?: { source: string } | null;
+  discountCode?: string | null;
+  discountAmount?: number;
+  shippingCharge?: number;
+  codUpfrontPaid?: number;
+  codUpfrontPaymentId?: string | null;
+  razorpayOrderId?: string | null;
+  razorpayPaymentId?: string | null;
+  paymentCapturedAt?: string | null;
 }
 
 function isCustomSku(sku: string | null | undefined): boolean {
@@ -620,17 +629,50 @@ export default function OrderDetailPage() {
               ))}
             </div>
 
-            <div className="p-8 rounded-[32px] bg-foreground/[0.03] border border-foreground/5">
-               <div className="flex justify-between items-end">
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest">Subtotal Manifest</p>
-                    <p className="text-[13px] font-semibold text-foreground/40 tracking-tight">₹{order.subtotalPrice?.toLocaleString() || order.totalPrice.toLocaleString()}</p>
-                  </div>
+            <div className="p-8 rounded-[32px] bg-foreground/[0.02] border border-foreground/5 space-y-4">
+              <div className="flex justify-between text-xs text-foreground/60 font-medium">
+                <span>Subtotal</span>
+                <span>₹{(order.subtotalPrice || (order.totalPrice - (order as any).shippingCharge + (order as any).discountAmount)).toLocaleString("en-IN")}</span>
+              </div>
+              
+              {(order as any).shippingCharge > 0 && (
+                <div className="flex justify-between text-xs text-foreground/60 font-medium">
+                  <span>Shipping</span>
+                  <span>₹{(order as any).shippingCharge.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+
+              {(order as any).discountAmount > 0 && (
+                <div className="flex justify-between text-xs text-emerald-400 font-semibold">
+                  <span>Discount {order.discountCode ? `(${order.discountCode})` : ""}</span>
+                  <span>-₹{(order as any).discountAmount.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+
+              {detectPaymentMethod(order) === 'COD' && (order as any).codUpfrontPaid > 0 && (
+                <div className="flex justify-between text-xs text-amber-400 font-semibold">
+                  <span>COD Upfront Fee (Paid via Razorpay)</span>
+                  <span>₹{(order as any).codUpfrontPaid.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+
+              <div className="h-[1px] bg-foreground/5 my-2" />
+
+              <div className="flex justify-between items-end">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Grand Total</p>
+                  <p className="text-4xl font-black text-foreground tracking-tighter italic mb-1">₹{order.totalPrice.toLocaleString("en-IN")}</p>
+                  <p className="text-[11px] text-emerald-400 font-bold uppercase tracking-widest leading-none">
+                    Paid: ₹{(detectPaymentMethod(order) === 'COD' ? ((order as any).codUpfrontPaid || 0) : (order.paymentStatus === 'paid' ? order.totalPrice : 0)).toLocaleString("en-IN")}
+                  </p>
+                </div>
+                {detectPaymentMethod(order) === 'COD' && (
                   <div className="text-right space-y-1">
-                    <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Total Transaction Value</p>
-                    <p className="text-4xl font-semibold text-foreground tracking-tighter italic">₹{order.totalPrice.toLocaleString()}</p>
+                    <p className="text-[10px] font-bold text-amber-400/80 uppercase tracking-widest">Balance Due at Delivery</p>
+                    <p className="text-xl font-bold text-amber-400">₹{Math.max(0, order.totalPrice - ((order as any).codUpfrontPaid || 0)).toLocaleString("en-IN")}</p>
                   </div>
-               </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -682,7 +724,7 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Conversion Source Card */}
-          <div className="p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-10 shadow-2xl relative overflow-hidden">
+          <div className="p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-8 shadow-2xl relative overflow-hidden font-inter">
              <div className="absolute -right-20 -bottom-20 w-40 h-40 bg-blue-500/10 blur-[80px] rounded-full" />
              
              <h3 className="text-[10px] font-bold text-foreground/20 uppercase tracking-[0.4em] relative z-10">Conversion Vector</h3>
@@ -693,14 +735,63 @@ export default function OrderDetailPage() {
                    <div>
                      <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest leading-none">Referrer / Source</p>
                      <p className="text-[14px] font-semibold text-foreground tracking-tight mt-1">
-                       {order.cartSession?.source ? (
-                         order.cartSession.source === "webstore" ? "Direct / WebStore" : order.cartSession.source
-                       ) : "Direct / WebStore"}
+                       {order.orderType === 'WEB_STORE' ? 'Direct / WebStore' : (order.cartSession?.source || 'Direct / WebStore')}
                      </p>
                    </div>
                 </div>
+
+                {order.orderType === 'WEB_STORE' && (
+                  <Link
+                    href={`/web-store/orders/${order.id}`}
+                    className="flex items-center justify-between p-4 rounded-[20px] bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/10 text-amber-500 transition-all text-xs font-bold uppercase tracking-wider"
+                  >
+                    <span>View WebStore Portal</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                )}
              </div>
           </div>
+
+          {/* Razorpay Payment Card */}
+          {(order.razorpayOrderId || order.razorpayPaymentId || (order as any).codUpfrontPaymentId) && (
+            <div className="p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-8 shadow-2xl relative overflow-hidden font-inter">
+              <div className="absolute -left-20 -bottom-20 w-40 h-40 bg-emerald-500/10 blur-[80px] rounded-full" />
+              
+              <div className="flex justify-between items-center relative z-10">
+                <h3 className="text-[10px] font-bold text-foreground/20 uppercase tracking-[0.4em]">Razorpay Vault</h3>
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              </div>
+
+              <div className="space-y-4 pt-2 relative z-10 text-[11px] font-mono text-foreground/60 leading-relaxed break-all">
+                {order.razorpayOrderId && (
+                  <div>
+                    <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Order Link ID</span>
+                    {order.razorpayOrderId}
+                  </div>
+                )}
+                
+                {order.razorpayPaymentId && (
+                  <div>
+                    <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Primary Payment ID</span>
+                    <span className="text-emerald-400">{order.razorpayPaymentId}</span>
+                  </div>
+                )}
+
+                {(order as any).codUpfrontPaymentId && (
+                  <div>
+                    <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">COD Upfront Payment ID</span>
+                    <span className="text-amber-400">{(order as any).codUpfrontPaymentId}</span>
+                  </div>
+                )}
+
+                {order.paymentCapturedAt && (
+                  <div className="font-sans text-[10px] text-foreground/40 mt-1">
+                    Captured: {new Date(order.paymentCapturedAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Logistics Target */}
           <div className="p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-10 shadow-2xl relative overflow-hidden">
@@ -712,17 +803,27 @@ export default function OrderDetailPage() {
               <div className="space-y-8 relative z-10">
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-widest">Primary Vector</p>
-                  <p className="text-[14px] font-semibold text-foreground/80 leading-relaxed italic">&quot;{shippingAddr.address1}, {shippingAddr.address2}&quot;</p>
+                  <p className="text-[14px] font-semibold text-foreground/80 leading-relaxed italic">
+                    &quot;{shippingAddr.houseNo || shippingAddr.street ? (
+                      [shippingAddr.houseNo, shippingAddr.street, shippingAddr.landmark].filter(Boolean).join(', ')
+                    ) : (
+                      [shippingAddr.address1, shippingAddr.address2].filter(Boolean).join(', ')
+                    )}&quot;
+                  </p>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-6">
                    <div className="space-y-1">
                       <p className="text-[8px] font-bold text-foreground/20 uppercase tracking-widest">Region</p>
-                      <p className="text-[12px] font-bold text-foreground uppercase tracking-tight">{shippingAddr.city}, {shippingAddr.province}</p>
+                      <p className="text-[12px] font-bold text-foreground uppercase tracking-tight">
+                        {shippingAddr.city || 'N/A'}, {shippingAddr.state || shippingAddr.province || 'N/A'}
+                      </p>
                    </div>
                    <div className="space-y-1">
                       <p className="text-[8px] font-bold text-foreground/20 uppercase tracking-widest">Post Code</p>
-                      <p className="text-[16px] font-mono font-bold text-blue-500 tracking-tighter">{shippingAddr.zip || shippingAddr.pincode}</p>
+                      <p className="text-[16px] font-mono font-bold text-blue-500 tracking-tighter">
+                        {shippingAddr.zip || shippingAddr.pincode || shippingAddr.zipCode || '—'}
+                      </p>
                    </div>
                 </div>
 
@@ -762,16 +863,14 @@ export default function OrderDetailPage() {
                 </p>
               )}
 
-              {order.shopifySyncStatus !== 'synced' && (
-                <button
-                  onClick={handleShopifySync}
-                  disabled={syncing}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
-                >
-                  {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                  Sync with Shopify
-                </button>
-              )}
+              <button
+                onClick={handleShopifySync}
+                disabled={syncing}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
+              >
+                {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                {order.shopifySyncStatus === 'synced' ? 'Pull Shopify Updates' : 'Sync with Shopify'}
+              </button>
             </div>
 
             <div className="h-[1px] bg-foreground/5 relative z-10" />

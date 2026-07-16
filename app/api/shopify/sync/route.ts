@@ -203,29 +203,97 @@ export async function POST() {
             o.fulfillment_status = 'cancelled';
           }
 
-          // Derive correct payment method from tags and notes (not raw gateway)
-          const isCodOrder = lowerTags.includes('cod') || 
-            (o.note || '').toLowerCase().includes('cod') ||
-            o.financial_status === 'pending';
-          
-          // Determine the correct canonical payment method
-          const derivedPaymentMethod = isCodOrder ? 'COD' : 'razorpay';
-          
-          // For payment status on COD orders: use 'pending' since full amount isn't paid
-          // For prepaid orders: use Shopify's financial_status
-          const derivedPaymentStatus = isCodOrder ? 'pending' : (o.financial_status || 'pending');
+          // Extract the universalOrderNumber from tags if available
+          const tagsArray = (o.tags || '').split(',').map((t: string) => t.trim());
+          const orderNumberTag = tagsArray.find((t: string) => t.startsWith('zb-order-'));
+          const universalOrderNumber = orderNumberTag ? orderNumberTag.replace('zb-order-', '') : null;
 
-          // Check if a local order already exists with a correct paymentMethod set
-          const existingLocalOrder = await prisma.order.findUnique({
+          // Find corresponding WebStoreOrder in DB
+          let webStoreOrder = null;
+          if (universalOrderNumber) {
+            webStoreOrder = await prisma.webStoreOrder.findUnique({
+              where: { orderNumber: universalOrderNumber }
+            });
+          }
+          if (!webStoreOrder && o.id) {
+            webStoreOrder = await prisma.webStoreOrder.findFirst({
+              where: {
+                OR: [
+                  { razorpayOrderId: String(o.id) },
+                  { notes: { contains: `Shopify: ${o.id}` } }
+                ]
+              }
+            });
+          }
+
+          // Resolve existing local Order record to check if we can prevent duplicates
+          let existingLocalOrder = await prisma.order.findUnique({
             where: { shopifyOrderId: String(o.id) },
-            select: { paymentMethod: true, razorpayOrderId: true, razorpayPaymentId: true, orderType: true, internalOrderNumber: true }
+            select: { id: true, paymentMethod: true, razorpayOrderId: true, razorpayPaymentId: true, orderType: true, internalOrderNumber: true }
           });
-          
-          // Preserve local paymentMethod if it's already set correctly (e.g., from checkout/complete)
+
+          // Prevent Duplicate: If not found by shopifyOrderId, look up by internalOrderNumber
+          if (!existingLocalOrder && (universalOrderNumber || webStoreOrder?.orderNumber)) {
+            const targetOrderNumber = universalOrderNumber || webStoreOrder?.orderNumber;
+            existingLocalOrder = await prisma.order.findFirst({
+              where: {
+                OR: [
+                  { internalOrderNumber: targetOrderNumber },
+                  {
+                    shopifyOrderId: {
+                      in: [`app_pending_${targetOrderNumber}`, `local_${targetOrderNumber}`]
+                    }
+                  }
+                ]
+              },
+              select: { id: true, paymentMethod: true, razorpayOrderId: true, razorpayPaymentId: true, orderType: true, internalOrderNumber: true }
+            });
+
+            // Heal shopifyOrderId on the existing local Order record to ensure the upsert updates it
+            if (existingLocalOrder) {
+              console.log(`[Sync] Healing shopifyOrderId for local order ID: ${existingLocalOrder.id} -> ${o.id}`);
+              await prisma.order.update({
+                where: { id: existingLocalOrder.id },
+                data: { shopifyOrderId: String(o.id) }
+              });
+            }
+          }
+
+          // Determine the correct canonical payment method and payment status
+          let derivedPaymentMethod = 'razorpay';
+          let derivedPaymentStatus = o.financial_status || 'pending';
+
+          if (webStoreOrder) {
+            // Priority 1: If we have a local WebStoreOrder, adopt its payment details directly
+            derivedPaymentMethod = webStoreOrder.paymentMethod;
+            derivedPaymentStatus = webStoreOrder.paymentStatus;
+          } else {
+            // Priority 2: Gateway detection from Shopify
+            const gatewayNames = (o.payment_gateway_names || []).map((g: any) => String(g).toLowerCase());
+            const rawGateway = String(o.gateway || '').toLowerCase();
+            const hasCodGateway = gatewayNames.includes('manual') || 
+              gatewayNames.includes('cod') || 
+              gatewayNames.includes('cash on delivery (cod)') || 
+              rawGateway === 'manual' || 
+              rawGateway === 'cod' || 
+              rawGateway.includes('cash on delivery');
+
+            const isCodOrder = hasCodGateway || 
+              lowerTags.includes('cod') || 
+              (o.note || '').toLowerCase().includes('cod');
+
+            derivedPaymentMethod = isCodOrder ? 'COD' : 'razorpay';
+            derivedPaymentStatus = isCodOrder ? 'pending' : (o.financial_status || 'pending');
+          }
+
+          // Preserve local paymentMethod if it's already set correctly (e.g., from checkout/complete or DB overrides)
           const finalPaymentMethod = existingLocalOrder?.paymentMethod && 
             (existingLocalOrder.paymentMethod === 'COD' || existingLocalOrder.paymentMethod === 'razorpay')
             ? existingLocalOrder.paymentMethod
             : derivedPaymentMethod;
+
+          // Make sure paymentStatus is correct: if it's a prepaid webStoreOrder, sync status as 'paid'
+          const finalPaymentStatus = webStoreOrder?.paymentMethod === 'razorpay' ? 'paid' : derivedPaymentStatus;
 
           const order = await prisma.order.upsert({
             where: { shopifyOrderId: String(o.id) },
@@ -238,7 +306,7 @@ export async function POST() {
               subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
               totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
               currency: o.currency || 'INR',
-              paymentStatus: derivedPaymentStatus,
+              paymentStatus: finalPaymentStatus,
               paymentMethod: finalPaymentMethod,
               fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
               deliveryStatus: deliveryStatus,
@@ -247,6 +315,10 @@ export async function POST() {
               note: o.note || null,
               tags: o.tags || null,
               createdAt: new Date(o.created_at),
+              razorpayOrderId: webStoreOrder?.razorpayOrderId || existingLocalOrder?.razorpayOrderId || null,
+              razorpayPaymentId: webStoreOrder?.razorpayPaymentId || existingLocalOrder?.razorpayPaymentId || null,
+              internalOrderNumber: webStoreOrder?.orderNumber || existingLocalOrder?.internalOrderNumber || universalOrderNumber || null,
+              orderType: existingLocalOrder?.orderType || (webStoreOrder ? 'WEB_STORE' : 'REGULAR'),
             },
             update: {
               status: finalStatus, // Always update status from sync if it's in Shopify
@@ -254,7 +326,7 @@ export async function POST() {
               subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
               totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
               currency: o.currency || 'INR',
-              paymentStatus: derivedPaymentStatus,
+              paymentStatus: finalPaymentStatus,
               // Only update paymentMethod if we don't already have a correct local value
               paymentMethod: finalPaymentMethod,
               fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
@@ -263,6 +335,9 @@ export async function POST() {
               billingAddress: o.billing_address ? JSON.stringify(o.billing_address) : null,
               note: o.note || null,
               tags: o.tags || null,
+              razorpayOrderId: webStoreOrder?.razorpayOrderId || existingLocalOrder?.razorpayOrderId || null,
+              razorpayPaymentId: webStoreOrder?.razorpayPaymentId || existingLocalOrder?.razorpayPaymentId || null,
+              internalOrderNumber: webStoreOrder?.orderNumber || existingLocalOrder?.internalOrderNumber || universalOrderNumber || null,
             },
           });
 

@@ -212,7 +212,39 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, order });
+    // Match corresponding WebStoreOrder
+    let webStoreOrder = null;
+    if (order.razorpayOrderId) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: { razorpayOrderId: order.razorpayOrderId }
+      });
+    }
+    if (!webStoreOrder) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: { notes: { contains: `Local: ${order.id}` } }
+      });
+    }
+    if (!webStoreOrder && order.shopifyOrderId) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: { notes: { contains: `Shopify: ${order.shopifyOrderId}` } }
+      });
+    }
+
+    // Enrich the order payload with correct webstore fields if available
+    const enrichedOrder = {
+      ...order,
+      codUpfrontPaid: webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0,
+      codUpfrontPaymentId: webStoreOrder?.codUpfrontPaymentId || null,
+      discountCode: webStoreOrder?.discountCode || order.discountCode,
+      discountAmount: webStoreOrder?.discountAmount ? Number(webStoreOrder.discountAmount) : (order.discountAmount || 0),
+      shippingCharge: webStoreOrder?.shippingCharge ? Number(webStoreOrder.shippingCharge) : 0,
+      razorpayOrderId: webStoreOrder?.razorpayOrderId || order.razorpayOrderId || null,
+      razorpayPaymentId: webStoreOrder?.razorpayPaymentId || order.razorpayPaymentId || null,
+      paymentMethod: webStoreOrder?.paymentMethod || order.paymentMethod,
+      paymentStatus: webStoreOrder?.paymentStatus || order.paymentStatus,
+    };
+
+    return NextResponse.json({ success: true, order: enrichedOrder });
   } catch (error: any) {
     console.error('[Admin Order Detail API] Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -498,6 +530,49 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         where: { id },
         data: body,
       });
+
+      // Synchronize changes to WebStoreOrder if one exists
+      try {
+        let webStoreOrder = null;
+        if (updated.razorpayOrderId) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: { razorpayOrderId: updated.razorpayOrderId }
+          });
+        }
+        if (!webStoreOrder) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: { notes: { contains: `Local: ${updated.id}` } }
+          });
+        }
+        if (!webStoreOrder && updated.shopifyOrderId) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: { notes: { contains: `Shopify: ${updated.shopifyOrderId}` } }
+          });
+        }
+
+        if (webStoreOrder) {
+          const webStoreUpdate: any = {};
+          if (body.paymentStatus) {
+            webStoreUpdate.paymentStatus = body.paymentStatus;
+          }
+          if (body.fulfillmentStatus) {
+            webStoreUpdate.fulfillmentStatus = body.fulfillmentStatus;
+          }
+          if (body.note) {
+            webStoreUpdate.notes = body.note;
+          }
+
+          if (Object.keys(webStoreUpdate).length > 0) {
+            await prisma.webStoreOrder.update({
+              where: { id: webStoreOrder.id },
+              data: webStoreUpdate
+            });
+            console.log(`[Admin Order PATCH] Synced WebStoreOrder ${webStoreOrder.id} with updates:`, webStoreUpdate);
+          }
+        }
+      } catch (wsSyncErr: any) {
+        console.error('[Admin Order PATCH] Failed to sync WebStoreOrder:', wsSyncErr.message);
+      }
     }
 
     // Trigger auto refund if order status was set to cancelled

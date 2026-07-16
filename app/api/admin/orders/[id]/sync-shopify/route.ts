@@ -221,13 +221,195 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
     }
 
-    // If already synced to Shopify, return the existing ID
-    if (order.shopifyOrderId && !order.shopifyOrderId.startsWith('local_') && !order.shopifyOrderId.startsWith('app_')) {
-      return NextResponse.json({ 
-        success: true, 
-        shopifyOrderId: order.shopifyOrderId,
-        message: 'Order already synced to Shopify' 
-      });
+    // If already synced to Shopify, pull updates from Shopify to refresh the local record
+    if (order.shopifyOrderId && !order.shopifyOrderId.startsWith('local_') && !order.shopifyOrderId.startsWith('app_') && !order.shopifyOrderId.startsWith('app_pending_')) {
+      try {
+        const { fetchOrder } = await import('@/lib/shopify-admin');
+        const o = await fetchOrder(order.shopifyOrderId);
+        if (!o) {
+          return NextResponse.json({ success: false, error: 'Shopify order not found for pulling updates' }, { status: 404 });
+        }
+
+        // Determine delivery status
+        let deliveryStatus = 'pending';
+        const lowerTags = (o.tags || '').toLowerCase();
+        
+        if (o.fulfillment_status === 'fulfilled') {
+          deliveryStatus = 'shipped';
+        }
+
+        if (lowerTags.includes('delivered') || lowerTags.includes('shipped_successfully')) {
+          deliveryStatus = 'delivered';
+        }
+        
+        if (o.fulfillments && Array.isArray(o.fulfillments)) {
+          for (const f of o.fulfillments) {
+            const fStatus = (f.shipment_status || '').toLowerCase();
+            if (fStatus === 'delivered' || fStatus === 'shipped' || fStatus === 'success') {
+              deliveryStatus = 'delivered';
+              break;
+            } else if (fStatus === 'out_for_delivery') {
+              deliveryStatus = 'out_for_delivery';
+              break;
+            }
+          }
+        }
+
+        const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp') || order.orderType === 'MOBILE_APP';
+        let finalStatus = isMobileAppOrder ? 'approved' : 'active';
+        
+        if (o.cancelled_at) {
+          finalStatus = 'cancelled';
+          deliveryStatus = 'cancelled';
+          o.fulfillment_status = 'cancelled';
+        }
+
+        // Resolve WebStoreOrder if any
+        const tagsArray = (o.tags || '').split(',').map((t: string) => t.trim());
+        const orderNumberTag = tagsArray.find((t: string) => t.startsWith('zb-order-'));
+        const universalOrderNumber = orderNumberTag ? orderNumberTag.replace('zb-order-', '') : null;
+
+        let webStoreOrder = null;
+        if (universalOrderNumber) {
+          webStoreOrder = await prisma.webStoreOrder.findUnique({
+            where: { orderNumber: universalOrderNumber }
+          });
+        }
+        if (!webStoreOrder) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: {
+              OR: [
+                { razorpayOrderId: String(o.id) },
+                { notes: { contains: `Shopify: ${o.id}` } }
+              ]
+            }
+          });
+        }
+
+        // Resolve canonical payment method and status
+        let derivedPaymentMethod = 'razorpay';
+        let derivedPaymentStatus = o.financial_status || 'pending';
+
+        if (webStoreOrder) {
+          derivedPaymentMethod = webStoreOrder.paymentMethod;
+          derivedPaymentStatus = webStoreOrder.paymentStatus;
+        } else {
+          const gatewayNames = (o.payment_gateway_names || []).map((g: any) => String(g).toLowerCase());
+          const rawGateway = String(o.gateway || '').toLowerCase();
+          const hasCodGateway = gatewayNames.includes('manual') || 
+            gatewayNames.includes('cod') || 
+            gatewayNames.includes('cash on delivery (cod)') || 
+            rawGateway === 'manual' || 
+            rawGateway === 'cod' || 
+            rawGateway.includes('cash on delivery');
+
+          const isCodOrder = hasCodGateway || 
+            lowerTags.includes('cod') || 
+            (o.note || '').toLowerCase().includes('cod');
+
+          derivedPaymentMethod = isCodOrder ? 'COD' : 'razorpay';
+          derivedPaymentStatus = isCodOrder ? 'pending' : (o.financial_status || 'pending');
+        }
+
+        const finalPaymentMethod = order.paymentMethod && 
+          (order.paymentMethod === 'COD' || order.paymentMethod === 'razorpay')
+          ? order.paymentMethod
+          : derivedPaymentMethod;
+
+        const finalPaymentStatus = webStoreOrder?.paymentMethod === 'razorpay' ? 'paid' : derivedPaymentStatus;
+
+        // Update local Order record
+        const updatedOrder = await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: finalStatus,
+            totalPrice: parseFloat(o.total_price || '0'),
+            subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
+            totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
+            currency: o.currency || 'INR',
+            paymentStatus: finalPaymentStatus,
+            paymentMethod: finalPaymentMethod,
+            fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+            deliveryStatus: deliveryStatus,
+            shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
+            billingAddress: o.billing_address ? JSON.stringify(o.billing_address) : null,
+            note: o.note || null,
+            tags: o.tags || null,
+            razorpayOrderId: webStoreOrder?.razorpayOrderId || order.razorpayOrderId || null,
+            razorpayPaymentId: webStoreOrder?.razorpayPaymentId || order.razorpayPaymentId || null,
+            internalOrderNumber: webStoreOrder?.orderNumber || order.internalOrderNumber || universalOrderNumber || null,
+          }
+        });
+
+        // Trigger refund logic if status became cancelled
+        if (finalStatus === 'cancelled' && order.status !== 'cancelled') {
+          try {
+            const { processOrderRefund } = await import('@/lib/services/refundService');
+            await processOrderRefund(order.id);
+          } catch (refundErr) {
+            console.error(`[Sync Detail POST] Refund failed:`, refundErr);
+          }
+        }
+
+        // Delete old line items and upsert current ones
+        const shopifyItemIds = o.line_items.map((item: any) => String(item.id));
+        await prisma.orderItem.deleteMany({
+          where: {
+            orderId: order.id,
+            shopifyLineItemId: { notIn: shopifyItemIds }
+          }
+        });
+
+        // Cache products mapping for images
+        const { fetchAllProducts } = await import('@/lib/shopify-admin');
+        const productsRaw = await fetchAllProducts(50); // limit to 50 for quick single order sync
+        const productImageMap = new Map<string, string>();
+        productsRaw.forEach(p => {
+          const img = p.image?.src || p.images?.[0]?.src;
+          if (img) productImageMap.set(String(p.id), img);
+        });
+
+        await Promise.all(o.line_items.map(async (item: any) => {
+          const shopifyProductId = item.product_id ? String(item.product_id) : null;
+          let dbProductId = null;
+          if (shopifyProductId) {
+            const prod = await prisma.product.findUnique({ where: { shopifyProductId } });
+            dbProductId = prod?.id || null;
+          }
+          const itemImage = shopifyProductId ? productImageMap.get(shopifyProductId) : null;
+
+          await prisma.orderItem.upsert({
+            where: { shopifyLineItemId: String(item.id) },
+            create: {
+              orderId: order.id,
+              shopifyLineItemId: String(item.id),
+              productId: dbProductId,
+              title: item.title,
+              quantity: item.quantity,
+              price: parseFloat(item.price || '0'),
+              sku: item.sku || null,
+              image: itemImage || null,
+            },
+            update: {
+              quantity: item.quantity,
+              price: parseFloat(item.price || '0'),
+              sku: item.sku || null,
+              image: itemImage || null,
+            }
+          });
+        }));
+
+        return NextResponse.json({
+          success: true,
+          shopifyOrderId: order.shopifyOrderId,
+          message: 'Local order successfully updated from Shopify',
+          order: updatedOrder
+        });
+
+      } catch (err: any) {
+        console.error('[Sync Detail POST] Error pulling updates from Shopify:', err);
+        return NextResponse.json({ success: false, error: `Pull sync failed: ${err.message}` }, { status: 500 });
+      }
     }
 
     // Parse shipping address

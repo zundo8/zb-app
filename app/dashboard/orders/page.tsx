@@ -437,6 +437,9 @@ export default function OrdersPage() {
                         <p className="text-[16px] font-bold text-foreground tracking-tighter leading-none mb-1">
                           ₹{order.totalPrice.toLocaleString("en-IN")}
                         </p>
+                        <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1.5 leading-none">
+                          Paid: ₹{((order as any).paidAmount || (order.paymentStatus === 'paid' ? order.totalPrice : 0)).toLocaleString("en-IN")}
+                        </p>
                         <p className="text-[9px] text-foreground/20 font-bold uppercase tracking-widest">
                           {order.items.length} Units
                         </p>
