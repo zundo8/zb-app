@@ -293,8 +293,8 @@ export async function GET(req: NextRequest) {
         const elapsedMinutes = (now.getTime() - lastActivityTime) / (60 * 1000);
 
         if (sentRecoveries.length === 0) {
-          // Step 1
-          if (isStep1Enabled && elapsedMinutes >= delay1) {
+          // Step 1: Fired if elapsed time is between delay1 (default 5m) and 60 minutes
+          if (isStep1Enabled && elapsedMinutes >= delay1 && elapsedMinutes <= 60) {
             const firstItem = cart.items?.[0] || {};
             const res = await templates.sendAbandonedCart({
               phone: formattedPhone,
@@ -317,11 +317,11 @@ export async function GET(req: NextRequest) {
             if (res.success) results.abandonedCartStep1Sent++;
           }
         } else if (sentRecoveries.length === 1) {
-          // Step 2
+          // Step 2: Fired if elapsed time is between delay2 (default 60m / 1h) and 180 minutes (3h)
           const lastSentTime = new Date(sentRecoveries[0].createdAt).getTime();
           const elapsedSinceLastSent = (now.getTime() - lastSentTime) / (60 * 1000);
 
-          if (isStep2Enabled && elapsedMinutes >= delay2 && elapsedSinceLastSent >= 15) {
+          if (isStep2Enabled && elapsedMinutes >= delay2 && elapsedMinutes <= 180 && elapsedSinceLastSent >= 15) {
             const firstItem = cart.items?.[0] || {};
             const res = await templates.sendCartRecoveryFollowUp({
               phone: formattedPhone,
@@ -339,11 +339,11 @@ export async function GET(req: NextRequest) {
             if (res.success) results.abandonedCartStep2Sent++;
           }
         } else if (sentRecoveries.length === 2) {
-          // Step 3
+          // Step 3: Fired if elapsed time is between delay3 (default 10080m / 7d) and 11520 minutes (8d)
           const lastSentTime = new Date(sentRecoveries[1].createdAt).getTime();
           const elapsedSinceLastSent = (now.getTime() - lastSentTime) / (60 * 1000);
 
-          if (isStep3Enabled && elapsedMinutes >= delay3 && elapsedSinceLastSent >= 1440) { // at least 1 day since step 2
+          if (isStep3Enabled && elapsedMinutes >= delay3 && elapsedMinutes <= 11520 && elapsedSinceLastSent >= 1440) { // at least 1 day since step 2
             const firstItem = cart.items?.[0] || {};
             const res = await templates.sendCartRecoveryFinalReminder({
               phone: formattedPhone,
