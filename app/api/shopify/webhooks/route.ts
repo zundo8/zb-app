@@ -190,6 +190,40 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
     }
   }
 
+  // Resolve WebStoreOrder to get discount details
+  let webStoreOrder = null;
+  const lookupNumber = extractedNumber || existingLocalOrder?.internalOrderNumber;
+  if (lookupNumber) {
+    webStoreOrder = await prisma.webStoreOrder.findUnique({
+      where: { orderNumber: lookupNumber }
+    });
+  }
+  if (!webStoreOrder) {
+    webStoreOrder = await prisma.webStoreOrder.findFirst({
+      where: {
+        OR: [
+          { razorpayOrderId: orderData.id.toString() },
+          { notes: { contains: `Shopify: ${orderData.id}` } }
+        ]
+      }
+    });
+  }
+
+  const discountAmount = webStoreOrder?.discountAmount 
+    ? Number(webStoreOrder.discountAmount) 
+    : (existingLocalOrder?.discountAmount || 0);
+  const discountCode = webStoreOrder?.discountCode 
+    ? webStoreOrder.discountCode 
+    : (existingLocalOrder?.discountCode || null);
+
+  let finalTotalPrice = parseFloat(orderData.total_price || '0');
+  const finalSubtotalPrice = orderData.subtotal_price ? parseFloat(orderData.subtotal_price) : finalTotalPrice;
+
+  // Auto-correct undiscounted totalPrice synced from Shopify
+  if (discountAmount > 0 && Math.abs(finalTotalPrice - finalSubtotalPrice) < 0.01) {
+    finalTotalPrice = finalSubtotalPrice - discountAmount;
+  }
+
   const order = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.id.toString() },
     create: {
@@ -200,8 +234,8 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
       shopifySyncStatus: 'synced',
       customerId: dbCustomer.id,
       status: finalStatus,
-      totalPrice: parseFloat(orderData.total_price || '0'),
-      subtotalPrice: parseFloat(orderData.subtotal_price || '0'),
+      totalPrice: finalTotalPrice,
+      subtotalPrice: finalSubtotalPrice,
       totalTax: parseFloat(orderData.total_tax || '0'),
       currency: orderData.currency || 'INR',
       paymentStatus: orderData.financial_status || 'pending',
@@ -212,13 +246,15 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
       billingAddress: orderData.billing_address ? JSON.stringify(orderData.billing_address) : null,
       note: orderData.note || null,
       tags: orderData.tags || null,
+      discountAmount: discountAmount,
+      discountCode: discountCode,
       createdAt: orderDate
     },
     update: {
       status: finalStatus,
       shopifyOrderName: orderData.name || null,
-      totalPrice: parseFloat(orderData.total_price || '0'),
-      subtotalPrice: parseFloat(orderData.subtotal_price || '0'),
+      totalPrice: finalTotalPrice,
+      subtotalPrice: finalSubtotalPrice,
       totalTax: parseFloat(orderData.total_tax || '0'),
       currency: orderData.currency || 'INR',
       paymentStatus: orderData.financial_status || 'pending',
@@ -229,6 +265,8 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
       billingAddress: orderData.billing_address ? JSON.stringify(orderData.billing_address) : null,
       note: orderData.note || null,
       tags: orderData.tags || null,
+      discountAmount: discountAmount,
+      discountCode: discountCode,
     }
   });
 

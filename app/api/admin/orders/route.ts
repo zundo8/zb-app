@@ -130,16 +130,26 @@ export async function GET(req: Request) {
         const codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
         const paymentMethod = webStoreOrder?.paymentMethod || order.paymentMethod;
         const paymentStatus = webStoreOrder?.paymentStatus || order.paymentStatus;
+        const discountAmount = webStoreOrder?.discountAmount 
+          ? Number(webStoreOrder.discountAmount) 
+          : (order.discountAmount || 0);
+
+        let totalPrice = order.totalPrice;
+        const subtotalPrice = order.subtotalPrice || totalPrice;
+        if (discountAmount > 0 && Math.abs(totalPrice - subtotalPrice) < 0.01) {
+          totalPrice = subtotalPrice - discountAmount;
+        }
         
         let paidAmount = 0;
         if (paymentMethod === 'COD' || paymentMethod === 'cod') {
           paidAmount = codUpfrontPaid;
         } else if (paymentStatus === 'paid' || paymentStatus === 'success') {
-          paidAmount = order.totalPrice;
+          paidAmount = totalPrice;
         }
 
         return {
           ...order,
+          totalPrice,
           codUpfrontPaid,
           paymentMethod,
           paymentStatus,

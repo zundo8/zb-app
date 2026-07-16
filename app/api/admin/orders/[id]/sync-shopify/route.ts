@@ -318,13 +318,28 @@ export async function POST(
 
         const finalPaymentStatus = webStoreOrder?.paymentMethod === 'razorpay' ? 'paid' : derivedPaymentStatus;
 
+        const discountAmount = webStoreOrder?.discountAmount 
+          ? Number(webStoreOrder.discountAmount) 
+          : (order.discountAmount || 0);
+        const discountCode = webStoreOrder?.discountCode 
+          ? webStoreOrder.discountCode 
+          : (order.discountCode || null);
+
+        let finalTotalPrice = parseFloat(o.total_price || '0');
+        const finalSubtotalPrice = o.subtotal_price ? parseFloat(o.subtotal_price) : finalTotalPrice;
+
+        // Auto-correct undiscounted totalPrice synced from Shopify
+        if (discountAmount > 0 && Math.abs(finalTotalPrice - finalSubtotalPrice) < 0.01) {
+          finalTotalPrice = finalSubtotalPrice - discountAmount;
+        }
+
         // Update local Order record
         const updatedOrder = await prisma.order.update({
           where: { id: order.id },
           data: {
             status: finalStatus,
-            totalPrice: parseFloat(o.total_price || '0'),
-            subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
+            totalPrice: finalTotalPrice,
+            subtotalPrice: finalSubtotalPrice,
             totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
             currency: o.currency || 'INR',
             paymentStatus: finalPaymentStatus,
@@ -338,6 +353,8 @@ export async function POST(
             razorpayOrderId: webStoreOrder?.razorpayOrderId || order.razorpayOrderId || null,
             razorpayPaymentId: webStoreOrder?.razorpayPaymentId || order.razorpayPaymentId || null,
             internalOrderNumber: webStoreOrder?.orderNumber || order.internalOrderNumber || universalOrderNumber || null,
+            discountAmount: discountAmount,
+            discountCode: discountCode,
           }
         });
 

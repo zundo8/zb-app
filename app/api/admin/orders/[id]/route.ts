@@ -204,6 +204,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
           refundError: null,
           refundAttempts: 0,
         };
+        
+        const mobDiscount = mappedOrder.discountAmount || 0;
+        const mobSubtotal = mappedOrder.subtotalPrice || mappedOrder.totalPrice;
+        if (mobDiscount > 0 && Math.abs(mappedOrder.totalPrice - mobSubtotal) < 0.01) {
+          mappedOrder.totalPrice = mobSubtotal - mobDiscount;
+        }
+        
         return NextResponse.json({ success: true, order: mappedOrder });
       }
     }
@@ -243,6 +250,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       paymentMethod: webStoreOrder?.paymentMethod || order.paymentMethod,
       paymentStatus: webStoreOrder?.paymentStatus || order.paymentStatus,
     };
+
+    const finalDiscountAmount = enrichedOrder.discountAmount || 0;
+    const finalSubtotalPrice = enrichedOrder.subtotalPrice || enrichedOrder.totalPrice;
+    if (finalDiscountAmount > 0 && Math.abs(enrichedOrder.totalPrice - finalSubtotalPrice) < 0.01) {
+      enrichedOrder.totalPrice = finalSubtotalPrice - finalDiscountAmount;
+    }
 
     return NextResponse.json({ success: true, order: enrichedOrder });
   } catch (error: any) {

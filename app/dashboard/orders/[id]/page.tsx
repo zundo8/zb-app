@@ -371,6 +371,11 @@ export default function OrderDetailPage() {
   }
   const latestShipment = order.shipments?.[0];
 
+  const discountAmount = order ? ((order as any).discountAmount || 0) : 0;
+  const subtotalPrice = order ? (order.subtotalPrice || order.totalPrice) : 0;
+  const isUndiscounted = order ? (discountAmount > 0 && Math.abs(order.totalPrice - subtotalPrice) < 0.01) : false;
+  const finalGrandTotal = order ? (isUndiscounted ? order.totalPrice - discountAmount : order.totalPrice) : 0;
+
   return (
     <div className="max-w-[1200px] mx-auto space-y-12 pb-32 pt-4 relative">
        <AnimatePresence>
@@ -661,15 +666,15 @@ export default function OrderDetailPage() {
               <div className="flex justify-between items-end">
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Grand Total</p>
-                  <p className="text-4xl font-black text-foreground tracking-tighter italic mb-1">₹{order.totalPrice.toLocaleString("en-IN")}</p>
+                  <p className="text-4xl font-black text-foreground tracking-tighter italic mb-1">₹{finalGrandTotal.toLocaleString("en-IN")}</p>
                   <p className="text-[11px] text-emerald-400 font-bold uppercase tracking-widest leading-none">
-                    Paid: ₹{(detectPaymentMethod(order) === 'COD' ? ((order as any).codUpfrontPaid || 0) : (order.paymentStatus === 'paid' ? order.totalPrice : 0)).toLocaleString("en-IN")}
+                    Paid: ₹{(detectPaymentMethod(order) === 'COD' ? ((order as any).codUpfrontPaid || 0) : (order.paymentStatus === 'paid' ? finalGrandTotal : 0)).toLocaleString("en-IN")}
                   </p>
                 </div>
                 {detectPaymentMethod(order) === 'COD' && (
                   <div className="text-right space-y-1">
                     <p className="text-[10px] font-bold text-amber-400/80 uppercase tracking-widest">Balance Due at Delivery</p>
-                    <p className="text-xl font-bold text-amber-400">₹{Math.max(0, order.totalPrice - ((order as any).codUpfrontPaid || 0)).toLocaleString("en-IN")}</p>
+                    <p className="text-xl font-bold text-amber-400">₹{Math.max(0, finalGrandTotal - ((order as any).codUpfrontPaid || 0)).toLocaleString("en-IN")}</p>
                   </div>
                 )}
               </div>

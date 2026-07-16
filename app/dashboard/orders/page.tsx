@@ -60,6 +60,9 @@ interface Order {
   internalOrderNumber?: string | null;
   shopifySyncStatus?: string | null;
   shopifySyncError?: string | null;
+  discountAmount?: number;
+  subtotalPrice?: number | null;
+  paidAmount?: number;
 }
 
 const STATUS_THEME: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -438,7 +441,7 @@ export default function OrdersPage() {
                           ₹{order.totalPrice.toLocaleString("en-IN")}
                         </p>
                         <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1.5 leading-none">
-                          Paid: ₹{((order as any).paidAmount || (order.paymentStatus === 'paid' ? order.totalPrice : 0)).toLocaleString("en-IN")}
+                          Paid: ₹{(order.paidAmount ?? (order.paymentStatus === 'paid' ? order.totalPrice : 0)).toLocaleString("en-IN")}
                         </p>
                         <p className="text-[9px] text-foreground/20 font-bold uppercase tracking-widest">
                           {order.items.length} Units

@@ -333,7 +333,16 @@ export async function POST(req: Request) {
         { name: 'razorpay_payment_id', value: razorpay?.razorpay_payment_id || '' }
       ],
       total_tax: 0,
-      currency: "INR"
+      currency: "INR",
+      ...(couponDiscount && Number(couponDiscount) > 0 ? {
+        discount_codes: [
+          {
+            code: couponCode || "DISCOUNT",
+            amount: parseFloat(String(couponDiscount)).toFixed(2),
+            type: "fixed_amount"
+          }
+        ]
+      } : {})
     };
 
     // Add transactions so Shopify records the actual paid amount
