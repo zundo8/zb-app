@@ -16,6 +16,8 @@ const SENDER_MAP: Record<string, any> = {
   order_delivered: templates.sendDelivered,
   return_confirmed: templates.sendReturnConfirmed,
   abandoned_cart: templates.sendAbandonedCart,
+  cart_followup: templates.sendCartRecoveryFollowUp,
+  cart_final: templates.sendCartRecoveryFinalReminder,
   new_collection: templates.sendNewCollection,
   sale_alert: templates.sendSaleAlert,
   restock_alert: templates.sendRestockAlert,
@@ -196,20 +198,28 @@ export async function GET(req: NextRequest) {
           let res: any = null;
           if (msg.templateName) {
             // Try to find a matching sender function that constructs proper components.
-            // Map common template names to event types for the SENDER_MAP lookup.
-            const templateToEvent: Record<string, string> = {
-              'zica_cart_recovery_v1': 'abandoned_cart',
-              'zb_cart_followup': 'cart_followup',
-              'zb_cart_final': 'cart_final',
-              'zica_order_confirmed_v1': 'order_confirmed',
-              'zica_order_shipped': 'order_shipped',
-              'zica_order_delivered_v1': 'order_delivered',
-              'zb_out_for_delivery': 'out_for_delivery',
-              'zb_return_confirmed': 'return_confirmed',
-              'zica_cod_confirmation_v1': 'cod_confirmation',
-              'zb_order_status': 'order_status',
-              'zb_order_tracking': 'order_tracking',
-            };
+            // Dynamically resolve template names from settings so custom renames
+            // (e.g. a1/a2/a3) route to the correct sender function.
+            const TEMPLATE_SETTINGS: Array<{ key: string; defaultName: string; eventType: string }> = [
+              { key: 'template_abandoned_cart', defaultName: 'zica_cart_recovery_v1', eventType: 'abandoned_cart' },
+              { key: 'template_cart_followup', defaultName: 'zb_cart_followup', eventType: 'cart_followup' },
+              { key: 'template_cart_final', defaultName: 'zb_cart_final', eventType: 'cart_final' },
+              { key: 'template_order_confirmed', defaultName: 'zica_order_confirmed_v1', eventType: 'order_confirmed' },
+              { key: 'template_order_shipped', defaultName: 'zica_order_shipped', eventType: 'order_shipped' },
+              { key: 'template_order_delivered', defaultName: 'zica_order_delivered_v1', eventType: 'order_delivered' },
+              { key: 'template_out_for_delivery', defaultName: 'zb_out_for_delivery', eventType: 'out_for_delivery' },
+              { key: 'template_return_confirmed', defaultName: 'zb_return_confirmed', eventType: 'return_confirmed' },
+              { key: 'template_cod_confirmation', defaultName: 'zica_cod_confirmation_v1', eventType: 'cod_confirmation' },
+              { key: 'template_order_status', defaultName: 'zb_order_status', eventType: 'order_status' },
+              { key: 'template_order_tracking', defaultName: 'zb_order_tracking', eventType: 'order_tracking' },
+            ];
+
+            const templateToEvent: Record<string, string> = {};
+            for (const s of TEMPLATE_SETTINGS) {
+              const resolved = await getWhatsAppSetting(s.key, s.defaultName);
+              templateToEvent[resolved] = s.eventType;       // custom name → event
+              templateToEvent[s.defaultName] = s.eventType;  // old default → event (keep for compat)
+            }
 
             const eventType = templateToEvent[msg.templateName];
             const senderFn = eventType ? SENDER_MAP[eventType] : null;
@@ -328,12 +338,28 @@ export async function GET(req: NextRequest) {
         take: 50
       });
 
+      // Resolve live-configured template names for each cart recovery step.
+      // Include both old defaults AND current configured names so historical
+      // messages (sent under old names before the rename) still count.
+      const step1Template = await getWhatsAppSetting('template_abandoned_cart', 'zica_cart_recovery_v1');
+      const step2Template = await getWhatsAppSetting('template_cart_followup', 'zb_cart_followup');
+      const step3Template = await getWhatsAppSetting('template_cart_final', 'zb_cart_final');
+
+      const STEP1_DEFAULTS = ['zica_cart_recovery_v1'];
+      const STEP2_DEFAULTS = ['zb_cart_followup'];
+      const STEP3_DEFAULTS = ['zb_cart_final'];
+
+      const step1Names = [...new Set([step1Template, ...STEP1_DEFAULTS])];
+      const step2Names = [...new Set([step2Template, ...STEP2_DEFAULTS])];
+      const step3Names = [...new Set([step3Template, ...STEP3_DEFAULTS])];
+      const allRecoveryNames = [...new Set([...step1Names, ...step2Names, ...step3Names])];
+
       // Optimize: Fetch all recovery messages sent in the last 30 days in one single query
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const recoveryMessages = await db.whatsAppMessage.findMany({
         where: {
           createdAt: { gte: thirtyDaysAgo },
-          templateName: { in: ['zica_cart_recovery_v1', 'zb_cart_followup', 'zb_cart_final'] }
+          templateName: { in: allRecoveryNames }
         },
         orderBy: {
           createdAt: 'asc'
@@ -347,16 +373,22 @@ export async function GET(req: NextRequest) {
         const formattedPhone = formatPhone(phone);
         if (!formattedPhone) continue;
 
-        // Filter recovery messages in-memory
+        // Filter recovery messages for this phone+cart in-memory
         const sentRecoveries = recoveryMessages.filter((msg: any) => 
           msg.phoneNumber === formattedPhone && 
           msg.body && msg.body.includes(cart.id)
         );
 
+        // Classify by step using explicit template-name matching, not by count.
+        // This is robust even if a customer has duplicate messages from one step.
+        const step1Sent = sentRecoveries.filter((m: any) => step1Names.includes(m.templateName));
+        const step2Sent = sentRecoveries.filter((m: any) => step2Names.includes(m.templateName));
+        const step3Sent = sentRecoveries.filter((m: any) => step3Names.includes(m.templateName));
+
         const lastActivityTime = new Date(cart.lastActivityAt).getTime();
         const elapsedMinutes = (now.getTime() - lastActivityTime) / (60 * 1000);
 
-        if (sentRecoveries.length === 0) {
+        if (step1Sent.length === 0) {
           // Step 1: Fired if elapsed time is between delay1 (default 5m) and 60 minutes
           if (isStep1Enabled && elapsedMinutes >= delay1 && elapsedMinutes <= 60) {
             const firstItem = cart.items?.[0] || {};
@@ -380,12 +412,13 @@ export async function GET(req: NextRequest) {
 
             if (res.success) results.abandonedCartStep1Sent++;
           }
-        } else if (sentRecoveries.length === 1) {
+        } else if (step2Sent.length === 0) {
           // Step 2: Fired if elapsed time is between delay2 (default 60m / 1h) and 180 minutes (3h)
-          const lastSentTime = new Date(sentRecoveries[0].createdAt).getTime();
-          const elapsedSinceLastSent = (now.getTime() - lastSentTime) / (60 * 1000);
+          // Use the latest Step 1 message time for the minimum gap check
+          const lastStep1Time = new Date(step1Sent[step1Sent.length - 1].createdAt).getTime();
+          const elapsedSinceStep1 = (now.getTime() - lastStep1Time) / (60 * 1000);
 
-          if (isStep2Enabled && elapsedMinutes >= delay2 && elapsedMinutes <= 180 && elapsedSinceLastSent >= 15) {
+          if (isStep2Enabled && elapsedMinutes >= delay2 && elapsedMinutes <= 180 && elapsedSinceStep1 >= 15) {
             const firstItem = cart.items?.[0] || {};
             const res = await templates.sendCartRecoveryFollowUp({
               phone: formattedPhone,
@@ -402,12 +435,13 @@ export async function GET(req: NextRequest) {
 
             if (res.success) results.abandonedCartStep2Sent++;
           }
-        } else if (sentRecoveries.length === 2) {
+        } else if (step3Sent.length === 0) {
           // Step 3: Fired if elapsed time is between delay3 (default 10080m / 7d) and 11520 minutes (8d)
-          const lastSentTime = new Date(sentRecoveries[1].createdAt).getTime();
-          const elapsedSinceLastSent = (now.getTime() - lastSentTime) / (60 * 1000);
+          // Use the latest Step 2 message time for the minimum gap check
+          const lastStep2Time = new Date(step2Sent[step2Sent.length - 1].createdAt).getTime();
+          const elapsedSinceStep2 = (now.getTime() - lastStep2Time) / (60 * 1000);
 
-          if (isStep3Enabled && elapsedMinutes >= delay3 && elapsedMinutes <= 11520 && elapsedSinceLastSent >= 1440) { // at least 1 day since step 2
+          if (isStep3Enabled && elapsedMinutes >= delay3 && elapsedMinutes <= 11520 && elapsedSinceStep2 >= 1440) { // at least 1 day since step 2
             const firstItem = cart.items?.[0] || {};
             const res = await templates.sendCartRecoveryFinalReminder({
               phone: formattedPhone,
