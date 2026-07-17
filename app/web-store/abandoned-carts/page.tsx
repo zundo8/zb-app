@@ -130,6 +130,15 @@ export default function AbandonedCartsPage() {
 
   useEffect(() => {
     fetchCarts();
+
+    // Lightweight polling every 10 seconds (only if page is visible)
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchCarts();
+      }
+    }, 10000);
+
+    return () => clearInterval(intervalId);
   }, [fetchCarts]);
 
   // Search debounce or clear pagination on filter change

@@ -13,7 +13,7 @@ export async function GET() {
     // 1. Fetch all sent cart recovery messages
     const recoveryMessages = await db.whatsAppMessage.findMany({
       where: {
-        templateName: { in: ['zica_cart_recovery_v1', 'zb_abandoned_cart'] },
+        templateName: { in: ['abandoned_cart_a1', 'abandoned_cart_a2', 'abandoned_cart_a3', 'zica_cart_recovery_v1', 'zb_abandoned_cart'] },
         status: { not: 'failed' }
       },
       orderBy: { createdAt: 'asc' }

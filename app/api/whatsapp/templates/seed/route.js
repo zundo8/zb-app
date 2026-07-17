@@ -137,7 +137,7 @@ const PRODUCTION_TEMPLATES = [
     ]
   },
   {
-    name: 'zica_cart_recovery_v3',
+    name: 'abandoned_cart_a1',
     category: 'MARKETING',
     language: 'en',
     components: [
@@ -150,10 +150,10 @@ const PRODUCTION_TEMPLATES = [
       },
       {
         type: 'BODY',
-        text: 'Hello {{1}}, we noticed you left *{{2}}* in your cart. You can review the product here: {{3}}. Complete your purchase securely directly from WhatsApp by paying below!',
+        text: 'Hello {{1}}, we noticed you left some items in your cart. Complete your purchase now to secure them!',
         example: {
           body_text: [
-            ['Karthik', 'Premium Heavyweight Fit Tee', 'https://app.zicabella.com/products/premium-tee']
+            ['Karthik']
           ]
         }
       },
@@ -164,14 +164,14 @@ const PRODUCTION_TEMPLATES = [
             type: 'URL',
             text: 'Complete Purchase',
             url: 'https://app.zicabella.com/{{1}}',
-            example: ['api/pay/example-cart-id']
+            example: ['checkout']
           }
         ]
       }
     ]
   },
   {
-    name: 'zb_cart_followup',
+    name: 'abandoned_cart_a2',
     category: 'MARKETING',
     language: 'en',
     components: [
@@ -202,7 +202,7 @@ const PRODUCTION_TEMPLATES = [
     ]
   },
   {
-    name: 'zb_cart_final',
+    name: 'abandoned_cart_a3',
     category: 'MARKETING',
     language: 'en',
     components: [

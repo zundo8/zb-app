@@ -42,7 +42,7 @@ export async function GET() {
     try {
       const logs = await prisma.whatsAppMessage.findMany({
         where: {
-          templateName: { in: ['zica_cart_recovery_v1', 'zb_cart_followup', 'zb_cart_final'] }
+          templateName: { in: ['abandoned_cart_a1', 'abandoned_cart_a2', 'abandoned_cart_a3', 'zica_cart_recovery_v1', 'zb_cart_followup', 'zb_cart_final'] }
         },
         select: { phoneNumber: true }
       });

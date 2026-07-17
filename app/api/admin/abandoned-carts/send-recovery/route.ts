@@ -52,7 +52,9 @@ export async function POST(req: Request) {
           productName,
           cartTotal,
           itemCount,
-          productHandle
+          productHandle,
+          cartId: cart.id,
+          recoveryStage: 1
         });
       } else {
         result = await sendAbandonedCart({
@@ -63,7 +65,8 @@ export async function POST(req: Request) {
           productName,
           cartTotal,
           itemCount,
-          productHandle
+          productHandle,
+          cartId: cart.id
         });
       }
 

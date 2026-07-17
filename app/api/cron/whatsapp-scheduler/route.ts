@@ -201,9 +201,9 @@ export async function GET(req: NextRequest) {
             // Dynamically resolve template names from settings so custom renames
             // (e.g. a1/a2/a3) route to the correct sender function.
             const TEMPLATE_SETTINGS: Array<{ key: string; defaultName: string; eventType: string }> = [
-              { key: 'template_abandoned_cart', defaultName: 'zica_cart_recovery_v1', eventType: 'abandoned_cart' },
-              { key: 'template_cart_followup', defaultName: 'zb_cart_followup', eventType: 'cart_followup' },
-              { key: 'template_cart_final', defaultName: 'zb_cart_final', eventType: 'cart_final' },
+              { key: 'template_abandoned_cart', defaultName: 'abandoned_cart_a1', eventType: 'abandoned_cart' },
+              { key: 'template_cart_followup', defaultName: 'abandoned_cart_a2', eventType: 'cart_followup' },
+              { key: 'template_cart_final', defaultName: 'abandoned_cart_a3', eventType: 'cart_final' },
               { key: 'template_order_confirmed', defaultName: 'zica_order_confirmed_v1', eventType: 'order_confirmed' },
               { key: 'template_order_shipped', defaultName: 'zica_order_shipped', eventType: 'order_shipped' },
               { key: 'template_order_delivered', defaultName: 'zica_order_delivered_v1', eventType: 'order_delivered' },
@@ -341,13 +341,13 @@ export async function GET(req: NextRequest) {
       // Resolve live-configured template names for each cart recovery step.
       // Include both old defaults AND current configured names so historical
       // messages (sent under old names before the rename) still count.
-      const step1Template = await getWhatsAppSetting('template_abandoned_cart', 'zica_cart_recovery_v1');
-      const step2Template = await getWhatsAppSetting('template_cart_followup', 'zb_cart_followup');
-      const step3Template = await getWhatsAppSetting('template_cart_final', 'zb_cart_final');
+      const step1Template = await getWhatsAppSetting('template_abandoned_cart', 'abandoned_cart_a1');
+      const step2Template = await getWhatsAppSetting('template_cart_followup', 'abandoned_cart_a2');
+      const step3Template = await getWhatsAppSetting('template_cart_final', 'abandoned_cart_a3');
 
-      const STEP1_DEFAULTS = ['zica_cart_recovery_v1'];
-      const STEP2_DEFAULTS = ['zb_cart_followup'];
-      const STEP3_DEFAULTS = ['zb_cart_final'];
+      const STEP1_DEFAULTS = ['abandoned_cart_a1', 'zica_cart_recovery_v1'];
+      const STEP2_DEFAULTS = ['abandoned_cart_a2', 'zb_cart_followup'];
+      const STEP3_DEFAULTS = ['abandoned_cart_a3', 'zb_cart_final'];
 
       const step1Names = [...new Set([step1Template, ...STEP1_DEFAULTS])];
       const step2Names = [...new Set([step2Template, ...STEP2_DEFAULTS])];
@@ -366,6 +366,15 @@ export async function GET(req: NextRequest) {
         }
       });
 
+      // Fetch all messages linked to these carts specifically
+      const cartIds = carts.map((c: any) => c.id);
+      const cartMessages = await db.whatsAppMessage.findMany({
+        where: {
+          cartId: { in: cartIds },
+          status: { not: 'failed' }
+        }
+      });
+
       for (const cart of carts) {
         const phone = cart.phone || cart.customer?.phone;
         if (!phone) continue;
@@ -373,24 +382,67 @@ export async function GET(req: NextRequest) {
         const formattedPhone = formatPhone(phone);
         if (!formattedPhone) continue;
 
-        // Filter recovery messages for this phone+cart in-memory
-        const sentRecoveries = recoveryMessages.filter((msg: any) => 
-          msg.phoneNumber === formattedPhone && 
-          msg.body && msg.body.includes(cart.id)
-        );
+        // Fetch recoveries linked directly by cartId
+        const sentForCart = cartMessages.filter((m: any) => m.cartId === cart.id);
 
-        // Classify by step using explicit template-name matching, not by count.
-        // This is robust even if a customer has duplicate messages from one step.
-        const step1Sent = sentRecoveries.filter((m: any) => step1Names.includes(m.templateName));
-        const step2Sent = sentRecoveries.filter((m: any) => step2Names.includes(m.templateName));
-        const step3Sent = sentRecoveries.filter((m: any) => step3Names.includes(m.templateName));
+        let step1Sent = sentForCart.filter((m: any) => m.recoveryStage === 1);
+        let step2Sent = sentForCart.filter((m: any) => m.recoveryStage === 2);
+        let step3Sent = sentForCart.filter((m: any) => m.recoveryStage === 3);
+
+        // Fallback to legacy check if no direct relation records exist
+        if (step1Sent.length === 0 || step2Sent.length === 0 || step3Sent.length === 0) {
+          const legacySent = recoveryMessages.filter((msg: any) => 
+            msg.phoneNumber === formattedPhone && 
+            msg.body && msg.body.includes(cart.id)
+          );
+          if (step1Sent.length === 0) {
+            step1Sent = legacySent.filter((m: any) => step1Names.includes(m.templateName));
+          }
+          if (step2Sent.length === 0) {
+            step2Sent = legacySent.filter((m: any) => step2Names.includes(m.templateName));
+          }
+          if (step3Sent.length === 0) {
+            step3Sent = legacySent.filter((m: any) => step3Names.includes(m.templateName));
+          }
+        }
+
+        // Determine the next eligible step based on progression & enablement status
+        let nextStepToProcess = 1;
+        if (step1Sent.length > 0 || !isStep1Enabled) {
+          nextStepToProcess = 2;
+        }
+        if (nextStepToProcess === 2 && (step2Sent.length > 0 || !isStep2Enabled)) {
+          nextStepToProcess = 3;
+        }
+        if (nextStepToProcess === 3 && (step3Sent.length > 0 || !isStep3Enabled)) {
+          nextStepToProcess = 4; // All steps sent or disabled
+        }
 
         const lastActivityTime = new Date(cart.lastActivityAt).getTime();
         const elapsedMinutes = (now.getTime() - lastActivityTime) / (60 * 1000);
 
-        if (step1Sent.length === 0) {
+        if (nextStepToProcess === 1) {
           // Step 1: Fired if elapsed time is between delay1 (default 5m) and 60 minutes
-          if (isStep1Enabled && elapsedMinutes >= delay1 && elapsedMinutes <= 60) {
+          if (elapsedMinutes >= delay1 && elapsedMinutes <= 60) {
+            // Claim job atomically via DB write
+            try {
+              await db.whatsAppMessage.create({
+                data: {
+                  direction: 'outbound',
+                  phoneNumber: formattedPhone,
+                  cartId: cart.id,
+                  recoveryStage: 1,
+                  status: 'processing',
+                  templateName: step1Template,
+                  body: `Cart Recovery Step 1 claiming ${cart.id}`,
+                  sentAt: new Date(),
+                }
+              });
+            } catch (claimErr) {
+              console.log(`[Scheduler] Cart ${cart.id} Step 1 already claimed/processed, skipping.`);
+              continue;
+            }
+
             const firstItem = cart.items?.[0] || {};
             const res = await templates.sendAbandonedCart({
               phone: formattedPhone,
@@ -400,25 +452,66 @@ export async function GET(req: NextRequest) {
               productName: firstItem.title || '',
               cartTotal: String(cart.subtotal || '0.00'),
               itemCount: cart.items.length,
-              productHandle: firstItem.handle || ''
+              productHandle: firstItem.handle || '',
+              cartId: cart.id
             });
 
-            if (cart.status === 'active') {
-              await db.cart.update({
-                where: { id: cart.id },
-                data: { status: 'abandoned', abandonedAt: new Date() }
+            if (res.success) {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 1 } },
+                data: {
+                  status: 'sent',
+                  waMessageId: res.messageId || null,
+                  body: `Template: ${step1Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                  errorMessage: null,
+                }
+              });
+
+              if (cart.status === 'active') {
+                await db.cart.update({
+                  where: { id: cart.id },
+                  data: { status: 'abandoned', abandonedAt: new Date() }
+                });
+              }
+              results.abandonedCartStep1Sent++;
+            } else {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 1 } },
+                data: {
+                  status: 'failed',
+                  errorMessage: res.error || 'Failed to send template',
+                  nextRetryAt: getNextRetryTime(0),
+                  retryCount: 0
+                }
               });
             }
-
-            if (res.success) results.abandonedCartStep1Sent++;
           }
-        } else if (step2Sent.length === 0) {
-          // Step 2: Fired if elapsed time is between delay2 (default 60m / 1h) and 180 minutes (3h)
-          // Use the latest Step 1 message time for the minimum gap check
-          const lastStep1Time = new Date(step1Sent[step1Sent.length - 1].createdAt).getTime();
-          const elapsedSinceStep1 = (now.getTime() - lastStep1Time) / (60 * 1000);
+        } else if (nextStepToProcess === 2) {
+          // Step 2: Fired if elapsed time is between delay2 (default 60m) and 180 minutes (3h)
+          const lastStepTime = step1Sent.length > 0 
+            ? new Date(step1Sent[step1Sent.length - 1].createdAt).getTime() 
+            : lastActivityTime;
+          const elapsedSinceLast = (now.getTime() - lastStepTime) / (60 * 1000);
 
-          if (isStep2Enabled && elapsedMinutes >= delay2 && elapsedMinutes <= 180 && elapsedSinceStep1 >= 15) {
+          if (elapsedMinutes >= delay2 && elapsedMinutes <= 180 && elapsedSinceLast >= 15) {
+            try {
+              await db.whatsAppMessage.create({
+                data: {
+                  direction: 'outbound',
+                  phoneNumber: formattedPhone,
+                  cartId: cart.id,
+                  recoveryStage: 2,
+                  status: 'processing',
+                  templateName: step2Template,
+                  body: `Cart Recovery Step 2 claiming ${cart.id}`,
+                  sentAt: new Date(),
+                }
+              });
+            } catch (claimErr) {
+              console.log(`[Scheduler] Cart ${cart.id} Step 2 already claimed/processed, skipping.`);
+              continue;
+            }
+
             const firstItem = cart.items?.[0] || {};
             const res = await templates.sendCartRecoveryFollowUp({
               phone: formattedPhone,
@@ -430,18 +523,59 @@ export async function GET(req: NextRequest) {
               productName: firstItem.title || '',
               productHandle: firstItem.handle || '',
               cartTotal: String(cart.subtotal || '0.00'),
-              itemCount: cart.items.length
+              itemCount: cart.items.length,
+              cartId: cart.id
             });
 
-            if (res.success) results.abandonedCartStep2Sent++;
+            if (res.success) {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 2 } },
+                data: {
+                  status: 'sent',
+                  waMessageId: res.messageId || null,
+                  body: `Template: ${step2Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                  errorMessage: null,
+                }
+              });
+              results.abandonedCartStep2Sent++;
+            } else {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 2 } },
+                data: {
+                  status: 'failed',
+                  errorMessage: res.error || 'Failed to send template',
+                  nextRetryAt: getNextRetryTime(0),
+                  retryCount: 0
+                }
+              });
+            }
           }
-        } else if (step3Sent.length === 0) {
-          // Step 3: Fired if elapsed time is between delay3 (default 10080m / 7d) and 11520 minutes (8d)
-          // Use the latest Step 2 message time for the minimum gap check
-          const lastStep2Time = new Date(step2Sent[step2Sent.length - 1].createdAt).getTime();
-          const elapsedSinceStep2 = (now.getTime() - lastStep2Time) / (60 * 1000);
+        } else if (nextStepToProcess === 3) {
+          // Step 3: Fired if elapsed time is between delay3 (default 7d) and 11520 minutes (8d)
+          const lastStepTime = step2Sent.length > 0 
+            ? new Date(step2Sent[step2Sent.length - 1].createdAt).getTime() 
+            : lastActivityTime;
+          const elapsedSinceLast = (now.getTime() - lastStepTime) / (60 * 1000);
 
-          if (isStep3Enabled && elapsedMinutes >= delay3 && elapsedMinutes <= 11520 && elapsedSinceStep2 >= 1440) { // at least 1 day since step 2
+          if (elapsedMinutes >= delay3 && elapsedMinutes <= 11520 && elapsedSinceLast >= 1440) {
+            try {
+              await db.whatsAppMessage.create({
+                data: {
+                  direction: 'outbound',
+                  phoneNumber: formattedPhone,
+                  cartId: cart.id,
+                  recoveryStage: 3,
+                  status: 'processing',
+                  templateName: step3Template,
+                  body: `Cart Recovery Step 3 claiming ${cart.id}`,
+                  sentAt: new Date(),
+                }
+              });
+            } catch (claimErr) {
+              console.log(`[Scheduler] Cart ${cart.id} Step 3 already claimed/processed, skipping.`);
+              continue;
+            }
+
             const firstItem = cart.items?.[0] || {};
             const res = await templates.sendCartRecoveryFinalReminder({
               phone: formattedPhone,
@@ -452,14 +586,36 @@ export async function GET(req: NextRequest) {
               productName: firstItem.title || '',
               productHandle: firstItem.handle || '',
               cartTotal: String(cart.subtotal || '0.00'),
-              itemCount: cart.items.length
+              itemCount: cart.items.length,
+              cartId: cart.id
             });
 
-            if (res.success) results.abandonedCartStep3Sent++;
+            if (res.success) {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 3 } },
+                data: {
+                  status: 'sent',
+                  waMessageId: res.messageId || null,
+                  body: `Template: ${step3Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                  errorMessage: null,
+                }
+              });
+              results.abandonedCartStep3Sent++;
+            } else {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 3 } },
+                data: {
+                  status: 'failed',
+                  errorMessage: res.error || 'Failed to send template',
+                  nextRetryAt: getNextRetryTime(0),
+                  retryCount: 0
+                }
+              });
+            }
           }
-        }
       }
-    } catch (err: any) {
+    }
+  } catch (err: any) {
       results.errors.push(`Abandoned cart automation error: ${err.message}`);
     }
   } catch (err: any) {

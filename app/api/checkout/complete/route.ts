@@ -498,22 +498,40 @@ export async function POST(req: Request) {
       }
     });
 
-    // Mark active cart converted and link convertedOrderId
+    // Mark active or abandoned cart converted and link convertedOrderId
     try {
-      await prisma.cart.updateMany({
+      const matchingCarts = await prisma.cart.findMany({
         where: {
+          status: { in: ["active", "abandoned"] },
           OR: [
-            { customerId: localCustomer.id, status: "active" },
-            ...(address.phone ? [{ phone: address.phone, status: "active" }] : []),
-            ...(address.email ? [{ email: address.email, status: "active" }] : [])
+            { customerId: localCustomer.id },
+            ...(address.phone ? [{ phone: address.phone }] : []),
+            ...(address.email ? [{ email: address.email }] : []),
+            ...(body.guestId ? [{ sessionToken: body.guestId }] : [])
           ]
         },
-        data: {
-          status: "converted",
-          convertedOrderId: localOrder.id,
-        }
+        orderBy: { lastActivityAt: "desc" }
       });
-      console.log(`[Checkout] Marked active cart converted for customer: ${localCustomer.id}`);
+
+      if (matchingCarts.length > 0) {
+        const primaryCart = matchingCarts[0];
+        await prisma.cart.update({
+          where: { id: primaryCart.id },
+          data: {
+            status: "converted",
+            convertedOrderId: localOrder.id
+          }
+        });
+
+        if (matchingCarts.length > 1) {
+          const extraCartIds = matchingCarts.slice(1).map((c: any) => c.id);
+          await prisma.cart.updateMany({
+            where: { id: { in: extraCartIds } },
+            data: { status: "merged" }
+          });
+        }
+        console.log(`[Checkout] Marked cart converted: ${primaryCart.id} for customer: ${localCustomer.id}`);
+      }
     } catch (cartErr: any) {
       console.error("[Checkout] Failed to mark cart converted:", cartErr.message);
     }

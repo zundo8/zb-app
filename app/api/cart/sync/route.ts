@@ -50,6 +50,19 @@ export async function POST(req: Request) {
       }
     }
 
+    // Resolve customer profile default phone and email if logged in
+    let customerPhone = null;
+    let customerEmail = null;
+    if (customerId) {
+      const dbCustomer = await prisma.customer.findUnique({
+        where: { id: customerId }
+      });
+      if (dbCustomer) {
+        customerPhone = dbCustomer.phone;
+        customerEmail = dbCustomer.email;
+      }
+    }
+
     // 2. Find or create an active cart session
     let cart = null;
 
@@ -68,6 +81,18 @@ export async function POST(req: Request) {
           cart = await prisma.cart.update({
             where: { id: cart.id },
             data: { customerId: customerId }
+          });
+        }
+      } else if (cart && guestId) {
+        // Customer has an active cart, and we also have a guestId.
+        // Let's check if there is a separate guest cart we should deactivate/merge.
+        const guestCart = await prisma.cart.findFirst({
+          where: { sessionToken: guestId, status: "active", id: { not: cart.id } }
+        });
+        if (guestCart) {
+          await prisma.cart.update({
+            where: { id: guestCart.id },
+            data: { status: "merged", customerId: customerId }
           });
         }
       }
@@ -92,8 +117,8 @@ export async function POST(req: Request) {
           sessionToken: guestId || null,
           source: cartSource,
           status: "active",
-          phone: phone || null,
-          email: email || null,
+          phone: phone || customerPhone || null,
+          email: email || customerEmail || null,
           subtotal: calculatedSubtotal,
           lastActivityAt: new Date(),
           city: city || null,
@@ -112,8 +137,8 @@ export async function POST(req: Request) {
           updatedAt: new Date(),
           lastActivityAt: new Date(),
           subtotal: calculatedSubtotal,
-          phone: phone || undefined,
-          email: email || undefined,
+          phone: phone || customerPhone || undefined,
+          email: email || customerEmail || undefined,
           source: cartSource, // Ensure source is kept up-to-date
           city: city || undefined,
           state: state || undefined,

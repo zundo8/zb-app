@@ -13,51 +13,60 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get("limit") || "20", 10);
     const skip = (page - 1) * limit;
 
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const delaySetting = await prisma.whatsAppSetting.findFirst({
+      where: { key: "delay_abandoned_cart_step1" }
+    });
+    const delayMinutes = delaySetting ? (parseInt(delaySetting.value, 10) || 5) : 5;
+    const abandonmentThreshold = new Date(Date.now() - delayMinutes * 60 * 1000);
 
-    // Build the query where clause
-    const where: any = {
-      items: {
-        some: {} // Carts must have items
-      }
-    };
+    const andClauses: any[] = [
+      { items: { some: {} } }
+    ];
 
     // Filter by source
     if (sourceFilter !== "all") {
-      where.source = sourceFilter;
+      andClauses.push({ source: sourceFilter });
     }
 
     // Filter by status (including computed-on-read logic)
     if (statusFilter === "live") {
-      where.status = "active";
-      where.lastActivityAt = { gt: thirtyMinutesAgo };
+      andClauses.push({
+        status: "active",
+        lastActivityAt: { gt: abandonmentThreshold }
+      });
     } else if (statusFilter === "abandoned") {
-      where.OR = [
-        { status: "abandoned" },
-        { status: "active", lastActivityAt: { lte: thirtyMinutesAgo } }
-      ];
+      andClauses.push({
+        OR: [
+          { status: "abandoned" },
+          { status: "active", lastActivityAt: { lte: abandonmentThreshold } }
+        ]
+      });
     } else if (statusFilter === "converted") {
-      where.status = "converted";
+      andClauses.push({ status: "converted" });
     } else if (statusFilter === "expired") {
-      where.status = "expired";
+      andClauses.push({ status: "expired" });
     }
 
     // Filter by search query (customer name, email, phone)
     if (searchQuery) {
-      where.OR = [
-        { email: { contains: searchQuery, mode: "insensitive" } },
-        { phone: { contains: searchQuery, mode: "insensitive" } },
-        {
-          customer: {
-            OR: [
-              { name: { contains: searchQuery, mode: "insensitive" } },
-              { email: { contains: searchQuery, mode: "insensitive" } },
-              { phone: { contains: searchQuery, mode: "insensitive" } }
-            ]
+      andClauses.push({
+        OR: [
+          { email: { contains: searchQuery, mode: "insensitive" } },
+          { phone: { contains: searchQuery, mode: "insensitive" } },
+          {
+            customer: {
+              OR: [
+                { name: { contains: searchQuery, mode: "insensitive" } },
+                { email: { contains: searchQuery, mode: "insensitive" } },
+                { phone: { contains: searchQuery, mode: "insensitive" } }
+              ]
+            }
           }
-        }
-      ];
+        ]
+      });
     }
+
+    const where = { AND: andClauses };
 
     // Get total count for pagination
     const total = await prisma.cart.count({ where });
@@ -95,7 +104,7 @@ export async function GET(req: Request) {
     // Process carts to map final computed status
     const mappedCarts = carts.map((cart: any) => {
       let computedStatus = cart.status;
-      if (cart.status === "active" && cart.lastActivityAt <= thirtyMinutesAgo) {
+      if (cart.status === "active" && cart.lastActivityAt <= abandonmentThreshold) {
         computedStatus = "abandoned";
       }
 

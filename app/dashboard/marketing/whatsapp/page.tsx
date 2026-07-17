@@ -797,7 +797,7 @@ function QuickSendMessage() {
       const data = await res.json();
       if (res.ok && data.templates) {
         setTemplates(data.templates);
-        const helloWorld = data.templates.find((t: any) => t.name === "zica_cart_recovery_v1");
+        const helloWorld = data.templates.find((t: any) => t.name === "abandoned_cart_a1");
         if (helloWorld) {
           setSelectedTemplate(helloWorld);
         } else if (data.templates.length > 0) {
@@ -2617,9 +2617,9 @@ function OrderNotifications() {
     { key: "order_delivered", templateKey: "template_order_delivered", defaultTemplate: "zica_order_delivered_v1", title: "Delivered Confirmation", desc: "Auto-send notification validating package drop-off." },
     { key: "return_confirmed", templateKey: "template_return_confirmed", defaultTemplate: "zb_return_confirmed", title: "Return Request Confirmed", desc: "Auto-send receipt validation containing credit processing status." },
     { key: "cod_confirmation_enabled", templateKey: "template_cod_confirmation", defaultTemplate: "zica_cod_confirmation_v1", title: "COD Confirmation", desc: "Auto-send confirmation request to Cash on Delivery orders." },
-    { key: "cart_recovery_enabled", templateKey: "template_abandoned_cart", defaultTemplate: "zica_cart_recovery_v1", delayKey: "delay_abandoned_cart_step1", title: "Cart Recovery (Step 1)", desc: "Initial abandoned cart reminder sent when a cart goes inactive." },
-    { key: "cart_recovery_step2_enabled", templateKey: "template_cart_followup", defaultTemplate: "zb_cart_followup", delayKey: "delay_abandoned_cart_step2", title: "Cart Recovery (Step 2)", desc: "Second reminder containing a discount code to recover abandoned items." },
-    { key: "cart_recovery_step3_enabled", templateKey: "template_cart_final", defaultTemplate: "zb_cart_final", delayKey: "delay_abandoned_cart_step3", title: "Cart Recovery (Step 3)", desc: "Final cart recovery reminder before cart expires." },
+    { key: "cart_recovery_enabled", templateKey: "template_abandoned_cart", defaultTemplate: "abandoned_cart_a1", delayKey: "delay_abandoned_cart_step1", title: "Cart Recovery (Step 1)", desc: "Initial abandoned cart reminder sent when a cart goes inactive." },
+    { key: "cart_recovery_step2_enabled", templateKey: "template_cart_followup", defaultTemplate: "abandoned_cart_a2", delayKey: "delay_abandoned_cart_step2", title: "Cart Recovery (Step 2)", desc: "Second reminder containing a discount code to recover abandoned items." },
+    { key: "cart_recovery_step3_enabled", templateKey: "template_cart_final", defaultTemplate: "abandoned_cart_a3", delayKey: "delay_abandoned_cart_step3", title: "Cart Recovery (Step 3)", desc: "Final cart recovery reminder before cart expires." },
   ];
 
   return (
@@ -2671,7 +2671,10 @@ function OrderNotifications() {
                   <div className="bg-foreground/5 rounded-xl p-2.5 border border-foreground/5">
                     <span className="text-muted-foreground block text-[10px]">Carts Recovered (24h)</span>
                     <span className="font-semibold text-foreground block mt-0.5">
-                      {(stats.sends24h?.['zica_cart_recovery_v1'] || 0) + 
+                      {(stats.sends24h?.['abandoned_cart_a1'] || 0) +
+                       (stats.sends24h?.['abandoned_cart_a2'] || 0) +
+                       (stats.sends24h?.['abandoned_cart_a3'] || 0) +
+                       (stats.sends24h?.['zica_cart_recovery_v1'] || 0) + 
                        (stats.sends24h?.['zb_cart_followup'] || 0) + 
                        (stats.sends24h?.['zb_cart_final'] || 0)} sends
                     </span>

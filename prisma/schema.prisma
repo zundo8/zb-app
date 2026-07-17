@@ -189,6 +189,7 @@ model Cart {
   items            CartItem[]
   convertedOrder   Order?     @relation("ConvertedOrder", fields: [convertedOrderId], references: [id])
   customer         Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  whatsAppMessages WhatsAppMessage[]
 
   @@index([customerId])
   @@index([status])
@@ -852,11 +853,17 @@ model WhatsAppMessage {
   updatedAt    DateTime  @updatedAt
   nextRetryAt  DateTime? @map("next_retry_at")
   retryCount   Int       @default(0) @map("retry_count")
+  cartId       String?   @map("cart_id")
+  recoveryStage Int?     @map("recovery_stage")
+  cart         Cart?     @relation(fields: [cartId], references: [id], onDelete: SetNull)
 
   @@index([phoneNumber, createdAt])
   @@index([userId])
   @@index([campaignId])
   @@index([status])
+  @@index([cartId])
+  @@index([cartId, recoveryStage])
+  @@unique([cartId, recoveryStage])
   @@map("whatsapp_messages")
 }
 

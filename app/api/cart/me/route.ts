@@ -62,7 +62,13 @@ export async function GET(req: Request) {
           if (!recoveryCart.customerId) {
             await prisma.cart.update({
               where: { id: recoverId },
-              data: { customerId, status: "active", lastActivityAt: new Date() },
+              data: {
+                customerId,
+                status: "active",
+                lastActivityAt: new Date(),
+                phone: recoveryCart.phone || dbCustomer.phone || undefined,
+                email: recoveryCart.email || dbCustomer.email || undefined,
+              },
             });
           }
 

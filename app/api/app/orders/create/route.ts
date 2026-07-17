@@ -387,22 +387,39 @@ export async function POST(req: Request) {
         await triggerMobileEmail(updated, orderNumber, subtotal, paymentMethod, total, lineItems, customer, shippingAddress, customerEmail, customerPhone);
       }
 
-      // Mark active cart converted and link convertedOrderId
+      // Mark active or abandoned cart converted and link convertedOrderId
       try {
-        await prisma.cart.updateMany({
+        const matchingCarts = await prisma.cart.findMany({
           where: {
+            status: { in: ["active", "abandoned"] },
             OR: [
-              { customerId: resolvedCustomerId, status: "active" },
-              ...(customerPhone ? [{ phone: customerPhone, status: "active" }] : []),
-              ...(customerEmail ? [{ email: customerEmail, status: "active" }] : [])
+              { customerId: resolvedCustomerId },
+              ...(customerPhone ? [{ phone: customerPhone }] : []),
+              ...(customerEmail ? [{ email: customerEmail }] : [])
             ]
           },
-          data: {
-            status: "converted",
-            convertedOrderId: updated.id,
-          }
+          orderBy: { lastActivityAt: "desc" }
         });
-        console.log(`[MobileCheckout] Marked active cart converted for customer: ${resolvedCustomerId}`);
+
+        if (matchingCarts.length > 0) {
+          const primaryCart = matchingCarts[0];
+          await prisma.cart.update({
+            where: { id: primaryCart.id },
+            data: {
+              status: "converted",
+              convertedOrderId: updated.id
+            }
+          });
+
+          if (matchingCarts.length > 1) {
+            const extraCartIds = matchingCarts.slice(1).map((c: any) => c.id);
+            await prisma.cart.updateMany({
+              where: { id: { in: extraCartIds } },
+              data: { status: "merged" }
+            });
+          }
+          console.log(`[MobileCheckout] Marked cart converted: ${primaryCart.id} for customer: ${resolvedCustomerId}`);
+        }
       } catch (cartErr: any) {
         console.error("[MobileCheckout] Failed to mark cart converted:", cartErr.message);
       }
@@ -580,22 +597,39 @@ export async function POST(req: Request) {
       await triggerMobileEmail(created, orderNumber, subtotal, paymentMethod, total, lineItems, customer, shippingAddress, customerEmail, customerPhone);
     }
 
-    // Mark active cart converted and link convertedOrderId
+    // Mark active or abandoned cart converted and link convertedOrderId
     try {
-      await prisma.cart.updateMany({
+      const matchingCarts = await prisma.cart.findMany({
         where: {
+          status: { in: ["active", "abandoned"] },
           OR: [
-            { customerId: resolvedCustomerId, status: "active" },
-            ...(customerPhone ? [{ phone: customerPhone, status: "active" }] : []),
-            ...(customerEmail ? [{ email: customerEmail, status: "active" }] : [])
+            { customerId: resolvedCustomerId },
+            ...(customerPhone ? [{ phone: customerPhone }] : []),
+            ...(customerEmail ? [{ email: customerEmail }] : [])
           ]
         },
-        data: {
-          status: "converted",
-          convertedOrderId: created.id,
-        }
+        orderBy: { lastActivityAt: "desc" }
       });
-      console.log(`[MobileCheckout] Marked active cart converted for customer: ${resolvedCustomerId}`);
+
+      if (matchingCarts.length > 0) {
+        const primaryCart = matchingCarts[0];
+        await prisma.cart.update({
+          where: { id: primaryCart.id },
+          data: {
+            status: "converted",
+            convertedOrderId: created.id
+          }
+        });
+
+        if (matchingCarts.length > 1) {
+          const extraCartIds = matchingCarts.slice(1).map((c: any) => c.id);
+          await prisma.cart.updateMany({
+            where: { id: { in: extraCartIds } },
+            data: { status: "merged" }
+          });
+        }
+        console.log(`[MobileCheckout] Marked cart converted: ${primaryCart.id} for customer: ${resolvedCustomerId}`);
+      }
     } catch (cartErr: any) {
       console.error("[MobileCheckout] Failed to mark cart converted:", cartErr.message);
     }

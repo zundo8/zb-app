@@ -1271,6 +1271,7 @@ export default function CheckoutPage() {
               couponDiscount: couponDiscount,
               applyAsStoreCredit,
               cashbackAmount,
+              guestId: getClientCookie("zb_device_id"),
             }),
           });
 
