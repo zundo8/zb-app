@@ -34,7 +34,7 @@ export function getReportedValue(eventName: string, realValue: number | undefine
 function validateEventPayload(eventName: string, customData: Record<string, any> | undefined): void {
   if (process.env.NODE_ENV === 'production' && !process.env.META_TEST_EVENT_CODE) return;
 
-  const eventsRequiringValue = ['Purchase', 'InitiateCheckout', 'Subscribe'];
+  const eventsRequiringValue = ['Purchase', 'InitiateCheckout'];
   if (!eventsRequiringValue.includes(eventName)) return;
 
   const value = customData?.value;

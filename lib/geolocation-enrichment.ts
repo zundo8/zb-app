@@ -33,7 +33,7 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
 
     // Guard: NEVER run or prompt on admin dashboard, admin routes, or API endpoints
     const path = window.location.pathname;
-    if (path.startsWith('/dashboard') || path.startsWith('/admin') || path.startsWith('/api')) {
+    if (path.startsWith('/dashboard') || path.startsWith('/admin') || path.startsWith('/api') || path.startsWith('/web-store')) {
       return;
     }
 

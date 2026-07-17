@@ -186,7 +186,8 @@ export function trackEvent(options: TrackEventOptions): void {
 
   // Don't track on admin pages
   if (window.location.pathname.startsWith('/dashboard') ||
-      window.location.pathname.startsWith('/admin')) return;
+      window.location.pathname.startsWith('/admin') ||
+      window.location.pathname.startsWith('/web-store')) return;
 
   try {
     const sessionId = getSessionId();

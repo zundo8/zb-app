@@ -45,7 +45,7 @@ export function MetaPixelRouteTracker() {
 
   useEffect(() => {
     // Don't fire any pixel/CAPI events on admin dashboard or admin routes
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) return;
+    if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/web-store')) return;
 
     // ─── STEP 1: Synchronous setup (cookies, fbclid capture) ───
 

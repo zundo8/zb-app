@@ -225,7 +225,7 @@ export default function RootLayout({
         />
         <Script id="fb-pixel" strategy="beforeInteractive">
           {`
-            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin')) {
+            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {
               !function(f,b,e,v,n,t,s)
               {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
               n.callMethod.apply(n,arguments):n.queue.push(arguments)};

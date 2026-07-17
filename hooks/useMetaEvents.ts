@@ -1,4 +1,4 @@
-import { trackEvent, initPixel, getMetaIdentityCookies, getClientCookie } from '@/lib/metaPixel';
+import { trackEvent, initPixel, getMetaIdentityCookies, getClientCookie, sha256 } from '@/lib/metaPixel';
 import { event as trackGAEvent } from '@/lib/gtag';
 import { buildClientUserData } from '@/lib/buildMetaUserData';
 
@@ -42,6 +42,18 @@ async function sendToCapiRoute(payload: Record<string, any>): Promise<any> {
       ...identityData,
       ...callerUserData,
     });
+
+    // Make sure an explicitly-passed userData.em on a Subscribe call survives the guest-PII-strip.
+    // The strip should only apply to identity pulled from cookies/session, not to a value
+    // the caller just explicitly handed in for this specific event.
+    // Don't loosen the strip for any other event type.
+    if (!isLoggedIn && !isCheckoutEvent) {
+      if (payload.eventName === 'Subscribe' && payload.userData?.em) {
+        mergedUserData.em = payload.userData.em;
+      } else {
+        delete mergedUserData.em;
+      }
+    }
 
     const enrichedPayload = {
       ...payload,
@@ -636,23 +648,30 @@ export function useMetaEvents() {
     trackGAEvent('start_trial');
   };
 
-  const trackSubscribe = (value?: number, currency?: string, contentName = 'Newsletter Signup') => {
+  const trackSubscribe = async (email?: string, contentName = 'Newsletter Signup') => {
     const base = getBasePayload('Subscribe');
+    
+    let hashedEmail: string | undefined = undefined;
+    if (email) {
+      hashedEmail = await sha256(email);
+    }
+
     const customData = cleanCustomData({
-      value,
-      currency,
       content_name: contentName,
       content_type: 'lead'
     });
+
+    const userData = hashedEmail ? { em: hashedEmail } : undefined;
+
+    if (userData) {
+      initPixel(userData);
+    }
+
     trackEvent('Subscribe', customData, base.eventId);
-    sendToCapiRoute({ ...base, customData });
+    sendToCapiRoute({ ...base, customData, userData });
     
     // GA4 equivalent: subscribe
-    if (value !== undefined) {
-      trackGAEvent('subscribe', { value, currency: currency || 'INR' });
-    } else {
-      trackGAEvent('subscribe');
-    }
+    trackGAEvent('subscribe');
   };
 
   const trackLead = (value?: number, currency = 'INR', contentCategory?: string, contentName?: string) => {

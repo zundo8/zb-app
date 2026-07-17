@@ -18,89 +18,78 @@ async function handler(req: Request) {
 
   const dateFilter = { gte: startDate, lte: endDate };
 
-  // Group sessions by UTM source (or referrer if no UTM)
+  // Fetch sources and metrics using a single query
   const sources: any[] = await prisma.$queryRawUnsafe(`
+    WITH session_sources AS (
+      SELECT
+        id AS session_id,
+        anonymous_id,
+        COALESCE(
+          CASE 
+            WHEN LOWER(utm_source) LIKE '%whatsapp%' THEN 'WhatsApp'
+            WHEN LOWER(utm_source) LIKE '%google%' THEN 'Google'
+            WHEN LOWER(utm_source) LIKE '%facebook%' OR LOWER(utm_source) LIKE '%fb%' THEN 'Facebook'
+            WHEN LOWER(utm_source) LIKE '%instagram%' OR LOWER(utm_source) LIKE '%ig%' THEN 'Instagram'
+            WHEN LOWER(utm_source) LIKE '%twitter%' OR LOWER(utm_source) LIKE '%x%' THEN 'Twitter/X'
+            ELSE NULLIF(utm_source, '')
+          END,
+          CASE
+            WHEN LOWER(referrer) LIKE '%google%' THEN 'Google'
+            WHEN LOWER(referrer) LIKE '%facebook%' OR LOWER(referrer) LIKE '%fb%' THEN 'Facebook'
+            WHEN LOWER(referrer) LIKE '%instagram%' THEN 'Instagram'
+            WHEN LOWER(referrer) LIKE '%whatsapp%' THEN 'WhatsApp'
+            WHEN LOWER(referrer) LIKE '%twitter%' OR LOWER(referrer) LIKE '%x.com%' THEN 'Twitter/X'
+            WHEN referrer IS NOT NULL AND referrer != '' THEN 'Referral'
+            ELSE 'Direct'
+          END
+        ) AS source,
+        COALESCE(utm_medium, '') AS medium,
+        COALESCE(utm_campaign, '') AS campaign
+      FROM analytics_sessions
+      WHERE started_at >= $1 AND started_at <= $2
+    ),
+    session_events AS (
+      SELECT
+        session_id,
+        COUNT(CASE WHEN event_name = 'add_to_cart' THEN 1 END) AS add_to_cart_count,
+        COUNT(CASE WHEN event_name = 'begin_checkout' THEN 1 END) AS begin_checkout_count,
+        COUNT(CASE WHEN event_name = 'purchase' THEN 1 END) AS purchase_count,
+        SUM(CASE WHEN event_name = 'purchase' THEN COALESCE(value, 0) ELSE 0 END) AS purchase_revenue
+      FROM analytics_events
+      WHERE created_at >= $1 AND created_at <= $2 AND session_id IS NOT NULL
+      GROUP BY session_id
+    )
     SELECT
-      COALESCE(NULLIF(utm_source, ''), 
-        CASE
-          WHEN referrer LIKE '%google%' THEN 'Google'
-          WHEN referrer LIKE '%facebook%' OR referrer LIKE '%fb%' THEN 'Facebook'
-          WHEN referrer LIKE '%instagram%' THEN 'Instagram'
-          WHEN referrer LIKE '%whatsapp%' THEN 'WhatsApp'
-          WHEN referrer LIKE '%twitter%' OR referrer LIKE '%x.com%' THEN 'Twitter/X'
-          WHEN referrer IS NOT NULL AND referrer != '' THEN 'Referral'
-          ELSE 'Direct'
-        END
-      ) AS source,
-      COALESCE(utm_medium, '') AS medium,
-      COALESCE(utm_campaign, '') AS campaign,
-      COUNT(*) AS sessions,
-      COUNT(DISTINCT anonymous_id) AS visitors
-    FROM analytics_sessions
-    WHERE started_at >= $1 AND started_at <= $2
-    GROUP BY source, medium, campaign
+      s.source,
+      s.medium,
+      s.campaign,
+      COUNT(DISTINCT s.session_id) AS sessions,
+      COUNT(DISTINCT s.anonymous_id) AS visitors,
+      COALESCE(SUM(e.add_to_cart_count), 0) AS add_to_cart,
+      COALESCE(SUM(e.begin_checkout_count), 0) AS checkouts,
+      COALESCE(SUM(e.purchase_count), 0) AS orders,
+      COALESCE(SUM(e.purchase_revenue), 0) AS revenue
+    FROM session_sources s
+    LEFT JOIN session_events e ON s.session_id = e.session_id
+    GROUP BY s.source, s.medium, s.campaign
     ORDER BY sessions DESC
     LIMIT 50
   `, startDate, endDate);
 
-  // For each source, get add_to_cart, checkout, purchase counts
-  const topSources = [];
-  for (const src of sources.slice(0, 20)) {
-    const sourceFilter = src.source;
-
-    // Find session IDs for this source
-    const sessionIds = await prisma.analyticsSession.findMany({
-      where: {
-        startedAt: dateFilter,
-        OR: [
-          { utmSource: sourceFilter },
-          ...(sourceFilter === 'Direct' ? [{ utmSource: null, referrer: null }] : []),
-        ],
-      },
-      select: { id: true },
-      take: 10000,
-    });
-
-    const ids = sessionIds.map((s: any) => s.id);
-
-    let addToCartCount = 0;
-    let checkoutCount = 0;
-    let purchaseCount = 0;
-    let purchaseRevenue = 0;
-
-    if (ids.length > 0) {
-      const events = await prisma.analyticsEvent.groupBy({
-        by: ['eventName'],
-        where: {
-          sessionId: { in: ids },
-          eventName: { in: ['add_to_cart', 'begin_checkout', 'purchase'] },
-        },
-        _count: true,
-        _sum: { value: true },
-      });
-
-      addToCartCount = events.find((e: any) => e.eventName === 'add_to_cart')?._count || 0;
-      checkoutCount = events.find((e: any) => e.eventName === 'begin_checkout')?._count || 0;
-      const purchaseData = events.find((e: any) => e.eventName === 'purchase');
-      purchaseCount = purchaseData?._count || 0;
-      purchaseRevenue = purchaseData?._sum.value || 0;
-    }
-
-    topSources.push({
-      source: src.source,
-      medium: src.medium || '',
-      campaign: src.campaign || '',
-      sessions: Number(src.sessions),
-      visitors: Number(src.visitors),
-      addToCart: addToCartCount,
-      checkouts: checkoutCount,
-      orders: purchaseCount,
-      revenue: Math.round(purchaseRevenue * 100) / 100,
-      conversionRate: Number(src.sessions) > 0
-        ? Math.round((purchaseCount / Number(src.sessions)) * 100 * 100) / 100
-        : 0,
-    });
-  }
+  const topSources = sources.map((src: any) => ({
+    source: src.source,
+    medium: src.medium || '',
+    campaign: src.campaign || '',
+    sessions: Number(src.sessions),
+    visitors: Number(src.visitors),
+    addToCart: Number(src.add_to_cart),
+    checkouts: Number(src.checkouts),
+    orders: Number(src.orders),
+    revenue: Math.round(Number(src.revenue) * 100) / 100,
+    conversionRate: Number(src.sessions) > 0
+      ? Math.round((Number(src.orders) / Number(src.sessions)) * 100 * 100) / 100
+      : 0,
+  }));
 
   return NextResponse.json({ sources: topSources });
   } catch (error: any) {

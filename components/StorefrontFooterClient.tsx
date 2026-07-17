@@ -78,7 +78,7 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
     if (email.trim()) {
       // Subscribe is a non-monetary newsletter signup — pass estimated lead value
       // for Meta's value-based optimization. Currency is INR.
-      trackSubscribe(undefined, undefined, 'Newsletter Signup');
+      trackSubscribe(email, 'Newsletter Signup');
       toast.success("Thank you for joining our newsletter!", {
         description: "You have successfully subscribed to the Zica Bella newsletter.",
       });
