@@ -1025,6 +1025,9 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
             productVideo2: metafield(namespace: "custom", key: "product-video") {
               value
             }
+            productVideo3: metafield(namespace: "custom", key: "Product-video") {
+              value
+            }
           }
         }
       }
@@ -1039,7 +1042,7 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
       const products = await Promise.all(
         data.products.edges.map(async ({ node }: any) => {
           const p = mapGraphQLNode(node);
-          const rawVideo = node.productVideo?.value || node.productVideo2?.value || null;
+          const rawVideo = node.productVideo?.value || node.productVideo2?.value || node.productVideo3?.value || null;
           if (rawVideo) {
             if (rawVideo.startsWith('gid://shopify/')) {
               p.video = await resolveShopifyGid(rawVideo).catch(() => null);
@@ -1084,7 +1087,7 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
         scored.map(async ({ product: p }) => {
           try {
             const metafields = await fetchProductMetafields(p.id.toString()).catch(() => []);
-            const videoMeta = metafields.find(m => m.namespace === 'custom' && (m.key === 'product_video' || m.key === 'product-video'));
+            const videoMeta = metafields.find(m => m.namespace === 'custom' && (m.key === 'product_video' || m.key === 'product-video' || m.key === 'Product-video'));
             if (videoMeta?.value) {
               if (videoMeta.value.startsWith('gid://shopify/')) {
                 p.video = await resolveShopifyGid(videoMeta.value).catch(() => null);
@@ -1333,7 +1336,7 @@ export async function flattenProduct(p: ShopifyProduct) {
   }));
 
   const [productVideo, sizeChart] = await Promise.all([
-    resolveMetafieldValue(getMetafieldRaw(pWithMeta, ['product_video', 'product-video', 'product video'])),
+    resolveMetafieldValue(getMetafieldRaw(pWithMeta, ['product_video', 'product-video', 'Product-video', 'product video'])),
     resolveMetafieldValue(getMetafieldRaw(pWithMeta, ['size_chart', 'size-chart', 'size chart', 'size_chart_image', 'size-chart-image', 'size chart image'])),
   ]);
 
@@ -1399,6 +1402,9 @@ export async function fetchProductVideoUrl(productId: string): Promise<string | 
           productVideo2: metafield(namespace: "custom", key: "product-video") {
             value
           }
+          productVideo3: metafield(namespace: "custom", key: "Product-video") {
+            value
+          }
         }
       }
     `;
@@ -1413,7 +1419,7 @@ export async function fetchProductVideoUrl(productId: string): Promise<string | 
     }
 
     // 2. Try metafield video GID or direct URL
-    const rawVideo = res?.product?.productVideo?.value || res?.product?.productVideo2?.value;
+    const rawVideo = res?.product?.productVideo?.value || res?.product?.productVideo2?.value || res?.product?.productVideo3?.value;
     if (rawVideo) {
       if (rawVideo.startsWith('gid://shopify/')) {
         return await resolveShopifyGid(rawVideo);
