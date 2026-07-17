@@ -33,14 +33,12 @@ export default function TagGeneratorForm({
   const [mfgMonth, setMfgMonth] = useState(now.getMonth() + 1)
   const [mfgYear, setMfgYear] = useState(now.getFullYear())
 
-  // When product changes, auto-fill MRP and generic name
+  // When product changes, auto-fill generic name
   useEffect(() => {
     if (selectedProductId) {
       const product = products.find((p) => String(p.id) === selectedProductId)
       if (product) {
         setSelectedProduct(product)
-        const price = parseFloat(product.variants[0]?.price || '0')
-        setMrpOverride(price)
 
         // Attempt to detect generic name from title first, then product_type
         const title = (product.title || '').toUpperCase()
@@ -67,6 +65,23 @@ export default function TagGeneratorForm({
       setSelectedProduct(null)
     }
   }, [selectedProductId, products])
+
+  // When product or size changes, update MRP based on variant's price
+  useEffect(() => {
+    if (selectedProduct) {
+      // Find matching size variant case-insensitive
+      const matchingVariant = selectedProduct.variants.find(
+        (v) => (v.option1 || v.title || '').toUpperCase().trim() === size.toUpperCase().trim()
+      )
+
+      if (matchingVariant) {
+        setMrpOverride(parseFloat(matchingVariant.price || '0'))
+      } else {
+        // Fallback to first variant's price
+        setMrpOverride(parseFloat(selectedProduct.variants[0]?.price || '0'))
+      }
+    }
+  }, [selectedProduct, size])
 
   // ── Live preview tag data (with real QR code) ──
   const [previewTag, setPreviewTag] = useState<TagData | null>(null)

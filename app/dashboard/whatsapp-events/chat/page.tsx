@@ -6,7 +6,9 @@ import {
   MessageSquare, Search, Send, RefreshCcw, User, Phone, 
   Mail, ShieldAlert, Check, CheckCheck, Clock, AlertCircle, Image, 
   ChevronRight, ArrowLeftRight, ExternalLink, UserCheck, Sparkles,
-  ShoppingBag, X, Paperclip, Loader2, UploadCloud, Info, Trash2
+  ShoppingBag, X, Paperclip, Loader2, UploadCloud, Info, Trash2,
+  PanelRightClose, PanelRightOpen, Calendar, CheckCircle2, HelpCircle,
+  AlertTriangle, Ban, Copy, CheckSquare
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,6 +26,7 @@ interface Conversation {
   customerId: string | null;
   customerEmail: string | null;
   whatsappOptedOut: boolean | null;
+  lastInboundCreatedAt: string | null;
 }
 
 interface Message {
@@ -36,12 +39,14 @@ interface Message {
   mediaType?: string | null;
   status: string;
   createdAt: string;
+  templateName?: string | null;
 }
 
 export default function WhatsAppChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "care" | "optout">("all");
   
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,6 +56,9 @@ export default function WhatsAppChatPage() {
   const [showMediaInput, setShowMediaInput] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Side Drawer for contact details
+  const [showContactInfo, setShowContactInfo] = useState(false);
 
   // Templates Selection State
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -68,6 +76,22 @@ export default function WhatsAppChatPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch approved WABA templates on mount to map them for bubble rendering
+  useEffect(() => {
+    async function loadTemplatesOnMount() {
+      try {
+        const res = await fetch("/api/whatsapp/templates");
+        const data = await res.json();
+        if (res.ok && data.templates) {
+          setTemplatesList(data.templates.filter((t: any) => t.status === "APPROVED"));
+        }
+      } catch (err) {
+        console.error("Error pre-loading templates list:", err);
+      }
+    }
+    loadTemplatesOnMount();
+  }, []);
 
   // Poll conversations every 5 seconds
   useEffect(() => {
@@ -122,35 +146,101 @@ export default function WhatsAppChatPage() {
 
   const activeConv = conversations.find(c => c.phoneNumber === activePhone);
 
-  // Calculate if the 24-hour service window is active
-  const isServiceWindowActive = () => {
-    if (!messages.length) return true; // Default fallback
-    const lastInbound = [...messages]
-      .reverse()
-      .find(m => m.direction === "inbound");
+  // Calculate if the 24-hour service window is active for a timestamp
+  const calculateIsServiceWindowActive = (lastInboundStr: string | null, lastMsg: any) => {
+    let lastInboundTime = 0;
+    if (lastInboundStr) {
+      lastInboundTime = new Date(lastInboundStr).getTime();
+    } else if (lastMsg && lastMsg.direction === "inbound") {
+      lastInboundTime = new Date(lastMsg.createdAt).getTime();
+    } else {
+      // Fallback: check messages array
+      const lastInboundInThread = [...messages]
+        .reverse()
+        .find(m => m.direction === "inbound");
+      if (!lastInboundInThread) return false;
+      lastInboundTime = new Date(lastInboundInThread.createdAt).getTime();
+    }
     
-    if (!lastInbound) return false; // No customer message ever received
-    
-    const lastInboundTime = new Date(lastInbound.createdAt).getTime();
     const now = new Date().getTime();
     const hoursElapsed = (now - lastInboundTime) / (1000 * 60 * 60);
-    
     return hoursElapsed <= 24;
   };
 
+  const isServiceWindowActive = () => {
+    if (!activeConv) return false;
+    return calculateIsServiceWindowActive(activeConv.lastInboundCreatedAt, activeConv.lastMessage);
+  };
+
   const serviceWindowHoursRemaining = () => {
-    if (!messages.length) return 24;
-    const lastInbound = [...messages]
-      .reverse()
-      .find(m => m.direction === "inbound");
+    let lastInboundTime = 0;
+    if (activeConv?.lastInboundCreatedAt) {
+      lastInboundTime = new Date(activeConv.lastInboundCreatedAt).getTime();
+    } else {
+      const lastInbound = [...messages]
+        .reverse()
+        .find(m => m.direction === "inbound");
+      if (!lastInbound) return 0;
+      lastInboundTime = new Date(lastInbound.createdAt).getTime();
+    }
     
-    if (!lastInbound) return 0;
-    
-    const lastInboundTime = new Date(lastInbound.createdAt).getTime();
     const now = new Date().getTime();
     const hoursRemaining = 24 - (now - lastInboundTime) / (1000 * 60 * 60);
-    
     return Math.max(0, parseFloat(hoursRemaining.toFixed(1)));
+  };
+
+  // Helper to determine if a message is the first of a consecutive block from the same sender
+  const isFirstInGroup = (currentIdx: number, currentMsg: Message, messagesList: Message[]) => {
+    if (currentIdx === 0) return true;
+    const prevMsg = messagesList[currentIdx - 1];
+    
+    if (prevMsg.direction !== currentMsg.direction) return true;
+    
+    const currentMsgDate = new Date(currentMsg.createdAt).toDateString();
+    const prevMsgDate = new Date(prevMsg.createdAt).toDateString();
+    return currentMsgDate !== prevMsgDate;
+  };
+
+  // Toggle user Opt In/Out status via updated admin customer PUT route
+  const handleToggleOptOut = async () => {
+    if (!activeConv || !activeConv.customerId) {
+      toast.error("CRM customer sync details missing. Cannot toggle consent status.");
+      return;
+    }
+    
+    const nextStatus = !activeConv.whatsappOptedOut;
+    const toastId = toast.loading(nextStatus ? "Marking customer as OPTED OUT..." : "Marking customer as OPTED IN...");
+    
+    try {
+      const res = await fetch(`/api/admin/customers/${activeConv.customerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: activeConv.customerName || "Customer",
+          email: activeConv.customerEmail,
+          phone: activeConv.phoneNumber,
+          whatsappOptedOut: nextStatus
+        })
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        toast.success(nextStatus ? "Opted out successfully!" : "Consent Opt-In registered!", { id: toastId });
+        setConversations(prev => prev.map(c => 
+          c.phoneNumber === activePhone ? { ...c, whatsappOptedOut: nextStatus } : c
+        ));
+      } else {
+        toast.error(data.error || "Failed to update customer database profile.", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Network error saving customer consent status.", { id: toastId });
+    }
+  };
+
+  // Copy Phone / Contact Info to Clipboard
+  const handleCopyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard!`);
   };
 
   // Handle direct image file upload
@@ -173,7 +263,7 @@ export default function WhatsAppChatPage() {
       if (res.ok && data.url) {
         setMediaUrl(data.url);
         setShowMediaInput(true);
-        toast.success("Image uploaded successfully! Feel free to write a caption message.", { id: toastId });
+        toast.success("Image uploaded successfully! Write an optional caption message below.", { id: toastId });
       } else {
         toast.error(data.error || "Upload failed.", { id: toastId });
       }
@@ -208,10 +298,9 @@ export default function WhatsAppChatPage() {
   const handleSelectTemplate = (template: any) => {
     setSelectedTemplate(template);
     const bodyText = template.components?.find((c: any) => c.type === "BODY")?.text || "";
-    // Match variables {{1}}, {{2}}
     const matches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
     
-    // Auto-fill common fields (Var 1 = Customer Name, Var 2 = app link)
+    // Auto-fill common fields
     const defaults = new Array(matches.length).fill("");
     if (defaults.length > 0) {
       defaults[0] = activeConv?.customerName || "Customer";
@@ -229,7 +318,6 @@ export default function WhatsAppChatPage() {
     setSending(true);
     const toastId = toast.loading("Dispatching WhatsApp template campaign...");
     try {
-      // Build variable parameters array
       const parameters = templateVariables.map(val => ({
         type: "text",
         text: val.trim() || "Value"
@@ -311,7 +399,6 @@ export default function WhatsAppChatPage() {
     setSending(true);
     const toastId = toast.loading("Sending catalog product details...");
     
-    // Construct premium formatted catalog text
     const productPrice = product.variants?.[0]?.price || "N/A";
     const productUrl = `https://app.zicabella.com/products/${product.handle || product.id}`;
     
@@ -393,20 +480,180 @@ export default function WhatsAppChatPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "read":
-        return <CheckCheck className="w-3.5 h-3.5 text-blue-400" />;
+        return <CheckCheck className="w-4 h-4 text-sky-400" />;
       case "delivered":
-        return <CheckCheck className="w-3.5 h-3.5 text-zinc-400" />;
+        return <CheckCheck className="w-4 h-4 text-zinc-400" />;
       case "sent":
-        return <Check className="w-3.5 h-3.5 text-zinc-400" />;
+        return <Check className="w-4 h-4 text-zinc-400" />;
       case "failed":
-        return <span title="Delivery failed"><AlertCircle className="w-3.5 h-3.5 text-rose-500" /></span>;
+        return <AlertCircle className="w-4 h-4 text-rose-500" />;
       default:
-        return <Clock className="w-3.5 h-3.5 text-zinc-500 animate-pulse" />;
+        return <Clock className="w-4 h-4 text-zinc-500 animate-pulse" />;
     }
   };
 
-  // Render message bubble content with image previews
-  const renderMessageContent = (m: Message) => {
+  // Parse custom WhatsApp styles (*bold*, _italics_, ~strike~, inline `code`, and URL links)
+  const formatMessageText = (text: string | null) => {
+    if (!text) return "";
+    
+    // Safety: escape HTML tags first
+    let safeText = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+      
+    // Apply formats
+    safeText = safeText.replace(/\*([^*]+)\*/g, "<strong>$1</strong>");
+    safeText = safeText.replace(/_([^_]+)_/g, "<em>$1</em>");
+    safeText = safeText.replace(/~([^~]+)~/g, "<del>$1</del>");
+    safeText = safeText.replace(/`([^`]+)`/g, '<code class="bg-[#1f2c34]/55 border border-white/5 px-1 py-0.5 rounded font-mono text-[11px] text-emerald-400">$1</code>');
+    
+    // Regular expression for urls
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    safeText = safeText.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline break-all inline-flex items-center gap-0.5">$1 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>');
+
+    return <span dangerouslySetInnerHTML={{ __html: safeText }} className="whitespace-pre-wrap leading-relaxed break-words block font-sans" />;
+  };
+
+  // Render a catalog product display card inside message list
+  const renderCatalogBubble = (m: Message) => {
+    const bodyText = m.body || "";
+    const lines = bodyText.split("\n");
+    
+    let title = "Zica Bella Product";
+    let price = "N/A";
+    let url = "https://app.zicabella.com";
+    
+    const titleLine = lines.find(l => l.startsWith("*") && l.endsWith("*") && !l.includes("Check out"));
+    if (titleLine) {
+      title = titleLine.replace(/\*/g, "").trim();
+    }
+    
+    const priceLine = lines.find(l => l.includes("Price:"));
+    if (priceLine) {
+      price = priceLine.replace("Price:", "").replace("INR", "").trim() + " INR";
+    }
+
+    const urlLine = lines.find(l => l.startsWith("http") || l.includes("shopify.com") || l.includes("zicabella"));
+    if (urlLine) {
+      url = urlLine.trim();
+    }
+
+    return (
+      <div className="space-y-2.5 max-w-[280px] rounded-xl overflow-hidden bg-zinc-900 border border-white/10 p-1 flex flex-col">
+        {m.mediaUrl ? (
+          <div className="w-full h-36 bg-zinc-850 rounded-lg overflow-hidden relative">
+            <img src={m.mediaUrl} alt={title} className="w-full h-full object-cover" />
+            <div className="absolute top-2 right-2 bg-emerald-500/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+              <ShoppingBag className="w-2.5 h-2.5" />
+              <span>Catalog</span>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-36 bg-zinc-800 rounded-lg flex items-center justify-center text-xs text-zinc-500">
+            No product photo
+          </div>
+        )}
+        
+        <div className="px-2 py-0.5 space-y-1">
+          <h4 className="font-bold text-[13px] text-zinc-100 truncate leading-snug">{title}</h4>
+          <span className="text-[11px] font-mono text-emerald-400 font-bold block">{price}</span>
+        </div>
+
+        <a 
+          href={url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="w-full text-center py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 mt-auto shadow-md"
+        >
+          <span>Shop Online</span>
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+    );
+  };
+
+  // Render a template block inside message list
+  const renderTemplateBubble = (m: Message, activeConv: Conversation) => {
+    // Parse template details from message text body if present
+    const match = m.body?.match(/^\[Template:\s*([^\]]+)\](.*)$/s);
+    const templateName = match ? match[1].trim() : (m.templateName || null);
+    const rawBodyText = match ? match[2].trim() : (m.body || "");
+
+    const matchedTemplate = templatesList.find(t => t.name === templateName);
+    
+    // Fallback variable replacement
+    let resolvedText = rawBodyText || (matchedTemplate?.components?.find((c: any) => c.type === "BODY")?.text || "");
+    const customerName = activeConv?.customerName || "Customer";
+    
+    resolvedText = resolvedText
+      .replace(/\{\{1\}\}/g, customerName)
+      .replace(/\{\{2\}\}/g, "app.zicabella.com")
+      .replace(/\{\{3\}\}/g, "Zica Bella")
+      .replace(/\{\{4\}\}/g, "10%");
+
+    const headerComp = matchedTemplate?.components?.find((c: any) => c.type === "HEADER");
+    const footerComp = matchedTemplate?.components?.find((c: any) => c.type === "FOOTER");
+    const buttonsComp = matchedTemplate?.components?.find((c: any) => c.type === "BUTTONS")?.buttons || [];
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-1 text-[9px] text-violet-400 font-mono font-bold tracking-wider uppercase opacity-85 border-b border-white/5 pb-1 mb-1.5">
+          <Sparkles className="w-3 h-3" />
+          <span>Approved Meta Template: {templateName}</span>
+        </div>
+
+        {headerComp?.format === "IMAGE" && (
+          <div className="w-full h-32 bg-zinc-900 rounded-lg overflow-hidden border border-white/5 mb-2 relative">
+            <img 
+              src={m.mediaUrl || "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=400"} 
+              alt="Template Header Graphic" 
+              className="w-full h-full object-cover" 
+            />
+          </div>
+        )}
+
+        {headerComp?.format === "TEXT" && (
+          <strong className="text-[13px] block font-bold text-white border-b border-white/5 pb-1.5 mb-1">
+            {headerComp.text}
+          </strong>
+        )}
+
+        {/* Formatted body content */}
+        {formatMessageText(resolvedText)}
+
+        {footerComp?.text && (
+          <p className="text-[10px] text-zinc-400 font-sans italic pt-1 border-t border-white/5 mt-1.5">
+            {footerComp.text}
+          </p>
+        )}
+
+        {buttonsComp.length > 0 && (
+          <div className="flex flex-col gap-1.5 pt-2.5 border-t border-white/5 mt-2.5">
+            {buttonsComp.map((btn: any, idx: number) => {
+              const hrefVal = btn.type === "URL" ? btn.url?.replace("{{1}}", "") : "#";
+              return (
+                <a
+                  key={idx}
+                  href={hrefVal}
+                  target={btn.type === "URL" ? "_blank" : undefined}
+                  rel="noopener noreferrer"
+                  className="bg-[#202c33]/70 hover:bg-[#202c33] active:bg-[#202c33]/90 text-emerald-400 font-semibold text-center py-2 rounded-lg text-[11px] border border-white/10 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>{btn.text}</span>
+                  {btn.type === "URL" && <ExternalLink className="w-3 h-3 text-emerald-400" />}
+                  {btn.type === "PHONE_NUMBER" && <Phone className="w-3 h-3 text-emerald-400" />}
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render main message bubble containing text, files, catalog or templates
+  const renderMessageContent = (m: Message, idx: number) => {
     const isInbound = m.direction === "inbound";
     const mUrl = m.mediaUrl || "";
     const mType = m.mediaType || "";
@@ -414,58 +661,143 @@ export default function WhatsAppChatPage() {
     const isImg = mType === "image" || (m.body && (m.body.startsWith("[Media: image]") || m.body.startsWith("http") && /\.(jpeg|jpg|gif|png|webp)/i.test(m.body)));
     const actualImgUrl = mUrl || (m.body && m.body.startsWith("[Media: image]") ? m.body.replace("[Media: image]", "").trim() : (m.body && m.body.startsWith("http") ? m.body : ""));
 
+    const isCatalog = m.body?.includes("Check out this product from Zica Bella!") || (m.body?.includes("Price:") && m.body?.includes("Shop online now:"));
+    const isTemplate = m.body?.startsWith("[Template:") || !!m.templateName;
+
+    const showTail = isFirstInGroup(idx, m, messages);
+    
+    // Bubble shapes: round all corners unless it is the first message in consecutive stack
+    const bubbleStyle = isInbound
+      ? `bg-[#202c33] text-zinc-100 rounded-2xl border border-white/5 ${showTail ? "rounded-tl-none" : ""}`
+      : `bg-[#005c4b] text-zinc-100 rounded-2xl ${showTail ? "rounded-tr-none" : ""}`;
+
     return (
-      <div key={m.id} className={`flex ${isInbound ? "justify-start" : "justify-end"}`}>
-        <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm text-sm space-y-1.5 ${
-          isInbound 
-            ? "bg-foreground/5 border border-foreground/10 rounded-tl-none text-foreground/90" 
-            : "bg-emerald-500 text-foreground rounded-tr-none"
-        }`}>
-          {isImg && actualImgUrl ? (
-            <div className="space-y-2">
-              <img 
-                src={actualImgUrl} 
-                alt="Chat Attachment" 
-                className="max-w-xs max-h-48 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity" 
-                onClick={() => window.open(actualImgUrl, '_blank')}
-              />
-              {m.body && !m.body.startsWith("[Media: image]") && !m.body.startsWith("http") && (
-                <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
-              )}
+      <div key={m.id} className={`flex ${isInbound ? "justify-start" : "justify-end"} mb-1`}>
+        <div className="relative max-w-[70%]">
+          {/* Left/Inbound tail */}
+          {isInbound && showTail && (
+            <div className="absolute top-0 -left-[8px] w-2.5 h-3 overflow-hidden">
+              <svg viewBox="0 0 8 12" className="w-full h-full text-[#202c33] fill-current">
+                <path d="M8,0 C5,0 0,0 0,0 L0,12 Z" />
+              </svg>
             </div>
-          ) : (
-            <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
           )}
-          <div className="flex items-center justify-end gap-1.5 text-[9px] opacity-60">
-            <span>
-              {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-            {!isInbound && getStatusIcon(m.status)}
+
+          {/* Right/Outbound tail */}
+          {!isInbound && showTail && (
+            <div className="absolute top-0 -right-[8px] w-2.5 h-3 overflow-hidden">
+              <svg viewBox="0 0 8 12" className="w-full h-full text-[#005c4b] fill-current">
+                <path d="M0,0 C3,0 8,0 8,0 L8,12 Z" />
+              </svg>
+            </div>
+          )}
+
+          <div className={`${bubbleStyle} px-4 py-2.5 shadow-sm text-[13px] space-y-1.5`}>
+            {isCatalog ? (
+              renderCatalogBubble(m)
+            ) : isTemplate ? (
+              renderTemplateBubble(m, activeConv!)
+            ) : isImg && actualImgUrl ? (
+              <div className="space-y-2">
+                <img 
+                  src={actualImgUrl} 
+                  alt="Chat Attachment" 
+                  className="max-w-xs max-h-48 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10" 
+                  onClick={() => window.open(actualImgUrl, "_blank")}
+                />
+                {m.body && !m.body.startsWith("[Media: image]") && !m.body.startsWith("http") && (
+                  formatMessageText(m.body)
+                )}
+              </div>
+            ) : (
+              formatMessageText(m.body)
+            )}
+            
+            {/* Timestamp & double ticks */}
+            <div className="flex items-center justify-end gap-1 text-[9px] opacity-60 font-mono mt-1 select-none">
+              <span>
+                {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              {!isInbound && getStatusIcon(m.status)}
+            </div>
           </div>
         </div>
       </div>
     );
   };
 
-  const filteredConversations = conversations.filter(c => {
+  // Return list of conversations filtered by active tab search query
+  const getFilteredConversations = () => {
     const query = searchQuery.toLowerCase();
-    const nameMatch = c.customerName?.toLowerCase().includes(query) || false;
-    const phoneMatch = c.phoneNumber.includes(query);
-    return nameMatch || phoneMatch;
-  });
+    
+    return conversations.filter(c => {
+      const nameMatch = c.customerName?.toLowerCase().includes(query) || false;
+      const phoneMatch = c.phoneNumber.includes(query);
+      if (!nameMatch && !phoneMatch) return false;
+
+      if (activeTab === "unread") {
+        return c.unreadCount > 0;
+      }
+      if (activeTab === "care") {
+        return calculateIsServiceWindowActive(c.lastInboundCreatedAt, c.lastMessage);
+      }
+      if (activeTab === "optout") {
+        return c.whatsappOptedOut === true;
+      }
+      return true;
+    });
+  };
+
+  const filteredConversations = getFilteredConversations();
 
   const filteredProducts = productsList.filter(p => 
     p.title.toLowerCase().includes(productSearch.toLowerCase())
   );
+
+  // Generate dynamic initials-based user avatar with nice gradient background
+  const renderAvatar = (name: string | null, phone: string, sizeClass = "w-10 h-10 text-xs") => {
+    const text = name ? name.trim() : "";
+    let initials = "C";
+    if (text) {
+      const parts = text.split(/\s+/);
+      if (parts.length > 1) {
+        initials = (parts[0][0] + parts[1][0]).toUpperCase();
+      } else {
+        initials = parts[0][0].toUpperCase();
+      }
+    } else if (phone) {
+      initials = phone.slice(-2);
+    }
+
+    // Hash name to select a color gradient
+    const gradients = [
+      "from-teal-600 to-emerald-500",
+      "from-blue-600 to-indigo-500",
+      "from-purple-600 to-pink-500",
+      "from-rose-600 to-orange-500",
+      "from-cyan-600 to-sky-500"
+    ];
+    const index = (name || phone).split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % gradients.length;
+    const grad = gradients[index];
+
+    return (
+      <div className={`${sizeClass} rounded-full bg-gradient-to-tr ${grad} text-white font-bold flex items-center justify-center shrink-0 shadow-inner select-none relative`}>
+        {initials}
+      </div>
+    );
+  };
+
+  // Group messages by Date Dividers
+  let lastRenderedDate = "";
 
   return (
     <div className="flex flex-col h-[calc(100vh-170px)] overflow-hidden space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">WhatsApp Live Chat</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">WhatsApp Live Chat Support</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Real-time customer support chat. Respond directly to incoming customer messages.
+            Manage incoming inquiries, reply to customer threads, and send pre-approved template marketing campaigns.
           </p>
         </div>
 
@@ -478,12 +810,12 @@ export default function WhatsAppChatPage() {
       </div>
 
       {/* Main Panel grid container */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0 rounded-2xl overflow-hidden border border-foreground/10 glass-card">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 flex-1 min-h-0 rounded-2xl overflow-hidden border border-white/10 bg-zinc-950/20 backdrop-blur-md">
         
         {/* Left Side: Conversations List */}
-        <div className="border-r border-foreground/10 flex flex-col h-full bg-background/20 overflow-hidden">
+        <div className="lg:col-span-4 border-r border-white/10 flex flex-col h-full bg-zinc-900/40 overflow-hidden">
           {/* Search bar */}
-          <div className="p-4 border-b border-foreground/10 shrink-0">
+          <div className="p-4 space-y-3 shrink-0">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
@@ -491,16 +823,54 @@ export default function WhatsAppChatPage() {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-foreground/5 border border-foreground/10 rounded-xl pl-9 pr-4 py-2 outline-none focus:border-emerald-500/50 text-sm"
+                className="w-full bg-zinc-800/45 border border-white/5 rounded-xl pl-9 pr-4 py-2 outline-none focus:border-emerald-500/50 text-xs text-zinc-100"
               />
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex gap-1.5 overflow-x-auto shrink-0 pb-1 custom-scrollbar scrollbar-none">
+              {[
+                { id: "all", label: "All", icon: MessageSquare },
+                { id: "unread", label: "Unread", icon: Mail },
+                { id: "care", label: "Care Window", icon: Clock },
+                { id: "optout", label: "Opted Out", icon: Ban }
+              ].map(tab => {
+                const Icon = tab.icon;
+                const isSelected = activeTab === tab.id;
+                
+                // Count unread helper
+                const unreadSum = tab.id === "unread" 
+                  ? conversations.filter(c => c.unreadCount > 0).length 
+                  : 0;
+
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all whitespace-nowrap ${
+                      isSelected 
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                        : "bg-transparent text-zinc-400 border-transparent hover:text-zinc-200 hover:bg-white/5"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{tab.label}</span>
+                    {unreadSum > 0 && (
+                      <span className="ml-1 bg-emerald-500 text-zinc-950 font-bold text-[9px] px-1 py-0.2 rounded-full leading-none">
+                        {unreadSum}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* List items */}
-          <div className="flex-1 overflow-y-auto divide-y divide-foreground/5 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto divide-y divide-white/5 custom-scrollbar bg-zinc-900/10">
             {loadingConversations ? (
               <div className="p-8 text-center text-muted-foreground">
-                <RefreshCcw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-500" />
+                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-500" />
                 <span className="text-xs">Loading conversations...</span>
               </div>
             ) : filteredConversations.length === 0 ? (
@@ -510,37 +880,46 @@ export default function WhatsAppChatPage() {
             ) : (
               filteredConversations.map(c => {
                 const isActive = activePhone === c.phoneNumber;
+                const isCareActive = calculateIsServiceWindowActive(c.lastInboundCreatedAt, c.lastMessage);
+                
                 return (
                   <button
                     key={c.phoneNumber}
                     onClick={() => setActivePhone(c.phoneNumber)}
-                    className={`w-full p-4 text-left flex items-start justify-between gap-3 transition-colors ${
+                    className={`w-full p-4 text-left flex items-start justify-between gap-3 border-l-2 transition-all ${
                       isActive 
-                        ? "bg-foreground/10 border-l-2 border-emerald-500" 
-                        : "hover:bg-foreground/5"
+                        ? "bg-white/[0.06] border-emerald-500" 
+                        : "hover:bg-white/[0.02] border-transparent"
                     }`}
                   >
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-xl shrink-0">
-                        <User className="w-5 h-5" />
+                      {/* Avatar initials */}
+                      <div className="relative shrink-0">
+                        {renderAvatar(c.customerName, c.phoneNumber)}
+                        {/* Care Window Status indicator dot */}
+                        {isCareActive && (
+                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-zinc-950 rounded-full" title="Active Care Window" />
+                        )}
                       </div>
+                      
                       <div className="min-w-0">
-                        <span className="font-semibold text-sm text-foreground/90 block truncate">
+                        <span className="font-semibold text-[13px] text-zinc-200 block truncate">
                           {c.customerName || `Customer (+${c.phoneNumber})`}
                         </span>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        
+                        <p className="text-[11px] text-zinc-400 truncate mt-0.5 font-sans leading-normal">
                           {c.lastMessage.direction === "outbound" && "You: "}
                           {c.lastMessage.body}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {new Date(c.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    <div className="flex flex-col items-end gap-1.5 shrink-0 select-none">
+                      <span className="text-[10px] text-zinc-500 font-mono">
+                        {new Date(c.lastMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
                       {c.unreadCount > 0 ? (
-                        <span className="bg-emerald-500 text-foreground font-extrabold text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                        <span className="bg-emerald-500 text-zinc-950 font-extrabold text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                           {c.unreadCount}
                         </span>
                       ) : (
@@ -554,105 +933,135 @@ export default function WhatsAppChatPage() {
           </div>
         </div>
 
-        {/* Right Side: Chat Message Thread */}
-        <div className="lg:col-span-2 flex flex-col h-full bg-background/5 overflow-hidden">
+        {/* Center Side: Chat Message Thread */}
+        <div className={`${activePhone && showContactInfo ? "lg:col-span-5" : "lg:col-span-8"} flex flex-col h-full bg-zinc-900/10 overflow-hidden border-r border-white/5`}>
           {activePhone ? (
             <>
               {/* Thread Header */}
-              <div className="p-4 border-b border-foreground/10 bg-background/25 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
+              <div className="p-4 border-b border-white/10 bg-zinc-900/40 flex items-center justify-between gap-3 shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl">
-                    <User className="w-5 h-5" />
-                  </div>
+                  {renderAvatar(activeConv?.customerName || null, activePhone)}
                   <div>
-                    <h3 className="font-bold text-sm text-foreground">
+                    <h3 className="font-bold text-[14px] text-zinc-200">
                       {activeConv?.customerName || "Unregistered Customer"}
                     </h3>
-                    <span className="text-xs text-muted-foreground font-mono">+{activePhone}</span>
+                    <span className="text-xs text-zinc-400 font-mono">+{activePhone}</span>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {activeConv?.customerEmail && (
-                    <span className="text-[10px] bg-foreground/5 text-muted-foreground border border-foreground/10 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                      <Mail className="w-3 h-3" />
-                      <span>{activeConv.customerEmail}</span>
-                    </span>
-                  )}
-                  {activeConv?.whatsappOptedOut && (
-                    <span className="text-[10px] bg-rose-500/10 text-rose-500 border border-rose-500/20 px-2 py-0.5 rounded-lg flex items-center gap-1 font-semibold font-mono">
-                      <ShieldAlert className="w-3 h-3" />
-                      <span>OPTED OUT</span>
-                    </span>
-                  )}
-                  {activeConv?.customerId && (
-                    <a
-                      href={`/dashboard/customers/${activeConv.customerId}`}
-                      target="_blank"
-                      className="text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-lg flex items-center gap-1 font-semibold"
-                    >
-                      <UserCheck className="w-3 h-3" />
-                      <span>View Profile</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowContactInfo(prev => !prev)}
+                    className={`p-2 rounded-lg border transition-all ${
+                      showContactInfo 
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" 
+                        : "bg-white/5 border-transparent text-zinc-400 hover:text-zinc-200"
+                    }`}
+                    title={showContactInfo ? "Hide Customer Details" : "Show Customer Details"}
+                  >
+                    {showContactInfo ? (
+                      <PanelRightClose className="w-4 h-4" />
+                    ) : (
+                      <PanelRightOpen className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </div>
 
               {/* 24h Customer Service Window Alert */}
-              <div className={`px-4 py-2 border-b text-[11px] flex items-center justify-between gap-3 shrink-0 ${
+              <div className={`px-4 py-2 border-b text-[11px] flex items-center justify-between gap-3 shrink-0 select-none ${
                 isServiceWindowActive() 
-                  ? "bg-emerald-500/10 border-emerald-500/10 text-emerald-400" 
-                  : "bg-rose-500/10 border-rose-500/10 text-rose-400"
+                  ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-400" 
+                  : "bg-amber-500/5 border-amber-500/10 text-amber-400"
               }`}>
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
                   <span>
                     {isServiceWindowActive() 
-                      ? `24-Hour Customer Care Window: Active (${serviceWindowHoursRemaining()} hours remaining to reply)` 
-                      : "24-Hour Customer Care Window: Expired. You can only reply with pre-approved WhatsApp Templates."}
+                      ? `24-Hour Care Window: Active (Replying free-text supported. ${serviceWindowHoursRemaining()} hours left)` 
+                      : "24-Hour Care Window: Expired (Replying requires pre-approved Meta Template campaign dispatch)"}
                   </span>
                 </div>
                 {!isServiceWindowActive() && (
                   <button 
                     onClick={handleOpenTemplates}
-                    className="underline text-[10px] font-bold hover:text-rose-300 flex items-center gap-1 shrink-0"
+                    className="underline text-[10px] font-bold hover:text-amber-300 flex items-center gap-1 shrink-0 transition-colors"
                   >
-                    <span>Use Meta Templates</span>
+                    <span>Use Template</span>
                     <Sparkles className="w-2.5 h-2.5" />
                   </button>
                 )}
               </div>
 
               {/* Chat Thread Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-zinc-950/20">
+              <div 
+                className="flex-1 overflow-y-auto p-6 space-y-2.5 custom-scrollbar"
+                style={{
+                  backgroundColor: "#0b141a",
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='%2322313b' fill-opacity='0.15'%3E%3Cpath d='M14 16h4v4h-4zm0 24h4v4h-4zm24-12h4v4h-4zm24 12h4v4h-4zM14 64h4v4h-4zm24 0h4v4h-4zm24 0h4v4h-4zM62 16h4v4h-4zm36 0h4v4h-4zm36 0h4v4h-4zM14 96h4v4h-4zm24 0h4v4h-4zm24 0h4v4h-4zm24 0h4v4h-4zm24 0h4v4h-4zM14 128h4v4h-4zm24-12h4v4h-4zm24 12h4v4h-4zm24-12h4v4h-4zm24 12h4v4h-4z'/%3E%3C/g%3E%3C/svg%3E")`,
+                  backgroundRepeat: "repeat"
+                }}
+              >
                 {loadingMessages ? (
                   <div className="h-full flex items-center justify-center">
-                    <RefreshCcw className="w-6 h-6 animate-spin text-emerald-500" />
+                    <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-center text-muted-foreground text-xs p-8">
-                    No conversation history found. Type a message below to start chatting.
+                  <div className="h-full flex items-center justify-center text-center text-muted-foreground text-xs p-8 bg-zinc-950/30 rounded-xl">
+                    No conversation history found. Start chat by sending a WhatsApp message.
                   </div>
-                ) : (
-                  messages.map(m => renderMessageContent(m))
-                )}
+                ) : (() => {
+                  lastRenderedDate = ""; // Reset
+                  return messages.map((m, idx) => {
+                    const msgDate = new Date(m.createdAt).toDateString();
+                    let showDateDivider = false;
+                    if (msgDate !== lastRenderedDate) {
+                      showDateDivider = true;
+                      lastRenderedDate = msgDate;
+                    }
+                    
+                    const getDividerText = (dateStr: string) => {
+                      const today = new Date().toDateString();
+                      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+                      if (dateStr === today) return "Today";
+                      if (dateStr === yesterday) return "Yesterday";
+                      return new Date(dateStr).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric"
+                      });
+                    };
+
+                    return (
+                      <React.Fragment key={m.id}>
+                        {showDateDivider && (
+                          <div className="flex justify-center my-4 select-none">
+                            <span className="bg-[#182229] border border-white/5 text-zinc-400 text-[10px] px-3 py-1 rounded-lg uppercase tracking-wider font-semibold shadow-sm font-sans">
+                              {getDividerText(msgDate)}
+                            </span>
+                          </div>
+                        )}
+                        {renderMessageContent(m, idx)}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
                 <div ref={messagesEndRef} />
               </div>
 
               {/* Input Footer */}
-              <div className="p-4 border-t border-foreground/10 bg-background/25 shrink-0 flex flex-col gap-2">
+              <div className="p-4 border-t border-white/10 bg-zinc-900/40 shrink-0 flex flex-col gap-2">
                 {/* Media Attachment Preview (if any) */}
                 {mediaUrl && (
-                  <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl text-xs gap-3">
+                  <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl text-xs gap-3 animate-pulse">
                     <div className="flex items-center gap-2 truncate">
-                      <img src={mediaUrl} alt="Thumbnail preview" className="w-10 h-10 object-cover rounded-lg border border-foreground/10 shrink-0" />
-                      <span className="text-[11px] text-emerald-400 font-mono truncate">{mediaUrl}</span>
+                      <img src={mediaUrl} alt="Preview thumb" className="w-10 h-10 object-cover rounded-lg border border-white/10 shrink-0" />
+                      <span className="text-[10px] text-emerald-400 font-mono truncate">{mediaUrl}</span>
                     </div>
                     <button 
                       onClick={() => setMediaUrl("")} 
-                      className="p-1 text-rose-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
-                      title="Clear image preview"
+                      className="p-1.5 text-rose-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
+                      title="Remove attachment"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -665,37 +1074,36 @@ export default function WhatsAppChatPage() {
                     <button
                       type="button"
                       onClick={handleOpenCatalog}
-                      className="p-2.5 rounded-xl border bg-foreground/5 border-foreground/10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground transition-all shrink-0"
-                      title="Send Catalog Product"
+                      className="p-2.5 rounded-xl border bg-white/5 border-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-all shrink-0"
+                      title="Send Shopify Product Showcase"
                     >
-                      <ShoppingBag className="w-4 h-4 text-emerald-500" />
+                      <ShoppingBag className="w-4 h-4 text-emerald-400" />
                     </button>
 
-                    {/* Pre-approved Meta Templates Selector */}
+                    {/* Meta Templates Selector */}
                     <button
                       type="button"
                       onClick={handleOpenTemplates}
-                      className="p-2.5 rounded-xl border bg-foreground/5 border-foreground/10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground transition-all shrink-0"
-                      title="Send Meta Approved Template"
+                      className="p-2.5 rounded-xl border bg-white/5 border-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-all shrink-0"
+                      title="Send Meta Templates Campaign"
                     >
                       <Sparkles className="w-4 h-4 text-violet-400" />
                     </button>
 
-                    {/* Image Attachment (Upload or Link) */}
+                    {/* Image Attachment File Trigger */}
                     <button
                       type="button"
                       onClick={() => setShowMediaInput(p => !p)}
                       className={`p-2.5 rounded-xl border transition-all shrink-0 ${
                         showMediaInput 
-                          ? "bg-emerald-500/20 border-emerald-500/20 text-emerald-500" 
-                          : "bg-foreground/5 border-foreground/10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                          ? "bg-emerald-500/20 border-emerald-500/20 text-emerald-400" 
+                          : "bg-white/5 border-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
                       }`}
-                      title="Attach Image Link / File Upload"
+                      title="Attach Image File or Link"
                     >
                       <Image className="w-4 h-4" />
                     </button>
 
-                    {/* Hidden file selector trigger */}
                     <input 
                       type="file" 
                       ref={fileInputRef} 
@@ -708,24 +1116,24 @@ export default function WhatsAppChatPage() {
                       type="text"
                       placeholder={
                         activeConv?.whatsappOptedOut 
-                          ? "Customer has opted out. Send blocked." 
+                          ? "Customer has opted out of WhatsApp updates." 
                           : isServiceWindowActive() 
-                          ? "Type your customer reply message..." 
-                          : "Care window expired. Select a template campaign instead."
+                          ? "Type message..." 
+                          : "Care window expired. Use meta templates."
                       }
                       disabled={sending || activeConv?.whatsappOptedOut === true}
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
-                      className="flex-1 bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
+                      className="flex-1 bg-zinc-800/45 border border-white/5 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-xs text-zinc-100 placeholder-zinc-500 disabled:opacity-45"
                     />
 
                     <button
                       type="submit"
                       disabled={sending || (!messageText.trim() && !mediaUrl.trim()) || activeConv?.whatsappOptedOut === true}
-                      className="bg-emerald-500 text-foreground p-2.5 rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 shrink-0"
+                      className="bg-emerald-500 text-zinc-950 p-2.5 rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-50 shrink-0 shadow-md font-bold"
                     >
                       {sending ? (
-                        <RefreshCcw className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Send className="w-4 h-4" />
                       )}
@@ -736,24 +1144,22 @@ export default function WhatsAppChatPage() {
                     <motion.div 
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="flex flex-col sm:flex-row gap-2 bg-foreground/[0.02] border border-foreground/10 p-3 rounded-xl"
+                      className="flex flex-col sm:flex-row gap-2 bg-white/[0.01] border border-white/10 p-3 rounded-xl"
                     >
-                      <div className="flex-1 flex gap-2">
-                        <input
-                          type="url"
-                          placeholder="Paste public image URL here..."
-                          value={mediaUrl}
-                          onChange={(e) => setMediaUrl(e.target.value)}
-                          className="flex-1 bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-1.5 outline-none focus:border-emerald-500/50 text-xs"
-                        />
-                      </div>
+                      <input
+                        type="url"
+                        placeholder="Paste image link URL here (publicly accessible)..."
+                        value={mediaUrl}
+                        onChange={(e) => setMediaUrl(e.target.value)}
+                        className="flex-1 bg-zinc-850 border border-white/5 rounded-xl px-4 py-1.5 outline-none focus:border-emerald-500/50 text-xs text-zinc-200"
+                      />
                       <div className="flex items-center gap-2 justify-end">
-                        <span className="text-[10px] text-muted-foreground uppercase">or</span>
+                        <span className="text-[10px] text-zinc-500 font-mono uppercase">or</span>
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
                           disabled={uploading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-foreground/10 hover:bg-foreground/20 rounded-lg text-xs font-semibold text-foreground/80 border border-foreground/10 transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-850 hover:bg-zinc-800 rounded-lg text-xs font-semibold text-zinc-300 border border-white/5 transition-colors"
                         >
                           {uploading ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -769,15 +1175,160 @@ export default function WhatsAppChatPage() {
               </div>
             </>
           ) : (
-            <div className="h-full flex flex-col justify-center items-center text-center p-8 text-muted-foreground">
-              <MessageSquare className="w-12 h-12 text-muted-foreground/20 mb-3" />
-              <h3 className="font-semibold text-foreground/80 mb-1">Select a Conversation</h3>
-              <p className="text-xs max-w-sm">
-                Pick a conversation thread from the left menu to view history and chat with the customer.
+            <div className="h-full flex flex-col justify-center items-center text-center p-8 text-muted-foreground bg-zinc-950/20">
+              <MessageSquare className="w-12 h-12 text-zinc-800 mb-3 animate-bounce" />
+              <h3 className="font-semibold text-zinc-300 mb-1 text-sm">No Thread Selected</h3>
+              <p className="text-xs max-w-xs text-zinc-500">
+                Choose a customer conversation thread from the left menu to view communication history and reply in real-time.
               </p>
             </div>
           )}
         </div>
+
+        {/* Right Side: Collapsible Customer Contact Info Drawer */}
+        {activePhone && showContactInfo && (
+          <div className="lg:col-span-3 flex flex-col h-full bg-zinc-900/65 overflow-y-auto border-l border-white/5 divide-y divide-white/5 custom-scrollbar">
+            {/* Drawer Header */}
+            <div className="p-4 flex items-center justify-between bg-zinc-900/40">
+              <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-400">Contact Details</h3>
+              <button 
+                onClick={() => setShowContactInfo(false)}
+                className="p-1 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Profile Hero card */}
+            <div className="p-6 flex flex-col items-center text-center space-y-3">
+              {renderAvatar(activeConv?.customerName || null, activePhone, "w-20 h-20 text-xl font-extrabold")}
+              <div>
+                <h4 className="font-bold text-[14px] text-zinc-100 flex items-center justify-center gap-1">
+                  <span>{activeConv?.customerName || "Customer"}</span>
+                  {activeConv?.whatsappOptedOut && (
+                    <span title="Consent Opted Out"><Ban className="w-3.5 h-3.5 text-rose-500" /></span>
+                  )}
+                </h4>
+                <p className="text-xs text-zinc-400 mt-0.5">+{activePhone}</p>
+              </div>
+            </div>
+
+            {/* Consent status section */}
+            <div className="p-4 space-y-2.5">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold block">WhatsApp Consent</span>
+              {activeConv?.whatsappOptedOut ? (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 flex flex-col gap-2">
+                  <div className="flex gap-2 text-rose-400 text-xs">
+                    <Ban className="w-4 h-4 shrink-0 mt-0.5" />
+                    <p className="leading-snug font-sans">Customer has **Opted Out** of WhatsApp communication. Templates & automated schedules are blocked.</p>
+                  </div>
+                  <button
+                    onClick={handleToggleOptOut}
+                    className="w-full text-center py-1.5 bg-zinc-800 hover:bg-zinc-750 text-emerald-400 font-bold rounded-lg text-[10px] border border-white/5 transition-colors"
+                  >
+                    Register Manual Opt-In
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col gap-2">
+                  <div className="flex gap-2 text-emerald-400 text-xs">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                    <p className="leading-snug font-sans">Customer is **Opted In** to WhatsApp updates and promotional dispatches.</p>
+                  </div>
+                  <button
+                    onClick={handleToggleOptOut}
+                    className="w-full text-center py-1.5 bg-zinc-800 hover:bg-zinc-750 text-rose-400 font-bold rounded-lg text-[10px] border border-white/5 transition-colors"
+                  >
+                    Opt-Out Customer
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Quick stats / info */}
+            <div className="p-4 space-y-3.5">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold block">Meta & CRM Details</span>
+              
+              <div className="space-y-2 text-xs">
+                {activeConv?.customerEmail && (
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-800/40 border border-white/5 gap-2">
+                    <div className="flex items-center gap-2 truncate text-zinc-300">
+                      <Mail className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                      <span className="truncate">{activeConv.customerEmail}</span>
+                    </div>
+                    <button 
+                      onClick={() => handleCopyToClipboard(activeConv.customerEmail!, "Email")}
+                      className="p-1 hover:bg-white/5 rounded text-zinc-400 hover:text-zinc-200"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-800/40 border border-white/5 gap-2">
+                  <div className="flex items-center gap-2 text-zinc-300">
+                    <Phone className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                    <span>+{activePhone}</span>
+                  </div>
+                  <button 
+                    onClick={() => handleCopyToClipboard(activePhone, "Phone Number")}
+                    className="p-1 hover:bg-white/5 rounded text-zinc-400 hover:text-zinc-200"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* 24 Care Window details */}
+                <div className="p-2.5 rounded-lg bg-zinc-800/40 border border-white/5 flex items-start gap-2">
+                  <Clock className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-zinc-500 font-mono font-bold block">Care Care Window</span>
+                    <span className={`text-[11px] font-semibold block ${isServiceWindowActive() ? "text-emerald-400" : "text-amber-500"}`}>
+                      {isServiceWindowActive() ? "Open & Active" : "Expired"}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 block font-sans">
+                      {isServiceWindowActive() 
+                        ? `${serviceWindowHoursRemaining()} hours left to reply for free.`
+                        : "Requires Meta template messages to restart conversation."
+                      }
+                    </span>
+                  </div>
+                </div>
+
+                {/* Activity Stats */}
+                <div className="p-2.5 rounded-lg bg-zinc-800/40 border border-white/5 flex items-start gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-zinc-500 font-mono font-bold block">Session Log History</span>
+                    <span className="text-[11px] text-zinc-300 font-semibold block">{messages.length} messages loaded</span>
+                    {activeConv?.lastInboundCreatedAt && (
+                      <span className="text-[10px] text-zinc-400 block font-sans">
+                        Last Inbound: {new Date(activeConv.lastInboundCreatedAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Links / CRM integration */}
+            {activeConv?.customerId && (
+              <div className="p-4 space-y-2">
+                <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold block">CRM Integrations</span>
+                <a 
+                  href={`/dashboard/customers/${activeConv.customerId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 text-center shadow-md cursor-pointer"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>Open CRM Customer Profile</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
 
@@ -791,14 +1342,14 @@ export default function WhatsAppChatPage() {
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-background border border-foreground/10 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden max-h-[85vh]"
+              className="bg-[#182229] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden max-h-[85vh]"
             >
-              <div className="flex justify-between items-center p-4 border-b border-foreground/5 bg-foreground/[0.02]">
+              <div className="flex justify-between items-center p-4 border-b border-white/10 bg-white/[0.02]">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-violet-400" />
-                  <h3 className="font-bold text-sm text-foreground">Select WhatsApp Template</h3>
+                  <h3 className="font-bold text-sm text-zinc-200">Send WhatsApp Template Campaign</h3>
                 </div>
-                <button onClick={() => { setShowTemplateModal(false); setSelectedTemplate(null); }} className="p-1 hover:bg-foreground/5 rounded-lg text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+                <button onClick={() => { setShowTemplateModal(false); setSelectedTemplate(null); }} className="p-1 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-zinc-200"><X className="w-4 h-4" /></button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
@@ -809,25 +1360,25 @@ export default function WhatsAppChatPage() {
                       onClick={() => setSelectedTemplate(null)}
                       className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
                     >
-                      ← Back to template list
+                      ← Back to templates catalog
                     </button>
 
-                    <div className="p-3 bg-foreground/[0.02] border border-foreground/10 rounded-xl space-y-2">
-                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <div className="p-3 bg-zinc-900 border border-white/5 rounded-xl space-y-2">
+                      <div className="flex justify-between text-[10px] text-zinc-400">
                         <span className="font-bold font-mono">TEMPLATE: {selectedTemplate.name}</span>
-                        <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-mono uppercase font-bold">{selectedTemplate.category}</span>
+                        <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-mono uppercase font-bold text-[9px]">{selectedTemplate.category}</span>
                       </div>
-                      <div className="bg-background/50 p-3 rounded-lg text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                      <div className="bg-[#202c33]/70 p-3 rounded-lg text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed border border-white/5">
                         {selectedTemplate.components?.find((c: any) => c.type === "BODY")?.text}
                       </div>
                     </div>
 
                     {templateVariables.length > 0 ? (
                       <div className="space-y-3">
-                        <span className="text-[11px] font-bold text-foreground/80 block">Configure Parameters</span>
+                        <span className="text-[11px] font-bold text-zinc-300 block">Configure Template Variables</span>
                         {templateVariables.map((val, idx) => (
                           <div key={idx} className="space-y-1">
-                            <label className="text-[10px] font-mono text-muted-foreground uppercase font-semibold">Variable {idx + 1}</label>
+                            <label className="text-[10px] font-mono text-zinc-400 uppercase font-semibold">Variable {idx + 1}</label>
                             <input
                               type="text"
                               value={val}
@@ -836,7 +1387,7 @@ export default function WhatsAppChatPage() {
                                 copy[idx] = e.target.value;
                                 setTemplateVariables(copy);
                               }}
-                              className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-2 outline-none text-xs focus:border-emerald-500/50"
+                              className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 outline-none text-xs text-zinc-100 focus:border-emerald-500/50"
                               placeholder={`Enter value for {{${idx + 1}}}`}
                             />
                           </div>
@@ -845,7 +1396,7 @@ export default function WhatsAppChatPage() {
                     ) : (
                       <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl text-xs">
                         <Info className="w-4 h-4" />
-                        <span>This template has no dynamic variables. Ready to dispatch.</span>
+                        <span>No parameters required. Template will be sent exactly as approved.</span>
                       </div>
                     )}
                   </div>
@@ -853,37 +1404,37 @@ export default function WhatsAppChatPage() {
                   // Templates Search / Grid View
                   <div className="space-y-3">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                       <input
                         type="text"
-                        placeholder="Search approved templates..."
+                        placeholder="Search Meta templates library..."
                         onChange={(e) => {
                           const query = e.target.value.toLowerCase();
-                          // Filter inline
+                          // Filter templatesList state inline via local component filtering
                         }}
-                        className="w-full bg-foreground/5 border border-foreground/10 rounded-xl pl-9 pr-4 py-2 outline-none focus:border-emerald-500/50 text-xs"
+                        className="w-full bg-zinc-900 border border-white/5 rounded-xl pl-9 pr-4 py-2 outline-none focus:border-emerald-500/50 text-xs text-zinc-100"
                       />
                     </div>
 
                     {loadingTemplates ? (
                       <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin text-emerald-500 mx-auto" /></div>
                     ) : templatesList.length === 0 ? (
-                      <div className="p-8 text-center text-xs text-muted-foreground">No approved templates found in WABA profile.</div>
+                      <div className="p-8 text-center text-xs text-zinc-500">No approved templates found in database. Sync with Meta first.</div>
                     ) : (
                       <div className="space-y-2 max-h-[40vh] overflow-y-auto custom-scrollbar">
                         {templatesList.map((t: any) => (
                           <button
                             key={t.name}
                             onClick={() => handleSelectTemplate(t)}
-                            className="w-full text-left p-3 border border-foreground/5 hover:border-foreground/10 hover:bg-foreground/5 rounded-xl transition-all flex justify-between items-center gap-3"
+                            className="w-full text-left p-3 border border-white/5 hover:border-emerald-500/20 hover:bg-white/[0.02] rounded-xl transition-all flex justify-between items-center gap-3 group"
                           >
                             <div className="min-w-0">
-                              <span className="font-semibold text-xs text-foreground block truncate">{t.name}</span>
-                              <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                              <span className="font-semibold text-xs text-zinc-200 block truncate group-hover:text-emerald-400">{t.name}</span>
+                              <p className="text-[10px] text-zinc-400 truncate mt-0.5">
                                 {t.components?.find((c: any) => c.type === "BODY")?.text}
                               </p>
                             </div>
-                            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0 group-hover:text-emerald-400" />
                           </button>
                         ))}
                       </div>
@@ -893,20 +1444,20 @@ export default function WhatsAppChatPage() {
               </div>
 
               {selectedTemplate && (
-                <div className="p-4 border-t border-foreground/5 bg-foreground/[0.01] flex justify-end gap-2 shrink-0">
+                <div className="p-4 border-t border-white/10 bg-white/[0.01] flex justify-end gap-2 shrink-0">
                   <button 
                     onClick={() => setSelectedTemplate(null)} 
-                    className="px-4 py-2 hover:bg-foreground/5 border border-transparent rounded-xl text-xs font-semibold text-muted-foreground"
+                    className="px-4 py-2 hover:bg-white/5 border border-transparent rounded-xl text-xs font-semibold text-zinc-400"
                   >
                     Cancel
                   </button>
                   <button 
                     onClick={handleSendTemplate}
                     disabled={sending}
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-foreground font-semibold rounded-xl text-xs flex items-center gap-2"
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold rounded-xl text-xs flex items-center gap-2"
                   >
                     {sending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    <span>Dispatch Template</span>
+                    <span>Send Template</span>
                   </button>
                 </div>
               )}
@@ -923,26 +1474,26 @@ export default function WhatsAppChatPage() {
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-background border border-foreground/10 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden max-h-[85vh]"
+              className="bg-[#182229] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden max-h-[85vh]"
             >
-              <div className="flex justify-between items-center p-4 border-b border-foreground/5 bg-foreground/[0.02]">
+              <div className="flex justify-between items-center p-4 border-b border-white/10 bg-white/[0.02]">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-4 h-4 text-emerald-500" />
-                  <h3 className="font-bold text-sm text-foreground">Select Catalog Product</h3>
+                  <h3 className="font-bold text-sm text-zinc-200">Send Shopify Catalog Product Card</h3>
                 </div>
-                <button onClick={() => setShowCatalogModal(false)} className="p-1 hover:bg-foreground/5 rounded-lg text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+                <button onClick={() => setShowCatalogModal(false)} className="p-1 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-zinc-200"><X className="w-4 h-4" /></button>
               </div>
 
               {/* Search bar */}
-              <div className="p-4 border-b border-foreground/5 shrink-0">
+              <div className="p-4 border-b border-white/10 shrink-0">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                   <input
                     type="text"
                     placeholder="Search Shopify inventory catalog..."
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
-                    className="w-full bg-foreground/5 border border-foreground/10 rounded-xl pl-9 pr-4 py-2 outline-none focus:border-emerald-500/50 text-xs"
+                    className="w-full bg-zinc-900 border border-white/5 rounded-xl pl-9 pr-4 py-2 outline-none focus:border-emerald-500/50 text-xs text-zinc-100"
                   />
                 </div>
               </div>
@@ -951,7 +1502,7 @@ export default function WhatsAppChatPage() {
                 {loadingProducts ? (
                   <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin text-emerald-500 mx-auto" /></div>
                 ) : filteredProducts.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-muted-foreground">No products found.</div>
+                  <div className="p-8 text-center text-xs text-zinc-500">No products found.</div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3 max-h-[45vh] overflow-y-auto custom-scrollbar">
                     {filteredProducts.map((p: any) => {
@@ -961,19 +1512,19 @@ export default function WhatsAppChatPage() {
                         <div
                           key={p.id}
                           onClick={() => handleSendProduct(p)}
-                          className="border border-foreground/5 hover:border-emerald-500/20 hover:bg-foreground/5 p-3 rounded-xl cursor-pointer transition-all flex flex-col justify-between gap-3 text-left group"
+                          className="border border-white/5 hover:border-emerald-500/25 hover:bg-white/[0.02] p-3 rounded-xl cursor-pointer transition-all flex flex-col justify-between gap-3 text-left group"
                         >
                           <div className="space-y-2">
                             {firstImg ? (
-                              <img src={firstImg} alt={p.title} className="w-full h-24 object-cover rounded-lg border border-foreground/10 group-hover:scale-[1.02] transition-transform duration-300" />
+                              <img src={firstImg} alt={p.title} className="w-full h-24 object-cover rounded-lg border border-white/10 group-hover:scale-[1.02] transition-transform duration-300" />
                             ) : (
-                              <div className="w-full h-24 bg-foreground/10 rounded-lg flex items-center justify-center text-[10px] text-muted-foreground">No Photo</div>
+                              <div className="w-full h-24 bg-zinc-800 rounded-lg flex items-center justify-center text-[10px] text-zinc-500 border border-white/5">No Photo</div>
                             )}
-                            <span className="font-semibold text-xs text-foreground/90 block truncate leading-tight mt-1">{p.title}</span>
+                            <span className="font-semibold text-xs text-zinc-200 block truncate leading-tight mt-1 group-hover:text-emerald-400">{p.title}</span>
                           </div>
-                          <div className="flex justify-between items-center mt-1">
+                          <div className="flex justify-between items-center mt-1 pt-1 border-t border-white/5">
                             <span className="text-[10px] font-mono text-emerald-400 font-bold">{price} INR</span>
-                            <span className="text-[9px] text-emerald-500 font-semibold group-hover:underline">Send →</span>
+                            <span className="text-[9px] text-emerald-400 font-semibold group-hover:underline">Send →</span>
                           </div>
                         </div>
                       );

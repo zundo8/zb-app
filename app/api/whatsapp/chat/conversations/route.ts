@@ -33,12 +33,18 @@ export async function GET() {
           unreadCount: 0,
           customerName: null,
           customerId: msg.userId,
+          lastInboundCreatedAt: null,
         };
       }
 
       // If inbound and not read, increment unread count
       if (msg.direction === 'inbound' && msg.status !== 'read') {
         conversationMap[phone].unreadCount++;
+      }
+
+      // Since messages are sorted by createdAt desc, the first inbound we find for a phone number is the latest inbound message
+      if (msg.direction === 'inbound' && !conversationMap[phone].lastInboundCreatedAt) {
+        conversationMap[phone].lastInboundCreatedAt = msg.createdAt;
       }
     }
 

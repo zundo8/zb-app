@@ -197,7 +197,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     await requirePermission('CUSTOMERS', 'edit');
-    const { name, email, phone } = await req.json();
+    const { name, email, phone, whatsappOptedOut } = await req.json();
 
     const customer = await prisma.customer.findUnique({
       where: { id: params.id }
@@ -231,7 +231,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       data: {
         name,
         email,
-        phone
+        phone,
+        whatsappOptedOut: whatsappOptedOut !== undefined ? whatsappOptedOut : undefined
       }
     });
 

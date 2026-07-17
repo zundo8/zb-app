@@ -101,6 +101,13 @@ export interface GenerateParams {
   mfgYear: number
 }
 
+export interface BatchFilters {
+  search: string
+  size: string
+  dateFrom: string
+  dateTo: string
+}
+
 export function usePriceTags() {
   const [products, setProducts] = useState<ShopifyProduct[]>([])
   const [tags, setTags] = useState<TagData[]>([])
@@ -108,7 +115,14 @@ export function usePriceTags() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoadingBatches, setIsLoadingBatches] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [filters, setFilters] = useState<BatchFilters>({
+    search: '',
+    size: '',
+    dateFrom: '',
+    dateTo: '',
+  })
 
   const fetchProducts = useCallback(async () => {
     setIsLoadingProducts(true)
@@ -129,18 +143,16 @@ export function usePriceTags() {
         vendor: '',
         tags: '',
         image: row.featuredImage ? { src: row.featuredImage } : null,
-        variants: [
-          {
-            id: 0,
-            title: 'Default Variant',
-            price: String(row.price || 0),
-            sku: row.sku || null,
-            barcode: row.barcode || null,
-            inventory_quantity: 0,
-            option1: null,
-            option2: null,
-          }
-        ]
+        variants: (row.variants || []).map((v: any) => ({
+          id: v.id,
+          title: v.title,
+          price: String(v.price),
+          sku: v.sku,
+          barcode: v.barcode,
+          inventory_quantity: 0,
+          option1: v.option1,
+          option2: v.option2,
+        }))
       }))
 
       setProducts(mappedProducts)
@@ -151,10 +163,20 @@ export function usePriceTags() {
     }
   }, [])
 
-  const fetchBatches = useCallback(async () => {
+  const fetchBatches = useCallback(async (overrideFilters?: BatchFilters) => {
     setIsLoadingBatches(true)
     try {
-      const response = await fetch('/api/admin/price-tags/batches')
+      const activeFilters = overrideFilters || filters
+      const params = new URLSearchParams()
+      if (activeFilters.search) params.set('search', activeFilters.search)
+      if (activeFilters.size) params.set('size', activeFilters.size)
+      if (activeFilters.dateFrom) params.set('dateFrom', activeFilters.dateFrom)
+      if (activeFilters.dateTo) params.set('dateTo', activeFilters.dateTo)
+
+      const queryString = params.toString()
+      const url = `/api/admin/price-tags/batches${queryString ? `?${queryString}` : ''}`
+
+      const response = await fetch(url)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -165,7 +187,7 @@ export function usePriceTags() {
     } finally {
       setIsLoadingBatches(false)
     }
-  }, [])
+  }, [filters])
 
   const generateTags = useCallback(async (params: GenerateParams): Promise<TagData[]> => {
     setIsGenerating(true)
@@ -281,24 +303,63 @@ export function usePriceTags() {
     return tagsWithQR
   }, [])
 
+  const deleteBatch = useCallback(async (batchId: string): Promise<void> => {
+    setIsDeleting(true)
+    try {
+      const res = await fetch('/api/admin/price-tags/batches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete-batch',
+          batchId,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete batch')
+      }
+
+      // Refresh batch list
+      await fetchBatches()
+    } catch (err: any) {
+      throw err
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [fetchBatches])
+
   const clearTags = useCallback(() => {
     setTags([])
+  }, [])
+
+  const updateFilters = useCallback((newFilters: Partial<BatchFilters>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }))
+  }, [])
+
+  const clearFilters = useCallback(() => {
+    setFilters({ search: '', size: '', dateFrom: '', dateTo: '' })
   }, [])
 
   return {
     products,
     tags,
     batches,
+    filters,
     isLoadingProducts,
     isGenerating,
     isLoadingBatches,
+    isDeleting,
     error,
     fetchProducts,
     fetchBatches,
     generateTags,
     loadBatchTags,
+    deleteBatch,
     clearTags,
     setTags,
     setError,
+    updateFilters,
+    clearFilters,
   }
 }

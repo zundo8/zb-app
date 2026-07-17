@@ -85,7 +85,7 @@ async function ensureTablesExist() {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
@@ -94,9 +94,45 @@ export async function GET() {
 
     await ensureTablesExist();
 
-    const batches = await prisma.$queryRawUnsafe(
-      `SELECT * FROM price_tag_batches ORDER BY created_at DESC LIMIT 50`
-    );
+    // Parse filter query params
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search')?.trim() || '';
+    const sizeFilter = searchParams.get('size')?.trim() || '';
+    const dateFrom = searchParams.get('dateFrom')?.trim() || '';
+    const dateTo = searchParams.get('dateTo')?.trim() || '';
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '100')));
+
+    // Build dynamic WHERE clauses
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (search) {
+      conditions.push(`(product_name ILIKE $${paramIndex} OR sku_prefix ILIKE $${paramIndex})`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    if (sizeFilter) {
+      conditions.push(`UPPER(size) = UPPER($${paramIndex})`);
+      params.push(sizeFilter);
+      paramIndex++;
+    }
+    if (dateFrom) {
+      conditions.push(`created_at >= $${paramIndex}::timestamptz`);
+      params.push(dateFrom);
+      paramIndex++;
+    }
+    if (dateTo) {
+      // Add 1 day to make it inclusive of the end date
+      conditions.push(`created_at < ($${paramIndex}::date + interval '1 day')`);
+      params.push(dateTo);
+      paramIndex++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query = `SELECT * FROM price_tag_batches ${whereClause} ORDER BY created_at DESC LIMIT ${limit}`;
+
+    const batches = await prisma.$queryRawUnsafe(query, ...params);
 
     return NextResponse.json({ batches }, { status: 200 });
   } catch (error: any) {
@@ -204,6 +240,7 @@ export async function POST(request: Request) {
 
       // Save individual SKUs to product_skus table
       // Status = PRINTED (not sellable until scanned in via Scanner STOCK_IN)
+      // quantity = 0 — NO inventory is added at this point
       if (tagsGenerated && Array.isArray(tagsGenerated)) {
         // Resolve Shopify variant IDs for this product+size
         let variantMap: Record<string, { variantId: string; inventoryItemId: string }> = {};
@@ -246,6 +283,57 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ success: true }, { status: 200 });
+    }
+
+    // ── Delete Batch — SUPER_ADMIN only ──
+    if (action === 'delete-batch') {
+      const userRole = (session.user as any).role;
+      if (userRole !== 'SUPER_ADMIN') {
+        return NextResponse.json(
+          { error: 'Forbidden: Only Super Admins can delete price tag batches.' },
+          { status: 403 }
+        );
+      }
+
+      const { batchId } = body;
+      if (!batchId) {
+        return NextResponse.json({ error: 'Missing parameter: batchId' }, { status: 400 });
+      }
+
+      // 1. Fetch the batch to get the tags so we can delete associated SKUs
+      const batchRows: any[] = await prisma.$queryRawUnsafe(
+        `SELECT * FROM price_tag_batches WHERE id = $1::uuid`,
+        String(batchId)
+      );
+
+      if (batchRows.length === 0) {
+        return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+      }
+
+      const batch = batchRows[0];
+      const tags = batch.tags_generated || [];
+
+      // 2. Delete all associated SKU records from product_skus
+      if (Array.isArray(tags) && tags.length > 0) {
+        const skus = tags.map((t: any) => String(t.sku));
+        // Delete in chunks to avoid overly long SQL
+        for (let i = 0; i < skus.length; i += 50) {
+          const chunk = skus.slice(i, i + 50);
+          const placeholders = chunk.map((_: string, idx: number) => `$${idx + 1}`).join(', ');
+          await prisma.$executeRawUnsafe(
+            `DELETE FROM product_skus WHERE sku IN (${placeholders})`,
+            ...chunk
+          );
+        }
+      }
+
+      // 3. Delete the batch record itself
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM price_tag_batches WHERE id = $1::uuid`,
+        String(batchId)
+      );
+
+      return NextResponse.json({ success: true, message: `Batch deleted. ${tags.length} SKU records removed.` }, { status: 200 });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

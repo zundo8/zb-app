@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
         waMessageId,
         phoneNumber: phone,
         userId: customer?.id || null,
+        templateName: templateName || null,
         body: messageBody,
         status: 'sent',
         sentAt: new Date()

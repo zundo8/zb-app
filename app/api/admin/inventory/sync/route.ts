@@ -246,6 +246,13 @@ export async function POST(req: Request) {
       const currentQty = matchedVariant.inventory_quantity || 0;
 
       if (mode === 'STOCK_IN') {
+        // Duplicate scan protection: reject if this SKU is already IN_STOCK
+        if (skuRecord && skuRecord.status === 'IN_STOCK') {
+          return NextResponse.json(
+            { error: `Duplicate scan rejected — SKU ${skuRecord.sku} is already stocked in. Each SKU can only be scanned into inventory once.` },
+            { status: 400 }
+          );
+        }
         delta = qty;
         message = `Injected ${qty} unit(s) of ${productName} into the grid.`;
       } 
