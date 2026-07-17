@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/lib/cart-context";
 import { useBookmarks } from "@/lib/bookmark-context";
 import { trackStorefrontEvent } from "@/lib/track-client";
+import { trackViewItem as zbTrackViewItem } from "@/lib/analytics-tracker";
 import { useRecentlyViewed } from "@/lib/recently-viewed-context";
 import { handleImageError } from "@/components/ImagePlaceholder";
 import dynamic from "next/dynamic";
@@ -51,6 +52,7 @@ export default function ProductDetailsClient({
   useEffect(() => {
     const variantId = product.variants?.[0]?.id?.toString() || product.id.toString();
     trackViewContent(variantId, product.title, parseFloat(product.variants?.[0]?.price || "0"), 'INR', product.product_type);
+    zbTrackViewItem(product.id.toString(), variantId, parseFloat(product.variants?.[0]?.price || "0"), { title: product.title });
   }, [product.id, product.title, product.product_type]);
 
   const [selectedSize, setSelectedSize] = useState<string | null>(null);

@@ -6,6 +6,7 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 export const dynamic = 'force-dynamic';
 
 async function handler() {
+  try {
   const now = new Date();
   const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
@@ -98,6 +99,16 @@ async function handler() {
     topPages,
     sessions: sessions.slice(0, 50), // Limit to 50 for performance
   });
+  } catch (error: any) {
+    console.error('[Analytics Realtime] Error:', error.message);
+    return NextResponse.json({
+      summary: { totalActive: 0, webActive: 0, appActive: 0, newVisitors: 0, returningVisitors: 0 },
+      breakdowns: { device: {}, browser: {}, os: {}, country: {} },
+      topPages: [],
+      sessions: [],
+      error: error.message,
+    });
+  }
 }
 
 export const GET = withAdminApiGuard(handler, { module: 'ANALYTICS', action: 'view' });

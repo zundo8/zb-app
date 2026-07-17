@@ -6,6 +6,7 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 export const dynamic = 'force-dynamic';
 
 async function handler(req: Request) {
+  try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
@@ -104,6 +105,16 @@ async function handler(req: Request) {
     bestSelling: enrich(bestSelling, true),
     productRates,
   });
+  } catch (error: any) {
+    console.error('[Analytics Products] Error:', error.message);
+    return NextResponse.json({
+      mostViewed: [],
+      mostAddedToCart: [],
+      bestSelling: [],
+      productRates: [],
+      error: error.message
+    });
+  }
 }
 
 export const GET = withAdminApiGuard(handler, { module: 'ANALYTICS', action: 'view' });

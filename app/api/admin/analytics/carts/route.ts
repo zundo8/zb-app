@@ -6,6 +6,7 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 export const dynamic = 'force-dynamic';
 
 async function handler(req: Request) {
+  try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
@@ -130,6 +131,17 @@ async function handler(req: Request) {
     })),
     sources: sourceCounts.map((s: any) => ({ source: s.source, count: s._count })),
   });
+  } catch (error: any) {
+    console.error('[Analytics Carts] Error:', error.message);
+    return NextResponse.json({
+      overview: { total: 0, active: 0, abandoned: 0, converted: 0, merged: 0, recovered: 0, recoveryRate: 0, abandonmentRate: 0 },
+      values: { activeTotal: 0, activeAvg: 0, abandonedTotal: 0, abandonedAvg: 0, recoveredRevenue: 0, averageCartValue: 0 },
+      topProducts: [],
+      abandonedProducts: [],
+      sources: [],
+      error: error.message
+    });
+  }
 }
 
 export const GET = withAdminApiGuard(handler, { module: 'ANALYTICS', action: 'view' });

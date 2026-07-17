@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       data: {
         direction: 'outbound',
         waMessageId,
-        phoneNumber: phone,
+        phoneNumber: formattedPhone,
         userId: customer?.id || null,
         templateName: templateName || null,
         body: messageBody,

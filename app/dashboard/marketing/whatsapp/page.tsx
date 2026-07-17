@@ -113,6 +113,30 @@ export default function WhatsAppHubPage() {
         </div>
       </div>
 
+      {/* Phase 2.1: Quality / Tier Warning Banner */}
+      {connectionStatus === "connected" && statusData && (
+        (statusData.quality && statusData.quality !== 'GREEN' && statusData.quality !== 'HIGH') ||
+        (statusData.tier && statusData.tier !== 'TIER_UNLIMITED' && statusData.tier !== 'TIER_100K' && statusData.tier !== 'TIER_UNKNOWN')
+      ) && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-500">WhatsApp Account Health Alert</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {statusData.quality && statusData.quality !== 'GREEN' && statusData.quality !== 'HIGH' && (
+                <span className="block">Quality Rating: <strong className="text-amber-500">{statusData.quality}</strong> — Meta may restrict your messaging. Improve by reducing template failures and ensuring user engagement.</span>
+              )}
+              {statusData.tier && statusData.tier !== 'TIER_UNLIMITED' && statusData.tier !== 'TIER_100K' && statusData.tier !== 'TIER_UNKNOWN' && (
+                <span className="block mt-1">Messaging Tier: <strong className="text-amber-500">{statusData.tier}</strong> — Limits the number of unique users you can message per day. Increase volume gradually and maintain GREEN quality to upgrade.</span>
+              )}
+            </p>
+            <a href="https://business.facebook.com/wa/manage/" target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-500 hover:underline mt-2 inline-flex items-center gap-1">
+              Open Meta Business Manager <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-4 border-b border-foreground/10 pb-1 overflow-x-auto scrollbar-hide">
         {[
           { id: "campaigns", label: "Campaigns", icon: Send },
@@ -2881,6 +2905,7 @@ function MessageLogs() {
                 <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Type</th>
                 <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Template</th>
                 <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Status</th>
+                <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Error</th>
                 <th className="text-left font-medium text-foreground/60 px-5 py-3.5">Sent At</th>
                 <th className="text-right font-medium text-foreground/60 px-5 py-3.5">Message ID</th>
               </tr>
@@ -2888,13 +2913,13 @@ function MessageLogs() {
             <tbody className="divide-y divide-foreground/10">
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
+                  <td colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
                     No logs recorded.
                   </td>
                 </tr>
               ) : (
                 logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-foreground/5 transition-colors">
+                  <tr key={log.id} className={`hover:bg-foreground/5 transition-colors ${log.status === 'failed' ? 'bg-rose-500/[0.03]' : ''}`}>
                     <td className="px-5 py-4 font-mono text-xs">{log.recipient_phone}</td>
                     <td className="px-5 py-4 font-semibold text-xs text-muted-foreground uppercase">{log.message_type}</td>
                     <td className="px-5 py-4 font-mono text-xs">{log.template_name}</td>
@@ -2907,6 +2932,34 @@ function MessageLogs() {
                       }`}>
                         {log.status?.toUpperCase() || 'SENT'}
                       </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      {log.status === 'failed' && (log.error_code || log.error_message) ? (
+                        <div className="flex flex-col gap-0.5">
+                          {log.error_code && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20 w-fit">
+                              {log.error_code}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground max-w-[180px] truncate" title={log.error_message || ''}>
+                            {(() => {
+                              const code = log.error_code;
+                              if (code === '131049') return 'Frequency cap — user not engaged';
+                              if (code === '131056') return 'Messaging limit reached';
+                              if (code === '132000') return 'Template not found on Meta';
+                              if (code === '131047') return 'Outside 24hr re-engagement window';
+                              if (code === '133010') return 'Number not on WhatsApp';
+                              if (code === '131026') return 'Message undeliverable';
+                              if (code === '131008' || log.error_message?.includes('131008')) return 'Required parameter missing';
+                              if (code === '132012' || log.error_message?.includes('132012')) return 'Parameter format mismatch';
+                              if (log.error_message?.includes('#100')) return 'Invalid parameter';
+                              return log.error_message ? log.error_message.slice(0, 40) : '';
+                            })()}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-xs text-muted-foreground">
                       {new Date(log.sent_at).toLocaleString('en-IN')}

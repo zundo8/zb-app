@@ -47,15 +47,15 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   // Marketing opt-in state
+  // Single combined consent checkbox — covers both WhatsApp and Email.
+  // The UI presents one checkbox; the API saves identical values for both channels.
   const [optIn, setOptIn] = useState(true);
-  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
-  const [emailOptIn, setEmailOptIn] = useState(true);
   const [hasOptedBefore, setHasOptedBefore] = useState(false);
   const [optInLoaded, setOptInLoaded] = useState(false);
   const [localOptInAccepted, setLocalOptInAccepted] = useState(false);
   const showOptInSection = 
     !localOptInAccepted && 
-    (phone.length < 7 || !optInLoaded || !hasOptedBefore || !whatsappOptIn || !emailOptIn);
+    (phone.length < 7 || !optInLoaded || !hasOptedBefore);
 
   // Admin-configurable background images
   const [loginBgLight, setLoginBgLight] = useState("");
@@ -190,8 +190,8 @@ export default function LoginPage() {
         const data = await res.json();
         if (data.hasOptedBefore) {
           setHasOptedBefore(true);
-          setWhatsappOptIn(data.whatsappOptedIn);
-          setEmailOptIn(data.emailOptedIn);
+          // Sync combined checkbox from server state (user is already opted in for both)
+          setOptIn(data.whatsappOptedIn && data.emailOptedIn);
         }
         setOptInLoaded(true);
       }
@@ -234,8 +234,6 @@ export default function LoginPage() {
     } else {
       setHasOptedBefore(false);
       setOptInLoaded(false);
-      setWhatsappOptIn(true);
-      setEmailOptIn(true);
       setOptIn(true);
     }
   }, [phone, country.code]);

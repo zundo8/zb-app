@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
+import { trackBeginCheckout as zbTrackBeginCheckout, trackPaymentInitiated as zbTrackPaymentInitiated } from "@/lib/analytics-tracker";
 import { saveUserDataToCookiesAndReinit, getClientCookie } from "@/lib/metaPixel";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -323,6 +324,7 @@ export default function CheckoutPage() {
       }
 
       trackInitiateCheckout(subtotal, items.length, 'INR', joinedCategories, contentIds, userData, contents);
+      zbTrackBeginCheckout(subtotal, { num_items: items.length, currency: 'INR' });
 
       // Track Checkout Started event server-side
       trackStorefrontEvent('Checkout Started', {
@@ -901,6 +903,7 @@ export default function CheckoutPage() {
         contentIds,
         contents
       );
+      zbTrackPaymentInitiated(subtotal, { payment_method: paymentMethod, currency: 'INR' });
       setPaymentInfoFired(true);
     }
 

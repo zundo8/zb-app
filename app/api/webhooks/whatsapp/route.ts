@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import db from '@/lib/db';
-import { getConfig } from '@/lib/whatsapp/client';
+import { getConfig, formatPhone } from '@/lib/whatsapp/client';
 import { updateMessageStatus } from '@/lib/whatsapp/logger';
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
 import { eventTracker } from '@/lib/services/eventTracker';
@@ -138,7 +138,8 @@ export async function POST(req: NextRequest) {
  */
 async function handleIncomingMessages(messages: any[], db: any) {
   for (const message of messages) {
-    const phoneNumber = message.from;
+    const rawPhone = message.from;
+    const phoneNumber = formatPhone(rawPhone); // Normalize to match all other DB write paths
     const waMessageId = message.id;
 
     // Extract text body

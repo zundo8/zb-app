@@ -6,6 +6,7 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 export const dynamic = 'force-dynamic';
 
 async function handler(req: Request) {
+  try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
@@ -298,6 +299,10 @@ async function handler(req: Request) {
       app: { orders: appOrders._count, revenue: Math.round((appOrders._sum.totalPrice || 0) * 100) / 100, sessions: appSessions },
     },
   });
+  } catch (error: any) {
+    console.error('[Analytics Overview] Error:', error.message);
+    return NextResponse.json({ error: 'Failed to load analytics overview', details: error.message }, { status: 500 });
+  }
 }
 
 export const GET = withAdminApiGuard(handler, { module: 'ANALYTICS', action: 'view' });

@@ -282,3 +282,7 @@ export function trackAddPaymentInfo(metadata?: Record<string, any>): void {
 export function trackPaymentInitiated(value?: number, metadata?: Record<string, any>): void {
   trackEvent({ eventName: 'payment_initiated', value, metadata });
 }
+
+export function trackPurchase(orderId: string, value: number, metadata?: Record<string, any>): void {
+  trackEvent({ eventName: 'purchase', orderId, value, metadata });
+}

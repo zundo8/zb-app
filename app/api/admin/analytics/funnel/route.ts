@@ -6,6 +6,7 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 export const dynamic = 'force-dynamic';
 
 async function handler(req: Request) {
+  try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
@@ -68,6 +69,10 @@ async function handler(req: Request) {
   });
 
   return NextResponse.json({ funnel });
+  } catch (error: any) {
+    console.error('[Analytics Funnel] Error:', error.message);
+    return NextResponse.json({ funnel: [], error: error.message }, { status: 200 });
+  }
 }
 
 export const GET = withAdminApiGuard(handler, { module: 'ANALYTICS', action: 'view' });

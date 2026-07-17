@@ -140,25 +140,39 @@ export default function AnalyticsDashboard() {
     });
 
     try {
-      const [ovRes, chRes, fnRes, trRes, rtRes] = await Promise.all([
-        fetch(`/api/admin/analytics/overview?${params}`, { signal: controller.signal }),
-        fetch(`/api/admin/analytics/charts?${params}`, { signal: controller.signal }),
-        fetch(`/api/admin/analytics/funnel?${params}`, { signal: controller.signal }),
-        fetch(`/api/admin/analytics/traffic?${params}`, { signal: controller.signal }),
-        fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }),
+      const results = await Promise.allSettled([
+        fetch(`/api/admin/analytics/overview?${params}`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/admin/analytics/charts?${params}`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/admin/analytics/funnel?${params}`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/admin/analytics/traffic?${params}`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
       ]);
 
       if (controller.signal.aborted) return;
 
-      const [ovData, chData, fnData, trData, rtData] = await Promise.all([
-        ovRes.json(), chRes.json(), fnRes.json(), trRes.json(), rtRes.json(),
-      ]);
+      const getValue = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value : null;
+      
+      const ovData = getValue(results[0]);
+      const chData = getValue(results[1]);
+      const fnData = getValue(results[2]);
+      const trData = getValue(results[3]);
+      const rtData = getValue(results[4]);
 
-      setOverview(ovData);
-      setCharts(chData);
-      setFunnel(fnData.funnel);
-      setTraffic(trData.sources);
-      setRealtime(rtData);
+      if (ovData && !ovData.error) setOverview(ovData);
+      if (chData) setCharts(chData);
+      if (fnData) setFunnel(fnData.funnel || []);
+      if (trData) setTraffic(trData.sources || []);
+      if (rtData) setRealtime(rtData);
+      
+      // Log any failures for debugging
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          const names = ['overview', 'charts', 'funnel', 'traffic', 'realtime'];
+          if (r.reason?.name !== 'AbortError') {
+            console.warn(`[Analytics] ${names[i]} failed:`, r.reason?.message);
+          }
+        }
+      });
     } catch (err: any) {
       if (err.name === "AbortError") return;
       console.error("[Analytics] Fetch error:", err);

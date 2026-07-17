@@ -7,6 +7,7 @@ import { CheckCircle2, Package, Truck, Calendar, ArrowLeft, Loader2 } from "luci
 import Link from "next/link";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
+import { trackPurchase as zbTrackPurchase } from "@/lib/analytics-tracker";
 
 export default function OrderConfirmationPage() {
   const { id } = useParams();
@@ -69,6 +70,7 @@ export default function OrderConfirmationPage() {
         })) || [];
 
         trackPurchase(order.id, val, 'INR', contentIds, userData, storedCategory, contents);
+        zbTrackPurchase(order.id, val, { num_items: contentIds.length, currency: 'INR' });
       }
 
       if (!purchasedPixel) {
