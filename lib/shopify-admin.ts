@@ -238,6 +238,7 @@ export interface ShopifyOrder {
   note: string | null;
   tags: string;
   total_tax?: string;
+  total_line_items_price?: string;
   fulfillments?: any[];
   status?: string;
   cancelled_at?: string | null;

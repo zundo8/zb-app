@@ -229,7 +229,7 @@ export async function POST() {
           // Resolve existing local Order record to check if we can prevent duplicates
           let existingLocalOrder = await prisma.order.findUnique({
             where: { shopifyOrderId: String(o.id) },
-            select: { id: true, paymentMethod: true, razorpayOrderId: true, razorpayPaymentId: true, orderType: true, internalOrderNumber: true }
+            select: { id: true, paymentMethod: true, razorpayOrderId: true, razorpayPaymentId: true, orderType: true, internalOrderNumber: true, discountAmount: true, discountCode: true }
           });
 
           // Prevent Duplicate: If not found by shopifyOrderId, look up by internalOrderNumber
@@ -246,7 +246,7 @@ export async function POST() {
                   }
                 ]
               },
-              select: { id: true, paymentMethod: true, razorpayOrderId: true, razorpayPaymentId: true, orderType: true, internalOrderNumber: true }
+              select: { id: true, paymentMethod: true, razorpayOrderId: true, razorpayPaymentId: true, orderType: true, internalOrderNumber: true, discountAmount: true, discountCode: true }
             });
 
             // Heal shopifyOrderId on the existing local Order record to ensure the upsert updates it
@@ -295,6 +295,23 @@ export async function POST() {
           // Make sure paymentStatus is correct: if it's a prepaid webStoreOrder, sync status as 'paid'
           const finalPaymentStatus = webStoreOrder?.paymentMethod === 'razorpay' ? 'paid' : derivedPaymentStatus;
 
+          const discountAmount = webStoreOrder?.discountAmount 
+            ? Number(webStoreOrder.discountAmount) 
+            : (existingLocalOrder?.discountAmount || 0);
+          const discountCode = webStoreOrder?.discountCode 
+            ? webStoreOrder.discountCode 
+            : (existingLocalOrder?.discountCode || null);
+
+          let finalTotalPrice = parseFloat(o.total_price || '0');
+          const finalSubtotalPrice = o.total_line_items_price 
+            ? parseFloat(o.total_line_items_price) 
+            : (o.subtotal_price ? parseFloat(o.subtotal_price) : finalTotalPrice);
+
+          // Auto-correct undiscounted totalPrice synced from Shopify
+          if (discountAmount > 0 && Math.abs(finalTotalPrice - finalSubtotalPrice) < 0.01) {
+            finalTotalPrice = finalSubtotalPrice - discountAmount;
+          }
+
           const order = await prisma.order.upsert({
             where: { shopifyOrderId: String(o.id) },
             create: {
@@ -302,8 +319,8 @@ export async function POST() {
               shopifyOrderId: String(o.id),
               customerId: dbCustomer.id,
               status: finalStatus,
-              totalPrice: parseFloat(o.total_price || '0'),
-              subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
+              totalPrice: finalTotalPrice,
+              subtotalPrice: finalSubtotalPrice,
               totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
               currency: o.currency || 'INR',
               paymentStatus: finalPaymentStatus,
@@ -319,11 +336,13 @@ export async function POST() {
               razorpayPaymentId: webStoreOrder?.razorpayPaymentId || existingLocalOrder?.razorpayPaymentId || null,
               internalOrderNumber: webStoreOrder?.orderNumber || existingLocalOrder?.internalOrderNumber || universalOrderNumber || null,
               orderType: existingLocalOrder?.orderType || (webStoreOrder ? 'WEB_STORE' : 'REGULAR'),
+              discountAmount: discountAmount,
+              discountCode: discountCode,
             },
             update: {
               status: finalStatus, // Always update status from sync if it's in Shopify
-              totalPrice: parseFloat(o.total_price || '0'),
-              subtotalPrice: o.subtotal_price ? parseFloat(o.subtotal_price) : null,
+              totalPrice: finalTotalPrice,
+              subtotalPrice: finalSubtotalPrice,
               totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
               currency: o.currency || 'INR',
               paymentStatus: finalPaymentStatus,
@@ -338,6 +357,8 @@ export async function POST() {
               razorpayOrderId: webStoreOrder?.razorpayOrderId || existingLocalOrder?.razorpayOrderId || null,
               razorpayPaymentId: webStoreOrder?.razorpayPaymentId || existingLocalOrder?.razorpayPaymentId || null,
               internalOrderNumber: webStoreOrder?.orderNumber || existingLocalOrder?.internalOrderNumber || universalOrderNumber || null,
+              discountAmount: discountAmount,
+              discountCode: discountCode,
             },
           });
 

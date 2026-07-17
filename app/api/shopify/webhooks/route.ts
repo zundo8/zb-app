@@ -217,7 +217,9 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
     : (existingLocalOrder?.discountCode || null);
 
   let finalTotalPrice = parseFloat(orderData.total_price || '0');
-  const finalSubtotalPrice = orderData.subtotal_price ? parseFloat(orderData.subtotal_price) : finalTotalPrice;
+  const finalSubtotalPrice = orderData.total_line_items_price 
+    ? parseFloat(orderData.total_line_items_price) 
+    : (orderData.subtotal_price ? parseFloat(orderData.subtotal_price) : finalTotalPrice);
 
   // Auto-correct undiscounted totalPrice synced from Shopify
   if (discountAmount > 0 && Math.abs(finalTotalPrice - finalSubtotalPrice) < 0.01) {

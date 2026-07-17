@@ -91,6 +91,7 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
   SETTINGS: ["/dashboard/settings"],
   ADMIN_USERS: ["/dashboard/admin-users"],
   AUDIT_LOG: ["/dashboard/audit-log"],
+  ANALYTICS: ["/dashboard/analytics"],
 };
 
 export default withAuth(
@@ -175,6 +176,7 @@ export default withAuth(
       "/dashboard/vendors": "VENDORS",
       "/dashboard/returns": "RETURNS_EXCHANGES",
       "/dashboard/analytics": "ANALYTICS",
+      "/api/admin/analytics": "ANALYTICS",
       "/dashboard/settings": "SETTINGS",
       "/dashboard/admin-users": "ADMIN_USERS",
       "/dashboard/audit-log": "AUDIT_LOG",
@@ -206,6 +208,7 @@ export default withAuth(
       "/api/admin/audit-logs": "/dashboard/audit-log",
       "/api/admin/abandoned-carts": "/web-store/abandoned-carts",
       "/api/admin/mood-board": "/web-store/products",
+      "/api/admin/analytics": "/dashboard/analytics",
     };
 
     // Sort routes by length descending so that longest match runs first (e.g. /dashboard/admin-users before /dashboard)

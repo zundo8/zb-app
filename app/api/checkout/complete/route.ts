@@ -498,6 +498,36 @@ export async function POST(req: Request) {
       }
     });
 
+    // ─── Record authoritative purchase event in analytics (server-side, exactly-once) ───
+    try {
+      await prisma.analyticsEvent.create({
+        data: {
+          eventId: `purchase_${localOrder.id}`,
+          eventName: 'purchase',
+          customerId: localCustomer.id,
+          anonymousId: body.guestId || null,
+          sessionId: null, // Server-side event — no client session
+          platform: 'web',
+          orderId: localOrder.id,
+          value: total,
+          currency: 'INR',
+          quantity: items.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0),
+          pageUrl: '/checkout/complete',
+          metadata: {
+            paymentMethod: paymentMethod,
+            orderNumber: universalOrderNumber,
+            couponCode: couponCode || null,
+            discountAmount: Number(couponDiscount) || 0,
+          },
+        },
+      });
+    } catch (analyticsErr: any) {
+      // P2002 = duplicate (idempotent), or any other error — never block checkout
+      if (analyticsErr.code !== 'P2002') {
+        console.warn('[Checkout Analytics] Failed to record purchase event:', analyticsErr.message);
+      }
+    }
+
     // Mark active or abandoned cart converted and link convertedOrderId
     try {
       const matchingCarts = await prisma.cart.findMany({

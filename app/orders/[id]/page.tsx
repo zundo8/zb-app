@@ -507,7 +507,7 @@ export default function OrderDetailsPage() {
            <div className="p-5 rounded-3xl glass-panel space-y-3">
               <div className="flex justify-between items-center text-[11px] font-medium text-foreground/60">
                  <span>Subtotal</span>
-                 <span className="font-bold text-foreground/80">₹{(order.subtotalPrice || order.totalPrice).toLocaleString('en-IN')}</span>
+                 <span className="font-bold text-foreground/80">₹{(order.subtotalPrice || (order.totalPrice + (order.discountAmount || 0))).toLocaleString('en-IN')}</span>
               </div>
               {order.discountAmount > 0 && (
                  <div className="flex justify-between items-center text-[11px] font-medium text-foreground/60">

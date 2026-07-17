@@ -88,6 +88,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/dashboard/community": "Community Feed",
   "/dashboard/blogs": "Blog Editor",
   "/dashboard/marketing/seo": "SEO Optimization",
+  "/dashboard/analytics": "Dashboard Analytics",
   "/dashboard/marketing/analytics": "Omnichannel Tracking",
   "/dashboard/marketing/meta-pixel": "Meta Pixel Tracker",
   "/dashboard/wishlist": "Wishlist Analytics",

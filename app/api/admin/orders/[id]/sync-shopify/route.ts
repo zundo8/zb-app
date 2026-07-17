@@ -326,7 +326,9 @@ export async function POST(
           : (order.discountCode || null);
 
         let finalTotalPrice = parseFloat(o.total_price || '0');
-        const finalSubtotalPrice = o.subtotal_price ? parseFloat(o.subtotal_price) : finalTotalPrice;
+        const finalSubtotalPrice = o.total_line_items_price 
+          ? parseFloat(o.total_line_items_price) 
+          : (o.subtotal_price ? parseFloat(o.subtotal_price) : finalTotalPrice);
 
         // Auto-correct undiscounted totalPrice synced from Shopify
         if (discountAmount > 0 && Math.abs(finalTotalPrice - finalSubtotalPrice) < 0.01) {

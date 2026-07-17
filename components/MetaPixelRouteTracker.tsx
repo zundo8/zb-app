@@ -16,6 +16,7 @@ import {
 import { buildClientUserData } from '@/lib/buildMetaUserData';
 import { enrichSessionWithGeolocation } from '@/lib/geolocation-enrichment';
 import { pageview as trackGAPageView } from '@/lib/gtag';
+import { trackPageView as trackZBPageView } from '@/lib/analytics-tracker';
 
 let cachedProfileData: {
   city?: string;
@@ -138,6 +139,9 @@ export function MetaPixelRouteTracker() {
 
     // GA PageView
     trackGAPageView(pathname);
+
+    // ZB First-Party Analytics PageView
+    trackZBPageView(pathname);
 
     // ─── STEP 3: Async identity enrichment (runs AFTER PageView) ───
     // This improves identity data for the NEXT event on this page (ViewContent, AddToCart, etc.)

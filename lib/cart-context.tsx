@@ -9,6 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import { trackStorefrontEvent } from "@/lib/track-client";
+import { trackAddToCart as zbTrackAddToCart, trackRemoveFromCart as zbTrackRemoveFromCart } from "@/lib/analytics-tracker";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -125,6 +126,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // ZB First-Party Analytics
+    zbTrackAddToCart(item.productId, item.variantId, parseFloat(item.price) || 0, 1, { title: item.title, size: item.size });
+
     setItems((prev) => {
       const existing = prev.find((i) => i.id === id);
       if (existing) {
@@ -149,6 +153,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             size: item.size
           }
         });
+
+        // ZB First-Party Analytics
+        zbTrackRemoveFromCart(item.productId, item.variantId, { title: item.title, size: item.size });
       }
       return prev.filter((i) => i.id !== id);
     });

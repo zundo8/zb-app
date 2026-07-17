@@ -1765,6 +1765,82 @@ enum Module {
   SETTINGS
   ADMIN_USERS
   AUDIT_LOG
+  ANALYTICS
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique @map("event_id")
+  eventName   String   @map("event_name")
+  sessionId   String?  @map("session_id")
+  customerId  String?  @map("customer_id")
+  anonymousId String?  @map("anonymous_id")
+  platform    String   @default("web")
+  productId   String?  @map("product_id")
+  variantId   String?  @map("variant_id")
+  cartId      String?  @map("cart_id")
+  orderId     String?  @map("order_id")
+  value       Float?
+  currency    String   @default("INR")
+  quantity    Int?
+  pageUrl     String?  @map("page_url")
+  referrer    String?
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  utmContent  String?  @map("utm_content")
+  utmTerm     String?  @map("utm_term")
+  deviceType  String?  @map("device_type")
+  browser     String?
+  os          String?
+  country     String?
+  region      String?
+  city        String?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([eventName, createdAt])
+  @@index([sessionId])
+  @@index([customerId])
+  @@index([anonymousId])
+  @@index([productId])
+  @@index([cartId])
+  @@index([orderId])
+  @@index([createdAt])
+  @@index([platform, createdAt])
+  @@map("analytics_events")
+}
+
+model AnalyticsSession {
+  id           String    @id @default(cuid())
+  anonymousId  String    @map("anonymous_id")
+  customerId   String?   @map("customer_id")
+  platform     String    @default("web")
+  landingPage  String?   @map("landing_page")
+  currentPage  String?   @map("current_page")
+  pageViews    Int       @default(0) @map("page_views")
+  deviceType   String?   @map("device_type")
+  browser      String?
+  os           String?
+  referrer     String?
+  utmSource    String?   @map("utm_source")
+  utmMedium    String?   @map("utm_medium")
+  utmCampaign  String?   @map("utm_campaign")
+  country      String?
+  region       String?
+  city         String?
+  isNew        Boolean   @default(true) @map("is_new")
+  startedAt    DateTime  @default(now()) @map("started_at")
+  lastActiveAt DateTime  @default(now()) @map("last_active_at")
+  endedAt      DateTime? @map("ended_at")
+  duration     Int?
+
+  @@index([anonymousId])
+  @@index([customerId])
+  @@index([startedAt])
+  @@index([lastActiveAt])
+  @@index([platform, startedAt])
+  @@map("analytics_sessions")
 }
 
 model WhatsAppSchedulerRun {
