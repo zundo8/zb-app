@@ -17,7 +17,7 @@ async function getDynamicConfig() {
 
   const phoneId = dbPhoneId || process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = dbAccessToken || process.env.WHATSAPP_ACCESS_TOKEN;
-  const apiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0';
+  const apiVersion = process.env.WHATSAPP_API_VERSION || 'v23.0';
 
   if (!phoneId || !accessToken) {
     throw new Error(`WhatsApp is not configured. Missing: ${!phoneId ? 'WHATSAPP_PHONE_NUMBER_ID ' : ''}${!accessToken ? 'WHATSAPP_ACCESS_TOKEN' : ''}`);

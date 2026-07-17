@@ -6,7 +6,7 @@
  * For template-based sending, use lib/whatsapp/client.js or lib/whatsapp/templates.js.
  */
 
-const API_VERSION = process.env.WHATSAPP_API_VERSION || 'v20.0';
+const API_VERSION = process.env.WHATSAPP_API_VERSION || 'v23.0';
 const BASE_URL = `https://graph.facebook.com/${API_VERSION}`;
 
 function getToken(): string {

@@ -195,26 +195,90 @@ export async function GET(req: NextRequest) {
         try {
           let res: any = null;
           if (msg.templateName) {
-            // If it was a template message, re-send template
-            res = await WhatsAppService.sendTemplateMessage(msg.phoneNumber, msg.templateName);
+            // Try to find a matching sender function that constructs proper components.
+            // Map common template names to event types for the SENDER_MAP lookup.
+            const templateToEvent: Record<string, string> = {
+              'zica_cart_recovery_v1': 'abandoned_cart',
+              'zb_cart_followup': 'cart_followup',
+              'zb_cart_final': 'cart_final',
+              'zica_order_confirmed_v1': 'order_confirmed',
+              'zica_order_shipped': 'order_shipped',
+              'zica_order_delivered_v1': 'order_delivered',
+              'zb_out_for_delivery': 'out_for_delivery',
+              'zb_return_confirmed': 'return_confirmed',
+              'zica_cod_confirmation_v1': 'cod_confirmation',
+              'zb_order_status': 'order_status',
+              'zb_order_tracking': 'order_tracking',
+            };
+
+            const eventType = templateToEvent[msg.templateName];
+            const senderFn = eventType ? SENDER_MAP[eventType] : null;
+
+            if (senderFn) {
+              // Use the proper sender function which constructs correct components
+              res = await senderFn({
+                phone: msg.phoneNumber,
+                customerName: 'there', // Minimal fallback for retries
+                orderId: msg.orderId || '',
+                checkoutUrl: '',
+              });
+              // senderFn returns { success, messageId, ... }
+              if (res?.success) {
+                await db.whatsAppMessage.update({
+                  where: { id: msg.id },
+                  data: {
+                    status: 'sent',
+                    waMessageId: res.messageId || msg.waMessageId,
+                    sentAt: new Date(),
+                    retryCount: nextRetryCount,
+                    errorMessage: null
+                  }
+                });
+              } else {
+                throw new Error(res?.error || 'Sender function retry failed');
+              }
+            } else {
+              // For custom/unknown templates, use sendTemplate from client.js
+              // which now auto-resolves the correct language code from the DB
+              const { sendTemplate } = await import('@/lib/whatsapp/client');
+              res = await sendTemplate({
+                to: msg.phoneNumber,
+                templateName: msg.templateName,
+                languageCode: 'en', // Will be overridden by resolveTemplateLanguage
+                components: []
+              });
+              if (res) {
+                await db.whatsAppMessage.update({
+                  where: { id: msg.id },
+                  data: {
+                    status: 'sent',
+                    waMessageId: res.messages?.[0]?.id || msg.waMessageId,
+                    sentAt: new Date(),
+                    retryCount: nextRetryCount,
+                    errorMessage: null
+                  }
+                });
+              } else {
+                throw new Error('Template retry returned empty response');
+              }
+            }
           } else if (msg.body) {
             // If it was a text message, re-send text
             res = await WhatsAppService.sendTextMessage(msg.phoneNumber, msg.body);
-          }
-
-          if (res) {
-            await db.whatsAppMessage.update({
-              where: { id: msg.id },
-              data: {
-                status: 'sent',
-                waMessageId: res.messages?.[0]?.id || msg.waMessageId,
-                sentAt: new Date(),
-                retryCount: nextRetryCount,
-                errorMessage: null
-              }
-            });
-          } else {
-            throw new Error('Message retry returned empty response');
+            if (res) {
+              await db.whatsAppMessage.update({
+                where: { id: msg.id },
+                data: {
+                  status: 'sent',
+                  waMessageId: res.messages?.[0]?.id || msg.waMessageId,
+                  sentAt: new Date(),
+                  retryCount: nextRetryCount,
+                  errorMessage: null
+                }
+              });
+            } else {
+              throw new Error('Text message retry returned empty response');
+            }
           }
         } catch (err: any) {
           const nextRetryAt = getNextRetryTime(nextRetryCount);

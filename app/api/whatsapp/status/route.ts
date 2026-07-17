@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   const { phoneId, wabaId, accessToken } = config;
-  const apiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0';
+  const apiVersion = process.env.WHATSAPP_API_VERSION || 'v23.0';
 
   try {
     // 1. Fetch Phone Number details (Display Name, Display Phone, Quality, Limit Tier)
