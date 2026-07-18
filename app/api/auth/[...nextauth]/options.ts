@@ -89,6 +89,88 @@ function getCustomerImageProxy(customerId: string, imageStr: string | null): str
   return imageStr;
 }
 
+async function autoOptInCustomer(phone: string, customerId: string) {
+  try {
+    const { formatPhone } = await import('@/lib/whatsapp/client');
+    const formatted = formatPhone(phone);
+    if (!formatted) return;
+
+    const now = new Date();
+
+    // Check WhatsAppOptIn
+    const existing = await prisma.whatsAppOptIn.findUnique({
+      where: { phone: formatted }
+    });
+
+    let isWaOptedOut = false;
+
+    if (!existing) {
+      // Create as opted_in
+      await prisma.whatsAppOptIn.create({
+        data: {
+          phone: formatted,
+          status: 'opted_in',
+          consentDate: now,
+          source: 'webstore_login'
+        }
+      });
+    } else if (existing.source === 'webhook_optout' && existing.status === 'opted_out') {
+      // Keep explicit STOP opt-out
+      isWaOptedOut = true;
+    } else {
+      // Update existing record
+      await prisma.whatsAppOptIn.update({
+        where: { phone: formatted },
+        data: {
+          status: 'opted_in',
+          consentDate: now,
+          source: 'webstore_login'
+        }
+      });
+    }
+
+    // Upsert EmailOptIn
+    await prisma.emailOptIn.upsert({
+      where: { phone: formatted },
+      update: {
+        status: 'opted_in',
+        consentDate: now,
+        source: 'webstore_login'
+      },
+      create: {
+        phone: formatted,
+        status: 'opted_in',
+        consentDate: now,
+        source: 'webstore_login'
+      }
+    });
+
+    // Update customer table
+    await prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        whatsappOptedOut: isWaOptedOut,
+        emailOptedOut: false
+      }
+    });
+
+    // Sync communityMember if exists
+    try {
+      const communityMember = await prisma.communityMember.findUnique({
+        where: { customerId }
+      });
+      if (communityMember) {
+        await prisma.communityMember.update({
+          where: { id: communityMember.id },
+          data: { whatsappOptIn: !isWaOptedOut }
+        });
+      }
+    } catch (e) {}
+  } catch (err: any) {
+    console.error('[AUTH] Auto opt-in failed:', err.message);
+  }
+}
+
 export const authOptions: AuthOptions = {
   providers: [
     GoogleProvider({
@@ -395,6 +477,8 @@ export const authOptions: AuthOptions = {
               }
             })();
 
+            await autoOptInCustomer(fullPhone, customer.id);
+
             return {
               id: customer.id,
               name: customer.name ?? "User",
@@ -569,6 +653,8 @@ export const authOptions: AuthOptions = {
               userAgent: providedUserAgent
             }
           }).catch(console.error);
+
+          await autoOptInCustomer(fullPhone, customer.id);
 
           return {
             id: customer.id,

@@ -255,10 +255,7 @@ export default function LoginPage() {
       return;
     }
 
-    if (showOptInSection && !optIn) {
-      setErrors({ phone: "Please check the box to agree to updates." });
-      return;
-    }
+    // Auto-opt-in is handled on backend. Removed blocking client-side requirement.
 
     const fullPhone = country.code + cleaned;
     

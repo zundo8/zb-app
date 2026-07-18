@@ -226,12 +226,44 @@ export async function GET(req: NextRequest) {
 
             if (senderFn) {
               // Use the proper sender function which constructs correct components
-              res = await senderFn({
+              // For cart recovery retries, load actual cart data from DB
+              let retryParams: any = {
                 phone: msg.phoneNumber,
-                customerName: 'there', // Minimal fallback for retries
+                customerName: 'there',
                 orderId: msg.orderId || '',
                 checkoutUrl: '',
-              });
+              };
+
+              // If this is a cart recovery message, reconstruct full context from cart
+              const isCartRecoveryRetry = ['abandoned_cart', 'cart_followup', 'cart_final'].includes(eventType);
+              if (isCartRecoveryRetry && msg.cartId) {
+                try {
+                  const cart = await db.cart.findUnique({
+                    where: { id: msg.cartId },
+                    include: { customer: true, items: true }
+                  });
+                  if (cart) {
+                    const firstItem = cart.items?.[0] || {} as any;
+                    retryParams = {
+                      phone: msg.phoneNumber,
+                      customerName: cart.customer?.name || 'there',
+                      checkoutUrl: `https://www.zicabella.com/cart?recover=${cart.id}`,
+                      productImageUrl: firstItem.image || '',
+                      productName: firstItem.title || '',
+                      productHandle: firstItem.handle || '',
+                      cartTotal: String(cart.subtotal || '0.00'),
+                      itemCount: cart.items?.length || 0,
+                      cartId: cart.id,
+                      discountCode: 'ZICA10',
+                      productId: firstItem.productId || '',
+                    };
+                  }
+                } catch (cartErr: any) {
+                  console.warn(`[Scheduler] Failed to load cart ${msg.cartId} for retry:`, cartErr.message);
+                }
+              }
+
+              res = await senderFn(retryParams);
               // senderFn returns { success, messageId, ... }
               if (res?.success) {
                 await db.whatsAppMessage.update({
@@ -318,7 +350,11 @@ export async function GET(req: NextRequest) {
       const delay3 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step3', '10080'), 10) || 10080;
 
       const now = new Date();
-      const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // Only carts from the last 24 hours
+      // Use the maximum configured delay + 1 day buffer as lookback window.
+      // This ensures Step 3 carts (default 7 days = 10080 min) are still picked up.
+      const maxDelayMinutes = Math.max(delay1, delay2, delay3);
+      const lookbackMinutes = maxDelayMinutes + 1440; // max delay + 1 day buffer
+      const cutoffDate = new Date(Date.now() - lookbackMinutes * 60 * 1000);
 
       const carts = await db.cart.findMany({
         where: {

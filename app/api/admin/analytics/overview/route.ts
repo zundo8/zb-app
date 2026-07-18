@@ -15,7 +15,6 @@ async function handler(req: Request) {
   const now = new Date();
   const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endDate = to ? new Date(to) : now;
-  endDate.setHours(23, 59, 59, 999);
 
   // Previous period for comparison (same duration, immediately before)
   const durationMs = endDate.getTime() - startDate.getTime();
@@ -113,24 +112,37 @@ async function handler(req: Request) {
   // ─── CUSTOMER METRICS ─────────────────────────────────
   const [totalCustomers, prevTotalCustomers] = await Promise.all([
     prisma.order.findMany({
-      where: { createdAt: dateFilter, status: { notIn: excludeStatuses }, ...orderTypeFilter },
+      where: {
+        createdAt: dateFilter,
+        status: { notIn: excludeStatuses },
+        customerId: { not: null },
+        ...orderTypeFilter
+      },
       select: { customerId: true },
       distinct: ['customerId'],
     }),
     prisma.order.findMany({
-      where: { createdAt: prevDateFilter, status: { notIn: excludeStatuses }, ...orderTypeFilter },
+      where: {
+        createdAt: prevDateFilter,
+        status: { notIn: excludeStatuses },
+        customerId: { not: null },
+        ...orderTypeFilter
+      },
       select: { customerId: true },
       distinct: ['customerId'],
     }),
   ]);
 
-  const customerIds = totalCustomers.map((c: any) => c.customerId);
+  const customerIds = totalCustomers.map((c: any) => c.customerId).filter(Boolean) as string[];
   // New customers = those whose earliest order is within the current period
   let newCustomerCount = 0;
   if (customerIds.length > 0) {
     const firstOrders = await prisma.order.groupBy({
       by: ['customerId'],
-      where: { customerId: { in: customerIds }, status: { notIn: excludeStatuses } },
+      where: {
+        customerId: { in: customerIds },
+        status: { notIn: excludeStatuses }
+      },
       _min: { createdAt: true },
     });
     newCustomerCount = firstOrders.filter(
@@ -138,6 +150,32 @@ async function handler(req: Request) {
     ).length;
   }
   const returningCustomerCount = customerIds.length - newCustomerCount;
+
+  // ─── LOGIN & SIGNUP METRICS ────────────────────────────
+  const [totalLogins, prevTotalLogins, newSignups, prevNewSignups] = await Promise.all([
+    prisma.appLogin.count({
+      where: {
+        createdAt: dateFilter,
+        status: { in: ['LOGGED_IN', 'SUCCESS', 'ACCOUNT_CREATED'] },
+      },
+    }),
+    prisma.appLogin.count({
+      where: {
+        createdAt: prevDateFilter,
+        status: { in: ['LOGGED_IN', 'SUCCESS', 'ACCOUNT_CREATED'] },
+      },
+    }),
+    prisma.customer.count({
+      where: {
+        createdAt: dateFilter,
+      },
+    }),
+    prisma.customer.count({
+      where: {
+        createdAt: prevDateFilter,
+      },
+    }),
+  ]);
 
   // ─── SESSION & VISITOR METRICS ─────────────────────────
   const [sessionCount, prevSessionCount, uniqueVisitors, prevUniqueVisitors] = await Promise.all([
@@ -260,6 +298,12 @@ async function handler(req: Request) {
       new: newCustomerCount,
       returning: returningCustomerCount,
       change: pctChange(customerIds.length, prevTotalCustomers.length),
+    },
+    logins: {
+      total: totalLogins,
+      new: newSignups,
+      change: pctChange(totalLogins, prevTotalLogins),
+      newChange: pctChange(newSignups, prevNewSignups),
     },
     visitors: {
       total: uniqueVisitors.length,

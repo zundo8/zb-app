@@ -15,7 +15,6 @@ async function handler(req: Request) {
   const now = new Date();
   const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endDate = to ? new Date(to) : now;
-  endDate.setHours(23, 59, 59, 999);
 
   const dateFilter = { gte: startDate, lte: endDate };
   const platformFilter = platform ? { platform } : {};

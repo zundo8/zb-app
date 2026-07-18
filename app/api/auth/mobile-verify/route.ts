@@ -8,6 +8,88 @@ export const dynamic = "force-dynamic";
 
 import { checkRateLimit } from "@/lib/rate-limit";
 
+async function autoOptInCustomer(phone: string, customerId: string) {
+  try {
+    const { formatPhone } = await import('@/lib/whatsapp/client');
+    const formatted = formatPhone(phone);
+    if (!formatted) return;
+
+    const now = new Date();
+
+    // Check WhatsAppOptIn
+    const existing = await prisma.whatsAppOptIn.findUnique({
+      where: { phone: formatted }
+    });
+
+    let isWaOptedOut = false;
+
+    if (!existing) {
+      // Create as opted_in
+      await prisma.whatsAppOptIn.create({
+        data: {
+          phone: formatted,
+          status: 'opted_in',
+          consentDate: now,
+          source: 'webstore_login'
+        }
+      });
+    } else if (existing.source === 'webhook_optout' && existing.status === 'opted_out') {
+      // Keep explicit STOP opt-out
+      isWaOptedOut = true;
+    } else {
+      // Update existing record
+      await prisma.whatsAppOptIn.update({
+        where: { phone: formatted },
+        data: {
+          status: 'opted_in',
+          consentDate: now,
+          source: 'webstore_login'
+        }
+      });
+    }
+
+    // Upsert EmailOptIn
+    await prisma.emailOptIn.upsert({
+      where: { phone: formatted },
+      update: {
+        status: 'opted_in',
+        consentDate: now,
+        source: 'webstore_login'
+      },
+      create: {
+        phone: formatted,
+        status: 'opted_in',
+        consentDate: now,
+        source: 'webstore_login'
+      }
+    });
+
+    // Update customer table
+    await prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        whatsappOptedOut: isWaOptedOut,
+        emailOptedOut: false
+      }
+    });
+
+    // Sync communityMember if exists
+    try {
+      const communityMember = await prisma.communityMember.findUnique({
+        where: { customerId }
+      });
+      if (communityMember) {
+        await prisma.communityMember.update({
+          where: { id: communityMember.id },
+          data: { whatsappOptIn: !isWaOptedOut }
+        });
+      }
+    } catch (e) {}
+  } catch (err: any) {
+    console.error('[Mobile Verify] Auto opt-in failed:', err.message);
+  }
+}
+
 export async function POST(req: Request) {
   const rateLimitResult = await checkRateLimit(req, "auth-mobile-verify", { maxRequests: 30, windowMs: 60_000 });
   if (!rateLimitResult.allowed && rateLimitResult.response) {
@@ -235,6 +317,8 @@ export async function POST(req: Request) {
         }
       })();
 
+      await autoOptInCustomer(fullPhone, customer.id);
+
       return NextResponse.json({
         user: {
           id: customer.id,
@@ -351,6 +435,8 @@ export async function POST(req: Request) {
       customerEmail: customer.email ?? null,
       customerPhone: customer.phone ?? null,
     });
+
+    await autoOptInCustomer(fullPhone, customer.id);
 
     return NextResponse.json({
       user: {

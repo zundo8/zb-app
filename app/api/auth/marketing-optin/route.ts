@@ -27,33 +27,60 @@ export async function POST(req: Request) {
 
     const now = new Date();
 
+    // Always opt users in for both WhatsApp and Email on login.
+    // Users who log in / provide their phone are implicitly consenting
+    // to receive order updates and marketing messages.
+    // They can opt out at any time by sending "STOP" via WhatsApp.
+    const whatsappStatus = 'opted_in';
+    const emailStatus = 'opted_in';
+
     // 1. Save WhatsApp consent to WhatsAppOptIn table
-    await prisma.whatsAppOptIn.upsert({
-      where: { phone: formatted },
-      update: {
-        status: whatsappOptIn ? 'opted_in' : 'opted_out',
-        consentDate: now,
-        source: 'webstore_login',
-      },
-      create: {
-        phone: formatted,
-        status: whatsappOptIn ? 'opted_in' : 'opted_out',
-        consentDate: now,
-        source: 'webstore_login',
-      },
-    });
+    //    Only update to opted_in if no record exists OR if user is not
+    //    explicitly opted out via webhook (STOP keyword).
+    try {
+      const existing = await prisma.whatsAppOptIn.findUnique({
+        where: { phone: formatted },
+      });
+
+      if (!existing) {
+        // No record yet — create as opted_in
+        await prisma.whatsAppOptIn.create({
+          data: {
+            phone: formatted,
+            status: whatsappStatus,
+            consentDate: now,
+            source: 'webstore_login',
+          },
+        });
+      } else if (existing.source === 'webhook_optout') {
+        // User explicitly sent STOP — do NOT override their opt-out
+        console.log(`[Marketing OptIn] Preserving explicit webhook opt-out for ${formatted}`);
+      } else {
+        // Existing record from login or other source — update to opted_in
+        await prisma.whatsAppOptIn.update({
+          where: { phone: formatted },
+          data: {
+            status: whatsappStatus,
+            consentDate: now,
+            source: 'webstore_login',
+          },
+        });
+      }
+    } catch (waErr: any) {
+      console.warn('[Marketing OptIn] WhatsApp opt-in save warning:', waErr.message);
+    }
 
     // 2. Save Email consent to EmailOptIn table
     await prisma.emailOptIn.upsert({
       where: { phone: formatted },
       update: {
-        status: emailOptIn ? 'opted_in' : 'opted_out',
+        status: emailStatus,
         consentDate: now,
         source: 'webstore_login',
       },
       create: {
         phone: formatted,
-        status: emailOptIn ? 'opted_in' : 'opted_out',
+        status: emailStatus,
         consentDate: now,
         source: 'webstore_login',
       },
@@ -68,11 +95,16 @@ export async function POST(req: Request) {
       });
 
       if (customer) {
+        const existing = await prisma.whatsAppOptIn.findUnique({
+          where: { phone: formatted },
+        });
+        const isWaOptedOut = existing?.source === 'webhook_optout' && existing?.status === 'opted_out';
+
         await prisma.customer.update({
           where: { id: customer.id },
           data: {
-            whatsappOptedOut: !whatsappOptIn,
-            emailOptedOut: !emailOptIn,
+            whatsappOptedOut: isWaOptedOut,
+            emailOptedOut: false,
           },
         });
 
@@ -84,7 +116,7 @@ export async function POST(req: Request) {
           if (communityMember) {
             await prisma.communityMember.update({
               where: { id: communityMember.id },
-              data: { whatsappOptIn: whatsappOptIn },
+              data: { whatsappOptIn: !isWaOptedOut },
             });
           }
         } catch (err) {

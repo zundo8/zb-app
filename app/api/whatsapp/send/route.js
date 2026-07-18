@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import * as templates from '@/lib/whatsapp/templates';
 import { sendTemplate, formatPhone, getConfig } from '@/lib/whatsapp/client';
 import { logMessage } from '@/lib/whatsapp/logger';
-import { isOptedIn } from '@/lib/whatsapp/templates';
+import { isOptedIn, isExplicitlyOptedOut } from '@/lib/whatsapp/templates';
 import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -65,7 +65,34 @@ export async function POST(req) {
       
       const isMarketing = dbTemplate?.category === 'MARKETING' || templateName === 'zica_cart_recovery_v1';
 
-      if (isMarketing) {
+      // Cart recovery templates use lenient consent (only block explicit STOP opt-outs)
+      const CART_RECOVERY_NAMES = [
+        'abandoned_cart_a1', 'abandoned_cart_a2', 'abandoned_cart_a3',
+        'zica_cart_recovery_v1', 'zb_cart_final', 'zb_cart_followup'
+      ];
+      const isCartRecoveryTemplate = CART_RECOVERY_NAMES.includes(templateName);
+
+      if (isCartRecoveryTemplate) {
+        const explicitlyOut = await isExplicitlyOptedOut(recipient);
+        if (explicitlyOut) {
+          const errorMsg = 'Recipient has explicitly opted out of WhatsApp messages (sent STOP).';
+          console.warn(`[WhatsApp API Send Route] Explicit opt-out blocked cart recovery template ${templateName} to ${recipient}`);
+          
+          await logMessage({
+            to_number: recipient,
+            template_name: templateName,
+            message_body: `Template: ${templateName} (Blocked: Explicit Opt-Out)`,
+            status: 'failed',
+            message_id: null,
+            error_details: { error: errorMsg }
+          });
+
+          return NextResponse.json(
+            { error: errorMsg },
+            { status: 403 }
+          );
+        }
+      } else if (isMarketing) {
         const consented = await isOptedIn(recipient);
         if (!consented) {
           const errorMsg = 'Recipient has not opted in to receive marketing messages.';

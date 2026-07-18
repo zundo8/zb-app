@@ -25,6 +25,7 @@ interface OverviewData {
     paymentBreakdown: { method: string; count: number; revenue: number }[];
   };
   customers: { total: number; new: number; returning: number; change: number };
+  logins: { total: number; new: number; change: number; newChange: number };
   visitors: { total: number; active: number; change: number };
   sessions: { total: number; web: number; app: number; change: number };
   funnel: { pageViews: number; productViews: number; addToCart: number; checkoutStarted: number; paymentInitiated: number; purchases: number };
@@ -40,7 +41,7 @@ interface ChartData {
   timeSeries: {
     date: string; revenue: number; orders: number; sessions: number;
     visitors: number; add_to_cart: number; begin_checkout: number;
-    purchase: number; conversionRate: number;
+    purchase: number; conversionRate: number; logins: number; newLogins: number;
   }[];
   granularity: string;
 }
@@ -123,7 +124,7 @@ export default function AnalyticsDashboard() {
   const [traffic, setTraffic] = useState<TrafficSource[] | null>(null);
   const [realtime, setRealtime] = useState<RealtimeData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeChart, setActiveChart] = useState<"revenue" | "orders" | "sessions" | "conversion">("revenue");
+  const [activeChart, setActiveChart] = useState<"revenue" | "orders" | "sessions" | "conversion" | "logins" | "newLogins">("revenue");
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchAll = useCallback(async () => {
@@ -310,17 +311,19 @@ export default function AnalyticsDashboard() {
 
       {/* ─── KPI Cards ───────────────────────────────────── */}
       {overview && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
           <KpiCard label="Total Revenue" value={formatCurrency(overview.revenue.total)} change={overview.revenue.change} icon={DollarSign} />
+          <KpiCard label="Net Revenue" value={formatCurrency(overview.revenue.net)} icon={CreditCard} />
           <KpiCard label="Total Orders" value={formatNumber(overview.orders.total)} change={overview.orders.change} icon={ShoppingBag} />
           <KpiCard label="Avg Order Value" value={formatCurrency(overview.orders.aov)} icon={Target} />
           <KpiCard label="Customers" value={formatNumber(overview.customers.total)} change={overview.customers.change} icon={Users} />
-          <KpiCard label="Conversion Rate" value={`${overview.rates.conversion}%`} icon={Percent} />
+          <KpiCard label="Total Logins" value={formatNumber(overview.logins.total)} change={overview.logins.change} icon={Activity} />
+          <KpiCard label="New Signups" value={formatNumber(overview.logins.new)} change={overview.logins.newChange} icon={Users} />
           <KpiCard label="Total Visitors" value={formatNumber(overview.visitors.total)} change={overview.visitors.change} icon={Eye} />
           <KpiCard label="Sessions" value={formatNumber(overview.sessions.total)} change={overview.sessions.change} icon={Activity} />
+          <KpiCard label="Conversion Rate" value={`${overview.rates.conversion}%`} icon={Percent} />
           <KpiCard label="Add to Cart Rate" value={`${overview.rates.addToCart}%`} icon={ShoppingCart} />
           <KpiCard label="Cart Abandonment" value={`${overview.rates.cartAbandonment}%`} icon={ArrowDownRight} />
-          <KpiCard label="Net Revenue" value={formatCurrency(overview.revenue.net)} icon={CreditCard} />
         </div>
       )}
 
@@ -329,8 +332,8 @@ export default function AnalyticsDashboard() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-sm font-semibold text-foreground/70">Performance Over Time</h2>
-            <div className="flex gap-1 bg-foreground/[0.03] rounded-lg p-0.5 border border-foreground/5">
-              {(["revenue", "orders", "sessions", "conversion"] as const).map((key) => (
+            <div className="flex flex-wrap gap-1 bg-foreground/[0.03] rounded-lg p-0.5 border border-foreground/5">
+              {(["revenue", "orders", "sessions", "conversion", "logins", "newLogins"] as const).map((key) => (
                 <button
                   key={key}
                   onClick={() => setActiveChart(key)}
@@ -338,7 +341,7 @@ export default function AnalyticsDashboard() {
                     activeChart === key ? "bg-foreground text-background" : "text-foreground/40 hover:text-foreground"
                   }`}
                 >
-                  {key}
+                  {key === "newLogins" ? "New Signups" : key}
                 </button>
               ))}
             </div>
@@ -378,6 +381,8 @@ export default function AnalyticsDashboard() {
                   formatter={(value: any) =>
                     activeChart === "revenue" ? [formatCurrency(value), "Revenue"]
                     : activeChart === "conversion" ? [`${value}%`, "Conversion"]
+                    : activeChart === "logins" ? [formatNumber(value), "Logins"]
+                    : activeChart === "newLogins" ? [formatNumber(value), "New Signups"]
                     : [formatNumber(value), activeChart.charAt(0).toUpperCase() + activeChart.slice(1)]
                   }
                 />
@@ -387,6 +392,8 @@ export default function AnalyticsDashboard() {
                     activeChart === "revenue" ? "revenue"
                     : activeChart === "orders" ? "orders"
                     : activeChart === "sessions" ? "sessions"
+                    : activeChart === "logins" ? "logins"
+                    : activeChart === "newLogins" ? "newLogins"
                     : "conversionRate"
                   }
                   stroke="hsl(var(--foreground))"
@@ -452,39 +459,92 @@ export default function AnalyticsDashboard() {
 
         {/* Real-time Activity */}
         {realtime && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <h2 className="text-sm font-semibold text-foreground/70">Real-Time Activity</h2>
-            </div>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <h2 className="text-sm font-semibold text-foreground/70">Real-Time Activity</h2>
+              </div>
 
-            <div className="grid grid-cols-3 gap-3 mb-5">
-              <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                <div className="text-xl font-bold">{realtime.summary.totalActive}</div>
-                <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Active Now</div>
-              </div>
-              <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                <div className="text-xl font-bold">{realtime.summary.newVisitors}</div>
-                <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">New</div>
-              </div>
-              <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                <div className="text-xl font-bold">{realtime.summary.returningVisitors}</div>
-                <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Returning</div>
-              </div>
-            </div>
-
-            {/* Top Pages */}
-            <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Active Pages</h3>
-            <div className="space-y-1 max-h-[200px] overflow-y-auto">
-              {realtime.topPages.slice(0, 10).map((page, i) => (
-                <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-foreground/[0.03] transition-colors">
-                  <span className="text-[11px] text-foreground/60 truncate max-w-[200px]">{page.page}</span>
-                  <span className="text-[11px] font-semibold">{page.count}</span>
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                  <div className="text-xl font-bold">{realtime.summary.totalActive}</div>
+                  <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Active Now</div>
                 </div>
-              ))}
-              {realtime.topPages.length === 0 && (
-                <div className="text-center py-6 text-foreground/20 text-xs">No active visitors</div>
-              )}
+                <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                  <div className="text-xl font-bold">{realtime.summary.newVisitors}</div>
+                  <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">New</div>
+                </div>
+                <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                  <div className="text-xl font-bold">{realtime.summary.returningVisitors}</div>
+                  <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Returning</div>
+                </div>
+              </div>
+
+              {/* Top Pages */}
+              <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Active Pages</h3>
+              <div className="space-y-1 max-h-[160px] overflow-y-auto mb-6 pr-1 custom-scrollbar">
+                {realtime.topPages.slice(0, 8).map((page, i) => (
+                  <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-foreground/[0.03] transition-colors">
+                    <span className="text-[11px] text-foreground/60 truncate max-w-[240px]">{page.page}</span>
+                    <span className="text-[11px] font-semibold">{page.count}</span>
+                  </div>
+                ))}
+                {realtime.topPages.length === 0 && (
+                  <div className="text-center py-6 text-foreground/20 text-xs">No active visitors</div>
+                )}
+              </div>
+            </div>
+
+            {/* Device & Browser distributions */}
+            <div className="pt-4 border-t border-foreground/5 grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Devices</h3>
+                <div className="space-y-2">
+                  {Object.entries(realtime.breakdowns.device).map(([device, count]) => {
+                    const total = Object.values(realtime.breakdowns.device).reduce((a, b) => a + b, 0);
+                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                    return (
+                      <div key={device} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-medium text-foreground/60 capitalize">
+                          <span>{device}</span>
+                          <span>{pct}%</span>
+                        </div>
+                        <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {Object.keys(realtime.breakdowns.device).length === 0 && (
+                    <div className="text-[10px] text-foreground/30 py-2 text-center">No devices</div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Browsers</h3>
+                <div className="space-y-2">
+                  {Object.entries(realtime.breakdowns.browser).slice(0, 3).map(([browser, count]) => {
+                    const total = Object.values(realtime.breakdowns.browser).reduce((a, b) => a + b, 0);
+                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                    return (
+                      <div key={browser} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-medium text-foreground/60 capitalize text-ellipsis overflow-hidden">
+                          <span className="truncate max-w-[80px]">{browser}</span>
+                          <span>{pct}%</span>
+                        </div>
+                        <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {Object.keys(realtime.breakdowns.browser).length === 0 && (
+                    <div className="text-[10px] text-foreground/30 py-2 text-center">No browsers</div>
+                  )}
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
