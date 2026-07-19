@@ -115,7 +115,6 @@ async function handler(req: Request) {
       where: {
         createdAt: dateFilter,
         status: { notIn: excludeStatuses },
-        customerId: { not: null },
         ...orderTypeFilter
       },
       select: { customerId: true },
@@ -125,7 +124,6 @@ async function handler(req: Request) {
       where: {
         createdAt: prevDateFilter,
         status: { notIn: excludeStatuses },
-        customerId: { not: null },
         ...orderTypeFilter
       },
       select: { customerId: true },
@@ -250,9 +248,19 @@ async function handler(req: Request) {
     }),
   ]);
 
-  const [webSessions, appSessions] = await Promise.all([
+  const [webSessions, appSessions, webVisitors, appVisitors] = await Promise.all([
     prisma.analyticsSession.count({ where: { startedAt: dateFilter, platform: 'web' } }),
     prisma.analyticsSession.count({ where: { startedAt: dateFilter, platform: 'app' } }),
+    prisma.analyticsSession.findMany({
+      where: { startedAt: dateFilter, platform: 'web' },
+      select: { anonymousId: true },
+      distinct: ['anonymousId'],
+    }),
+    prisma.analyticsSession.findMany({
+      where: { startedAt: dateFilter, platform: 'app' },
+      select: { anonymousId: true },
+      distinct: ['anonymousId'],
+    }),
   ]);
 
   // ─── DERIVED RATES ────────────────────────────────────
@@ -339,8 +347,18 @@ async function handler(req: Request) {
       cartAbandonment: Math.round(cartAbandonmentRate * 100) / 100,
     },
     platformSplit: {
-      web: { orders: webOrders._count, revenue: Math.round((webOrders._sum.totalPrice || 0) * 100) / 100, sessions: webSessions },
-      app: { orders: appOrders._count, revenue: Math.round((appOrders._sum.totalPrice || 0) * 100) / 100, sessions: appSessions },
+      web: {
+        orders: webOrders._count,
+        revenue: Math.round((webOrders._sum.totalPrice || 0) * 100) / 100,
+        sessions: webSessions,
+        visitors: webVisitors.length,
+      },
+      app: {
+        orders: appOrders._count,
+        revenue: Math.round((appOrders._sum.totalPrice || 0) * 100) / 100,
+        sessions: appSessions,
+        visitors: appVisitors.length,
+      },
     },
   });
   } catch (error: any) {

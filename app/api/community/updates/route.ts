@@ -2,50 +2,14 @@ import { NextResponse } from 'next/server';
 import prisma from "@/lib/db";
 
 export async function GET() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    try {
-      const updates = await prisma.communityUpdate.findMany({
-        orderBy: { createdAt: 'desc' }
-      });
-      return NextResponse.json({ updates });
-    } catch (error) {
-      console.error('Community Update GET Error:', error);
-      return NextResponse.json({ error: 'Failed to fetch updates' }, { status: 500 });
-    }
-  }
-
   try {
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/CommunityUpdate?select=*&order=createdAt.desc`,
-      {
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          'Content-Type': 'application/json',
-        },
-        next: { revalidate: 300, tags: ['community'] },
-      }
-    );
-
-    if (!res.ok) {
-      throw new Error(`REST fetch failed: ${res.statusText}`);
-    }
-
-    const updates = await res.json();
+    const updates = await prisma.communityUpdate.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
     return NextResponse.json({ updates });
   } catch (error: any) {
-    console.error('Community Update GET Error (Supabase fetch failed, falling back to Prisma):', error.message);
-    try {
-      const updates = await prisma.communityUpdate.findMany({
-        orderBy: { createdAt: 'desc' }
-      });
-      return NextResponse.json({ updates });
-    } catch (fallbackError) {
-      return NextResponse.json({ error: 'Failed to fetch updates' }, { status: 500 });
-    }
+    console.error('Community Update GET Error (Direct Prisma query failed):', error.message);
+    return NextResponse.json({ error: 'Failed to fetch updates' }, { status: 500 });
   }
 }
 

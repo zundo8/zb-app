@@ -13,6 +13,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import Globe3D from "@/components/Globe3D";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -32,8 +33,8 @@ interface OverviewData {
   carts: { total: number; active: number; abandoned: number; converted: number; abandonmentRate: number };
   rates: { conversion: number; addToCart: number; cartToCheckout: number; checkoutToPurchase: number; cartAbandonment: number };
   platformSplit: {
-    web: { orders: number; revenue: number; sessions: number };
-    app: { orders: number; revenue: number; sessions: number };
+    web: { orders: number; revenue: number; sessions: number; visitors: number };
+    app: { orders: number; revenue: number; sessions: number; visitors: number };
   };
 }
 
@@ -61,7 +62,12 @@ interface TrafficSource {
 interface RealtimeData {
   summary: { totalActive: number; webActive: number; appActive: number; newVisitors: number; returningVisitors: number };
   topPages: { page: string; count: number }[];
-  breakdowns: { device: Record<string, number>; browser: Record<string, number> };
+  breakdowns: {
+    device: Record<string, number>;
+    browser: Record<string, number>;
+    os?: Record<string, number>;
+    country?: Record<string, number>;
+  };
 }
 
 // ─── Date Presets ─────────────────────────────────────────
@@ -221,14 +227,19 @@ export default function AnalyticsDashboard() {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-card p-4 lg:p-5 rounded-2xl border border-foreground/5"
+      whileHover={{ y: -4, scale: 1.01, boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)" }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      className="glass-card p-5 rounded-2xl border border-foreground/5 hover:border-foreground/15 bg-gradient-to-br from-foreground/[0.01] to-foreground/[0.03] backdrop-blur-xl relative overflow-hidden group cursor-pointer"
     >
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider">{label}</span>
-        <Icon className="w-3.5 h-3.5 text-foreground/20" />
+      <div className="absolute top-0 right-0 w-24 h-24 bg-foreground/[0.02] rounded-full blur-xl group-hover:bg-foreground/[0.04] transition-all duration-500" />
+      <div className="flex items-center justify-between mb-3.5 relative z-10">
+        <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-wider">{label}</span>
+        <div className="p-1.5 rounded-lg bg-foreground/[0.03] group-hover:bg-foreground/5 transition-colors">
+          <Icon className="w-3.5 h-3.5 text-foreground/30 group-hover:text-foreground/60 transition-colors" />
+        </div>
       </div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-xl lg:text-2xl font-bold tracking-tight">{prefix}{value}</span>
+      <div className="flex items-baseline gap-2 relative z-10">
+        <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">{prefix}{value}</span>
         {change !== undefined && <ChangeBadge value={change} />}
       </div>
     </motion.div>
@@ -409,10 +420,10 @@ export default function AnalyticsDashboard() {
       )}
 
       {/* ─── Funnel + Real-time Row ──────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Conversion Funnel */}
         {funnel && funnel.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 lg:col-span-1">
             <h2 className="text-sm font-semibold text-foreground/70 mb-5">Conversion Funnel</h2>
             <div className="space-y-2">
               {funnel.map((stage, i) => {
@@ -457,93 +468,107 @@ export default function AnalyticsDashboard() {
           </motion.div>
         )}
 
-        {/* Real-time Activity */}
+        {/* Real-time Activity & 3D Globe */}
         {realtime && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <h2 className="text-sm font-semibold text-foreground/70">Real-Time Activity</h2>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 mb-5">
-                <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                  <div className="text-xl font-bold">{realtime.summary.totalActive}</div>
-                  <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Active Now</div>
-                </div>
-                <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                  <div className="text-xl font-bold">{realtime.summary.newVisitors}</div>
-                  <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">New</div>
-                </div>
-                <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                  <div className="text-xl font-bold">{realtime.summary.returningVisitors}</div>
-                  <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Returning</div>
-                </div>
-              </div>
-
-              {/* Top Pages */}
-              <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Active Pages</h3>
-              <div className="space-y-1 max-h-[160px] overflow-y-auto mb-6 pr-1 custom-scrollbar">
-                {realtime.topPages.slice(0, 8).map((page, i) => (
-                  <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-foreground/[0.03] transition-colors">
-                    <span className="text-[11px] text-foreground/60 truncate max-w-[240px]">{page.page}</span>
-                    <span className="text-[11px] font-semibold">{page.count}</span>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 lg:col-span-2 flex flex-col justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+              {/* Left Column: Metrics & Browsed Pages */}
+              <div className="flex flex-col justify-between h-full">
+                <div>
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                    <h2 className="text-sm font-semibold text-foreground/70">Real-Time Activity</h2>
                   </div>
-                ))}
-                {realtime.topPages.length === 0 && (
-                  <div className="text-center py-6 text-foreground/20 text-xs">No active visitors</div>
-                )}
-              </div>
-            </div>
 
-            {/* Device & Browser distributions */}
-            <div className="pt-4 border-t border-foreground/5 grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Devices</h3>
-                <div className="space-y-2">
-                  {Object.entries(realtime.breakdowns.device).map(([device, count]) => {
-                    const total = Object.values(realtime.breakdowns.device).reduce((a, b) => a + b, 0);
-                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                    return (
-                      <div key={device} className="space-y-1">
-                        <div className="flex justify-between text-[10px] font-medium text-foreground/60 capitalize">
-                          <span>{device}</span>
-                          <span>{pct}%</span>
-                        </div>
-                        <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
-                          <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
+                  <div className="grid grid-cols-3 gap-3 mb-5">
+                    <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                      <div className="text-xl font-bold">{realtime.summary.totalActive}</div>
+                      <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Active Now</div>
+                    </div>
+                    <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                      <div className="text-xl font-bold">{realtime.summary.newVisitors}</div>
+                      <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">New</div>
+                    </div>
+                    <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                      <div className="text-xl font-bold">{realtime.summary.returningVisitors}</div>
+                      <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Returning</div>
+                    </div>
+                  </div>
+
+                  {/* Top Pages */}
+                  <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Active Pages</h3>
+                  <div className="space-y-1 max-h-[140px] overflow-y-auto mb-6 pr-1 custom-scrollbar">
+                    {realtime.topPages.slice(0, 8).map((page, i) => (
+                      <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-foreground/[0.03] transition-colors">
+                        <span className="text-[11px] text-foreground/60 truncate max-w-[200px]">{page.page}</span>
+                        <span className="text-[11px] font-semibold">{page.count}</span>
                       </div>
-                    );
-                  })}
-                  {Object.keys(realtime.breakdowns.device).length === 0 && (
-                    <div className="text-[10px] text-foreground/30 py-2 text-center">No devices</div>
-                  )}
+                    ))}
+                    {realtime.topPages.length === 0 && (
+                      <div className="text-center py-6 text-foreground/20 text-xs">No active visitors</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Device & Browser distributions */}
+                <div className="pt-4 border-t border-foreground/5 grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Devices</h3>
+                    <div className="space-y-2">
+                      {Object.entries(realtime.breakdowns.device).map(([device, count]) => {
+                        const total = Object.values(realtime.breakdowns.device).reduce((a, b) => a + b, 0);
+                        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                        return (
+                          <div key={device} className="space-y-1">
+                            <div className="flex justify-between text-[10px] font-medium text-foreground/60 capitalize">
+                              <span>{device}</span>
+                              <span>{pct}%</span>
+                            </div>
+                            <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {Object.keys(realtime.breakdowns.device).length === 0 && (
+                        <div className="text-[10px] text-foreground/30 py-2 text-center">No devices</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Browsers</h3>
+                    <div className="space-y-2">
+                      {Object.entries(realtime.breakdowns.browser).slice(0, 3).map(([browser, count]) => {
+                        const total = Object.values(realtime.breakdowns.browser).reduce((a, b) => a + b, 0);
+                        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                        return (
+                          <div key={browser} className="space-y-1">
+                            <div className="flex justify-between text-[10px] font-medium text-foreground/60 capitalize text-ellipsis overflow-hidden">
+                              <span className="truncate max-w-[80px]">{browser}</span>
+                              <span>{pct}%</span>
+                            </div>
+                            <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {Object.keys(realtime.breakdowns.browser).length === 0 && (
+                        <div className="text-[10px] text-foreground/30 py-2 text-center">No browsers</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Browsers</h3>
-                <div className="space-y-2">
-                  {Object.entries(realtime.breakdowns.browser).slice(0, 3).map(([browser, count]) => {
-                    const total = Object.values(realtime.breakdowns.browser).reduce((a, b) => a + b, 0);
-                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                    return (
-                      <div key={browser} className="space-y-1">
-                        <div className="flex justify-between text-[10px] font-medium text-foreground/60 capitalize text-ellipsis overflow-hidden">
-                          <span className="truncate max-w-[80px]">{browser}</span>
-                          <span>{pct}%</span>
-                        </div>
-                        <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {Object.keys(realtime.breakdowns.browser).length === 0 && (
-                    <div className="text-[10px] text-foreground/30 py-2 text-center">No browsers</div>
-                  )}
+              {/* Right Column: 3D Interactive Globe */}
+              <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-foreground/5 pt-6 md:pt-0 md:pl-6 min-h-[300px]">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Globe className="w-3.5 h-3.5 text-foreground/40 animate-pulse" />
+                  <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-wider">Live Geo Tracking</span>
                 </div>
+                <Globe3D countries={realtime.breakdowns.country || {}} />
               </div>
             </div>
           </motion.div>
@@ -643,30 +668,36 @@ export default function AnalyticsDashboard() {
       {/* ─── Platform Split ──────────────────────────────── */}
       {overview && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
-          <h2 className="text-sm font-semibold text-foreground/70 mb-4">Web vs App</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <h2 className="text-sm font-semibold text-foreground/70 mb-4">Web vs App Breakdown</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(["web", "app"] as const).map((p) => {
               const data = overview.platformSplit[p];
               const icon = p === "web" ? Monitor : Smartphone;
               const Icon = icon;
               return (
-                <div key={p} className="p-4 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Icon className="w-4 h-4 text-foreground/40" />
-                    <span className="text-xs font-semibold uppercase text-foreground/50">{p === "web" ? "Webstore" : "Mobile App"}</span>
+                <div key={p} className="p-5 rounded-2xl bg-gradient-to-br from-foreground/[0.01] to-foreground/[0.02] border border-foreground/5 hover:border-foreground/10 transition-colors">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="p-1.5 rounded-lg bg-foreground/[0.03]">
+                      <Icon className="w-4 h-4 text-foreground/60" />
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground/60">{p === "web" ? "Webstore" : "Mobile App"}</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div>
-                      <div className="text-lg font-bold">{formatNumber(data.orders)}</div>
-                      <div className="text-[9px] text-foreground/30 uppercase mt-0.5">Orders</div>
+                      <div className="text-xl font-bold tracking-tight">{formatNumber(data.orders)}</div>
+                      <div className="text-[9px] text-foreground/30 uppercase font-semibold mt-0.5">Orders</div>
                     </div>
                     <div>
-                      <div className="text-lg font-bold">{formatCurrency(data.revenue)}</div>
-                      <div className="text-[9px] text-foreground/30 uppercase mt-0.5">Revenue</div>
+                      <div className="text-xl font-bold tracking-tight">{formatCurrency(data.revenue)}</div>
+                      <div className="text-[9px] text-foreground/30 uppercase font-semibold mt-0.5">Revenue</div>
                     </div>
                     <div>
-                      <div className="text-lg font-bold">{formatNumber(data.sessions)}</div>
-                      <div className="text-[9px] text-foreground/30 uppercase mt-0.5">Sessions</div>
+                      <div className="text-xl font-bold tracking-tight">{formatNumber(data.sessions)}</div>
+                      <div className="text-[9px] text-foreground/30 uppercase font-semibold mt-0.5">Sessions</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold tracking-tight">{formatNumber(data.visitors || 0)}</div>
+                      <div className="text-[9px] text-foreground/30 uppercase font-semibold mt-0.5">Visitors</div>
                     </div>
                   </div>
                 </div>

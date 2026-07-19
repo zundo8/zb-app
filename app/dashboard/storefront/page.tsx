@@ -401,19 +401,34 @@ export default function StorefrontSettingsPage() {
   useEffect(() => {
     // Query canonical settings (defaults to 8tiahf-bk.myshopify.com)
     fetch('/api/admin/settings')
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to fetch settings');
+        return r.json();
+      })
       .then(data => {
         setSettings(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error loading storefront settings:', err);
         setLoading(false);
       });
 
     fetch('/api/shopify/products?pageSize=250')
-      .then(r => r.json())
-      .then(data => data.products && setAllProducts(data.products));
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to fetch products');
+        return r.json();
+      })
+      .then(data => data.products && setAllProducts(data.products))
+      .catch(err => console.error('Error loading products:', err));
 
     fetch('/api/shopify/collections?all=true')
-      .then(r => r.json())
-      .then(data => Array.isArray(data) && setAllCollections(data));
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to fetch collections');
+        return r.json();
+      })
+      .then(data => Array.isArray(data) && setAllCollections(data))
+      .catch(err => console.error('Error loading collections:', err));
   }, []);
 
   const handleSave = async () => {
