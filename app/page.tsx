@@ -18,7 +18,7 @@ import { Metadata } from "next";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 
-export const revalidate = 60; // ISR: revalidate homepage every 60 seconds
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getStoreSettings('homepage');
