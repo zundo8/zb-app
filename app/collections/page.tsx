@@ -6,21 +6,29 @@ import { Metadata } from "next";
 
 export const revalidate = 300; // ISR: revalidate every 5 minutes
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://zicabella.com";
+
 export const metadata: Metadata = {
-  title: "Subculture Collections & Limited Drops | Zica Bella® — Streetwear Archives",
+  title: "Subculture Collections & Limited Drops | Zica Bella® | Streetwear Archives",
   description: "Explore Zica Bella's curated limited-edition streetwear drops and subculture collections. Discover boxy drop-shoulder oversized tees, double-yarn loopback hoodies, and custom acid-wash denims. Crafted in India, worn with intent.",
   keywords: "zica bella collections, luxury streetwear India, streetwear drops, oversized t-shirts online, premium blanks, limited capsule drops, heavyweight hoodies, streetwear brand india, subculture design",
   openGraph: {
     title: "Subculture Collections & Limited Drops | Zica Bella®",
     description: "Explore Zica Bella's curated limited-edition streetwear drops and subculture collections. Discover boxy drop-shoulder oversized tees, double-yarn loopback hoodies, and custom acid-wash denims.",
-    url: (process.env.NEXT_PUBLIC_APP_URL || "https://app.zicabella.com") + "/collections",
+    url: `${siteUrl}/collections`,
     images: [
       {
-        url: "/zb-logo-220px.png",
+        url: `${siteUrl}/og-image.jpg`,
         alt: "Zica Bella Collections",
       }
     ],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Subculture Collections & Limited Drops | Zica Bella®",
+    description: "Explore Zica Bella's curated limited-edition streetwear drops and subculture collections. Discover boxy drop-shoulder oversized tees, double-yarn loopback hoodies, and custom acid-wash denims.",
+    images: [`${siteUrl}/og-image.jpg`],
+  }
 };
 
 export default async function CollectionsPage() {

@@ -16,14 +16,15 @@ import LazyVideo from "@/components/LazyVideo";
 import { handleImageError } from "@/components/ImagePlaceholder";
 import { Metadata } from "next";
 
-export const dynamic = 'force-dynamic';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
+
+export const revalidate = 60; // ISR: revalidate homepage every 60 seconds
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getStoreSettings('homepage');
   const title = settings?.homePageTitle || 'Zica Bella® | Premium Streetwear, Heavyweight Hoodies & Oversized Tees';
   const description = settings?.metaDescription || 'Zica Bella crafts luxury Indian streetwear for modern men, oversized heavyweight tees, acid-wash finishes, cargos and modern denim designed for bold everyday style.';
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
-  const imageUrl = settings?.socialImageUrl || `${appUrl}/og-image.jpg`;
+  const imageUrl = settings?.socialImageUrl || `${siteUrl}/og-image.jpg`;
   const twitterCardType = settings?.twitterCardType || 'summary_large_image';
 
   return {
@@ -40,7 +41,7 @@ export async function generateMetadata(): Promise<Metadata> {
           alt: settings?.socialImageAlt || title,
         }
       ],
-      url: appUrl,
+      url: siteUrl,
       siteName: 'Zica Bella',
       type: 'website',
     },
@@ -640,9 +641,9 @@ export default async function Home() {
               "@context": "https://schema.org",
               "@type": "Organization",
               "name": "Zica Bella",
-              "url": "https://zicabella.com",
-              "logo": "https://zicabella.com/zb-logo-220px.png",
-              "image": settings?.socialImageUrl || "https://zicabella.com/og-image.jpg",
+              "url": siteUrl,
+              "logo": `${siteUrl}/zb-logo-220px.png`,
+              "image": settings?.socialImageUrl || `${siteUrl}/og-image.jpg`,
               "description": settings?.metaDescription || "Zica Bella® is recognized as India's premier luxury streetwear label and the fastest growing global fashion app. Redefining street culture with custom 240+ GSM heavyweight oversized graphic tees, vintage acid-wash shirts, custom loopback fleece hoodies, and raw-edge streetwear accessories for a relentless global community.",
               "slogan": "Redefine The Standard",
               "award": ["India's #1 Premium Streetwear Brand", "World's Fastest Growing Fashion Brand"],

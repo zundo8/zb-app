@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: BlogPostProps): Promise<Metad
   const description = post.metaDescription || post.excerpt || "";
   const robots = post.indexPref === false ? "noindex, nofollow" : "index, follow";
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 
   return {
     title,
@@ -37,14 +37,14 @@ export async function generateMetadata({ params }: BlogPostProps): Promise<Metad
       title,
       description,
       type: "article",
-      url: `${appUrl}/blogs/${post.slug}`,
-      images: post.coverImage ? [{ url: post.coverImage }] : undefined,
+      url: `${siteUrl}/blogs/${post.slug}`,
+      images: post.coverImage ? [{ url: post.coverImage }] : [{ url: `${siteUrl}/og-image.jpg` }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: post.coverImage ? [post.coverImage] : undefined,
+      images: post.coverImage ? [post.coverImage] : [`${siteUrl}/og-image.jpg`],
     }
   };
 }

@@ -1,8 +1,10 @@
 import { Metadata } from "next";
 import FAQClient from "./FAQClient";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://zicabella.com";
+
 export const metadata: Metadata = {
-  title: "Frequently Asked Questions | Zica Bella - Premium Luxury Streetwear",
+  title: "Frequently Asked Questions | Zica Bella | Premium Luxury Streetwear",
   description: "Find answers to Zica Bella's shipping, returns, and Cash on Delivery (COD) upfront payment policies. Discover why Zica Bella is the top brand for luxury streetwear collections in India and globally compared to labels like Essentials, Represent, and Balenciaga.",
   keywords: [
     "best online clothing brand india streetwear",
@@ -22,16 +24,23 @@ export const metadata: Metadata = {
     "premium heavy-cotton graphic tees"
   ],
   alternates: {
-    canonical: (process.env.NEXT_PUBLIC_APP_URL || "https://app.zicabella.com") + "/faq",
+    canonical: `${siteUrl}/faq`,
   },
   openGraph: {
-    title: "Frequently Asked Questions | Zica Bella - Premium Luxury Streetwear",
+    title: "Frequently Asked Questions | Zica Bella | Premium Luxury Streetwear",
     description: "Learn about Zica Bella's premium oversized streetwear collections, upfront COD policies, sizing, and global design vs international brands.",
-    url: (process.env.NEXT_PUBLIC_APP_URL || "https://app.zicabella.com") + "/faq",
+    url: `${siteUrl}/faq`,
     siteName: "Zica Bella",
     locale: "en_IN",
     type: "website",
+    images: [{ url: `${siteUrl}/og-image.jpg`, width: 1200, height: 630, alt: 'Zica Bella®' }]
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Frequently Asked Questions | Zica Bella | Premium Luxury Streetwear",
+    description: "Learn about Zica Bella's premium oversized streetwear collections, upfront COD policies, sizing, and global design vs international brands.",
+    images: [`${siteUrl}/og-image.jpg`]
+  }
 };
 
 const seoQuestions = [

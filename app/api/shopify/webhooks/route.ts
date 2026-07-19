@@ -39,6 +39,7 @@ export async function POST(req: Request) {
       case 'orders/paid':
       case 'orders/fulfilled':
       case 'orders/cancelled':
+      case 'orders/updated':
         await handleOrderWebhook(shop, payload, topic);
         break;
       case 'refunds/create':
@@ -320,6 +321,174 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
           image: itemImage || null
         }
       });
+    }
+  }
+
+  // Trigger WhatsApp Notifications
+  const phone = orderData.customer?.phone || orderData.billing_address?.phone || orderData.shipping_address?.phone || dbCustomer?.phone;
+  if (phone) {
+    try {
+      const { getWhatsAppSetting } = await import('@/lib/whatsapp/logger');
+      let orderIdStr = orderData.order_number || orderData.id?.toString();
+      if (order.internalOrderNumber) {
+        orderIdStr = order.internalOrderNumber;
+      }
+
+      if (topic === 'orders/create' || (topic === 'orders/paid' && order.paymentStatus === 'paid')) {
+        const gateway = (orderData.gateway || (orderData.payment_gateway_names && orderData.payment_gateway_names[0]) || '').toLowerCase();
+        const isCOD = gateway.includes('cod') || gateway.includes('cash_on_delivery') || gateway.includes('delivery') || gateway.includes('manual');
+
+        if (isCOD) {
+          const isCodEnabled = await getWhatsAppSetting('cod_confirmation_enabled', 'true') === 'true';
+          if (isCodEnabled) {
+            const templateName = await getWhatsAppSetting('template_cod_confirmation', 'zica_cod_confirmation_v1');
+            const alreadySent = await prisma.whatsAppMessage.findFirst({
+              where: { orderId: String(orderIdStr), templateName }
+            });
+            if (!alreadySent) {
+              const { sendCODConfirmation } = await import('@/lib/whatsapp/templates');
+              await sendCODConfirmation({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr) });
+            }
+          }
+        } else {
+          const isConfirmedEnabled = await getWhatsAppSetting('order_confirmed', 'true') === 'true';
+          if (isConfirmedEnabled) {
+            const templateName = await getWhatsAppSetting('template_order_confirmed', 'zica_order_confirmed_v1');
+            const alreadySent = await prisma.whatsAppMessage.findFirst({
+              where: { orderId: String(orderIdStr), templateName }
+            });
+            if (!alreadySent) {
+              const firstLineItem = (orderData.line_items || [])[0];
+              const productImageUrl = firstLineItem?.image?.src || firstLineItem?.image || '';
+              const orderStatusUrl = orderData.order_status_url || '';
+              const { sendOrderConfirmation } = await import('@/lib/whatsapp/templates');
+              await sendOrderConfirmation({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr), productImageUrl, orderStatusUrl });
+            }
+          }
+        }
+      } else if (topic === 'orders/fulfilled') {
+        const isShippedEnabled = await getWhatsAppSetting('order_shipped', 'true') === 'true';
+        if (isShippedEnabled) {
+          const fulfillment = orderData.fulfillments?.[0] || {};
+          const courier = fulfillment.tracking_company || 'our shipping partner';
+          const trackingNumber = fulfillment.tracking_number || 'TBA';
+          
+          let estimatedDelivery = '3-5 business days';
+          if (fulfillment.estimated_delivery_at) {
+            try {
+              estimatedDelivery = new Date(fulfillment.estimated_delivery_at).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+              });
+            } catch (e: any) {
+              console.warn('[Shopify Webhook WhatsApp] Failed to parse estimated_delivery_at date:', e.message);
+            }
+          }
+          const trackingUrl = fulfillment.tracking_url || fulfillment.tracking_urls?.[0] || '';
+          const templateName = await getWhatsAppSetting('template_order_shipped', 'zica_order_shipped');
+          const alreadySent = await prisma.whatsAppMessage.findFirst({
+            where: { orderId: String(orderIdStr), templateName }
+          });
+          if (!alreadySent) {
+            const { sendShippingUpdate } = await import('@/lib/whatsapp/templates');
+            await sendShippingUpdate({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr), trackingNumber, trackingUrl });
+          }
+        }
+      } else if (topic === 'orders/cancelled' || orderData.cancelled_at) {
+        const isStatusEnabled = await getWhatsAppSetting('order_status', 'true') === 'true';
+        if (isStatusEnabled) {
+          const templateName = await getWhatsAppSetting('template_order_status', 'zb_order_status');
+          const alreadySent = await prisma.whatsAppMessage.findFirst({
+            where: { orderId: String(orderIdStr), templateName, body: { contains: 'Cancelled' } }
+          });
+          if (!alreadySent) {
+            const { sendOrderStatus } = await import('@/lib/whatsapp/templates');
+            await sendOrderStatus({
+              phone,
+              customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there',
+              orderId: String(orderIdStr),
+              status: 'Cancelled',
+              extraInfo: 'Your order has been cancelled. Any refund due will be processed shortly.',
+              orderStatusUrl: orderData.order_status_url || ''
+            });
+          }
+        }
+      } else if (topic === 'orders/updated') {
+        let shipmentStatus = '';
+        if (orderData.fulfillments && Array.isArray(orderData.fulfillments)) {
+          for (const f of orderData.fulfillments) {
+            if (f.shipment_status) {
+              shipmentStatus = f.shipment_status.toLowerCase();
+              break;
+            }
+          }
+        }
+        
+        const isDelivered = deliveryStatus === 'delivered' || shipmentStatus === 'delivered' || shipmentStatus === 'success';
+        const isOutForDelivery = deliveryStatus === 'out_for_delivery' || shipmentStatus === 'out_for_delivery';
+        
+        if (isDelivered) {
+          const isDeliveredEnabled = await getWhatsAppSetting('order_delivered', 'true') === 'true';
+          if (isDeliveredEnabled) {
+            const templateName = await getWhatsAppSetting('template_order_delivered', 'zica_order_delivered_v1');
+            const alreadySent = await prisma.whatsAppMessage.findFirst({
+              where: { orderId: String(orderIdStr), templateName }
+            });
+            if (!alreadySent) {
+              const firstLineItem = (orderData.line_items || [])[0];
+              const productImageUrl = firstLineItem?.image?.src || firstLineItem?.image || '';
+              const { sendDelivered } = await import('@/lib/whatsapp/templates');
+              await sendDelivered({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr), productImageUrl });
+            }
+          }
+        } else if (isOutForDelivery) {
+          const isOutForDeliveryEnabled = await getWhatsAppSetting('out_for_delivery', 'true') === 'true';
+          if (isOutForDeliveryEnabled) {
+            const templateName = await getWhatsAppSetting('template_out_for_delivery', 'zb_out_for_delivery');
+            const alreadySent = await prisma.whatsAppMessage.findFirst({
+              where: { orderId: String(orderIdStr), templateName }
+            });
+            if (!alreadySent) {
+              const { sendOutForDelivery } = await import('@/lib/whatsapp/templates');
+              await sendOutForDelivery({ phone, orderId: String(orderIdStr), customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there' });
+            }
+          }
+        } else {
+          const isStatusEnabled = await getWhatsAppSetting('order_status', 'true') === 'true';
+          if (isStatusEnabled) {
+            let status = '';
+            let extraInfo = '';
+            if (orderData.financial_status === 'refunded') {
+              status = 'Refunded';
+              extraInfo = 'Your refund has been processed. It should reflect in 5-7 business days.';
+            } else if (orderData.fulfillment_status === 'partial') {
+              status = 'Partially Shipped';
+              extraInfo = 'Part of your order is on its way. The rest will follow soon.';
+            }
+            
+            if (status) {
+              const templateName = await getWhatsAppSetting('template_order_status', 'zb_order_status');
+              const alreadySent = await prisma.whatsAppMessage.findFirst({
+                where: { orderId: String(orderIdStr), templateName, body: { contains: status } }
+              });
+              if (!alreadySent) {
+                const { sendOrderStatus } = await import('@/lib/whatsapp/templates');
+                await sendOrderStatus({
+                  phone,
+                  customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there',
+                  orderId: String(orderIdStr),
+                  status,
+                  extraInfo,
+                  orderStatusUrl: orderData.order_status_url || ''
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('[Shopify Webhook WhatsApp] Failed to process WhatsApp notifications:', err.message);
     }
   }
 }

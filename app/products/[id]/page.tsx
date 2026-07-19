@@ -47,7 +47,7 @@ export async function generateMetadata({
   }
 
   // Create a premium, unique streetwear title
-  const title = `${product.title} — ${priceFormatted} | ${categoryTag} | Zica Bella®`
+  const title = `${product.title} | ${categoryTag} | Zica Bella®`
 
   // Process tags & title to extract specifications
   const tagsList = product.tags ? product.tags.split(',').map((t: string) => t.trim().toLowerCase()) : [];
@@ -84,19 +84,19 @@ export async function generateMetadata({
     'premium cotton blanks',
   ].filter((v, i, self) => v && self.indexOf(v) === i).slice(0, 15);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 
   return {
     title,
     description,
     keywords: customKeywords,
     alternates: {
-      canonical: `${appUrl}/products/${product.handle}`,
+      canonical: `${siteUrl}/products/${product.handle}`,
     },
     openGraph: {
       title,
       description,
-      url: `${appUrl}/products/${product.handle}`,
+      url: `${siteUrl}/products/${product.handle}`,
       type: 'website',
       images: product.images?.[0]?.src
         ? [
@@ -107,13 +107,13 @@ export async function generateMetadata({
               alt: product.title,
             },
           ]
-        : [{ url: `${appUrl}/og-image.jpg`, width: 1200, height: 630, alt: 'Zica Bella®' }],
+        : [{ url: `${siteUrl}/og-image.jpg`, width: 1200, height: 630, alt: 'Zica Bella®' }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: product.images?.[0]?.src ? [product.images[0].src] : [`${appUrl}/og-image.jpg`],
+      images: product.images?.[0]?.src ? [product.images[0].src] : [`${siteUrl}/og-image.jpg`],
     },
   }
 }

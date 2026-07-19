@@ -261,7 +261,10 @@ const PRODUCTION_TEMPLATES = [
   }
 ];
 
-export async function POST() {
+export async function POST(req) {
+  const { searchParams } = new URL(req.url);
+  const force = searchParams.get('force') === 'true';
+
   const config = await getConfig();
   if (!config.configured) {
     return NextResponse.json(
@@ -289,7 +292,7 @@ export async function POST() {
     for (const template of PRODUCTION_TEMPLATES) {
       const existingStatus = existingTemplates.get(template.name);
 
-      if (existingStatus === 'APPROVED' || existingStatus === 'PENDING') {
+      if (!force && (existingStatus === 'APPROVED' || existingStatus === 'PENDING')) {
         console.log(`[WhatsApp Seeder] Skipping ${template.name} because it is already ${existingStatus}`);
         
         // Cache locally

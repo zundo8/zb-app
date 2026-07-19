@@ -20,9 +20,9 @@ export async function generateMetadata({
   const { collection } = await fetchCollectionByHandle(params.handle, 1).catch(() => ({ collection: null }));
 
   const titleMap: Record<string, string> = {
-    'graphic-tees': 'Heavyweight Graphic Tees | Premium Streetwear - Zica Bella®',
+    'graphic-tees': 'Heavyweight Graphic Tees | Premium Streetwear | Zica Bella®',
     'tshirts-under-5000': 'Luxury Streetwear Tees Under ₹5000 | Zica Bella®',
-    'oversized-tees': 'Oversized drop-shoulder Tees | Heavyweight Blanks - Zica Bella®',
+    'oversized-tees': 'Oversized drop-shoulder Tees | Heavyweight Blanks | Zica Bella®',
   };
 
   const descMap: Record<string, string> = {
@@ -35,7 +35,7 @@ export async function generateMetadata({
   };
 
   const collectionTitle = collection?.title || params.handle.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  const title = titleMap[params.handle] ?? `${collectionTitle} — Luxury Streetwear Drop | Zica Bella®`;
+  const title = titleMap[params.handle] ?? `${collectionTitle} | Luxury Streetwear Drop | Zica Bella®`;
   const description =
     descMap[params.handle] ??
     `Shop the ${collectionTitle} capsule collection at Zica Bella®. Featuring custom relaxed silhouettes, heavyweight premium blanks, and original subculture graphics. Designed in Italy, crafted in India.`;
@@ -51,29 +51,29 @@ export async function generateMetadata({
     'pre-shrunk cotton blanks',
   ];
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 
   return {
     title,
     description,
     keywords: customKeywords.join(', '),
     alternates: {
-      canonical: `${appUrl}/collections/${params.handle}`,
+      canonical: `${siteUrl}/collections/${params.handle}`,
     },
     openGraph: {
       title,
       description,
-      url: `${appUrl}/collections/${params.handle}`,
+      url: `${siteUrl}/collections/${params.handle}`,
       type: 'website',
       images: collection?.image?.src
         ? [{ url: collection.image.src, width: 800, height: 800, alt: collection.title }]
-        : [{ url: `${appUrl}/og-image.jpg`, width: 1200, height: 630, alt: 'Zica Bella®' }],
+        : [{ url: `${siteUrl}/og-image.jpg`, width: 1200, height: 630, alt: 'Zica Bella®' }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: collection?.image?.src ? [collection.image.src] : [`${appUrl}/og-image.jpg`],
+      images: collection?.image?.src ? [collection.image.src] : [`${siteUrl}/og-image.jpg`],
     },
   };
 }

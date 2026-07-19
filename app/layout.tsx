@@ -37,6 +37,8 @@ const poppins = Poppins({
   display: "swap",
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -44,10 +46,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com'),
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'Zica Bella® | Premium Streetwear, Heavyweight Hoodies & Oversized Tees',
-    template: '%s | Zica Bella® — Luxury Indian Streetwear',
+    template: '%s | Zica Bella® | Luxury Indian Streetwear',
   },
   description:
     'India\'s premier luxury streetwear label. Discover boxy drop-shoulder oversized graphic tees, vintage acid-wash shirts, custom heavyweight loopback hoodies, and limited drop capsules. Engineered with premium double-yarn cotton blanks. Crafted in India, worn with intent. Free shipping above ₹999.',
@@ -68,7 +70,7 @@ export const metadata: Metadata = {
     'aesthetic oversized hoodies',
     'Indian streetwear design',
   ],
-  authors: [{ name: 'Zica Bella', url: process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com' }],
+  authors: [{ name: 'Zica Bella', url: siteUrl }],
   creator: 'Zica Bella',
   publisher: 'Zica Bella',
   category: 'Fashion & Apparel',
@@ -89,7 +91,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_IN',
-    url: process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com',
+    url: siteUrl,
     siteName: 'Zica Bella',
     title: 'Zica Bella® | Premium Streetwear & Heavyweight Graphic Tees',
     description:
@@ -113,9 +115,9 @@ export const metadata: Metadata = {
     site: '@zicabella',
   },
   alternates: {
-    canonical: process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com',
+    canonical: siteUrl,
     languages: {
-      'en-IN': process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com',
+      'en-IN': siteUrl,
     },
   },
   icons: {
@@ -193,9 +195,9 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "ClothingStore",
               "name": "Zica Bella",
-              "url": "https://zicabella.com",
-              "logo": "https://zicabella.com/zb-logo-220px.png",
-              "image": "https://zicabella.com/zb-logo-220px.png",
+              "url": siteUrl,
+              "logo": `${siteUrl}/zb-logo-220px.png`,
+              "image": `${siteUrl}/zb-logo-220px.png`,
               "description": "Zica Bella is a leading premium luxury streetwear label, redefining street culture through custom heavyweight cotton hoodies, oversized graphic tees, and streetwear denims. Designed in Italy and crafted in India with modular silhouettes.",
               "telephone": "+91-9220385011",
               "priceRange": "₹₹₹",
@@ -217,7 +219,7 @@ export default function RootLayout({
               ],
               "potentialAction": {
                 "@type": "SearchAction",
-                "target": "https://zicabella.com/search?q={search_term_string}",
+                "target": `${siteUrl}/search?q={search_term_string}`,
                 "query-input": "required name=search_term_string"
               }
             })

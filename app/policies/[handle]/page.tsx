@@ -15,29 +15,37 @@ export async function generateMetadata({ params }: PolicyPageProps): Promise<Met
     select: { title: true }
   });
 
-  if (!policy) return { title: "Policy Not Found - Zica Bella" };
+  if (!policy) return { title: "Policy Not Found | Zica Bella" };
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.zicabella.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 
   return {
-    title: `${policy.title} | Zica Bella - Premium Luxury Streetwear`,
+    title: `${policy.title} | Zica Bella | Premium Luxury Streetwear`,
     description: `Official ${policy.title} for Zica Bella luxury streetwear. Crafted with premium loopback fabrics, Italian design elements, and modern architectural standards.`,
     alternates: {
-      canonical: `${appUrl}/policies/${params.handle}`
+      canonical: `${siteUrl}/policies/${params.handle}`
     },
     openGraph: {
-      title: `${policy.title} | Zica Bella - Premium Luxury Streetwear`,
+      title: `${policy.title} | Zica Bella | Premium Luxury Streetwear`,
       description: `Official ${policy.title} for Zica Bella luxury streetwear.`,
-      url: `${appUrl}/policies/${params.handle}`,
+      url: `${siteUrl}/policies/${params.handle}`,
       siteName: "Zica Bella",
       locale: "en_IN",
-      type: "website"
+      type: "website",
+      images: [{ url: `${siteUrl}/og-image.jpg`, width: 1200, height: 630, alt: 'Zica Bella®' }]
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${policy.title} | Zica Bella | Premium Luxury Streetwear`,
+      description: `Official ${policy.title} for Zica Bella luxury streetwear.`,
+      images: [`${siteUrl}/og-image.jpg`]
     }
   };
 }
 
 function generateSchema(policy: { handle: string; title: string; content: string; updatedAt: Date }) {
   const isContact = policy.handle === "contact-information";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
   
   if (isContact) {
     return {
@@ -45,8 +53,8 @@ function generateSchema(policy: { handle: string; title: string; content: string
       "@type": "Organization",
       "name": "ZICA BELLA PRIVATE LIMITED",
       "alternateName": "Zica Bella",
-      "url": "https://zicabella.com",
-      "logo": "https://zicabella.com/zb-logo-220px.png",
+      "url": siteUrl,
+      "logo": `${siteUrl}/zb-logo-220px.png`,
       "contactPoint": [
         {
           "@type": "ContactPoint",
@@ -103,7 +111,7 @@ function generateSchema(policy: { handle: string; title: string; content: string
       "name": "Zica Bella",
       "logo": {
         "@type": "ImageObject",
-        "url": "https://zicabella.com/zb-logo-220px.png"
+        "url": `${siteUrl}/zb-logo-220px.png`
       }
     },
     "dateModified": policy.updatedAt.toISOString()
