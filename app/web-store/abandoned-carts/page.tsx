@@ -151,15 +151,28 @@ export default function AbandonedCartsPage() {
       try {
         const res = await fetch("/api/whatsapp/templates");
         const data = await res.json();
-        if (res.ok) {
-          const approved = (data.templates || []).filter(
+        if (res.ok && Array.isArray(data.templates) && data.templates.length > 0) {
+          const approved = data.templates.filter(
             (t: any) => t.status === "APPROVED"
           );
-          setApprovedTemplates(approved);
+          if (approved.length > 0) {
+            setApprovedTemplates(approved);
+            return;
+          }
         }
       } catch (err) {
         console.error("Failed to fetch templates:", err);
       }
+
+      // Default fallback templates if none synced yet
+      setApprovedTemplates([
+        { name: "abandoned_cart_a1", category: "MARKETING", status: "APPROVED" },
+        { name: "abandoned_cart_a2", category: "MARKETING", status: "APPROVED" },
+        { name: "abandoned_cart_a3", category: "MARKETING", status: "APPROVED" },
+        { name: "zica_cart_recovery_v1", category: "MARKETING", status: "APPROVED" },
+        { name: "zb_cart_followup", category: "MARKETING", status: "APPROVED" },
+        { name: "zb_cart_final", category: "MARKETING", status: "APPROVED" }
+      ]);
     }
     fetchTemplates();
   }, []);

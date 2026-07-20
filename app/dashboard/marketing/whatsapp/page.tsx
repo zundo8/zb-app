@@ -2879,21 +2879,32 @@ function MessageLogs() {
       <div className="flex items-center justify-between gap-4">
         <h3 className="text-lg font-semibold">Message Logs</h3>
         
-        {/* Filters */}
-        <select
-          value={typeFilter}
-          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-          className="bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-1.5 outline-none focus:border-emerald-500/50 text-xs"
-        >
-          <option value="">All Message Types</option>
-          <option value="welcome">Welcome</option>
-          <option value="order_confirmed">Order Confirmed</option>
-          <option value="order_status">Order Status</option>
-          <option value="order_shipped">Shipped</option>
-          <option value="abandoned_cart">Abandoned Cart</option>
-          <option value="sale_alert">Sale Alert</option>
-          <option value="new_collection">New Collection</option>
-        </select>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => fetchLogs()}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-foreground/5 hover:bg-foreground/10 text-foreground font-medium rounded-xl border border-foreground/10 transition-colors disabled:opacity-50"
+          >
+            <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh Logs
+          </button>
+          
+          {/* Filters */}
+          <select
+            value={typeFilter}
+            onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+            className="bg-foreground/5 border border-foreground/10 rounded-xl px-3 py-1.5 outline-none focus:border-emerald-500/50 text-xs"
+          >
+            <option value="">All Message Types</option>
+            <option value="welcome">Welcome</option>
+            <option value="order_confirmed">Order Confirmed</option>
+            <option value="order_status">Order Status</option>
+            <option value="order_shipped">Shipped</option>
+            <option value="abandoned_cart">Abandoned Cart</option>
+            <option value="sale_alert">Sale Alert</option>
+            <option value="new_collection">New Collection</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (
