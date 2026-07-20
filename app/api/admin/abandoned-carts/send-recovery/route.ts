@@ -37,7 +37,20 @@ export async function POST(req: Request) {
       const firstItem = cart.items?.[0] || {};
       const productImageUrl = firstItem.image || '';
       const productName = firstItem.title || '';
-      const productHandle = firstItem.handle || '';
+      let productHandle = firstItem.handle || '';
+      if (!productHandle && firstItem.productId) {
+        try {
+          const dbProduct = await prisma.product.findUnique({
+            where: { shopifyProductId: String(firstItem.productId) }
+          });
+          if (dbProduct && dbProduct.handle) {
+            productHandle = dbProduct.handle;
+          }
+        } catch (e) {}
+      }
+      if (!productHandle && productName) {
+        productHandle = productName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      }
       const cartTotal = String(cart.subtotal || '0.00');
       const itemCount = cart.items?.length || 0;
 

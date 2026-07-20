@@ -2938,27 +2938,23 @@ function MessageLogs() {
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      {log.status === 'failed' && (log.error_code || log.error_message) ? (
-                        <div className="flex flex-col gap-0.5">
+                      {log.status === 'failed' ? (
+                        <div className="flex flex-col gap-1 max-w-[240px]">
                           {log.error_code && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20 w-fit">
-                              {log.error_code}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 w-fit">
+                              Code {log.error_code}
                             </span>
                           )}
-                          <span className="text-[10px] text-muted-foreground max-w-[180px] truncate" title={log.error_message || ''}>
-                            {(() => {
-                              const code = log.error_code;
-                              if (code === '131049') return 'Frequency cap — user not engaged';
-                              if (code === '131056') return 'Messaging limit reached';
-                              if (code === '132000') return 'Template not found on Meta';
-                              if (code === '131047') return 'Outside 24hr re-engagement window';
-                              if (code === '133010') return 'Number not on WhatsApp';
-                              if (code === '131026') return 'Message undeliverable';
-                              if (code === '131008' || log.error_message?.includes('131008')) return 'Required parameter missing';
-                              if (code === '132012' || log.error_message?.includes('132012')) return 'Parameter format mismatch';
-                              if (log.error_message?.includes('#100')) return 'Invalid parameter';
-                              return log.error_message ? log.error_message.slice(0, 40) : '';
-                            })()}
+                          <span className="text-[11px] text-rose-300/90 break-words leading-tight" title={log.error_message || 'Send failed'}>
+                            {log.error_message || (
+                              log.error_code === '131049' ? 'Frequency cap — user not engaged' :
+                              log.error_code === '131056' ? 'Messaging limit reached' :
+                              log.error_code === '132000' ? 'Template not found on Meta' :
+                              log.error_code === '131047' ? 'Outside 24hr re-engagement window' :
+                              log.error_code === '133010' ? 'Number not on WhatsApp' :
+                              log.error_code === '131026' ? 'Message undeliverable' :
+                              'Send failed'
+                            )}
                           </span>
                         </div>
                       ) : (

@@ -6,17 +6,28 @@ async function getDynamicConfig() {
   let dbAccessToken = null;
 
   try {
-    const shop = await db.shop.findFirst();
-    if (shop) {
-      dbPhoneId = shop.whatsappPhoneId;
-      dbAccessToken = shop.whatsappToken;
-    }
+    const list = await db.whatsAppSetting.findMany();
+    const settings = Object.fromEntries(list.map((s: any) => [s.key, s.value]));
+    dbPhoneId = settings['whatsapp_phone_number_id'];
+    dbAccessToken = settings['whatsapp_access_token'];
   } catch (err: any) {
-    console.warn('[WhatsApp Service Config] Database lookup failed, using environment variables:', err.message);
+    console.warn('[WhatsApp Service Config] whatsapp_settings lookup failed:', err.message);
+  }
+
+  if (!dbPhoneId || !dbAccessToken) {
+    try {
+      const shop = await db.shop.findFirst();
+      if (shop) {
+        dbPhoneId = dbPhoneId || shop.whatsappPhoneId;
+        dbAccessToken = dbAccessToken || shop.whatsappToken;
+      }
+    } catch (err: any) {
+      console.warn('[WhatsApp Service Config] Database lookup failed, using environment variables:', err.message);
+    }
   }
 
   const phoneId = dbPhoneId || process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const accessToken = dbAccessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+  const accessToken = dbAccessToken || process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
   const apiVersion = process.env.WHATSAPP_API_VERSION || 'v23.0';
 
   if (!phoneId || !accessToken) {
@@ -30,6 +41,20 @@ async function getDynamicConfig() {
       'Content-Type': 'application/json',
     }
   };
+}
+
+function handleAxiosError(error: any): never {
+  const metaError = error.response?.data?.error;
+  if (metaError) {
+    const errMsg = metaError.message || metaError.error_user_msg || error.message;
+    console.error('[WhatsApp Service API Error]:', metaError);
+    const err: any = new Error(errMsg);
+    err.code = metaError.code;
+    err.subcode = metaError.error_subcode || metaError.subcode;
+    err.fbtrace_id = metaError.fbtrace_id;
+    throw err;
+  }
+  throw error;
 }
 
 export const WhatsAppService = {
@@ -59,7 +84,7 @@ export const WhatsAppService = {
       return response.data;
     } catch (error: any) {
       console.error('WhatsApp template send error:', error.response?.data || error.message);
-      throw error;
+      handleAxiosError(error);
     }
   },
 
@@ -80,7 +105,7 @@ export const WhatsAppService = {
       return response.data;
     } catch (error: any) {
       console.error('WhatsApp text send error:', error.response?.data || error.message);
-      throw error;
+      handleAxiosError(error);
     }
   },
 
@@ -104,7 +129,7 @@ export const WhatsAppService = {
       return response.data;
     } catch (error: any) {
       console.error(`WhatsApp ${type} send error:`, error.response?.data || error.message);
-      throw error;
+      handleAxiosError(error);
     }
   },
 
@@ -123,7 +148,7 @@ export const WhatsAppService = {
       return response.data;
     } catch (error: any) {
       console.error('WhatsApp mark-as-read error:', error.response?.data || error.message);
-      throw error;
+      handleAxiosError(error);
     }
   },
   

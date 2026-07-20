@@ -478,8 +478,8 @@ export async function GET(req: NextRequest) {
         const elapsedMinutes = (now.getTime() - lastActivityTime) / (60 * 1000);
 
         if (nextStepToProcess === 1) {
-          // Step 1: Fired if elapsed time is between delay1 (default 5m) and 60 minutes
-          if (elapsedMinutes >= delay1 && elapsedMinutes <= 60) {
+          // Step 1: Fired if elapsed time is at least delay1 (default 5m)
+          if (elapsedMinutes >= delay1) {
             // Claim job atomically via DB write
             try {
               await db.whatsAppMessage.create({
@@ -543,13 +543,13 @@ export async function GET(req: NextRequest) {
             }
           }
         } else if (nextStepToProcess === 2) {
-          // Step 2: Fired if elapsed time is between delay2 (default 60m) and 180 minutes (3h)
+          // Step 2: Fired if elapsed time is at least delay2 (default 60m)
           const lastStepTime = step1Sent.length > 0 
             ? new Date(step1Sent[step1Sent.length - 1].createdAt).getTime() 
             : lastActivityTime;
           const elapsedSinceLast = (now.getTime() - lastStepTime) / (60 * 1000);
 
-          if (elapsedMinutes >= delay2 && elapsedMinutes <= 180 && elapsedSinceLast >= 15) {
+          if (elapsedMinutes >= delay2 && elapsedSinceLast >= 15) {
             try {
               await db.whatsAppMessage.create({
                 data: {
@@ -613,7 +613,7 @@ export async function GET(req: NextRequest) {
             : lastActivityTime;
           const elapsedSinceLast = (now.getTime() - lastStepTime) / (60 * 1000);
 
-          if (elapsedMinutes >= delay3 && elapsedMinutes <= 11520 && elapsedSinceLast >= 1440) {
+          if (elapsedMinutes >= delay3 && elapsedSinceLast >= 1440) {
             try {
               await db.whatsAppMessage.create({
                 data: {
