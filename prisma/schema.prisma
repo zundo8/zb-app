@@ -277,6 +277,7 @@ model Order {
   rtoRiskFactors        String?
   rtoRiskScore          Int?
   discountAmount        Float?            @default(0)
+  storeCreditAmount     Float?            @default(0)
   discountCode          String?
   delhivery_awb         String?
   tracking_status       String?
@@ -299,6 +300,7 @@ model Order {
   returnRequests        ReturnRequest[]
   shipments             Shipment[]
   cartSession           Cart?             @relation("ConvertedOrder")
+  webhookEvents         WebhookEvent[]
 }
 
 model OrderItem {
@@ -466,9 +468,12 @@ model WebhookEvent {
   processed   Boolean   @default(false)
   processedAt DateTime?
   createdAt   DateTime  @default(now())
+  orderId     String?
+  order       Order?    @relation(fields: [orderId], references: [id])
 
   @@index([source, eventType])
   @@index([createdAt])
+  @@index([orderId])
 }
 
 model FeaturedUser {
@@ -1463,6 +1468,7 @@ model WebStoreOrder {
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
   codUpfrontPaid      Decimal  @default(0) @map("cod_upfront_paid") @db.Decimal(10, 2)
   codUpfrontPaymentId String?  @map("cod_upfront_payment_id")
+  storeCreditAmount   Decimal? @default(0) @map("store_credit_amount") @db.Decimal(10, 2)
 
   @@map("web_store_orders")
 }
@@ -1844,17 +1850,18 @@ model AnalyticsSession {
 }
 
 model WhatsAppSchedulerRun {
-  id                         String   @id @default(cuid())
-  createdAt                  DateTime @default(now()) @map("created_at")
-  campaignsProcessed         Int      @default(0) @map("campaigns_processed")
-  campaignRecipientsRetried  Int      @default(0) @map("campaign_recipients_retried")
-  messagesRetried            Int      @default(0) @map("messages_retried")
-  abandonedCartStep1Sent     Int      @default(0) @map("abandoned_cart_step1_sent")
-  abandonedCartStep2Sent     Int      @default(0) @map("abandoned_cart_step2_sent")
-  abandonedCartStep3Sent     Int      @default(0) @map("abandoned_cart_step3_sent")
-  errorCount                 Int      @default(0) @map("error_count")
-  errors                     String?  @db.Text
-  success                    Boolean  @default(true)
+  id                           String   @id @default(cuid())
+  createdAt                    DateTime @default(now()) @map("created_at")
+  campaignsProcessed           Int      @default(0) @map("campaigns_processed")
+  strandedRecipientsRecovered  Int      @default(0) @map("stranded_recipients_recovered")
+  campaignRecipientsRetried    Int      @default(0) @map("campaign_recipients_retried")
+  messagesRetried              Int      @default(0) @map("messages_retried")
+  abandonedCartStep1Sent       Int      @default(0) @map("abandoned_cart_step1_sent")
+  abandonedCartStep2Sent       Int      @default(0) @map("abandoned_cart_step2_sent")
+  abandonedCartStep3Sent       Int      @default(0) @map("abandoned_cart_step3_sent")
+  errorCount                   Int      @default(0) @map("error_count")
+  errors                       String?  @db.Text
+  success                      Boolean  @default(true)
 
   @@map("whatsapp_scheduler_runs")
 }

@@ -240,6 +240,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const financialNav = [
     { name: "Payments", href: "/dashboard/payments", icon: CreditCard, module: 'FINANCIAL' },
+    { name: "Transactions", href: "/dashboard/transactions", icon: CreditCard, module: 'FINANCIAL' },
     { name: "Store Credits", href: "/dashboard/payments/store-credits", icon: Wallet, module: 'FINANCIAL' },
     { name: "Refunds", href: "/dashboard/payments/refunds", icon: ArrowLeftRight, module: 'FINANCIAL' },
   ];

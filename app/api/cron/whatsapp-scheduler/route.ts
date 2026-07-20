@@ -1,29 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import * as templates from '@/lib/whatsapp/templates';
-import { runBroadcastInBackground } from '../../whatsapp/broadcast/helper';
+import { runBroadcastInBackground, sendCampaignRecipient, finalizeCampaignIfComplete, SENDER_MAP } from '../../whatsapp/broadcast/helper';
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
 import { getWhatsAppSetting } from '@/lib/whatsapp/logger';
 import { formatPhone } from '@/lib/whatsapp/client';
 
 export const dynamic = 'force-dynamic';
-
-const SENDER_MAP: Record<string, any> = {
-  order_confirmed: templates.sendOrderConfirmation,
-  order_status: templates.sendOrderStatus,
-  order_shipped: templates.sendShippingUpdate,
-  out_for_delivery: templates.sendOutForDelivery,
-  order_delivered: templates.sendDelivered,
-  return_confirmed: templates.sendReturnConfirmed,
-  abandoned_cart: templates.sendAbandonedCart,
-  cart_followup: templates.sendCartRecoveryFollowUp,
-  cart_final: templates.sendCartRecoveryFinalReminder,
-  new_collection: templates.sendNewCollection,
-  sale_alert: templates.sendSaleAlert,
-  restock_alert: templates.sendRestockAlert,
-  welcome: templates.sendWelcome,
-  cod_confirmation: templates.sendCODConfirmation,
-};
 
 function getNextRetryTime(retryCount: number): Date | null {
   const intervals = [1, 5, 15, 60]; // minutes index [0, 1, 2, 3]
@@ -48,6 +31,7 @@ export async function GET(req: NextRequest) {
 
   const results: any = {
     scheduledCampaignsProcessed: 0,
+    strandedRecipientsRecovered: 0,
     campaignRecipientsRetried: 0,
     messagesRetried: 0,
     abandonedCartStep1Sent: 0,
@@ -88,6 +72,46 @@ export async function GET(req: NextRequest) {
       results.errors.push(`Campaign schedule error: ${err.message}`);
     }
 
+    // 1.5. Recover Stranded Queued Campaign Recipients
+    // If the broadcast process dies mid-loop (deploy, crash, scale event),
+    // recipients remain at status:'queued' forever. This step picks them up.
+    try {
+      const staleThreshold = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+
+      const strandedRecipients = await db.whatsAppCampaignRecipient.findMany({
+        where: {
+          status: 'queued',
+          campaign: {
+            status: 'sending',
+            updatedAt: { lte: staleThreshold }
+          }
+        },
+        include: { campaign: true },
+        take: 100 // Cap per cron run to avoid blowing execution time
+      });
+
+      const touchedCampaignIds = new Set<string>();
+
+      for (const rec of strandedRecipients) {
+        const campaign = rec.campaign;
+        const payload = campaign.templateParams ? JSON.parse(campaign.templateParams) : {};
+
+        await sendCampaignRecipient(rec, campaign.id, campaign.templateName, payload);
+        touchedCampaignIds.add(campaign.id);
+        results.strandedRecipientsRecovered++;
+
+        // Rate limiting delay between sends (80ms)
+        await new Promise(resolve => setTimeout(resolve, 80));
+      }
+
+      // Finalize campaigns that now have all recipients in terminal state
+      for (const campaignId of touchedCampaignIds) {
+        await finalizeCampaignIfComplete(campaignId);
+      }
+    } catch (err: any) {
+      results.errors.push(`Stranded recipient recovery error: ${err.message}`);
+    }
+
     // 2. Process Failed Campaign Recipients (Retry queue)
     try {
       const now = new Date();
@@ -103,63 +127,58 @@ export async function GET(req: NextRequest) {
       for (const rec of failedRecipients) {
         const campaign = rec.campaign;
         const payload = campaign.templateParams ? JSON.parse(campaign.templateParams) : {};
-        const mergedParams = {
-          ...payload,
-          phone: rec.phone,
-          customerName: rec.name
-        };
-
-        const senderFn = SENDER_MAP[campaign.templateName];
         const nextRetryCount = rec.retryCount + 1;
 
-        if (!senderFn) {
-          // Unknown sender, mark as permanently failed
+        // Reset status to 'queued' so sendCampaignRecipient can process it,
+        // then update retryCount regardless of outcome.
+        // For both known (SENDER_MAP) and generic/custom templates, use the
+        // shared sendCampaignRecipient which handles both paths.
+        try {
+          // Temporarily set status back to queued so sendCampaignRecipient
+          // updates it to sent/failed correctly
           await db.whatsAppCampaignRecipient.update({
             where: { id: rec.id },
-            data: { retryCount: 4, status: 'failed', errorMessage: `Unknown template: ${campaign.templateName}` }
+            data: { status: 'queued' }
           });
-          continue;
-        }
 
-        try {
-          const res = await senderFn(mergedParams);
-          if (res.success) {
+          const result = await sendCampaignRecipient(rec, campaign.id, campaign.templateName, payload);
+
+          if (result.success) {
+            // Update retryCount and clear error on success
             await db.whatsAppCampaignRecipient.update({
               where: { id: rec.id },
               data: {
-                status: 'sent',
-                messageId: res.messageId,
-                sentAt: new Date(),
                 retryCount: nextRetryCount,
                 errorMessage: null
               }
             });
 
-            // Link campaignId to message
-            if (res.messageId) {
-              await db.whatsAppMessage.updateMany({
-                where: { waMessageId: res.messageId },
-                data: { campaignId: campaign.id }
-              });
-            }
-
-            // Update campaign metrics
+            // Adjust campaign metrics: decrement the original failure count
+            // (sendCampaignRecipient already incremented statsSent)
             await db.whatsAppCampaign.update({
               where: { id: campaign.id },
               data: {
-                statsSent: { increment: 1 },
-                total_sent: { increment: 1 },
                 statsFailed: { decrement: 1 }
               }
             });
           } else {
+            // sendCampaignRecipient already set status to 'failed' and
+            // incremented statsFailed — but that double-counts since this
+            // recipient was already counted as failed. Undo the increment.
+            await db.whatsAppCampaign.update({
+              where: { id: campaign.id },
+              data: {
+                statsFailed: { decrement: 1 }
+              }
+            });
+
             const nextRetryAt = getNextRetryTime(nextRetryCount);
             await db.whatsAppCampaignRecipient.update({
               where: { id: rec.id },
               data: {
                 retryCount: nextRetryCount,
                 nextRetryAt,
-                errorMessage: res.error || 'Retry sending failed'
+                errorMessage: result.error || 'Retry sending failed'
               }
             });
           }
@@ -168,6 +187,7 @@ export async function GET(req: NextRequest) {
           await db.whatsAppCampaignRecipient.update({
             where: { id: rec.id },
             data: {
+              status: 'failed',
               retryCount: nextRetryCount,
               nextRetryAt,
               errorMessage: err.message
@@ -222,7 +242,7 @@ export async function GET(req: NextRequest) {
             }
 
             const eventType = templateToEvent[msg.templateName];
-            const senderFn = eventType ? SENDER_MAP[eventType] : null;
+            const senderFn = eventType ? (SENDER_MAP as Record<string, any>)[eventType] : null;
 
             if (senderFn) {
               // Use the proper sender function which constructs correct components
@@ -662,6 +682,7 @@ export async function GET(req: NextRequest) {
       await db.whatsAppSchedulerRun.create({
         data: {
           campaignsProcessed: results.scheduledCampaignsProcessed || 0,
+          strandedRecipientsRecovered: results.strandedRecipientsRecovered || 0,
           campaignRecipientsRetried: results.campaignRecipientsRetried || 0,
           messagesRetried: results.messagesRetried || 0,
           abandonedCartStep1Sent: results.abandonedCartStep1Sent || 0,

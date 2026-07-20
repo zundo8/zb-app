@@ -2644,6 +2644,10 @@ function OrderNotifications() {
     { key: "cart_recovery_enabled", templateKey: "template_abandoned_cart", defaultTemplate: "abandoned_cart_a1", delayKey: "delay_abandoned_cart_step1", title: "Cart Recovery (Step 1)", desc: "Initial abandoned cart reminder sent when a cart goes inactive." },
     { key: "cart_recovery_step2_enabled", templateKey: "template_cart_followup", defaultTemplate: "abandoned_cart_a2", delayKey: "delay_abandoned_cart_step2", title: "Cart Recovery (Step 2)", desc: "Second reminder containing a discount code to recover abandoned items." },
     { key: "cart_recovery_step3_enabled", templateKey: "template_cart_final", defaultTemplate: "abandoned_cart_a3", delayKey: "delay_abandoned_cart_step3", title: "Cart Recovery (Step 3)", desc: "Final cart recovery reminder before cart expires." },
+    { key: "new_collection_enabled", templateKey: "template_new_collection", defaultTemplate: "zb_new_collection", title: "New Collection Alert", desc: "Broadcast to opted-in customers when a new collection launches." },
+    { key: "sale_alert_enabled", templateKey: "template_sale_alert", defaultTemplate: "zb_sale_alert", title: "Sale Alert", desc: "Broadcast sale/discount notifications to opted-in customers." },
+    { key: "restock_alert_enabled", templateKey: "template_restock_alert", defaultTemplate: "zb_restock_alert", title: "Restock Alert", desc: "Notify opted-in customers when popular products are restocked." },
+    { key: "welcome_enabled", templateKey: "template_welcome", defaultTemplate: "zb_welcome", title: "Welcome Message", desc: "Auto-send welcome message to new customers who opt in." },
   ];
 
   return (

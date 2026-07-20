@@ -1,133 +1,227 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
+import Razorpay from 'razorpay';
 import prisma from '@/lib/db';
+import { paymentLog } from '@/lib/payment-logger';
+import { recoverOrphanedRazorpayOrder } from '@/lib/services/razorpayRecoveryService';
+import { notifyAdminTeam } from '@/lib/services/zohoMailService';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const payload = await req.text();
-  const signature = req.headers.get('x-razorpay-signature');
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  try {
+    const payload = await req.text();
+    const signature = req.headers.get('x-razorpay-signature');
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-  // 1. Log the event raw for debugging and audit
-  const eventData = JSON.parse(payload);
-  const eventType = eventData.event;
+    if (!signature || !webhookSecret) {
+      paymentLog('warn', 'webhook', { message: 'Missing signature or webhook secret' });
+      return NextResponse.json({ error: 'Unauthorized: Missing signature or secret' }, { status: 401 });
+    }
 
-  const webhookRecord = await prisma.webhookEvent.create({
-    data: {
-      source: 'razorpay',
-      eventType,
-      payload,
-    },
-  });
+    // 1. Verify signature using Razorpay SDK's validateWebhookSignature
+    let isValid = false;
+    try {
+      isValid = Razorpay.validateWebhookSignature(payload, signature, webhookSecret);
+    } catch {
+      isValid = false;
+    }
 
-  // 2. Verify signature if secret is configured
-  if (secret && signature) {
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(payload)
-      .digest('hex');
-
-    if (signature !== expectedSignature) {
-      console.error('[Razorpay Webhook] Signature verification failed');
+    if (!isValid) {
+      paymentLog('error', 'webhook', { message: 'Invalid webhook signature' });
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
-  }
 
-  try {
-    // 3. Handle specific events
+    const eventData = JSON.parse(payload);
+    const eventType = eventData.event;
     const data = eventData.payload;
+    const eventId = data?.payment?.entity?.id || data?.refund?.entity?.id || 'unknown';
 
+    // 2. Idempotency Check
+    const existing = await prisma.webhookEvent.findFirst({
+      where: {
+        source: 'razorpay',
+        eventType,
+        payload: { contains: eventId },
+        processed: true,
+      },
+    });
+
+    if (existing) {
+      paymentLog('info', 'webhook', { message: 'Duplicate webhook event skipped', eventId, eventType });
+      return NextResponse.json({ success: true, duplicate: true }, { status: 200 });
+    }
+
+    // 3. Log the raw event in WebhookEvent table for audit
+    const webhookRecord = await prisma.webhookEvent.create({
+      data: {
+        source: 'razorpay',
+        eventType,
+        payload,
+      },
+    });
+
+    paymentLog('info', 'webhook', { message: `Received event: ${eventType}`, eventId });
+
+    // 4. Process specific webhook events
     if (eventType === 'payment.captured' || eventType === 'order.paid' || eventType === 'payment.authorized') {
-      const payment = data.payment.entity;
+      const payment = data.payment?.entity;
+      if (!payment) {
+        return NextResponse.json({ success: true, message: 'No payment entity in payload' });
+      }
+
       const razorpayOrderId = payment.order_id || payment.notes?.order_id || payment.notes?.razorpay_order_id;
       const razorpayPaymentId = payment.id;
 
       if (!razorpayOrderId) {
-        console.warn('[Razorpay Webhook] Received payment without order_id in payload or notes:', razorpayPaymentId);
+        paymentLog('warn', 'webhook', { message: 'Received payment without order_id', razorpayPaymentId });
         return NextResponse.json({ success: true, message: 'No order ID found' });
       }
 
-      // Update order status in DB
+      // Check if order exists in local DB
       const order = await prisma.order.findUnique({
         where: { razorpayOrderId },
       });
 
       if (order) {
-        // If it's already paid, skip
-        if (order.paymentStatus === 'paid') {
-           return NextResponse.json({ success: true });
-        }
-
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            paymentStatus: 'paid',
-            razorpayPaymentId,
-            paymentCapturedAt: new Date(),
-            status: (order.status === 'PENDING' || order.status === 'awaiting_approval') ? 'OPEN' : order.status,
-          },
-        });
-
-        // Add payment record
-        await prisma.payment.create({
-          data: {
-            orderId: order.id,
-            customerId: order.customerId,
-            amount: payment.amount / 100,
-            type: 'CAPTURE',
-            status: 'success',
-            gateway: 'razorpay',
-          },
-        });
-
-        console.log(`[Razorpay Webhook] Order ${order.shopifyOrderId || order.id} marked as PAID`);
-      }
-    }
- else if (eventType === 'payment.failed') {
-      const payment = data.payment.entity;
-      const razorpayOrderId = payment.order_id;
-
-      await prisma.order.updateMany({
-        where: { razorpayOrderId },
-        data: { paymentStatus: 'failed', status: 'FAILED' },
-      });
-    } else if (eventType === 'refund.processed' || eventType === 'refund.created' || eventType === 'refund.failed') {
-      const refund = data.refund.entity;
-      const paymentId = refund.payment_id;
-      const refundStatus = eventType === 'refund.processed' ? 'processed' : 
-                          eventType === 'refund.failed' ? 'failed' : 'pending';
-
-      // Find the order by payment ID
-      const order = await prisma.order.findUnique({
-        where: { razorpayPaymentId: paymentId },
-        include: { returns: true }
-      });
-
-      if (order) {
-        // Update order payment status
-        await prisma.order.update({
-          where: { id: order.id },
-          data: { 
-            paymentStatus: eventType === 'refund.processed' ? 'refunded' : 
-                           eventType === 'refund.failed' ? 'paid' : 'partial_refund' 
-          },
-        });
-
-        // Update associated returns
-        if (order.returns.length > 0) {
-          await prisma.return.updateMany({
-            where: { 
-              orderId: order.id,
-              status: { in: ['APPROVED', 'COMPLETED'] } // Only update relevant returns
-            },
-            data: { 
-              refundStatus: refundStatus.toUpperCase()
+        // Path A: Order exists — update status
+        if (order.paymentStatus !== 'paid') {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              paymentStatus: 'paid',
+              razorpayPaymentId,
+              paymentCapturedAt: new Date(),
+              status: (order.status === 'PENDING' || order.status === 'awaiting_approval' || order.status === 'payment_pending') ? 'OPEN' : order.status,
             },
           });
+
+          // Ensure payment row exists
+          const existingPayment = await prisma.payment.findFirst({
+            where: { orderId: order.id, gateway: 'razorpay' },
+          });
+
+          if (!existingPayment) {
+            await prisma.payment.create({
+              data: {
+                orderId: order.id,
+                customerId: order.customerId,
+                amount: payment.amount / 100,
+                type: 'CAPTURE',
+                status: 'success',
+                gateway: 'razorpay',
+              },
+            });
+          }
+
+          paymentLog('info', 'webhook', { message: `Order ${order.id} marked as PAID`, orderId: order.id });
         }
 
-        console.log(`[Razorpay Webhook] Refund ${refund.id} for Order ${order.shopifyOrderId} is ${refundStatus}`);
+        // Link WebhookEvent to Order
+        await prisma.webhookEvent.update({
+          where: { id: webhookRecord.id },
+          data: { orderId: order.id, processed: true, processedAt: new Date() },
+        });
+
+      } else {
+        // Path B: No Order exists — ORPHANED PAYMENT RECOVERY PATH
+        paymentLog('warn', 'webhook', {
+          message: `No local Order found for captured Razorpay order ${razorpayOrderId}. Initiating recovery...`,
+          razorpayOrderId,
+          razorpayPaymentId,
+        });
+
+        const recoveryResult = await recoverOrphanedRazorpayOrder({
+          razorpayOrderId,
+          razorpayPaymentId,
+          webhookEventId: webhookRecord.id,
+          triggerSource: 'webhook',
+        });
+
+        if (!recoveryResult.success) {
+          const criticalErrorMsg = `[Razorpay Webhook] CRITICAL: payment captured but order recovery failed`;
+          console.error(criticalErrorMsg, {
+            razorpayOrderId,
+            razorpayPaymentId,
+            error: recoveryResult.error,
+          });
+
+          // Phase 2: Failure Alerting to Admin Team
+          try {
+            await notifyAdminTeam(
+              `🚨 CRITICAL: Razorpay Payment Captured but Order Recovery Failed`,
+              `<div style="font-family: sans-serif; color: #fff; background: #111; padding: 20px; border-radius: 8px;">
+                <h2 style="color: #ef4444; margin-top: 0;">CRITICAL: Razorpay Payment Captured but Order Recovery Failed</h2>
+                <p>A payment was captured on Razorpay, but no matching order existed in the local database and the automatic recovery service failed.</p>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 15px; color: #ccc;">
+                  <tr><td style="padding: 6px; font-weight: bold;">Razorpay Order ID:</td><td>${razorpayOrderId}</td></tr>
+                  <tr><td style="padding: 6px; font-weight: bold;">Razorpay Payment ID:</td><td>${razorpayPaymentId}</td></tr>
+                  <tr><td style="padding: 6px; font-weight: bold;">Amount:</td><td>₹${(payment.amount / 100).toLocaleString('en-IN')}</td></tr>
+                  <tr><td style="padding: 6px; font-weight: bold;">Customer Email/Contact:</td><td>${payment.email || payment.contact || 'N/A'}</td></tr>
+                  <tr><td style="padding: 6px; font-weight: bold;">Error Detail:</td><td style="color: #fca5a5;">${recoveryResult.error || 'Unknown error'}</td></tr>
+                </table>
+                <p style="margin-top: 20px; color: #888; font-size: 12px;">Please open Admin → Transactions to manually resolve this payment.</p>
+              </div>`
+            );
+          } catch (alertErr: any) {
+            console.error('[Razorpay Webhook] Failed to send admin alert email:', alertErr.message);
+          }
+
+          return NextResponse.json(
+            { error: 'Order recovery failed', details: recoveryResult.error },
+            { status: 500 }
+          );
+        }
+      }
+    } else if (eventType === 'payment.failed') {
+      const payment = data.payment?.entity;
+      const razorpayOrderId = payment?.order_id;
+
+      if (razorpayOrderId) {
+        await prisma.order.updateMany({
+          where: { razorpayOrderId },
+          data: { paymentStatus: 'failed', status: 'FAILED' },
+        });
+      }
+    } else if (eventType === 'refund.processed' || eventType === 'refund.created' || eventType === 'refund.failed') {
+      const refund = data.refund?.entity;
+      const paymentId = refund?.payment_id;
+      const refundStatus = eventType === 'refund.processed' ? 'processed' :
+                          eventType === 'refund.failed' ? 'failed' : 'pending';
+
+      if (paymentId) {
+        const order = await prisma.order.findUnique({
+          where: { razorpayPaymentId: paymentId },
+          include: { returns: true },
+        });
+
+        if (order) {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              paymentStatus: eventType === 'refund.processed' ? 'refunded' :
+                             eventType === 'refund.failed' ? 'paid' : 'partial_refund',
+            },
+          });
+
+          if (order.returns.length > 0) {
+            await prisma.return.updateMany({
+              where: {
+                orderId: order.id,
+                status: { in: ['APPROVED', 'COMPLETED'] },
+              },
+              data: {
+                refundStatus: refundStatus.toUpperCase(),
+              },
+            });
+          }
+
+          paymentLog('info', 'webhook', { message: `Refund ${refund.id} for Order ${order.id} is ${refundStatus}` });
+
+          await prisma.webhookEvent.update({
+            where: { id: webhookRecord.id },
+            data: { orderId: order.id },
+          });
+        }
       }
     }
 

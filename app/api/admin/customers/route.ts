@@ -2,16 +2,29 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { fetchAllCustomers } from '@/lib/shopify-admin';
 import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
+import { mergeAllDuplicateCustomers } from '@/lib/services/customerDeduplicationService';
 
 export const dynamic = 'force-dynamic';
+
+function getCleanPhone(phone?: string | null): string | null {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, '').slice(-10);
+  return digits.length === 10 ? digits : null;
+}
+
+function getCleanEmail(email?: string | null): string | null {
+  if (!email) return null;
+  const trimmed = String(email).trim().toLowerCase();
+  return trimmed.length > 3 && trimmed.includes('@') ? trimmed : null;
+}
 
 export async function GET(req: Request) {
   try {
     await requirePermission('CUSTOMERS', 'view');
     const url = new URL(req.url);
     const format = url.searchParams.get('format');
-    // Performance Optimization: Check for count-only mode
     const countOnly = url.searchParams.get('count') === 'true';
+
     if (countOnly) {
       const total = await prisma.customer.count();
       return NextResponse.json({ success: true, total }, { status: 200 });
@@ -32,72 +45,130 @@ export async function GET(req: Request) {
       ];
     }
 
-    // Fetch DB customers with pagination
-    const [dbCustomers, totalCount] = await Promise.all([
-      prisma.customer.findMany({
-        where: customerWhere,
-        take: limit,
-        skip: offset,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          orders: {
-            orderBy: { createdAt: 'desc' },
-            take: 5,
-            include: {
-              items: true,
-            },
-          },
-        },
-      }),
-      prisma.customer.count({ where: customerWhere }),
-    ]);
-
-    // Fire-and-forget background sync (non-blocking) on page 1 without active search
+    // Fire-and-forget background deduplication & Shopify sync on page 1
     if (page === 1 && !search) {
       (async () => {
         try {
+          // 1. Run database-wide deduplication sweeper
+          await mergeAllDuplicateCustomers();
+
+          // 2. Sync Shopify customers safely without creating duplicate email/phone records
           const shop = await prisma.shop.findFirst();
           if (shop) {
             const shopifyCustomers = await fetchAllCustomers(100).catch(() => []);
             for (const sc of shopifyCustomers) {
               const shopifyId = String(sc.id);
-              const email = sc.email || null;
+              const email = getCleanEmail(sc.email);
               const phone = sc.phone || null;
               const name = `${sc.first_name || ""} ${sc.last_name || ""}`.trim() || email || phone || "Customer";
 
-              await prisma.customer.upsert({
-                where: { shopifyId },
-                update: {
-                  email,
-                  phone,
-                  name,
-                  ordersCount: sc.orders_count || 0,
-                  totalSpent: parseFloat(sc.total_spent || "0"),
+              // Check if customer already exists by shopifyId, email, or phone
+              const existing = await prisma.customer.findFirst({
+                where: {
+                  OR: [
+                    { shopifyId },
+                    ...(email ? [{ email }] : []),
+                    ...(phone ? [{ phone }] : []),
+                  ],
                 },
-                create: {
-                  shopifyId,
-                  shopId: shop.id,
-                  email,
-                  phone,
-                  name,
-                  ordersCount: sc.orders_count || 0,
-                  totalSpent: parseFloat(sc.total_spent || "0"),
-                }
-              }).catch(() => {});
+              });
+
+              if (existing) {
+                await prisma.customer.update({
+                  where: { id: existing.id },
+                  data: {
+                    shopifyId,
+                    ...(email ? { email } : {}),
+                    ...(phone ? { phone } : {}),
+                    name: existing.name && existing.name !== 'Customer' ? existing.name : name,
+                    ordersCount: Math.max(existing.ordersCount, sc.orders_count || 0),
+                    totalSpent: Math.max(existing.totalSpent, parseFloat(sc.total_spent || "0")),
+                  },
+                }).catch(() => {});
+              } else {
+                await prisma.customer.create({
+                  data: {
+                    shopifyId,
+                    shopId: shop.id,
+                    email,
+                    phone,
+                    name,
+                    ordersCount: sc.orders_count || 0,
+                    totalSpent: parseFloat(sc.total_spent || "0"),
+                  },
+                }).catch(() => {});
+              }
             }
           }
         } catch (e: any) {
-          console.error("[Customers Sync BG] Error:", e.message);
+          console.error("[Customers Sync/Deduplication BG] Error:", e.message);
         }
       })();
     }
 
-    let payload = dbCustomers.map((c: any) => {
+    // Fetch DB customers
+    const dbCustomers = await prisma.customer.findMany({
+      where: customerWhere,
+      orderBy: { createdAt: 'desc' },
+      take: limit * 2, // Take larger batch to allow in-memory deduplication
+      skip: offset,
+      include: {
+        orders: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          include: { items: true },
+        },
+      },
+    });
+
+    // In-memory deduplication & aggregation by unique email / phone
+    const uniqueCustomersMap = new Map<string, any>();
+    const seenIds = new Set<string>();
+
+    for (const c of dbCustomers) {
+      if (seenIds.has(c.id)) continue;
+
+      const emailKey = getCleanEmail(c.email);
+      const phoneKey = getCleanPhone(c.phone);
+      const dedupKey = emailKey ? `email:${emailKey}` : phoneKey ? `phone:${phoneKey}` : `id:${c.id}`;
+
+      if (uniqueCustomersMap.has(dedupKey)) {
+        // Merge order stats into existing customer record in payload
+        const existing = uniqueCustomersMap.get(dedupKey);
+        existing.totalOrders += c.ordersCount || c.orders.length;
+        existing.totalSpent += c.totalSpent || c.orders.reduce((sum: number, o: any) => sum + (o.totalPrice || 0), 0);
+        
+        // Merge orders list
+        const existingOrderIds = new Set(existing.orders.map((o: any) => o.id));
+        for (const o of c.orders) {
+          if (!existingOrderIds.has(o.id)) {
+            existing.orders.push({
+              id: o.id,
+              shopifyOrderId: o.shopifyOrderId,
+              status: o.status,
+              totalPrice: o.totalPrice || 0,
+              paymentStatus: o.paymentStatus,
+              fulfillmentStatus: o.fulfillmentStatus,
+              createdAt: o.createdAt,
+              items: o.items.map((i: any) => ({
+                id: i.id,
+                title: i.title,
+                quantity: i.quantity,
+                price: i.price,
+                sku: i.sku,
+              })),
+            });
+          }
+        }
+        seenIds.add(c.id);
+        continue;
+      }
+
       const displayName = c.name || c.email || (c.shopifyId !== 'anonymous' ? c.shopifyId : 'Anonymous User');
       const totalOrders = c.ordersCount || c.orders.length;
       const totalSpent = c.totalSpent || c.orders.reduce((sum: any, o: any) => sum + (o.totalPrice || 0), 0);
 
-      return {
+      const customerObj = {
         id: c.id,
         shopifyId: c.shopifyId,
         email: c.email,
@@ -125,11 +196,13 @@ export async function GET(req: Request) {
           })),
         })),
       };
-    });
 
-    if (format === 'csv') {
-      // CSV logic placeholder
+      uniqueCustomersMap.set(dedupKey, customerObj);
+      seenIds.add(c.id);
     }
+
+    const payload = Array.from(uniqueCustomersMap.values()).slice(0, limit);
+    const totalCount = await prisma.customer.count({ where: customerWhere });
 
     return NextResponse.json({
       success: true,

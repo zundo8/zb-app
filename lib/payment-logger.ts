@@ -15,6 +15,7 @@ interface PaymentLogEntry {
   message?: string;
   error?: string;
   ip?: string;
+  [key: string]: any;
 }
 
 export function paymentLog(

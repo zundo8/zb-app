@@ -3,11 +3,12 @@ import crypto from "crypto";
 import prisma from "@/lib/db";
 import { createOrder, createCustomer, updateCustomer } from "@/lib/shopify-admin";
 import { resolveRazorpayCredentials } from "@/lib/razorpay-credentials";
-import { sendMail } from "@/lib/mailer";
 import { sendOrderConfirmationEmail, sendOrderCodConfirmationEmail } from "@/lib/services/orderEmailService";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { resolveAndSyncCustomerAddress } from "@/lib/services/customerService";
+import { debitStoreCredits } from "@/lib/storeCreditsHelper";
 
 export async function POST(req: Request) {
   const rateLimitResult = await checkRateLimit(req, "checkout-complete", { maxRequests: 30, windowMs: 60_000 });
@@ -16,101 +17,77 @@ export async function POST(req: Request) {
   }
   try {
     const body = await req.json();
-    const { address, paymentMethod, items, total, subtotal, codFee, razorpay, couponCode, couponDiscount, applyAsStoreCredit, cashbackAmount } = body;
+    const {
+      address,
+      paymentMethod = "razorpay",
+      items,
+      total,
+      subtotal,
+      codFee,
+      razorpay,
+      couponCode,
+      couponDiscount,
+      applyAsStoreCredit,
+      cashbackAmount,
+      storeCreditAmount = 0,
+    } = body;
+
+    const parsedStoreCredit = Number(storeCreditAmount) || 0;
+    const isFullStoreCredit = paymentMethod === "store_credit" || paymentMethod === "STORE_CREDIT" || Number(total) === 0;
 
     const shop = await prisma.shop.findFirst();
     if (!shop) {
       return NextResponse.json({ error: "Shop not found" }, { status: 404 });
     }
 
-    // 1. Verify Payment (Required for both prepaid and COD upfront fee)
-    if (paymentMethod !== "COD" || razorpay) {
-      if (!razorpay || !razorpay.razorpay_order_id || !razorpay.razorpay_payment_id || !razorpay.razorpay_signature) {
-        return NextResponse.json({ error: "Payment details missing" }, { status: 400 });
-      }
-
-      // Accept mock payments for testing
-      const isMock = razorpay.razorpay_order_id.startsWith('order_mock_') || razorpay.razorpay_signature === 'mock_sig_valid';
-      
-      if (!isMock) {
-        let secret: string;
-        try {
-          secret = (await resolveRazorpayCredentials()).key_secret;
-        } catch {
-          return NextResponse.json({ error: "Payment verification not configured" }, { status: 500 });
+    // 1. Verify Payment (Required for prepaid and COD upfront fee, unless 100% store credit)
+    if (!isFullStoreCredit) {
+      if (paymentMethod !== "COD" || razorpay) {
+        if (!razorpay || !razorpay.razorpay_order_id || !razorpay.razorpay_payment_id || !razorpay.razorpay_signature) {
+          return NextResponse.json({ error: "Payment details missing" }, { status: 400 });
         }
 
-        const generated_signature = crypto
-          .createHmac("sha256", secret)
-          .update(razorpay.razorpay_order_id + "|" + razorpay.razorpay_payment_id)
-          .digest("hex");
+        // Accept mock payments for testing
+        const isMock = razorpay.razorpay_order_id.startsWith('order_mock_') || razorpay.razorpay_signature === 'mock_sig_valid';
 
-        // Timing-safe comparison to prevent timing attacks
-        try {
-          const sigBuffer = Buffer.from(razorpay.razorpay_signature, "utf-8");
-          const genBuffer = Buffer.from(generated_signature, "utf-8");
-          if (sigBuffer.length !== genBuffer.length || !crypto.timingSafeEqual(sigBuffer, genBuffer)) {
-            console.error("[Razorpay] Signature mismatch for order:", razorpay.razorpay_order_id);
+        if (!isMock) {
+          let secret: string;
+          try {
+            secret = (await resolveRazorpayCredentials()).key_secret;
+          } catch {
+            return NextResponse.json({ error: "Payment verification not configured" }, { status: 500 });
+          }
+
+          const generated_signature = crypto
+            .createHmac("sha256", secret)
+            .update(razorpay.razorpay_order_id + "|" + razorpay.razorpay_payment_id)
+            .digest("hex");
+
+          try {
+            const sigBuffer = Buffer.from(razorpay.razorpay_signature, "utf-8");
+            const genBuffer = Buffer.from(generated_signature, "utf-8");
+            if (sigBuffer.length !== genBuffer.length || !crypto.timingSafeEqual(sigBuffer, genBuffer)) {
+              console.error("[Razorpay] Signature mismatch for order:", razorpay.razorpay_order_id);
+              return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
+            }
+          } catch {
+            console.error("[Razorpay] Signature verification error");
             return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
           }
-        } catch {
-          console.error("[Razorpay] Signature verification error");
-          return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
+        } else {
+          console.warn('[Checkout] Accepting MOCK payment for testing');
         }
       } else {
-        console.warn('[Checkout] Accepting MOCK payment for testing');
+        return NextResponse.json({ error: "COD upfront payment details missing" }, { status: 400 });
       }
-    } else {
-      // paymentMethod === "COD" but no razorpay object was sent
-      return NextResponse.json({ error: "COD upfront payment details missing" }, { status: 400 });
     }
 
-    // 2. Find/Sync Customer
+    // 2. Find/Sync Customer & Address using customerService
     const session = await getServerSession(authOptions);
-    let localCustomer = null;
+    const sessionUserId = (session?.user as any)?.id || null;
+    const { customer: localCustomer } = await resolveAndSyncCustomerAddress(shop.id, address, sessionUserId);
 
-    if (session?.user) {
-      const whereClause: any = { OR: [] };
-      if (session.user.email) {
-        whereClause.OR.push({ email: session.user.email });
-      }
-      const userId = (session.user as any).id;
-      if (userId) {
-        whereClause.OR.push({ id: userId });
-      }
-      if (whereClause.OR.length > 0) {
-        localCustomer = await prisma.customer.findFirst({
-          where: whereClause
-        });
-      }
-    }
-
-    if (!localCustomer) {
-      localCustomer = await prisma.customer.findFirst({
-        where: {
-          OR: [
-            { email: address.email },
-            { phone: address.phone }
-          ]
-        }
-      });
-    }
-
-    if (!localCustomer) {
-      // Should not happen if they are logged in, but handle guest-like flow or sync
-      localCustomer = await prisma.customer.create({
-        data: {
-          email: address.email,
-          phone: address.phone,
-          name: address.name,
-          shopId: shop.id,
-          shopifyId: `temp_${Date.now()}`
-        }
-      });
-    }
-
-    // Duplicate account check and merge:
-    // If user inputs a phone number at checkout, check if another customer profile has this phone number.
+    // Duplicate account check and merge
     if (address.phone) {
       const duplicateCustomer = await prisma.customer.findFirst({
         where: {
@@ -122,7 +99,6 @@ export async function POST(req: Request) {
       if (duplicateCustomer) {
         console.log(`[Checkout Merge] Merging duplicate customer account: ${duplicateCustomer.id} -> ${localCustomer.id}`);
         try {
-          // Perform merging in a transaction
           await prisma.$transaction([
             prisma.order.updateMany({
               where: { customerId: duplicateCustomer.id },
@@ -173,7 +149,6 @@ export async function POST(req: Request) {
             })
           ]);
 
-          // Migrate Wishlist (outside transaction to safely try/catch unique constraint violations)
           const dupWishlist = await prisma.wishlist.findMany({
             where: { customerId: duplicateCustomer.id }
           });
@@ -190,7 +165,6 @@ export async function POST(req: Request) {
             }
           }
 
-          // Migrate CommunityMember
           const dupCommunity = await prisma.communityMember.findUnique({
             where: { customerId: duplicateCustomer.id }
           });
@@ -210,7 +184,6 @@ export async function POST(req: Request) {
             }
           }
 
-          // Delete duplicate customer record
           await prisma.customer.delete({
             where: { id: duplicateCustomer.id }
           });
@@ -224,30 +197,30 @@ export async function POST(req: Request) {
     // Sync with Shopify if needed
     let shopifyCustomerId = localCustomer.shopifyId;
     if (shopifyCustomerId.startsWith('temp_') || shopifyCustomerId.startsWith('google_') || shopifyCustomerId.startsWith('apple_')) {
-        try {
-            const sCustomer = await createCustomer({
-                first_name: address.name.split(' ')[0],
-                last_name: address.name.split(' ').slice(1).join(' ') || '.',
-                email: address.email,
-                phone: address.phone,
-                verified_email: true,
-                addresses: [{
-                    address1: address.street,
-                    city: address.city,
-                    province: address.state,
-                    zip: address.zip,
-                    country: address.country,
-                    default: true
-                }]
-            });
-            shopifyCustomerId = sCustomer.id.toString();
-            await prisma.customer.update({
-                where: { id: localCustomer.id },
-                data: { shopifyId: shopifyCustomerId }
-            });
-        } catch (e) {
-            console.error("Shopify Customer Sync Error:", e);
-        }
+      try {
+        const sCustomer = await createCustomer({
+          first_name: address.name.split(' ')[0],
+          last_name: address.name.split(' ').slice(1).join(' ') || '.',
+          email: address.email,
+          phone: address.phone,
+          verified_email: true,
+          addresses: [{
+            address1: address.street,
+            city: address.city,
+            province: address.state,
+            zip: address.zip,
+            country: address.country,
+            default: true
+          }]
+        });
+        shopifyCustomerId = sCustomer.id.toString();
+        await prisma.customer.update({
+          where: { id: localCustomer.id },
+          data: { shopifyId: shopifyCustomerId }
+        });
+      } catch (e) {
+        console.error("Shopify Customer Sync Error:", e);
+      }
     }
 
     // Generate universal internal order number
@@ -255,7 +228,7 @@ export async function POST(req: Request) {
     const yy = String(date.getFullYear()).slice(-2);
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const yymm = `${yy}${mm}`;
-    
+
     let universalOrderNumber = '';
     try {
       const seqRes: any[] = await prisma.$queryRawUnsafe(`
@@ -269,24 +242,21 @@ export async function POST(req: Request) {
       universalOrderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
     } catch (seqErr: any) {
       console.error('[Checkout] Failed to generate universal internal order number:', seqErr.message);
-      // Fallback in case of database issue
       universalOrderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
     }
 
     // 3. Create Order in Shopify
     const shopifyLineItems = items.map((item: any) => {
-      // Parse variant_id safely — support GID format (gid://shopify/ProductVariant/123) or plain ID
       let variantId: number | undefined;
       if (item.variantId) {
         const rawId = String(item.variantId).split('/').pop() || '';
         variantId = parseInt(rawId, 10);
         if (isNaN(variantId)) variantId = undefined;
       }
-      
+
       if (variantId) {
         return { variant_id: variantId, quantity: item.quantity };
       }
-      // Fallback: use title and price if no variant_id
       return {
         title: item.title,
         price: parseFloat(item.price).toFixed(2),
@@ -296,6 +266,7 @@ export async function POST(req: Request) {
     });
 
     const customerId = parseInt(shopifyCustomerId, 10);
+    const resolvedMethodTag = isFullStoreCredit ? "Store Credit" : paymentMethod === "COD" ? "COD" : "Prepaid, Razorpay";
     const shopifyOrderData: any = {
       line_items: shopifyLineItems,
       email: address.email,
@@ -323,14 +294,17 @@ export async function POST(req: Request) {
       },
       phone: address.phone,
       financial_status: paymentMethod === "COD" ? "pending" : "paid",
-      note: paymentMethod === "COD" 
-        ? `COD Order from Web Store - ₹${codFee || 99} upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})` 
-        : `Paid via Razorpay from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
-      tags: `WebStoreOrder, WebStore, ${paymentMethod === "COD" ? "COD" : "Prepaid, Razorpay"}, zb-order-${universalOrderNumber}`,
+      note: isFullStoreCredit
+        ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
+        : paymentMethod === "COD"
+        ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`
+        : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
+      tags: `WebStoreOrder, WebStore, ${resolvedMethodTag}, zb-order-${universalOrderNumber}`,
       note_attributes: [
         { name: 'internal_order_number', value: universalOrderNumber },
-        { name: 'payment_method', value: paymentMethod === "COD" ? 'COD' : 'PREPAID' },
-        { name: 'razorpay_payment_id', value: razorpay?.razorpay_payment_id || '' }
+        { name: 'payment_method', value: isFullStoreCredit ? 'STORE_CREDIT' : paymentMethod === "COD" ? 'COD' : 'PREPAID' },
+        { name: 'razorpay_payment_id', value: razorpay?.razorpay_payment_id || '' },
+        { name: 'store_credit_amount', value: String(parsedStoreCredit) }
       ],
       total_tax: 0,
       currency: "INR",
@@ -345,33 +319,26 @@ export async function POST(req: Request) {
       } : {})
     };
 
-    // Add transactions so Shopify records the actual paid amount
     if (paymentMethod !== "COD") {
-      // PREPAID: Full amount paid via Razorpay
       shopifyOrderData.transactions = [{
         kind: "sale",
         status: "success",
         amount: parseFloat(total).toFixed(2),
         currency: "INR",
-        gateway: "razorpay",
-        authorization: razorpay?.razorpay_payment_id || null
+        gateway: isFullStoreCredit ? "store_credit" : "razorpay",
+        authorization: razorpay?.razorpay_payment_id || `store_credit_${Date.now()}`
       }];
     } else {
-      // COD: Only the upfront fee (₹99) is paid now, rest is collected on delivery
-      // financial_status stays "pending" because the full order isn't paid yet
-      // We record the upfront fee as a note attribute for reference
       shopifyOrderData.note_attributes.push(
         { name: 'cod_upfront_fee', value: String(codFee || 99) },
         { name: 'cod_upfront_payment_id', value: razorpay?.razorpay_payment_id || '' }
       );
     }
 
-    // Only add customer if we have a valid numeric Shopify ID
     if (!isNaN(customerId) && customerId > 0) {
       shopifyOrderData.customer = { id: customerId };
     }
 
-    // Try to create order in Shopify — but don't fail the entire checkout if Shopify is down
     let shopifyOrderId = null;
     let sOrder: any = null;
     try {
@@ -379,10 +346,9 @@ export async function POST(req: Request) {
       shopifyOrderId = sOrder.id.toString();
     } catch (shopifyErr: any) {
       console.error('[Checkout] Shopify order creation failed (will sync later):', shopifyErr.message);
-      // Order will be saved locally and can be synced to Shopify later via admin dashboard
     }
 
-    // Resolve products from DB to get correct local database IDs (cuid) and shopify line item IDs
+    // Resolve products from DB
     const resolvedItems = [];
     if (sOrder && sOrder.line_items) {
       for (const li of sOrder.line_items) {
@@ -398,7 +364,6 @@ export async function POST(req: Request) {
             image = byShopifyId.featuredImage;
           }
         }
-        // Fallback to request items mapping for image if not found in db product
         if (!image) {
           const matchingRequestItem = items.find((item: any) => {
             const liVariantId = String(li.variant_id);
@@ -420,7 +385,6 @@ export async function POST(req: Request) {
         });
       }
     } else {
-      // Fallback if Shopify order creation failed
       for (let index = 0; index < items.length; index++) {
         const item = items[index];
         let dbProductId = null;
@@ -455,50 +419,100 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. Create Order in local DB
-    const localOrder = await prisma.order.create({
-      data: {
-        shopId: shop.id,
-        shopifyOrderId: shopifyOrderId,
-        customerId: localCustomer.id,
-        status: paymentMethod === "COD" ? "open" : "approved",
-        totalPrice: total,
-        subtotalPrice: subtotal,
-        paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
-        fulfillmentStatus: "unfulfilled",
-        deliveryStatus: "pending",
-        shippingAddress: JSON.stringify(address),
-        billingAddress: JSON.stringify(address),
-        razorpayOrderId: razorpay?.razorpay_order_id || null,
-        razorpayPaymentId: razorpay?.razorpay_payment_id || null,
-        paymentMethod: paymentMethod === "COD" ? "COD" : "razorpay",
-        paymentCapturedAt: razorpay ? new Date() : null,
-        orderType: "WEB_STORE",
-        tags: `WebStoreOrder, Web, ${paymentMethod === "COD" ? "COD" : "Razorpay"}, zb-order-${universalOrderNumber}`,
-        discountCode: couponCode || null,
-        discountAmount: Number(couponDiscount) || 0,
-        
-        // Universal Numbering & Sync fields
-        internalOrderNumber: universalOrderNumber,
-        shopifyOrderName: sOrder ? sOrder.name : null,
-        shopifySyncStatus: sOrder ? 'synced' : 'failed',
-        shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
-        
-        items: {
-          create: resolvedItems.map((item: any) => ({
-            shopifyLineItemId: item.shopifyLineItemId,
-            productId: item.productId,
-            title: item.title,
-            quantity: item.quantity,
-            price: item.price,
-            sku: item.sku,
-            image: item.image
-          }))
+    // 4. Update existing pre-created Order OR Create Order in local DB
+    const rzpOrderId = razorpay?.razorpay_order_id;
+    let existingPreCreatedOrder = null;
+    if (rzpOrderId || body.localOrderId) {
+      existingPreCreatedOrder = await prisma.order.findFirst({
+        where: {
+          OR: [
+            ...(rzpOrderId ? [{ razorpayOrderId: rzpOrderId }] : []),
+            ...(body.localOrderId ? [{ id: body.localOrderId }] : [])
+          ]
         }
-      }
-    });
+      });
+    }
 
-    // ─── Record authoritative purchase event in analytics (server-side, exactly-once) ───
+    let localOrder: any = null;
+    const finalPaymentMethod = isFullStoreCredit ? "store_credit" : paymentMethod === "COD" ? "COD" : "razorpay";
+
+    if (existingPreCreatedOrder) {
+      universalOrderNumber = existingPreCreatedOrder.internalOrderNumber || universalOrderNumber;
+      localOrder = await prisma.order.update({
+        where: { id: existingPreCreatedOrder.id },
+        data: {
+          shopifyOrderId: shopifyOrderId,
+          status: paymentMethod === "COD" ? "open" : "approved",
+          paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
+          razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+          paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
+          paymentMethod: finalPaymentMethod,
+          storeCreditAmount: parsedStoreCredit,
+          tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
+          note: isFullStoreCredit
+            ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
+            : paymentMethod === "COD"
+            ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
+            : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
+          shopifyOrderName: sOrder ? sOrder.name : null,
+          shopifySyncStatus: sOrder ? 'synced' : 'failed',
+          shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
+        }
+      });
+      console.log(`[Checkout Complete] Updated pre-created order ${localOrder.id} (${universalOrderNumber}) status to paid/approved`);
+    } else {
+      localOrder = await prisma.order.create({
+        data: {
+          shopId: shop.id,
+          shopifyOrderId: shopifyOrderId,
+          customerId: localCustomer.id,
+          status: paymentMethod === "COD" ? "open" : "approved",
+          totalPrice: total,
+          subtotalPrice: subtotal,
+          paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
+          fulfillmentStatus: "unfulfilled",
+          deliveryStatus: "pending",
+          shippingAddress: JSON.stringify(address),
+          billingAddress: JSON.stringify(address),
+          razorpayOrderId: razorpay?.razorpay_order_id || null,
+          razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+          paymentMethod: finalPaymentMethod,
+          storeCreditAmount: parsedStoreCredit,
+          paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
+          orderType: "WEB_STORE",
+          tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
+          discountCode: couponCode || null,
+          discountAmount: Number(couponDiscount) || 0,
+          internalOrderNumber: universalOrderNumber,
+          shopifyOrderName: sOrder ? sOrder.name : null,
+          shopifySyncStatus: sOrder ? 'synced' : 'failed',
+          shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
+          items: {
+            create: resolvedItems.map((item: any) => ({
+              shopifyLineItemId: item.shopifyLineItemId,
+              productId: item.productId,
+              title: item.title,
+              quantity: item.quantity,
+              price: item.price,
+              sku: item.sku,
+              image: item.image
+            }))
+          }
+        }
+      });
+    }
+
+    // ─── DEBIT STORE CREDITS FROM CUSTOMER WALLET ───
+    if (parsedStoreCredit > 0) {
+      try {
+        await debitStoreCredits(localCustomer.id, parsedStoreCredit, localOrder.id);
+        console.log(`[Checkout Complete] Successfully debited ₹${parsedStoreCredit} store credit for order ${localOrder.id}`);
+      } catch (storeCreditDebitErr: any) {
+        console.error(`[Checkout Complete] Error debiting store credit for customer ${localCustomer.id}:`, storeCreditDebitErr.message);
+      }
+    }
+
+    // Record purchase event in analytics
     try {
       await prisma.analyticsEvent.create({
         data: {
@@ -506,7 +520,7 @@ export async function POST(req: Request) {
           eventName: 'purchase',
           customerId: localCustomer.id,
           anonymousId: body.guestId || null,
-          sessionId: null, // Server-side event — no client session
+          sessionId: null,
           platform: 'web',
           orderId: localOrder.id,
           value: total,
@@ -514,21 +528,21 @@ export async function POST(req: Request) {
           quantity: items.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0),
           pageUrl: '/checkout/complete',
           metadata: {
-            paymentMethod: paymentMethod,
+            paymentMethod: finalPaymentMethod,
             orderNumber: universalOrderNumber,
             couponCode: couponCode || null,
             discountAmount: Number(couponDiscount) || 0,
+            storeCreditAmount: parsedStoreCredit,
           },
         },
       });
     } catch (analyticsErr: any) {
-      // P2002 = duplicate (idempotent), or any other error — never block checkout
       if (analyticsErr.code !== 'P2002') {
         console.warn('[Checkout Analytics] Failed to record purchase event:', analyticsErr.message);
       }
     }
 
-    // Mark active or abandoned cart converted and link convertedOrderId
+    // Mark active or abandoned cart converted
     try {
       const matchingCarts = await prisma.cart.findMany({
         where: {
@@ -584,7 +598,7 @@ export async function POST(req: Request) {
       try {
         const cbAmt = parseFloat(String(cashbackAmount));
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 90); // 90 days expiry
+        expiresAt.setDate(expiresAt.getDate() + 90);
 
         await prisma.$transaction([
           prisma.customer.update({
@@ -611,50 +625,80 @@ export async function POST(req: Request) {
       }
     }
 
-    // Also create a WebStoreOrder for the web-store dashboard integration
+    // Sync WebStoreOrder for dashboard integration
     let webStoreOrder: any = null;
     try {
-      webStoreOrder = await prisma.webStoreOrder.create({
-        data: {
-          orderNumber: universalOrderNumber, // Set directly to universal number
-          customerName: address.name,
-          customerEmail: address.email,
-          customerPhone: address.phone || "",
-          shippingAddress: address as any,
-          items: items.map((item: any) => ({
-            product_id: item.productId,
-            variant_id: item.variantId || "",
-            title: item.title,
-            image_url: item.image || "",
-            quantity: item.quantity,
-            price: Number(item.price) || 0,
-            size: item.size || ""
-          })) as any,
-          subtotal: subtotal,
-          shippingCharge: 0,
-          discountCode: couponCode || null,
-          discountAmount: Number(couponDiscount) || 0,
-          totalAmount: total,
-          paymentStatus: paymentMethod === "COD" ? "cod_upfront_paid" : "paid",
-          paymentMethod: paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay",
-          razorpayOrderId: razorpay?.razorpay_order_id || null,
-          razorpayPaymentId: razorpay?.razorpay_payment_id || null,
-          codUpfrontPaid: paymentMethod === "COD" ? codFee : 0,
-          codUpfrontPaymentId: paymentMethod === "COD" ? (razorpay?.razorpay_payment_id || null) : null,
-          fulfillmentStatus: "unfulfilled",
-          notes: `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid: ${razorpay?.razorpay_payment_id || 'N/A'})` : "Paid via Razorpay"} from Web Store | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`,
-          source: "web"
+      const existingWebStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: {
+          OR: [
+            ...(razorpay?.razorpay_order_id ? [{ razorpayOrderId: razorpay.razorpay_order_id }] : []),
+            { orderNumber: universalOrderNumber }
+          ]
         }
       });
+
+      if (existingWebStoreOrder) {
+        webStoreOrder = await prisma.webStoreOrder.update({
+          where: { id: existingWebStoreOrder.id },
+          data: {
+            paymentStatus: isFullStoreCredit ? "paid" : paymentMethod === "COD" ? "cod_upfront_paid" : "paid",
+            paymentMethod: finalPaymentMethod,
+            razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+            storeCreditAmount: parsedStoreCredit,
+            codUpfrontPaid: paymentMethod === "COD" ? codFee : 0,
+            codUpfrontPaymentId: paymentMethod === "COD" ? (razorpay?.razorpay_payment_id || null) : null,
+            notes: isFullStoreCredit
+              ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
+              : `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`
+          }
+        });
+        console.log(`[Checkout Complete] Updated pre-created WebStoreOrder ${webStoreOrder.id} (${universalOrderNumber}) to paid`);
+      } else {
+        webStoreOrder = await prisma.webStoreOrder.create({
+          data: {
+            orderNumber: universalOrderNumber,
+            customerName: address.name,
+            customerEmail: address.email,
+            customerPhone: address.phone || "",
+            shippingAddress: address as any,
+            items: items.map((item: any) => ({
+              product_id: item.productId,
+              variant_id: item.variantId || "",
+              title: item.title,
+              image_url: item.image || "",
+              quantity: item.quantity,
+              price: Number(item.price) || 0,
+              size: item.size || ""
+            })) as any,
+            subtotal: subtotal,
+            shippingCharge: 0,
+            discountCode: couponCode || null,
+            discountAmount: Number(couponDiscount) || 0,
+            storeCreditAmount: parsedStoreCredit,
+            totalAmount: total,
+            paymentStatus: isFullStoreCredit ? "paid" : paymentMethod === "COD" ? "cod_upfront_paid" : "paid",
+            paymentMethod: finalPaymentMethod,
+            razorpayOrderId: razorpay?.razorpay_order_id || null,
+            razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+            codUpfrontPaid: paymentMethod === "COD" ? codFee : 0,
+            codUpfrontPaymentId: paymentMethod === "COD" ? (razorpay?.razorpay_payment_id || null) : null,
+            fulfillmentStatus: "unfulfilled",
+            notes: isFullStoreCredit
+              ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
+              : `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`,
+            source: "web"
+          }
+        });
+      }
       console.log(`[Checkout] Successfully synced WebStoreOrder for localOrder: ${localOrder.id}, shopifyOrderId: ${shopifyOrderId}`);
     } catch (webStoreOrderErr: any) {
-      console.error("[Checkout] Failed to create WebStoreOrder in DB:", webStoreOrderErr.message);
+      console.error("[Checkout] Failed to sync WebStoreOrder in DB:", webStoreOrderErr.message);
     }
 
-    // Send order confirmation email to the user directly
+    // Send order confirmation email to the user
     try {
       const orderPayload = {
-        orderId: universalOrderNumber, // Universal ID
+        orderId: universalOrderNumber,
         customerEmail: address.email,
         customerName: address.name || "Customer",
         items: items.map((item: any) => ({
@@ -669,7 +713,7 @@ export async function POST(req: Request) {
         total: Number(total),
         currency: 'INR',
         orderDate: new Date(localOrder.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' }),
-        paymentMethod: paymentMethod,
+        paymentMethod: finalPaymentMethod,
         subtotal: Number(subtotal),
         shipping: 0,
         discount: Number(couponDiscount) || 0,
@@ -682,7 +726,6 @@ export async function POST(req: Request) {
         await sendOrderConfirmationEmail(orderPayload);
       }
 
-      // Log the email in our system logs
       await prisma.emailLog.create({
         data: {
           recipientEmail: address.email,
@@ -697,7 +740,6 @@ export async function POST(req: Request) {
       });
     } catch (emailErr: any) {
       console.error("[Email Trigger Error] Failed to send order confirmation email:", emailErr.message);
-      // Don't crash checkout if email fails, but log it
       await prisma.emailLog.create({
         data: {
           recipientEmail: address.email,
@@ -715,15 +757,15 @@ export async function POST(req: Request) {
 
     // Update customer name, phone, and address for next time
     await prisma.customer.update({
-        where: { id: localCustomer.id },
-        data: { 
-            name: address.name,
-            phone: address.phone,
-            defaultAddress: JSON.stringify(address) 
-        }
+      where: { id: localCustomer.id },
+      data: {
+        name: address.name,
+        phone: address.phone,
+        defaultAddress: JSON.stringify(address)
+      }
     });
 
-    // Save shipping address to Address table if it doesn't exist
+    // Save shipping address to Address table
     try {
       const existingAddr = await prisma.address.findFirst({
         where: {
@@ -736,7 +778,6 @@ export async function POST(req: Request) {
       });
 
       if (!existingAddr) {
-        // Find if they have any addresses to see if this is the first (and thus default)
         const addressesCount = await prisma.address.count({
           where: { customerId: localCustomer.id }
         });
@@ -766,11 +807,11 @@ export async function POST(req: Request) {
     }
 
     try {
-        await updateCustomer(shopifyCustomerId, {
-            first_name: address.name.split(' ')[0],
-            last_name: address.name.split(' ').slice(1).join(' ') || '.',
-            phone: address.phone,
-        });
+      await updateCustomer(shopifyCustomerId, {
+        first_name: address.name.split(' ')[0],
+        last_name: address.name.split(' ').slice(1).join(' ') || '.',
+        phone: address.phone,
+      });
     } catch (e) {
         console.error("Shopify Customer Name Update Error:", e);
     }
@@ -778,6 +819,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ orderId: localOrder.id });
   } catch (error: any) {
     console.error("Order Completion Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Order completion failed" }, { status: 500 });
   }
 }

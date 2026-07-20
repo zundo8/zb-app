@@ -7,6 +7,15 @@ import Link from "next/link";
 export default function PaymentsPage() {
   const modules = [
     {
+      title: "Razorpay Transactions",
+      description: "Live Razorpay captured payments API cross-referenced against local database records.",
+      icon: CreditCard,
+      href: "/dashboard/transactions",
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+      stats: "Ground Truth"
+    },
+    {
       title: "Store Credits",
       description: "Manage customer wallet balances, manual adjustments, and credit history.",
       icon: Wallet,

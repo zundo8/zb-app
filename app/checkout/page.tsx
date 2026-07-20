@@ -36,7 +36,8 @@ import {
   Mail,
   Globe,
   Map,
-  Folder
+  Folder,
+  Wallet
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -633,21 +634,68 @@ export default function CheckoutPage() {
   const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
   const [isManualCoupon, setIsManualCoupon] = useState(false);
 
-  const total = subtotal - (applyAsStoreCredit ? 0 : couponDiscount) + shipping;
+  // Store Credit Wallet state
+  const [availableStoreCredit, setAvailableStoreCredit] = useState(0);
+  const [useStoreCredit, setUseStoreCredit] = useState(false);
 
+  // Calculate totals including Store Credit deduction
+  const totalBeforeStoreCredit = subtotal - (applyAsStoreCredit ? 0 : couponDiscount) + shipping;
+  const appliedStoreCredit = useStoreCredit ? Math.min(availableStoreCredit, totalBeforeStoreCredit) : 0;
+  const finalTotal = Math.max(0, totalBeforeStoreCredit - appliedStoreCredit);
+  const total = finalTotal;
 
+  // Fetch available store credit balance when customer email/phone or session changes
+  useEffect(() => {
+    const fetchStoreCredits = async () => {
+      try {
+        const email = address.email || (session?.user as any)?.email;
+        const phone = address.phone;
+        if (!email && !phone) return;
+
+        const params = new URLSearchParams();
+        if (email) params.set('email', email);
+        if (phone) params.set('phone', phone);
+
+        const res = await fetch(`/api/user/store-credits?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.balance > 0) {
+            setAvailableStoreCredit(data.balance);
+          } else {
+            setAvailableStoreCredit(0);
+          }
+        }
+      } catch (err) {
+        console.error('[Checkout] Error fetching store credits:', err);
+      }
+    };
+
+    fetchStoreCredits();
+  }, [address.email, address.phone, session]);
 
   // Background prefetch of the Razorpay order when entering Step 2 or changing payment configurations
   useEffect(() => {
-    if (step === 2 && items.length > 0 && address.name && address.phone) {
+    if (step === 2 && items.length > 0 && address.name && address.phone && finalTotal > 0) {
       const prefetchRazorpayOrder = async () => {
         try {
-          const paymentAmount = paymentMethod === "COD" ? codFee : total;
+          const fullStreet = [address.houseNo, address.street, address.landmark].filter(Boolean).join(", ");
+          const checkoutAddress = { ...address, street: fullStreet || address.street };
+          const paymentAmount = paymentMethod === "COD" ? codFee : finalTotal;
           const res = await fetch("/api/checkout/razorpay", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               amount: paymentAmount,
+              currency: "INR",
+              address: checkoutAddress,
+              items,
+              subtotal,
+              total: finalTotal,
+              paymentMethod,
+              codFee: paymentMethod === "COD" ? codFee : 0,
+              couponCode: couponValid ? couponCode : null,
+              couponDiscount: couponDiscount,
+              storeCreditAmount: appliedStoreCredit,
               notes: {
                 name: address.name,
                 email: address.email || "",
@@ -1207,8 +1255,44 @@ export default function CheckoutPage() {
       const fullStreet = [address.houseNo, address.street, address.landmark].filter(Boolean).join(", ");
       const checkoutAddress = { ...address, street: fullStreet };
 
-      // If COD, amount to pay upfront is codFee (99), otherwise it is total
-      const paymentAmount = paymentMethod === "COD" ? codFee : total;
+      // Case 1: 100% Store Credit Payment (finalTotal === 0)
+      if (finalTotal === 0 && appliedStoreCredit > 0) {
+        console.log("[Checkout] Completing order with 100% Store Credit");
+        const completeRes = await fetch("/api/checkout/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            address: checkoutAddress,
+            paymentMethod: "store_credit",
+            items,
+            total: 0,
+            subtotal,
+            codFee: 0,
+            couponCode: couponValid ? couponCode : null,
+            couponDiscount: couponDiscount,
+            storeCreditAmount: appliedStoreCredit,
+            guestId: getClientCookie("zb_device_id"),
+          }),
+        });
+
+        const completeData = await completeRes.json();
+        if (completeRes.ok) {
+          setIsOrderPlaced(true);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("last_placed_order_id", completeData.orderId);
+            const joinedCategories = items.map(item => item.category).filter(Boolean).join(', ');
+            sessionStorage.setItem(`order_categories_${completeData.orderId}`, joinedCategories);
+          }
+          clear();
+          router.push(`/orders/${completeData.orderId}/confirmation`);
+          return;
+        } else {
+          throw new Error(completeData.error || "Failed to complete order with store credit.");
+        }
+      }
+
+      // Case 2: Partial Store Credit or Standard Payment
+      const paymentAmount = paymentMethod === "COD" ? codFee : finalTotal;
 
       let orderId = "";
       let keyId = "";
@@ -1226,9 +1310,19 @@ export default function CheckoutPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             amount: paymentAmount,
+            currency: "INR",
+            address: checkoutAddress,
+            items,
+            subtotal,
+            total: finalTotal,
+            paymentMethod,
+            codFee: paymentMethod === "COD" ? codFee : 0,
+            couponCode: couponValid ? couponCode : null,
+            couponDiscount: couponDiscount,
+            storeCreditAmount: appliedStoreCredit,
             notes: {
               name: address.name,
-              email: address.email,
+              email: address.email || "",
               contact: address.phone,
             }
           }),
@@ -1266,7 +1360,7 @@ export default function CheckoutPage() {
               address: checkoutAddress,
               paymentMethod,
               items,
-              total,
+              total: finalTotal,
               subtotal,
               codFee: paymentMethod === "COD" ? codFee : 0,
               razorpay: response,
@@ -1274,6 +1368,7 @@ export default function CheckoutPage() {
               couponDiscount: couponDiscount,
               applyAsStoreCredit,
               cashbackAmount,
+              storeCreditAmount: appliedStoreCredit,
               guestId: getClientCookie("zb_device_id"),
             }),
           });
@@ -1549,6 +1644,42 @@ export default function CheckoutPage() {
           ))}
         </div>
 
+        {/* Store Credit Wallet Card */}
+        {availableStoreCredit > 0 && (
+          <div className="apple-glass-capsule p-3.5 rounded-2xl flex flex-col gap-2.5 transition-all duration-300 border-emerald-500/20 bg-emerald-500/[0.04]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-[10px] font-semibold text-foreground tracking-wide leading-none">
+                    Store Credit Wallet
+                  </h4>
+                  <p className="text-[8.5px] text-emerald-400 font-light mt-0.5">
+                    Available: ₹{availableStoreCredit.toLocaleString('en-IN')}
+                  </p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useStoreCredit}
+                  onChange={(e) => setUseStoreCredit(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4.5 bg-foreground/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+              </label>
+            </div>
+            {useStoreCredit && appliedStoreCredit > 0 && (
+              <div className="text-[8.5px] font-light text-emerald-400/90 flex justify-between items-center pt-1 border-t border-emerald-500/10">
+                <span>Store Credit Discount</span>
+                <span className="font-semibold">- ₹{appliedStoreCredit.toLocaleString('en-IN')}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Calculations Summary */}
         <div className="apple-glass-capsule p-4 rounded-2xl flex flex-col gap-2.5">
           <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
@@ -1560,6 +1691,13 @@ export default function CheckoutPage() {
             <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
               <span className="text-emerald-400/90">Discount ({couponCode})</span>
               <span className="text-emerald-400/90">- ₹{couponDiscount.toLocaleString("en-IN")}</span>
+            </div>
+          )}
+
+          {appliedStoreCredit > 0 && (
+            <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
+              <span className="text-emerald-400/90">Store Credit Applied</span>
+              <span className="text-emerald-400/90">- ₹{appliedStoreCredit.toLocaleString("en-IN")}</span>
             </div>
           )}
 
@@ -1588,11 +1726,11 @@ export default function CheckoutPage() {
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
                 <span className="text-foreground/40">Order Total</span>
-                <span className="text-foreground/75">₹{total.toLocaleString("en-IN")}</span>
+                <span className="text-foreground/75">₹{finalTotal.toLocaleString("en-IN")}</span>
               </div>
               <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
                 <span className="text-foreground/40">Due at Delivery</span>
-                <span className="text-foreground/75">₹{Math.max(0, total - codFee).toLocaleString("en-IN")}</span>
+                <span className="text-foreground/75">₹{Math.max(0, finalTotal - codFee).toLocaleString("en-IN")}</span>
               </div>
               <div className="h-[1px] bg-foreground/5 my-0.5" />
               <div className="flex justify-between items-center">
@@ -1603,7 +1741,7 @@ export default function CheckoutPage() {
           ) : (
             <div className="flex justify-between items-center">
               <span className="font-light text-[9px] text-foreground/45 uppercase tracking-widest">Total</span>
-              <span className="text-base font-medium text-foreground tracking-tight leading-none">₹{total.toLocaleString("en-IN")}</span>
+              <span className="text-base font-medium text-foreground tracking-tight leading-none">₹{finalTotal.toLocaleString("en-IN")}</span>
             </div>
           )}
         </div>
@@ -1764,7 +1902,13 @@ export default function CheckoutPage() {
                 } rounded-xl bg-black dark:bg-white text-white dark:text-black hover:opacity-95 active:scale-[0.98] border border-black/10 dark:border-white/10 transition-all flex items-center justify-between pr-1.5 disabled:opacity-50 shadow-sm`}
             >
               <span className="text-[9.5px] font-bold tracking-[0.16em] uppercase text-center flex-1 whitespace-nowrap">
-                {loading ? "PROCESSING..." : paymentMethod === "COD" ? `PAY ₹${codFee} & PLACE COD ORDER` : `PAY ₹${total.toLocaleString("en-IN")} SECURELY`}
+                {loading
+                  ? "PROCESSING..."
+                  : finalTotal === 0
+                  ? `PAY ₹0 WITH STORE CREDIT`
+                  : paymentMethod === "COD"
+                  ? `PAY ₹${codFee} & PLACE COD ORDER`
+                  : `PAY ₹${finalTotal.toLocaleString("en-IN")} SECURELY`}
               </span>
               <div className="w-8 h-8 rounded-lg bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" strokeWidth={2.5} />}

@@ -66,6 +66,8 @@ interface Order {
 }
 
 const STATUS_THEME: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  payment_pending: { label: "Order creation in process", color: "text-amber-400", bg: "bg-amber-400/10", dot: "bg-amber-400" },
+  'payment pending': { label: "Order creation in process", color: "text-amber-400", bg: "bg-amber-400/10", dot: "bg-amber-400" },
   paid: { label: "Settled", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
   success: { label: "Settled", color: "text-emerald-500", bg: "bg-emerald-500/10", dot: "bg-emerald-500" },
   pending: { label: "Pending", color: "text-amber-500", bg: "bg-amber-500/10", dot: "bg-amber-500" },
