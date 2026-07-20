@@ -6,6 +6,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 
+import { formatPhone } from '@/lib/whatsapp/client';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -19,7 +21,9 @@ export async function GET() {
     const conversationMap: Record<string, any> = {};
 
     for (const msg of messages) {
-      const phone = msg.phoneNumber;
+      const phone = formatPhone(msg.phoneNumber) || msg.phoneNumber;
+      if (!phone) continue;
+
       if (!conversationMap[phone]) {
         conversationMap[phone] = {
           phoneNumber: phone,

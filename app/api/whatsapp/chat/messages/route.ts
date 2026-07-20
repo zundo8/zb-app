@@ -1,11 +1,8 @@
-/**
- * WhatsApp Chat Messages API Route
- * Location: app/api/whatsapp/chat/messages/route.ts
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
+import { sendTemplate, formatPhone } from '@/lib/whatsapp/client';
+import { logMessage } from '@/lib/whatsapp/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,17 +18,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing phone number parameter' }, { status: 400 });
     }
 
-    // Fetch message history
+    const formatted = formatPhone(phone) || phone;
+    const last10 = phone.replace(/\D/g, '').slice(-10);
+
+    const conditions: any[] = [{ phoneNumber: phone }];
+    if (formatted) conditions.push({ phoneNumber: formatted });
+    if (last10.length === 10) conditions.push({ phoneNumber: { endsWith: last10 } });
+
+    // Fetch message history matching exact phone, formatted phone, or last 10 digits
     const messages = await prisma.whatsAppMessage.findMany({
-      where: { phoneNumber: phone },
+      where: {
+        OR: conditions
+      },
       orderBy: { createdAt: 'asc' },
-      take: 200,
+      take: 300,
     });
 
     // Mark any unread inbound messages as read
     await prisma.whatsAppMessage.updateMany({
       where: {
-        phoneNumber: phone,
+        OR: conditions,
         direction: 'inbound',
         status: { not: 'read' }
       },
@@ -57,13 +63,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing phone parameter' }, { status: 400 });
     }
 
-    const formattedPhone = WhatsAppService.formatPhone(phone);
+    const formattedPhone = formatPhone(phone) || phone;
     let waMessageId = null;
     let messageBody = text || '';
 
     if (templateName) {
-      // 1. Send template message
-      const result = await WhatsAppService.sendTemplateMessage(formattedPhone, templateName, 'en', components || []);
+      // 1. Send template message via robust client (auto-resolves language & retries en/en_US)
+      const result = await sendTemplate({
+        to: formattedPhone,
+        templateName,
+        languageCode: 'en_US',
+        components: components || []
+      });
       waMessageId = result?.messages?.[0]?.id || null;
       messageBody = `[Template: ${templateName}] ${text || ''}`;
     } else if (mediaUrl && mediaType) {
@@ -81,27 +92,41 @@ export async function POST(req: NextRequest) {
 
     // Retrieve userId if customer exists
     const customer = await prisma.customer.findFirst({
-      where: { phone: { contains: phone.slice(-10) } }
+      where: { phone: { contains: phone.replace(/\D/g, '').slice(-10) } }
     });
 
-    // Log outbound message to DB
-    const newMessage = await prisma.whatsAppMessage.create({
-      data: {
-        direction: 'outbound',
-        waMessageId,
-        phoneNumber: formattedPhone,
-        userId: customer?.id || null,
-        templateName: templateName || null,
-        body: messageBody,
-        status: 'sent',
-        sentAt: new Date()
-      }
+    // Log outbound message to DB via fail-safe logger
+    let bodyTextLog = messageBody;
+    if (templateName && components && components.length > 0) {
+      bodyTextLog += ` | Parameters: ${JSON.stringify(components)}`;
+    }
+
+    await logMessage({
+      to_number: formattedPhone,
+      template_name: templateName || null,
+      message_body: bodyTextLog,
+      status: 'sent',
+      message_id: waMessageId,
+      error_details: null
     });
+
+    const newMessage = {
+      id: waMessageId || `local_${Date.now()}`,
+      direction: 'outbound' as const,
+      waMessageId,
+      phoneNumber: formattedPhone,
+      userId: customer?.id || null,
+      templateName: templateName || null,
+      body: messageBody,
+      mediaUrl: mediaUrl || null,
+      mediaType: mediaType || null,
+      status: 'sent',
+      createdAt: new Date().toISOString()
+    };
 
     return NextResponse.json({ success: true, message: newMessage });
   } catch (error: any) {
     console.error('[WhatsApp Messages API] POST error:', error);
-    // If it is a Meta API error, return detailed feedback
     const message = error.response?.data?.error?.message || error.message;
     return NextResponse.json({ error: message }, { status: 500 });
   }
