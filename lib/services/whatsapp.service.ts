@@ -58,38 +58,42 @@ function handleAxiosError(error: any): never {
 }
 
 export const WhatsAppService = {
+  formatPhone(phone: string) {
+    if (!phone) return '';
+    let cleaned = phone.toString().replace(/\D/g, '');
+    cleaned = cleaned.replace(/^0+/, '');
+    if (cleaned.length === 10) cleaned = '91' + cleaned;
+    if (cleaned.length < 7 || cleaned.length > 15) return '';
+    return cleaned;
+  },
+
   /**
-   * Sends a pre-approved template message
+   * Sends a pre-approved template message with automatic language fallback and logging
    */
   async sendTemplateMessage(
     to: string, 
     templateName: string, 
-    languageCode: string = 'en', 
+    languageCode: string = 'en_US', 
     components: any[] = []
   ) {
     try {
-      const config = await getDynamicConfig();
-      const response = await axios.post(config.url, {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to,
-        type: 'template',
-        template: {
-          name: templateName,
-          language: { code: languageCode },
-          components,
-        },
-      }, { headers: config.headers });
-
-      return response.data;
+      const { sendTemplate, formatPhone: clientFormatPhone } = await import('@/lib/whatsapp/client');
+      const formatted = clientFormatPhone(to) || to;
+      const result = await sendTemplate({
+        to: formatted,
+        templateName,
+        languageCode,
+        components: (components as any[]) || []
+      });
+      return result;
     } catch (error: any) {
-      console.error('WhatsApp template send error:', error.response?.data || error.message);
+      console.error('WhatsApp template send error:', error.message);
       handleAxiosError(error);
     }
   },
 
   /**
-   * Sends a free-form text message (only allowed within 24hr window)
+   * Sends a free-form text message (only allowed within 24hr window) and logs to DB
    */
   async sendTextMessage(to: string, text: string) {
     try {
@@ -102,15 +106,41 @@ export const WhatsAppService = {
         text: { preview_url: true, body: text },
       }, { headers: config.headers });
 
-      return response.data;
+      const data = response.data;
+      const messageId = data?.messages?.[0]?.id || null;
+
+      try {
+        const { logMessage } = await import('@/lib/whatsapp/logger');
+        await logMessage({
+          to_number: to,
+          template_name: null,
+          message_body: text,
+          status: 'sent',
+          message_id: messageId,
+          error_details: null
+        });
+      } catch (e) {}
+
+      return data;
     } catch (error: any) {
       console.error('WhatsApp text send error:', error.response?.data || error.message);
+      try {
+        const { logMessage } = await import('@/lib/whatsapp/logger');
+        await logMessage({
+          to_number: to,
+          template_name: null,
+          message_body: text,
+          status: 'failed',
+          message_id: null,
+          error_details: { error: error.response?.data?.error?.message || error.message }
+        });
+      } catch (e) {}
       handleAxiosError(error);
     }
   },
 
   /**
-   * Sends a media message (image, video, document)
+   * Sends a media message (image, video, document) and logs to DB
    */
   async sendMediaMessage(to: string, type: 'image' | 'video' | 'document', url: string, caption?: string) {
     try {
@@ -126,9 +156,35 @@ export const WhatsAppService = {
       if (caption) payload[type].caption = caption;
 
       const response = await axios.post(config.url, payload, { headers: config.headers });
-      return response.data;
+      const data = response.data;
+      const messageId = data?.messages?.[0]?.id || null;
+
+      try {
+        const { logMessage } = await import('@/lib/whatsapp/logger');
+        await logMessage({
+          to_number: to,
+          template_name: null,
+          message_body: caption ? `[Media: ${type}] ${caption}` : `[Media: ${type}] ${url}`,
+          status: 'sent',
+          message_id: messageId,
+          error_details: null
+        });
+      } catch (e) {}
+
+      return data;
     } catch (error: any) {
       console.error(`WhatsApp ${type} send error:`, error.response?.data || error.message);
+      try {
+        const { logMessage } = await import('@/lib/whatsapp/logger');
+        await logMessage({
+          to_number: to,
+          template_name: null,
+          message_body: caption ? `[Media: ${type}] ${caption}` : `[Media: ${type}] ${url}`,
+          status: 'failed',
+          message_id: null,
+          error_details: { error: error.response?.data?.error?.message || error.message }
+        });
+      } catch (e) {}
       handleAxiosError(error);
     }
   },
@@ -150,20 +206,5 @@ export const WhatsAppService = {
       console.error('WhatsApp mark-as-read error:', error.response?.data || error.message);
       handleAxiosError(error);
     }
-  },
-  
-  /**
-   * Get formatting string for Indian phone numbers
-   */
-  formatPhone(phone: string): string {
-    // Remove all non-digits
-    let cleaned = phone.replace(/\D/g, '');
-    
-    // Add 91 if it's exactly 10 digits
-    if (cleaned.length === 10) {
-      cleaned = '91' + cleaned;
-    }
-    
-    return cleaned;
   }
 };

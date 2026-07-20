@@ -575,10 +575,21 @@ export default function WhatsAppChatPage() {
 
   // Render a template block inside message list
   const renderTemplateBubble = (m: Message, activeConv: Conversation) => {
-    // Parse template details from message text body if present
-    const match = m.body?.match(/^\[Template:\s*([^\]]+)\](.*)$/s);
-    const templateName = match ? match[1].trim() : (m.templateName || null);
-    const rawBodyText = match ? match[2].trim() : (m.body || "");
+    let templateName = m.templateName || null;
+    let rawBodyText = m.body || "";
+
+    if (m.body?.startsWith("[Template:")) {
+      const match = m.body.match(/^\[Template:\s*([^\]]+)\](.*)$/s);
+      if (match) {
+        templateName = match[1].trim();
+        rawBodyText = match[2].trim();
+      }
+    } else if (m.body?.startsWith("Template:")) {
+      const parts = m.body.split("|");
+      const namePart = parts[0].replace("Template:", "").trim();
+      if (namePart) templateName = namePart;
+      rawBodyText = parts.slice(1).join("|").trim() || m.body;
+    }
 
     const matchedTemplate = templatesList.find(t => t.name === templateName);
     
@@ -600,7 +611,7 @@ export default function WhatsAppChatPage() {
       <div className="space-y-2">
         <div className="flex items-center gap-1 text-[9px] text-violet-400 font-mono font-bold tracking-wider uppercase opacity-85 border-b border-white/5 pb-1 mb-1.5">
           <Sparkles className="w-3 h-3" />
-          <span>Approved Meta Template: {templateName}</span>
+          <span>Approved Meta Template: {templateName || "WABA"}</span>
         </div>
 
         {headerComp?.format === "IMAGE" && (
@@ -662,7 +673,7 @@ export default function WhatsAppChatPage() {
     const actualImgUrl = mUrl || (m.body && m.body.startsWith("[Media: image]") ? m.body.replace("[Media: image]", "").trim() : (m.body && m.body.startsWith("http") ? m.body : ""));
 
     const isCatalog = m.body?.includes("Check out this product from Zica Bella!") || (m.body?.includes("Price:") && m.body?.includes("Shop online now:"));
-    const isTemplate = m.body?.startsWith("[Template:") || !!m.templateName;
+    const isTemplate = !!m.templateName || (!!m.body && (m.body.startsWith("Template:") || m.body.startsWith("[Template:")));
 
     const showTail = isFirstInGroup(idx, m, messages);
     
