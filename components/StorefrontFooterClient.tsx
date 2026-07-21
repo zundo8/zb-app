@@ -415,7 +415,7 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
 
                       {/* Column 2 */}
                       <div className="space-y-4">
-                        <Link href="/portal/login" className="flex items-center gap-3 group">
+                        <Link href="/orders" className="flex items-center gap-3 group">
                           <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
                             <RotateCcw className="w-3.5 h-3.5" />
                           </div>
@@ -496,7 +496,7 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
 
                       {/* Column 2 */}
                       <div className="space-y-4">
-                        <Link href="/portal/login" className="flex items-center gap-3 group">
+                        <Link href="/orders" className="flex items-center gap-3 group">
                           <div className="w-8 h-8 rounded-full border border-gray-100 dark:border-white/[0.06] flex items-center justify-center text-foreground/60 bg-gray-50/50 dark:bg-white/[0.01] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20 transition-all shadow-sm">
                             <RefreshCw className="w-3.5 h-3.5" />
                           </div>

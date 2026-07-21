@@ -170,7 +170,7 @@ export default function OrderDetailsPage() {
     const deliveredAt = deliveredEntry?.completedAt || order?.updatedAt || order?.createdAt;
     if (!deliveredAt) return true;
     const diffDays = Math.ceil(Math.abs(Date.now() - new Date(deliveredAt).getTime()) / (1000 * 60 * 60 * 24));
-    return diffDays <= 10;
+    return diffDays <= 15;
   }, [order, isDelivered]);
 
   const isReturnFlow = useMemo(() => {
