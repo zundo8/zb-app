@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import DelhiveryActions from "@/components/orders/DelhiveryActions";
+import LineItemEditor from "@/components/orders/LineItemEditor";
 
 interface OrderItem {
   id: string;
@@ -625,6 +626,17 @@ export default function OrderDetailPage() {
                           </div>
                         )}
                       </div>
+                      <LineItemEditor
+                        orderId={order.id}
+                        lineItemId={item.id}
+                        shopifyLineItemId={(item as any).shopifyLineItemId}
+                        currentProductId={(item as any).productId}
+                        currentTitle={item.title}
+                        currentSku={item.sku}
+                        currentQuantity={item.quantity}
+                        currentPrice={item.price}
+                        onSuccess={() => fetchOrder(true)}
+                      />
                     </div>
                   </div>
                   <div className="text-right">

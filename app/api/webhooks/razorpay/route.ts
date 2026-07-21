@@ -175,11 +175,23 @@ export async function POST(req: Request) {
     } else if (eventType === 'payment.failed') {
       const payment = data.payment?.entity;
       const razorpayOrderId = payment?.order_id;
+      const failureReason = payment?.error_description || payment?.error_code || payment?.error_reason || 'payment_failed';
 
       if (razorpayOrderId) {
         await prisma.order.updateMany({
           where: { razorpayOrderId },
-          data: { paymentStatus: 'failed', status: 'FAILED' },
+          data: {
+            paymentStatus: 'failed',
+            status: 'FAILED',
+            paymentFailureReason: failureReason,
+          },
+        });
+        await prisma.webStoreOrder.updateMany({
+          where: { razorpayOrderId },
+          data: {
+            paymentStatus: 'failed',
+            paymentFailureReason: failureReason,
+          },
         });
       }
     } else if (eventType === 'refund.processed' || eventType === 'refund.created' || eventType === 'refund.failed') {

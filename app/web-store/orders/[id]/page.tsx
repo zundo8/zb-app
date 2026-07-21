@@ -27,6 +27,7 @@ import {
   Package
 } from "lucide-react";
 import { toast } from "sonner";
+import LineItemEditor from "@/components/orders/LineItemEditor";
 
 interface LineItem {
   product_id: string;
@@ -376,6 +377,17 @@ export default function WebStoreOrderDetail() {
                           ID: {item.variant_id || item.product_id || "—"}
                         </span>
                       </div>
+                      <LineItemEditor
+                        orderId={order.id}
+                        lineItemId={item.variant_id || item.product_id || `item_${idx}`}
+                        shopifyLineItemId={item.variant_id}
+                        currentProductId={item.product_id}
+                        currentTitle={item.title}
+                        currentSku={item.variant_id}
+                        currentQuantity={item.quantity}
+                        currentPrice={item.price}
+                        onSuccess={() => fetchOrderDetail()}
+                      />
                     </div>
                     <div className="flex items-center justify-between text-[11px] mt-1">
                       <span className="text-foreground/50 font-medium">

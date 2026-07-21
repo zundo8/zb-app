@@ -1408,6 +1408,17 @@ export default function CheckoutPage() {
         const errorReason = error?.error?.reason || "";
         console.error('[Razorpay] Payment error:', error?.error || error);
 
+        const failureReason = errorReason || errorCode || errorDesc || "payment_failed";
+
+        // Call cancel API to log reason on backend
+        if (orderId) {
+          fetch("/api/checkout/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ razorpayOrderId: orderId, reason: failureReason }),
+          }).catch(err => console.error("[Razorpay] Failed to notify cancel API:", err));
+        }
+
         // Map specific error reasons to friendly messages
         let friendlyMessage = errorDesc;
         if (errorReason === "payment_cancelled") {
@@ -1447,6 +1458,13 @@ export default function CheckoutPage() {
           ondismiss: function () {
             setLoading(false);
             paymentLockRef.current = false;
+            if (orderId) {
+              fetch("/api/checkout/cancel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ razorpayOrderId: orderId, reason: "payment_cancelled_by_user" }),
+              }).catch(err => console.error("[Razorpay] Failed to log modal dismiss:", err));
+            }
           },
           confirm_close: true,
         },

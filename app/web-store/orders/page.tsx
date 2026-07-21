@@ -38,6 +38,7 @@ interface Order {
   codUpfrontPaymentId?: string;
   subtotal?: number;
   discountAmount?: number;
+  paymentFailureReason?: string | null;
 }
 
 export default function WebStoreOrdersList() {
@@ -169,7 +170,15 @@ export default function WebStoreOrdersList() {
     }
   };
 
-  const getPaymentBadge = (status: string, method?: string, codUpfront?: number) => {
+  const formatReasonText = (reason?: string | null) => {
+    if (!reason) return null;
+    if (reason === "payment_cancelled_by_user") return "Cancelled by customer";
+    if (reason === "awaiting_confirmation") return "Awaiting confirmation";
+    if (reason === "payment_timed_out") return "Payment timed out";
+    return reason.replace(/_/g, " ");
+  };
+
+  const getPaymentBadge = (status: string, method?: string, codUpfront?: number, failureReason?: string | null) => {
     if (status === "cod_upfront_paid" || (method === "cod" && codUpfront && codUpfront > 0)) {
       return (
         <div className="flex flex-col gap-0.5">
@@ -180,15 +189,35 @@ export default function WebStoreOrdersList() {
         </div>
       );
     }
+
+    const reasonLabel = formatReasonText(failureReason);
+
     switch (status) {
       case "paid":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Paid</span>;
       case "failed":
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">Failed</span>;
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">Failed</span>
+            {reasonLabel && <span className="text-[9px] font-medium text-rose-400/80 truncate max-w-[140px]" title={reasonLabel}>{reasonLabel}</span>}
+          </div>
+        );
+      case "cancelled":
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">Cancelled</span>
+            {reasonLabel && <span className="text-[9px] font-medium text-rose-400/80 truncate max-w-[140px]" title={reasonLabel}>{reasonLabel}</span>}
+          </div>
+        );
       case "refunded":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">Refunded</span>;
       default:
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Pending</span>;
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Pending</span>
+            {reasonLabel && <span className="text-[9px] font-medium text-amber-400/80 truncate max-w-[140px]" title={reasonLabel}>{reasonLabel}</span>}
+          </div>
+        );
     }
   };
 
@@ -393,7 +422,7 @@ export default function WebStoreOrdersList() {
                           <span className="text-[9px] text-foreground/40 mt-0.5 truncate">{order.customerEmail}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-3">{getPaymentBadge(order.paymentStatus, order.paymentMethod, order.codUpfrontPaid)}</td>
+                      <td className="py-4 px-3">{getPaymentBadge(order.paymentStatus, order.paymentMethod, order.codUpfrontPaid, order.paymentFailureReason)}</td>
                       <td className="py-4 px-3">{getFulfillmentBadge(order.fulfillmentStatus)}</td>
                       <td className="py-4 px-3">
                         <span className={`text-[10px] font-bold uppercase tracking-wider font-mono px-2 py-0.5 rounded border ${

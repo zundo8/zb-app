@@ -24,21 +24,37 @@ export async function GET(req: Request) {
     const conditions: any[] = [];
     
     // ─── STRICT ORDER SEPARATION ───
-    // The main Orders page should ONLY show orders that are either:
-    // 1. Native Shopify orders (synced or direct)
-    // 2. Mobile orders that have been APPROVED and SYNCED to Shopify (numeric shopifyOrderId)
-    // It must EXCLUDE any mobile order that is still in pending/awaiting_approval status (starting with # or ZB)
+    // The main Orders page should ONLY show orders where payment has actually completed (or approved COD).
+    // It must EXCLUDE:
+    // 1. WebStore orders that are pending payment, payment failed, or cancelled
+    // 2. Mobile orders that are still in pending/awaiting_approval status
     conditions.push({
       NOT: {
-        AND: [
-          { orderType: 'MOBILE_APP' },
-          { 
-            OR: [
-              { shopifyOrderId: { startsWith: 'ZB' } },
-              { shopifyOrderId: { startsWith: '#ZB' } },
-              { shopifyOrderId: { contains: '#' } },
-              { status: 'awaiting_approval' },
-              { status: 'payment_pending' }
+        OR: [
+          { status: 'payment_pending' },
+          { status: 'payment_failed' },
+          { status: 'FAILED' },
+          { status: 'cancelled' },
+          { paymentStatus: 'payment_pending' },
+          { paymentStatus: 'failed' },
+          { paymentStatus: 'cancelled' },
+          {
+            AND: [
+              { paymentStatus: 'pending' },
+              { NOT: { status: { in: ['approved', 'open', 'fulfilled', 'delivered', 'shipped'] } } }
+            ]
+          },
+          {
+            AND: [
+              { orderType: 'MOBILE_APP' },
+              { 
+                OR: [
+                  { shopifyOrderId: { startsWith: 'ZB' } },
+                  { shopifyOrderId: { startsWith: '#ZB' } },
+                  { shopifyOrderId: { contains: '#' } },
+                  { status: 'awaiting_approval' }
+                ]
+              }
             ]
           }
         ]

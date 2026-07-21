@@ -290,6 +290,7 @@ model Order {
   refundAttempts        Int               @default(0) @map("refund_attempts")
   cancelledAt           DateTime?         @map("cancelled_at")
   cancelledBy           String?           @map("cancelled_by")
+  paymentFailureReason  String?           @map("payment_failure_reason")
   exchanges             Exchange[]
   exchangeRequests      ExchangeRequest[]
   customer              Customer          @relation(fields: [customerId], references: [id])
@@ -1469,6 +1470,7 @@ model WebStoreOrder {
   codUpfrontPaid      Decimal  @default(0) @map("cod_upfront_paid") @db.Decimal(10, 2)
   codUpfrontPaymentId String?  @map("cod_upfront_payment_id")
   storeCreditAmount   Decimal? @default(0) @map("store_credit_amount") @db.Decimal(10, 2)
+  paymentFailureReason String? @map("payment_failure_reason")
 
   @@map("web_store_orders")
 }

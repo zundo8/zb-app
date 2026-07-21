@@ -66,7 +66,27 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.json({ orders });
+    // Enrich with failure reason from Order model if missing on webStoreOrder
+    const enrichedOrders = await Promise.all(
+      orders.map(async (o: any) => {
+        let failureReason = o.paymentFailureReason || null;
+        if (!failureReason && o.razorpayOrderId) {
+          const matchingOrder = await prisma.order.findFirst({
+            where: { razorpayOrderId: o.razorpayOrderId },
+            select: { paymentFailureReason: true },
+          });
+          if (matchingOrder?.paymentFailureReason) {
+            failureReason = matchingOrder.paymentFailureReason;
+          }
+        }
+        return {
+          ...o,
+          paymentFailureReason: failureReason || (o.paymentStatus === "payment_pending" || o.paymentStatus === "pending" ? "awaiting_confirmation" : null),
+        };
+      })
+    );
+
+    return NextResponse.json({ orders: enrichedOrders });
   } catch (error: any) {
     console.error("[Web Store Orders GET] Error:", error);
     return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
