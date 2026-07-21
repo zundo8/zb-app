@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { Edit2, RefreshCw, Check, X, AlertCircle, Loader2 } from "lucide-react";
+import { Edit2, RefreshCw, Check, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface VariantOption {
@@ -18,6 +18,7 @@ interface ProductOption {
   title: string;
   price: number;
   image: string | null;
+  sku?: string | null;
   variants: VariantOption[];
 }
 
@@ -53,6 +54,8 @@ export default function LineItemEditor({
 
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [selectedVariantId, setSelectedVariantId] = useState<string>("");
+  const [customSize, setCustomSize] = useState<string>("");
+  const [isCustomSizeInput, setIsCustomSizeInput] = useState<boolean>(false);
 
   const [savingLocal, setSavingLocal] = useState(false);
   const [stagedSuccess, setStagedSuccess] = useState(false);
@@ -60,22 +63,70 @@ export default function LineItemEditor({
 
   const [syncingShopify, setSyncingShopify] = useState(false);
 
-  // Fetch product catalog when editor opens
+  // Fetch product catalog when editor opens and pre-select matching product/size
   useEffect(() => {
-    if (isEditing && products.length === 0) {
-      setLoadingProducts(true);
-      fetch("/api/admin/products-list")
-        .then((res) => res.json())
-        .then((data) => {
-          setProducts(data.products || []);
-        })
-        .catch((err) => {
-          console.error("Failed to load products:", err);
-          toast.error("Failed to load product list");
-        })
-        .finally(() => setLoadingProducts(false));
+    if (isEditing) {
+      if (products.length === 0) {
+        setLoadingProducts(true);
+        fetch("/api/admin/products-list")
+          .then((res) => res.json())
+          .then((data) => {
+            const list: ProductOption[] = data.products || [];
+            setProducts(list);
+            autoSelectCurrentProduct(list);
+          })
+          .catch((err) => {
+            console.error("Failed to load products:", err);
+            toast.error("Failed to load product catalog");
+          })
+          .finally(() => setLoadingProducts(false));
+      } else {
+        autoSelectCurrentProduct(products);
+      }
     }
-  }, [isEditing, products.length]);
+  }, [isEditing]);
+
+  const autoSelectCurrentProduct = (productList: ProductOption[]) => {
+    const match = productList.find(
+      (p) =>
+        p.id === currentProductId ||
+        p.shopifyProductId === currentProductId ||
+        p.title.toLowerCase() === currentTitle.toLowerCase()
+    );
+
+    if (match) {
+      setSelectedProductId(match.id);
+      // Try matching current SKU or size
+      if (currentSku) {
+        const variantMatch = match.variants.find(
+          (v) =>
+            v.sku === currentSku ||
+            v.variantId === currentSku ||
+            v.size.toLowerCase() === currentSku.toLowerCase()
+        );
+        if (variantMatch) {
+          setSelectedVariantId(variantMatch.variantId);
+        } else {
+          // If current SKU is a size string (e.g. S, M, L, XL)
+          const sizeMatch = match.variants.find(
+            (v) => v.size.toUpperCase() === currentSku.toUpperCase()
+          );
+          if (sizeMatch) {
+            setSelectedVariantId(sizeMatch.variantId);
+          } else if (match.variants.length > 0) {
+            setSelectedVariantId(match.variants[0].variantId);
+          }
+        }
+      } else if (match.variants.length > 0) {
+        setSelectedVariantId(match.variants[0].variantId);
+      }
+    } else if (productList.length > 0) {
+      setSelectedProductId(productList[0].id);
+      if (productList[0].variants.length > 0) {
+        setSelectedVariantId(productList[0].variants[0].variantId);
+      }
+    }
+  };
 
   if (!isSuperAdmin) {
     return null; // Non-super admins get no editing UI affordance
@@ -91,7 +142,13 @@ export default function LineItemEditor({
       toast.error("Please select a product");
       return;
     }
-    const variantObj = availableVariants.find((v) => v.variantId === selectedVariantId || v.id === selectedVariantId);
+
+    const variantObj = availableVariants.find(
+      (v) => v.variantId === selectedVariantId || v.id === selectedVariantId
+    );
+
+    const finalSize = isCustomSizeInput ? customSize.trim() : (variantObj?.size || "Standard");
+    const finalSku = variantObj?.sku || (isCustomSizeInput ? customSize : selectedVariantId);
 
     setSavingLocal(true);
     try {
@@ -103,8 +160,8 @@ export default function LineItemEditor({
           newProductId: selectedProduct?.shopifyProductId || selectedProductId,
           newVariantId: variantObj?.variantId || selectedVariantId,
           newTitle: selectedProduct?.title || currentTitle,
-          newSku: variantObj?.sku || selectedVariantId,
-          newSize: variantObj?.size || "Standard",
+          newSku: finalSku,
+          newSize: finalSize,
           newImage: selectedProduct?.image || null
         })
       });
@@ -198,20 +255,26 @@ export default function LineItemEditor({
 
           {loadingProducts ? (
             <div className="flex items-center gap-2 text-[11px] text-foreground/40 py-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading product catalog...
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading product catalog & sizes...
             </div>
           ) : (
             <>
               {/* Product Selector */}
               <div className="space-y-1">
                 <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/50">
-                  Select Correct Product
+                  Select Product
                 </label>
                 <select
                   value={selectedProductId}
                   onChange={(e) => {
-                    setSelectedProductId(e.target.value);
-                    setSelectedVariantId("");
+                    const newProdId = e.target.value;
+                    setSelectedProductId(newProdId);
+                    const prod = products.find((p) => p.id === newProdId);
+                    if (prod && prod.variants.length > 0) {
+                      setSelectedVariantId(prod.variants[0].variantId);
+                    } else {
+                      setSelectedVariantId("");
+                    }
                   }}
                   className="w-full bg-background border border-foreground/10 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-foreground focus:outline-none focus:border-amber-500"
                 >
@@ -225,25 +288,48 @@ export default function LineItemEditor({
               </div>
 
               {/* Dependent Variant/Size Selector */}
-              {selectedProduct && (
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/50">
-                    Select Variant / Size
-                  </label>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/50">
+                  Select Size / Variant
+                </label>
+                {!isCustomSizeInput ? (
                   <select
                     value={selectedVariantId}
-                    onChange={(e) => setSelectedVariantId(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === "__CUSTOM__") {
+                        setIsCustomSizeInput(true);
+                      } else {
+                        setSelectedVariantId(e.target.value);
+                      }
+                    }}
                     className="w-full bg-background border border-foreground/10 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-foreground focus:outline-none focus:border-amber-500"
                   >
-                    <option value="">-- Choose Variant / Size --</option>
+                    <option value="">-- Choose Size / Variant --</option>
                     {availableVariants.map((v) => (
                       <option key={v.id} value={v.variantId}>
                         Size: {v.size} {v.sku ? `(SKU: ${v.sku})` : ""}
                       </option>
                     ))}
+                    <option value="__CUSTOM__">+ Enter Custom Size...</option>
                   </select>
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter size (e.g. XL, 32, Custom)..."
+                      value={customSize}
+                      onChange={(e) => setCustomSize(e.target.value)}
+                      className="flex-1 bg-background border border-foreground/10 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-foreground focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      onClick={() => setIsCustomSizeInput(false)}
+                      className="text-[10px] text-foreground/50 hover:text-foreground px-2 py-1 bg-foreground/5 rounded"
+                    >
+                      Preset Sizes
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Action controls */}
               <div className="flex items-center justify-end gap-2 pt-2">

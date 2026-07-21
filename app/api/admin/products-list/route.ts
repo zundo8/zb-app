@@ -46,16 +46,33 @@ export async function GET(req: Request) {
       skuMap.set(skuItem.product_id, existing);
     }
 
+    const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "FREE SIZE"];
+
     const formattedProducts = products.map((p: any) => {
-      const variants = skuMap.get(p.id) || skuMap.get(p.shopifyProductId) || [
-        { id: p.sku || p.id, variantId: p.sku || p.id, size: "Standard", sku: p.sku }
-      ];
+      const dbSkus = skuMap.get(p.id) || skuMap.get(p.shopifyProductId) || [];
+      const existingSizes = new Set(dbSkus.map((item: any) => String(item.size).toUpperCase()));
+
+      const variants = [...dbSkus];
+
+      // Append standard apparel sizes if not already present
+      for (const size of STANDARD_SIZES) {
+        if (!existingSizes.has(size)) {
+          variants.push({
+            id: `${p.id}_size_${size}`,
+            variantId: p.sku ? `${p.sku}-${size}` : `${p.shopifyProductId || p.id}-${size}`,
+            size: size,
+            sku: p.sku ? `${p.sku}-${size}` : null,
+          });
+        }
+      }
+
       return {
         id: p.id,
         shopifyProductId: p.shopifyProductId,
         title: p.title,
         price: p.price,
         image: p.featuredImage,
+        sku: p.sku,
         variants
       };
     });
