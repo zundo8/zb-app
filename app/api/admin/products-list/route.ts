@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { requireAuth, handleAuthError } from "@/lib/auth/rbac";
 
+import { fetchAllProducts } from "@/lib/shopify-admin";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
@@ -46,20 +48,85 @@ export async function GET(req: Request) {
       skuMap.set(skuItem.product_id, existing);
     }
 
-    const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "FREE SIZE"];
+    // 3. Fetch Shopify products to retrieve exact Shopify variant IDs and sizes (26-38, XS-XXL)
+    let shopifyProductsMap = new Map<string, any>();
+    try {
+      const shopifyProducts = await fetchAllProducts(250);
+      for (const sp of shopifyProducts) {
+        const cleanId = String(sp.id).replace(/^gid:\/\/shopify\/Product\//, '');
+        shopifyProductsMap.set(cleanId, sp);
+        shopifyProductsMap.set(String(sp.id), sp);
+      }
+    } catch (shopifyErr) {
+      console.error("[Products API] Could not fetch Shopify products:", shopifyErr);
+    }
+
+    const ALPHA_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "FREE SIZE"];
+    const NUMERIC_WAIST_SIZES = ["26", "28", "30", "32", "34", "36", "38"];
+
+    const isBottomsCategory = (title: string = "") => {
+      const lower = title.toLowerCase();
+      return (
+        lower.includes("pant") ||
+        lower.includes("jean") ||
+        lower.includes("trouser") ||
+        lower.includes("short") ||
+        lower.includes("bottom") ||
+        lower.includes("denim") ||
+        lower.includes("skirt") ||
+        lower.includes("cargo") ||
+        lower.includes("jogger")
+      );
+    };
 
     const formattedProducts = products.map((p: any) => {
+      const spId = String(p.shopifyProductId || "").replace(/^gid:\/\/shopify\/Product\//, '');
+      const sp = shopifyProductsMap.get(spId) || shopifyProductsMap.get(String(p.shopifyProductId));
+
+      let variants: any[] = [];
+      const seenVariantIds = new Set<string>();
+      const seenSizes = new Set<string>();
+
+      // A. Populate from real Shopify variants (highest priority for Shopify sync)
+      if (sp && sp.variants && sp.variants.length > 0) {
+        for (const v of sp.variants) {
+          const gid = String(v.id).startsWith("gid://")
+            ? String(v.id)
+            : `gid://shopify/ProductVariant/${v.id}`;
+
+          const sizeName = v.title || v.option1 || "Standard";
+          seenVariantIds.add(gid);
+          seenVariantIds.add(String(v.id));
+          seenSizes.add(String(sizeName).toUpperCase());
+
+          variants.push({
+            id: gid,
+            variantId: gid,
+            size: sizeName,
+            sku: v.sku || p.sku || null,
+          });
+        }
+      }
+
+      // B. Populate from DB product_skus table
       const dbSkus = skuMap.get(p.id) || skuMap.get(p.shopifyProductId) || [];
-      const existingSizes = new Set(dbSkus.map((item: any) => String(item.size).toUpperCase()));
+      for (const item of dbSkus) {
+        const vId = item.shopify_variant_id || item.variantId || item.id;
+        if (!seenVariantIds.has(vId)) {
+          seenVariantIds.add(vId);
+          seenSizes.add(String(item.size).toUpperCase());
+          variants.push(item);
+        }
+      }
 
-      const variants = [...dbSkus];
-
-      // Append standard apparel sizes if not already present
-      for (const size of STANDARD_SIZES) {
-        if (!existingSizes.has(size)) {
+      // C. Populate appropriate category size fallbacks (numeric 26-38 for jeans/pants, alpha for tops)
+      const targetSizes = isBottomsCategory(p.title) ? NUMERIC_WAIST_SIZES : ALPHA_SIZES;
+      for (const size of targetSizes) {
+        if (!seenSizes.has(size.toUpperCase())) {
+          const synthId = p.sku ? `${p.sku}-${size}` : `size_${size}`;
           variants.push({
             id: `${p.id}_size_${size}`,
-            variantId: p.sku ? `${p.sku}-${size}` : `${p.shopifyProductId || p.id}-${size}`,
+            variantId: synthId,
             size: size,
             sku: p.sku ? `${p.sku}-${size}` : null,
           });

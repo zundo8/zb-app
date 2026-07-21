@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { requireSuperAdmin, handleAuthError } from "@/lib/auth/rbac";
-import { shopifyGraphqlFetch } from "@/lib/shopify-admin";
+import { shopifyGraphqlFetch, fetchProductById } from "@/lib/shopify-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +46,50 @@ export async function POST(
       : `gid://shopify/Order/${order.shopifyOrderId.replace("#", "")}`;
 
     let cleanVariantId = String(newVariantId || "");
-    if (cleanVariantId && !cleanVariantId.startsWith("gid://")) {
-      const rawId = cleanVariantId.split("/").pop();
-      cleanVariantId = `gid://shopify/ProductVariant/${rawId}`;
+    const isNumericGid = /^gid:\/\/shopify\/ProductVariant\/\d+$/.test(cleanVariantId);
+
+    if (!isNumericGid) {
+      const rawDigits = cleanVariantId.replace(/\D/g, "");
+      if (rawDigits.length >= 8) {
+        cleanVariantId = `gid://shopify/ProductVariant/${rawDigits}`;
+      } else {
+        // Resolve numeric variant GID from Shopify product
+        try {
+          const firstItem = order.items[0];
+          const dbProduct = firstItem?.productId
+            ? await prisma.product.findFirst({
+                where: {
+                  OR: [
+                    { id: firstItem.productId },
+                    { shopifyProductId: firstItem.productId }
+                  ]
+                }
+              })
+            : null;
+
+          const shopifyProdId = dbProduct?.shopifyProductId || firstItem?.productId;
+          if (shopifyProdId) {
+            const cleanSpId = String(shopifyProdId).replace(/^gid:\/\/shopify\/Product\//, '');
+            const sp = await fetchProductById(cleanSpId);
+            if (sp && sp.variants && sp.variants.length > 0) {
+              const sizeQuery = cleanVariantId.split("-").pop() || cleanVariantId;
+              const matchingVar = sp.variants.find((v: any) =>
+                String(v.id) === cleanVariantId ||
+                String(v.title).toUpperCase() === sizeQuery.toUpperCase() ||
+                String(v.option1).toUpperCase() === sizeQuery.toUpperCase() ||
+                String(v.sku).toUpperCase() === cleanVariantId.toUpperCase()
+              );
+              if (matchingVar) {
+                cleanVariantId = `gid://shopify/ProductVariant/${matchingVar.id}`;
+              } else if (sp.variants.length > 0) {
+                cleanVariantId = `gid://shopify/ProductVariant/${sp.variants[0].id}`;
+              }
+            }
+          }
+        } catch (resolveErr) {
+          console.warn("[Shopify Variant Resolution] Could not resolve numeric variant ID:", resolveErr);
+        }
+      }
     }
 
     try {
