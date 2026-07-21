@@ -147,9 +147,17 @@ export default function OrderDetailsPage() {
     return !['open', 'awaiting_approval', 'payment_pending'].includes(s);
   }, [order]);
   const isCancelled = useMemo(() => (order?.status || '').toLowerCase().includes('cancel'), [order]);
-  const isDelivered = useMemo(() => (order?.deliveryStatus || '').toLowerCase() === 'delivered', [order]);
-  const hasActiveReturn = useMemo(() => order?.returnRequests?.some((r: any) => r.status !== 'cancelled') || false, [order]);
-  const hasActiveExchange = useMemo(() => order?.exchangeRequests?.some((e: any) => e.status !== 'cancelled') || false, [order]);
+  const isDelivered = useMemo(() => {
+    const ds = (order?.deliveryStatus || '').toLowerCase();
+    const s = (order?.status || '').toLowerCase();
+    return ds === 'delivered' || s === 'delivered';
+  }, [order]);
+
+  const activeReturnReq = useMemo(() => order?.returnRequests?.find((r: any) => r.status !== 'cancelled'), [order]);
+  const activeExchangeReq = useMemo(() => order?.exchangeRequests?.find((e: any) => e.status !== 'cancelled'), [order]);
+
+  const hasActiveReturn = useMemo(() => !!activeReturnReq, [activeReturnReq]);
+  const hasActiveExchange = useMemo(() => !!activeExchangeReq, [activeExchangeReq]);
   const hasPendingRequest = useMemo(() => {
     return order?.returnRequests?.some((r: any) => r.status === 'pending_approval') || 
            order?.exchangeRequests?.some((e: any) => e.status === 'pending_approval') || false;
@@ -159,8 +167,8 @@ export default function OrderDetailsPage() {
     if (!isDelivered) return false;
     const timelineArr = Array.isArray(order?.statusTimeline) ? order.statusTimeline : [];
     const deliveredEntry = timelineArr.find((t: any) => t.step === 'delivered');
-    const deliveredAt = deliveredEntry?.completedAt || order?.updatedAt;
-    if (!deliveredAt) return false;
+    const deliveredAt = deliveredEntry?.completedAt || order?.updatedAt || order?.createdAt;
+    if (!deliveredAt) return true;
     const diffDays = Math.ceil(Math.abs(Date.now() - new Date(deliveredAt).getTime()) / (1000 * 60 * 60 * 24));
     return diffDays <= 10;
   }, [order, isDelivered]);
@@ -359,6 +367,52 @@ export default function OrderDetailsPage() {
           <div className="mb-10 p-5 rounded-2xl glass-panel border-red-500/20 text-center space-y-2">
             <AlertCircle className="w-6 h-6 text-red-500 mx-auto" />
             <p className="text-[12px] font-bold text-red-500 uppercase tracking-wider">Order Cancelled</p>
+          </div>
+        )}
+
+        {/* ACTIVE RETURN REQUEST CARD */}
+        {activeReturnReq && (
+          <div className="mb-8 p-6 rounded-3xl glass-panel border border-amber-500/20 bg-amber-500/5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-amber-500" />
+                <h3 className="text-[12px] font-bold uppercase tracking-wider text-amber-500">Return Request</h3>
+              </div>
+              <span className="px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                {activeReturnReq.status.replace('_', ' ')}
+              </span>
+            </div>
+            <div className="text-[11px] space-y-1 text-foreground/70">
+              <p className="font-medium">Requested on: {new Date(activeReturnReq.createdAt).toLocaleDateString('en-IN')}</p>
+              <p className="font-medium">Estimated Refund: <span className="font-bold text-foreground">₹{activeReturnReq.estimatedRefund?.toLocaleString('en-IN')}</span></p>
+              {activeReturnReq.reason && <p className="text-[10px] text-foreground/50">Reason: {activeReturnReq.reason}</p>}
+            </div>
+            {activeReturnReq.status === 'pending_approval' && (
+              <p className="text-[9px] text-foreground/40 italic">Your return is under review. Our team will verify and initiate pickup shortly.</p>
+            )}
+          </div>
+        )}
+
+        {/* ACTIVE EXCHANGE REQUEST CARD */}
+        {activeExchangeReq && (
+          <div className="mb-8 p-6 rounded-3xl glass-panel border border-blue-500/20 bg-blue-500/5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ArrowLeftRight className="w-4 h-4 text-blue-500" />
+                <h3 className="text-[12px] font-bold uppercase tracking-wider text-blue-500">Exchange Request</h3>
+              </div>
+              <span className="px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                {activeExchangeReq.status.replace('_', ' ')}
+              </span>
+            </div>
+            <div className="text-[11px] space-y-1 text-foreground/70">
+              <p className="font-medium">Requested on: {new Date(activeExchangeReq.createdAt).toLocaleDateString('en-IN')}</p>
+              <p className="font-medium">Price Difference: <span className="font-bold text-foreground">₹{activeExchangeReq.priceDifference?.toLocaleString('en-IN')}</span> ({activeExchangeReq.paymentStatus})</p>
+              {activeExchangeReq.reason && <p className="text-[10px] text-foreground/50">Reason: {activeExchangeReq.reason}</p>}
+            </div>
+            {activeExchangeReq.status === 'pending_approval' && (
+              <p className="text-[9px] text-foreground/40 italic">Your exchange is under review. Replacement item order will be processed upon approval.</p>
+            )}
           </div>
         )}
 

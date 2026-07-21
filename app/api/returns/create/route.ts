@@ -74,11 +74,29 @@ export async function POST(req: Request) {
       const orderItem = order.items.find((item: any) => item.id === returnItem.orderItemId);
       if (!orderItem) continue;
 
+      let productId = orderItem.productId;
+      if (!productId) {
+        if (orderItem.sku) {
+          const matched = await prisma.product.findFirst({ where: { sku: orderItem.sku } });
+          if (matched) productId = matched.id;
+        }
+        if (!productId && orderItem.title) {
+          const matched = await prisma.product.findFirst({ where: { title: orderItem.title } });
+          if (matched) productId = matched.id;
+        }
+      }
+
+      if (!productId) {
+        return NextResponse.json({
+          error: `Cannot resolve product for "${orderItem.title || 'item'}". Product record missing.`
+        }, { status: 400 });
+      }
+
       const itemRefund = orderItem.price * returnItem.quantity;
       estimatedRefund += itemRefund;
 
       itemsToReturn.push({
-        productId: orderItem.productId,
+        productId,
         orderId: order.id,
         customerId: resolvedUserId,
         sku: orderItem.sku,
@@ -99,7 +117,7 @@ export async function POST(req: Request) {
         estimatedRefund,
         returns: {
           create: itemsToReturn.map((item: any) => ({
-            productId: item.productId!,
+            productId: item.productId,
             customerId: item.customerId,
             orderId: item.orderId,
             sku: item.sku,

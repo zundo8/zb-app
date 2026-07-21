@@ -12,10 +12,14 @@ export async function GET(req: Request) {
 
     const countOnly = url.searchParams.get('count') === 'true';
 
+    const fetchAll = url.searchParams.get('all') === 'true' || limit >= 50;
+
     let products: ShopifyProduct[] = [];
     if (collectionHandle) {
       const result = await fetchCollectionByHandle(collectionHandle, limit);
       products = result.products;
+    } else if (fetchAll) {
+      products = await fetchAllProducts(limit);
     } else {
       const shop = await getShopSettings();
       const homepageProducts = shop?.homepageProducts;
