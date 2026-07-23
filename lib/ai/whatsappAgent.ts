@@ -7,6 +7,7 @@
  * - Checks opt-out status (WhatsAppOptIn / Customer.whatsappOptedOut)
  * - Checks 24-hour service window
  * - Calls Claude with customer or guest prompt + customer tool allow-list
+ * - Supports multi-round tool-use loops for chained lookups
  * - Applies Output Guard before sending reply via WhatsApp API
  */
 
@@ -14,7 +15,7 @@ import prisma from "@/lib/db";
 import { formatPhone } from "@/lib/whatsapp/client";
 import { WhatsAppService } from "@/lib/services/whatsapp.service";
 import { isWhatsAppServiceWindowActive } from "./whatsappServiceWindow";
-import { callClaude } from "./claudeClient";
+import { callClaude, MAX_TOOL_LOOPS } from "./claudeClient";
 import { filterToolsForPrincipal } from "./toolAllowList";
 import { getPromptForPrincipal } from "./prompts";
 import { applyOutputGuard } from "./outputGuard";
@@ -69,6 +70,7 @@ export async function processWhatsAppAIReply(
 
     const customer = await prisma.customer.findFirst({
       where: { phone: { contains: clean10Digits } },
+      select: { id: true, name: true, email: true, phone: true, whatsappOptedOut: true },
     });
     if (customer?.whatsappOptedOut) {
       return { replied: false, reason: "Customer profile marked as opted out" };
@@ -98,51 +100,86 @@ export async function processWhatsAppAIReply(
       content: m.body || "",
     }));
 
-    // Add current incoming message if not already in history
-    if (!recentMessages.some((m: any) => m.body === userMessageText)) {
+    // Only add current message if it wasn't already captured in the DB history
+    const alreadyInHistory = recentMessages.some(
+      (m: any) => m.direction === 'inbound' && m.body === userMessageText
+    );
+    if (!alreadyInHistory) {
+      conversationHistory.push({ role: "user", content: userMessageText });
+    }
+
+    // Ensure conversation doesn't start with assistant message (Claude requires user first)
+    while (conversationHistory.length > 0 && conversationHistory[0].role === 'assistant') {
+      conversationHistory.shift();
+    }
+
+    // Ensure we have at least one user message
+    if (conversationHistory.length === 0) {
       conversationHistory.push({ role: "user", content: userMessageText });
     }
 
     const allowedTools = filterToolsForPrincipal(ZICA_TOOLS as any, principal);
-    const systemPrompt = getPromptForPrincipal(principal.kind) + `\n\nChannel: WhatsApp. Keep responses concise (under 250 characters when possible). Format key details cleanly. Prefix your initial response with "Zica AI: "`;
 
-    const result = await callClaude({
-      systemPrompt,
-      messages: conversationHistory,
-      tools: allowedTools as Anthropic.Tool[],
-    });
+    // Build enriched system prompt with customer context
+    let customerContext = '';
+    if (principal.kind === 'customer' && customer) {
+      customerContext = `\n\nCustomer Context: You are chatting with "${customer.name || 'Customer'}"${customer.email ? ` (${customer.email})` : ''}. This is a verified customer.`;
+    }
 
-    const response = result.response;
+    const systemPrompt = getPromptForPrincipal(principal.kind)
+      + `\n\nChannel: WhatsApp. Keep responses concise (under 250 characters when possible). Format key details cleanly.`
+      + customerContext
+      + `\n\nIMPORTANT: When a customer provides an order number (like ZB-XXXX-XXXXX or #1234), use the get_order_by_number tool to look it up immediately.`;
+
+    // Multi-round tool-use loop (up to 3 rounds for chained lookups)
+    const maxToolRounds = Math.min(3, MAX_TOOL_LOOPS);
+    let currentMessages = [...conversationHistory];
     let finalAnswer = "";
 
-    if (response.stop_reason === "tool_use") {
-      const toolResults: any[] = [];
-      for (const block of response.content) {
-        if (block.type === "tool_use" && block.name && block.id) {
-          const toolOutput = await executeClaudeTool(block.name, block.input || {}, principal);
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: toolOutput,
-          });
-        }
-      }
-
-      conversationHistory.push({ role: "assistant", content: response.content as any });
-      conversationHistory.push({ role: "user", content: toolResults });
-
-      const secondCall = await callClaude({
+    for (let round = 0; round < maxToolRounds; round++) {
+      const result = await callClaude({
         systemPrompt,
-        messages: conversationHistory,
+        messages: currentMessages,
         tools: allowedTools as Anthropic.Tool[],
       });
 
-      finalAnswer = secondCall.response.content
+      const response = result.response;
+
+      if (response.stop_reason === "tool_use") {
+        const toolResults: any[] = [];
+        for (const block of response.content) {
+          if (block.type === "tool_use" && block.name && block.id) {
+            const toolOutput = await executeClaudeTool(block.name, block.input || {}, principal);
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: toolOutput,
+            });
+          }
+        }
+
+        currentMessages.push({ role: "assistant", content: response.content as any });
+        currentMessages.push({ role: "user", content: toolResults });
+        // Continue the loop to let Claude process tool results
+        continue;
+      }
+
+      // Claude returned a text response — extract it
+      finalAnswer = response.content
         .filter((b) => b.type === "text")
         .map((b) => (b as any).text)
         .join("\n");
-    } else {
-      finalAnswer = response.content
+      break;
+    }
+
+    // If all rounds were tool_use and we never got a text response, do one final call
+    if (!finalAnswer) {
+      const finalResult = await callClaude({
+        systemPrompt,
+        messages: currentMessages,
+        tools: allowedTools as Anthropic.Tool[],
+      });
+      finalAnswer = finalResult.response.content
         .filter((b) => b.type === "text")
         .map((b) => (b as any).text)
         .join("\n");

@@ -136,6 +136,28 @@ export const ZICA_TOOLS: ClaudeTool[] = [
       required: ["order_id"],
     },
   },
+  {
+    name: "get_order_by_number",
+    description: "Look up a specific order by its order number, internal order number (e.g. ZB-2607-73197), or Shopify order name (e.g. #1234). Returns order details, items, status, and delivery info.",
+    input_schema: {
+      type: "object",
+      properties: {
+        order_number: {
+          type: "string",
+          description: "The order number to search for. Can be an internal order number (ZB-DDMM-NNNNN), Shopify order ID, or Shopify order name (#1234)."
+        },
+      },
+      required: ["order_number"],
+    },
+  },
+  {
+    name: "get_customer_profile",
+    description: "Get the authenticated customer's profile: name, email, phone, address, total orders, total spent, and account creation date.",
+    input_schema: {
+      type: "object",
+      properties: {},
+    },
+  },
 ];
 
 /**

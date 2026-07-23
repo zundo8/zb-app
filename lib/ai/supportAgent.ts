@@ -6,10 +6,12 @@
  * - Generates auto-reply using Claude with customer-allowed tools
  * - Evaluates human handoff conditions
  * - Inserts AI messages with senderType: 'ZICA_AI'
+ * - Resolves customer identity from ticket data (customerId, guestEmail)
+ * - Supports multi-round tool-use loops for chained lookups
  */
 
 import prisma from "@/lib/db";
-import { callClaude } from "./claudeClient";
+import { callClaude, MAX_TOOL_LOOPS } from "./claudeClient";
 import { filterToolsForPrincipal } from "./toolAllowList";
 import { getCustomerPrompt } from "./prompts";
 import { applyOutputGuard } from "./outputGuard";
@@ -54,6 +56,51 @@ function checkHandoffTriggers(ticket: any, messages: any[], newContent: string):
 }
 
 // ---------------------------------------------------------------------------
+// Resolve customer principal from ticket data
+// ---------------------------------------------------------------------------
+
+async function resolveTicketPrincipal(ticket: any): Promise<Principal> {
+  // 1. If ticket has customerId with customer relation loaded
+  if (ticket.customerId) {
+    const customer = ticket.customer;
+    return {
+      kind: "customer",
+      customerId: ticket.customerId,
+      email: customer?.email || undefined,
+      phone: customer?.phone || undefined,
+    };
+  }
+
+  // 2. If ticket has guestEmail, try to find matching customer in DB
+  if (ticket.guestEmail) {
+    try {
+      const customer = await prisma.customer.findFirst({
+        where: { email: ticket.guestEmail },
+        select: { id: true, email: true, phone: true },
+      });
+      if (customer) {
+        // Link the customer to the ticket for future lookups
+        await prisma.supportTicket.update({
+          where: { id: ticket.id },
+          data: { customerId: customer.id },
+        }).catch(() => {}); // Non-critical, best-effort
+
+        return {
+          kind: "customer",
+          customerId: customer.id,
+          email: customer.email || undefined,
+          phone: customer.phone || undefined,
+        };
+      }
+    } catch (err) {
+      console.error("[SupportAgent] Error resolving guest email to customer:", err);
+    }
+  }
+
+  return { kind: "guest" };
+}
+
+// ---------------------------------------------------------------------------
 // Generate AI Reply
 // ---------------------------------------------------------------------------
 
@@ -78,6 +125,9 @@ export async function processSupportTicketAIReply(ticketId: string, latestUserMe
           orderBy: { createdAt: "asc" },
           take: 20,
         },
+        customer: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
       },
     });
 
@@ -101,56 +151,78 @@ export async function processSupportTicketAIReply(ticketId: string, latestUserMe
       return { replied: false, handoffTriggered: true, handoffReason: handoff.reason };
     }
 
-    // Build principal context for customer
-    const principal: Principal = ticket.customerId
-      ? { kind: "customer", customerId: ticket.customerId }
-      : { kind: "guest" };
+    // 3. Resolve principal from ticket data (customer relation or guest email lookup)
+    const principal = await resolveTicketPrincipal(ticket);
 
     const allowedTools = filterToolsForPrincipal(ZICA_TOOLS as any, principal);
-    const systemPrompt = getCustomerPrompt() + `\n\nSupport Ticket Subject: "${ticket.subject}". Help the user resolve their query cleanly and politely.`;
+
+    // Build enriched system prompt with customer context
+    let customerContext = '';
+    if (principal.kind === 'customer') {
+      const customerName = (ticket as any).customer?.name || ticket.guestName || 'Customer';
+      const customerEmail = (ticket as any).customer?.email || ticket.guestEmail || '';
+      customerContext = `\n\nCustomer Context: The customer's name is "${customerName}"${customerEmail ? ` and email is "${customerEmail}"` : ''}. You are assisting this specific customer with their support ticket.`;
+    }
+
+    const systemPrompt = getCustomerPrompt()
+      + `\n\nSupport Ticket Subject: "${ticket.subject}". Help the user resolve their query cleanly and politely.`
+      + customerContext
+      + `\n\nIMPORTANT: When a customer provides an order number (like ZB-XXXX-XXXXX or #1234), use the get_order_by_number tool to look it up. Do NOT say you cannot find it without trying the tool first.`;
 
     const conversationHistory: Anthropic.MessageParam[] = ticket.messages.map((m: any) => ({
       role: m.senderType === "USER" ? "user" : "assistant",
       content: m.content,
     }));
 
-    const result = await callClaude({
-      systemPrompt,
-      messages: conversationHistory,
-      tools: allowedTools as Anthropic.Tool[],
-    });
-
-    const response = result.response;
+    // Multi-round tool-use loop (up to 3 rounds for chained lookups)
+    const maxToolRounds = Math.min(3, MAX_TOOL_LOOPS);
+    let currentMessages = [...conversationHistory];
     let finalAnswer = "";
 
-    if (response.stop_reason === "tool_use") {
-      const toolResults: any[] = [];
-      for (const block of response.content) {
-        if (block.type === "tool_use" && block.name && block.id) {
-          const toolOutput = await executeClaudeTool(block.name, block.input || {}, principal);
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: toolOutput,
-          });
-        }
-      }
-
-      conversationHistory.push({ role: "assistant", content: response.content as any });
-      conversationHistory.push({ role: "user", content: toolResults });
-
-      const secondCall = await callClaude({
+    for (let round = 0; round < maxToolRounds; round++) {
+      const result = await callClaude({
         systemPrompt,
-        messages: conversationHistory,
+        messages: currentMessages,
         tools: allowedTools as Anthropic.Tool[],
       });
 
-      finalAnswer = secondCall.response.content
+      const response = result.response;
+
+      if (response.stop_reason === "tool_use") {
+        const toolResults: any[] = [];
+        for (const block of response.content) {
+          if (block.type === "tool_use" && block.name && block.id) {
+            const toolOutput = await executeClaudeTool(block.name, block.input || {}, principal);
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: toolOutput,
+            });
+          }
+        }
+
+        currentMessages.push({ role: "assistant", content: response.content as any });
+        currentMessages.push({ role: "user", content: toolResults });
+        // Continue the loop to let Claude process tool results
+        continue;
+      }
+
+      // Claude returned a text response — extract it
+      finalAnswer = response.content
         .filter((b) => b.type === "text")
         .map((b) => (b as any).text)
         .join("\n");
-    } else {
-      finalAnswer = response.content
+      break;
+    }
+
+    // If all rounds were tool_use and we never got a text response, do one final call
+    if (!finalAnswer) {
+      const finalResult = await callClaude({
+        systemPrompt,
+        messages: currentMessages,
+        tools: allowedTools as Anthropic.Tool[],
+      });
+      finalAnswer = finalResult.response.content
         .filter((b) => b.type === "text")
         .map((b) => (b as any).text)
         .join("\n");

@@ -34,17 +34,20 @@ const ADMIN_TOOLS = new Set([
   'get_shipment_details',
   'get_ai_action_log',
   'get_app_user_chats',
+  'get_order_by_number',
+  'get_customer_profile',
 ]);
 
 /** Customer tools — scoped to own data only */
 const CUSTOMER_TOOLS = new Set([
   'get_my_orders',
   'get_orders_summary',
-  'get_order_status',
+  'get_order_by_number',
   'get_shipment_details',
   'get_payment_details',
   'get_my_returns',
   'get_returns_exchanges',
+  'get_customer_profile',
 ]);
 
 /** Guest tools — no tools at all */

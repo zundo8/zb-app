@@ -15,6 +15,7 @@ const ORDER_SAFE_FIELDS = new Set([
   'id',
   'shopifyOrderId',
   'shopifyOrderName',
+  'internalOrderNumber',
   'totalPrice',
   'subtotalPrice',
   'currency',

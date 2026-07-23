@@ -12,6 +12,8 @@ import {
   sanitizeOrderForCustomer,
   sanitizeShipmentForCustomer,
   sanitizePaymentForCustomer,
+  mapInternalStatus,
+  mapDeliveryStatus,
 } from "@/lib/ai/sanitize";
 import { 
   sendAdminEmail, 
@@ -94,6 +96,10 @@ export async function executeClaudeTool(
         return await getAIActionLog(toolInput.limit);
       case "get_app_user_chats":
         return await getAppUserChats(toolInput.limit);
+      case "get_order_by_number":
+        return await getOrderByNumber(toolInput.order_number, currentPrincipal);
+      case "get_customer_profile":
+        return await getCustomerProfile(currentPrincipal);
       default:
         return JSON.stringify({ error: `Unknown tool: ${toolName}` });
     }
@@ -714,6 +720,173 @@ async function getShipmentDetails(orderId: string, principal?: Principal): Promi
   }
 
   return JSON.stringify(results);
+}
+
+// ─── Order Lookup by Number ──────────────────────────
+
+async function getOrderByNumber(orderNumber: string, principal?: Principal): Promise<string> {
+  if (!orderNumber || !orderNumber.trim()) {
+    return JSON.stringify({ error: "order_number is required" });
+  }
+  const currentPrincipal = principal || { kind: 'guest' };
+
+  if (currentPrincipal.kind === 'guest') {
+    return JSON.stringify({ error: "Access Denied: Please sign in to look up orders." });
+  }
+
+  const searchTerm = orderNumber.trim();
+
+  // Build flexible search: try internalOrderNumber, shopifyOrderName, shopifyOrderId
+  const whereConditions: any[] = [
+    { internalOrderNumber: searchTerm },
+    { internalOrderNumber: { contains: searchTerm, mode: 'insensitive' } },
+    { shopifyOrderName: searchTerm },
+    { shopifyOrderName: { contains: searchTerm, mode: 'insensitive' } },
+    { shopifyOrderId: searchTerm },
+  ];
+
+  // Also try with/without # prefix for Shopify order names
+  if (searchTerm.startsWith('#')) {
+    whereConditions.push({ shopifyOrderName: searchTerm.slice(1) });
+  } else {
+    whereConditions.push({ shopifyOrderName: `#${searchTerm}` });
+  }
+
+  const baseWhere: any = {
+    OR: whereConditions,
+  };
+
+  // Scope to customer's own orders
+  if (currentPrincipal.kind === 'customer') {
+    baseWhere.customerId = currentPrincipal.customerId;
+  }
+
+  const order = await prisma.order.findFirst({
+    where: baseWhere,
+    include: {
+      items: true,
+      customer: { select: { name: true, email: true, phone: true } },
+      shipments: {
+        select: {
+          id: true,
+          awb: true,
+          trackingNumber: true,
+          courier: true,
+          status: true,
+          trackingUrl: true,
+          estimatedDelivery: true,
+          currentLocation: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+      },
+    },
+  });
+
+  if (!order) {
+    // If customer scoped, try a broader search without customer filter to give a better error
+    if (currentPrincipal.kind === 'customer') {
+      const existsForOther = await prisma.order.findFirst({
+        where: { OR: whereConditions },
+        select: { id: true },
+      });
+      if (existsForOther) {
+        return JSON.stringify({
+          error: `Order ${searchTerm} was found but it does not belong to your account. Please check your order number or contact support.`,
+        });
+      }
+    }
+    return JSON.stringify({
+      error: `No order found matching "${searchTerm}". Please verify the order number and try again. Order numbers typically look like ZB-DDMM-NNNNN.`,
+    });
+  }
+
+  if (currentPrincipal.kind === 'customer') {
+    const safeOrder = sanitizeOrderForCustomer(order);
+    // Add the order number and shipment info that customers need
+    safeOrder.internalOrderNumber = order.internalOrderNumber;
+    safeOrder.shopifyOrderName = order.shopifyOrderName;
+    if (order.shipments && order.shipments.length > 0) {
+      safeOrder.shipments = order.shipments.map(sanitizeShipmentForCustomer);
+    }
+    return JSON.stringify(safeOrder);
+  }
+
+  // Admin gets full data
+  return JSON.stringify(order);
+}
+
+// ─── Customer Profile ──────────────────────────────
+
+async function getCustomerProfile(principal?: Principal): Promise<string> {
+  const currentPrincipal = principal || { kind: 'guest' };
+
+  if (currentPrincipal.kind === 'guest') {
+    return JSON.stringify({ error: "Access Denied: Please sign in to view your profile." });
+  }
+
+  if (currentPrincipal.kind !== 'customer') {
+    return JSON.stringify({ error: "This tool is for customer use only." });
+  }
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: currentPrincipal.customerId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      address: true,
+      city: true,
+      state: true,
+      zip: true,
+      country: true,
+      createdAt: true,
+      orders: {
+        where: {
+          status: { notIn: ['cancelled', 'CANCELLED', 'failed', 'FAILED'] },
+          paymentStatus: { notIn: ['failed', 'FAILED', 'cancelled', 'CANCELLED'] },
+        },
+        select: {
+          id: true,
+          totalPrice: true,
+          status: true,
+          deliveryStatus: true,
+          createdAt: true,
+          internalOrderNumber: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      },
+    },
+  });
+
+  if (!customer) {
+    return JSON.stringify({ error: "Customer profile not found." });
+  }
+
+  const totalOrders = customer.orders.length;
+  const totalSpent = customer.orders.reduce((acc: number, o: any) => acc + o.totalPrice, 0);
+
+  return JSON.stringify({
+    name: customer.name,
+    email: customer.email,
+    phone: customer.phone,
+    address: [customer.address, customer.city, customer.state, customer.zip, customer.country]
+      .filter(Boolean)
+      .join(', '),
+    memberSince: customer.createdAt,
+    totalOrders,
+    totalSpent: `₹${totalSpent.toLocaleString('en-IN')}`,
+    recentOrders: customer.orders.map((o: any) => ({
+      orderNumber: o.internalOrderNumber || o.id,
+      total: `₹${o.totalPrice.toLocaleString('en-IN')}`,
+      status: mapInternalStatus(o.status),
+      deliveryStatus: mapDeliveryStatus(o.deliveryStatus),
+      date: o.createdAt,
+    })),
+  });
 }
 
 // ─── Logs & Chats ─────────────────────────────────
