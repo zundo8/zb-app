@@ -93,6 +93,11 @@ async function sendDynamicEmail(
   const orderDateStr = order.orderDate || new Date().toLocaleDateString('en-IN', { dateStyle: 'long' });
   const itemsHtml = await getItemsHtml(order.items, currencySymbol);
 
+  const variantsSummary = order.items
+    .map(i => [i.name, i.variant_title || i.size].filter(Boolean).join(' - '))
+    .filter(Boolean)
+    .join(' | ') || 'N/A';
+
   const variables = {
     customerName: order.customerName,
     customerEmail: order.customerEmail,
@@ -106,6 +111,7 @@ async function sendDynamicEmail(
     itemsHtml: itemsHtml,
     items: itemsHtml,
     products: itemsHtml,
+    variants: variantsSummary,
     paymentMethod: order.paymentMethod || 'Prepaid',
     orderStatusUrl: `https://zicabella.com/orders/${order.orderId}`,
     subtotal: order.subtotal !== undefined ? `${currencySymbol}${order.subtotal}` : `${currencySymbol}${order.total}`,

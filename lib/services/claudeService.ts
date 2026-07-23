@@ -1,16 +1,15 @@
 // ──────────────────────────────────────────────────
 // claudeService.ts — Central AI engine for Zica AI
-// Handles: prompting, tool definitions, API calls, 
-// and context management for operations.
+// Handles: tool definitions, prompting, and backward-compatible wrappers.
 // ──────────────────────────────────────────────────
 
 import { ClaudeMessage, ClaudeResponse, ClaudeContentBlock } from "./claudeService.types";
+import { ZICA_ADMIN_PROMPT, ZICA_USER_PROMPT } from "@/lib/ai/prompts";
+import { callClaude as executeCallClaude } from "@/lib/ai/claudeClient";
+import Anthropic from "@anthropic-ai/sdk";
+
 export type { ClaudeMessage, ClaudeResponse, ClaudeContentBlock };
-
-const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-
-// Use the most capable model available
-const MODEL = "claude-3-5-sonnet-latest"; 
+export { ZICA_ADMIN_PROMPT, ZICA_USER_PROMPT };
 
 export interface ClaudeTool {
   name: string;
@@ -22,46 +21,9 @@ export interface ClaudeTool {
   };
 }
 
-export const ZICA_ADMIN_PROMPT = `You are Zica AI, the intelligent fashion assistant and operations engine for Zica Bella — a premium fashion e-commerce app and platform. You are knowledgeable, stylish, friendly, and confident.
-
-You are running in ADMIN MODE. You have UNRESTRICTED ACCESS to all database data including the manufacturing pipeline, inventory counts, vendors, cost data, profit margins, and all Shopify admin metadata.
-You may freely discuss internal production stages (Cutting, Stitching, Printing, Embroidery, Wash, Quality Check, Ready for Dispatch), internal order IDs, supplier names, and wholesale pricing with the admin.
-
-Your expertise covers:
-- All areas of fashion: clothing, accessories, footwear, styling, outfits, trends, seasonal dressing.
-- Zica Bella as a platform: browsing products, placing orders, tracking shipments, returns and exchanges, the full production pipeline, size guides, and product categories.
-- Operations: Inventory management, cost analysis, sales summaries, workflow tasks, and daily briefings.
-
-You support image input. When a user uploads a photo of an outfit, garment, color palette, or style reference, analyze it in detail.
-
-Current: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
-
-export const ZICA_USER_PROMPT = `You are Zica, the intelligent personal fashion AI for Zica Bella — a premium fashion brand based in India. You are an expert in:
-- Global and Indian fashion trends
-- Outfit styling and coordination (colour theory, silhouette pairing, layering)
-- Fabric care, washing, and garment maintenance
-- Size and fit guidance for Zica Bella's sizing system
-- Occasion dressing: festive, casual, workwear, streetwear, evening
-- The complete Zica Bella product catalogue including the Acid Tees collection
-
-RESPONSE RULES:
-1. Always be concise, warm, and fashion-forward in tone
-2. When referencing any product, format it as: [Product Name](zicabella://product/{handle})
-3. When referencing any collection, format it as: [Collection Name](zicabella://collection/{handle})
-4. When asked about tees, graphic tees, acid wash, or casual tops — always lead with the Acid Tees collection: [Acid Tees Collection](zicabella://collection/acid-tees)
-5. When the user asks about tees, t-shirts, graphic tees, acid wash, printed tops, casual wear, or any related category, always lead your response by referencing the Acid Tees collection first: [Acid Tees Collection](zicabella://collection/acid-tees). Then proceed with other relevant suggestions.
-6. For styling tips: give 2-3 specific, actionable tips with outfit combinations
-7. For size queries: give Zica Bella's size chart context if known, otherwise advise the customer to check the size guide on the product page
-8. Never hallucinate products — only reference products you are certain exist in the Zica Bella catalogue
-9. Keep responses under 180 words unless the user asks for detail
-10. You are not connected to any admin or internal system and do not share information between users
-
-You may discuss only customer-facing order help, product information, returns/exchanges, fabric care, sizing, occasion dressing, and styling advice. Never reveal manufacturing stages, internal inventory counts, warehouse data, vendor names, sourcing, cost prices, margins, internal order IDs, Shopify admin references, or other users' data. Never expose raw Shopify, checkout, myshopify.com, or admin URLs.`;
-
-
 // ─── Tool Definitions ────────────────────────────
 
-export const ZICA_TOOLS: any[] = [
+export const ZICA_TOOLS: ClaudeTool[] = [
   {
     name: "get_dashboard_summary",
     description: "Revenue, orders, customers, and low stock overview.",
@@ -176,74 +138,43 @@ export const ZICA_TOOLS: any[] = [
   },
 ];
 
-import Anthropic from "@anthropic-ai/sdk";
-
-const MODELS = [
-  "claude-3-5-sonnet-latest",
-  "claude-3-opus-latest",
-  "claude-3-5-haiku-latest",
-];
-
+/**
+ * Backward-compatible wrapper for callClaude.
+ * Delegates to lib/ai/claudeClient.ts callClaude implementation.
+ */
 export async function callClaude({
   systemPrompt,
   userMessage,
   tools = [],
   conversationHistory = [],
   apiKey,
-  modelIndex = 0,
 }: {
   systemPrompt: string;
   userMessage: string;
   tools?: any[];
   conversationHistory?: ClaudeMessage[];
-  apiKey: string;
+  apiKey?: string;
   modelIndex?: number;
 }): Promise<ClaudeResponse> {
-  const currentModel = MODELS[modelIndex] || MODELS[0];
-  
-  const anthropic = new Anthropic({
-    apiKey: apiKey,
+  const historyLimit = 20;
+  const recentHistory = conversationHistory.slice(-historyLimit);
+  const formattedMessages: Anthropic.MessageParam[] = recentHistory.map((m) => ({
+    role: m.role,
+    content: m.content as any,
+  }));
+
+  if (userMessage) {
+    formattedMessages.push({ role: "user", content: userMessage });
+  }
+
+  const result = await executeCallClaude({
+    systemPrompt,
+    messages: formattedMessages,
+    tools: tools.length > 0 ? tools.map(t => {
+      const { cache_control, ...tool } = t;
+      return tool;
+    }) : undefined,
   });
 
-  const historyLimit = 20; 
-  const recentHistory = conversationHistory.slice(-historyLimit);
-  
-  const messages = userMessage
-    ? [...recentHistory, { role: "user" as const, content: userMessage }]
-    : [...recentHistory];
-
-  try {
-    const response = await anthropic.messages.create({
-      model: currentModel,
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: messages as Anthropic.MessageParam[],
-      tools: tools.length > 0 ? tools.map(t => {
-        const { cache_control, ...tool } = t;
-        return tool;
-      }) : undefined,
-    });
-
-    return response as unknown as ClaudeResponse;
-  } catch (error: any) {
-    console.error(`[ZicaAI] Claude API error with model ${currentModel}:`, error);
-
-    // Capture various 404/Not Found or Overloaded conditions
-    const isNotFound = error.status === 404 || error.name === "NotFoundError" || (error.error?.type === "not_found_error");
-    const isOverloaded = error.status === 529 || error.status === 429 || error.name === "RateLimitError";
-
-    if ((isNotFound || isOverloaded) && modelIndex < MODELS.length - 1) {
-       console.warn(`[ZicaAI] Model ${currentModel} failed (Status: ${error.status}). Retrying with ${MODELS[modelIndex + 1]}...`);
-       return callClaude({ 
-         systemPrompt, 
-         userMessage, 
-         tools, 
-         conversationHistory, 
-         apiKey, 
-         modelIndex: modelIndex + 1 
-       });
-    }
-    
-    throw error;
-  }
+  return result.response as unknown as ClaudeResponse;
 }

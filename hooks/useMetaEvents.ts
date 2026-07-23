@@ -21,18 +21,14 @@ async function sendToCapiRoute(payload: Record<string, any>): Promise<any> {
     const isLoggedIn = getClientCookie('zb_user_logged_in') === 'true';
     const isCheckoutEvent = ['InitiateCheckout', 'AddPaymentInfo', 'Purchase'].includes(payload.eventName);
     
-    // For guests/non-logged-in users on non-checkout events, strip PII parameters
-    // to avoid mismatch or stale data. Keep only browser identifiers.
+    // For guests/non-logged-in users on non-checkout events, strip identity PII parameters (em, ph, name, DOB, fb_login_id).
+    // Address parameters (country, st, ct, zp) are preserved for Meta EMQ score.
     const identityData: Record<string, any> = { ...builtIdentity };
     if (!isLoggedIn && !isCheckoutEvent) {
       delete identityData.em;
       delete identityData.ph;
       delete identityData.fn;
       delete identityData.ln;
-      delete identityData.country;
-      delete identityData.st;
-      delete identityData.ct;
-      delete identityData.zp;
       delete identityData.db;
       delete identityData.fb_login_id;
     }
@@ -107,9 +103,20 @@ function shouldFireEvent(key: string): boolean {
 }
 
 export function useMetaEvents() {
-  const trackViewContent = (contentId: string, contentName: string, value?: number, currency = 'INR', contentCategory?: string) => {
+  const trackViewContent = (
+    contentId: string,
+    contentName: string,
+    value?: number,
+    currency = 'INR',
+    contentCategory?: string,
+    userData?: Record<string, any>
+  ) => {
     const cacheKey = `ViewContent-${contentId}`;
     if (!shouldFireEvent(cacheKey)) return;
+
+    if (userData) {
+      initPixel(userData);
+    }
 
     const base = getBasePayload('ViewContent');
     const contents = value !== undefined ? [{ id: contentId, quantity: 1, item_price: value }] : [{ id: contentId, quantity: 1 }];
@@ -123,7 +130,7 @@ export function useMetaEvents() {
       contents
     });
     trackEvent('ViewContent', customData, base.eventId);
-    sendToCapiRoute({ ...base, customData });
+    sendToCapiRoute({ ...base, customData, userData });
     
     // GA4 equivalent: view_item
     trackGAEvent('view_item', {
@@ -304,13 +311,13 @@ export function useMetaEvents() {
       // Cache adjusted value and contents in sessionStorage for fallback on subsequent events
       if (reportedVal !== undefined) {
         try {
-          sessionStorage.setItem('zb_meta_rv', JSON.stringify({
+          sessionStorage.setItem('zb_meta_rv_v2', JSON.stringify({
             v: reportedVal,
             c: repCurrency || currency,
             contents: adjustedContents
           }));
           if (value > 0) {
-            sessionStorage.setItem('zb_meta_ratio', (reportedVal / value).toString());
+            sessionStorage.setItem('zb_meta_ratio_v2', (reportedVal / value).toString());
           }
         } catch {}
       }
@@ -319,7 +326,7 @@ export function useMetaEvents() {
       let finalFbqContents = adjustedContents;
       if (!finalFbqContents) {
         try {
-          const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio');
+          const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio_v2');
           if (cachedRatioStr) {
             const ratio = parseFloat(cachedRatioStr);
             finalFbqContents = mappedContents.map(item => ({
@@ -371,8 +378,8 @@ export function useMetaEvents() {
 
       // Both failed — try sessionStorage fallback or ratio scaling
       try {
-        const cached = sessionStorage.getItem('zb_meta_rv');
-        const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio');
+        const cached = sessionStorage.getItem('zb_meta_rv_v2');
+        const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio_v2');
         if (cached) {
           const { v, c, contents: cachedContents } = JSON.parse(cached);
           if (v !== undefined) {
@@ -474,13 +481,13 @@ export function useMetaEvents() {
       // Cache adjusted value and contents in sessionStorage for fallback on subsequent events
       if (reportedVal !== undefined) {
         try {
-          sessionStorage.setItem('zb_meta_rv', JSON.stringify({
+          sessionStorage.setItem('zb_meta_rv_v2', JSON.stringify({
             v: reportedVal,
             c: repCurrency || currency,
             contents: adjustedContents
           }));
           if (value > 0) {
-            sessionStorage.setItem('zb_meta_ratio', (reportedVal / value).toString());
+            sessionStorage.setItem('zb_meta_ratio_v2', (reportedVal / value).toString());
           }
         } catch {}
       }
@@ -489,7 +496,7 @@ export function useMetaEvents() {
       let finalFbqContents = adjustedContents;
       if (!finalFbqContents) {
         try {
-          const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio');
+          const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio_v2');
           if (cachedRatioStr) {
             const ratio = parseFloat(cachedRatioStr);
             finalFbqContents = mappedContents.map(item => ({
@@ -542,8 +549,8 @@ export function useMetaEvents() {
 
       // Both failed — try sessionStorage fallback or ratio scaling
       try {
-        const cached = sessionStorage.getItem('zb_meta_rv');
-        const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio');
+        const cached = sessionStorage.getItem('zb_meta_rv_v2');
+        const cachedRatioStr = sessionStorage.getItem('zb_meta_ratio_v2');
         if (cached) {
           const { v, c, contents: cachedContents } = JSON.parse(cached);
           if (v !== undefined) {

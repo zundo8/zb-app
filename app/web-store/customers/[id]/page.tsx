@@ -211,11 +211,14 @@ export default function WebStoreCustomerDetail() {
                 <span className="text-foreground font-bold">{orderHistory.length}</span>
               </div>
               <div className="flex items-center justify-between text-[11px] font-semibold text-foreground/50">
-                <span>Total Paid Spent</span>
+                <span>Total Fulfilled Spent</span>
                 <span className="text-amber-500 font-bold">
                   {formatCurrency(
                     orderHistory
-                      .filter((o) => o.paymentStatus === "paid")
+                      .filter((o) => {
+                        const s = (o.fulfillmentStatus || "").toLowerCase().trim();
+                        return s === "fulfilled" || s === "shipped" || s === "delivered";
+                      })
                       .reduce((sum, o) => sum + Number(o.totalAmount), 0)
                   )}
                 </span>

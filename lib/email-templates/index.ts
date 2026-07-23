@@ -443,6 +443,83 @@ function normalizeTrigger(trigger: string): string {
   return TRIGGER_ALIASES[trigger.toLowerCase()] || upper;
 }
 
+export function enrichEmailVariables(rawVars: Record<string, any>): Record<string, any> {
+  const vars: Record<string, any> = { ...rawVars };
+
+  // 1. Customer
+  const name = vars.customerName || vars.name || vars.recipientName || 'Valued Customer';
+  const email = vars.customerEmail || vars.email || vars.recipientEmail || '';
+  vars.customerName = name;
+  vars.name = name;
+  vars.recipientName = name;
+  vars.customerEmail = email;
+  vars.email = email;
+
+  // 2. Order ID & Date
+  const orderId = vars.orderId || vars.id || vars.orderNumber || 'N/A';
+  const orderDate = vars.orderDate || new Date().toLocaleDateString('en-IN', { dateStyle: 'long' });
+  vars.orderId = orderId;
+  vars.id = orderId;
+  vars.orderNumber = orderId;
+  vars.orderDate = orderDate;
+
+  // 3. Money / Amounts
+  const totalVal = vars.totalPrice || vars.total || vars.amount || vars.price || '₹0';
+  vars.totalPrice = totalVal;
+  vars.total = totalVal;
+  vars.amount = totalVal;
+  vars.price = totalVal;
+  vars.subtotal = vars.subtotal || totalVal;
+  vars.shipping = vars.shipping || '₹0';
+  vars.discount = vars.discount || '₹0';
+  vars.currency = vars.currency || 'INR';
+
+  // 4. Items & Products
+  const itemsHtml = vars.itemsHtml || vars.items || vars.products || '';
+  vars.itemsHtml = itemsHtml;
+  vars.items = itemsHtml;
+  vars.products = itemsHtml;
+  vars.variants = vars.variants || 'N/A';
+
+  // 5. Payment & Status
+  vars.paymentMethod = vars.paymentMethod || 'Prepaid';
+  vars.orderStatusUrl = vars.orderStatusUrl || `https://zicabella.com/account/orders`;
+
+  // 6. Shipping / Courier / Tracking
+  const courier = vars.courier || vars.carrier || vars.courierName || 'Delhivery';
+  vars.courier = courier;
+  vars.carrier = courier;
+  vars.courierName = courier;
+  vars.trackingNumber = vars.trackingNumber || 'N/A';
+  vars.trackingUrl = vars.trackingUrl || `https://zicabella.com/track?id=${vars.trackingNumber}`;
+
+  // 7. Address (Full & Split)
+  const fullAddress = vars.shippingAddress || 'N/A';
+  vars.shippingAddress = fullAddress;
+  if (!vars.shippingAddressLine1 && typeof fullAddress === 'string') {
+    const parts = fullAddress.split(',');
+    vars.shippingAddressLine1 = parts[0]?.trim() || fullAddress;
+    vars.shippingCity = parts[1]?.trim() || 'N/A';
+    vars.shippingState = parts[2]?.trim() || 'N/A';
+    vars.shippingZip = parts[3]?.trim() || 'N/A';
+    vars.shippingCountry = parts[4]?.trim() || 'India';
+  }
+
+  // 8. Returns / Refunds
+  vars.reason = vars.reason || 'N/A';
+  vars.refundAmount = vars.refundAmount || totalVal;
+  vars.refundTimeline = vars.refundTimeline || '5-7 business days';
+  vars.returnStatus = vars.returnStatus || 'Processed';
+  vars.reviewUrl = vars.reviewUrl || `https://zicabella.com/account/orders`;
+
+  // 9. Reset & Auth
+  vars.resetUrl = vars.resetUrl || 'https://zicabella.com/reset-password';
+  vars.expiresIn = vars.expiresIn || '1 hour';
+  vars.appDownloadUrl = vars.appDownloadUrl || 'https://zicabella.com/app';
+
+  return vars;
+}
+
 export async function renderDBTemplate(
   trigger: string,
   variables: Record<string, any>,
@@ -469,11 +546,12 @@ export async function renderDBTemplate(
 
     console.log(`[renderDBTemplate] ✓ Found DB template "${template.name}" (id: ${template.id}) for trigger "${normalizedTrigger}"`);
 
+    const enrichedVars = enrichEmailVariables(variables);
     let subject = template.subject;
     let html = template.htmlBody;
 
     // Substitute standard variables in subject and html
-    Object.entries(variables).forEach(([key, val]) => {
+    Object.entries(enrichedVars).forEach(([key, val]) => {
       const stringVal = String(val ?? '');
       subject = subject.replaceAll(`{{${key}}}`, stringVal);
       html = html.replaceAll(`{{${key}}}`, stringVal);

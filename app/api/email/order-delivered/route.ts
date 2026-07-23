@@ -8,16 +8,27 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     const { customerEmail, customerName, orderId, reviewUrl } = data;
 
-    const html = orderDeliveredTemplate({
-      customerName,
+    const { renderDBTemplate, orderDeliveredTemplate } = await import('@/lib/email-templates');
+
+    const emailVars = {
+      customerName: customerName || 'Valued Customer',
+      customerEmail,
       orderId,
       reviewUrl: reviewUrl || `https://zicabella.com/products/${orderId}/review`,
+    };
+
+    const fallbackFn = () => orderDeliveredTemplate({
+      customerName: emailVars.customerName,
+      orderId,
+      reviewUrl: emailVars.reviewUrl,
     });
+
+    const rendered = await renderDBTemplate('ORDER_DELIVERED', emailVars, fallbackFn);
 
     const result = await sendMail({
       to: customerEmail,
-      subject: `Your order ${orderId} has been delivered!`,
-      html,
+      subject: rendered.subject || `Your order ${orderId} has been delivered!`,
+      html: rendered.html,
     });
 
     await logEmail({

@@ -8,18 +8,31 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     const { customerEmail, customerName, orderId, returnStatus, refundAmount, message } = data;
 
-    const html = returnUpdateTemplate({
-      customerName,
+    const { renderDBTemplate, returnUpdateTemplate } = await import('@/lib/email-templates');
+
+    const emailVars = {
+      customerName: customerName || 'Valued Customer',
+      customerEmail,
       orderId,
-      returnStatus,
-      refundAmount,
-      message,
+      returnStatus: returnStatus || 'Processed',
+      refundAmount: refundAmount || '',
+      message: message || 'Your return request has been updated.',
+    };
+
+    const fallbackFn = () => returnUpdateTemplate({
+      customerName: emailVars.customerName,
+      orderId,
+      returnStatus: emailVars.returnStatus,
+      refundAmount: emailVars.refundAmount,
+      message: emailVars.message,
     });
+
+    const rendered = await renderDBTemplate('RETURN_REFUND', emailVars, fallbackFn);
 
     const result = await sendMail({
       to: customerEmail,
-      subject: `Update on your return for order ${orderId}`,
-      html,
+      subject: rendered.subject || `Update on your return for order ${orderId}`,
+      html: rendered.html,
     });
 
     await logEmail({

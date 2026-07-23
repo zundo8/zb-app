@@ -108,17 +108,13 @@ export function MetaPixelRouteTracker() {
     const rawIdentity = getMetaIdentityCookies();
     const builtIdentity: Record<string, any> = { ...buildClientUserData(rawIdentity) };
 
-    // For anonymous PageView events, strip all PII fields.
-    // Standard pageviews for guests must only contain browser identifiers (fbp, fbc, external_id).
+    // For anonymous PageView events, strip identity PII fields (em, ph, fn, ln, db, fb_login_id).
+    // Preserve address fields (country, st, ct, zp) from session cookies to improve Meta EMQ.
     if (!session?.user) {
       delete builtIdentity.em;
       delete builtIdentity.ph;
       delete builtIdentity.fn;
       delete builtIdentity.ln;
-      delete builtIdentity.country;
-      delete builtIdentity.st;
-      delete builtIdentity.ct;
-      delete builtIdentity.zp;
       delete builtIdentity.db;
       delete builtIdentity.fb_login_id;
     }

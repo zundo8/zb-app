@@ -1,6 +1,6 @@
 "use client";
 
-import { X, User, Package, Info, Users, BookOpen, Handshake, ChevronRight, Search } from "lucide-react";
+import { X, User, Package, Info, Users, BookOpen, Handshake, ChevronRight, Search, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -182,10 +182,19 @@ export default function MenuDrawer({ isOpen, onClose }: MenuDrawerProps) {
               <Link 
                 href="/orders" 
                 onClick={onClose} 
-                className="group flex items-center gap-3 px-3 py-2.5 hover:bg-foreground/[0.03] active:scale-95 rounded-2xl transition-all flex-1 border border-foreground/5"
+                className="group flex items-center gap-2 px-2.5 py-2 hover:bg-foreground/[0.03] active:scale-95 rounded-2xl transition-all flex-1 border border-foreground/5"
               >
-                <Package className="w-4 h-4 text-foreground/40" strokeWidth={1.5} />
-                <span className="text-[8px] font-bold tracking-[0.1em] uppercase text-foreground/60 group-hover:text-foreground">Orders</span>
+                <Package className="w-3.5 h-3.5 text-foreground/40" strokeWidth={1.5} />
+                <span className="text-[7.5px] font-bold tracking-[0.05em] uppercase text-foreground/60 group-hover:text-foreground">Orders</span>
+              </Link>
+
+              <Link 
+                href="/returns" 
+                onClick={onClose} 
+                className="group flex items-center gap-2 px-2.5 py-2 hover:bg-foreground/[0.03] active:scale-95 rounded-2xl transition-all flex-1 border border-foreground/5"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-500/80" strokeWidth={1.5} />
+                <span className="text-[7.5px] font-bold tracking-[0.05em] uppercase text-foreground/60 group-hover:text-foreground">Returns</span>
               </Link>
             </div>
 

@@ -72,10 +72,25 @@ export async function POST(req: NextRequest) {
     // Send emails in a loop and log results
     for (const recipient of recipients) {
       try {
-        // Personalize the email template if needed (optional variable replacement)
+        // Personalize the email template with all available recipient-level data.
+        // In the manual compose context, only customer-level fields are available
+        // (no per-order data like orderId, trackingUrl, etc.).
         let personalizedHtml = finalHtml;
-        if (personalizedHtml.includes('{{customerName}}')) {
-          personalizedHtml = personalizedHtml.replace(/\{\{customerName\}\}/g, recipient.name);
+        personalizedHtml = personalizedHtml.replace(/\{\{customerName\}\}/g, recipient.name);
+        personalizedHtml = personalizedHtml.replace(/\{\{customerEmail\}\}/g, recipient.email);
+
+        // Check for any remaining unresolved {{...}} variables.
+        // In a manual compose flow there is no per-order context, so any remaining
+        // template variables would render as literal {{...}} in the customer's inbox.
+        // Reject the send with a clear error listing which variables remain.
+        const unresolvedMatches = personalizedHtml.match(/\{\{([^}]+)\}\}/g);
+        if (unresolvedMatches) {
+          const unresolvedKeys = Array.from(new Set(unresolvedMatches.map((m: string) => m.slice(2, -2).trim())));
+          return NextResponse.json({
+            success: false,
+            error: `Unresolved template variables: ${unresolvedKeys.join(', ')}. These variables have no value in a manual compose context. Remove them from the template or provide values before sending.`,
+            unresolvedVariables: unresolvedKeys,
+          }, { status: 400 });
         }
 
         const result = await sendMail({

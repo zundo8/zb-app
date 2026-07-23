@@ -1,60 +1,42 @@
 /**
- * POST /api/app/claude — Mobile-specific Claude AI endpoint
+ * POST /api/app/claude — Mobile / App Claude AI endpoint
  * 
- * Injects user context (name, orders) into the system prompt
- * for a personalized concierge experience.
- * 
- * Public endpoint (no admin session required), but ideally
- * should validate a user token in production.
+ * Uses server-derived Principal (customer token or guest),
+ * applies customer tool allow-lists, output guards, and rate limits.
  */
 
-import { NextResponse } from "next/server";
-import {
-  callClaude,
-  ZICA_USER_PROMPT,
-  ZICA_ADMIN_PROMPT,
-  ZICA_TOOLS,
-  type ClaudeMessage,
-  type ClaudeContentBlock,
-} from "@/lib/services/claudeService";
+import { NextRequest, NextResponse } from "next/server";
+import { resolvePrincipal } from "@/lib/ai/principal";
+import { filterToolsForPrincipal, isToolAllowed } from "@/lib/ai/toolAllowList";
+import { getPromptForPrincipal } from "@/lib/ai/prompts";
+import { applyOutputGuard } from "@/lib/ai/outputGuard";
+import { wrapUntrustedData } from "@/lib/ai/sanitize";
+import { ZICA_TOOLS, type ClaudeMessage } from "@/lib/services/claudeService";
 import { executeClaudeTool } from "@/lib/services/claudeToolExecutor";
+import { callClaude, MAX_TOOL_LOOPS } from "@/lib/ai/claudeClient";
+import { checkRateLimit } from "@/lib/rate-limit";
 import prisma from "@/lib/db";
-import { getAISettings } from "@/lib/ai-settings-util";
-import { getAppAuthFromRequest } from "@/lib/appAuth";
+import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Resolve Claude API key: dedicated user-side env keys first → database → generic env keys */
-async function resolveApiKey(): Promise<string> {
-  const userKey = process.env.EXPO_PUBLIC_CLAUDE_API_KEY || process.env.CLAUDE_USER_API_KEY || process.env.CLAUDE_API_KEY_USER;
-  if (userKey) return userKey;
+export async function POST(req: NextRequest) {
+  // Rate limiting: 20 req/min for authenticated customer, 5 req/min for guest IP
+  const principal = await resolvePrincipal(req);
+  const rateLimitKey = principal.kind === "customer" ? `ai:customer:${principal.customerId}` : "ai:guest";
+  const rateLimitMax = principal.kind === "customer" ? 20 : 5;
 
-  try {
-    const shop = await prisma.shop.findFirst({
-      select: { claudeApiKey: true },
-    });
-    if (shop?.claudeApiKey) return shop.claudeApiKey;
-  } catch (e) {
-    console.warn("[ZicaAI Mobile] Could not read DB key:", e);
+  const rateLimitResult = await checkRateLimit(req, rateLimitKey, { maxRequests: rateLimitMax, windowMs: 60_000 });
+  if (!rateLimitResult.allowed && rateLimitResult.response) {
+    return rateLimitResult.response;
   }
-  return process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || "";
-}
 
-export async function POST(req: Request) {
   try {
-    const CLAUDE_API_KEY = await resolveApiKey();
-    
-    if (!CLAUDE_API_KEY) {
-      console.error("[ZicaAI Mobile] Configuration Error: No API key found.");
-      return NextResponse.json({ error: "Service unavailable (Config Error)" }, { status: 500 });
-    }
-
     const body = await req.json();
     const { 
       message, 
       conversationHistory = [], 
-      userContext, 
       orderIdContext,
       sessionId,
       imageBase64,
@@ -69,7 +51,7 @@ export async function POST(req: Request) {
     if (!currentSessionId) {
       const session = await prisma.aIChatSession.create({
         data: {
-          userId: userContext?.id || null,
+          userId: principal.kind === "customer" ? principal.customerId : null,
           title: (message || "Image analysis").substring(0, 50),
         }
       });
@@ -84,60 +66,16 @@ export async function POST(req: Request) {
       }
     });
 
-    const auth = getAppAuthFromRequest(req);
-    const aiSettings = getAISettings();
-    const isAdmin = false;
-    const settings = aiSettings.user;
+    let systemPrompt = getPromptForPrincipal(principal.kind);
 
-    let systemPrompt = ZICA_USER_PROMPT;
-
-    // Secure & sanitize userContext to prevent spoofing of admin emails or user contexts
-    const customerEmail = auth?.customerEmail || (userContext?.email && !userContext.email.endsWith('@zicabella.com') ? userContext.email : null);
-    const sanitizedUserContext = {
-      id: auth?.customerId || userContext?.id || null,
-      name: userContext?.name || null,
-      phone: auth?.customerPhone || userContext?.phone || null,
-      email: customerEmail,
-    };
-
-    if (aiSettings.trainingRules && aiSettings.trainingRules.length > 0) {
-      systemPrompt += `\n\nADDITIONAL DYNAMIC KNOWLEDGE & MEMORY:\nYou have been trained with the following additional custom operational instructions and knowledge. You MUST follow them strictly:\n`;
-      aiSettings.trainingRules.forEach((rule: any, idx: number) => {
-        systemPrompt += `- ${rule.prompt}\n`;
-      });
-    }
-
-    if (settings.allowedPages && settings.allowedPages.length > 0) {
-      systemPrompt += `\n\nCRITICAL CONTEXT - ALLOWED NAVIGATION PAGES: You are only allowed to refer to, recommend, or direct the user to the following pages or sections: ${settings.allowedPages.join(", ")}. Do NOT mention, suggest, or try to navigate the user to any other sections outside of this list.`;
-    }
-    
-    if (userContext?.name) {
-      systemPrompt += `\n\nYou are talking to the customer "${userContext.name}".`;
-    }
-    
-    if (userContext?.id || userContext?.email || userContext?.phone) {
+    // Inject customer orders context if logged in
+    if (principal.kind === "customer") {
       try {
         const recentOrders = await prisma.order.findMany({
           where: {
-            AND: [
-              {
-                OR: [
-                  userContext.id ? { customerId: userContext.id } : null,
-                  userContext.email ? { customer: { email: userContext.email } } : null,
-                  userContext.phone ? { customer: { phone: userContext.phone } } : null,
-                ].filter(Boolean) as any,
-              },
-              {
-                status: {
-                  notIn: ['cancelled', 'CANCELLED', 'failed', 'FAILED']
-                }
-              },
-              {
-                paymentStatus: {
-                  notIn: ['failed', 'FAILED', 'cancelled', 'CANCELLED']
-                }
-              }
-            ]
+            customerId: principal.customerId,
+            status: { notIn: ['cancelled', 'CANCELLED', 'failed', 'FAILED'] },
+            paymentStatus: { notIn: ['failed', 'FAILED', 'cancelled', 'CANCELLED'] }
           },
           take: 5,
           orderBy: { createdAt: "desc" },
@@ -154,153 +92,146 @@ export async function POST(req: Request) {
 
         if (recentOrders.length > 0) {
           systemPrompt += `\n\nCustomer's Recent Orders:\n${recentOrders.map((o: any) => 
-            `- Order #${o.shopifyOrderId.replace(/^#/, "")} (${o.id}): ₹${o.totalPrice}, Status: ${o.status}, Payment: ${o.paymentStatus}, Delivery: ${o.deliveryStatus}, Date: ${o.createdAt.toLocaleDateString()}`
+            `- Order #${o.shopifyOrderId ? o.shopifyOrderId.replace(/^#/, "") : o.id.slice(-6)} (${o.id}): ₹${o.totalPrice}, Status: ${o.status}, Delivery: ${o.deliveryStatus}, Date: ${o.createdAt.toLocaleDateString()}`
           ).join("\n")}`;
           
-          systemPrompt += `\n\nIf the customer asks "Where is my order?" or "Track my order", refer to these orders. Use get_shipment_details(order_id) for real-time tracking if they ask about a specific one.`;
+          systemPrompt += `\n\nIf the customer asks "Where is my order?" or "Track my order", refer to these orders.`;
         }
       } catch (err) {
-        console.error("[ZicaAI Mobile] Failed to fetch context:", err);
+        console.error("[ZicaAI App] Failed to fetch customer orders context:", err);
       }
     }
 
-    // --- INJECT PRODUCT KNOWLEDGE ---
+    // Inject catalog context
     try {
       const allProducts = await prisma.product.findMany({
         select: { title: true, price: true, handle: true, featuredImage: true },
-        take: 50 // Limit to avoid prompt bloat, though usually small
-      });
-
-      const shop = await prisma.shop.findFirst({
-        select: { 
-          spotlightCollection: true, 
-          kineticMeshTitle: true, 
-          ringCarouselTitle: true,
-          archiveTitle: true,
-        }
+        take: 30
       });
 
       if (allProducts.length > 0) {
-        systemPrompt += `\n\nZica Bella Product Catalog:\n`;
-        systemPrompt += `You have full access to our products. When a user asks for recommendations, shopping, or style advice, refer to these products.\n`;
-        systemPrompt += `CRITICAL: You MUST use Markdown image syntax to display products and collections beautifully! Example: ![Product Name](image_url)\n`;
-        systemPrompt += `Note: To optimize images for mobile, append '&width=600' (if url has '?') or '?width=600' to the image URLs.\n\n`;
-        systemPrompt += `CRITICAL NAVIGATION & ACTION INSTRUCTIONS for mobile app:\n`;
-        systemPrompt += `- ALWAYS link products using this exact scheme: [View Product](zica://products/handle)\n`;
-        systemPrompt += `- ALWAYS link collections using this exact scheme: [View Collection](zica://collections/handle)\n`;
-        systemPrompt += `- Under every product recommendation, ALWAYS offer a direct action to add to cart like this: [Add to Bag 🛍️](zica://cart/add/handle). Make sure to present this action clearly so the user can add the item directly from the chat screen!\n\n`;
-        
+        systemPrompt += `\n\nZica Bella Catalogue:\n`;
         systemPrompt += allProducts.map((p: any) => 
-          `- ${p.title}: ₹${p.price || 'N/A'}. View Link: zica://products/${p.handle || ''}. Add to Bag Link: zica://cart/add/${p.handle || ''}. Image: ${p.featuredImage || ''}`
+          `- ${wrapUntrustedData(p.title)}: ₹${p.price || 'N/A'}. Handle: ${p.handle || ''}`
         ).join("\n");
-
-        systemPrompt += `\n\nZica Bella Collections:\n`;
-        systemPrompt += `- Spotlight / T-Shirts: zica://collections/${shop?.spotlightCollection || 't-shirts'}\n`;
-        systemPrompt += `- Archive Edition: zica://collections/${shop?.kineticMeshTitle || 'archive'}\n`;
-        systemPrompt += `- Rings Collection: zica://collections/${shop?.ringCarouselTitle || 'rings'}\n`;
-        systemPrompt += `Recommend collections by grouping products that fit these themes. Always use the zica://collections/handle scheme to link them.\n`;
       }
     } catch (err) {
-      console.error("[ZicaAI Mobile] Failed to fetch products for catalog context:", err);
+      console.error("[ZicaAI App] Failed to fetch catalog context:", err);
     }
 
     if (orderIdContext) {
-      systemPrompt += `\n\nThe customer is currently viewing order ID: ${orderIdContext}. Focus on this order if they ask general questions.`;
+      systemPrompt += `\n\nThe customer is viewing order ID: ${orderIdContext}.`;
     }
 
-    let currentHistory: ClaudeMessage[] = [...conversationHistory];
+    // Filter tools based on principal kind (customer vs guest)
+    const allowedTools = filterToolsForPrincipal(ZICA_TOOLS as any, principal);
+
+    let currentHistory: Anthropic.MessageParam[] = conversationHistory.map((m: ClaudeMessage) => ({
+      role: m.role,
+      content: m.content as any,
+    }));
     let iterations = 0;
-    const MAX_ITERATIONS = 10;
     const toolActions: any[] = [];
 
-    // Build user content — supports image + text multi-part messages
     const userText = message || "Analyze this image";
-    let userContent: string | ClaudeContentBlock[];
+    let userContent: any;
     if (imageBase64) {
       userContent = [
         { type: "image", source: { type: "base64", media_type: imageMimeType || "image/jpeg", data: imageBase64 } },
         { type: "text", text: userText },
-      ] as ClaudeContentBlock[];
+      ];
     } else {
       userContent = userText;
     }
+    currentHistory.push({ role: "user", content: userContent });
 
-    currentHistory.push({ role: "user" as const, content: userContent });
-
-    const availableTools = ZICA_TOOLS.filter(t => settings.enabledTools.includes(t.name));
-
-    while (iterations < MAX_ITERATIONS) {
+    while (iterations < MAX_TOOL_LOOPS) {
       iterations++;
 
-      const response = await callClaude({
+      const result = await callClaude({
         systemPrompt,
-        userMessage: "", 
-        tools: availableTools,
-        conversationHistory: currentHistory,
-        apiKey: CLAUDE_API_KEY,
+        messages: currentHistory,
+        tools: allowedTools as Anthropic.Tool[],
       });
 
+      const response = result.response;
+
       if (response.stop_reason === "tool_use") {
-        currentHistory.push({ role: "assistant" as const, content: response.content as ClaudeContentBlock[] });
-        const toolResults: ClaudeContentBlock[] = [];
+        currentHistory.push({ role: "assistant", content: response.content as any });
+        const toolResults: any[] = [];
 
         for (const block of response.content) {
           if (block.type === "tool_use" && block.name && block.id) {
-            const result = await executeClaudeTool(block.name, block.input || {}, sanitizedUserContext);
-            
-            const parsedResult = JSON.parse(result);
+            if (!isToolAllowed(block.name, principal)) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: JSON.stringify({ error: "Unauthorized tool execution" }),
+                is_error: true,
+              });
+              continue;
+            }
+
+            const toolOutput = await executeClaudeTool(block.name, block.input || {}, principal);
+            const parsedResult = JSON.parse(toolOutput);
             const isError = parsedResult.error !== undefined;
-            
-            toolActions.push({ tool: block.name, input: block.input });
+
+            toolActions.push({
+              tool: block.name,
+              input: block.input,
+              result: parsedResult,
+              timestamp: new Date().toISOString(),
+            });
 
             toolResults.push({
               type: "tool_result",
               tool_use_id: block.id,
-              content: result,
+              content: toolOutput,
               is_error: isError,
             });
           }
         }
 
-        currentHistory.push({ role: "user" as const, content: toolResults });
+        currentHistory.push({ role: "user", content: toolResults });
         continue;
       }
 
-      const textContent = response.content
+      // Final text response
+      const rawText = response.content
         .filter((b) => b.type === "text")
-        .map((b) => b.text)
+        .map((b) => (b as any).text)
         .join("\n");
 
-      currentHistory.push({ role: "assistant" as const, content: textContent });
+      // Apply Output Guard to check for internal leaks
+      const safeText = applyOutputGuard(rawText, "app");
 
+      // Save assistant response to DB
       await prisma.aIChatMessage.create({
         data: {
           sessionId: currentSessionId,
           role: "assistant",
-          content: textContent
-        }
+          content: safeText,
+        },
       });
 
       return NextResponse.json({
-        response: textContent,
+        response: safeText,
         conversationHistory: currentHistory,
-        toolsUsed: toolActions.length,
-        sessionId: currentSessionId
+        toolActions,
+        sessionId: currentSessionId,
       });
     }
 
-    const fallbackResponse = "I'm having trouble processing that right now. How else can I help?";
-    await prisma.aIChatMessage.create({
-      data: { sessionId: currentSessionId, role: "assistant", content: fallbackResponse }
-    });
-
     return NextResponse.json({
-      response: fallbackResponse,
+      response: "Thank you for chatting with Zica AI!",
       conversationHistory: currentHistory,
-      sessionId: currentSessionId
+      sessionId: currentSessionId,
     });
   } catch (error: any) {
-    console.error("[ZicaAI Mobile] Route error:", error);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    console.error("[ZicaAI App] Route Exception:", error);
+    return NextResponse.json(
+      { error: "Zica AI is temporarily unavailable. Please try again later." },
+      { status: 500 }
+    );
   }
 }

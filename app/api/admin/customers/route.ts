@@ -125,6 +125,12 @@ export async function GET(req: Request) {
     const uniqueCustomersMap = new Map<string, any>();
     const seenIds = new Set<string>();
 
+    function isOrderFulfilled(status?: string | null): boolean {
+      if (!status) return false;
+      const s = status.toLowerCase().trim();
+      return s === 'fulfilled' || s === 'shipped' || s === 'delivered';
+    }
+
     for (const c of dbCustomers) {
       if (seenIds.has(c.id)) continue;
 
@@ -136,7 +142,8 @@ export async function GET(req: Request) {
         // Merge order stats into existing customer record in payload
         const existing = uniqueCustomersMap.get(dedupKey);
         existing.totalOrders += c.ordersCount || c.orders.length;
-        existing.totalSpent += c.totalSpent || c.orders.reduce((sum: number, o: any) => sum + (o.totalPrice || 0), 0);
+        const cFulfilledOrders = c.orders.filter((o: any) => isOrderFulfilled(o.fulfillmentStatus));
+        existing.totalSpent += cFulfilledOrders.reduce((sum: number, o: any) => sum + (o.totalPrice || 0), 0);
         
         // Merge orders list
         const existingOrderIds = new Set(existing.orders.map((o: any) => o.id));
@@ -166,7 +173,8 @@ export async function GET(req: Request) {
 
       const displayName = c.name || c.email || (c.shopifyId !== 'anonymous' ? c.shopifyId : 'Anonymous User');
       const totalOrders = c.ordersCount || c.orders.length;
-      const totalSpent = c.totalSpent || c.orders.reduce((sum: any, o: any) => sum + (o.totalPrice || 0), 0);
+      const fulfilledOrders = c.orders.filter((o: any) => isOrderFulfilled(o.fulfillmentStatus));
+      const totalSpent = fulfilledOrders.reduce((sum: any, o: any) => sum + (o.totalPrice || 0), 0);
 
       const customerObj = {
         id: c.id,

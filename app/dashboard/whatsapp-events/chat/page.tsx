@@ -74,8 +74,87 @@ export default function WhatsAppChatPage() {
   const [productSearch, setProductSearch] = useState("");
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [aiAutoReply, setAiAutoReply] = useState<boolean>(true);
+  const [globalWhatsappAiEnabled, setGlobalWhatsappAiEnabled] = useState<boolean>(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch global WhatsApp AI setting
+  useEffect(() => {
+    async function fetchGlobalAiSetting() {
+      try {
+        const res = await fetch('/api/admin/ai/settings');
+        const data = await res.json();
+        if (res.ok && typeof data.zicaAiWhatsappEnabled === 'boolean') {
+          setGlobalWhatsappAiEnabled(data.zicaAiWhatsappEnabled);
+        }
+      } catch (err) {
+        console.error('Failed to fetch global AI settings:', err);
+      }
+    }
+    fetchGlobalAiSetting();
+  }, []);
+
+  const handleToggleGlobalWhatsappAi = async () => {
+    const nextVal = !globalWhatsappAiEnabled;
+    setGlobalWhatsappAiEnabled(nextVal);
+    try {
+      const res = await fetch('/api/admin/ai/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zicaAiWhatsappEnabled: nextVal })
+      });
+      if (res.ok) {
+        toast.success(nextVal ? "Global WhatsApp Zica AI Auto-Reply ENABLED!" : "Global WhatsApp Zica AI Auto-Reply DISABLED!");
+      } else {
+        setGlobalWhatsappAiEnabled(!nextVal);
+      }
+    } catch (err) {
+      setGlobalWhatsappAiEnabled(!nextVal);
+    }
+  };
+
+  // Fetch WABA chat settings (AI Auto-Reply toggle) on active conversation change
+  useEffect(() => {
+    if (!activePhone) return;
+    async function fetchChatSettings() {
+      try {
+        const res = await fetch(`/api/whatsapp/chat/settings?phone=${encodeURIComponent(activePhone!)}`);
+        const data = await res.json();
+        if (res.ok && typeof data.aiAutoReply === 'boolean') {
+          setAiAutoReply(data.aiAutoReply);
+        }
+      } catch (err) {
+        console.error("Error loading chat settings:", err);
+      }
+    }
+    fetchChatSettings();
+  }, [activePhone]);
+
+  const handleToggleAiAutoReply = async () => {
+    if (!activePhone) return;
+    const nextVal = !aiAutoReply;
+    setAiAutoReply(nextVal);
+    try {
+      const res = await fetch("/api/whatsapp/chat/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: activePhone,
+          aiAutoReply: nextVal
+        })
+      });
+      if (res.ok) {
+        toast.success(nextVal ? "Zica AI Auto-Reply turned ON for this chat!" : "Zica AI Auto-Reply turned OFF for this chat.");
+      } else {
+        setAiAutoReply(!nextVal);
+        toast.error("Failed to update AI settings.");
+      }
+    } catch (err) {
+      setAiAutoReply(!nextVal);
+      toast.error("Network error updating AI settings.");
+    }
+  };
 
   // Fetch approved WABA templates on mount to map them for bubble rendering
   useEffect(() => {
@@ -812,12 +891,28 @@ export default function WhatsAppChatPage() {
           </p>
         </div>
 
-        <button 
-          onClick={() => setRefreshTrigger(p => p + 1)}
-          className="p-2.5 bg-foreground/5 hover:bg-foreground/10 text-foreground border border-foreground/10 rounded-xl transition-all"
-        >
-          <RefreshCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleToggleGlobalWhatsappAi}
+            className={`px-4 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
+              globalWhatsappAiEnabled
+                ? "bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
+                : "bg-foreground/5 border-foreground/10 text-zinc-400 hover:text-zinc-200"
+            }`}
+            title="Toggle shop-wide WhatsApp Zica AI Auto-Reply"
+          >
+            <Sparkles className={`w-4 h-4 ${globalWhatsappAiEnabled ? "text-purple-400 animate-pulse" : "text-zinc-500"}`} />
+            <span>Zica AI Auto-Reply: {globalWhatsappAiEnabled ? "ENABLED (ON)" : "DISABLED (OFF)"}</span>
+          </button>
+
+          <button 
+            onClick={() => setRefreshTrigger(p => p + 1)}
+            className="p-2.5 bg-foreground/5 hover:bg-foreground/10 text-foreground border border-foreground/10 rounded-xl transition-all"
+            title="Refresh Conversations"
+          >
+            <RefreshCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Main Panel grid container */}
@@ -825,8 +920,26 @@ export default function WhatsAppChatPage() {
         
         {/* Left Side: Conversations List */}
         <div className="lg:col-span-4 border-r border-white/10 flex flex-col h-full bg-zinc-900/40 overflow-hidden">
-          {/* Search bar */}
-          <div className="p-4 space-y-3 shrink-0">
+          {/* Search bar & Global AI Switch */}
+          <div className="p-4 space-y-3 shrink-0 border-b border-white/5">
+            <div className="flex items-center justify-between gap-2 pb-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-200">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                <span>Zica AI Auto-Reply</span>
+              </div>
+              <button
+                onClick={handleToggleGlobalWhatsappAi}
+                className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all flex items-center gap-1 ${
+                  globalWhatsappAiEnabled
+                    ? "bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
+                    : "bg-white/5 border-white/10 text-zinc-400 hover:text-zinc-200"
+                }`}
+                title="Toggle shop-wide WhatsApp Zica AI Auto-Reply"
+              >
+                <span>Global: {globalWhatsappAiEnabled ? "ON" : "OFF"}</span>
+              </button>
+            </div>
+
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
@@ -961,6 +1074,19 @@ export default function WhatsAppChatPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleToggleAiAutoReply}
+                    className={`px-3 py-1.5 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                      aiAutoReply
+                        ? "bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
+                        : "bg-white/5 border-white/10 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                    title={aiAutoReply ? "Turn OFF AI Auto-Reply for this chat" : "Turn ON AI Auto-Reply for this chat"}
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${aiAutoReply ? "text-purple-400 animate-pulse" : "text-zinc-500"}`} />
+                    <span>Zica AI Auto-Reply: {aiAutoReply ? "ON" : "OFF"}</span>
+                  </button>
+
                   <button
                     onClick={() => setShowContactInfo(prev => !prev)}
                     className={`p-2 rounded-lg border transition-all ${

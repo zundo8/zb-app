@@ -15,7 +15,8 @@ import {
   HelpCircle,
   FileText,
   ChevronRight,
-  Headphones
+  Headphones,
+  Sparkles
 } from 'lucide-react';
 
 /* ──────────────────────────────────────────────
@@ -76,7 +77,8 @@ const OnlineStatusBadge = memo(function OnlineStatusBadge() {
    ────────────────────────────────────────────── */
 const ChatBubble = memo(function ChatBubble({ msg, index }: { msg: any; index: number }) {
   const isUser = msg.senderType === 'USER';
-  const displayName = msg.senderType === 'AGENT' ? (msg.senderName || 'Zica Support') : 'You';
+  const isAi = msg.senderType === 'ZICA_AI';
+  const displayName = isAi ? (msg.senderName || 'Zica AI') : (msg.senderType === 'AGENT' ? (msg.senderName || 'Zica Support') : 'You');
 
   return (
     <div
@@ -86,19 +88,29 @@ const ChatBubble = memo(function ChatBubble({ msg, index }: { msg: any; index: n
       <div className="flex flex-col gap-1 max-w-[85%] md:max-w-[80%]">
         <div className="flex items-center gap-1.5 px-1">
           {!isUser ? (
-            <>
-              <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{displayName}</span>
-              <ShieldCheck className="w-3 h-3 text-blue-500" />
-            </>
+            isAi ? (
+              <>
+                <Sparkles className="w-3 h-3 text-purple-400 animate-pulse" />
+                <span className="text-[8px] font-bold text-purple-400 uppercase tracking-widest">{displayName}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{displayName}</span>
+                <ShieldCheck className="w-3 h-3 text-blue-500" />
+              </>
+            )
           ) : (
             <span className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">You</span>
           )}
         </div>
         <div
-          className={`px-3.5 py-2.5 md:px-4 md:py-3 rounded-2xl ${isUser
-            ? 'bg-foreground/[0.06] text-foreground border border-foreground/8 rounded-tr-md'
-            : 'bg-foreground text-background rounded-tl-md font-medium'
-            } ${msg._optimistic ? 'opacity-70' : ''}`}
+          className={`px-3.5 py-2.5 md:px-4 md:py-3 rounded-2xl ${
+            isUser
+              ? 'bg-foreground/[0.06] text-foreground border border-foreground/8 rounded-tr-md'
+              : isAi
+              ? 'bg-purple-950/40 text-purple-100 border border-purple-500/20 rounded-tl-md font-medium'
+              : 'bg-foreground text-background rounded-tl-md font-medium'
+          } ${msg._optimistic ? 'opacity-70' : ''}`}
         >
           <p className="text-[11px] md:text-xs leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
         </div>
@@ -190,6 +202,13 @@ function SupportPageContent() {
       if (customerId) {
         handleLoadOrCreateTicket(customerId, urlParams.orderId, urlParams.tab);
       }
+    } else if (status === 'unauthenticated') {
+      if (typeof window !== 'undefined') {
+        const savedTicketId = localStorage.getItem('zb_support_ticket_id');
+        if (savedTicketId) {
+          fetchTicketById(savedTicketId);
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, session, urlParams]);
@@ -200,7 +219,6 @@ function SupportPageContent() {
 
     scrollToBottom();
 
-    // Only poll when tab is visible (saves battery on mobile)
     const poll = () => {
       if (!document.hidden) fetchMessages();
     };
@@ -226,6 +244,22 @@ function SupportPageContent() {
     return () => vv.removeEventListener('resize', handleResize);
   }, [activeTab, ticketId, scrollToBottom]);
 
+  const fetchTicketById = async (tId: string) => {
+    setFetchingTicket(true);
+    try {
+      const res = await fetch(`/api/support/tickets?ticketId=${tId}`);
+      const data = await res.json();
+      if (data.tickets && data.tickets[0]) {
+        setTicketId(data.tickets[0].id);
+        setChatMessages(data.tickets[0].messages || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch ticket by ID:', e);
+    } finally {
+      setFetchingTicket(false);
+    }
+  };
+
   const handleLoadOrCreateTicket = async (
     customerId: string,
     orderIdParam: string | null,
@@ -239,6 +273,7 @@ function SupportPageContent() {
         const activeTicket = data.tickets[0];
         setTicketId(activeTicket.id);
         setChatMessages(activeTicket.messages || []);
+        if (typeof window !== 'undefined') localStorage.setItem('zb_support_ticket_id', activeTicket.id);
       } else {
         const shouldAutoCreate = tabParam === 'chat' || orderIdParam || activeTab === 'chat';
         if (shouldAutoCreate) {
@@ -262,6 +297,7 @@ function SupportPageContent() {
           if (createRes.ok && createData.ticket) {
             setTicketId(createData.ticket.id);
             setChatMessages(createData.ticket.messages || []);
+            if (typeof window !== 'undefined') localStorage.setItem('zb_support_ticket_id', createData.ticket.id);
           }
         }
       }

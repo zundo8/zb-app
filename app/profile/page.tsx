@@ -342,7 +342,11 @@ export default function ProfilePage() {
   if (!session) return null;
 
   const totalOrders = customer?.orders?.length ?? 0;
-  const totalSpent = customer?.orders?.reduce((sum: number, o: any) => sum + (o.totalPrice || 0), 0) ?? 0;
+  const fulfilledOrders = (customer?.orders ?? []).filter((o: any) => {
+    const s = (o.fulfillmentStatus || "").toLowerCase().trim();
+    return s === "fulfilled" || s === "shipped" || s === "delivered";
+  });
+  const totalSpent = fulfilledOrders.reduce((sum: number, o: any) => sum + (o.totalPrice || 0), 0);
   const storeCredits = customer?.storeCredits ?? 0;
   const name = customer?.name || session.user?.name || "Member";
   const email = session.user?.email || (session as any).customer?.phone || "";

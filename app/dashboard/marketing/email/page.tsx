@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import ComposeTab from './components/ComposeTab';
 import TemplatesTab from './components/TemplatesTab';
 import SentTab from './components/SentTab';
+import AutomationsTab from './components/AutomationsTab';
 
 function EmailPageContent() {
   const searchParams = useSearchParams();
@@ -28,7 +29,7 @@ function EmailPageContent() {
       </div>
 
       <div className="flex space-x-1 border-b border-black/10 dark:border-white/10">
-        {['compose', 'templates', 'sent'].map((tab) => (
+        {['compose', 'templates', 'automations', 'sent'].map((tab) => (
           <button
             key={tab}
             onClick={() => setTab(tab)}
@@ -46,6 +47,7 @@ function EmailPageContent() {
       <div className="flex-1 min-h-0 overflow-auto">
         {currentTab === 'compose' && <ComposeTab />}
         {currentTab === 'templates' && <TemplatesTab />}
+        {currentTab === 'automations' && <AutomationsTab />}
         {currentTab === 'sent' && <SentTab />}
       </div>
     </div>

@@ -2,34 +2,65 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageSquare, Clock, CheckCircle2, AlertCircle, Search, Loader2, ArrowUpRight } from 'lucide-react';
+import { MessageSquare, Clock, CheckCircle2, AlertCircle, Search, Loader2, ArrowUpRight, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function SupportDashboard() {
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [zicaAiEnabled, setZicaAiEnabled] = useState(true);
 
   const fetchTickets = async () => {
     try {
       const res = await fetch('/api/support/tickets');
       const data = await res.json();
-      setTickets(data.tickets || []);
+      setTickets(Array.isArray(data.tickets) ? data.tickets : []);
     } catch (error) {
-      console.error('Failed to fetch tickets');
+      console.error('Failed to fetch tickets:', error);
+      setTickets([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchAiSettings = async () => {
+    try {
+      const res = await fetch('/api/admin/ai/settings');
+      const data = await res.json();
+      if (res.ok && typeof data.zicaAiSupportEnabled === 'boolean') {
+        setZicaAiEnabled(data.zicaAiSupportEnabled);
+      }
+    } catch (err) {
+      console.error('Failed to fetch AI settings:', err);
+    }
+  };
+
+  const handleToggleGlobalAi = async () => {
+    const nextVal = !zicaAiEnabled;
+    setZicaAiEnabled(nextVal);
+    try {
+      const res = await fetch('/api/admin/ai/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zicaAiSupportEnabled: nextVal })
+      });
+      if (!res.ok) setZicaAiEnabled(!nextVal);
+    } catch (err) {
+      setZicaAiEnabled(!nextVal);
+    }
+  };
+
   useEffect(() => {
     fetchTickets();
+    fetchAiSettings();
   }, []);
 
   const filteredTickets = tickets.filter(t => 
-    t.subject.toLowerCase().includes(search.toLowerCase()) ||
-    (t.guestName && t.guestName.toLowerCase().includes(search.toLowerCase())) ||
-    (t.guestEmail && t.guestEmail.toLowerCase().includes(search.toLowerCase()))
+    ((t.subject || '').toLowerCase().includes(search.toLowerCase())) ||
+    ((t.guestName || '').toLowerCase().includes(search.toLowerCase())) ||
+    ((t.guestEmail || '').toLowerCase().includes(search.toLowerCase())) ||
+    (t.id && t.id.toLowerCase().includes(search.toLowerCase()))
   );
 
   const getStatusColor = (status: string) => {
@@ -66,15 +97,29 @@ export default function SupportDashboard() {
           </p>
         </div>
 
-        <div className="relative group w-full lg:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/20 group-focus-within:text-foreground/60 transition-colors" />
-          <input
-            type="text"
-            placeholder="SEARCH TICKETS..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-foreground/[0.03] border border-foreground/[0.08] rounded-xl pl-12 pr-4 py-3 text-[10px] font-bold uppercase tracking-[0.2em] focus:outline-none focus:border-foreground/20 transition-all"
-          />
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+          <button
+            onClick={handleToggleGlobalAi}
+            className={`px-4 py-3 rounded-xl border text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-2 transition-all ${
+              zicaAiEnabled
+                ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20'
+                : 'bg-foreground/[0.03] border-foreground/[0.1] text-foreground/40 hover:bg-foreground/[0.08]'
+            }`}
+          >
+            <Sparkles className={`w-4 h-4 ${zicaAiEnabled ? 'text-purple-400 animate-pulse' : 'text-foreground/30'}`} />
+            <span>Global Zica AI Support: {zicaAiEnabled ? 'ENABLED' : 'DISABLED'}</span>
+          </button>
+
+          <div className="relative group w-full sm:w-72">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/20 group-focus-within:text-foreground/60 transition-colors" />
+            <input
+              type="text"
+              placeholder="SEARCH TICKETS..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-foreground/[0.03] border border-foreground/[0.08] rounded-xl pl-12 pr-4 py-3 text-[10px] font-bold uppercase tracking-[0.2em] focus:outline-none focus:border-foreground/20 transition-all"
+            />
+          </div>
         </div>
       </div>
 
@@ -100,6 +145,7 @@ export default function SupportDashboard() {
               <th className="px-8 py-5 text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em]">Customer</th>
               <th className="px-8 py-5 text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em]">Subject</th>
               <th className="px-8 py-5 text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em]">Status</th>
+              <th className="px-8 py-5 text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em]">AI Auto-Reply</th>
               <th className="px-8 py-5 text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em]">Last Activity</th>
               <th className="px-8 py-5"></th>
             </tr>
@@ -127,6 +173,14 @@ export default function SupportDashboard() {
                 <td className="px-8 py-6">
                   <span className={`text-[9px] font-bold px-3 py-1 rounded-full border uppercase tracking-widest ${getStatusColor(ticket.status)}`}>
                     {ticket.status}
+                  </span>
+                </td>
+                <td className="px-8 py-6">
+                  <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider flex items-center gap-1.5 w-fit ${
+                    ticket.aiAutoReply !== false ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-foreground/5 text-foreground/30 border-foreground/10'
+                  }`}>
+                    <Sparkles className="w-3 h-3" />
+                    <span>{ticket.aiAutoReply !== false ? 'ON' : 'OFF'}</span>
                   </span>
                 </td>
                 <td className="px-8 py-6">

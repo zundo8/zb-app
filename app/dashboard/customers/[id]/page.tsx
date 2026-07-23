@@ -152,7 +152,14 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
 
   if (!customer) return null;
 
-  const totalSpent = customer.totalSpent || customer.orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+  const isFulfilled = (status?: string | null) => {
+    if (!status) return false;
+    const s = status.toLowerCase().trim();
+    return s === "fulfilled" || s === "shipped" || s === "delivered";
+  };
+
+  const fulfilledOrders = (customer.orders || []).filter((o) => isFulfilled(o.fulfillmentStatus));
+  const totalSpent = fulfilledOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
   const totalOrders = customer.ordersCount || customer.orders.length;
 
   return (

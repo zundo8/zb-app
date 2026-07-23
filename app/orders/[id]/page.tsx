@@ -153,13 +153,13 @@ export default function OrderDetailsPage() {
     return ds === 'delivered' || s === 'delivered';
   }, [order]);
 
-  const activeReturnReq = useMemo(() => order?.returnRequests?.find((r: any) => r.status !== 'cancelled'), [order]);
+  const activeReturnReq = useMemo(() => order?.returnRequests?.find((r: any) => r.status !== 'cancelled' && (!r.reason || !r.reason.includes('EXCHANGE_RETURN'))), [order]);
   const activeExchangeReq = useMemo(() => order?.exchangeRequests?.find((e: any) => e.status !== 'cancelled'), [order]);
 
   const hasActiveReturn = useMemo(() => !!activeReturnReq, [activeReturnReq]);
   const hasActiveExchange = useMemo(() => !!activeExchangeReq, [activeExchangeReq]);
   const hasPendingRequest = useMemo(() => {
-    return order?.returnRequests?.some((r: any) => r.status === 'pending_approval') || 
+    return order?.returnRequests?.some((r: any) => r.status === 'pending_approval' && (!r.reason || !r.reason.includes('EXCHANGE_RETURN'))) || 
            order?.exchangeRequests?.some((e: any) => e.status === 'pending_approval') || false;
   }, [order]);
 
@@ -167,8 +167,8 @@ export default function OrderDetailsPage() {
     if (!isDelivered) return false;
     const timelineArr = Array.isArray(order?.statusTimeline) ? order.statusTimeline : [];
     const deliveredEntry = timelineArr.find((t: any) => t.step === 'delivered');
-    const deliveredAt = deliveredEntry?.completedAt || order?.updatedAt || order?.createdAt;
-    if (!deliveredAt) return true;
+    const deliveredAt = order?.deliveredAt || deliveredEntry?.completedAt || order?.createdAt;
+    if (!deliveredAt) return false;
     const diffDays = Math.ceil(Math.abs(Date.now() - new Date(deliveredAt).getTime()) / (1000 * 60 * 60 * 24));
     return diffDays <= 15;
   }, [order, isDelivered]);

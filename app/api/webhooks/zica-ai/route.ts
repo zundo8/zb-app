@@ -4,10 +4,9 @@ import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
-const WEBHOOK_SECRET = process.env.CLAUDE_WEBHOOK_SECRET || "";
-
 /**
- * Verifies the signature from Anthropic
+ * Verifies the signature from Anthropic / Webhook sender.
+ * Handles normalizing sha256= prefix and equal length comparison for timingSafeEqual.
  */
 function verifySignature(payload: string, signature: string, secret: string): boolean {
   if (!signature || !secret) return false;
@@ -16,9 +15,21 @@ function verifySignature(payload: string, signature: string, secret: string): bo
     const hmac = crypto.createHmac("sha256", secret);
     const digest = hmac.update(payload).digest("hex");
     
-    // Anthropic signatures might be hex or base64, usually hex for HMAC-SHA256
-    // The SDK helper is safer but we'll implement the logic here for clarity
-    return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
+    // Normalize signature (remove sha256= or v1= prefix if present)
+    let cleanSignature = signature;
+    if (signature.includes("=")) {
+      const parts = signature.split("=");
+      cleanSignature = parts[parts.length - 1];
+    }
+
+    const digestBuf = Buffer.from(digest, "utf-8");
+    const sigBuf = Buffer.from(cleanSignature, "utf-8");
+
+    if (digestBuf.length !== sigBuf.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(digestBuf, sigBuf);
   } catch (e) {
     return false;
   }
@@ -26,7 +37,6 @@ function verifySignature(payload: string, signature: string, secret: string): bo
 
 /** Resolve Claude Webhook Secret: database → env */
 async function resolveWebhookSecret(): Promise<string> {
-  // Try database first
   try {
     const shop = await prisma.shop.findFirst({
       select: { claudeWebhookSecret: true },
@@ -36,7 +46,6 @@ async function resolveWebhookSecret(): Promise<string> {
     console.warn("[ZicaAI Webhook] Could not read DB secret:", e);
   }
 
-  // Fallback to env vars
   return process.env.CLAUDE_WEBHOOK_SECRET || "";
 }
 

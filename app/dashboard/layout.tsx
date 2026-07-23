@@ -166,6 +166,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Homepage Products", href: "/web-store/homepage", icon: LayoutGrid, module: 'STOREFRONT' },
     { name: "All Products", href: "/web-store/products", icon: Sparkles, module: 'STOREFRONT' },
     { name: "Homepage Banners", href: "/web-store/banners", icon: Monitor, module: 'STOREFRONT' },
+    { name: "Gallery CMS", href: "/web-store/gallery", icon: Sparkles, module: 'STOREFRONT' },
     { name: "Preferences", href: "/dashboard/webstore-settings/preferences", icon: Settings, module: 'STOREFRONT' },
   ];
 

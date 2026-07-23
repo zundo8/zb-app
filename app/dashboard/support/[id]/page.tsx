@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Send, Clock, CheckCircle2, AlertCircle, Loader2, ArrowLeft, MoreHorizontal, User, ShieldCheck } from 'lucide-react';
+import { Send, Clock, CheckCircle2, AlertCircle, Loader2, ArrowLeft, MoreHorizontal, User, ShieldCheck, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function TicketDetailPage() {
@@ -14,6 +14,26 @@ export default function TicketDetailPage() {
   const [newMessage, setNewMessage] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const toggleAiAutoReply = async () => {
+    if (!ticket) return;
+    const nextVal = ticket.aiAutoReply === false ? true : false;
+    try {
+      const res = await fetch('/api/support/tickets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: ticket.id,
+          aiAutoReply: nextVal
+        })
+      });
+      if (res.ok) {
+        setTicket({ ...ticket, aiAutoReply: nextVal });
+      }
+    } catch (err) {
+      console.error('Failed to toggle AI Auto-Reply:', err);
+    }
+  };
 
   const handleApproveDeletion = async () => {
     if (!ticket || !ticket.customerId) {
@@ -172,6 +192,18 @@ export default function TicketDetailPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleAiAutoReply}
+            className={`px-4 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-2 transition-all ${
+              ticket.aiAutoReply !== false
+                ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20'
+                : 'bg-foreground/[0.03] border-foreground/[0.1] text-foreground/40 hover:bg-foreground/[0.08]'
+            }`}
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${ticket.aiAutoReply !== false ? 'text-purple-400 animate-pulse' : 'text-foreground/30'}`} />
+            <span>Zica AI Auto-Reply: {ticket.aiAutoReply !== false ? 'ON' : 'OFF'}</span>
+          </button>
+
           <select 
             className="bg-foreground/[0.03] border border-foreground/[0.08] rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] focus:outline-none"
             value={ticket.status}
@@ -212,6 +244,12 @@ export default function TicketDetailPage() {
                   <p className="text-[8px] font-bold text-foreground/20 uppercase tracking-[0.3em] mb-1">Priority</p>
                   <span className="text-[9px] font-bold text-rose-500 uppercase tracking-widest">{ticket.priority}</span>
                 </div>
+                <div>
+                  <p className="text-[8px] font-bold text-foreground/20 uppercase tracking-[0.3em] mb-1">AI Auto-Reply</p>
+                  <span className={`text-[9px] font-bold uppercase tracking-widest ${ticket.aiAutoReply !== false ? 'text-purple-400' : 'text-foreground/30'}`}>
+                    {ticket.aiAutoReply !== false ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -242,35 +280,54 @@ export default function TicketDetailPage() {
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-[10px] font-bold text-foreground/60 uppercase tracking-[0.3em]">Live Support Session</span>
               </div>
+              {ticket.aiAutoReply !== false && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                  <Sparkles className="w-3 h-3 animate-pulse" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider">Zica AI Auto-Reply Active</span>
+                </div>
+              )}
             </div>
 
             <div className="flex-1 p-8 overflow-y-auto custom-scrollbar space-y-8">
-              {ticket.messages.map((msg: any, idx: number) => (
-                <div key={msg.id} className={`flex ${msg.senderType === 'AGENT' ? 'justify-end' : 'justify-start'}`}>
-                  <div className="flex flex-col gap-2 max-w-[80%]">
-                    <div className="flex items-center gap-2 mb-1 px-1">
-                      {msg.senderType === 'AGENT' ? (
-                        <>
-                          <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{msg.senderName}</span>
-                          <ShieldCheck className="w-3 h-3 text-blue-500" />
-                        </>
-                      ) : (
-                        <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{msg.senderName}</span>
-                      )}
+              {ticket.messages.map((msg: any) => {
+                const isAgent = msg.senderType === 'AGENT';
+                const isAi = msg.senderType === 'ZICA_AI';
+
+                return (
+                  <div key={msg.id} className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}>
+                    <div className="flex flex-col gap-2 max-w-[80%]">
+                      <div className="flex items-center gap-2 mb-1 px-1">
+                        {isAgent ? (
+                          <>
+                            <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{msg.senderName || 'Support Agent'}</span>
+                            <ShieldCheck className="w-3 h-3 text-blue-500" />
+                          </>
+                        ) : isAi ? (
+                          <>
+                            <Sparkles className="w-3 h-3 text-purple-400" />
+                            <span className="text-[8px] font-bold text-purple-400 uppercase tracking-widest">{msg.senderName || 'Zica AI'}</span>
+                            <span className="text-[7px] font-extrabold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 uppercase tracking-wider">AUTOREPLY</span>
+                          </>
+                        ) : (
+                          <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{msg.senderName || 'Customer'}</span>
+                        )}
+                      </div>
+                      <div className={`p-4 rounded-3xl ${
+                        isAgent 
+                          ? 'bg-foreground text-background rounded-tr-none' 
+                          : isAi
+                          ? 'bg-purple-950/40 text-purple-100 border border-purple-500/20 rounded-tl-none font-medium'
+                          : 'bg-foreground/[0.05] text-foreground border border-foreground/[0.05] rounded-tl-none'
+                      }`}>
+                        <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                      <p className={`text-[8px] font-bold text-foreground/20 uppercase tracking-tighter ${isAgent ? 'text-right' : 'text-left'}`}>
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
-                    <div className={`p-4 rounded-3xl ${
-                      msg.senderType === 'AGENT' 
-                        ? 'bg-foreground text-background rounded-tr-none' 
-                        : 'bg-foreground/[0.05] text-foreground border border-foreground/[0.05] rounded-tl-none'
-                    }`}>
-                      <p className="text-[13px] leading-relaxed">{msg.content}</p>
-                    </div>
-                    <p className={`text-[8px] font-bold text-foreground/20 uppercase tracking-tighter ${msg.senderType === 'AGENT' ? 'text-right' : 'text-left'}`}>
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <div ref={chatEndRef} />
             </div>
 

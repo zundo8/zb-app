@@ -120,12 +120,12 @@ export default function OrdersPage() {
   return (
     <div className="min-h-screen bg-background text-foreground relative">
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-32">
-        {/* Page Title & Refresh */}
+        {/* Page Title & Sync */}
         <div className="mb-6">
-          <p className="text-[7px] font-extralight uppercase tracking-[0.55em] text-foreground/20 mb-0.5 ml-0.5">Your Account</p>
+          <p className="text-[7px] font-black uppercase tracking-[0.55em] text-foreground/30 mb-0.5 ml-0.5">Your Account</p>
           <div className="flex items-center justify-between">
-            <h1 className="font-heading text-[15px] uppercase tracking-widest text-foreground/90 flex items-center gap-2">
-              Orders & Returns
+            <h1 className="font-heading text-[15px] uppercase tracking-widest text-foreground flex items-center gap-2">
+              Order History
             </h1>
             <button 
               onClick={() => fetchOrders(true)}
@@ -138,55 +138,20 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {/* 15-Day Policy Banner */}
-        <div className="mb-8 p-4 rounded-2xl glass-panel border border-foreground/5 bg-foreground/[0.01] flex items-center justify-between gap-4">
+        {/* Dedicated Returns & Exchanges Navigation Banner */}
+        <div className="mb-8 p-5 rounded-3xl glass-panel border border-amber-500/20 bg-amber-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-foreground/5 border border-foreground/5 text-foreground/70 shrink-0">
-              <Calendar className="w-4 h-4" />
+            <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 shrink-0">
+              <RotateCcw className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-foreground">15-Day Return & Exchange Policy</p>
-              <p className="text-[9px] text-foreground/50 mt-0.5">Delivered orders are eligible for return or exchange within 15 days of delivery date.</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-foreground">Need to Return or Exchange an Item?</p>
+              <p className="text-[9px] text-foreground/60 mt-0.5">View 15-day eligibility window and track active request statuses in the Returns & Exchanges portal.</p>
             </div>
           </div>
-        </div>
-
-        {/* Tab Filters */}
-        <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2 scrollbar-none">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-              activeTab === 'all'
-                ? 'bg-foreground text-background shadow-lg'
-                : 'glass-button text-foreground/60 hover:text-foreground'
-            }`}
-          >
-            All Orders ({orders.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('eligible')}
-            className={`px-4 py-2 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'eligible'
-                ? 'bg-foreground text-background shadow-lg'
-                : 'glass-button text-foreground/60 hover:text-foreground'
-            }`}
-          >
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            Eligible for Return ({eligibleOrders.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('returns')}
-            className={`px-4 py-2 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'returns' || activeTab === 'exchanges'
-                ? 'bg-foreground text-background shadow-lg'
-                : 'glass-button text-foreground/60 hover:text-foreground'
-            }`}
-          >
-            <RotateCcw className="w-3 h-3" />
-            Active Requests ({activeRequestOrders.length})
-          </button>
+          <Link href="/returns" className="shrink-0 px-4 py-2.5 rounded-xl glass-cta text-[8px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5">
+            Returns & Exchanges Portal <ChevronRight className="w-3 h-3" />
+          </Link>
         </div>
 
         {/* Orders List */}
@@ -195,17 +160,17 @@ export default function OrdersPage() {
             <Loader2 className="w-5 h-5 animate-spin text-foreground/20" />
             <p className="text-[7px] text-foreground/25 font-black uppercase tracking-[0.3em]">Loading Orders</p>
           </div>
-        ) : displayedOrders.length === 0 ? (
+        ) : orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 space-y-6 text-center animate-in fade-in duration-700">
             <div className="w-16 h-16 bg-foreground/[0.02] rounded-[2rem] flex items-center justify-center border border-foreground/5">
               <Package className="w-6 h-6 text-foreground/20" />
             </div>
             <div className="space-y-1">
               <h2 className="text-[11px] font-heading uppercase tracking-widest text-foreground/60">
-                {activeTab === 'eligible' ? 'No Orders Eligible for Return' : activeTab === 'returns' ? 'No Active Return Requests' : 'No Orders Found'}
+                No Orders Found
               </h2>
               <p className="text-[9px] text-foreground/30 font-medium">
-                {activeTab === 'eligible' ? 'Only orders delivered within the last 15 days can be returned or exchanged.' : 'Your order history will appear here.'}
+                Your order history will appear here once you make a purchase.
               </p>
             </div>
             <Link href="/collections" className="glass-cta px-8 py-3 text-[9px]">
@@ -214,11 +179,11 @@ export default function OrdersPage() {
           </div>
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
-            {displayedOrders.map((order, idx) => {
+            {orders.map((order, idx) => {
               const statusConfig = getStatusConfig(order.deliveryStatus || order.status || 'pending');
               const StatusIcon = statusConfig.icon;
               const orderItems = order.items || [];
-              const eligibility = getEligibilityInfo(order);
+              const awbNumber = order.shipments?.[0]?.trackingNumber || order.delhivery_awb;
 
               return (
                 <motion.div
@@ -231,7 +196,7 @@ export default function OrdersPage() {
                   {/* Header Info */}
                   <div className="flex justify-between items-start mb-4">
                     <div className="space-y-0.5">
-                      <p className="text-[8px] font-black uppercase tracking-[0.15em] text-foreground/40 flex items-center gap-1.5">
+                      <p className="text-[8px] font-black uppercase tracking-[0.15em] text-foreground/40 flex items-center gap-1.5 font-mono">
                         <Clock className="w-2.5 h-2.5 opacity-30" />
                         {order.orderNumber 
                           ? (order.orderNumber.startsWith('#') ? order.orderNumber : `#${order.orderNumber}`)
@@ -253,7 +218,7 @@ export default function OrdersPage() {
                   </div>
 
                   {/* Main Content */}
-                  <div className="flex items-center gap-4 mb-4">
+                  <div className="flex items-center gap-4 mb-2">
                     <div className="flex -space-x-3.5 shrink-0">
                       {orderItems.slice(0, 3).map((item: any, i: number) => {
                         const imageSrc = item.image || item.product?.featuredImage || (item.product?.images?.[0] as any)?.src || (item.product?.images?.[0] as any) || "";
@@ -284,55 +249,21 @@ export default function OrdersPage() {
                     </div>
                   </div>
 
-                  {/* Active Return/Exchange Badge */}
-                  {eligibility.hasActiveRequest && (
-                    <div className="mt-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500">
-                          {eligibility.activeReturn ? 'Return Request Active' : 'Exchange Request Active'} ({eligibility.activeReturn?.status || eligibility.activeExchange?.status})
-                        </span>
-                      </div>
-                      <Link href={`/orders/${order.id}`} className="px-3 py-1 rounded-xl bg-amber-500 text-black text-[8px] font-bold uppercase tracking-wider">
-                        View Status
-                      </Link>
-                    </div>
-                  )}
-
-                  {/* Eligible 15-Day Return & Exchange Actions */}
-                  {eligibility.isEligible && (
-                    <div className="mt-4 pt-3 border-t border-foreground/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-500">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Eligible for Return / Exchange ({eligibility.remainingDays} days left in 15-day window)</span>
-                      </div>
-
-                      <div className="flex gap-2 relative z-10">
-                        <Link
-                          href={`/orders/${order.id}/return`}
-                          className="px-4 py-2 rounded-xl glass-button text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          Return
-                        </Link>
-                        <Link
-                          href={`/orders/${order.id}/exchange`}
-                          className="px-4 py-2 rounded-xl glass-cta text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5"
-                        >
-                          <ArrowLeftRight className="w-3 h-3" />
-                          Exchange
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tracking link if shipped */}
-                  {!eligibility.isEligible && !eligibility.hasActiveRequest && order.shipments?.[0]?.trackingNumber && (
+                  {/* AWB Tracking Information Bar */}
+                  {awbNumber && (
                     <div className="mt-3 pt-3 border-t border-foreground/5 flex items-center justify-between text-[8px]">
-                      <span className="text-foreground/40 font-mono">AWB: {order.shipments[0].trackingNumber}</span>
+                      <span className="text-foreground/50 font-mono flex items-center gap-1.5">
+                        <Truck className="w-3 h-3 text-purple-400" />
+                        AWB: {awbNumber}
+                      </span>
                       <button 
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(`https://www.shiprocket.in/shipment-tracking/?awb=${order.shipments[0].trackingNumber}`, '_blank'); }}
-                        className="relative z-10 px-3 py-1.5 rounded-lg glass-button font-bold uppercase tracking-widest"
+                        onClick={(e) => { 
+                          e.preventDefault(); 
+                          e.stopPropagation(); 
+                          const trackingUrl = order.shipments?.[0]?.trackingUrl || `https://www.shiprocket.in/shipment-tracking/?awb=${awbNumber}`;
+                          window.open(trackingUrl, '_blank'); 
+                        }}
+                        className="relative z-10 px-3 py-1 rounded-lg glass-button font-bold uppercase tracking-widest text-foreground/75 hover:text-foreground"
                       >
                         Track Shipment
                       </button>

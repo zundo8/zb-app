@@ -72,10 +72,15 @@ async function mergeCustomerCluster(primary: any, duplicateIds: string[], duplic
   // Recalculate total orders and spent across merged records
   const allOrders = await prisma.order.findMany({
     where: { customerId: primary.id },
-    select: { totalPrice: true },
+    select: { totalPrice: true, fulfillmentStatus: true },
   });
 
-  const totalSpent = allOrders.reduce((sum: number, o: any) => sum + (o.totalPrice || 0), 0);
+  const fulfilledOrders = allOrders.filter((o: any) => {
+    const s = (o.fulfillmentStatus || "").toLowerCase().trim();
+    return s === "fulfilled" || s === "shipped" || s === "delivered";
+  });
+
+  const totalSpent = fulfilledOrders.reduce((sum: number, o: any) => sum + (o.totalPrice || 0), 0);
   const ordersCount = allOrders.length;
 
   // Best name, email, phone from duplicates

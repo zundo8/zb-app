@@ -70,10 +70,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         });
       }
 
-      // 4. Update order status
+      // 4. Update order status & auto-cancel any pending exchange requests for mutual exclusivity
       await tx.order.update({
         where: { id: returnRequest.orderId },
         data: { status: "return_approved" }
+      });
+
+      await tx.exchangeRequest.updateMany({
+        where: {
+          orderId: returnRequest.orderId,
+          status: { in: ["pending_approval", "submitted"] }
+        },
+        data: {
+          status: "cancelled",
+          reason: "Auto-cancelled due to approved Return Request"
+        }
       });
 
       // 5. Create a reverse shipment tracking record for Delhivery reverse pickup!

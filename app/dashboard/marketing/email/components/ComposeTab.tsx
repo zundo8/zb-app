@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import VariableSubstitutionPanel from './VariableSubstitutionPanel';
 import ImageManager from './ImageManager';
+import { findUnresolvedVariables } from '@/lib/email-templates/variables';
 function extractVariables(html: string): string[] {
   const regex = /\{\{([^}]+)\}\}/g;
   const matches = html.match(regex);
@@ -122,6 +123,19 @@ export default function ComposeTab() {
     }
     return finalHtml;
   }, [htmlBody, variableValues]);
+
+  // Detect unresolved variables that would be sent as literal {{...}} to recipients.
+  // customerName and customerEmail are auto-substituted per-recipient server-side,
+  // so they don't count as "unresolved" here.
+  const unresolvedVars = useMemo(() => {
+    const autoResolved: Record<string, string> = {
+      customerName: '(auto)',
+      customerEmail: '(auto)',
+      ...variableValues,
+    };
+    return findUnresolvedVariables(htmlBody, autoResolved);
+  }, [htmlBody, variableValues]);
+
   const handleProductSelected = (product: any, imageUrl: string) => {
     // 1. Auto-fill subject if empty or generic
     if (!subject || subject.toLowerCase().includes('scratch') || subject.toLowerCase().includes('subject')) {
@@ -358,13 +372,30 @@ export default function ComposeTab() {
           </div>
         </div>
 
-        <div className="p-4 border-t border-black/10 dark:border-white/10 bg-gray-50 dark:bg-[#161616]">
+        <div className="p-4 border-t border-black/10 dark:border-white/10 bg-gray-50 dark:bg-[#161616] space-y-3">
+          {unresolvedVars.length > 0 && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1.5 flex items-center gap-1.5">
+                <span>⚠</span> Unresolved Template Variables
+              </p>
+              <p className="text-[11px] text-amber-600 dark:text-amber-400/80 leading-relaxed mb-2">
+                The following variables have no value and would appear as literal {'{{...}}'} in customer inboxes. Fill them in the Variables panel above or remove them from the HTML.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {unresolvedVars.map(v => (
+                  <span key={v} className="text-[10px] font-mono bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded">
+                    {`{{${v}}}`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <button
-            disabled={isSending}
+            disabled={isSending || unresolvedVars.length > 0}
             onClick={handleSend}
             className="w-full bg-black dark:bg-white text-white dark:text-black px-6 py-3 rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-black/80 dark:hover:bg-gray-200 transition shadow-md"
           >
-            {isSending ? 'Processing...' : (isScheduled ? 'Schedule Email' : 'Send Email')}
+            {isSending ? 'Processing...' : unresolvedVars.length > 0 ? `Resolve ${unresolvedVars.length} Variable${unresolvedVars.length > 1 ? 's' : ''} to Send` : (isScheduled ? 'Schedule Email' : 'Send Email')}
           </button>
         </div>
       </div>

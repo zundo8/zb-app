@@ -40,12 +40,18 @@ export async function GET(req: Request) {
             product: true
           }
         }, 
-        shipments: true 
+        shipments: true,
+        returnRequests: {
+          include: { returns: true }
+        },
+        exchangeRequests: {
+          include: { exchanges: { include: { newProduct: true, originalProduct: true } } }
+        }
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // Match each order with its corresponding webStoreOrder if any
+    // Match each order with its corresponding webStoreOrder if any and compute eligibility
     const enrichedOrders = await Promise.all(
       orders.map(async (order: any) => {
         let webStoreOrder = null;
@@ -74,9 +80,34 @@ export async function GET(req: Request) {
         }
         
         const orderNumber = webStoreOrder?.orderNumber || (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') ? order.shopifyOrderId : `#ZB${order.id.slice(-5).toUpperCase()}`);
+        
+        // Filter out auto-created internal exchange returns from customer view
+        const userReturnRequests = (order.returnRequests || []).filter((r: any) => !r.reason || !r.reason.includes('EXCHANGE_RETURN'));
+        const userExchangeRequests = order.exchangeRequests || [];
+
+        const activeReturn = userReturnRequests.find((r: any) => r.status !== 'cancelled');
+        const activeExchange = userExchangeRequests.find((e: any) => e.status !== 'cancelled');
+        const hasActiveRequest = !!(activeReturn || activeExchange);
+
+        const isDelivered = String(order.deliveryStatus || order.status || '').toLowerCase() === 'delivered';
+        const deliveredTimestamp = order.deliveredAt || order.createdAt;
+        const diffDays = isDelivered ? Math.ceil(Math.abs(Date.now() - new Date(deliveredTimestamp).getTime()) / (1000 * 60 * 60 * 24)) : 999;
+        const isWithin15Days = isDelivered && diffDays <= 15;
+        const isEligible = isWithin15Days && !hasActiveRequest;
+        const remainingDays = Math.max(0, 15 - diffDays);
+
         return {
           ...order,
           orderNumber,
+          userReturnRequests,
+          userExchangeRequests,
+          activeReturn: activeReturn || null,
+          activeExchange: activeExchange || null,
+          hasActiveRequest,
+          isDelivered,
+          isWithin15Days,
+          isEligible,
+          remainingDays
         };
       })
     );

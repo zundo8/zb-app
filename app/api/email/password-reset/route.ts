@@ -8,16 +8,27 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     const { customerEmail, customerName, resetUrl, expiresIn } = data;
 
-    const html = passwordResetTemplate({
-      customerName,
-      resetUrl,
+    const { renderDBTemplate, passwordResetTemplate } = await import('@/lib/email-templates');
+
+    const emailVars = {
+      customerName: customerName || 'Valued Customer',
+      customerEmail,
+      resetUrl: resetUrl || 'https://zicabella.com/reset-password',
       expiresIn: expiresIn || '1 hour',
+    };
+
+    const fallbackFn = () => passwordResetTemplate({
+      customerName: emailVars.customerName,
+      resetUrl: emailVars.resetUrl,
+      expiresIn: emailVars.expiresIn,
     });
+
+    const rendered = await renderDBTemplate('PASSWORD_RESET', emailVars, fallbackFn);
 
     const result = await sendMail({
       to: customerEmail,
-      subject: `Reset your Zica Bella password`,
-      html,
+      subject: rendered.subject || `Reset your Zica Bella password`,
+      html: rendered.html,
     });
 
     await logEmail({

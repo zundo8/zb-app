@@ -295,6 +295,17 @@ async function handleIncomingMessages(messages: any[], db: any) {
       }
     }
 
+    // Trigger WhatsApp AI Auto-reply for free text messages asynchronously
+    if (message.type === 'text' && bodyText.trim() && lowerText !== 'stop' && lowerText !== 'unsubscribe' && lowerText !== 'start' && lowerText !== 'optin') {
+      import('@/lib/ai/whatsappAgent').then(({ processWhatsAppAIReply }) => {
+        processWhatsAppAIReply(phoneNumber, bodyText).catch((err) => {
+          console.error('[WhatsApp Webhook] Async AI Auto-reply error:', err);
+        });
+      }).catch((err) => {
+        console.error('[WhatsApp Webhook] Failed to load WhatsApp AI agent:', err);
+      });
+    }
+
     // Mark as read in Meta
     WhatsAppService.markAsRead(waMessageId).catch((err: any) => {
       console.error('[WhatsApp Webhook] Mark-as-read error:', err.message);

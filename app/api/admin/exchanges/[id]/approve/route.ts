@@ -55,7 +55,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           estimatedRefund,
           actualRefund: 0,
           approvedAt: new Date(),
-          reason: `Auto-created return for exchange #${id.slice(0, 8)}`,
+          reason: `EXCHANGE_RETURN - Auto-created return for exchange #${id.slice(0, 8)}`,
           returns: {
             create: returnItemsData
           }
@@ -129,10 +129,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // 6. Update original order status
+      // 6. Update original order status & auto-cancel any pending customer return requests for mutual exclusivity
       await tx.order.update({
         where: { id: exchangeRequest.orderId },
         data: { status: "exchange_approved" }
+      });
+
+      await tx.returnRequest.updateMany({
+        where: {
+          orderId: exchangeRequest.orderId,
+          status: { in: ["pending_approval", "submitted"] },
+          reason: { not: { contains: "EXCHANGE_RETURN" } }
+        },
+        data: {
+          status: "cancelled",
+          reason: "Auto-cancelled due to approved Exchange Request"
+        }
       });
 
       return {

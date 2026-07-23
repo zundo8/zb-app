@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { anthropic, CLAUDE_MODELS } from '@/lib/ai';
+import { callClaude } from '@/lib/ai/claudeClient';
+import { getFastModel } from '@/lib/ai/models';
 import db from '@/lib/db';
 
 export async function POST(req: Request) {
@@ -10,10 +11,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // In a production scenario, you would fetch aggregated historical engagement data
-    // for this segment from the CampaignAnalyticsEvent table.
-    // For now, we'll simulate the data aggregation.
-    
     const mockHistoricalData = {
       segmentSize: 15000,
       engagementByHour: {
@@ -42,16 +39,15 @@ export async function POST(req: Request) {
       }
     `;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODELS.FAST,
-      max_tokens: 300,
-      temperature: 0.1,
-      messages: [
-        { role: 'user', content: prompt }
-      ]
+    const fastModel = getFastModel();
+    const result = await callClaude({
+      systemPrompt: 'You are a marketing data analyst. Respond only with valid JSON.',
+      messages: [{ role: 'user', content: prompt }],
+      maxTokens: 300,
+      modelChain: [fastModel],
     });
 
-    const aiText = response.content[0].type === 'text' ? response.content[0].text : '{}';
+    const aiText = result.response.content[0].type === 'text' ? result.response.content[0].text : '{}';
     let recommendation;
     
     try {
@@ -66,6 +62,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error('AI send time optimization error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to optimize send time' }, { status: 500 });
   }
 }

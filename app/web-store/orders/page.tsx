@@ -84,7 +84,11 @@ export default function WebStoreOrdersList() {
   /* ═══ Summary Stats ═══ */
   const stats = useMemo(() => {
     const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+    const fulfilledOrders = orders.filter((o) => {
+      const status = (o.fulfillmentStatus || "").toLowerCase().trim();
+      return status === "fulfilled" || status === "shipped" || status === "delivered";
+    });
+    const totalRevenue = fulfilledOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
     const codOrders = orders.filter(o => o.paymentMethod === "cod");
     const prepaidOrders = orders.filter(o => o.paymentMethod === "razorpay");
     const totalCollected = orders.reduce((sum, o) => {

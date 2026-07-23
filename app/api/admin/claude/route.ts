@@ -1,70 +1,41 @@
 // ──────────────────────────────────────────────────
-// /api/admin/claude — Main chat endpoint
-// Proxies to Claude API with server-side key,
-// handles tool_use agentic loops, returns final
-// response + tracked tool actions for inline display.
+// /api/admin/claude — Main admin chat endpoint
+// Secures admin capabilities using server-side NextAuth session,
+// enforces max 8 tool loops, and filters error details.
 // ──────────────────────────────────────────────────
 
 import { NextResponse } from "next/server";
-import {
-  callClaude,
-  ZICA_ADMIN_PROMPT,
-  ZICA_TOOLS,
-  type ClaudeMessage,
-  type ClaudeContentBlock,
-} from "@/lib/services/claudeService";
+import { resolvePrincipal } from "@/lib/ai/principal";
+import { isToolAllowed } from "@/lib/ai/toolAllowList";
+import { ZICA_TOOLS, type ClaudeMessage, type ClaudeContentBlock } from "@/lib/services/claudeService";
 import { executeClaudeTool } from "@/lib/services/claudeToolExecutor";
+import { callClaude, MAX_TOOL_LOOPS } from "@/lib/ai/claudeClient";
+import { getAdminPrompt } from "@/lib/ai/prompts";
 import prisma from "@/lib/db";
 import { getAISettings } from "@/lib/ai-settings-util";
+import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Resolve Claude API key: override → database → env */
-async function resolveApiKey(overrideKey?: string): Promise<string> {
-  if (overrideKey) return overrideKey;
-
-  // Try database first
-  try {
-    const shop = await prisma.shop.findFirst({
-      select: { claudeApiKey: true },
-    });
-    if (shop?.claudeApiKey) return shop.claudeApiKey;
-  } catch (e) {
-    console.warn("[ZicaAI] Could not read DB key:", e);
-  }
-
-  // Fallback to env vars
-  return process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || "";
-}
-
 export async function POST(req: Request) {
   try {
+    // 1. Resolve Principal (strictly server-side auth check)
+    const principal = await resolvePrincipal(req as any);
+    if (principal.kind !== "admin") {
+      return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+    }
+
     const body = await req.json();
-    const { message, conversationHistory = [], sessionId, pageContext, contextData, overrideKey, imageBase64, imageMimeType } = body as {
+    const { message, conversationHistory = [], sessionId, pageContext, contextData, imageBase64, imageMimeType } = body as {
       message: string;
       conversationHistory: ClaudeMessage[];
       sessionId?: string;
       pageContext?: string;
       contextData?: string;
-      overrideKey?: string;
       imageBase64?: string;
       imageMimeType?: string;
     };
-
-    const activeApiKey = await resolveApiKey(overrideKey);
-
-    if (!activeApiKey) {
-      console.error("[ZicaAI Admin] Configuration Error: No API key found.");
-      return NextResponse.json(
-        { 
-          error: "Claude API key not configured.", 
-          details: "Set CLAUDE_API_KEY in environment or provide an override key in the dashboard settings.",
-          type: "config_error" 
-        },
-        { status: 500 }
-      );
-    }
 
     if (!message?.trim() && !imageBase64) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -75,7 +46,7 @@ export async function POST(req: Request) {
     if (!currentSessionId) {
       const newSession = await prisma.aIChatSession.create({
         data: {
-          title: message.slice(0, 50) + (message.length > 50 ? "..." : ""),
+          title: (message || "Admin Query").slice(0, 50) + ((message || "").length > 50 ? "..." : ""),
         },
       });
       currentSessionId = newSession.id;
@@ -86,13 +57,13 @@ export async function POST(req: Request) {
       data: {
         sessionId: currentSessionId,
         role: "user",
-        content: message,
+        content: message || "Image uploaded",
       },
     });
 
     // Build context-aware system prompt
     const aiSettings = getAISettings();
-    let systemPrompt = ZICA_ADMIN_PROMPT;
+    let systemPrompt = getAdminPrompt();
     
     if (aiSettings.trainingRules && aiSettings.trainingRules.length > 0) {
       systemPrompt += `\n\nADDITIONAL DYNAMIC KNOWLEDGE & MEMORY:\nYou have been trained with the following additional custom operational instructions and knowledge. You MUST follow them strictly:\n`;
@@ -130,47 +101,59 @@ export async function POST(req: Request) {
     }
 
     // ─── Agentic Loop ───
-    let currentHistory: ClaudeMessage[] = [...conversationHistory];
+    let currentHistory: Anthropic.MessageParam[] = conversationHistory.map(m => ({
+      role: m.role,
+      content: m.content as any,
+    }));
     let iterations = 0;
-    const MAX_ITERATIONS = 10;
     const toolActions: { tool: string; input: any; result: any; timestamp: string }[] = [];
 
-    // First iteration: send the user message (with optional image)
+    // Format user message input
     const userText = message || "Analyze this image";
-    let userContent: string | ClaudeContentBlock[];
+    let userContent: any;
     if (imageBase64) {
       userContent = [
         { type: "image", source: { type: "base64", media_type: imageMimeType || "image/jpeg", data: imageBase64 } },
         { type: "text", text: userText },
-      ] as ClaudeContentBlock[];
+      ];
     } else {
       userContent = userText;
     }
-    currentHistory.push({ role: "user" as const, content: userContent });
+    currentHistory.push({ role: "user", content: userContent });
 
-    while (iterations < MAX_ITERATIONS) {
+    while (iterations < MAX_TOOL_LOOPS) {
       iterations++;
 
-      const response = await callClaude({
+      const result = await callClaude({
         systemPrompt,
-        userMessage: "", 
-        tools: ZICA_TOOLS,
-        conversationHistory: currentHistory,
-        apiKey: activeApiKey,
+        messages: currentHistory,
+        tools: ZICA_TOOLS as any,
       });
 
-      if (response.stop_reason === "tool_use") {
-        currentHistory.push({ role: "assistant" as const, content: response.content as ClaudeContentBlock[] });
+      const response = result.response;
 
-        const toolResults: ClaudeContentBlock[] = [];
+      if (response.stop_reason === "tool_use") {
+        currentHistory.push({ role: "assistant", content: response.content as any });
+
+        const toolResults: any[] = [];
 
         for (const block of response.content) {
           if (block.type === "tool_use" && block.name && block.id) {
             console.log(`[ZicaAI] Tool: ${block.name}`, JSON.stringify(block.input).slice(0, 200));
 
-            const result = await executeClaudeTool(block.name, block.input || {});
+            // Guard: double-check permission before executing
+            if (!isToolAllowed(block.name, principal)) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: JSON.stringify({ error: "Unauthorized tool execution" }),
+                is_error: true,
+              });
+              continue;
+            }
 
-            const parsedResult = JSON.parse(result);
+            const toolOutput = await executeClaudeTool(block.name, block.input || {}, principal);
+            const parsedResult = JSON.parse(toolOutput);
             const isError = parsedResult.error !== undefined;
 
             toolActions.push({
@@ -183,20 +166,20 @@ export async function POST(req: Request) {
             toolResults.push({
               type: "tool_result",
               tool_use_id: block.id,
-              content: result,
+              content: toolOutput,
               is_error: isError,
             });
           }
         }
 
-        currentHistory.push({ role: "user" as const, content: toolResults });
+        currentHistory.push({ role: "user", content: toolResults });
         continue;
       }
 
       // Final text response
       const textContent = response.content
         .filter((b) => b.type === "text")
-        .map((b) => b.text)
+        .map((b) => (b as any).text)
         .join("\n");
 
       // Save assistant response to DB
@@ -219,29 +202,21 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      response: "Reached maximum processing iterations.",
+      response: "Reached maximum tool processing iterations.",
       conversationHistory: currentHistory,
       toolActions,
       toolsUsed: toolActions.length,
       sessionId: currentSessionId,
     });
   } catch (error: any) {
-    console.error("[ZicaAI] Route error:", error);
+    console.error("[ZicaAI Admin] Route error:", error);
     
-    let userFriendlyMsg = error.message;
-    if (error.status === 404 || error.name === "NotFoundError") {
-      userFriendlyMsg = "Model not found. Your API key might not have access to the latest Claude models yet.";
-    } else if (error.status === 401) {
-      userFriendlyMsg = "Invalid API key. Please check your settings.";
-    }
-
     return NextResponse.json(
       { 
-        error: userFriendlyMsg, 
-        details: error.message,
+        error: "AI operation failed. Please try again.", 
         type: "server_error" 
       },
-      { status: error.status || 500 }
+      { status: 500 }
     );
   }
 }

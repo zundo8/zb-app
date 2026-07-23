@@ -27,7 +27,7 @@ import ZicaAI from "@/components/ZicaAI";
 
 interface WebStoreAdminLayoutProps {
   children: React.ReactNode;
-  user: {
+  user?: {
     name?: string | null;
     email?: string | null;
     role?: string | null;
@@ -73,6 +73,7 @@ export default function WebStoreAdminLayout({ children, user }: WebStoreAdminLay
     { name: "Web Store Customers", href: "/web-store/customers", icon: Users },
     { name: "Login Logs", href: "/web-store/logins", icon: History },
     { name: "Banners / CMS", href: "/web-store/banners", icon: ImageIcon },
+    { name: "Gallery CMS", href: "/web-store/gallery", icon: Sparkles },
     { name: "Coupons", href: "/web-store/coupons", icon: Tag },
   ];
 

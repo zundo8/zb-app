@@ -81,6 +81,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/web-store/customers": "Storefront Customers",
   "/web-store/storefront": "Web Builder Pages",
   "/web-store/banners": "Homepage Banners",
+  "/web-store/gallery": "Public Gallery CMS",
   "/web-store/coupons": "Promo Coupons",
   "/web-store/logins": "Customer Logins Feed",
   "/dashboard/webstore-settings/preferences": "Store Preferences",

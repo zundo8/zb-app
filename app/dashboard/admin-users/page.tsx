@@ -91,6 +91,7 @@ const MODULE_PAGES: Record<string, { name: string; href: string }[]> = {
     { name: "Homepage Products", href: "/web-store/homepage" },
     { name: "All Products", href: "/web-store/products" },
     { name: "Homepage Banners CMS", href: "/web-store/banners" },
+    { name: "Public Gallery CMS", href: "/web-store/gallery" },
     { name: "Promo Coupons", href: "/web-store/coupons" },
     { name: "Web App Logins", href: "/web-store/logins" },
     { name: "Preferences", href: "/dashboard/webstore-settings/preferences" },

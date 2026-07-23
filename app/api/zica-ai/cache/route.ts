@@ -48,9 +48,8 @@ export async function GET(req: NextRequest) {
       userId = customer.id;
     }
     
-    // Strictly ensure users can only fetch their own data unless admin
-    const isAdmin = auth.customerEmail?.endsWith('@zicabella.com') || false;
-    if (userId !== customer.id && !isAdmin) {
+    // Strictly ensure users can only fetch their own data
+    if (userId !== customer.id) {
       return NextResponse.json({ error: "Unauthorized access to user cache" }, { status: 403 });
     }
 

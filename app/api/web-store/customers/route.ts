@@ -50,11 +50,13 @@ export async function GET(request: Request) {
           },
         });
 
-        // Sum of all paid order amounts
+        // Sum of all fulfilled order amounts
         const paidAggregate = await prisma.webStoreOrder.aggregate({
           where: {
             customerEmail: customer.email,
-            paymentStatus: "paid",
+            fulfillmentStatus: {
+              in: ["fulfilled", "shipped", "delivered"],
+            },
           },
           _sum: {
             totalAmount: true,

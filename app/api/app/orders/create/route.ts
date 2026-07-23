@@ -690,11 +690,13 @@ async function triggerMobileEmail(created: any, orderNumber: string, subtotal: n
 
     const emailVars = {
       customerName,
+      customerEmail,
       orderId: orderNumber, // Universal Order ID
-      orderDate: new Date(created.createdAt).toLocaleDateString(),
+      orderDate: new Date(created.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' }),
       itemsHtml,
       items: itemsHtml,
       products: itemsHtml,
+      variants: formattedItems.map((i: any) => `${i.name} (${i.size})`).join(' | '),
       subtotal: `INR ${subtotal}`,
       shipping: `INR ${paymentMethod === 'COD' ? 99 : 0}`,
       total: `INR ${total}`,
@@ -702,6 +704,7 @@ async function triggerMobileEmail(created: any, orderNumber: string, subtotal: n
       amount: `INR ${total}`,
       price: `INR ${total}`,
       currency: 'INR',
+      paymentMethod: paymentMethod || 'Prepaid',
       shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : `${shippingAddress?.line1 || shippingAddress?.street || ''}, ${shippingAddress?.city || ''}, ${shippingAddress?.state || ''} - ${shippingAddress?.pincode || shippingAddress?.zip || ''}, ${shippingAddress?.country || 'India'}`,
       orderStatusUrl: `https://zicabella.com/account/orders`,
     };

@@ -48,7 +48,11 @@ export async function POST(req: Request) {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: { include: { product: true } } }
+      include: {
+        items: { include: { product: true } },
+        returnRequests: true,
+        exchangeRequests: true
+      }
     });
 
     if (!order) {
@@ -60,11 +64,28 @@ export async function POST(req: Request) {
     }
 
     const isDelivered = String(order.status || '').toLowerCase() === "delivered" ||
-                        String(order.deliveryStatus || '').toLowerCase() === "delivered" ||
-                        String(order.status || '').toLowerCase() === "active" ||
-                        String(order.status || '').toLowerCase() === "completed";
+                        String(order.deliveryStatus || '').toLowerCase() === "delivered";
     if (!isDelivered) {
       return NextResponse.json({ error: "Exchanges are only available for delivered orders" }, { status: 400 });
+    }
+
+    // 15-Day Delivery Window Enforcement
+    const deliveredTimestamp = order.deliveredAt || order.createdAt;
+    const diffDays = Math.ceil(Math.abs(Date.now() - new Date(deliveredTimestamp).getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > 15) {
+      return NextResponse.json({ error: "The 15-day return/exchange window for this order has expired." }, { status: 400 });
+    }
+
+    // Mutual Exclusivity Check: prevent duplicate or conflicting active requests
+    const activeReturn = order.returnRequests?.find(
+      (r: any) => r.status !== 'cancelled' && (!r.reason || !r.reason.includes('EXCHANGE_RETURN'))
+    );
+    const activeExchange = order.exchangeRequests?.find((e: any) => e.status !== 'cancelled');
+
+    if (activeReturn || activeExchange) {
+      return NextResponse.json({
+        error: "An active return or exchange request already exists for this order."
+      }, { status: 400 });
     }
 
     let calculatedPriceDifference = 0;

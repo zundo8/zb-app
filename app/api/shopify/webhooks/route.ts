@@ -245,6 +245,7 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
       paymentMethod: orderData.gateway || (orderData.payment_gateway_names && orderData.payment_gateway_names[0]) || null,
       fulfillmentStatus: orderData.fulfillment_status || 'unfulfilled',
       deliveryStatus: deliveryStatus,
+      deliveredAt: deliveryStatus === 'delivered' ? new Date() : null,
       shippingAddress: orderData.shipping_address ? JSON.stringify(orderData.shipping_address) : null,
       billingAddress: orderData.billing_address ? JSON.stringify(orderData.billing_address) : null,
       note: orderData.note || null,
@@ -264,6 +265,7 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
       paymentMethod: orderData.gateway || (orderData.payment_gateway_names && orderData.payment_gateway_names[0]) || null,
       fulfillmentStatus: orderData.fulfillment_status || 'unfulfilled',
       deliveryStatus: deliveryStatus,
+      ...(deliveryStatus === 'delivered' ? { deliveredAt: existingLocalOrder?.deliveredAt || new Date() } : {}),
       shippingAddress: orderData.shipping_address ? JSON.stringify(orderData.shipping_address) : null,
       billingAddress: orderData.billing_address ? JSON.stringify(orderData.billing_address) : null,
       note: orderData.note || null,
@@ -272,6 +274,42 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
       discountCode: discountCode,
     }
   });
+
+  // Sync Fulfillments / Tracking Details to Shipment table in DB
+  if (orderData.fulfillments && Array.isArray(orderData.fulfillments) && orderData.fulfillments.length > 0) {
+    for (const f of orderData.fulfillments) {
+      const trackingNumber = f.tracking_number || f.tracking_numbers?.[0];
+      const courier = f.tracking_company || f.courier || 'Standard Express';
+      const trackingUrl = f.tracking_url || f.tracking_urls?.[0] || (trackingNumber ? `https://www.shiprocket.in/shipment-tracking/?awb=${trackingNumber}` : null);
+      
+      if (trackingNumber) {
+        await prisma.shipment.upsert({
+          where: { awb: trackingNumber },
+          create: {
+            orderId: order.id,
+            awb: trackingNumber,
+            trackingNumber: trackingNumber,
+            courier: courier,
+            status: deliveryStatus,
+            trackingUrl: trackingUrl,
+          },
+          update: {
+            courier: courier,
+            status: deliveryStatus,
+            trackingUrl: trackingUrl,
+          }
+        }).catch((e: any) => console.error('[Webhook] Failed to upsert shipment:', e.message));
+
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            delhivery_awb: trackingNumber,
+            tracking_status: deliveryStatus
+          }
+        }).catch((e: any) => console.error('[Webhook] Failed to update order AWB:', e.message));
+      }
+    }
+  }
 
   if (finalStatus === 'cancelled') {
     try {

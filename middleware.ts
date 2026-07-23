@@ -31,6 +31,7 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
     "/web-store/homepage",
     "/web-store/products",
     "/web-store/banners",
+    "/web-store/gallery",
     "/web-store/coupons",
     "/web-store/logins",
     "/dashboard/webstore-settings/preferences",
@@ -201,6 +202,7 @@ export default withAuth(
       "/api/web-store/orders": "/web-store/orders",
       "/api/web-store/customers": "/web-store/customers",
       "/api/web-store/banners": "/web-store/banners",
+      "/api/web-store/gallery": "/web-store/gallery",
       "/api/web-store/coupons": "/web-store/coupons",
       "/api/web-store/logins": "/web-store/logins",
       "/api/webstore-settings": "/dashboard/webstore-settings/preferences",
@@ -330,8 +332,8 @@ export default withAuth(
         // Allow public app APIs
         if (pathname.startsWith('/api/app/')) return true;
 
-        // Allow public banners API GET request
-        if (pathname === '/api/web-store/banners' && req.method === 'GET') return true;
+        // Allow public banners and gallery API GET request
+        if ((pathname === '/api/web-store/banners' || pathname === '/api/web-store/gallery') && req.method === 'GET') return true;
 
         const role = token?.role as string;
         const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";

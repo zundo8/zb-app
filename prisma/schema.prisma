@@ -115,6 +115,8 @@ model Shop {
   collectionsMediaLink     String?
   collectionProductOrders  String?    @default("{}")
   shopAllLink              String?    @default("/collections/all")
+  zicaAiSupportEnabled     Boolean    @default(true)
+  zicaAiWhatsappEnabled    Boolean    @default(true)
   customers                Customer[]
   orders                   Order[]
   products                 Product[]
@@ -291,6 +293,7 @@ model Order {
   cancelledAt           DateTime?         @map("cancelled_at")
   cancelledBy           String?           @map("cancelled_by")
   paymentFailureReason  String?           @map("payment_failure_reason")
+  deliveredAt           DateTime?         @map("delivered_at")
   exchanges             Exchange[]
   exchangeRequests      ExchangeRequest[]
   customer              Customer          @relation(fields: [customerId], references: [id])
@@ -1243,16 +1246,25 @@ model Address {
 }
 
 model SupportTicket {
-  id         String           @id @default(cuid())
-  customerId String?
-  guestName  String?
-  guestEmail String?
-  subject    String
-  status     String           @default("OPEN")
-  priority   String           @default("MEDIUM")
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  messages   SupportMessage[]
+  id          String           @id @default(cuid())
+  customerId  String?
+  guestName   String?
+  guestEmail  String?
+  subject     String
+  status      String           @default("OPEN")
+  priority    String           @default("MEDIUM")
+  aiAutoReply Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  messages    SupportMessage[]
+}
+
+model WhatsAppChatSetting {
+  id          String   @id @default(cuid())
+  phoneNumber String   @unique
+  aiAutoReply Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model SupportMessage {
@@ -1392,6 +1404,36 @@ model ZicaUserProfile {
   totalSessions       Int      @default(0)
   lastActive          DateTime @default(now())
   favouriteProducts   String[]
+}
+
+model AiInteractionLog {
+  id             String   @id @default(cuid())
+  principalKind  String
+  principalId    String?
+  channel        String   // app | support | whatsapp | admin
+  modelUsed      String
+  tokensIn       Int
+  tokensOut      Int
+  latencyMs      Int
+  toolsCalled    String[] @default([])
+  guardTripped   Boolean  @default(false)
+  fallbackUsed   Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([principalKind, createdAt])
+  @@index([channel, createdAt])
+}
+
+model AiTokenUsage {
+  id          String   @id @default(cuid())
+  customerId  String
+  date        String   // YYYY-MM-DD
+  totalTokens Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([customerId, date])
+  @@index([customerId, date])
 }
 
 model MobileOrder {
@@ -1541,6 +1583,21 @@ model WebStoreBanner {
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("web_store_banners")
+}
+
+model WebStoreGalleryImage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String?
+  subtitle  String?
+  imageUrl  String   @map("image_url")
+  altText   String?  @map("alt_text")
+  linkUrl   String?  @map("link_url")
+  position  Int      @default(0)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("web_store_gallery_images")
 }
 
 model MfgCollection {

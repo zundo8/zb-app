@@ -8,15 +8,25 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     const { customerEmail, customerName, appDownloadUrl } = data;
 
-    const html = welcomeEmailTemplate({
-      customerName,
-      appDownloadUrl,
+    const { renderDBTemplate, welcomeEmailTemplate } = await import('@/lib/email-templates');
+
+    const emailVars = {
+      customerName: customerName || 'Valued Customer',
+      customerEmail,
+      appDownloadUrl: appDownloadUrl || 'https://zicabella.com/app',
+    };
+
+    const fallbackFn = () => welcomeEmailTemplate({
+      customerName: emailVars.customerName,
+      appDownloadUrl: emailVars.appDownloadUrl,
     });
+
+    const rendered = await renderDBTemplate('WELCOME', emailVars, fallbackFn);
 
     const result = await sendMail({
       to: customerEmail,
-      subject: `Welcome to Zica Bella, ${customerName}!`,
-      html,
+      subject: rendered.subject || `Welcome to Zica Bella, ${emailVars.customerName}!`,
+      html: rendered.html,
     });
 
     await logEmail({

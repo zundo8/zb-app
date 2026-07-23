@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { anthropic, CLAUDE_MODELS } from '@/lib/ai';
+import { callClaude } from '@/lib/ai/claudeClient';
+import { getFastModel } from '@/lib/ai/models';
 
 export async function POST(req: Request) {
   try {
@@ -74,16 +75,15 @@ export async function POST(req: Request) {
       }
     `;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODELS.FAST,
-      max_tokens: 500,
-      temperature: 0.1, // Low temperature for consistent JSON
-      messages: [
-        { role: 'user', content: prompt }
-      ]
+    const fastModel = getFastModel();
+    const result = await callClaude({
+      systemPrompt: 'You are an e-commerce risk analyst. Respond only with valid JSON.',
+      messages: [{ role: 'user', content: prompt }],
+      maxTokens: 500,
+      modelChain: [fastModel],
     });
 
-    const aiText = response.content[0].type === 'text' ? response.content[0].text : '{}';
+    const aiText = result.response.content[0].type === 'text' ? result.response.content[0].text : '{}';
     let riskData;
     
     try {
@@ -109,6 +109,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error('Risk scoring error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Risk scoring temporarily unavailable' }, { status: 500 });
   }
 }

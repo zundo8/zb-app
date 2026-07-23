@@ -290,17 +290,13 @@ export async function POST(req: NextRequest) {
     const userIsLoggedIn = isLoggedIn || !!session?.user;
     const isCheckoutEvent = ['InitiateCheckout', 'AddPaymentInfo', 'Purchase'].includes(eventName);
 
-    // If the visitor is not logged in and it's not a checkout event, strip all PII parameters.
-    // Omit em, ph, name, address, DOB, fb_login_id. Keep only browser parameters.
+    // If the visitor is not logged in and it's not a checkout event, strip identity PII parameters (em, ph, name, DOB, fb_login_id).
+    // Address fields (country, st, ct, zp) are preserved to improve Meta EMQ via consented session location enrichment.
     if (!userIsLoggedIn && !isCheckoutEvent) {
       delete mergedUserData.em;
       delete mergedUserData.ph;
       delete mergedUserData.fn;
       delete mergedUserData.ln;
-      delete mergedUserData.country;
-      delete mergedUserData.st;
-      delete mergedUserData.ct;
-      delete mergedUserData.zp;
       delete mergedUserData.db;
       delete mergedUserData.fb_login_id;
     }

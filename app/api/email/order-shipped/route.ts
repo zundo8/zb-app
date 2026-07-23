@@ -12,19 +12,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const html = orderShippedTemplate({
-      customerName,
+    const { renderDBTemplate, orderShippedTemplate } = await import('@/lib/email-templates');
+
+    const emailVars = {
+      customerName: customerName || 'Valued Customer',
+      customerEmail,
       orderId,
-      trackingNumber,
-      trackingUrl,
-      carrier,
-      estimatedDelivery,
+      trackingNumber: trackingNumber || 'N/A',
+      trackingUrl: trackingUrl || (trackingNumber ? `https://zicabella.com/track?id=${trackingNumber}` : 'https://zicabella.com/account/orders'),
+      carrier: carrier || 'Delhivery',
+      courier: carrier || 'Delhivery',
+      estimatedDelivery: estimatedDelivery || '3-5 business days',
+    };
+
+    const fallbackFn = () => orderShippedTemplate({
+      customerName: emailVars.customerName,
+      orderId,
+      trackingNumber: emailVars.trackingNumber,
+      trackingUrl: emailVars.trackingUrl,
+      carrier: emailVars.carrier,
+      estimatedDelivery: emailVars.estimatedDelivery,
     });
+
+    const rendered = await renderDBTemplate('ORDER_SHIPPED', emailVars, fallbackFn);
 
     const result = await sendMail({
       to: customerEmail,
-      subject: `Your order ${orderId} has been shipped!`,
-      html,
+      subject: rendered.subject || `Your order ${orderId} has been shipped!`,
+      html: rendered.html,
     });
 
     await logEmail({

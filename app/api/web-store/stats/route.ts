@@ -11,10 +11,12 @@ export async function GET() {
     // 2. Fetch aggregate data from database
     const now = new Date();
 
-    // Total Paid Sales Revenue
+    // Total Fulfilled Sales Revenue
     const salesAggregate = await prisma.webStoreOrder.aggregate({
       where: {
-        paymentStatus: "paid",
+        fulfillmentStatus: {
+          in: ["fulfilled", "shipped", "delivered"],
+        },
       },
       _sum: {
         totalAmount: true,

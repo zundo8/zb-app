@@ -1,21 +1,51 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import TemplatePreviewModal from './TemplatePreviewModal';
+import VariableInsertPanel from './VariableInsertPanel';
+import { renderPreviewHtml } from '@/lib/email-templates/variables';
+import { AUTOMATION_TRIGGERS } from '@/lib/email-templates/triggers';
 
-const AUTOMATION_TRIGGERS = [
-  { value: '', label: 'None (Manual Send Only)' },
-  { value: 'ORDER_CONFIRMATION', label: 'Order Confirmation (Auto-send on Place)' },
-  { value: 'ORDER_CANCELLED', label: 'Order Cancelled (Auto-send on Cancel)' },
-  { value: 'PAYMENT_FAILED', label: 'Payment Failed (Auto-send on Failure)' },
-  { value: 'WELCOME', label: 'Welcome Email (Auto-send on Signup)' },
-  { value: 'ORDER_SHIPPED', label: 'Order Shipped (Auto-send on Shipped)' },
-  { value: 'ORDER_DELIVERED', label: 'Order Delivered (Auto-send on Delivery)' },
-  { value: 'RETURN_REFUND', label: 'Return & Refund (Auto-send on Refund)' },
-  { value: 'PASSWORD_RESET', label: 'Password Reset (Auto-send on Reset Request)' },
-];
+/** Extract {{...}} variable keys from an HTML string. */
+function extractVariablesFromHtml(html: string): string[] {
+  const regex = /\{\{([^}]+)\}\}/g;
+  const matches = html.match(regex);
+  if (!matches) return [];
+  return Array.from(new Set(matches.map(m => m.slice(2, -2).trim())));
+}
+
+/** Inline display of auto-detected variables from HTML code. */
+function DetectedVariables({ htmlBody }: { htmlBody: string }) {
+  const vars = useMemo(() => extractVariablesFromHtml(htmlBody), [htmlBody]);
+  if (vars.length === 0) return null;
+  return (
+    <div className="border border-black/10 dark:border-white/10 rounded-xl bg-black/[0.01] dark:bg-white/[0.03] overflow-hidden">
+      <div className="px-4 py-2 border-b border-black/10 dark:border-white/10 bg-gray-50 dark:bg-black/30 flex items-center justify-between">
+        <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-[2px]">
+          Detected Variables
+        </span>
+        <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">
+          {vars.length} found
+        </span>
+      </div>
+      <div className="p-3 flex flex-wrap gap-1.5">
+        {vars.map(v => (
+          <span
+            key={v}
+            className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-mono bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/50 dark:border-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+          >
+            {'{{'}​{v}​{'}}'}
+          </span>
+        ))}
+      </div>
+      <div className="px-4 py-1.5 border-t border-black/5 dark:border-white/5">
+        <p className="text-[10px] text-gray-400 dark:text-gray-500">These variables will be auto-saved with the template and substituted at send time.</p>
+      </div>
+    </div>
+  );
+}
 
 const PREDEFINED_TEMPLATES = [
   { slug: 'order-confirmation', name: 'Order Confirmation', type: 'Auto' },
@@ -69,11 +99,13 @@ export default function TemplatesTab() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [form, setForm] = useState({ name: '', category: 'transactional', subject: '', htmlBody: '', automationTrigger: '' });
   const [isSaving, setIsSaving] = useState(false);
+  const createTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Edit Modal State
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ id: '', name: '', category: 'transactional', subject: '', htmlBody: '', automationTrigger: '' });
   const [isUpdating, setIsUpdating] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Collection Builder State
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
@@ -553,80 +585,131 @@ export default function TemplatesTab() {
         />
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal (Side-by-Side with Live Preview) */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#111] border border-black/10 dark:border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl">
-            <div className="p-5 border-b border-black/10 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-transparent">
-              <h2 className="text-lg font-medium text-black dark:text-white">Add Custom Template</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white">✕</button>
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/85 z-50 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-white dark:bg-[#0c0c0c] border border-black/15 dark:border-white/15 rounded-2xl w-full max-w-7xl h-[92vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-black/10 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-black/30">
+              <div>
+                <h2 className="text-xl font-semibold text-black dark:text-white">Add Custom Template</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Create a new email template with live preview</p>
+              </div>
+              <button 
+                onClick={() => setShowCreateModal(false)} 
+                className="text-gray-400 hover:text-black dark:hover:text-white bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 p-2 rounded-full transition"
+              >
+                ✕
+              </button>
             </div>
             
-            <form onSubmit={handleCreateTemplate} className="p-5 flex-1 overflow-y-auto space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Name</label>
-                <input
-                  required
-                  value={form.name}
-                  onChange={e => setForm({...form, name: e.target.value})}
-                  className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
-                  placeholder="e.g. Black Friday Sale"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+              {/* Left Column - Form (50%) */}
+              <form onSubmit={handleCreateTemplate} className="w-full md:w-1/2 p-6 overflow-y-auto space-y-4 border-r border-black/10 dark:border-white/10">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
-                  <select
-                    value={form.category}
-                    onChange={e => setForm({...form, category: e.target.value})}
-                    className="w-full bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
-                  >
-                    <option value="transactional">Transactional</option>
-                    <option value="marketing">Marketing</option>
-                  </select>
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Name</label>
+                  <input
+                    required
+                    value={form.name}
+                    onChange={e => setForm({...form, name: e.target.value})}
+                    className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2.5 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 focus:ring-1 focus:ring-black/20 outline-none transition"
+                    placeholder="e.g. Black Friday Sale"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Type</label>
+                    <select
+                      value={form.category}
+                      onChange={e => setForm({...form, category: e.target.value})}
+                      className="w-full bg-white dark:bg-[#151515] border border-black/10 dark:border-white/10 rounded-lg p-2.5 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none transition"
+                    >
+                      <option value="transactional">Transactional</option>
+                      <option value="marketing">Marketing</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Automation Trigger</label>
+                    <select
+                      value={form.automationTrigger}
+                      onChange={e => setForm({...form, automationTrigger: e.target.value})}
+                      className="w-full bg-white dark:bg-[#151515] border border-black/10 dark:border-white/10 rounded-lg p-2.5 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none transition"
+                    >
+                      {AUTOMATION_TRIGGERS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Automation Trigger</label>
-                  <select
-                    value={form.automationTrigger}
-                    onChange={e => setForm({...form, automationTrigger: e.target.value})}
-                    className="w-full bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
-                  >
-                    {AUTOMATION_TRIGGERS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Subject</label>
+                  <input
+                    required
+                    value={form.subject}
+                    onChange={e => setForm({...form, subject: e.target.value})}
+                    className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2.5 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 focus:ring-1 focus:ring-black/20 outline-none transition"
+                    placeholder="e.g. Your exclusive access"
+                  />
+                </div>
+
+                <div className="flex-1 flex flex-col min-h-[250px]">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">HTML Code</label>
+                    <span className="text-[10px] text-gray-400 font-mono">Real-time Sandbox Enabled</span>
+                  </div>
+                  <textarea
+                    ref={createTextareaRef}
+                    required
+                    value={form.htmlBody}
+                    onChange={e => setForm({...form, htmlBody: e.target.value})}
+                    className="w-full flex-1 bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-3 text-black dark:text-white text-xs font-mono focus:border-black/30 dark:focus:border-white/30 outline-none min-h-[250px] resize-y"
+                    placeholder="Write or paste your custom HTML template body here..."
+                  />
+                </div>
+
+                <DetectedVariables htmlBody={form.htmlBody} />
+
+                <VariableInsertPanel
+                  textareaRef={createTextareaRef}
+                  onInsert={(newValue) => setForm({...form, htmlBody: newValue})}
+                />
+                
+                <div className="pt-4 flex justify-end gap-3 border-t border-black/10 dark:border-white/10 sticky bottom-0 bg-white dark:bg-[#0c0c0c] z-10">
+                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">Cancel</button>
+                  <button disabled={isSaving} type="submit" className="bg-black dark:bg-white text-white dark:text-black px-6 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-black/80 dark:hover:bg-gray-200 transition shadow-lg flex items-center gap-2">
+                    {isSaving ? 'Saving...' : 'Save Template'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Right Column - Live sandboxed iframe preview (50%) */}
+              <div className="w-full md:w-1/2 bg-gray-50 dark:bg-black/45 p-6 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Live Sandbox Preview</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Active Render</span>
+                  </div>
+                </div>
+                <div className="flex-1 bg-white rounded-xl border border-black/10 dark:border-white/15 overflow-hidden shadow-sm flex">
+                  {form.htmlBody ? (
+                    <iframe
+                      title="Email Live Preview"
+                      sandbox="allow-same-origin"
+                      srcDoc={renderPreviewHtml(form.htmlBody)}
+                      className="w-full h-full border-none bg-white"
+                    />
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
+                      <svg className="w-12 h-12 stroke-current opacity-40" fill="none" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      <span className="text-xs font-medium uppercase tracking-wider">Type HTML to start previewing</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Subject</label>
-                <input
-                  required
-                  value={form.subject}
-                  onChange={e => setForm({...form, subject: e.target.value})}
-                  className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2 text-black dark:text-white text-sm focus:border-black/30 dark:focus:border-white/30 outline-none"
-                  placeholder="e.g. Your exclusive access"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">HTML Body</label>
-                <textarea
-                  required
-                  rows={10}
-                  value={form.htmlBody}
-                  onChange={e => setForm({...form, htmlBody: e.target.value})}
-                  className="w-full bg-black/[0.02] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-3 text-black dark:text-white text-sm font-mono focus:border-black/30 dark:focus:border-white/30 outline-none"
-                  placeholder="Paste your raw HTML here..."
-                />
-              </div>
-              
-              <div className="pt-4 flex justify-end gap-3 border-t border-black/10 dark:border-white/10">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white">Cancel</button>
-                <button disabled={isSaving} type="submit" className="bg-black dark:bg-white text-white dark:text-black px-6 py-2 rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-black/80 dark:hover:bg-gray-200 transition shadow-md">
-                  {isSaving ? 'Saving...' : 'Save Template'}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -706,6 +789,7 @@ export default function TemplatesTab() {
                     <span className="text-[10px] text-gray-400 font-mono">Real-time Sandbox Enabled</span>
                   </div>
                   <textarea
+                    ref={editTextareaRef}
                     required
                     value={editForm.htmlBody}
                     onChange={e => setEditForm({...editForm, htmlBody: e.target.value})}
@@ -713,6 +797,13 @@ export default function TemplatesTab() {
                     placeholder="Write or paste your custom HTML template body here..."
                   />
                 </div>
+
+                <DetectedVariables htmlBody={editForm.htmlBody} />
+
+                <VariableInsertPanel
+                  textareaRef={editTextareaRef}
+                  onInsert={(newValue) => setEditForm({...editForm, htmlBody: newValue})}
+                />
                 
                 <div className="pt-4 flex justify-end gap-3 border-t border-black/10 dark:border-white/10 sticky bottom-0 bg-white dark:bg-[#0c0c0c] z-10">
                   <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">Cancel</button>
@@ -736,40 +827,7 @@ export default function TemplatesTab() {
                     <iframe
                       title="Email Live Preview"
                       sandbox="allow-same-origin"
-                      srcDoc={
-                        editForm.htmlBody
-                          .replace(/\{\{customerName\}\}/g, 'Aria')
-                          .replace(/\{\{orderId\}\}/g, 'ZB-10294')
-                          .replace(/\{\{totalPrice\}\}/g, '₹4,500')
-                          .replace(/\{\{total\}\}/g, '₹4,500 INR')
-                          .replace(/\{\{amount\}\}/g, '₹4,500')
-                          .replace(/\{\{customerEmail\}\}/g, 'aria@example.com')
-                          .replace(/\{\{orderDate\}\}/g, new Date().toLocaleDateString('en-IN', { dateStyle: 'long' }))
-                          .replace(/\{\{orderStatusUrl\}\}/g, 'https://zicabella.com/orders/ZB-10294')
-                          .replace(/\{\{trackingUrl\}\}/g, 'https://zicabella.com/track?id=TRACK123')
-                          .replace(/\{\{trackingNumber\}\}/g, 'TRACK123')
-                          .replace(/\{\{courier\}\}/g, 'Delhivery')
-                          .replace(/\{\{carrier\}\}/g, 'Delhivery')
-                          .replace(/\{\{reason\}\}/g, 'Requested by customer')
-                          .replace(/\{\{paymentMethod\}\}/g, 'Prepaid')
-                          .replace(/\{\{itemsHtml\}\}/g, `
-        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.15); border-radius:2px; overflow:hidden; margin-bottom: 15px;">
-          <tr>
-            <td class="item-img" width="110" style="vertical-align:top; padding:0;">
-              <img src="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=220&q=80&auto=format&fit=crop" width="110" height="130" style="display:block; object-fit:cover; opacity:0.8;" alt="Mock Product" />
-            </td>
-            <td style="vertical-align:top; padding:20px 20px 20px 22px; border-left:1px solid rgba(255,255,255,0.1);">
-              <p style="margin:0 0 4px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase;">Qty: 1</p>
-              <p style="margin:0 0 6px; font-family:'DM Serif Display',serif; font-size:17px; color:rgba(255,255,255,0.7); line-height:1.3;">Oversized Obsidian Blazer</p>
-              <p style="margin:0 0 14px; font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3);">Size: M</p>
-              <p style="margin:0; font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.5);">₹4,500</p>
-            </td>
-          </tr>
-        </table>
-                          `)
-                          .replace(/\{\{collectionName\}\}/g, 'Midnight Mirage')
-                          .replace(/\{\{[^}]+\}\}/g, '')
-                      }
+                      srcDoc={renderPreviewHtml(editForm.htmlBody)}
                       className="w-full h-full border-none bg-white"
                     />
                   ) : (
