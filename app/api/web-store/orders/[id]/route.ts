@@ -8,6 +8,8 @@ import { sendEmail } from "@/lib/mailer";
 
 export const dynamic = "force-dynamic";
 
+import { syncPendingWebStoreOrders } from "@/lib/services/razorpaySyncService";
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // GET: Fetch details of a single web store order
@@ -25,6 +27,13 @@ export async function GET(
       return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
     }
 
+    // Attempt live Razorpay status sync for this single order if pending
+    try {
+      await syncPendingWebStoreOrders([params.id]);
+    } catch (syncErr: any) {
+      console.warn("[Web Store Single Order GET] Sync warning:", syncErr?.message);
+    }
+
     const order = await prisma.webStoreOrder.findUnique({
       where: { id: params.id },
     });
@@ -33,7 +42,24 @@ export async function GET(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ order });
+    // Enrich with failure reason from Order model if missing
+    let failureReason = (order as any).paymentFailureReason || null;
+    if (!failureReason && order.razorpayOrderId) {
+      const matchingOrder = await prisma.order.findFirst({
+        where: { razorpayOrderId: order.razorpayOrderId },
+        select: { paymentFailureReason: true },
+      });
+      if (matchingOrder?.paymentFailureReason) {
+        failureReason = matchingOrder.paymentFailureReason;
+      }
+    }
+
+    const enrichedOrder = {
+      ...order,
+      paymentFailureReason: failureReason || (order.paymentStatus === "payment_pending" || order.paymentStatus === "pending" ? "awaiting_confirmation" : null),
+    };
+
+    return NextResponse.json({ order: enrichedOrder });
   } catch (error: any) {
     console.error("[Web Store Single Order GET] Error:", error);
     return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });

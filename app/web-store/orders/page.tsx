@@ -18,7 +18,8 @@ import {
   Banknote,
   TrendingUp,
   DollarSign,
-  Package
+  Package,
+  RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ interface Order {
 export default function WebStoreOrdersList() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingPayments, setSyncingPayments] = useState(false);
   const [search, setSearch] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("all");
   const [fulfillmentStatus, setFulfillmentStatus] = useState("all");
@@ -76,10 +78,48 @@ export default function WebStoreOrdersList() {
     }
   };
 
+  const handleSyncPayments = async () => {
+    setSyncingPayments(true);
+    try {
+      const res = await fetch("/api/web-store/orders/sync-razorpay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("Failed to sync Razorpay payments");
+      const data = await res.json();
+      if (data.updatedCount > 0) {
+        toast.success(`Synced payment status for ${data.updatedCount} orders!`);
+      } else {
+        toast.info("All order payment statuses are up to date.");
+      }
+      fetchOrders();
+    } catch (err: any) {
+      toast.error(err.message || "Error syncing payments");
+    } finally {
+      setSyncingPayments(false);
+    }
+  };
+
   useEffect(() => {
     const timeout = setTimeout(fetchOrders, 300);
     return () => clearTimeout(timeout);
   }, [search, paymentStatus, fulfillmentStatus, paymentMethod, startDate, endDate]);
+
+  const getCollectedAmount = (order: Order) => {
+    const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
+    const status = (order.paymentStatus || "").toLowerCase().trim();
+    if (isCOD) {
+      if (status === "paid") {
+        return Number(order.totalAmount || 0);
+      }
+      return Number(order.codUpfrontPaid || 0);
+    }
+    // PREPAID: Only return total amount if payment is marked as PAID
+    if (status === "paid") {
+      return Number(order.totalAmount || 0);
+    }
+    return 0;
+  };
 
   /* ═══ Summary Stats ═══ */
   const stats = useMemo(() => {
@@ -88,14 +128,17 @@ export default function WebStoreOrdersList() {
       const status = (o.fulfillmentStatus || "").toLowerCase().trim();
       return status === "fulfilled" || status === "shipped" || status === "delivered";
     });
-    const totalRevenue = fulfilledOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+    const totalRevenue = orders.reduce((sum, o) => {
+      const status = (o.paymentStatus || "").toLowerCase().trim();
+      if (status === "paid" || status === "cod_upfront_paid") {
+        return sum + Number(o.totalAmount || 0);
+      }
+      return sum;
+    }, 0);
     const codOrders = orders.filter(o => (o.paymentMethod || "").toLowerCase().trim() === "cod");
     const prepaidOrders = orders.filter(o => (o.paymentMethod || "").toLowerCase().trim() !== "cod");
     const totalCollected = orders.reduce((sum, o) => {
-      if ((o.paymentMethod || "").toLowerCase().trim() === "cod") {
-        return sum + Number(o.codUpfrontPaid || 0);
-      }
-      return sum + Number(o.totalAmount || 0);
+      return sum + getCollectedAmount(o);
     }, 0);
     return { totalOrders, totalRevenue, codOrders: codOrders.length, prepaidOrders: prepaidOrders.length, totalCollected };
   }, [orders]);
@@ -226,12 +269,7 @@ export default function WebStoreOrdersList() {
     }
   };
 
-  const getCollectedAmount = (order: Order) => {
-    if ((order.paymentMethod || "").toLowerCase().trim() === "cod") {
-      return Number(order.codUpfrontPaid || 0);
-    }
-    return Number(order.totalAmount || 0);
-  };
+
 
   const clearFilters = () => {
     setSearch("");
@@ -245,13 +283,24 @@ export default function WebStoreOrdersList() {
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight font-inter flex items-center gap-2">
-          Web Store Orders <Sparkles className="w-5 h-5 text-amber-500" />
-        </h1>
-        <p className="text-[12px] text-foreground/50 mt-1">
-          Review, ship, and update customer orders made on the zicabella.com storefront.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight font-inter flex items-center gap-2">
+            Web Store Orders <Sparkles className="w-5 h-5 text-amber-500" />
+          </h1>
+          <p className="text-[12px] text-foreground/50 mt-1">
+            Review, ship, and update customer orders made on the zicabella.com storefront.
+          </p>
+        </div>
+
+        <button
+          onClick={handleSyncPayments}
+          disabled={syncingPayments}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all disabled:opacity-50 shrink-0 self-start sm:self-auto"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${syncingPayments ? "animate-spin" : ""}`} />
+          {syncingPayments ? "Syncing..." : "Sync Razorpay Payments"}
+        </button>
       </div>
 
       {/* ═══ Summary Stats ═══ */}
@@ -449,14 +498,20 @@ export default function WebStoreOrdersList() {
                       <td className="py-4 px-3 text-right">
                         {(() => {
                           const isRowCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
+                          const status = (order.paymentStatus || "").toLowerCase().trim();
+                          const isPaid = status === "paid";
                           return (
                             <>
                               <span className={`text-[12px] font-bold ${
-                                isRowCOD ? "text-amber-400" : "text-emerald-400"
+                                collected === 0
+                                  ? "text-foreground/40"
+                                  : isRowCOD && !isPaid
+                                  ? "text-amber-400"
+                                  : "text-emerald-400"
                               }`}>
                                 {formatCurrency(collected)}
                               </span>
-                              {isRowCOD && collected > 0 && (
+                              {isRowCOD && collected > 0 && !isPaid && (
                                 <span className="block text-[8px] text-emerald-400/70 font-semibold">upfront ✓</span>
                               )}
                             </>

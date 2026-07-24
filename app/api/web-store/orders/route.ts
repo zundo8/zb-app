@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import prisma from "@/lib/db";
+import { syncPendingWebStoreOrders } from "@/lib/services/razorpaySyncService";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,13 @@ export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Auto sync pending Razorpay orders in background before listing
+    try {
+      await syncPendingWebStoreOrders();
+    } catch (syncErr: any) {
+      console.warn("[Web Store Orders GET] Auto-sync warning:", syncErr?.message);
     }
 
     const { searchParams } = new URL(request.url);
