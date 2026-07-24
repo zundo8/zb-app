@@ -898,50 +898,207 @@ export async function fetchPolicies(): Promise<{ title: string; body: string; ur
  * Score a product's relevancy to a search query.
  * Higher score = more relevant. 0 = no match at all.
  */
-function productRelevancyScore(p: ShopifyProduct, lq: string): number {
+/**
+ * Minimum relevancy score required for a product to be considered a search match.
+ * High enough to require a real title/type/tag match, filtering out incidental description matches.
+ */
+export const MIN_RELEVANCY_SCORE = 25;
+
+const IRREGULAR_PLURALS: Record<string, string[]> = {
+  hoodies: ['hoodie', 'hoodies'],
+  hoodie: ['hoodie', 'hoodies'],
+  tees: ['tee', 'tees'],
+  tee: ['tee', 'tees'],
+  pants: ['pant', 'pants'],
+  pant: ['pant', 'pants'],
+  dresses: ['dress', 'dresses'],
+  dress: ['dress', 'dresses'],
+  glasses: ['glass', 'glasses'],
+  glass: ['glass', 'glasses'],
+  tshirts: ['tshirt', 'tshirts', 't shirt', 't shirts'],
+  tshirt: ['tshirt', 'tshirts', 't shirt', 't shirts'],
+  't shirt': ['t shirt', 't shirts', 'tshirt', 'tshirts'],
+  't shirts': ['t shirts', 't shirt', 'tshirt', 'tshirts'],
+};
+
+const PLURAL_EXCEPTIONS = new Set([
+  'jeans', 'boss', 'class', 'fitness', 'express', 'series'
+]);
+
+/**
+ * Normalize search text by lowercasing, stripping hyphens/underscores/special characters,
+ * and collapsing spaces.
+ */
+export function normalizeSearchText(text?: string | null): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Expand a single word term to include singular/plural variants.
+ */
+export function expandSearchTerm(term: string): string[] {
+  const t = term.toLowerCase().trim();
+  if (!t) return [];
+  if (IRREGULAR_PLURALS[t]) {
+    return IRREGULAR_PLURALS[t];
+  }
+  if (PLURAL_EXCEPTIONS.has(t)) {
+    return [t];
+  }
+  if (t.endsWith('s') && t.length > 3) {
+    const singular = t.slice(0, -1);
+    return Array.from(new Set([t, singular]));
+  }
+  if (!t.endsWith('s') && t.length > 2) {
+    const plural = t + 's';
+    return Array.from(new Set([t, plural]));
+  }
+  return [t];
+}
+
+/**
+ * Check if a normalized field contains a term or variant, using word boundary checks for short terms.
+ */
+function fieldContainsTerm(field?: string | null, term?: string | null): boolean {
+  if (!field || !term) return false;
+  if (term.length <= 2) {
+    const regex = new RegExp(`(?:^|\\s|[^a-z0-9])${term.replace(/[^a-z0-9]/g, '')}(?:$|\\s|[^a-z0-9])`, 'i');
+    return regex.test(field);
+  }
+  return field.includes(term);
+}
+
+/**
+ * Score a product's relevancy to a search query.
+ * Higher score = more relevant. Below MIN_RELEVANCY_SCORE = no match / irrelevant.
+ */
+export function productRelevancyScore(p: ShopifyProduct, rawQuery: string): number {
   let score = 0;
-  const title = (p.title || '').toLowerCase();
-  const type = (p.product_type || '').toLowerCase();
-  const tags = (p.tags || '').toLowerCase();
-  const vendor = (p.vendor || '').toLowerCase();
-  const handle = (p.handle || '').toLowerCase();
-  const desc = (p.body_html || '').toLowerCase();
+  const normTitle = normalizeSearchText(p.title);
+  const normType = normalizeSearchText(p.product_type);
+  const normTags = normalizeSearchText(p.tags);
+  const normVendor = normalizeSearchText(p.vendor);
+  const normHandle = normalizeSearchText(p.handle);
+  const normDesc = normalizeSearchText(p.body_html);
+
+  const queryNorm = normalizeSearchText(rawQuery);
+  if (!queryNorm) return 0;
+
+  // Build full query variants (including hyphenless concatenated forms like "tshirts")
+  const concatenatedQuery = queryNorm.replace(/\s+/g, '');
+  const queryPhrases = Array.from(new Set([queryNorm, concatenatedQuery].filter(Boolean)));
+
+  // Extract individual word tokens
+  const rawTokens = queryNorm.split(' ').filter(Boolean);
+
+  // Expand tokens into singular/plural variants
+  const expandedTokenGroups = rawTokens.map(token => expandSearchTerm(token));
+
+  // Generate expanded query phrases (e.g. "t shirt", "t shirts", "tshirt", "tshirts")
+  const phraseVariants: string[] = [];
+  queryPhrases.forEach(qp => {
+    phraseVariants.push(qp);
+    if (IRREGULAR_PLURALS[qp]) {
+      phraseVariants.push(...IRREGULAR_PLURALS[qp]);
+    }
+    const tokens = qp.split(' ').filter(Boolean);
+    if (tokens.length > 1) {
+      const last = tokens[tokens.length - 1];
+      const expandedLast = expandSearchTerm(last);
+      expandedLast.forEach(v => {
+        phraseVariants.push([...tokens.slice(0, -1), v].join(' '));
+      });
+    }
+  });
+  const uniquePhrases = Array.from(new Set(phraseVariants));
 
   // Title matches (highest priority)
-  if (title === lq) score += 100;
-  else if (title.startsWith(lq)) score += 80;
-  else if (title.includes(lq)) score += 60;
-
-  // Handle matches
-  if (handle.includes(lq)) score += 30;
-
-  // Product type matches
-  if (type === lq) score += 40;
-  else if (type.includes(lq)) score += 25;
-
-  // Tag matches
-  if (tags.includes(lq)) score += 20;
-
-  // Vendor matches
-  if (vendor.includes(lq)) score += 10;
-
-  // Description matches
-  if (desc.includes(lq)) score += 15;
-
-  // Term-level matching for multi-word queries
-  const terms = lq.split(/\s+/).filter(t => t.length >= 2);
-  if (terms.length > 0) {
-    terms.forEach(term => {
-      if (title.includes(term)) score += 20;
-      if (tags.includes(term)) score += 10;
-      if (type.includes(term)) score += 8;
-      if (handle.includes(term)) score += 6;
-      if (vendor.includes(term)) score += 3;
-      if (desc.includes(term)) score += 5;
-    });
+  for (const phrase of uniquePhrases) {
+    if (normTitle === phrase) { score += 100; break; }
+    else if (normTitle.startsWith(phrase)) { score += 80; break; }
+    else if (fieldContainsTerm(normTitle, phrase)) { score += 60; break; }
   }
 
+  // Handle matches
+  for (const phrase of uniquePhrases) {
+    if (fieldContainsTerm(normHandle, phrase)) { score += 30; break; }
+  }
+
+  // Product type matches
+  for (const phrase of uniquePhrases) {
+    if (normType === phrase) { score += 40; break; }
+    else if (fieldContainsTerm(normType, phrase)) { score += 25; break; }
+  }
+
+  // Tag matches
+  for (const phrase of uniquePhrases) {
+    if (fieldContainsTerm(normTags, phrase)) { score += 20; break; }
+  }
+
+  // Vendor matches
+  for (const phrase of uniquePhrases) {
+    if (fieldContainsTerm(normVendor, phrase)) { score += 10; break; }
+  }
+
+  // Description matches (lower priority to avoid incidental false positives)
+  for (const phrase of uniquePhrases) {
+    if (fieldContainsTerm(normDesc, phrase)) { score += 10; break; }
+  }
+
+  // Token-level matching for multi-token or single-token queries
+  expandedTokenGroups.forEach(tokenVariants => {
+    const matchedTitle = tokenVariants.some(v => fieldContainsTerm(normTitle, v));
+    const matchedTags = tokenVariants.some(v => fieldContainsTerm(normTags, v));
+    const matchedType = tokenVariants.some(v => fieldContainsTerm(normType, v));
+    const matchedHandle = tokenVariants.some(v => fieldContainsTerm(normHandle, v));
+    const matchedVendor = tokenVariants.some(v => fieldContainsTerm(normVendor, v));
+    const matchedDesc = tokenVariants.some(v => fieldContainsTerm(normDesc, v));
+
+    if (matchedTitle) score += 20;
+    if (matchedTags) score += 10;
+    if (matchedType) score += 8;
+    if (matchedHandle) score += 6;
+    if (matchedVendor) score += 3;
+    if (matchedDesc) score += 3;
+  });
+
   return score;
+}
+
+/**
+ * Build a scoped query string for Shopify Admin GraphQL API `products(query:)`.
+ */
+export function buildShopifySearchQuery(rawQuery: string): string {
+  const norm = normalizeSearchText(rawQuery);
+  if (!norm) return rawQuery.trim();
+
+  const tokens = norm.split(' ').filter(Boolean);
+  const termsToSearch = new Set<string>();
+
+  tokens.forEach(t => {
+    const cleanToken = t.replace(/[^a-z0-9]/g, '');
+    if (cleanToken) {
+      expandSearchTerm(cleanToken).forEach(v => termsToSearch.add(v));
+    }
+  });
+
+  const concatenated = norm.replace(/\s+/g, '');
+  if (concatenated && concatenated !== norm) {
+    termsToSearch.add(concatenated);
+  }
+
+  const clauses: string[] = [];
+  Array.from(termsToSearch).forEach(term => {
+    clauses.push(`title:*${term}* OR product_type:*${term}* OR tag:*${term}*`);
+  });
+
+  return clauses.length > 0 ? clauses.join(' OR ') : rawQuery.trim();
 }
 
 /**
@@ -951,7 +1108,6 @@ function productRelevancyScore(p: ShopifyProduct, lq: string): number {
 export async function searchProducts(query: string, limit = 48): Promise<ShopifyProduct[]> {
   if (!query?.trim()) return [];
   const q = query.trim();
-  const lq = q.toLowerCase();
 
   // Map a GraphQL product node to ShopifyProduct shape
   function mapGraphQLNode(node: any): ShopifyProduct {
@@ -1037,8 +1193,8 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
   `;
 
   try {
-    // Use plain text query — Shopify's GraphQL does built-in full-text search
-    const data = await shopifyGraphqlFetch<any>(graphqlQuery, { query: q, limit });
+    const scopedQuery = buildShopifySearchQuery(q);
+    const data = await shopifyGraphqlFetch<any>(graphqlQuery, { query: scopedQuery, limit });
 
     if (data?.products?.edges?.length > 0) {
       const products = await Promise.all(
@@ -1058,18 +1214,18 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
         })
       );
 
-      // Filter to only products that actually match the query
-      const matching = products.filter((p: ShopifyProduct) => productRelevancyScore(p, lq) > 0);
+      // Filter to only products that meet the minimum relevancy threshold
+      const matching = products.filter((p: ShopifyProduct) => productRelevancyScore(p, q) >= MIN_RELEVANCY_SCORE);
 
       // Sort by relevancy score (highest first)
-      const sorted = (matching.length > 0 ? matching : products)
-        .sort((a: ShopifyProduct, b: ShopifyProduct) => productRelevancyScore(b, lq) - productRelevancyScore(a, lq));
+      const sorted = matching
+        .sort((a: ShopifyProduct, b: ShopifyProduct) => productRelevancyScore(b, q) - productRelevancyScore(a, q));
 
-      console.log(`[Search] GraphQL returned ${products.length} products, ${matching.length} matched query "${q}"`);
+      console.log(`[Search] GraphQL returned ${products.length} products, ${matching.length} met threshold for query "${q}"`);
       return sorted.slice(0, limit);
     }
 
-    throw new Error('GraphQL search returned no results');
+    return [];
   } catch (e) {
     console.warn('[Search] GraphQL search failed, using REST fallback:', (e as Error).message);
 
@@ -1078,10 +1234,10 @@ export async function searchProducts(query: string, limit = 48): Promise<Shopify
       const allData = await shopifyFetch<{ products: ShopifyProduct[] }>('products.json', { limit: '250' });
       const allProducts = allData.products || [];
 
-      // Score, filter, and sort
+      // Score, filter by MIN_RELEVANCY_SCORE, and sort
       const scored = allProducts
-        .map(p => ({ product: p, score: productRelevancyScore(p, lq) }))
-        .filter(item => item.score > 0)
+        .map(p => ({ product: p, score: productRelevancyScore(p, q) }))
+        .filter(item => item.score >= MIN_RELEVANCY_SCORE)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
 
