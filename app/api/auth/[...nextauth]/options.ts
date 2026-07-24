@@ -479,6 +479,38 @@ export const authOptions: AuthOptions = {
 
             await autoOptInCustomer(fullPhone, customer.id);
 
+            // Fire-and-forget: Account Created WhatsApp message (UTILITY, no consent gate)
+            const acCustomer = customer;
+            (async () => {
+              try {
+                if (!acCustomer.phone) return;
+                const { getWhatsAppSetting } = await import('@/lib/whatsapp/logger');
+                const settingEnabled = await getWhatsAppSetting('account_created_enabled', 'true');
+                if (settingEnabled !== 'true') return;
+
+                const fresh = await prisma.customer.findUnique({
+                  where: { id: acCustomer.id },
+                  select: { accountCreatedMsgSentAt: true }
+                });
+                if (fresh?.accountCreatedMsgSentAt) return;
+
+                const { sendAccountCreated } = await import('@/lib/whatsapp/templates');
+                const result = await sendAccountCreated({
+                  phone: acCustomer.phone,
+                  customerName: acCustomer.name || 'there'
+                });
+
+                if (result?.success) {
+                  await prisma.customer.update({
+                    where: { id: acCustomer.id },
+                    data: { accountCreatedMsgSentAt: new Date() }
+                  });
+                }
+              } catch (err: any) {
+                console.error('[Account Created WhatsApp] send failed:', err.message);
+              }
+            })();
+
             return {
               id: customer.id,
               name: customer.name ?? "User",
@@ -655,6 +687,38 @@ export const authOptions: AuthOptions = {
           }).catch(console.error);
 
           await autoOptInCustomer(fullPhone, customer.id);
+
+          // Fire-and-forget: Account Created WhatsApp message (UTILITY, no consent gate)
+          const acCustomerNew = customer;
+          (async () => {
+            try {
+              if (!acCustomerNew.phone) return;
+              const { getWhatsAppSetting } = await import('@/lib/whatsapp/logger');
+              const settingEnabled = await getWhatsAppSetting('account_created_enabled', 'true');
+              if (settingEnabled !== 'true') return;
+
+              const fresh = await prisma.customer.findUnique({
+                where: { id: acCustomerNew.id },
+                select: { accountCreatedMsgSentAt: true }
+              });
+              if (fresh?.accountCreatedMsgSentAt) return;
+
+              const { sendAccountCreated } = await import('@/lib/whatsapp/templates');
+              const result = await sendAccountCreated({
+                phone: acCustomerNew.phone,
+                customerName: acCustomerNew.name || 'there'
+              });
+
+              if (result?.success) {
+                await prisma.customer.update({
+                  where: { id: acCustomerNew.id },
+                  data: { accountCreatedMsgSentAt: new Date() }
+                });
+              }
+            } catch (err: any) {
+              console.error('[Account Created WhatsApp] send failed:', err.message);
+            }
+          })();
 
           return {
             id: customer.id,

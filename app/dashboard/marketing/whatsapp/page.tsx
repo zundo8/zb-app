@@ -2648,6 +2648,7 @@ function OrderNotifications() {
     { key: "sale_alert_enabled", templateKey: "template_sale_alert", defaultTemplate: "zb_sale_alert", title: "Sale Alert", desc: "Broadcast sale/discount notifications to opted-in customers." },
     { key: "restock_alert_enabled", templateKey: "template_restock_alert", defaultTemplate: "zb_restock_alert", title: "Restock Alert", desc: "Notify opted-in customers when popular products are restocked." },
     { key: "welcome_enabled", templateKey: "template_welcome", defaultTemplate: "zb_welcome", title: "Welcome Message", desc: "Auto-send welcome message to new customers who opt in." },
+    { key: "account_created_enabled", templateKey: "template_account_created", defaultTemplate: "account_created", title: "Account Created", desc: "Sent once when a customer logs in for the first time (or first login after feature launch). UTILITY — no marketing consent required." },
   ];
 
   return (
@@ -2903,6 +2904,7 @@ function MessageLogs() {
             <option value="abandoned_cart">Abandoned Cart</option>
             <option value="sale_alert">Sale Alert</option>
             <option value="new_collection">New Collection</option>
+            <option value="account_created">Account Created</option>
           </select>
         </div>
       </div>

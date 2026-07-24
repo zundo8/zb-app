@@ -652,7 +652,7 @@ export default function ProductDetailScreen() {
                   numberOfLines={activeTab === 'DESCRIPTION' && !isDescriptionExpanded ? 3 : undefined}
                   style={{ lineHeight: 18, fontWeight: '300' }}
                 >
-                  {activeTab === 'DESCRIPTION' ? product.description : 
+                  {activeTab === 'DESCRIPTION' ? (product.description ? product.description.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n+/g, '\n\n').trim() : '') : 
                    activeTab === 'DETAILS' ? (product.details || "High-density weight. Signature Zica Bella custom cut. Reinforced seams for architectural durability.") :
                    activeTab === 'CARE' ? (product.care || "Dry clean only recommended. Hand wash cold if necessary. Lay flat to dry away from direct sunlight.") :
                    "Founded on the principle of 'Liquid Architecture'. Each piece is a curated artifact of modern luxury."}

@@ -1,12 +1,78 @@
 "use client";
 
-import { useState, useEffect, useRef, startTransition } from "react";
+import { useState, useEffect, useRef, useMemo, startTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, Loader2, Bookmark, X, Plus, ChevronLeft, ArrowLeft, ArrowRight } from "lucide-react";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { ShopifyProduct } from "@/lib/shopify-admin";
-import { parseShopifyRichText, matchKey } from "@/lib/utils";
+import { parseShopifyRichText, formatProductDescription, matchKey } from "@/lib/utils";
+
+interface ShopSettings {
+  showProductVideo: boolean;
+  showSizeChart: boolean;
+  showBrand: boolean;
+  showShippingReturn: boolean;
+  showCare: boolean;
+  showSizeFit: boolean;
+  showDetails: boolean;
+  pdpBackground?: string;
+}
+
+function ProductDescriptionContainer({
+  content,
+  isExpanded,
+  onToggleExpand,
+}: {
+  content: string;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const formattedHtml = useMemo(() => formatProductDescription(content), [content]);
+
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (contentRef.current) {
+        setIsOverflowing(contentRef.current.scrollHeight > 92);
+      }
+    };
+
+    checkOverflow();
+    window.addEventListener("resize", checkOverflow);
+    return () => window.removeEventListener("resize", checkOverflow);
+  }, [formattedHtml]);
+
+  return (
+    <div className="relative">
+      <div
+        className={`transition-all duration-500 ease-in-out overflow-hidden relative ${
+          !isExpanded ? "max-h-[85px]" : "max-h-[2500px]"
+        }`}
+      >
+        <div
+          ref={contentRef}
+          className="text-[9.5px] font-light leading-[1.65] tracking-wide text-foreground/80 dark:text-foreground/70 space-y-2 [&_p]:mb-2.5 [&_p:last-child]:mb-0 [&_b]:font-bold [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mb-1 [&_a]:underline [&_a]:text-foreground"
+          dangerouslySetInnerHTML={{ __html: formattedHtml }}
+        />
+        {!isExpanded && isOverflowing && (
+          <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none" />
+        )}
+      </div>
+
+      {(isOverflowing || isExpanded) && (
+        <button
+          onClick={onToggleExpand}
+          className="mt-2.5 px-3 py-1 rounded-full text-[6px] font-bold uppercase tracking-[0.18em] transition-all duration-200 bg-foreground/5 border border-foreground/10 text-foreground/70 dark:text-foreground/50 hover:text-foreground hover:bg-foreground/10 active:scale-95 flex items-center gap-1"
+        >
+          {isExpanded ? "View Less" : "View More"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 import { toast } from "sonner";
 import Image from "next/image";
 import ProductCard from "@/components/ProductCard";
@@ -554,12 +620,11 @@ export default function ProductDetailsClient({
               </div>
               <div className="text-[9.5px] font-light leading-relaxed text-foreground/60 min-h-[50px]">
                 {activeTab === "details" ? (
-                  <div>
-                    <div className={`space-y-2 ${!isDescriptionExpanded ? 'line-clamp-2' : ''}`} dangerouslySetInnerHTML={{ __html: product.body_html || "" }} />
-                    <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="mt-2.5 px-2 py-0.5 rounded-full text-[5.5px] font-bold uppercase tracking-[0.15em] transition-all bg-foreground/5 border border-foreground/5 text-foreground/60 hover:text-foreground">
-                      {isDescriptionExpanded ? "View Less" : "View More"}
-                    </button>
-                  </div>
+                  <ProductDescriptionContainer
+                    content={product.body_html || product.description || ""}
+                    isExpanded={isDescriptionExpanded}
+                    onToggleExpand={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                  />
                 ) : (
                   tabs.map(tab => activeTab === tab.id && (
                     <div key={tab.id} className="animate-in fade-in duration-700" dangerouslySetInnerHTML={{ __html: parseShopifyRichText(getMeta(tab.label.toUpperCase())) }} />
@@ -945,15 +1010,11 @@ export default function ProductDetailsClient({
                     className="rounded-[1rem] p-3 border border-foreground/[0.06] bg-foreground/[0.01]"
                   >
                     {activeTab === "details" ? (
-                      <div className="relative">
-                        <div className={`text-[9.5px] font-light leading-[1.6] tracking-wide text-foreground/80 dark:text-foreground/60 space-y-3 ${!isDescriptionExpanded ? 'line-clamp-3' : ''}`} dangerouslySetInnerHTML={{ __html: product.body_html || "" }} />
-                        <button 
-                          onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} 
-                          className="mt-3 px-3 py-1 rounded-full text-[6px] font-bold uppercase tracking-[0.15em] transition-all bg-foreground/5 border border-foreground/5 text-foreground/60 dark:text-foreground/40 hover:text-foreground"
-                        >
-                          {isDescriptionExpanded ? "View Less" : "View More"}
-                        </button>
-                      </div>
+                      <ProductDescriptionContainer
+                        content={product.body_html || product.description || ""}
+                        isExpanded={isDescriptionExpanded}
+                        onToggleExpand={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                      />
                     ) : (
                       tabs.map(tab => activeTab === tab.id && (
                         <div key={tab.id} className="animate-in fade-in duration-700 text-[9.5px] font-light leading-[1.6] text-foreground/80 dark:text-foreground/60" dangerouslySetInnerHTML={{ __html: parseShopifyRichText(getMeta(tab.label.toUpperCase())) }} />

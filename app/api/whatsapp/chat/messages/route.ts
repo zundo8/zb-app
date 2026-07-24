@@ -91,9 +91,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Retrieve userId if customer exists
-    const customer = await prisma.customer.findFirst({
-      where: { phone: { contains: phone.replace(/\D/g, '').slice(-10) } }
+    const last10 = phone.replace(/\D/g, '').slice(-10);
+    const candidates = await prisma.customer.findMany({
+      where: {
+        OR: [
+          { phone: { contains: last10 } },
+          { phone: { contains: last10.slice(0, 5) } }
+        ]
+      }
     });
+    const customer = candidates.find((c: any) => c.phone && c.phone.replace(/\D/g, '').endsWith(last10));
 
     // Log outbound message to DB via fail-safe logger
     let bodyTextLog = messageBody;

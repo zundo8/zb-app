@@ -434,7 +434,8 @@ export async function POST(req: Request) {
     }
 
     let localOrder: any = null;
-    const finalPaymentMethod = isFullStoreCredit ? "store_credit" : paymentMethod === "COD" ? "COD" : "razorpay";
+    const isCodOrder = paymentMethod.toUpperCase() === "COD" || paymentMethod.toLowerCase() === "cod";
+    const finalPaymentMethod = isFullStoreCredit ? "store_credit" : isCodOrder ? "cod" : "razorpay";
 
     if (existingPreCreatedOrder) {
       universalOrderNumber = existingPreCreatedOrder.internalOrderNumber || universalOrderNumber;
@@ -442,8 +443,8 @@ export async function POST(req: Request) {
         where: { id: existingPreCreatedOrder.id },
         data: {
           shopifyOrderId: shopifyOrderId,
-          status: paymentMethod === "COD" ? "open" : "approved",
-          paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
+          status: isCodOrder ? "open" : "approved",
+          paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
           razorpayPaymentId: razorpay?.razorpay_payment_id || null,
           paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
           paymentMethod: finalPaymentMethod,
@@ -451,7 +452,7 @@ export async function POST(req: Request) {
           tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
           note: isFullStoreCredit
             ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
-            : paymentMethod === "COD"
+            : isCodOrder
             ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
             : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
           shopifyOrderName: sOrder ? sOrder.name : null,
@@ -466,15 +467,15 @@ export async function POST(req: Request) {
           shopId: shop.id,
           shopifyOrderId: shopifyOrderId,
           customerId: localCustomer.id,
-          status: paymentMethod === "COD" ? "open" : "approved",
+          status: isCodOrder ? "open" : "approved",
           totalPrice: total,
           subtotalPrice: subtotal,
-          paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
+          paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
           fulfillmentStatus: "unfulfilled",
           deliveryStatus: "pending",
           shippingAddress: JSON.stringify(address),
           billingAddress: JSON.stringify(address),
-          razorpayOrderId: razorpay?.razorpay_order_id || null,
+          razorpayOrderId: razorpay?.razorpay_payment_id || null,
           razorpayPaymentId: razorpay?.razorpay_payment_id || null,
           paymentMethod: finalPaymentMethod,
           storeCreditAmount: parsedStoreCredit,
@@ -641,18 +642,18 @@ export async function POST(req: Request) {
         webStoreOrder = await prisma.webStoreOrder.update({
           where: { id: existingWebStoreOrder.id },
           data: {
-            paymentStatus: isFullStoreCredit ? "paid" : paymentMethod === "COD" ? "cod_upfront_paid" : "paid",
+            paymentStatus: isFullStoreCredit ? "paid" : isCodOrder ? "cod_upfront_paid" : "paid",
             paymentMethod: finalPaymentMethod,
             razorpayPaymentId: razorpay?.razorpay_payment_id || null,
             storeCreditAmount: parsedStoreCredit,
-            codUpfrontPaid: paymentMethod === "COD" ? codFee : 0,
-            codUpfrontPaymentId: paymentMethod === "COD" ? (razorpay?.razorpay_payment_id || null) : null,
+            codUpfrontPaid: isCodOrder ? (Number(codFee) || 99) : 0,
+            codUpfrontPaymentId: isCodOrder ? (razorpay?.razorpay_payment_id || null) : null,
             notes: isFullStoreCredit
               ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
-              : `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`
+              : `${isCodOrder ? `COD Order (₹${Number(codFee) || 99} upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`
           }
         });
-        console.log(`[Checkout Complete] Updated pre-created WebStoreOrder ${webStoreOrder.id} (${universalOrderNumber}) to paid`);
+        console.log(`[Checkout Complete] Updated pre-created WebStoreOrder ${webStoreOrder.id} (${universalOrderNumber}) to paid/cod_upfront_paid`);
       } else {
         webStoreOrder = await prisma.webStoreOrder.create({
           data: {
@@ -676,16 +677,16 @@ export async function POST(req: Request) {
             discountAmount: Number(couponDiscount) || 0,
             storeCreditAmount: parsedStoreCredit,
             totalAmount: total,
-            paymentStatus: isFullStoreCredit ? "paid" : paymentMethod === "COD" ? "cod_upfront_paid" : "paid",
+            paymentStatus: isFullStoreCredit ? "paid" : isCodOrder ? "cod_upfront_paid" : "paid",
             paymentMethod: finalPaymentMethod,
             razorpayOrderId: razorpay?.razorpay_order_id || null,
             razorpayPaymentId: razorpay?.razorpay_payment_id || null,
-            codUpfrontPaid: paymentMethod === "COD" ? codFee : 0,
-            codUpfrontPaymentId: paymentMethod === "COD" ? (razorpay?.razorpay_payment_id || null) : null,
+            codUpfrontPaid: isCodOrder ? (Number(codFee) || 99) : 0,
+            codUpfrontPaymentId: isCodOrder ? (razorpay?.razorpay_payment_id || null) : null,
             fulfillmentStatus: "unfulfilled",
             notes: isFullStoreCredit
               ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
-              : `${paymentMethod === "COD" ? `COD Order (₹99 upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`,
+              : `${isCodOrder ? `COD Order (₹${Number(codFee) || 99} upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`,
             source: "web"
           }
         });

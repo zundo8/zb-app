@@ -286,16 +286,33 @@ export async function GET(req: NextRequest) {
               res = await senderFn(retryParams);
               // senderFn returns { success, messageId, ... }
               if (res?.success) {
-                await db.whatsAppMessage.update({
-                  where: { id: msg.id },
-                  data: {
-                    status: 'sent',
-                    waMessageId: res.messageId || msg.waMessageId,
-                    sentAt: new Date(),
-                    retryCount: nextRetryCount,
-                    errorMessage: null
+                try {
+                  await db.whatsAppMessage.update({
+                    where: { id: msg.id },
+                    data: {
+                      status: 'sent',
+                      waMessageId: res.messageId || null,
+                      sentAt: new Date(),
+                      retryCount: nextRetryCount,
+                      errorMessage: null
+                    }
+                  });
+                } catch (updateErr: any) {
+                  if (updateErr.code === 'P2002') {
+                    console.warn(`[Scheduler] waMessageId collision for message ${msg.id}, updating status without waMessageId`);
+                    await db.whatsAppMessage.update({
+                      where: { id: msg.id },
+                      data: {
+                        status: 'sent',
+                        sentAt: new Date(),
+                        retryCount: nextRetryCount,
+                        errorMessage: null
+                      }
+                    });
+                  } else {
+                    throw updateErr;
                   }
-                });
+                }
               } else {
                 throw new Error(res?.error || 'Sender function retry failed');
               }
@@ -310,16 +327,33 @@ export async function GET(req: NextRequest) {
                 components: []
               });
               if (res) {
-                await db.whatsAppMessage.update({
-                  where: { id: msg.id },
-                  data: {
-                    status: 'sent',
-                    waMessageId: res.messages?.[0]?.id || msg.waMessageId,
-                    sentAt: new Date(),
-                    retryCount: nextRetryCount,
-                    errorMessage: null
+                try {
+                  await db.whatsAppMessage.update({
+                    where: { id: msg.id },
+                    data: {
+                      status: 'sent',
+                      waMessageId: res.messages?.[0]?.id || null,
+                      sentAt: new Date(),
+                      retryCount: nextRetryCount,
+                      errorMessage: null
+                    }
+                  });
+                } catch (updateErr: any) {
+                  if (updateErr.code === 'P2002') {
+                    console.warn(`[Scheduler] waMessageId collision for message ${msg.id}, updating status without waMessageId`);
+                    await db.whatsAppMessage.update({
+                      where: { id: msg.id },
+                      data: {
+                        status: 'sent',
+                        sentAt: new Date(),
+                        retryCount: nextRetryCount,
+                        errorMessage: null
+                      }
+                    });
+                  } else {
+                    throw updateErr;
                   }
-                });
+                }
               } else {
                 throw new Error('Template retry returned empty response');
               }
@@ -328,30 +362,52 @@ export async function GET(req: NextRequest) {
             // If it was a text message, re-send text
             res = await WhatsAppService.sendTextMessage(msg.phoneNumber, msg.body);
             if (res) {
-              await db.whatsAppMessage.update({
-                where: { id: msg.id },
-                data: {
-                  status: 'sent',
-                  waMessageId: res.messages?.[0]?.id || msg.waMessageId,
-                  sentAt: new Date(),
-                  retryCount: nextRetryCount,
-                  errorMessage: null
+              try {
+                await db.whatsAppMessage.update({
+                  where: { id: msg.id },
+                  data: {
+                    status: 'sent',
+                    waMessageId: res.messages?.[0]?.id || null,
+                    sentAt: new Date(),
+                    retryCount: nextRetryCount,
+                    errorMessage: null
+                  }
+                });
+              } catch (updateErr: any) {
+                if (updateErr.code === 'P2002') {
+                  console.warn(`[Scheduler] waMessageId collision for message ${msg.id}, updating status without waMessageId`);
+                  await db.whatsAppMessage.update({
+                    where: { id: msg.id },
+                    data: {
+                      status: 'sent',
+                      sentAt: new Date(),
+                      retryCount: nextRetryCount,
+                      errorMessage: null
+                    }
+                  });
+                } else {
+                  throw updateErr;
                 }
-              });
+              }
             } else {
               throw new Error('Text message retry returned empty response');
             }
           }
         } catch (err: any) {
-          const nextRetryAt = getNextRetryTime(nextRetryCount);
-          await db.whatsAppMessage.update({
-            where: { id: msg.id },
-            data: {
-              retryCount: nextRetryCount,
-              nextRetryAt,
-              errorMessage: err.message
-            }
-          });
+          try {
+            const nextRetryAt = getNextRetryTime(nextRetryCount);
+            await db.whatsAppMessage.update({
+              where: { id: msg.id },
+              data: {
+                retryCount: nextRetryCount,
+                nextRetryAt,
+                errorMessage: err.message
+              }
+            });
+          } catch (dbErr: any) {
+            console.error(`[Scheduler] Failed to update retry status for message ${msg.id}:`, dbErr);
+            results.errors.push(`Failed to update retry status for message ${msg.id}: ${dbErr.message}`);
+          }
         }
         results.messagesRetried++;
       }
@@ -513,15 +569,31 @@ export async function GET(req: NextRequest) {
             });
 
             if (res.success) {
-              await db.whatsAppMessage.update({
-                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 1 } },
-                data: {
-                  status: 'sent',
-                  waMessageId: res.messageId || null,
-                  body: `Template: ${step1Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
-                  errorMessage: null,
+              try {
+                await db.whatsAppMessage.update({
+                  where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 1 } },
+                  data: {
+                    status: 'sent',
+                    waMessageId: res.messageId || null,
+                    body: `Template: ${step1Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                    errorMessage: null,
+                  }
+                });
+              } catch (updateErr: any) {
+                if (updateErr.code === 'P2002') {
+                  console.warn(`[Scheduler] waMessageId collision for cart recovery step 1 (cart ${cart.id}), updating status without waMessageId`);
+                  await db.whatsAppMessage.update({
+                    where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 1 } },
+                    data: {
+                      status: 'sent',
+                      body: `Template: ${step1Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                      errorMessage: null,
+                    }
+                  });
+                } else {
+                  throw updateErr;
                 }
-              });
+              }
 
               if (cart.status === 'active') {
                 await db.cart.update({
@@ -584,15 +656,31 @@ export async function GET(req: NextRequest) {
             });
 
             if (res.success) {
-              await db.whatsAppMessage.update({
-                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 2 } },
-                data: {
-                  status: 'sent',
-                  waMessageId: res.messageId || null,
-                  body: `Template: ${step2Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
-                  errorMessage: null,
+              try {
+                await db.whatsAppMessage.update({
+                  where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 2 } },
+                  data: {
+                    status: 'sent',
+                    waMessageId: res.messageId || null,
+                    body: `Template: ${step2Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                    errorMessage: null,
+                  }
+                });
+              } catch (updateErr: any) {
+                if (updateErr.code === 'P2002') {
+                  console.warn(`[Scheduler] waMessageId collision for cart recovery step 2 (cart ${cart.id}), updating status without waMessageId`);
+                  await db.whatsAppMessage.update({
+                    where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 2 } },
+                    data: {
+                      status: 'sent',
+                      body: `Template: ${step2Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                      errorMessage: null,
+                    }
+                  });
+                } else {
+                  throw updateErr;
                 }
-              });
+              }
               results.abandonedCartStep2Sent++;
             } else {
               await db.whatsAppMessage.update({
@@ -647,15 +735,31 @@ export async function GET(req: NextRequest) {
             });
 
             if (res.success) {
-              await db.whatsAppMessage.update({
-                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 3 } },
-                data: {
-                  status: 'sent',
-                  waMessageId: res.messageId || null,
-                  body: `Template: ${step3Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
-                  errorMessage: null,
+              try {
+                await db.whatsAppMessage.update({
+                  where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 3 } },
+                  data: {
+                    status: 'sent',
+                    waMessageId: res.messageId || null,
+                    body: `Template: ${step3Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                    errorMessage: null,
+                  }
+                });
+              } catch (updateErr: any) {
+                if (updateErr.code === 'P2002') {
+                  console.warn(`[Scheduler] waMessageId collision for cart recovery step 3 (cart ${cart.id}), updating status without waMessageId`);
+                  await db.whatsAppMessage.update({
+                    where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 3 } },
+                    data: {
+                      status: 'sent',
+                      body: `Template: ${step3Template} | Sent to: ${formattedPhone} | Cart: ${cart.id}`,
+                      errorMessage: null,
+                    }
+                  });
+                } else {
+                  throw updateErr;
                 }
-              });
+              }
               results.abandonedCartStep3Sent++;
             } else {
               await db.whatsAppMessage.update({

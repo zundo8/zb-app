@@ -42,7 +42,9 @@ export async function GET(request: Request) {
       where.paymentStatus = paymentStatus;
     }
     if (paymentMethod && paymentMethod !== "all") {
-      where.paymentMethod = paymentMethod;
+      where.paymentMethod = {
+        in: [paymentMethod.toLowerCase(), paymentMethod.toUpperCase()],
+      };
     }
 
     // Date range filter

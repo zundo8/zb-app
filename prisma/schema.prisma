@@ -151,6 +151,7 @@ model Customer {
   smsOptedOut           Boolean            @default(false)
   whatsappOptedOut      Boolean            @default(false)
   lastLoginAt           DateTime?
+  accountCreatedMsgSentAt DateTime?
   addresses             Address[]
   communityMember       CommunityMember?
   communityMessages     CommunityMessage[]

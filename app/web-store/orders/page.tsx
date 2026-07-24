@@ -89,10 +89,10 @@ export default function WebStoreOrdersList() {
       return status === "fulfilled" || status === "shipped" || status === "delivered";
     });
     const totalRevenue = fulfilledOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
-    const codOrders = orders.filter(o => o.paymentMethod === "cod");
-    const prepaidOrders = orders.filter(o => o.paymentMethod === "razorpay");
+    const codOrders = orders.filter(o => (o.paymentMethod || "").toLowerCase().trim() === "cod");
+    const prepaidOrders = orders.filter(o => (o.paymentMethod || "").toLowerCase().trim() !== "cod");
     const totalCollected = orders.reduce((sum, o) => {
-      if (o.paymentMethod === "cod") {
+      if ((o.paymentMethod || "").toLowerCase().trim() === "cod") {
         return sum + Number(o.codUpfrontPaid || 0);
       }
       return sum + Number(o.totalAmount || 0);
@@ -183,7 +183,8 @@ export default function WebStoreOrdersList() {
   };
 
   const getPaymentBadge = (status: string, method?: string, codUpfront?: number, failureReason?: string | null) => {
-    if (status === "cod_upfront_paid" || (method === "cod" && codUpfront && codUpfront > 0)) {
+    const isCOD = (method || "").toLowerCase().trim() === "cod";
+    if (status === "cod_upfront_paid" || (isCOD && Number(codUpfront || 0) > 0)) {
       return (
         <div className="flex flex-col gap-0.5">
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -226,7 +227,7 @@ export default function WebStoreOrdersList() {
   };
 
   const getCollectedAmount = (order: Order) => {
-    if (order.paymentMethod === "cod") {
+    if ((order.paymentMethod || "").toLowerCase().trim() === "cod") {
       return Number(order.codUpfrontPaid || 0);
     }
     return Number(order.totalAmount || 0);
@@ -429,26 +430,38 @@ export default function WebStoreOrdersList() {
                       <td className="py-4 px-3">{getPaymentBadge(order.paymentStatus, order.paymentMethod, order.codUpfrontPaid, order.paymentFailureReason)}</td>
                       <td className="py-4 px-3">{getFulfillmentBadge(order.fulfillmentStatus)}</td>
                       <td className="py-4 px-3">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider font-mono px-2 py-0.5 rounded border ${
-                          order.paymentMethod === "cod"
-                            ? "text-amber-400 bg-amber-500/5 border-amber-500/15"
-                            : "text-foreground/60 bg-foreground/5 border-foreground/5"
-                        }`}>
-                          {order.paymentMethod === "cod" ? "COD" : "PREPAID"}
-                        </span>
+                        {(() => {
+                          const isRowCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
+                          return (
+                            <span className={`text-[10px] font-bold uppercase tracking-wider font-mono px-2 py-0.5 rounded border ${
+                              isRowCOD
+                                ? "text-amber-400 bg-amber-500/5 border-amber-500/15"
+                                : "text-foreground/60 bg-foreground/5 border-foreground/5"
+                            }`}>
+                              {isRowCOD ? "COD" : "PREPAID"}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="py-4 px-3 text-right text-[12px] font-bold text-foreground">
                         {formatCurrency(Number(order.totalAmount))}
                       </td>
                       <td className="py-4 px-3 text-right">
-                        <span className={`text-[12px] font-bold ${
-                          order.paymentMethod === "cod" ? "text-amber-400" : "text-emerald-400"
-                        }`}>
-                          {formatCurrency(collected)}
-                        </span>
-                        {order.paymentMethod === "cod" && collected > 0 && (
-                          <span className="block text-[8px] text-emerald-400/70 font-semibold">upfront ✓</span>
-                        )}
+                        {(() => {
+                          const isRowCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
+                          return (
+                            <>
+                              <span className={`text-[12px] font-bold ${
+                                isRowCOD ? "text-amber-400" : "text-emerald-400"
+                              }`}>
+                                {formatCurrency(collected)}
+                              </span>
+                              {isRowCOD && collected > 0 && (
+                                <span className="block text-[8px] text-emerald-400/70 font-semibold">upfront ✓</span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </td>
                       <td className="py-4 px-5 text-center">
                         <Link

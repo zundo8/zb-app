@@ -17,10 +17,16 @@ const ORDER_SAFE_FIELDS = new Set([
   'shopifyOrderName',
   'internalOrderNumber',
   'totalPrice',
+  'totalAmount',
   'subtotalPrice',
+  'subtotal',
   'currency',
   'status',
   'paymentStatus',
+  'paymentMethod',
+  'codUpfrontPaid',
+  'paidAmount',
+  'balanceDue',
   'fulfillmentStatus',
   'deliveryStatus',
   'createdAt',
@@ -29,6 +35,7 @@ const ORDER_SAFE_FIELDS = new Set([
   'discountAmount',
   'discountCode',
   'storeCreditAmount',
+  'paymentFailureReason',
 ]);
 
 /** Fields allowed in customer-visible order item data */
@@ -37,6 +44,7 @@ const ORDER_ITEM_SAFE_FIELDS = new Set([
   'quantity',
   'price',
   'image',
+  'size',
 ]);
 
 /** Fields allowed in shipment data */
@@ -55,8 +63,28 @@ const PAYMENT_SAFE_FIELDS = new Set([
   'type',
   'status',
   'gateway',
+  'paymentMethod',
+  'codUpfrontPaid',
+  'paidAmount',
+  'balanceDue',
+  'totalAmount',
+  'totalPrice',
   'createdAt',
 ]);
+
+/**
+ * Helper to format payment method nicely for AI/customer visibility
+ */
+export function formatPaymentMethodName(method?: string | null): string {
+  if (!method) return 'Prepaid (Razorpay)';
+  const normalized = method.toLowerCase().trim();
+  if (normalized === 'cod') return 'Cash on Delivery (COD)';
+  if (normalized === 'store_credit') return '100% Store Credit';
+  if (normalized === 'razorpay' || normalized === 'prepaid' || normalized === 'upi' || normalized === 'card') {
+    return 'Prepaid (Razorpay)';
+  }
+  return method;
+}
 
 /**
  * Sanitize an order object for customer view.
@@ -86,9 +114,42 @@ export function sanitizeOrderForCustomer(order: any): Record<string, any> {
     });
   }
 
+  // Normalize payment method and amount calculations
+  const rawMethod = (order.paymentMethod || order.payment_method || '').toLowerCase().trim();
+  const isCOD = rawMethod === 'cod';
+
+  safe.paymentMethodRaw = order.paymentMethod || 'razorpay';
+  safe.paymentMethod = formatPaymentMethodName(order.paymentMethod);
+
+  const total = Number(order.totalPrice ?? order.totalAmount ?? 0);
+  const codUpfront = Number(order.codUpfrontPaid ?? 0);
+
+  if (isCOD) {
+    const pStatus = (order.paymentStatus || '').toLowerCase();
+    if (pStatus === 'paid') {
+      safe.paidAmount = total;
+      safe.balanceDue = 0;
+    } else {
+      // Standard upfront paid or pending COD order
+      safe.codUpfrontPaid = codUpfront > 0 ? codUpfront : 99;
+      safe.paidAmount = safe.codUpfrontPaid;
+      safe.balanceDue = Math.max(0, total - safe.paidAmount);
+    }
+  } else {
+    // Prepaid or Store Credit order
+    const pStatus = (order.paymentStatus || '').toLowerCase();
+    if (pStatus === 'paid' || pStatus === 'approved' || pStatus === 'completed') {
+      safe.paidAmount = total;
+      safe.balanceDue = 0;
+    } else {
+      safe.paidAmount = 0;
+      safe.balanceDue = total;
+    }
+  }
+
   // Map status to customer-facing text
   safe.status = mapInternalStatus(order.status);
-  safe.paymentStatus = mapPaymentStatus(order.paymentStatus);
+  safe.paymentStatus = mapPaymentStatus(order.paymentStatus, isCOD, safe.codUpfrontPaid);
   safe.deliveryStatus = mapDeliveryStatus(order.deliveryStatus);
 
   return safe;
@@ -119,7 +180,24 @@ export function sanitizePaymentForCustomer(payment: any): Record<string, any> {
       safe[field] = payment[field];
     }
   }
-  safe.status = mapPaymentStatus(payment.status);
+
+  const rawMethod = (payment.paymentMethod || payment.payment_method || payment.gateway || '').toLowerCase().trim();
+  const isCOD = rawMethod === 'cod';
+  const total = Number(payment.totalPrice ?? payment.totalAmount ?? payment.amount ?? 0);
+  const codUpfront = Number(payment.codUpfrontPaid ?? 0);
+
+  safe.paymentMethod = formatPaymentMethodName(rawMethod);
+
+  if (isCOD) {
+    safe.codUpfrontPaid = codUpfront > 0 ? codUpfront : 99;
+    safe.paidAmount = safe.codUpfrontPaid;
+    safe.balanceDue = Math.max(0, total - safe.paidAmount);
+  } else {
+    safe.paidAmount = (payment.paymentStatus || payment.status || '').toLowerCase() === 'paid' ? total : 0;
+    safe.balanceDue = Math.max(0, total - safe.paidAmount);
+  }
+
+  safe.status = mapPaymentStatus(payment.paymentStatus || payment.status, isCOD, safe.codUpfrontPaid);
   return safe;
 }
 
@@ -129,8 +207,10 @@ export function sanitizePaymentForCustomer(payment: any): Record<string, any> {
 
 const STATUS_MAP: Record<string, string> = {
   pending: 'Order Placed',
+  payment_pending: 'Order Placed (Payment Pending)',
   processing: 'Processing',
   confirmed: 'Processing',
+  approved: 'Processing',
   ready_for_dispatch: 'Ready for Dispatch',
   dispatched: 'Shipped',
   shipped: 'Shipped',
@@ -150,6 +230,7 @@ export function mapInternalStatus(status: string): string {
 
 const PAYMENT_STATUS_MAP: Record<string, string> = {
   paid: 'Paid',
+  cod_upfront_paid: 'COD Upfront Paid',
   pending: 'Pending',
   authorized: 'Pending',
   failed: 'Failed',
@@ -158,9 +239,13 @@ const PAYMENT_STATUS_MAP: Record<string, string> = {
   cancelled: 'Cancelled',
 };
 
-export function mapPaymentStatus(status: string): string {
+export function mapPaymentStatus(status: string, isCOD = false, codUpfront = 0): string {
   if (!status) return 'Unknown';
-  return PAYMENT_STATUS_MAP[status.toLowerCase()] ?? status;
+  const lower = status.toLowerCase();
+  if (lower === 'cod_upfront_paid' || (isCOD && (lower === 'paid' || lower === 'pending') && codUpfront > 0)) {
+    return `COD Upfront Paid (₹${codUpfront || 99} Paid, Balance Due at Delivery)`;
+  }
+  return PAYMENT_STATUS_MAP[lower] ?? status;
 }
 
 const DELIVERY_STATUS_MAP: Record<string, string> = {

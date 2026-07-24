@@ -244,7 +244,7 @@ export default function WebStoreOrderDetail() {
 
   if (!order) return null;
 
-  const isCOD = order.paymentMethod === "cod";
+  const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
   const codUpfront = Number(order.codUpfrontPaid || 0);
   const balanceDue = isCOD ? Number(order.totalAmount) - codUpfront : 0;
 
@@ -595,8 +595,8 @@ export default function WebStoreOrderDetail() {
               </div>
               <div>
                 <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Payment Method</span>
-                <span className={`font-bold uppercase ${order.paymentMethod === "cod" ? "text-amber-400" : "text-emerald-400"}`}>
-                  {order.paymentMethod === "cod" ? "Cash on Delivery" : "Razorpay (Prepaid)"}
+                <span className={`font-bold uppercase ${isCOD ? "text-amber-400" : "text-emerald-400"}`}>
+                  {isCOD ? "Cash on Delivery" : "Razorpay (Prepaid)"}
                 </span>
               </div>
               {order.razorpayOrderId && (

@@ -603,21 +603,35 @@ async function sendEmailNotification(input: Record<string, any>): Promise<string
 
 // ─── Payment Details ──────────────────────────────
 
-async function getPaymentDetails(orderId: string, principal?: Principal): Promise<string> {
-  if (!orderId) return JSON.stringify({ error: "order_id is required" });
+async function getPaymentDetails(orderIdOrNumber: string, principal?: Principal): Promise<string> {
+  if (!orderIdOrNumber) return JSON.stringify({ error: "order_id or order_number is required" });
   const currentPrincipal = principal || { kind: 'guest' };
 
   if (currentPrincipal.kind === 'guest') {
-    return JSON.stringify({ error: "Access Denied" });
+    return JSON.stringify({ error: "Access Denied: Please sign in to view payment details." });
   }
 
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
+  const searchTerm = orderIdOrNumber.trim();
+
+  // Try finding order by id, internalOrderNumber, shopifyOrderName, or razorpayOrderId
+  const order = await prisma.order.findFirst({
+    where: {
+      OR: [
+        { id: searchTerm },
+        { internalOrderNumber: searchTerm },
+        { internalOrderNumber: { contains: searchTerm, mode: 'insensitive' } },
+        { shopifyOrderName: searchTerm },
+        { shopifyOrderId: searchTerm },
+        { razorpayOrderId: searchTerm },
+      ],
+    },
     select: {
       id: true,
       shopifyOrderId: true,
+      internalOrderNumber: true,
       customerId: true,
       totalPrice: true,
+      subtotalPrice: true,
       paymentStatus: true,
       paymentMethod: true,
       razorpayOrderId: true,
@@ -628,27 +642,75 @@ async function getPaymentDetails(orderId: string, principal?: Principal): Promis
     },
   });
 
-  if (!order) return JSON.stringify({ error: `Order ${orderId} not found` });
+  // Try finding corresponding WebStoreOrder for codUpfrontPaid
+  let webStoreOrder = null;
+  if (order) {
+    webStoreOrder = await prisma.webStoreOrder.findFirst({
+      where: {
+        OR: [
+          ...(order.internalOrderNumber ? [{ orderNumber: order.internalOrderNumber }] : []),
+          ...(order.razorpayOrderId ? [{ razorpayOrderId: order.razorpayOrderId }] : []),
+        ]
+      }
+    });
+  } else {
+    // If not found in Order table, check WebStoreOrder directly
+    webStoreOrder = await prisma.webStoreOrder.findFirst({
+      where: {
+        OR: [
+          { id: searchTerm },
+          { orderNumber: searchTerm },
+          { orderNumber: { contains: searchTerm, mode: 'insensitive' } },
+          { razorpayOrderId: searchTerm },
+        ]
+      }
+    });
+  }
 
-  if (currentPrincipal.kind === 'customer' && order.customerId !== currentPrincipal.customerId) {
+  if (!order && !webStoreOrder) return JSON.stringify({ error: `Order "${searchTerm}" not found` });
+
+  const mergedOrder = {
+    id: order?.id || webStoreOrder?.id,
+    internalOrderNumber: order?.internalOrderNumber || webStoreOrder?.orderNumber,
+    shopifyOrderId: order?.shopifyOrderId || null,
+    customerId: order?.customerId || null,
+    totalPrice: Number(order?.totalPrice ?? webStoreOrder?.totalAmount ?? 0),
+    paymentStatus: webStoreOrder?.paymentStatus || order?.paymentStatus || 'pending',
+    paymentMethod: webStoreOrder?.paymentMethod || order?.paymentMethod || 'razorpay',
+    codUpfrontPaid: Number(webStoreOrder?.codUpfrontPaid ?? 0),
+    razorpayOrderId: order?.razorpayOrderId || webStoreOrder?.razorpayOrderId || null,
+    razorpayPaymentId: order?.razorpayPaymentId || webStoreOrder?.razorpayPaymentId || null,
+    currency: order?.currency || 'INR',
+    createdAt: order?.createdAt || webStoreOrder?.createdAt,
+  };
+
+  if (currentPrincipal.kind === 'customer' && mergedOrder.customerId && mergedOrder.customerId !== currentPrincipal.customerId) {
     return JSON.stringify({ error: "Access Denied" });
   }
 
   if (currentPrincipal.kind === 'customer') {
-    return JSON.stringify(sanitizePaymentForCustomer(order));
+    return JSON.stringify(sanitizePaymentForCustomer(mergedOrder));
   }
 
+  const isCOD = (mergedOrder.paymentMethod || '').toLowerCase() === 'cod';
+  const paidAmount = isCOD ? (mergedOrder.codUpfrontPaid > 0 ? mergedOrder.codUpfrontPaid : 99) : (mergedOrder.paymentStatus === 'paid' ? mergedOrder.totalPrice : 0);
+  const balanceDue = Math.max(0, mergedOrder.totalPrice - paidAmount);
+
   return JSON.stringify({
-    order_id: order.id,
-    shopify_order_id: order.shopifyOrderId,
-    payment_status: order.paymentStatus,
-    payment_method: order.paymentMethod || "unknown",
-    razorpay_order_id: order.razorpayOrderId || null,
-    razorpay_payment_id: order.razorpayPaymentId || null,
-    payment_captured_at: order.paymentCapturedAt || null,
-    total: `₹${order.totalPrice.toLocaleString("en-IN")}`,
-    currency: order.currency,
-    created_at: order.createdAt,
+    order_id: mergedOrder.id,
+    order_number: mergedOrder.internalOrderNumber,
+    shopify_order_id: mergedOrder.shopifyOrderId,
+    payment_status: mergedOrder.paymentStatus,
+    payment_method: mergedOrder.paymentMethod,
+    is_cod: isCOD,
+    cod_upfront_paid: mergedOrder.codUpfrontPaid,
+    paid_amount: paidAmount,
+    balance_due: balanceDue,
+    razorpay_order_id: mergedOrder.razorpayOrderId || null,
+    razorpay_payment_id: mergedOrder.razorpayPaymentId || null,
+    total: `₹${mergedOrder.totalPrice.toLocaleString("en-IN")}`,
+    currency: mergedOrder.currency,
+    created_at: mergedOrder.createdAt,
   });
 }
 
@@ -801,6 +863,30 @@ async function getOrderByNumber(orderNumber: string, principal?: Principal): Pro
       error: `No order found matching "${searchTerm}". Please verify the order number and try again. Order numbers typically look like ZB-DDMM-NNNNN.`,
     });
   }
+
+  // Cross-reference WebStoreOrder for COD upfront payment metrics
+  let codUpfrontPaid = 0;
+  if (order.internalOrderNumber || order.razorpayOrderId) {
+    const wsOrder = await prisma.webStoreOrder.findFirst({
+      where: {
+        OR: [
+          ...(order.internalOrderNumber ? [{ orderNumber: order.internalOrderNumber }] : []),
+          ...(order.razorpayOrderId ? [{ razorpayOrderId: order.razorpayOrderId }] : []),
+        ],
+      },
+      select: { codUpfrontPaid: true, paymentMethod: true, paymentStatus: true },
+    });
+    if (wsOrder) {
+      codUpfrontPaid = Number(wsOrder.codUpfrontPaid || 0);
+      if (wsOrder.paymentMethod) {
+        (order as any).paymentMethod = wsOrder.paymentMethod;
+      }
+      if (wsOrder.paymentStatus === 'cod_upfront_paid') {
+        (order as any).paymentStatus = 'cod_upfront_paid';
+      }
+    }
+  }
+  (order as any).codUpfrontPaid = codUpfrontPaid;
 
   if (currentPrincipal.kind === 'customer') {
     const safeOrder = sanitizeOrderForCustomer(order);

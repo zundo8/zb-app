@@ -22,7 +22,8 @@ const TOGGLE_KEYS = [
   'cart_recovery_enabled',
   'cart_recovery_step2_enabled',
   'cart_recovery_step3_enabled',
-  'cod_confirmation_enabled'
+  'cod_confirmation_enabled',
+  'account_created_enabled'
 ];
 
 // String keys for template name mappings (admin can override which template
@@ -38,7 +39,8 @@ const TEMPLATE_MAPPING_KEYS = [
   'template_cod_confirmation',
   'template_order_status',
   'template_out_for_delivery',
-  'template_return_confirmed'
+  'template_return_confirmed',
+  'template_account_created'
 ];
 
 // Timing keys for delays (in minutes)

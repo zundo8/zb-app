@@ -171,10 +171,10 @@ export async function POST(req: Request) {
               billingAddress: JSON.stringify(checkoutAddress),
               razorpayOrderId: rzpOrder.id,
               razorpayPaymentId: null,
-              paymentMethod: paymentMethod === "COD" ? "COD" : "razorpay",
+              paymentMethod: paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay",
               paymentCapturedAt: null,
               orderType: "WEB_STORE",
-              tags: `WebStoreOrder, Web, ${paymentMethod === "COD" ? "COD" : "Razorpay"}, zb-order-${universalOrderNumber}, payment_pending, Order creation in process`,
+              tags: `WebStoreOrder, Web, ${paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay"}, zb-order-${universalOrderNumber}, payment_pending, Order creation in process`,
               note: storeCreditAmount > 0
                 ? `Order creation in process - ₹${storeCreditAmount} Store Credit applied - Remaining Payment pending`
                 : "Order creation in process - Payment pending",

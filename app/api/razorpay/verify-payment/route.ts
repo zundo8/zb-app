@@ -48,9 +48,22 @@ export async function POST(req: Request) {
 
     // Update order in DB
     try {
+      const existingOrder = await prisma.order.findFirst({
+        where: { razorpayOrderId: razorpay_order_id },
+        select: { id: true, paymentMethod: true },
+      });
+
+      const isCOD = (existingOrder?.paymentMethod || "").toLowerCase().trim() === "cod";
+      const targetPaymentStatus = isCOD ? "cod_upfront_paid" : "PAID";
+
       await prisma.order.updateMany({
         where: { razorpayOrderId: razorpay_order_id },
-        data: { paymentStatus: 'PAID', status: 'CONFIRMED', razorpayPaymentId: razorpay_payment_id, paymentCapturedAt: new Date() },
+        data: { paymentStatus: targetPaymentStatus, status: 'CONFIRMED', razorpayPaymentId: razorpay_payment_id, paymentCapturedAt: new Date() },
+      });
+
+      await prisma.webStoreOrder.updateMany({
+        where: { razorpayOrderId: razorpay_order_id },
+        data: { paymentStatus: isCOD ? "cod_upfront_paid" : "paid", razorpayPaymentId: razorpay_payment_id },
       });
     } catch (dbErr) {
       paymentLog('error', 'verify-payment', { orderId: razorpay_order_id, error: 'DB update failed' });

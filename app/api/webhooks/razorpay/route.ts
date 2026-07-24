@@ -84,14 +84,25 @@ export async function POST(req: Request) {
 
       if (order) {
         // Path A: Order exists — update status
-        if (order.paymentStatus !== 'paid') {
+        const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
+        const targetPaymentStatus = isCOD ? "cod_upfront_paid" : "paid";
+
+        if (order.paymentStatus !== targetPaymentStatus && order.paymentStatus !== 'paid') {
           await prisma.order.update({
             where: { id: order.id },
             data: {
-              paymentStatus: 'paid',
+              paymentStatus: targetPaymentStatus,
               razorpayPaymentId,
               paymentCapturedAt: new Date(),
               status: (order.status === 'PENDING' || order.status === 'awaiting_approval' || order.status === 'payment_pending') ? 'OPEN' : order.status,
+            },
+          });
+
+          await prisma.webStoreOrder.updateMany({
+            where: { razorpayOrderId },
+            data: {
+              paymentStatus: targetPaymentStatus,
+              razorpayPaymentId,
             },
           });
 
@@ -113,7 +124,7 @@ export async function POST(req: Request) {
             });
           }
 
-          paymentLog('info', 'webhook', { message: `Order ${order.id} marked as PAID`, orderId: order.id });
+          paymentLog('info', 'webhook', { message: `Order ${order.id} marked as ${targetPaymentStatus}`, orderId: order.id });
         }
 
         // Link WebhookEvent to Order

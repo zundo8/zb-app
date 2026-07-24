@@ -27,6 +27,8 @@ interface Conversation {
   customerEmail: string | null;
   whatsappOptedOut: boolean | null;
   lastInboundCreatedAt: string | null;
+  ordersCount?: number;
+  totalSpent?: number;
 }
 
 interface Message {
@@ -1445,6 +1447,22 @@ export default function WhatsAppChatPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Order Activity */}
+                {((activeConv?.ordersCount || 0) > 0 || (activeConv?.totalSpent || 0) > 0) && (
+                  <div className="p-2.5 rounded-lg bg-zinc-800/40 border border-white/5 flex items-start gap-2">
+                    <ShoppingBag className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-zinc-500 font-mono font-bold block">Order Activity</span>
+                      <span className="text-[11px] text-zinc-200 font-semibold block">
+                        {activeConv?.ordersCount || 0} Order{(activeConv?.ordersCount || 0) !== 1 ? 's' : ''} placed
+                      </span>
+                      <span className="text-[10px] text-emerald-400 block font-mono font-bold">
+                        ₹{(activeConv?.totalSpent || 0).toLocaleString('en-IN')} Total Spent
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

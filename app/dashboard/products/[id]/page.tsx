@@ -16,7 +16,10 @@ import {
   ArrowUpDown,
   Eye,
   EyeOff,
+  Code,
+  FileText,
 } from "lucide-react";
+import { formatProductDescription, stripHtmlTags } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ShopifyVariant {
@@ -183,6 +186,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [showSizeFit, setShowSizeFit] = useState(true);
   const [showCare, setShowCare] = useState(true);
   const [showShippingReturn, setShowShippingReturn] = useState(true);
+
+  // Description View Mode ("text" | "html")
+  const [descMode, setDescMode] = useState<"text" | "html">("text");
 
   const loadProduct = async () => {
     setLoading(true);
@@ -465,11 +471,39 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">
-                    Description (HTML Supported)
-                  </label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">
+                      Description
+                    </label>
+                    {/* Mode Selector: Text View vs HTML View */}
+                    <div className="flex items-center bg-foreground/5 p-0.5 rounded-lg border border-foreground/5">
+                      <button
+                        type="button"
+                        onClick={() => setDescMode("text")}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                          descMode === "text"
+                            ? "bg-foreground text-background shadow-sm"
+                            : "text-foreground/50 hover:text-foreground"
+                        }`}
+                      >
+                        <FileText className="w-3 h-3" /> Text View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDescMode("html")}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                          descMode === "html"
+                            ? "bg-foreground text-background shadow-sm"
+                            : "text-foreground/50 hover:text-foreground"
+                        }`}
+                      >
+                        <Code className="w-3 h-3" /> HTML View
+                      </button>
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setShowDescription(!showDescription)}
@@ -490,13 +524,49 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                     )}
                   </button>
                 </div>
-                <textarea
-                  value={bodyHtml}
-                  onChange={(e) => setBodyHtml(e.target.value)}
-                  placeholder="Premium drop shoulder fit with a vintage wash."
-                  rows={8}
-                  className="w-full bg-foreground/5 px-4 py-3 rounded-xl border border-foreground/5 focus:border-foreground/20 text-left text-[13px] font-medium text-foreground outline-none transition-all duration-300 min-h-[180px] font-sans resize-y"
-                />
+
+                {descMode === "text" ? (
+                  <div className="space-y-3">
+                    {/* Rendered Text View Preview */}
+                    <div className="w-full bg-foreground/[0.03] p-4 rounded-xl border border-foreground/10 space-y-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-1 flex items-center justify-between">
+                        <span>Formatted Text View (As shown in Shopify & Webstore)</span>
+                        <span className="text-[9px] font-normal text-emerald-500 dark:text-emerald-400">Live Preview</span>
+                      </div>
+                      <div 
+                        className="text-[13px] leading-relaxed text-foreground/90 font-sans space-y-2 [&_p]:mb-2 [&_b]:font-bold [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1"
+                        dangerouslySetInnerHTML={{ __html: formatProductDescription(bodyHtml) || "<p className='italic text-foreground/40'>No description content provided.</p>" }}
+                      />
+                    </div>
+
+                    {/* Plain Text Editor */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">
+                        Edit Plain Text Content
+                      </label>
+                      <textarea
+                        value={stripHtmlTags(bodyHtml)}
+                        onChange={(e) => setBodyHtml(formatProductDescription(e.target.value))}
+                        placeholder="Type or edit plain product description text..."
+                        rows={6}
+                        className="w-full bg-foreground/5 px-4 py-3 rounded-xl border border-foreground/5 focus:border-foreground/20 text-left text-[13px] font-medium text-foreground outline-none transition-all duration-300 min-h-[140px] font-sans resize-y"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">
+                      HTML Source Code
+                    </label>
+                    <textarea
+                      value={bodyHtml}
+                      onChange={(e) => setBodyHtml(e.target.value)}
+                      placeholder="<p>A refined take on modern denim layering...</p>"
+                      rows={8}
+                      className="w-full bg-foreground/5 px-4 py-3 rounded-xl border border-foreground/5 focus:border-foreground/20 text-left text-[12px] font-mono text-foreground outline-none transition-all duration-300 min-h-[180px] resize-y"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

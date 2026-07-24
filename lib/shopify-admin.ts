@@ -508,6 +508,7 @@ export interface ShopifyProduct {
   title: string;
   handle: string;
   body_html: string | null;
+  description?: string | null;
   status: string;
   created_at: string;
   updated_at: string;
