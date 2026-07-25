@@ -144,8 +144,52 @@ export async function GET(req: Request) {
       };
     });
 
-    return NextResponse.json({ products: formattedProducts });
+    let finalFormattedProducts = formattedProducts;
+
+    // Fallback: If DB returns 0 products, format and return directly from Shopify Admin API
+    if (finalFormattedProducts.length === 0 && shopifyProductsMap.size > 0) {
+      const allShopifyProds = Array.from(new Set(Array.from(shopifyProductsMap.values())));
+      finalFormattedProducts = allShopifyProds.map((sp: any) => {
+        const variants = (sp.variants || []).map((v: any) => ({
+          id: String(v.id).startsWith('gid://') ? String(v.id) : `gid://shopify/ProductVariant/${v.id}`,
+          variantId: String(v.id).startsWith('gid://') ? String(v.id) : `gid://shopify/ProductVariant/${v.id}`,
+          size: v.title || v.option1 || 'Standard',
+          sku: v.sku || null
+        }));
+
+        return {
+          id: String(sp.id),
+          shopifyProductId: String(sp.id),
+          title: sp.title,
+          price: parseFloat(sp.variants?.[0]?.price || '0'),
+          image: sp.images?.[0]?.src || sp.image?.src || '',
+          sku: sp.variants?.[0]?.sku || '',
+          variants
+        };
+      });
+    }
+
+    return NextResponse.json({ products: finalFormattedProducts });
   } catch (error: any) {
-    return handleAuthError(error);
+    try {
+      const { fetchAllProducts } = await import("@/lib/shopify-admin");
+      const shopifyProds = await fetchAllProducts(250);
+      const formatted = shopifyProds.map((sp: any) => ({
+        id: String(sp.id),
+        shopifyProductId: String(sp.id),
+        title: sp.title,
+        price: parseFloat(sp.variants?.[0]?.price || '0'),
+        image: sp.images?.[0]?.src || sp.image?.src || '',
+        sku: sp.variants?.[0]?.sku || '',
+        variants: (sp.variants || []).map((v: any) => ({
+          id: String(v.id).startsWith('gid://') ? String(v.id) : `gid://shopify/ProductVariant/${v.id}`,
+          size: v.title || 'Standard',
+          sku: v.sku || null
+        }))
+      }));
+      return NextResponse.json({ products: formatted });
+    } catch (e2) {
+      return handleAuthError(error);
+    }
   }
 }

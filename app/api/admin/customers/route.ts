@@ -209,8 +209,33 @@ export async function GET(req: Request) {
       seenIds.add(c.id);
     }
 
-    const payload = Array.from(uniqueCustomersMap.values()).slice(0, limit);
-    const totalCount = await prisma.customer.count({ where: customerWhere });
+    let payload = Array.from(uniqueCustomersMap.values()).slice(0, limit);
+    let totalCount = await prisma.customer.count({ where: customerWhere }).catch(() => 0);
+
+    // Fallback: If DB returns 0 customers, fetch live customers directly from Shopify Admin API
+    if (payload.length === 0) {
+      try {
+        const { shopifyFetch } = await import("@/lib/shopify-client");
+        const res: any = await shopifyFetch("customers.json", { limit: String(limit || 50) });
+        const shopifyCustomers = res?.customers || [];
+        payload = shopifyCustomers.map((sc: any) => ({
+          id: String(sc.id),
+          shopifyId: String(sc.id),
+          email: sc.email,
+          name: `${sc.first_name || ""} ${sc.last_name || ""}`.trim() || sc.email || "Customer",
+          phone: sc.phone || (sc.default_address?.phone) || null,
+          createdAt: sc.created_at,
+          lastLoginAt: sc.updated_at,
+          totalOrders: sc.orders_count || 0,
+          totalSpent: parseFloat(sc.total_spent || "0"),
+          tags: sc.tags || '',
+          orders: []
+        }));
+        totalCount = payload.length;
+      } catch (shopifyErr: any) {
+        console.warn("[Customers API] Shopify fallback error:", shopifyErr.message);
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -221,6 +246,32 @@ export async function GET(req: Request) {
       hasMore: offset + payload.length < totalCount,
     }, { status: 200 });
   } catch (error) {
-    return handleAuthError(error);
+    try {
+      const { shopifyFetch } = await import("@/lib/shopify-client");
+      const res: any = await shopifyFetch("customers.json", { limit: "50" });
+      const shopifyCustomers = res?.customers || [];
+      const payload = shopifyCustomers.map((sc: any) => ({
+        id: String(sc.id),
+        shopifyId: String(sc.id),
+        email: sc.email,
+        name: `${sc.first_name || ""} ${sc.last_name || ""}`.trim() || sc.email || "Customer",
+        phone: sc.phone || (sc.default_address?.phone) || null,
+        createdAt: sc.created_at,
+        totalOrders: sc.orders_count || 0,
+        totalSpent: parseFloat(sc.total_spent || "0"),
+        tags: sc.tags || '',
+        orders: []
+      }));
+      return NextResponse.json({
+        success: true,
+        customers: payload,
+        total: payload.length,
+        page: 1,
+        limit: 50,
+        hasMore: false,
+      }, { status: 200 });
+    } catch (e2) {
+      return handleAuthError(error);
+    }
   }
 }

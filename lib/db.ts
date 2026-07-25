@@ -223,14 +223,56 @@ export const DEFAULT_SHOP_SETTINGS = {
   flipbookDesc: "Engineered for those who move without compromise.",
 };
 
+import * as fs from 'fs';
+import * as path from 'path';
+
+const SETTINGS_FILE_PATH = path.resolve(process.cwd(), 'data/store-settings.json');
+
+export function getPersistentSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE_PATH)) {
+      const fileData = fs.readFileSync(SETTINGS_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(fileData);
+      if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+        return { ...DEFAULT_SHOP_SETTINGS, ...parsed };
+      }
+    }
+  } catch (e: any) {
+    console.warn('[DB] Failed to read store-settings.json:', e.message);
+  }
+  return DEFAULT_SHOP_SETTINGS;
+}
+
+export function savePersistentSettings(updatedData: Record<string, any>) {
+  try {
+    const current = getPersistentSettings();
+    const merged = { ...current, ...updatedData };
+    delete merged.accessToken;
+    const dataDir = path.dirname(SETTINGS_FILE_PATH);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+    console.log('[DB] Successfully persisted shop settings to store-settings.json');
+    return merged;
+  } catch (e: any) {
+    console.error('[DB] Failed to save store-settings.json:', e.message);
+    return updatedData;
+  }
+}
+
 export async function getShopSettings() {
   try {
     const shop = await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
       ?? await prisma.shop.findFirst();
-    return shop ?? DEFAULT_SHOP_SETTINGS;
+    if (shop) {
+      const persistent = getPersistentSettings();
+      return { ...DEFAULT_SHOP_SETTINGS, ...persistent, ...shop };
+    }
+    return getPersistentSettings();
   } catch (error: any) {
-    console.error('[DB] getShopSettings direct query failed:', error.message);
-    return DEFAULT_SHOP_SETTINGS;
+    console.error('[DB] getShopSettings query failed, using persistent fallback:', error.message);
+    return getPersistentSettings();
   }
 }
 
@@ -242,6 +284,7 @@ export async function getStoreSettings(pageKey: string) {
     return null;
   }
 }
+
 
 
 
