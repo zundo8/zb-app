@@ -65,7 +65,11 @@ export default function ChatPage() {
 
   useEffect(() => {
     fetchMessages();
-    const interval = setInterval(fetchMessages, 4000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchMessages();
+      }
+    }, 4000);
     return () => clearInterval(interval);
   }, [fetchMessages]);
 

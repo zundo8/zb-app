@@ -66,7 +66,7 @@ export default function LiveCartsPage() {
   const fetchCarts = useCallback(async () => {
     setRefreshing(true);
     try {
-      const res = await fetch('/api/admin/live-carts');
+      const res = await fetch('/api/admin/live-carts?limit=50&days=7');
       const data = await res.json();
       if (res.ok && Array.isArray(data)) {
         setCarts(data);
@@ -97,8 +97,12 @@ export default function LiveCartsPage() {
 
   useEffect(() => {
     fetchCarts();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchCarts, 5000);
+    // Auto-refresh every 15 seconds when tab is active
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchCarts();
+      }
+    }, 15000);
     return () => clearInterval(interval);
   }, [fetchCarts]);
 

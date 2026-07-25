@@ -174,9 +174,40 @@ export default function WhatsAppChatPage() {
     loadTemplatesOnMount();
   }, []);
 
-  // Poll conversations every 5 seconds
+  // Fetch on-demand identity details when an active conversation is selected
+  useEffect(() => {
+    if (!activePhone) return;
+    async function fetchIdentity() {
+      try {
+        const res = await fetch(`/api/whatsapp/chat/identity?phone=${encodeURIComponent(activePhone!)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setConversations(prev => prev.map(c => {
+            if (c.phoneNumber === activePhone) {
+              return {
+                ...c,
+                customerName: data.customerName || c.customerName,
+                customerId: data.customerId || c.customerId,
+                customerEmail: data.customerEmail || c.customerEmail,
+                whatsappOptedOut: typeof data.whatsappOptedOut === 'boolean' ? data.whatsappOptedOut : c.whatsappOptedOut,
+                ordersCount: data.ordersCount ?? c.ordersCount,
+                totalSpent: data.totalSpent ?? c.totalSpent,
+              };
+            }
+            return c;
+          }));
+        }
+      } catch (err) {
+        console.error("Error fetching conversation identity details:", err);
+      }
+    }
+    fetchIdentity();
+  }, [activePhone]);
+
+  // Poll conversations every 10 seconds (paused when tab is in background)
   useEffect(() => {
     async function fetchConversations() {
+      if (document.visibilityState !== 'visible') return;
       try {
         const res = await fetch("/api/whatsapp/chat/conversations");
         const data = await res.json();
@@ -191,32 +222,57 @@ export default function WhatsAppChatPage() {
     }
     fetchConversations();
 
-    const interval = setInterval(fetchConversations, 5000);
+    const interval = setInterval(fetchConversations, 10000);
     return () => clearInterval(interval);
   }, [refreshTrigger]);
 
-  // Fetch messages when active conversation changes or poll every 4 seconds
+  // Fetch messages when active conversation changes or poll every 4 seconds with since param
   useEffect(() => {
     if (!activePhone) return;
 
-    async function fetchMessages(showLoading = false) {
-      if (showLoading) setLoadingMessages(true);
+    const lastMsgRef = { current: "" };
+
+    async function fetchInitialMessages() {
+      setLoadingMessages(true);
       try {
-        const res = await fetch(`/api/whatsapp/chat/messages?phone=${activePhone}`);
+        const res = await fetch(`/api/whatsapp/chat/messages?phone=${encodeURIComponent(activePhone!)}`);
         const data = await res.json();
-        if (res.ok && data.messages) {
+        if (res.ok && Array.isArray(data.messages)) {
           setMessages(data.messages);
+          if (data.messages.length > 0) {
+            lastMsgRef.current = data.messages[data.messages.length - 1].createdAt;
+          }
         }
       } catch (err) {
         console.error("Error loading messages thread:", err);
       } finally {
-        if (showLoading) setLoadingMessages(false);
+        setLoadingMessages(false);
       }
     }
 
-    fetchMessages(true);
+    async function pollDeltaMessages() {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const sinceParam = lastMsgRef.current ? `&since=${encodeURIComponent(lastMsgRef.current)}` : '';
+        const res = await fetch(`/api/whatsapp/chat/messages?phone=${encodeURIComponent(activePhone!)}${sinceParam}`);
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.messages) && data.messages.length > 0) {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMsgs = data.messages.filter((m: Message) => !existingIds.has(m.id));
+            if (newMsgs.length === 0) return prev;
+            return [...prev, ...newMsgs];
+          });
+          lastMsgRef.current = data.messages[data.messages.length - 1].createdAt;
+        }
+      } catch (err) {
+        console.error("Error polling delta messages:", err);
+      }
+    }
 
-    const interval = setInterval(() => fetchMessages(false), 4000);
+    fetchInitialMessages();
+
+    const interval = setInterval(pollDeltaMessages, 4000);
     return () => clearInterval(interval);
   }, [activePhone]);
 

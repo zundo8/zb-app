@@ -166,6 +166,8 @@ model Customer {
   storeCreditTxns       StoreCredit[]
   wishlist              Wishlist[]
   carts                 Cart[]
+
+  @@index([phone])
 }
 
 model Cart {

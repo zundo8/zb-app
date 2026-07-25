@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const phone = searchParams.get('phone');
+    const since = searchParams.get('since');
 
     if (!phone) {
       return NextResponse.json({ error: 'Missing phone number parameter' }, { status: 400 });
@@ -25,24 +26,36 @@ export async function GET(req: NextRequest) {
     if (formatted) conditions.push({ phoneNumber: formatted });
     if (last10.length === 10) conditions.push({ phoneNumber: { endsWith: last10 } });
 
+    const whereCondition: any = { OR: conditions };
+    if (since) {
+      const sinceDate = new Date(since);
+      if (!isNaN(sinceDate.getTime())) {
+        whereCondition.createdAt = { gt: sinceDate };
+      }
+    }
+
     // Fetch message history matching exact phone, formatted phone, or last 10 digits
     const messages = await prisma.whatsAppMessage.findMany({
-      where: {
-        OR: conditions
-      },
+      where: whereCondition,
       orderBy: { createdAt: 'asc' },
       take: 300,
     });
 
-    // Mark any unread inbound messages as read
-    await prisma.whatsAppMessage.updateMany({
-      where: {
-        OR: conditions,
-        direction: 'inbound',
-        status: { not: 'read' }
-      },
-      data: { status: 'read' }
-    });
+    // Only run updateMany if there is at least one unread inbound message
+    const hasUnreadInbound = messages.some(
+      (m: any) => m.direction === 'inbound' && m.status !== 'read'
+    );
+
+    if (hasUnreadInbound) {
+      await prisma.whatsAppMessage.updateMany({
+        where: {
+          OR: conditions,
+          direction: 'inbound',
+          status: { not: 'read' }
+        },
+        data: { status: 'read' }
+      });
+    }
 
     return NextResponse.json({ messages });
   } catch (error: any) {

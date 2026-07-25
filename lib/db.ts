@@ -91,14 +91,18 @@ const prismaClientSingleton = () => {
     // Force allow self-signed certificates globally for the process
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
+    // Connection Pool Configuration:
+    // Increased max connections from 5 to 10 after Phase 1-3 query bounding & polling optimizations.
+    // This allows higher concurrency for storefront checkout/product requests alongside admin dashboard usage
+    // while staying safely within Supabase's transaction pooler (port 6543, Supavisor) client limits.
     const pool = new Pool({
       connectionString: pgUrl,
       ssl: { 
         rejectUnauthorized: false 
       },
-      max: 5,
+      max: 10,
       idleTimeoutMillis: 15000,
-      connectionTimeoutMillis: 10000, // Increased from 5000 to allow circuit breaker recovery
+      connectionTimeoutMillis: 10000, // Allows circuit breaker recovery under transient network pressure
     });
 
     pool.on('error', (err) => {

@@ -86,7 +86,11 @@ export default function TicketDetailPage() {
 
   useEffect(() => {
     fetchTicket();
-    const interval = setInterval(fetchTicket, 3000); // Snappy polling for live chat
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchTicket();
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, [params.id]);
 

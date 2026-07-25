@@ -81,6 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     let cancelled = false;
     const checkDbHealth = async () => {
+      if (document.visibilityState !== 'visible') return;
       try {
         const res = await fetch('/api/admin/db-status', { cache: 'no-store' });
         if (!cancelled) {
@@ -126,6 +127,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Poll unread notification count
   useEffect(() => {
     const fetchUnread = async () => {
+      if (document.visibilityState !== 'visible') return;
       try {
         const res = await fetch("/api/admin/notifications/unread-count");
         if (res.ok) {
