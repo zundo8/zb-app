@@ -1,5 +1,5 @@
 import { fetchProducts, fetchEnabledCollections, fetchPolicies, fetchCollectionByHandle } from "@/lib/shopify-admin";
-import prisma, { getStoreSettings } from "@/lib/db";
+import prisma, { getStoreSettings, DEFAULT_SHOP_SETTINGS } from "@/lib/db";
 import NextImage from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -92,18 +92,7 @@ export default async function Home() {
     shop = await prisma.shop.findFirst().catch(() => null);
   }
 
-  const s = (shop as any) || {
-    heroTitle: "Redefine The Standard",
-    showHeroText: true,
-    showLatestCuration: true,
-    showArchive: true,
-    showBlueprint: true,
-    showCommunity: true,
-    communityTitle: "Featured Looks",
-    communitySubtitle: "Community",
-    spotlightTitle: "AUTHENTIC STREETWEAR",
-    spotlightSubtitle: "Luxury Indian streetwear for modern men."
-  };
+  const s = (shop as any) || DEFAULT_SHOP_SETTINGS;
 
   // Concurrently fetch all independent assets to optimize TTFB and speed up the homepage loading
   const [collections, policies, banners, products] = await Promise.all([

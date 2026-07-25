@@ -166,6 +166,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ ...envSettings(), dbError: `DB error: ${dbErr.message}` });
     }
 
+    if (!shop) {
+      return NextResponse.json(envSettings());
+    }
+
     const s = shop as any;
     return NextResponse.json({
       id: s.id,

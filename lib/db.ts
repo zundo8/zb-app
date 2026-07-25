@@ -180,13 +180,57 @@ globalThis.__prisma_fresh_v2 = prisma;
 
 export default prisma;
 
+export const DEFAULT_SHOP_SETTINGS = {
+  id: 'env-fallback',
+  domain: process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || '8tiahf-bk.myshopify.com',
+  accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',
+  heroTitle: "Redefine The Standard",
+  heroSubtitle: "Atmospheric luxury streetwear",
+  heroButtonText: "Discover",
+  latestCurationTitle: "Latest curation",
+  latestCurationSubtitle: "Season Drop",
+  archiveTitle: "The Archive",
+  archiveSubtitle: "Organic Evolution",
+  blueprintTitle: "The blueprint of Zica Bella",
+  blueprintSubtitle: "Technique & Motion",
+  showHeroText: true,
+  showLatestCuration: true,
+  showArchive: true,
+  showBlueprint: true,
+  showCommunity: true,
+  communityTitle: "Featured Looks",
+  communitySubtitle: "Community",
+  spotlightTitle: "AUTHENTIC STREETWEAR",
+  spotlightSubtitle: "Luxury Indian streetwear for modern men. Redefining bold everyday style.",
+  spotlightCollection: "tshirts",
+  shopAllLink: "/collections/all",
+  footerLogo3dUrl: "https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb",
+  showProductVideo: true,
+  showSizeChart: true,
+  showBrand: true,
+  showShippingReturn: true,
+  showCare: true,
+  showSizeFit: true,
+  showDetails: true,
+  showTreeText: true,
+  communityMinOrders: 1,
+  communityAgeRestricted: true,
+  communityWhatsAppEnabled: true,
+  showRingCarousel: true,
+  ringCarouselTitle: "RING COLLECTION",
+  flipbookTitle: "Archival Vision",
+  flipbookTag: "Core Manifest",
+  flipbookDesc: "Engineered for those who move without compromise.",
+};
+
 export async function getShopSettings() {
   try {
-    return await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
+    const shop = await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
       ?? await prisma.shop.findFirst();
+    return shop ?? DEFAULT_SHOP_SETTINGS;
   } catch (error: any) {
     console.error('[DB] getShopSettings direct query failed:', error.message);
-    return null;
+    return DEFAULT_SHOP_SETTINGS;
   }
 }
 
@@ -198,6 +242,7 @@ export async function getStoreSettings(pageKey: string) {
     return null;
   }
 }
+
 
 
 
