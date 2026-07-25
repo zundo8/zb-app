@@ -145,7 +145,7 @@ async function handler(req: Request) {
   return NextResponse.json({ timeSeries, granularity: truncUnit });
   } catch (error: any) {
     console.error('[Analytics Charts] Error:', error.message);
-    return NextResponse.json({ timeSeries: [], granularity: 'day', error: error.message }, { status: 200 });
+    return NextResponse.json({ timeSeries: [], granularity: 'day', error: error.message }, { status: 500 });
   }
 }
 

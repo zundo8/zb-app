@@ -53,7 +53,8 @@ import {
   ShieldCheck,
   Search,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -73,6 +74,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navScrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
   useRealtimeSync();
+
+  const [dbStatus, setDbStatus] = useState<{ status: string; error: string | null; hint?: string | null } | null>(null);
+
+  // Poll DB health every 60s — lightweight check for the persistent banner
+  useEffect(() => {
+    let cancelled = false;
+    const checkDbHealth = async () => {
+      try {
+        const res = await fetch('/api/admin/db-status', { cache: 'no-store' });
+        if (!cancelled) {
+          if (res.ok) {
+            const data = await res.json();
+            setDbStatus({ status: data.status, error: data.error, hint: data.hint });
+          } else {
+            setDbStatus({ status: 'error', error: `HTTP ${res.status}` });
+          }
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setDbStatus({ status: 'error', error: e.message });
+        }
+      }
+    };
+    checkDbHealth();
+    const interval = setInterval(checkDbHealth, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -718,6 +746,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Content area — scrollable */}
         <div className="flex-1 px-4 lg:px-8 py-4 lg:py-8 overflow-y-auto overflow-x-hidden custom-scrollbar relative w-full">
+          {/* DB Unavailable Banner */}
+          {dbStatus && dbStatus.status !== 'connected' && (
+            <div className="max-w-[1400px] w-full mx-auto mb-4">
+              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 backdrop-blur-sm text-amber-200 dark:text-amber-300 text-sm font-medium">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span className="flex-1">
+                  Database connection issue — data may be incomplete or missing.
+                  {dbStatus.hint && <span className="text-amber-400/80 ml-1 text-xs block mt-0.5">{dbStatus.hint}</span>}
+                  {dbStatus.error && !dbStatus.hint && <span className="text-amber-400/70 ml-1 text-xs">({dbStatus.error})</span>}
+                </span>
+                <a
+                  href="/api/admin/db-status"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2 shrink-0"
+                >
+                  Check status →
+                </a>
+              </div>
+            </div>
+          )}
           <div className="max-w-[1400px] w-full mx-auto relative overflow-x-clip">{children}</div>
         </div>
       </main>

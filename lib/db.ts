@@ -37,8 +37,15 @@ const createMockPrismaClient = (reason: string) => {
 };
 
 const prismaClientSingleton = () => {
-  if (process.env.SUPABASE_DATABASE_URL) {
-    process.env.DATABASE_URL = process.env.SUPABASE_DATABASE_URL;
+  // URL resolution priority:
+  // 1. SUPABASE_DATABASE_URL (explicitly set for Supabase pooler)
+  // 2. POSTGRES_PRISMA_URL (Vercel-style, typically transaction pooler)
+  // 3. POSTGRES_URL (Vercel-style)
+  // 4. DATABASE_URL (fallback)
+  
+  const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
+  if (supabaseUrl) {
+    process.env.DATABASE_URL = supabaseUrl;
     // Clear other cloud platform overrides to force connecting to Supabase
     delete process.env.POSTGRES_PRISMA_URL;
     delete process.env.POSTGRES_URL;
@@ -47,6 +54,7 @@ const prismaClientSingleton = () => {
   const isSqlite = dbUrl.startsWith('file:');
 
   const pgUrl =
+    supabaseUrl ||
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL ||
     (dbUrl && !isSqlite ? dbUrl : '');
@@ -54,6 +62,11 @@ const prismaClientSingleton = () => {
   const isValidPgUrl = pgUrl && !pgUrl.includes('(not available)') && !pgUrl.includes('placeholder') && pgUrl !== '';
 
   if (isValidPgUrl && !dbUrl.startsWith('postgres') && !isSqlite) {
+    process.env.DATABASE_URL = pgUrl;
+  }
+
+  // Always sync DATABASE_URL with what the pool will actually use
+  if (isValidPgUrl && pgUrl !== dbUrl) {
     process.env.DATABASE_URL = pgUrl;
   }
 
@@ -70,6 +83,10 @@ const prismaClientSingleton = () => {
     return createMockPrismaClient('no_db_url');
   }
 
+  // Log which URL we're connecting to (redact password)
+  const safeUrl = pgUrl.replace(/:([^@:]+)@/, ':****@');
+  console.log(`[DB] Connecting via: ${safeUrl}`);
+
   try {
     // Force allow self-signed certificates globally for the process
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -79,13 +96,18 @@ const prismaClientSingleton = () => {
       ssl: { 
         rejectUnauthorized: false 
       },
-      max: 5, // Reduced from 20 to prevent database connection exhaustion in production
-      idleTimeoutMillis: 15000, // Reduced from 30000
-      connectionTimeoutMillis: 5000, // Reduced from 10000 to prevent blocking readiness probes
+      max: 5,
+      idleTimeoutMillis: 15000,
+      connectionTimeoutMillis: 10000, // Increased from 5000 to allow circuit breaker recovery
     });
 
     pool.on('error', (err) => {
-      console.error('[DB] Unexpected error on idle client', err);
+      const msg = String(err?.message || '');
+      if (msg.includes('ECIRCUITBREAKER')) {
+        console.error('[DB] Pool: ECIRCUITBREAKER — Supabase has temporarily blocked connections. Will auto-recover when breaker resets.');
+      } else {
+        console.error('[DB] Unexpected error on idle client:', msg);
+      }
     });
 
     const adapter = new PrismaPg(pool as any);
@@ -97,31 +119,6 @@ const prismaClientSingleton = () => {
 
     const extendedClient = client.$extends({
       query: {
-        $allModels: {
-          async $allOperations({ model, operation, args, query }: any) {
-            try {
-              return await query(args);
-            } catch (error: any) {
-              const errMsg = String(error?.message || error || '');
-              if (
-                errMsg.includes('ECIRCUITBREAKER') ||
-                errMsg.includes('AUTHENTICATION FAILURES') ||
-                errMsg.includes('connection timeout') ||
-                errMsg.includes('Connection terminated') ||
-                errMsg.includes("Can't reach database server") ||
-                errMsg.includes('circuit breaker') ||
-                errMsg.includes('ECONNREFUSED')
-              ) {
-                console.warn(`[DB Interceptor] Gracefully handled DB error on ${model}.${operation}: ${errMsg.substring(0, 120)}`);
-                if (operation === 'count') return 0;
-                if (operation === 'findMany') return [];
-                if (operation === 'findUnique' || operation === 'findFirst') return null;
-                return null;
-              }
-              throw error;
-            }
-          }
-        },
         customer: {
           async create({ args, query }) {
             const customer = await query(args);

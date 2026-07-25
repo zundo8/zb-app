@@ -93,7 +93,7 @@ async function handler(req: Request) {
   return NextResponse.json({ sources: topSources });
   } catch (error: any) {
     console.error('[Analytics Traffic] Error:', error.message);
-    return NextResponse.json({ sources: [], error: error.message }, { status: 200 });
+    return NextResponse.json({ sources: [], error: error.message }, { status: 500 });
   }
 }
 
