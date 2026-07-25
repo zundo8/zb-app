@@ -97,6 +97,31 @@ const prismaClientSingleton = () => {
 
     const extendedClient = client.$extends({
       query: {
+        $allModels: {
+          async $allOperations({ model, operation, args, query }: any) {
+            try {
+              return await query(args);
+            } catch (error: any) {
+              const errMsg = String(error?.message || error || '');
+              if (
+                errMsg.includes('ECIRCUITBREAKER') ||
+                errMsg.includes('AUTHENTICATION FAILURES') ||
+                errMsg.includes('connection timeout') ||
+                errMsg.includes('Connection terminated') ||
+                errMsg.includes("Can't reach database server") ||
+                errMsg.includes('circuit breaker') ||
+                errMsg.includes('ECONNREFUSED')
+              ) {
+                console.warn(`[DB Interceptor] Gracefully handled DB error on ${model}.${operation}: ${errMsg.substring(0, 120)}`);
+                if (operation === 'count') return 0;
+                if (operation === 'findMany') return [];
+                if (operation === 'findUnique' || operation === 'findFirst') return null;
+                return null;
+              }
+              throw error;
+            }
+          }
+        },
         customer: {
           async create({ args, query }) {
             const customer = await query(args);

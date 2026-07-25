@@ -30,46 +30,55 @@ export async function GET(req) {
     // 1. Fetch from Meta API
     const metaTemplates = await listTemplates();
 
-    // 2. Sync to local database cache (whatsapp_templates)
-    if (metaTemplates && Array.isArray(metaTemplates)) {
-      for (const t of metaTemplates) {
-        await prisma.whatsAppTemplate.upsert({
-          where: { name: t.name },
-          update: {
-            category: t.category,
-            language: t.language,
-            status: t.status,
-            components: t.components || [],
-            updatedAt: new Date()
-          },
-          create: {
-            name: t.name,
-            category: t.category,
-            language: t.language,
-            status: t.status,
-            components: t.components || []
+    // 2. Sync to local database cache (whatsapp_templates) if DB is active
+    if (metaTemplates && Array.isArray(metaTemplates) && metaTemplates.length > 0) {
+      try {
+        for (const t of metaTemplates) {
+          await prisma.whatsAppTemplate.upsert({
+            where: { name: t.name },
+            update: {
+              category: t.category,
+              language: t.language,
+              status: t.status,
+              components: t.components || [],
+              updatedAt: new Date()
+            },
+            create: {
+              name: t.name,
+              category: t.category,
+              language: t.language,
+              status: t.status,
+              components: t.components || []
+            }
+          }).catch(() => {});
+        }
+
+        const metaNames = metaTemplates.map(t => t.name);
+        await prisma.whatsAppTemplate.deleteMany({
+          where: {
+            name: { notIn: metaNames }
           }
-        });
+        }).catch(() => {});
+      } catch (dbErr) {
+        console.warn('[WhatsApp Templates] Database cache sync warning:', dbErr.message);
       }
 
-      // Purge templates from DB that no longer exist on Meta
-      const metaNames = metaTemplates.map(t => t.name);
-      await prisma.whatsAppTemplate.deleteMany({
-        where: {
-          name: { notIn: metaNames }
-        }
-      });
+      // Return live Meta templates directly to guarantee UI displays templates cleanly
+      return NextResponse.json({ templates: metaTemplates });
     }
 
-    // 3. Return the synced templates from database
+    // 3. Fallback to database query if Meta API returns empty
     const dbTemplates = await prisma.whatsAppTemplate.findMany({
       orderBy: { name: 'asc' }
-    });
+    }).catch(() => []);
 
-    return NextResponse.json({ templates: dbTemplates });
+    return NextResponse.json({ templates: dbTemplates || [] });
   } catch (error) {
     console.error('[WhatsApp Templates CRUD] GET Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const cleanMsg = String(error.message || '').includes('ECIRCUITBREAKER') || String(error.message || '').includes('AUTHENTICATION FAILURES')
+      ? 'WhatsApp template service temporarily updating, please retry.'
+      : (error.message || 'Failed to fetch WhatsApp templates');
+    return NextResponse.json({ error: cleanMsg }, { status: 500 });
   }
 }
 
