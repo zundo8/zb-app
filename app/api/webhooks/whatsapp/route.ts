@@ -50,31 +50,30 @@ async function downloadMetaMedia(mediaId: string, mimeType?: string, fileName?: 
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
     const detectedMime = mimeType || (ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.mp4' ? 'video/mp4' : ext === '.pdf' ? 'application/pdf' : 'image/jpeg');
 
-    // 1. Convert buffer to Data URL for 100% guaranteed DB persistence without 404 risk
-    const base64Str = buffer.toString('base64');
-    const dataUrl = `data:${detectedMime};base64,${base64Str}`;
-
-    // 2. Also save to private uploads directory on disk
+    // 1. Save to private uploads directory on disk as optional/best-effort cache
     try {
       const privateUploadDir = path.join(process.cwd(), 'private_uploads', 'whatsapp');
       await fs.mkdir(privateUploadDir, { recursive: true });
       await fs.writeFile(path.join(privateUploadDir, filename), buffer);
     } catch (diskErr) {
-      console.warn('[WhatsApp Webhook] Private disk write warning:', diskErr);
+      console.warn('[WhatsApp Webhook] Private disk write warning (ephemeral disk):', diskErr);
     }
 
-    // 3. Try uploading to Supabase Storage if configured
+    // 2. Upload to Supabase Storage bucket 'store-assets/uploads/' (PRIMARY PATH)
     try {
       const storageResult = await uploadToStorage(buffer, detectedMime, filename);
       if (storageResult.url && !storageResult.fallback) {
+        console.log(`[WhatsApp Webhook] Successfully uploaded media ${mediaId} to Supabase Storage: ${storageResult.url}`);
         return storageResult.url;
       }
-    } catch (storageErr) {
-      // Ignore Supabase storage errors and fallback to Data URL
+      console.warn(`[WhatsApp Webhook] Supabase Storage upload returned base64 fallback for media ${mediaId}. Verify SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.`);
+    } catch (storageErr: any) {
+      console.error(`[WhatsApp Webhook] Supabase Storage upload failed for media ${mediaId}:`, storageErr?.message || storageErr);
     }
 
-    // Default: return Data URL for instant rendering in database & browser
-    return dataUrl;
+    // 3. Last-resort fallback: return Data URL for instant rendering in database & browser
+    const base64Str = buffer.toString('base64');
+    return `data:${detectedMime};base64,${base64Str}`;
   } catch (err: any) {
     console.error('[WhatsApp Webhook] Media download error, using proxy fallback:', err.message);
     return `/api/whatsapp/chat/media?mediaId=${mediaId}`;

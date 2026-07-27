@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { requireAuth, handleAuthError } from '@/lib/auth/rbac';
 import { getConfig } from '@/lib/whatsapp/client';
+import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,13 +22,29 @@ export async function GET(req: NextRequest) {
     const mediaId = searchParams.get('mediaId');
     const fileName = searchParams.get('file');
 
-    // 2. Serve from secure private uploads directory if fileName is provided
+    if (!fileName && !mediaId) {
+      return NextResponse.json({ error: 'Missing file or mediaId parameter' }, { status: 400 });
+    }
+
+    // 2. Step 1: Check local disk if fileName is provided
     if (fileName) {
       const cleanFileName = path.basename(fileName);
       const filePath = path.join(process.cwd(), 'private_uploads', 'whatsapp', cleanFileName);
+      const legacyPath = path.join(process.cwd(), 'public', 'uploads', 'whatsapp', cleanFileName);
 
+      let foundPath: string | null = null;
       try {
-        const fileBuffer = await fs.readFile(filePath);
+        await fs.access(filePath);
+        foundPath = filePath;
+      } catch {
+        try {
+          await fs.access(legacyPath);
+          foundPath = legacyPath;
+        } catch {}
+      }
+
+      if (foundPath) {
+        const fileBuffer = await fs.readFile(foundPath);
         const ext = path.extname(cleanFileName).toLowerCase();
         
         let contentType = 'application/octet-stream';
@@ -46,75 +63,107 @@ export async function GET(req: NextRequest) {
             'Cache-Control': 'private, max-age=3600, no-transform'
           }
         });
-      } catch (fileErr) {
-        // Fallback: check legacy public directory if present
-        const legacyPath = path.join(process.cwd(), 'public', 'uploads', 'whatsapp', cleanFileName);
-        try {
-          const fileBuffer = await fs.readFile(legacyPath);
-          const ext = path.extname(cleanFileName).toLowerCase();
-          
-          let contentType = 'image/jpeg';
-          if (ext === '.png') contentType = 'image/png';
-          else if (ext === '.webp') contentType = 'image/webp';
-          else if (ext === '.mp4') contentType = 'video/mp4';
-          else if (ext === '.pdf') contentType = 'application/pdf';
+      }
+    }
 
-          return new NextResponse(fileBuffer, {
-            headers: {
-              'Content-Type': contentType,
-              'Cache-Control': 'private, max-age=3600'
+    // 3. Step 2: Live Fallback to Meta Graph API using mediaId, waMessageId, or filename DB lookup
+    let targetWaMessageId = mediaId;
+    if (!targetWaMessageId && fileName) {
+      const cleanFileName = path.basename(fileName);
+      const msg = await prisma.whatsAppMessage.findFirst({
+        where: {
+          OR: [
+            { mediaUrl: { contains: cleanFileName } },
+            { body: { contains: cleanFileName } }
+          ]
+        },
+        select: { waMessageId: true }
+      }).catch(() => null);
+      if (msg?.waMessageId) {
+        targetWaMessageId = msg.waMessageId;
+      }
+    }
+
+    if (targetWaMessageId) {
+      let resolvedMetaMediaId: string | null = null;
+
+      if (/^\d+$/.test(targetWaMessageId)) {
+        resolvedMetaMediaId = targetWaMessageId;
+      } else {
+        // Target is a wamid or non-numeric string: look up recorded webhook event payload
+        const events = await prisma.whatsAppWebhookEvent.findMany({
+          take: 200,
+          orderBy: { createdAt: 'desc' }
+        }).catch(() => []);
+
+        for (const ev of events) {
+          const payloadStr = JSON.stringify(ev.payload || {});
+          if (payloadStr.includes(targetWaMessageId)) {
+            const entry = (ev.payload as any)?.entry?.[0];
+            const change = entry?.changes?.[0]?.value;
+            const messages = change?.messages || [];
+            const matchedMsg = messages.find((m: any) => m.id === targetWaMessageId);
+            if (matchedMsg) {
+              const mType = matchedMsg.type;
+              const mediaObj = matchedMsg[mType];
+              if (mediaObj?.id) {
+                resolvedMetaMediaId = mediaObj.id;
+                break;
+              }
             }
-          });
-        } catch (legacyErr) {
-          // If file not on disk, return 404
+          }
+        }
+      }
+
+      if (resolvedMetaMediaId) {
+        try {
+          const config = await getConfig();
+          const accessToken = config.accessToken || process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+
+          if (accessToken) {
+            const apiVersion = process.env.WHATSAPP_API_VERSION || 'v23.0';
+            const metaRes = await fetch(`https://graph.facebook.com/${apiVersion}/${resolvedMetaMediaId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+            if (metaRes.ok) {
+              const metaData = await metaRes.json();
+              if (metaData.url) {
+                const mediaRes = await fetch(metaData.url, {
+                  headers: { Authorization: `Bearer ${accessToken}` }
+                });
+
+                if (mediaRes.ok) {
+                  const contentType = mediaRes.headers.get('content-type') || metaData.mime_type || 'application/octet-stream';
+                  const buffer = await mediaRes.arrayBuffer();
+
+                  return new NextResponse(buffer, {
+                    headers: {
+                      'Content-Type': contentType,
+                      'Cache-Control': 'private, max-age=3600'
+                    }
+                  });
+                }
+              }
+            }
+          }
+        } catch (metaErr: any) {
+          console.warn('[WhatsApp Media Proxy] Meta Graph API fallback fetch error:', metaErr?.message);
         }
       }
     }
 
-    // 3. Serve from Meta Graph API if mediaId is provided
-    if (mediaId) {
-      const config = await getConfig();
-      const accessToken = config.accessToken || process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
-
-      if (!accessToken) {
-        return NextResponse.json({ error: 'WhatsApp API token not configured' }, { status: 500 });
-      }
-
-      const apiVersion = process.env.WHATSAPP_API_VERSION || 'v23.0';
-      const metaRes = await fetch(`https://graph.facebook.com/${apiVersion}/${mediaId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-
-      if (!metaRes.ok) {
-        return NextResponse.json({ error: 'Failed to fetch media metadata from Meta' }, { status: metaRes.status });
-      }
-
-      const metaData = await metaRes.json();
-      if (!metaData.url) {
-        return NextResponse.json({ error: 'Meta media URL missing' }, { status: 404 });
-      }
-
-      const mediaRes = await fetch(metaData.url, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-
-      if (!mediaRes.ok) {
-        return NextResponse.json({ error: 'Failed to download media binary from Meta' }, { status: mediaRes.status });
-      }
-
-      const contentType = mediaRes.headers.get('content-type') || metaData.mime_type || 'application/octet-stream';
-      const buffer = await mediaRes.arrayBuffer();
-
-      return new NextResponse(buffer, {
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': 'private, max-age=3600'
-        }
-      });
-    }
-
-    return NextResponse.json({ error: 'Missing file or mediaId parameter' }, { status: 400 });
+    // 4. Step 3: Return clear, structured 404 error when file is missing from disk and unrecoverable from Meta
+    return NextResponse.json(
+      {
+        error: 'Media unavailable',
+        code: 'MEDIA_UNAVAILABLE',
+        message: 'Media file is no longer available on local disk or Meta WhatsApp servers.'
+      },
+      { status: 404 }
+    );
   } catch (error: any) {
     return handleAuthError(error);
   }
 }
+

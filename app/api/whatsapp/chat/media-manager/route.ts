@@ -94,6 +94,10 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      if (!mUrl && m.waMessageId) {
+        mUrl = `/api/whatsapp/chat/media?mediaId=${m.waMessageId}`;
+      }
+
       if (!mType && mUrl) {
         if (/\.(jpeg|jpg|png|gif|webp)/i.test(mUrl) || mUrl.startsWith('data:image/')) mType = 'image';
         else if (/\.(mp4|mov|avi|webm)/i.test(mUrl)) mType = 'video';

@@ -59,6 +59,7 @@ export default function WhatsAppChatPage() {
   const [uploadType, setUploadType] = useState<string>("image");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [failedMediaIds, setFailedMediaIds] = useState<Record<string, boolean>>({});
 
   // Side Drawer for contact details & editing
   const [showContactInfo, setShowContactInfo] = useState(false);
@@ -952,6 +953,25 @@ export default function WhatsAppChatPage() {
               renderCatalogBubble(m)
             ) : isTemplate ? (
               renderTemplateBubble(m, activeConv!)
+            ) : failedMediaIds[m.id] ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5 p-3 bg-zinc-900/90 border border-white/10 rounded-xl max-w-xs text-zinc-400">
+                  <div className="p-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg shrink-0">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold text-zinc-300 block truncate">
+                      Media no longer available
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block truncate">
+                      Expired or deleted from storage
+                    </span>
+                  </div>
+                </div>
+                {m.body && !m.body.startsWith("[Media:") && !m.body.startsWith("http") && (
+                  formatMessageText(m.body)
+                )}
+              </div>
             ) : (mType === "image" || !mType) && mediaUrlToUse ? (
               <div className="space-y-2">
                 <img 
@@ -964,6 +984,8 @@ export default function WhatsAppChatPage() {
                     if (m.waMessageId && !target.dataset.triedFallback) {
                       target.dataset.triedFallback = "true";
                       target.src = `/api/whatsapp/chat/media?mediaId=${m.waMessageId}`;
+                    } else {
+                      setFailedMediaIds(prev => ({ ...prev, [m.id]: true }));
                     }
                   }}
                 />
@@ -977,6 +999,15 @@ export default function WhatsAppChatPage() {
                   src={mediaUrlToUse} 
                   controls 
                   className="max-w-xs max-h-60 rounded-lg border border-white/10"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (m.waMessageId && !target.dataset.triedFallback) {
+                      target.dataset.triedFallback = "true";
+                      target.src = `/api/whatsapp/chat/media?mediaId=${m.waMessageId}`;
+                    } else {
+                      setFailedMediaIds(prev => ({ ...prev, [m.id]: true }));
+                    }
+                  }}
                 />
                 {m.body && !m.body.startsWith("[Media:") && !m.body.startsWith("http") && (
                   formatMessageText(m.body)
@@ -986,14 +1017,40 @@ export default function WhatsAppChatPage() {
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2 pt-1">
                   <Music className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <audio src={mediaUrlToUse} controls className="max-w-xs h-9 text-xs" />
+                  <audio 
+                    src={mediaUrlToUse} 
+                    controls 
+                    className="max-w-xs h-9 text-xs" 
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (m.waMessageId && !target.dataset.triedFallback) {
+                        target.dataset.triedFallback = "true";
+                        target.src = `/api/whatsapp/chat/media?mediaId=${m.waMessageId}`;
+                      } else {
+                        setFailedMediaIds(prev => ({ ...prev, [m.id]: true }));
+                      }
+                    }}
+                  />
                 </div>
                 {m.body && !m.body.startsWith("[Media:") && !m.body.startsWith("http") && (
                   formatMessageText(m.body)
                 )}
               </div>
             ) : mType === "sticker" && mediaUrlToUse ? (
-              <img src={mediaUrlToUse} alt="Sticker" className="w-32 h-32 object-contain" />
+              <img 
+                src={mediaUrlToUse} 
+                alt="Sticker" 
+                className="w-32 h-32 object-contain" 
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (m.waMessageId && !target.dataset.triedFallback) {
+                    target.dataset.triedFallback = "true";
+                    target.src = `/api/whatsapp/chat/media?mediaId=${m.waMessageId}`;
+                  } else {
+                    setFailedMediaIds(prev => ({ ...prev, [m.id]: true }));
+                  }
+                }}
+              />
             ) : mType === "document" || mediaUrlToUse ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-3 bg-zinc-900/80 border border-white/10 p-3 rounded-xl max-w-xs">

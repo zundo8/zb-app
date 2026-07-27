@@ -41,6 +41,7 @@ export default function WhatsAppMediaManagerPage() {
   const [editCaptionText, setEditCaptionText] = useState<string>("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [failedMediaIds, setFailedMediaIds] = useState<Record<string, boolean>>({});
 
   const fetchMedia = async () => {
     setLoading(true);
@@ -280,14 +281,41 @@ export default function WhatsAppMediaManagerPage() {
               >
                 {/* Media Content Preview */}
                 <div className="relative aspect-video bg-zinc-950 flex items-center justify-center overflow-hidden">
-                  {item.mediaType === "image" || (!item.mediaType && (item.mediaUrl.startsWith("data:image/") || /\.(jpeg|jpg|png|webp|gif)/i.test(item.mediaUrl))) ? (
+                  {failedMediaIds[item.id] ? (
+                    <div className="flex flex-col items-center justify-center gap-1.5 text-zinc-500 p-4 text-center">
+                      <AlertCircle className="w-8 h-8 text-rose-500/80 mb-1" />
+                      <span className="text-xs font-semibold text-zinc-300">Media Unavailable</span>
+                      <span className="text-[10px] text-zinc-500">Expired or deleted from storage</span>
+                    </div>
+                  ) : item.mediaType === "image" || (!item.mediaType && (item.mediaUrl.startsWith("data:image/") || /\.(jpeg|jpg|png|webp|gif)/i.test(item.mediaUrl))) ? (
                     <img 
                       src={item.mediaUrl} 
                       alt="Attachment Preview"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (item.waMessageId && !target.dataset.triedFallback) {
+                          target.dataset.triedFallback = "true";
+                          target.src = `/api/whatsapp/chat/media?mediaId=${item.waMessageId}`;
+                        } else {
+                          setFailedMediaIds(prev => ({ ...prev, [item.id]: true }));
+                        }
+                      }}
                     />
                   ) : item.mediaType === "video" || /\.(mp4|mov|webm)/i.test(item.mediaUrl) ? (
-                    <video src={item.mediaUrl} className="w-full h-full object-cover" />
+                    <video 
+                      src={item.mediaUrl} 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (item.waMessageId && !target.dataset.triedFallback) {
+                          target.dataset.triedFallback = "true";
+                          target.src = `/api/whatsapp/chat/media?mediaId=${item.waMessageId}`;
+                        } else {
+                          setFailedMediaIds(prev => ({ ...prev, [item.id]: true }));
+                        }
+                      }}
+                    />
                   ) : item.mediaType === "audio" || /\.(mp3|ogg|wav)/i.test(item.mediaUrl) ? (
                     <div className="flex flex-col items-center gap-2 text-violet-400">
                       <Music className="w-8 h-8 animate-pulse" />
