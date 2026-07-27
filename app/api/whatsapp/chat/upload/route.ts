@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { uploadToStorage } from '@/lib/storage';
+import { requireAuth, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Enforce Admin Session Authentication
+    try {
+      await requireAuth();
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized. Admin dashboard authentication required.' }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
 
@@ -37,24 +44,13 @@ export async function POST(req: NextRequest) {
       mediaType = 'document';
     }
 
-    let fileUrl = '';
-    try {
-      const storageResult = await uploadToStorage(buffer, mime, filename);
-      if (storageResult.url && !storageResult.fallback) {
-        fileUrl = storageResult.url;
-      }
-    } catch (storageErr: any) {
-      console.warn('[WhatsApp Chat Upload API] Supabase storage upload failed, saving to local disk:', storageErr.message);
-    }
+    // Save to private uploads directory for authenticated access only
+    const privateUploadDir = path.join(process.cwd(), 'private_uploads', 'whatsapp');
+    await fs.mkdir(privateUploadDir, { recursive: true });
+    const filePath = path.join(privateUploadDir, filename);
+    await fs.writeFile(filePath, buffer);
 
-    if (!fileUrl) {
-      // Local disk fallback
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'whatsapp');
-      await fs.mkdir(uploadDir, { recursive: true });
-      const filePath = path.join(uploadDir, filename);
-      await fs.writeFile(filePath, buffer);
-      fileUrl = `/uploads/whatsapp/${filename}`;
-    }
+    const fileUrl = `/api/whatsapp/chat/media?file=${filename}`;
 
     return NextResponse.json({ 
       success: true, 
@@ -63,7 +59,6 @@ export async function POST(req: NextRequest) {
       filename: file.name 
     });
   } catch (error: any) {
-    console.error('[WhatsApp Chat Upload API] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return handleAuthError(error);
   }
 }

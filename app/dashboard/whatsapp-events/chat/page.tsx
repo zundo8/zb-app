@@ -892,6 +892,11 @@ export default function WhatsAppChatPage() {
       }
     }
 
+    if (mediaUrlToUse.includes("/uploads/whatsapp/")) {
+      const filename = mediaUrlToUse.split("/uploads/whatsapp/").pop();
+      if (filename) mediaUrlToUse = `/api/whatsapp/chat/media?file=${filename}`;
+    }
+
     if (!mediaUrlToUse && m.waMessageId) {
       mediaUrlToUse = `/api/whatsapp/chat/media?mediaId=${m.waMessageId}`;
     }
