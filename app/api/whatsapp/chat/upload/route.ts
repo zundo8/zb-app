@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { uploadToStorage } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,18 +17,13 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create folder structure programmatically
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'whatsapp');
-    await fs.mkdir(uploadDir, { recursive: true });
-
     // Generate clean unique filename
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const fileExtension = path.extname(file.name) || '.jpg';
     const filename = `${uniqueSuffix}${fileExtension}`;
-    const filePath = path.join(uploadDir, filename);
 
     // Infer mediaType based on mime type or extension
-    const mime = file.type || '';
+    const mime = file.type || 'application/octet-stream';
     const ext = (path.extname(file.name) || '').toLowerCase();
     let mediaType = 'document';
 
@@ -41,13 +37,24 @@ export async function POST(req: NextRequest) {
       mediaType = 'document';
     }
 
-    // Write file
-    await fs.writeFile(filePath, buffer);
+    let fileUrl = '';
+    try {
+      const storageResult = await uploadToStorage(buffer, mime, filename);
+      if (storageResult.url && !storageResult.fallback) {
+        fileUrl = storageResult.url;
+      }
+    } catch (storageErr: any) {
+      console.warn('[WhatsApp Chat Upload API] Supabase storage upload failed, saving to local disk:', storageErr.message);
+    }
 
-    // Build URL (using hostname from headers, falling back to app.zicabella.com)
-    const host = req.headers.get('host') || 'app.zicabella.com';
-    const baseUrl = host.includes('localhost') ? `http://${host}` : `https://${host}`;
-    const fileUrl = `${baseUrl}/uploads/whatsapp/${filename}`;
+    if (!fileUrl) {
+      // Local disk fallback
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'whatsapp');
+      await fs.mkdir(uploadDir, { recursive: true });
+      const filePath = path.join(uploadDir, filename);
+      await fs.writeFile(filePath, buffer);
+      fileUrl = `/uploads/whatsapp/${filename}`;
+    }
 
     return NextResponse.json({ 
       success: true, 

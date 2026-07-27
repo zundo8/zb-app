@@ -7,11 +7,12 @@ import { getConfig, formatPhone } from '@/lib/whatsapp/client';
 import { updateMessageStatus } from '@/lib/whatsapp/logger';
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
 import { eventTracker } from '@/lib/services/eventTracker';
+import { uploadToStorage } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Helper to download Meta media file and save to local uploads directory
+ * Helper to download Meta media file and store in Supabase / local storage
  */
 async function downloadMetaMedia(mediaId: string, mimeType?: string, fileName?: string): Promise<string> {
   try {
@@ -33,9 +34,6 @@ async function downloadMetaMedia(mediaId: string, mimeType?: string, fileName?: 
     if (!binaryRes.ok) throw new Error(`Meta media download status ${binaryRes.status}`);
     const buffer = Buffer.from(await binaryRes.arrayBuffer());
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'whatsapp');
-    await fs.mkdir(uploadDir, { recursive: true });
-
     let ext = '.jpg';
     if (fileName && path.extname(fileName)) {
       ext = path.extname(fileName);
@@ -50,6 +48,21 @@ async function downloadMetaMedia(mediaId: string, mimeType?: string, fileName?: 
     }
 
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const detectedMime = mimeType || (ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.mp4' ? 'video/mp4' : ext === '.pdf' ? 'application/pdf' : 'image/jpeg');
+
+    // 1. Try uploading to Supabase Storage
+    try {
+      const storageResult = await uploadToStorage(buffer, detectedMime, filename);
+      if (storageResult.url && !storageResult.fallback) {
+        return storageResult.url;
+      }
+    } catch (storageErr: any) {
+      console.warn('[WhatsApp Webhook] Supabase storage upload failed, saving to local disk:', storageErr.message);
+    }
+
+    // 2. Fallback: Save to local disk
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'whatsapp');
+    await fs.mkdir(uploadDir, { recursive: true });
     await fs.writeFile(path.join(uploadDir, filename), buffer);
 
     return `/uploads/whatsapp/${filename}`;

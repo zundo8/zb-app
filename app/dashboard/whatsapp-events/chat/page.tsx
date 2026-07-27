@@ -879,7 +879,7 @@ export default function WhatsAppChatPage() {
     const rawUrl = m.mediaUrl || "";
     let mType = (m.mediaType || "").toLowerCase();
 
-    // Deduce media URL if contained in body or rawUrl
+    // Deduce media URL if contained in body or rawUrl or waMessageId
     let mediaUrlToUse = rawUrl;
     if (!mediaUrlToUse && m.body) {
       if (m.body.startsWith("http") && (m.body.includes("/uploads/") || m.body.includes("supabase") || m.body.includes("facebook") || m.body.includes("whatsapp"))) {
@@ -890,6 +890,10 @@ export default function WhatsAppChatPage() {
           mediaUrlToUse = parts[2];
         }
       }
+    }
+
+    if (!mediaUrlToUse && m.waMessageId) {
+      mediaUrlToUse = `/api/whatsapp/chat/media?mediaId=${m.waMessageId}`;
     }
 
     if (!mType && mediaUrlToUse) {
@@ -943,13 +947,20 @@ export default function WhatsAppChatPage() {
               renderCatalogBubble(m)
             ) : isTemplate ? (
               renderTemplateBubble(m, activeConv!)
-            ) : mType === "image" && mediaUrlToUse ? (
+            ) : (mType === "image" || !mType) && mediaUrlToUse ? (
               <div className="space-y-2">
                 <img 
                   src={mediaUrlToUse} 
                   alt="Chat Attachment" 
                   className="max-w-xs max-h-60 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10" 
                   onClick={() => window.open(mediaUrlToUse, "_blank")}
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (m.waMessageId && !target.dataset.triedFallback) {
+                      target.dataset.triedFallback = "true";
+                      target.src = `/api/whatsapp/chat/media?mediaId=${m.waMessageId}`;
+                    }
+                  }}
                 />
                 {m.body && !m.body.startsWith("[Media:") && !m.body.startsWith("http") && (
                   formatMessageText(m.body)
