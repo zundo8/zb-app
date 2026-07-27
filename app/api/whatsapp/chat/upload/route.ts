@@ -44,13 +44,26 @@ export async function POST(req: NextRequest) {
       mediaType = 'document';
     }
 
-    // Save to private uploads directory for authenticated access only
-    const privateUploadDir = path.join(process.cwd(), 'private_uploads', 'whatsapp');
-    await fs.mkdir(privateUploadDir, { recursive: true });
-    const filePath = path.join(privateUploadDir, filename);
-    await fs.writeFile(filePath, buffer);
+    // Save to private uploads directory on disk
+    try {
+      const privateUploadDir = path.join(process.cwd(), 'private_uploads', 'whatsapp');
+      await fs.mkdir(privateUploadDir, { recursive: true });
+      const filePath = path.join(privateUploadDir, filename);
+      await fs.writeFile(filePath, buffer);
+    } catch (diskErr) {}
 
-    const fileUrl = `/api/whatsapp/chat/media?file=${filename}`;
+    // Generate Data URL for instant guaranteed rendering
+    const base64Str = buffer.toString('base64');
+    let fileUrl = `data:${mime};base64,${base64Str}`;
+
+    // Try Supabase Storage if configured
+    try {
+      const { uploadToStorage } = await import('@/lib/storage');
+      const storageResult = await uploadToStorage(buffer, mime, filename);
+      if (storageResult.url && !storageResult.fallback) {
+        fileUrl = storageResult.url;
+      }
+    } catch (storageErr) {}
 
     return NextResponse.json({ 
       success: true, 

@@ -262,6 +262,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const whatsappEventsNav = [
     { name: "Overview", href: "/dashboard/whatsapp-events/overview", icon: BarChart3, module: 'MARKETING' },
     { name: "Live Chat", href: "/dashboard/whatsapp-events/chat", icon: MessageSquare, module: 'MARKETING' },
+    { name: "Chat Media", href: "/dashboard/whatsapp-events/media", icon: Image, module: 'MARKETING' },
     { name: "Events Feed", href: "/dashboard/whatsapp-events/events", icon: Database, module: 'MARKETING' },
     { name: "Campaign Analytics", href: "/dashboard/whatsapp-events/campaign-analytics", icon: TrendingUp, module: 'MARKETING' },
     { name: "Templates Manager", href: "/dashboard/whatsapp-events/templates", icon: FileText, module: 'MARKETING' },

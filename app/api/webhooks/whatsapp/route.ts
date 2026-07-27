@@ -50,12 +50,31 @@ async function downloadMetaMedia(mediaId: string, mimeType?: string, fileName?: 
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
     const detectedMime = mimeType || (ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.mp4' ? 'video/mp4' : ext === '.pdf' ? 'application/pdf' : 'image/jpeg');
 
-    // Save to private uploads directory (outside public/) for authenticated admin access only
-    const privateUploadDir = path.join(process.cwd(), 'private_uploads', 'whatsapp');
-    await fs.mkdir(privateUploadDir, { recursive: true });
-    await fs.writeFile(path.join(privateUploadDir, filename), buffer);
+    // 1. Convert buffer to Data URL for 100% guaranteed DB persistence without 404 risk
+    const base64Str = buffer.toString('base64');
+    const dataUrl = `data:${detectedMime};base64,${base64Str}`;
 
-    return `/api/whatsapp/chat/media?file=${filename}`;
+    // 2. Also save to private uploads directory on disk
+    try {
+      const privateUploadDir = path.join(process.cwd(), 'private_uploads', 'whatsapp');
+      await fs.mkdir(privateUploadDir, { recursive: true });
+      await fs.writeFile(path.join(privateUploadDir, filename), buffer);
+    } catch (diskErr) {
+      console.warn('[WhatsApp Webhook] Private disk write warning:', diskErr);
+    }
+
+    // 3. Try uploading to Supabase Storage if configured
+    try {
+      const storageResult = await uploadToStorage(buffer, detectedMime, filename);
+      if (storageResult.url && !storageResult.fallback) {
+        return storageResult.url;
+      }
+    } catch (storageErr) {
+      // Ignore Supabase storage errors and fallback to Data URL
+    }
+
+    // Default: return Data URL for instant rendering in database & browser
+    return dataUrl;
   } catch (err: any) {
     console.error('[WhatsApp Webhook] Media download error, using proxy fallback:', err.message);
     return `/api/whatsapp/chat/media?mediaId=${mediaId}`;

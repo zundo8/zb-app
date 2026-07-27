@@ -1022,12 +1022,29 @@ export default function WhatsAppChatPage() {
               formatMessageText(m.body)
             )}
             
-            {/* Timestamp & double ticks */}
-            <div className="flex items-center justify-end gap-1 text-[9px] opacity-60 font-mono mt-1 select-none">
+            {/* Timestamp & double ticks & delete action */}
+            <div className="flex items-center justify-end gap-1.5 text-[9px] opacity-70 font-mono mt-1 select-none">
               <span>
                 {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
               {!isInbound && getStatusIcon(m.status)}
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/whatsapp/chat/media-manager?id=${m.id}`, { method: "DELETE" });
+                    if (res.ok) {
+                      setMessages(prev => prev.filter(item => item.id !== m.id));
+                      toast.success("Message deleted");
+                    }
+                  } catch (e) {
+                    toast.error("Failed to delete message");
+                  }
+                }}
+                className="opacity-40 hover:opacity-100 p-0.5 text-zinc-400 hover:text-rose-400 transition-opacity ml-1"
+                title="Delete Message"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
             </div>
           </div>
         </div>
