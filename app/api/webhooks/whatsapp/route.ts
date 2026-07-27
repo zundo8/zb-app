@@ -1,10 +1,7 @@
-/**
- * WhatsApp Production Webhook Handler
- * Location: app/api/webhooks/whatsapp/route.ts
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { promises as fs } from 'fs';
+import path from 'path';
 import db from '@/lib/db';
 import { getConfig, formatPhone } from '@/lib/whatsapp/client';
 import { updateMessageStatus } from '@/lib/whatsapp/logger';
@@ -12,6 +9,55 @@ import { WhatsAppService } from '@/lib/services/whatsapp.service';
 import { eventTracker } from '@/lib/services/eventTracker';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Helper to download Meta media file and save to local uploads directory
+ */
+async function downloadMetaMedia(mediaId: string, mimeType?: string, fileName?: string): Promise<string> {
+  try {
+    const config = await getConfig();
+    const accessToken = config.accessToken || process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+    if (!accessToken) throw new Error('No access token available');
+
+    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v23.0';
+    const metaRes = await fetch(`https://graph.facebook.com/${apiVersion}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!metaRes.ok) throw new Error(`Meta media metadata fetch status ${metaRes.status}`);
+    const metaData = await metaRes.json();
+    if (!metaData.url) throw new Error('No download URL returned from Meta');
+
+    const binaryRes = await fetch(metaData.url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!binaryRes.ok) throw new Error(`Meta media download status ${binaryRes.status}`);
+    const buffer = Buffer.from(await binaryRes.arrayBuffer());
+
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'whatsapp');
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    let ext = '.jpg';
+    if (fileName && path.extname(fileName)) {
+      ext = path.extname(fileName);
+    } else if (mimeType) {
+      if (mimeType.includes('png')) ext = '.png';
+      else if (mimeType.includes('gif')) ext = '.gif';
+      else if (mimeType.includes('webp')) ext = '.webp';
+      else if (mimeType.includes('mp4')) ext = '.mp4';
+      else if (mimeType.includes('pdf')) ext = '.pdf';
+      else if (mimeType.includes('ogg')) ext = '.ogg';
+      else if (mimeType.includes('mpeg') || mimeType.includes('mp3')) ext = '.mp3';
+    }
+
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    await fs.writeFile(path.join(uploadDir, filename), buffer);
+
+    return `/uploads/whatsapp/${filename}`;
+  } catch (err: any) {
+    console.error('[WhatsApp Webhook] Media download error, using proxy fallback:', err.message);
+    return `/api/whatsapp/chat/media?mediaId=${mediaId}`;
+  }
+}
 
 /**
  * Helper to verify Meta signature
@@ -106,7 +152,7 @@ export async function POST(req: NextRequest) {
 
         // Process incoming messages
         if (value.messages && Array.isArray(value.messages)) {
-          await handleIncomingMessages(value.messages, db);
+          await handleIncomingMessages(value.messages, value.contacts, db);
         }
 
         // Process delivery/read status updates
@@ -134,25 +180,86 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * Handle user messages (opt-out keywords & COD button replies)
+ * Handle user messages (opt-out keywords, COD button replies, media & contact name sync)
  */
-async function handleIncomingMessages(messages: any[], db: any) {
+async function handleIncomingMessages(messages: any[], contacts: any[] | undefined, db: any) {
+  const contactsMap: Record<string, string> = {};
+  if (contacts && Array.isArray(contacts)) {
+    for (const c of contacts) {
+      if (c.wa_id && c.profile?.name) {
+        contactsMap[c.wa_id] = c.profile.name;
+      }
+    }
+  }
+
   for (const message of messages) {
     const rawPhone = message.from;
-    const phoneNumber = formatPhone(rawPhone); // Normalize to match all other DB write paths
+    const phoneNumber = formatPhone(rawPhone) || rawPhone; // Normalize to match all other DB write paths
     const waMessageId = message.id;
 
-    // Extract text body
+    // Extract text body and media parameters
     let bodyText = '';
+    let mediaUrl: string | null = null;
+    let mediaType: string | null = null;
+
     if (message.type === 'text') {
       bodyText = message.text?.body || '';
     } else if (message.type === 'button') {
       bodyText = message.button?.text || '';
     } else if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
       bodyText = message.interactive.button_reply?.title || '';
+    } else if (['image', 'video', 'document', 'audio', 'voice', 'sticker'].includes(message.type)) {
+      const rawType = message.type;
+      mediaType = rawType === 'voice' ? 'audio' : rawType;
+      const mediaObj = message[rawType];
+      
+      if (mediaObj?.id) {
+        mediaUrl = await downloadMetaMedia(mediaObj.id, mediaObj.mime_type, mediaObj.filename);
+      }
+
+      const caption = mediaObj?.caption || '';
+      const filename = mediaObj?.filename || '';
+
+      if (caption) {
+        bodyText = caption;
+      } else if (filename) {
+        bodyText = `[File: ${filename}]`;
+      } else {
+        bodyText = `[Media: ${mediaType}]`;
+      }
     }
 
-    console.log(`[WhatsApp Webhook] Message from ${phoneNumber}: ${bodyText}`);
+    console.log(`[WhatsApp Webhook] Message from ${phoneNumber} (${message.type}): ${bodyText}`);
+
+    // Sync WhatsApp profile contact name if available
+    const profileName = contactsMap[rawPhone] || contactsMap[phoneNumber];
+    if (profileName) {
+      try {
+        const last10 = phoneNumber.replace(/\D/g, '').slice(-10);
+        let customer = await db.customer.findFirst({
+          where: { phone: { contains: last10 } }
+        });
+
+        if (customer) {
+          if (!customer.name || customer.name.startsWith('Customer') || customer.name.startsWith('Valued') || customer.name.startsWith('Unregistered')) {
+            await db.customer.update({
+              where: { id: customer.id },
+              data: { name: profileName.trim() }
+            });
+          }
+        } else {
+          customer = await db.customer.create({
+            data: {
+              phone: phoneNumber,
+              name: profileName.trim(),
+              shopifyId: `whatsapp_${Date.now()}`
+            }
+          });
+        }
+      } catch (err: any) {
+        console.error('[WhatsApp Webhook] Profile name sync error:', err.message);
+      }
+    }
 
     // Check opt-out keywords (STOP, UNSUBSCRIBE)
     const lowerText = bodyText.toLowerCase().trim();
@@ -229,6 +336,8 @@ async function handleIncomingMessages(messages: any[], db: any) {
           phoneNumber,
           userId,
           body: bodyText,
+          mediaUrl,
+          mediaType,
           status: 'read',
         }
       });

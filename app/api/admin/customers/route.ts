@@ -275,3 +275,62 @@ export async function GET(req: Request) {
     }
   }
 }
+
+export async function POST(req: Request) {
+  try {
+    await requirePermission('CUSTOMERS', 'edit');
+    const { name, email, phone, whatsappOptedOut } = await req.json();
+
+    if (!phone && !email) {
+      return NextResponse.json({ error: 'Either phone or email is required' }, { status: 400 });
+    }
+
+    const cleanPhone = phone ? String(phone).trim() : null;
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+
+    let existing = null;
+    if (cleanPhone) {
+      const last10 = cleanPhone.replace(/\D/g, '').slice(-10);
+      if (last10.length === 10) {
+        existing = await prisma.customer.findFirst({
+          where: { phone: { contains: last10 } }
+        });
+      }
+    }
+    if (!existing && cleanEmail) {
+      existing = await prisma.customer.findFirst({
+        where: { email: cleanEmail }
+      });
+    }
+
+    if (existing) {
+      const updated = await prisma.customer.update({
+        where: { id: existing.id },
+        data: {
+          name: name ? String(name).trim() : existing.name,
+          email: cleanEmail || existing.email,
+          phone: cleanPhone || existing.phone,
+          whatsappOptedOut: typeof whatsappOptedOut === 'boolean' ? whatsappOptedOut : existing.whatsappOptedOut
+        }
+      });
+      return NextResponse.json({ success: true, customer: updated });
+    }
+
+    const shop = await prisma.shop.findFirst();
+    const newCustomer = await prisma.customer.create({
+      data: {
+        name: name ? String(name).trim() : 'Customer',
+        email: cleanEmail,
+        phone: cleanPhone,
+        shopId: shop?.id || null,
+        shopifyId: `admin_chat_${Date.now()}`,
+        whatsappOptedOut: typeof whatsappOptedOut === 'boolean' ? whatsappOptedOut : false
+      }
+    });
+
+    return NextResponse.json({ success: true, customer: newCustomer });
+  } catch (error) {
+    return handleAuthError(error);
+  }
+}
+

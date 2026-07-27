@@ -125,6 +125,8 @@ export async function POST(req: NextRequest) {
       to_number: formattedPhone,
       template_name: templateName || null,
       message_body: bodyTextLog,
+      media_url: mediaUrl || null,
+      media_type: mediaType || null,
       status: 'sent',
       message_id: waMessageId,
       error_details: null

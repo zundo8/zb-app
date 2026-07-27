@@ -26,6 +26,21 @@ export async function POST(req: NextRequest) {
     const filename = `${uniqueSuffix}${fileExtension}`;
     const filePath = path.join(uploadDir, filename);
 
+    // Infer mediaType based on mime type or extension
+    const mime = file.type || '';
+    const ext = (path.extname(file.name) || '').toLowerCase();
+    let mediaType = 'document';
+
+    if (mime.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].includes(ext)) {
+      mediaType = 'image';
+    } else if (mime.startsWith('video/') || ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.3gp'].includes(ext)) {
+      mediaType = 'video';
+    } else if (mime.startsWith('audio/') || ['.mp3', '.ogg', '.wav', '.aac', '.m4a'].includes(ext)) {
+      mediaType = 'audio';
+    } else {
+      mediaType = 'document';
+    }
+
     // Write file
     await fs.writeFile(filePath, buffer);
 
@@ -34,7 +49,12 @@ export async function POST(req: NextRequest) {
     const baseUrl = host.includes('localhost') ? `http://${host}` : `https://${host}`;
     const fileUrl = `${baseUrl}/uploads/whatsapp/${filename}`;
 
-    return NextResponse.json({ success: true, url: fileUrl });
+    return NextResponse.json({ 
+      success: true, 
+      url: fileUrl, 
+      mediaType, 
+      filename: file.name 
+    });
   } catch (error: any) {
     console.error('[WhatsApp Chat Upload API] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

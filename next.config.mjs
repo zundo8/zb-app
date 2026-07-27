@@ -94,10 +94,10 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://ajax.googleapis.com https://maps.googleapis.com https://maps.google.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com https://cdn.shopify.com",
-              "img-src 'self' data: blob: https://cdn.shopify.com https://*.supabase.co https://images.unsplash.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com https://flagcdn.com https://db.zicabella.com https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com",
+              "img-src 'self' data: blob: https://cdn.shopify.com https://*.supabase.co https://images.unsplash.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com https://flagcdn.com https://db.zicabella.com https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com https://*.fbsbx.com https://*.whatsapp.net",
               "connect-src 'self' https://*.supabase.co https://cdn.shopify.com https://api.razorpay.com https://lux.razorpay.com https://connect.facebook.net https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com https://region1.google-analytics.com wss://*.pusher.com https://sockjs.pusher.com https://maps.googleapis.com https://*.googleapis.com",
               "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://www.googletagmanager.com https://maps.google.com https://www.google.com",
-              "media-src 'self' blob: https://*.supabase.co https://cdn.shopify.com",
+              "media-src 'self' blob: https://*.supabase.co https://cdn.shopify.com https://*.fbsbx.com https://*.whatsapp.net",
               "worker-src 'self' blob:",
             ].join("; "),
           },
@@ -109,7 +109,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdn.shopify.com; img-src 'self' data: blob: https://cdn.shopify.com https://*.supabase.co https://images.unsplash.com https://www.facebook.com; connect-src 'self' https://*.supabase.co https://cdn.shopify.com https://api.razorpay.com https://connect.facebook.net https://www.facebook.com; frame-src 'self' https://api.razorpay.com;",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdn.shopify.com; img-src 'self' data: blob: https://cdn.shopify.com https://*.supabase.co https://images.unsplash.com https://www.facebook.com https://*.fbsbx.com https://*.whatsapp.net; media-src 'self' data: blob: https://*.supabase.co https://cdn.shopify.com https://*.fbsbx.com https://*.whatsapp.net; connect-src 'self' https://*.supabase.co https://cdn.shopify.com https://api.razorpay.com https://connect.facebook.net https://www.facebook.com; frame-src 'self' https://api.razorpay.com;",
           },
         ],
       },

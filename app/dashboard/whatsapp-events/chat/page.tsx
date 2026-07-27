@@ -8,7 +8,7 @@ import {
   ChevronRight, ArrowLeftRight, ExternalLink, UserCheck, Sparkles,
   ShoppingBag, X, Paperclip, Loader2, UploadCloud, Info, Trash2,
   PanelRightClose, PanelRightOpen, Calendar, CheckCircle2, HelpCircle,
-  AlertTriangle, Ban, Copy, CheckSquare
+  AlertTriangle, Ban, Copy, CheckSquare, FileText, Film, Music, Download, Edit3, Save, UserPlus
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -56,11 +56,17 @@ export default function WhatsAppChatPage() {
   const [messageText, setMessageText] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [showMediaInput, setShowMediaInput] = useState(false);
+  const [uploadType, setUploadType] = useState<string>("image");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Side Drawer for contact details
+  // Side Drawer for contact details & editing
   const [showContactInfo, setShowContactInfo] = useState(false);
+  const [isEditingContact, setIsEditingContact] = useState(false);
+  const [editCustomerName, setEditCustomerName] = useState("");
+  const [editCustomerEmail, setEditCustomerEmail] = useState("");
+  const [editCustomerPhone, setEditCustomerPhone] = useState("");
+  const [savingContact, setSavingContact] = useState(false);
 
   // Templates Selection State
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -204,6 +210,74 @@ export default function WhatsAppChatPage() {
     fetchIdentity();
   }, [activePhone]);
 
+  const activeConv = conversations.find(c => c.phoneNumber === activePhone);
+
+  // Sync edit form state with current active conversation details
+  useEffect(() => {
+    if (activeConv) {
+      setEditCustomerName(activeConv.customerName || "");
+      setEditCustomerEmail(activeConv.customerEmail || "");
+      setEditCustomerPhone(activeConv.phoneNumber || activePhone || "");
+    } else if (activePhone) {
+      setEditCustomerPhone(activePhone);
+    }
+    setIsEditingContact(false);
+  }, [activePhone, activeConv?.customerName, activeConv?.customerEmail, activeConv?.customerId]);
+
+  // Save or create customer contact profile
+  const handleSaveContact = async () => {
+    if (!activePhone) return;
+    setSavingContact(true);
+    const toastId = toast.loading("Saving customer contact details...");
+    try {
+      const payload = {
+        name: editCustomerName.trim(),
+        email: editCustomerEmail.trim() || null,
+        phone: editCustomerPhone.trim() || activePhone,
+        whatsappOptedOut: activeConv?.whatsappOptedOut ?? false
+      };
+
+      let res;
+      if (activeConv?.customerId) {
+        res = await fetch(`/api/admin/customers/${activeConv.customerId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        res = await fetch(`/api/admin/customers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      const data = await res.json();
+      if (res.ok && (data.success || data.customer)) {
+        const updatedCust = data.customer;
+        toast.success("Contact details saved successfully!", { id: toastId });
+        setConversations(prev => prev.map(c => {
+          if (c.phoneNumber === activePhone) {
+            return {
+              ...c,
+              customerName: updatedCust.name || editCustomerName || c.customerName,
+              customerEmail: updatedCust.email || editCustomerEmail || c.customerEmail,
+              customerId: updatedCust.id || c.customerId
+            };
+          }
+          return c;
+        }));
+        setIsEditingContact(false);
+      } else {
+        toast.error(data.error || "Failed to save customer details.", { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error("Network error saving customer contact.", { id: toastId });
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
   // Poll conversations every 10 seconds (paused when tab is in background)
   useEffect(() => {
     async function fetchConversations() {
@@ -280,8 +354,6 @@ export default function WhatsAppChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  const activeConv = conversations.find(c => c.phoneNumber === activePhone);
 
   // Calculate if the 24-hour service window is active for a timestamp
   const calculateIsServiceWindowActive = (lastInboundStr: string | null, lastMsg: any) => {
@@ -380,13 +452,13 @@ export default function WhatsAppChatPage() {
     toast.success(`${label} copied to clipboard!`);
   };
 
-  // Handle direct image file upload
+  // Handle direct image / media file upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
-    const toastId = toast.loading("Uploading image to assets...");
+    const toastId = toast.loading("Uploading attachment...");
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -399,8 +471,9 @@ export default function WhatsAppChatPage() {
       const data = await res.json();
       if (res.ok && data.url) {
         setMediaUrl(data.url);
+        setUploadType(data.mediaType || "image");
         setShowMediaInput(true);
-        toast.success("Image uploaded successfully! Write an optional caption message below.", { id: toastId });
+        toast.success("Attachment uploaded successfully! Write an optional caption message below.", { id: toastId });
       } else {
         toast.error(data.error || "Upload failed.", { id: toastId });
       }
@@ -591,7 +664,7 @@ export default function WhatsAppChatPage() {
           phone: activePhone,
           text: textToSend || undefined,
           mediaUrl: urlToSend || undefined,
-          mediaType: urlToSend ? "image" : undefined
+          mediaType: urlToSend ? uploadType : undefined
         })
       });
       const data = await res.json();
@@ -803,11 +876,36 @@ export default function WhatsAppChatPage() {
   // Render main message bubble containing text, files, catalog or templates
   const renderMessageContent = (m: Message, idx: number) => {
     const isInbound = m.direction === "inbound";
-    const mUrl = m.mediaUrl || "";
-    const mType = m.mediaType || "";
+    const rawUrl = m.mediaUrl || "";
+    let mType = (m.mediaType || "").toLowerCase();
 
-    const isImg = mType === "image" || (m.body && (m.body.startsWith("[Media: image]") || m.body.startsWith("http") && /\.(jpeg|jpg|gif|png|webp)/i.test(m.body)));
-    const actualImgUrl = mUrl || (m.body && m.body.startsWith("[Media: image]") ? m.body.replace("[Media: image]", "").trim() : (m.body && m.body.startsWith("http") ? m.body : ""));
+    // Deduce media URL if contained in body or rawUrl
+    let mediaUrlToUse = rawUrl;
+    if (!mediaUrlToUse && m.body) {
+      if (m.body.startsWith("http") && (m.body.includes("/uploads/") || m.body.includes("supabase") || m.body.includes("facebook") || m.body.includes("whatsapp"))) {
+        mediaUrlToUse = m.body.split(/\s+/)[0];
+      } else if (m.body.startsWith("[Media:")) {
+        const parts = m.body.split(" ");
+        if (parts.length > 2 && parts[2].startsWith("http")) {
+          mediaUrlToUse = parts[2];
+        }
+      }
+    }
+
+    if (!mType && mediaUrlToUse) {
+      if (/\.(jpeg|jpg|gif|png|webp)/i.test(mediaUrlToUse)) mType = "image";
+      else if (/\.(mp4|mov|avi|webm|3gp)/i.test(mediaUrlToUse)) mType = "video";
+      else if (/\.(mp3|ogg|wav|m4a|aac)/i.test(mediaUrlToUse)) mType = "audio";
+      else if (/\.(pdf|doc|docx|txt|csv|xls|xlsx|zip)/i.test(mediaUrlToUse)) mType = "document";
+    }
+
+    if (!mType && m.body) {
+      if (m.body.startsWith("[Media: image]")) mType = "image";
+      else if (m.body.startsWith("[Media: video]")) mType = "video";
+      else if (m.body.startsWith("[Media: audio]") || m.body.startsWith("[Media: voice]")) mType = "audio";
+      else if (m.body.startsWith("[Media: document]") || m.body.startsWith("[File:")) mType = "document";
+      else if (m.body.startsWith("[Media: sticker]")) mType = "sticker";
+    }
 
     const isCatalog = m.body?.includes("Check out this product from Zica Bella!") || (m.body?.includes("Price:") && m.body?.includes("Shop online now:"));
     const isTemplate = !!m.templateName || (!!m.body && (m.body.startsWith("Template:") || m.body.startsWith("[Template:")));
@@ -845,17 +943,64 @@ export default function WhatsAppChatPage() {
               renderCatalogBubble(m)
             ) : isTemplate ? (
               renderTemplateBubble(m, activeConv!)
-            ) : isImg && actualImgUrl ? (
+            ) : mType === "image" && mediaUrlToUse ? (
               <div className="space-y-2">
                 <img 
-                  src={actualImgUrl} 
+                  src={mediaUrlToUse} 
                   alt="Chat Attachment" 
-                  className="max-w-xs max-h-48 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10" 
-                  onClick={() => window.open(actualImgUrl, "_blank")}
+                  className="max-w-xs max-h-60 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10" 
+                  onClick={() => window.open(mediaUrlToUse, "_blank")}
                 />
-                {m.body && !m.body.startsWith("[Media: image]") && !m.body.startsWith("http") && (
+                {m.body && !m.body.startsWith("[Media:") && !m.body.startsWith("http") && (
                   formatMessageText(m.body)
                 )}
+              </div>
+            ) : mType === "video" && mediaUrlToUse ? (
+              <div className="space-y-2">
+                <video 
+                  src={mediaUrlToUse} 
+                  controls 
+                  className="max-w-xs max-h-60 rounded-lg border border-white/10"
+                />
+                {m.body && !m.body.startsWith("[Media:") && !m.body.startsWith("http") && (
+                  formatMessageText(m.body)
+                )}
+              </div>
+            ) : (mType === "audio" || mType === "voice") && mediaUrlToUse ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 pt-1">
+                  <Music className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <audio src={mediaUrlToUse} controls className="max-w-xs h-9 text-xs" />
+                </div>
+                {m.body && !m.body.startsWith("[Media:") && !m.body.startsWith("http") && (
+                  formatMessageText(m.body)
+                )}
+              </div>
+            ) : mType === "sticker" && mediaUrlToUse ? (
+              <img src={mediaUrlToUse} alt="Sticker" className="w-32 h-32 object-contain" />
+            ) : mType === "document" || mediaUrlToUse ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 bg-zinc-900/80 border border-white/10 p-3 rounded-xl max-w-xs">
+                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold text-zinc-100 block truncate">
+                      {m.body && !m.body.startsWith("[Media:") ? m.body : "Attachment Document"}
+                    </span>
+                    {mediaUrlToUse && (
+                      <a 
+                        href={mediaUrlToUse} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 mt-1 font-bold"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Download / View File</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : (
               formatMessageText(m.body)
@@ -1386,27 +1531,106 @@ export default function WhatsAppChatPage() {
             {/* Drawer Header */}
             <div className="p-4 flex items-center justify-between bg-zinc-900/40">
               <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-400">Contact Details</h3>
-              <button 
-                onClick={() => setShowContactInfo(false)}
-                className="p-1 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Profile Hero card */}
-            <div className="p-6 flex flex-col items-center text-center space-y-3">
-              {renderAvatar(activeConv?.customerName || null, activePhone, "w-20 h-20 text-xl font-extrabold")}
-              <div>
-                <h4 className="font-bold text-[14px] text-zinc-100 flex items-center justify-center gap-1">
-                  <span>{activeConv?.customerName || "Customer"}</span>
-                  {activeConv?.whatsappOptedOut && (
-                    <span title="Consent Opted Out"><Ban className="w-3.5 h-3.5 text-rose-500" /></span>
-                  )}
-                </h4>
-                <p className="text-xs text-zinc-400 mt-0.5">+{activePhone}</p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setIsEditingContact(p => !p)}
+                  className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 transition-all ${
+                    isEditingContact 
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                      : "bg-white/5 border-transparent text-zinc-400 hover:text-zinc-200"
+                  }`}
+                  title="Edit Customer Profile"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span className="text-[10px]">{isEditingContact ? "Cancel" : "Edit"}</span>
+                </button>
+                <button 
+                  onClick={() => setShowContactInfo(false)}
+                  className="p-1 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
+
+            {/* Profile Hero card or Edit Contact form */}
+            {isEditingContact ? (
+              <div className="p-4 space-y-3 bg-zinc-900/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-mono font-bold">Edit Customer Contact</span>
+                  {!activeConv?.customerId && (
+                    <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-bold">New Contact</span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-zinc-400 font-mono">Full Name</label>
+                  <input
+                    type="text"
+                    value={editCustomerName}
+                    onChange={e => setEditCustomerName(e.target.value)}
+                    placeholder="Enter customer name..."
+                    className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-emerald-500/50"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-zinc-400 font-mono">Email Address</label>
+                  <input
+                    type="email"
+                    value={editCustomerEmail}
+                    onChange={e => setEditCustomerEmail(e.target.value)}
+                    placeholder="Enter email address..."
+                    className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-emerald-500/50"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-zinc-400 font-mono">Phone Number</label>
+                  <input
+                    type="text"
+                    value={editCustomerPhone}
+                    onChange={e => setEditCustomerPhone(e.target.value)}
+                    placeholder="Enter phone number..."
+                    className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-emerald-500/50"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setIsEditingContact(false)}
+                    className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-400 font-semibold rounded-lg text-xs transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveContact}
+                    disabled={savingContact}
+                    className="flex-1 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1 transition-colors shadow-md disabled:opacity-50"
+                  >
+                    {savingContact ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    <span>Save Contact</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 flex flex-col items-center text-center space-y-3">
+                {renderAvatar(activeConv?.customerName || null, activePhone, "w-20 h-20 text-xl font-extrabold")}
+                <div>
+                  <h4 className="font-bold text-[14px] text-zinc-100 flex items-center justify-center gap-1">
+                    <span>{activeConv?.customerName || "Customer"}</span>
+                    {activeConv?.whatsappOptedOut && (
+                      <span title="Consent Opted Out"><Ban className="w-3.5 h-3.5 text-rose-500" /></span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-0.5">+{activePhone}</p>
+                </div>
+              </div>
+            )}
 
             {/* Consent status section */}
             <div className="p-4 space-y-2.5">
