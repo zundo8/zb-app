@@ -1,5 +1,5 @@
 import { fetchProducts, fetchEnabledCollections, fetchPolicies, fetchCollectionByHandle } from "@/lib/shopify-admin";
-import prisma, { getStoreSettings, DEFAULT_SHOP_SETTINGS } from "@/lib/db";
+import prisma, { getStoreSettings, getShopSettings, DEFAULT_SHOP_SETTINGS } from "@/lib/db";
 import NextImage from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -56,43 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   const settings = await getStoreSettings('homepage');
-  let shop: any = null;
-  try {
-    shop = await prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } });
-    if (!shop) {
-      console.log("[Storefront Home] 8tiahf-bk.myshopify.com shop record not found, auto-initializing...");
-      const existing = await prisma.shop.findFirst().catch(() => null);
-      const ENV_TOKEN = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "";
-      shop = await prisma.shop.create({
-        data: {
-          domain: "8tiahf-bk.myshopify.com",
-          accessToken: existing?.accessToken || ENV_TOKEN || "shpat_required",
-          delhiveryApiKey: existing?.delhiveryApiKey,
-          razorpayKeyId: existing?.razorpayKeyId,
-          razorpayKeySecret: existing?.razorpayKeySecret,
-          shiprocketEmail: existing?.shiprocketEmail,
-          shiprocketToken: existing?.shiprocketToken,
-          shiprocketPassword: existing?.shiprocketPassword,
-          webhookSecret: existing?.webhookSecret,
-          heroTitle: "Redefine The Standard",
-          showHeroText: true,
-          showLatestCuration: true,
-          showArchive: true,
-          showBlueprint: true,
-          showCommunity: true,
-          communityTitle: "Featured Looks",
-          communitySubtitle: "Community",
-          spotlightTitle: "AUTHENTIC STREETWEAR",
-          spotlightSubtitle: "Luxury Indian streetwear for modern men."
-        }
-      });
-    }
-  } catch (e) {
-    console.error("Error auto-initializing webstore shop settings:", e);
-    shop = await prisma.shop.findFirst().catch(() => null);
-  }
-
-  const s = (shop as any) || DEFAULT_SHOP_SETTINGS;
+  const s = await getShopSettings();
 
   // Concurrently fetch all independent assets to optimize TTFB and speed up the homepage loading
   const [collections, policies, banners, products] = await Promise.all([
@@ -117,13 +81,19 @@ export default async function Home() {
           const fetched = await Promise.all(
             ids.map((id: string) => fetchProductById(id).catch(() => null))
           );
-          return fetched.filter((p): p is ShopifyProduct => p !== null);
-        } else if (s.homepageCollection && s.homepageCollection.trim()) {
-          const result = await fetchCollectionByHandle(s.homepageCollection, 24);
-          return result.products;
-        } else {
-          return await fetchProducts(24);
+          const valid = fetched.filter((p): p is ShopifyProduct => p !== null);
+          if (valid.length > 0) return valid;
         }
+        
+        if (s.homepageCollection && s.homepageCollection.trim()) {
+          const colHandle = s.homepageCollection.trim().toLowerCase().replace(/\s+/g, '-');
+          const result = await fetchCollectionByHandle(colHandle, 24).catch(() => null);
+          if (result && result.products && result.products.length > 0) {
+            return result.products;
+          }
+        }
+        
+        return await fetchProducts(24).catch(() => [] as ShopifyProduct[]);
       } catch (err) {
         console.error("Error fetching homepage products:", err);
         return await fetchProducts(24).catch(() => [] as ShopifyProduct[]);

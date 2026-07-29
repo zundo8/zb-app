@@ -2,7 +2,7 @@ import { fetchProductByHandle, fetchProducts, resolveShopifyGid, ShopifyProduct,
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft, ShoppingBag, Heart, Share2 } from "lucide-react";
-import prisma from "@/lib/db";
+import prisma, { getShopSettings } from "@/lib/db";
 import ProductDetailsClient from "./ProductDetailsClient";
 import { Metadata } from "next";
 import { ProductJsonLd } from "@/components/seo/ProductJsonLd";
@@ -121,8 +121,7 @@ export async function generateMetadata({
 export default async function ProductPage({ params }: { params: { id: string } }) {
   const [product, shop, allProducts] = await Promise.all([
     fetchProductByHandle(params.id).catch(() => null),
-    prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } }).catch(() => null)
-      .then((s: any) => s || prisma.shop.findFirst().catch(() => null)),
+    getShopSettings().catch(() => null),
     fetchProducts(12).catch(() => [])
   ]);
 

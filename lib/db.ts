@@ -289,6 +289,10 @@ export function savePersistentSettings(updatedData: Record<string, any>) {
 
 export async function getShopSettings() {
   try {
+    const isMock = (prisma as any)._isMock;
+    if (isMock) {
+      return getPersistentSettings();
+    }
     const shop = await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
       ?? await prisma.shop.findFirst();
     if (shop) {
@@ -299,6 +303,53 @@ export async function getShopSettings() {
   } catch (error: any) {
     console.error('[DB] getShopSettings query failed, using persistent fallback:', error.message);
     return getPersistentSettings();
+  }
+}
+
+export async function updateShopSettings(updates: Record<string, any>) {
+  // Always update persistent JSON file to prevent desync during DB timeouts/redeployments
+  const updatedPersistent = savePersistentSettings(updates);
+
+  try {
+    const isMock = (prisma as any)._isMock;
+    if (isMock) {
+      console.warn('[DB] Prisma is in mock mode; saved updates to persistent store-settings.json.');
+      return updatedPersistent;
+    }
+
+    let shop = await prisma.shop.findUnique({ where: { domain: '8tiahf-bk.myshopify.com' } })
+      ?? await prisma.shop.findFirst();
+
+    if (!shop) {
+      shop = await prisma.shop.create({
+        data: {
+          domain: '8tiahf-bk.myshopify.com',
+          accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || 'shpat_required',
+          ...updates
+        }
+      });
+    } else {
+      shop = await prisma.shop.update({
+        where: { id: shop.id },
+        data: updates
+      });
+    }
+
+    // Sync other shop records if multiple exist
+    try {
+      const syncData = { ...updates };
+      delete syncData.domain;
+      delete syncData.accessToken;
+      await prisma.shop.updateMany({
+        where: { id: { not: shop.id } },
+        data: syncData
+      });
+    } catch {}
+
+    return { ...DEFAULT_SHOP_SETTINGS, ...updatedPersistent, ...shop };
+  } catch (error: any) {
+    console.error('[DB] updateShopSettings DB update failed, falling back to persistent file:', error.message);
+    return updatedPersistent;
   }
 }
 

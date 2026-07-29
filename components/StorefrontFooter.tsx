@@ -1,4 +1,4 @@
-import prisma from "@/lib/db";
+import prisma, { getShopSettings } from "@/lib/db";
 import StorefrontFooterClient from "./StorefrontFooterClient";
 
 export default async function StorefrontFooter() {
@@ -8,8 +8,7 @@ export default async function StorefrontFooter() {
 
   try {
     const [shopData, policiesData, socialLinksData] = await Promise.all([
-      prisma.shop.findUnique({ where: { domain: "8tiahf-bk.myshopify.com" } }).catch(() => null)
-        .then((s: any) => s || prisma.shop.findFirst().catch(() => null)),
+      getShopSettings().catch(() => null),
       prisma.policy.findMany({ 
         select: { handle: true, title: true },
         orderBy: { title: 'asc' }
