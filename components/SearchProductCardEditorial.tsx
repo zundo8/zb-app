@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import ProductCardImage from "./ProductCardImage";
 import dynamic from "next/dynamic";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { useSnapEvents } from "@/hooks/useSnapEvents";
 
 const QuickAddModal = dynamic(() => import("./QuickAddModal"), { ssr: false });
 
@@ -49,6 +50,7 @@ interface Props {
 export default function SearchProductCardEditorial({ chunk, index, priority = false }: Props) {
   const { add } = useCart();
   const { trackAddToCart } = useMetaEvents();
+  const { trackAddToCart: trackSnapAddToCart } = useSnapEvents();
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [added, setAdded] = useState(false);
@@ -127,6 +129,7 @@ export default function SearchProductCardEditorial({ chunk, index, priority = fa
       });
 
       trackAddToCart(variantId, p1.title, itemPrice, 'INR', p1.product_type);
+      trackSnapAddToCart(variantId, p1.title, itemPrice, 'INR', p1.product_type);
 
       setIsAdding(false);
       setAdded(true);

@@ -89,12 +89,53 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       console.log(`✅ Shopify exchange order created: ${shopifyOrderId}`);
     } catch (shopifyError: any) {
       console.error("⚠️ Shopify order creation failed:", shopifyError.message);
-      // Don't fail entirely — still update local DB
+      return NextResponse.json({
+        error: `Shopify order creation failed: ${shopifyError.message}. Please verify product availability and Shopify credentials before retrying.`
+      }, { status: 502 });
     }
 
-    // Update the exchange request with the new Shopify order
-    const updatedRequest = await prisma.$transaction(async (tx: any) => {
-      const updated = await tx.exchangeRequest.update({
+    if (!shopifyOrderId) {
+      return NextResponse.json({
+        error: "Shopify order creation returned no order ID."
+      }, { status: 500 });
+    }
+
+    // Create the real local Order & update the exchange request transactionally
+    const result = await prisma.$transaction(async (tx: any) => {
+      // 1. Create real local Order row for replacement items
+      const newItems = (shopifyOrder.line_items || []).map((li: any) => {
+        const matchingEx = exchangeRequest.exchanges.find((ex: any) => ex.newProduct?.sku === li.sku);
+        return {
+          shopifyLineItemId: li.id?.toString() || `EXC-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          productId: matchingEx?.newProductId || null,
+          title: li.title || "Exchange Replacement",
+          quantity: li.quantity || 1,
+          price: parseFloat(li.price || '0'),
+          sku: li.sku || ""
+        };
+      });
+
+      const localOrder = await tx.order.create({
+        data: {
+          shopId: exchangeRequest.order.shopId,
+          shopifyOrderId: shopifyOrderId,
+          customerId: exchangeRequest.customerId,
+          status: "confirmed",
+          orderType: "EXCHANGE",
+          totalPrice: exchangeRequest.priceDifference > 0 ? exchangeRequest.priceDifference : 0,
+          paymentStatus: exchangeRequest.priceDifference > 0 ? "paid" : "free",
+          fulfillmentStatus: "unfulfilled",
+          shippingAddress: exchangeRequest.order.shippingAddress,
+          billingAddress: exchangeRequest.order.billingAddress,
+          note: `Exchange replacement order for #${exchangeRequest.order.shopifyOrderId}`,
+          items: {
+            create: newItems
+          }
+        }
+      });
+
+      // 2. Update the exchange request with the new Shopify order ID
+      const updatedRequest = await tx.exchangeRequest.update({
         where: { id },
         data: {
           status: "new_order_created",
@@ -102,28 +143,60 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // Update individual exchange items
+      // 3. Update individual exchange items with the local Order.id
       await tx.exchange.updateMany({
         where: { exchangeRequestId: id },
         data: {
           status: "NEW_ORDER_CREATED",
-          newOrderId: shopifyOrderId,
+          newOrderId: localOrder.id,
         }
       });
 
-      return updated;
+      return {
+        updatedRequest,
+        localOrderId: localOrder.id
+      };
     });
+
+    // Auto-send Exchange Item Shipped WhatsApp notification
+    try {
+      const { sendExchangeShipped } = await import('@/lib/whatsapp/templates');
+      const cust = exchangeRequest.order.customer;
+      let phone = cust?.phone;
+      if (!phone && exchangeRequest.order.shippingAddress) {
+        try {
+          const parsed = typeof exchangeRequest.order.shippingAddress === 'string'
+            ? JSON.parse(exchangeRequest.order.shippingAddress)
+            : exchangeRequest.order.shippingAddress;
+          phone = parsed?.phone;
+        } catch (_) {}
+      }
+      if (phone) {
+        const orderIdDisplay = shopifyOrder?.name || shopifyOrderId;
+        const customerName = cust?.name || 'Valued Customer';
+        await sendExchangeShipped({
+          phone,
+          customerName,
+          orderId: orderIdDisplay,
+          trackingNumber: shopifyOrderId || 'N/A',
+          trackingUrl: `https://app.zicabella.com/orders/${shopifyOrderId}`,
+        });
+      }
+    } catch (waErr: any) {
+      console.error('[Exchange Create Order] WhatsApp notification error:', waErr.message);
+    }
 
     return NextResponse.json({
       success: true,
       shopifyOrderId,
+      localOrderId: result.localOrderId,
       shopifyOrder: shopifyOrder ? {
         id: shopifyOrder.id,
         name: shopifyOrder.name,
         order_number: shopifyOrder.order_number,
         total_price: shopifyOrder.total_price,
       } : null,
-      exchangeRequest: updatedRequest
+      exchangeRequest: result.updatedRequest
     });
   } catch (error: any) {
     console.error("Create Exchange Shopify Order Error:", error);

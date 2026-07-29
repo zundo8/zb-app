@@ -87,21 +87,60 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // 5. Create a reverse shipment tracking record for Delhivery reverse pickup!
-      const reverseAwb = `ZBRET${String(Math.floor(100000 + Math.random() * 900000))}`;
+      // 5. Create a reverse shipment tracking record with real Delhivery reverse pickup
+      let reverseAwb: string | null = null;
+      let pickupStatus = 'pickup_pending';
+      let delhiveryRaw: any = null;
+
+      try {
+        const { createReversePickup } = await import('@/lib/delhivery');
+        
+        let addrObj: any = {};
+        const shippingRaw = returnRequest.order.shippingAddress;
+        if (typeof shippingRaw === 'string') {
+          try { addrObj = JSON.parse(shippingRaw); } catch (_) { addrObj = { add: shippingRaw }; }
+        } else if (shippingRaw && typeof shippingRaw === 'object') {
+          addrObj = shippingRaw;
+        }
+
+        const customer = returnRequest.order.customer;
+        const name = addrObj.name || (addrObj.first_name ? `${addrObj.first_name} ${addrObj.last_name || ''}`.trim() : customer?.name || 'Customer');
+        const add = addrObj.add || addrObj.address1 || addrObj.street || addrObj.fullAddress || (typeof shippingRaw === 'string' ? shippingRaw : 'Address Not Specified');
+        const pin = addrObj.pin || addrObj.zip || addrObj.pincode || addrObj.postalCode || '110001';
+        const phone = addrObj.phone || customer?.phone || '9999999999';
+        const prodDesc = returnRequest.returns.map((r: any) => r.sku || 'Item').join(', ');
+
+        const pickupRes = await createReversePickup({
+          name,
+          add,
+          pin: String(pin),
+          phone: String(phone),
+          order: returnRequest.order.shopifyOrderId || returnRequest.order.id,
+          products_desc: `Return: ${prodDesc}`,
+          weight: '500',
+          seller_name: 'Zica Bella',
+          pickup_location_name: process.env.DELHIVERY_PICKUP_LOCATION || 'Zica Bella Warehouse',
+        });
+
+        reverseAwb = pickupRes.awb;
+        pickupStatus = pickupRes.status;
+        delhiveryRaw = pickupRes.rawResponse;
+      } catch (dErr: any) {
+        console.error('[Return Approve] Delhivery reverse pickup failed:', dErr.message);
+        pickupStatus = 'pickup_registration_failed';
+        delhiveryRaw = { error: dErr.message, note: 'Delhivery pickup creation failed. Return approved locally.' };
+      }
+
       await tx.shipment.create({
         data: {
           orderId: returnRequest.orderId,
           awb: reverseAwb,
           trackingNumber: reverseAwb,
           courier: "Delhivery",
-          status: "pickup_pending",
-          trackingUrl: `https://www.delhivery.com/track/package/${reverseAwb}`,
-          rawDelhiveryResponse: JSON.stringify({
-            success: true,
-            pickup_pending: true,
-            message: "Reverse pickup order registered with Delhivery."
-          })
+          status: pickupStatus,
+          type: "reverse_pickup",
+          trackingUrl: reverseAwb ? `https://www.delhivery.com/track/package/${reverseAwb}` : null,
+          rawDelhiveryResponse: JSON.stringify(delhiveryRaw)
         }
       });
 
@@ -118,6 +157,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     } catch (skuErr) {
       console.error('[Return Approve] SKU status update failed:', skuErr);
+    }
+
+    // Auto-send Return Pickup Scheduled WhatsApp notification
+    try {
+      const { sendReturnPickupScheduled } = await import('@/lib/whatsapp/templates');
+      const cust = returnRequest.order.customer;
+      let phone = cust?.phone;
+      if (!phone && returnRequest.order.shippingAddress) {
+        try {
+          const parsed = typeof returnRequest.order.shippingAddress === 'string'
+            ? JSON.parse(returnRequest.order.shippingAddress)
+            : returnRequest.order.shippingAddress;
+          phone = parsed?.phone;
+        } catch (_) {}
+      }
+      if (phone) {
+        const orderIdDisplay = returnRequest.order.shopifyOrderId || returnRequest.orderId;
+        const customerName = cust?.name || 'Valued Customer';
+        await sendReturnPickupScheduled({
+          phone,
+          customerName,
+          orderId: orderIdDisplay,
+          pickupDate: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+          awbNumber: 'Pending',
+        });
+      }
+    } catch (waErr: any) {
+      console.error('[Return Approve] WhatsApp pickup notification error:', waErr.message);
     }
 
     return NextResponse.json(result);

@@ -10,7 +10,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     await prisma.order.update({
       where: { id: order.id },
-      data: { deliveryStatus: 'delivered' },
+      data: {
+        deliveryStatus: 'delivered',
+        deliveredAt: order.deliveredAt || new Date(),
+      },
     });
 
     // Push notification (non-blocking)

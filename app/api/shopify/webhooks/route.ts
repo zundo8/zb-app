@@ -120,6 +120,10 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
   }
 
   const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp');
+  // NOTE: Order.status is intentionally coarse-grained: 'active', 'approved', or 'cancelled'.
+  // It does NOT reflect delivery lifecycle states like 'shipped' or 'delivered'.
+  // For shipment/delivery state, use Order.deliveryStatus and Order.fulfillmentStatus — those
+  // are the fields of record, set by both this webhook handler and manual admin actions.
   let finalStatus = isMobileAppOrder ? 'approved' : 'active';
   
   if (topic === 'orders/cancelled' || orderData.cancelled_at) {
@@ -320,14 +324,35 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
     }
   }
 
-  if (orderData.line_items) {
+  // Guard line-item sync: only delete local items not in payload when we have
+  // an authoritative, full line-item list. Thin/partial payloads on topics like
+  // orders/fulfilled or orders/cancelled may omit items and must not trigger deletion.
+  if (orderData.line_items && Array.isArray(orderData.line_items) && orderData.line_items.length > 0) {
     const shopifyItemIds = orderData.line_items.map((item: any) => item.id.toString());
-    await prisma.orderItem.deleteMany({
-      where: {
-        orderId: order.id,
-        shopifyLineItemId: { notIn: shopifyItemIds }
+
+    // Only delete items that are no longer in the payload on authoritative topics
+    const isAuthoritativeTopic = topic === 'orders/create' || topic === 'orders/updated';
+    if (isAuthoritativeTopic) {
+      // Safety check: count existing local items and compare with payload
+      const existingItemCount = await prisma.orderItem.count({ where: { orderId: order.id } });
+      const payloadItemCount = orderData.line_items.length;
+
+      if (existingItemCount > 0 && payloadItemCount < existingItemCount * 0.5) {
+        // Payload has significantly fewer items than local — likely a partial/thin payload
+        console.warn(
+          `[Webhook] SKIPPING item deletion for order ${order.id}: ` +
+          `payload has ${payloadItemCount} items but local DB has ${existingItemCount}. ` +
+          `This looks like a partial payload that could wipe legitimate items.`
+        );
+      } else {
+        await prisma.orderItem.deleteMany({
+          where: {
+            orderId: order.id,
+            shopifyLineItemId: { notIn: shopifyItemIds }
+          }
+        });
       }
-    });
+    }
 
     for (const item of orderData.line_items) {
       const shopifyProductId = item.product_id?.toString();

@@ -1,4 +1,5 @@
 import prisma from '@/lib/db';
+import { isValidName } from '@/lib/utils/customerName';
 
 export interface CheckoutAddressPayload {
   name: string;
@@ -34,8 +35,11 @@ export async function resolveAndSyncCustomerAddress(
   };
 
   const email = normalizedAddress.email?.trim().toLowerCase() || null;
-  const phone = normalizedAddress.phone?.trim() || null;
-  const name = normalizedAddress.name?.trim() || 'Valued Customer';
+  const rawPhone = normalizedAddress.phone?.trim() || null;
+  const phoneDigits = rawPhone ? rawPhone.replace(/\D/g, '').slice(-10) : '';
+  const phone = rawPhone || null;
+  const rawRecipientName = normalizedAddress.name?.trim() || null;
+  const validIncomingName = isValidName(rawRecipientName) ? rawRecipientName : null;
 
   // 1. Find Customer
   let localCustomer = null;
@@ -46,10 +50,14 @@ export async function resolveAndSyncCustomerAddress(
     });
   }
 
-  if (!localCustomer && (email || phone)) {
-    const orConditions = [];
+  if (!localCustomer && (email || phoneDigits.length === 10)) {
+    const orConditions: any[] = [];
     if (email) orConditions.push({ email });
-    if (phone) orConditions.push({ phone });
+    if (phoneDigits.length === 10) {
+      orConditions.push({ phone: { contains: phoneDigits } });
+    } else if (phone) {
+      orConditions.push({ phone });
+    }
 
     localCustomer = await prisma.customer.findFirst({
       where: { OR: orConditions },
@@ -63,21 +71,30 @@ export async function resolveAndSyncCustomerAddress(
         shopId,
         email: email || `guest_${Date.now()}@zicabella.com`,
         phone: phone || '',
-        name,
+        name: validIncomingName, // null if missing or generic, never store 'Valued Customer'
         shopifyId: `temp_${Date.now()}`,
         defaultAddress: JSON.stringify(normalizedAddress),
       },
     });
   } else {
-    // Update existing customer profile details
+    // Update existing customer profile details WITHOUT overwriting valid customer name, email, or phone
+    const updateData: any = {
+      defaultAddress: JSON.stringify(normalizedAddress),
+    };
+    if (!isValidName(localCustomer.name) && validIncomingName) {
+      updateData.name = validIncomingName;
+      localCustomer.name = validIncomingName;
+    }
+    if (!localCustomer.email && email) {
+      updateData.email = email;
+    }
+    if (!localCustomer.phone && phone) {
+      updateData.phone = phone;
+    }
+
     await prisma.customer.update({
       where: { id: localCustomer.id },
-      data: {
-        name,
-        ...(email ? { email } : {}),
-        ...(phone ? { phone } : {}),
-        defaultAddress: JSON.stringify(normalizedAddress),
-      },
+      data: updateData,
     });
   }
 
@@ -93,6 +110,16 @@ export async function resolveAndSyncCustomerAddress(
 
       if (duplicateCustomer) {
         console.log(`[CustomerService] Merging duplicate customer account: ${duplicateCustomer.id} -> ${localCustomer.id}`);
+
+        // If duplicate has a valid name and localCustomer doesn't, recover duplicate's valid name
+        if (!isValidName(localCustomer.name) && isValidName(duplicateCustomer.name)) {
+          await prisma.customer.update({
+            where: { id: localCustomer.id },
+            data: { name: duplicateCustomer.name }
+          });
+          localCustomer.name = duplicateCustomer.name;
+        }
+
         await prisma.$transaction([
           prisma.order.updateMany({
             where: { customerId: duplicateCustomer.id },

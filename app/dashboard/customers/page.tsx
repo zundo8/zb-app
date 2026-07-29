@@ -221,7 +221,9 @@ export default function CustomersPage() {
           </div>
         ) : (
           customers.map((customer) => {
-            const fullName = customer.name || customer.email || "Guest";
+            const fullName = customer.name && customer.name !== 'Customer' && customer.name !== 'Valued Customer' && customer.name !== 'Guest User' && customer.name !== 'New User'
+              ? customer.name
+              : (customer.phone || customer.email || "Customer");
 
             return (
               <motion.div
@@ -240,15 +242,15 @@ export default function CustomersPage() {
                       <h3 className="text-[13px] font-semibold text-foreground tracking-tight">
                         {fullName}
                       </h3>
-                      <div className="flex items-center gap-3 mt-1 text-[10px] text-foreground/50">
-                        {customer.email && (
-                          <span className="flex items-center gap-1.5">
-                            <Mail className="w-3 h-3" /> {customer.email}
+                      <div className="flex flex-wrap items-center gap-3 mt-1 text-[10px] text-foreground/50">
+                        {customer.phone && (
+                          <span className="flex items-center gap-1.5 font-mono font-medium text-foreground/75 bg-foreground/[0.04] px-2 py-0.5 rounded">
+                            <Phone className="w-3 h-3 text-foreground/50" /> {customer.phone}
                           </span>
                         )}
-                        {customer.phone && (
+                        {customer.email && (
                           <span className="flex items-center gap-1.5">
-                            <Phone className="w-3 h-3" /> {customer.phone}
+                            <Mail className="w-3 h-3 text-foreground/40" /> {customer.email}
                           </span>
                         )}
                       </div>

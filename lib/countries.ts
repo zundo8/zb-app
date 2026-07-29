@@ -1,0 +1,252 @@
+/**
+ * ISO Country list and helper functions for international address management.
+ */
+
+export interface CountryOption {
+  name: string;
+  code: string; // 2-letter ISO alpha-2 code
+}
+
+export const COUNTRIES: CountryOption[] = [
+  { name: "India", code: "IN" },
+  { name: "United States", code: "US" },
+  { name: "United Kingdom", code: "GB" },
+  { name: "Australia", code: "AU" },
+  { name: "Canada", code: "CA" },
+  { name: "United Arab Emirates", code: "AE" },
+  { name: "Singapore", code: "SG" },
+  { name: "Saudi Arabia", code: "SA" },
+  { name: "Germany", code: "DE" },
+  { name: "France", code: "FR" },
+  { name: "Afghanistan", code: "AF" },
+  { name: "Albania", code: "AL" },
+  { name: "Algeria", code: "DZ" },
+  { name: "Andorra", code: "AD" },
+  { name: "Angola", code: "AO" },
+  { name: "Argentina", code: "AR" },
+  { name: "Armenia", code: "AM" },
+  { name: "Austria", code: "AT" },
+  { name: "Azerbaijan", code: "AZ" },
+  { name: "Bahamas", code: "BS" },
+  { name: "Bahrain", code: "BH" },
+  { name: "Bangladesh", code: "BD" },
+  { name: "Barbados", code: "BB" },
+  { name: "Belarus", code: "BY" },
+  { name: "Belgium", code: "BE" },
+  { name: "Belize", code: "BZ" },
+  { name: "Benin", code: "BJ" },
+  { name: "Bhutan", code: "BT" },
+  { name: "Bolivia", code: "BO" },
+  { name: "Bosnia and Herzegovina", code: "BA" },
+  { name: "Botswana", code: "BW" },
+  { name: "Brunei", code: "BN" },
+  { name: "Bulgaria", code: "BG" },
+  { name: "Burkina Faso", code: "BF" },
+  { name: "Burundi", code: "BI" },
+  { name: "Cambodia", code: "KH" },
+  { name: "Cameroon", code: "CM" },
+  { name: "Cape Verde", code: "CV" },
+  { name: "Chile", code: "CL" },
+  { name: "China", code: "CN" },
+  { name: "Colombia", code: "CO" },
+  { name: "Costa Rica", code: "CR" },
+  { name: "Croatia", code: "HR" },
+  { name: "Cuba", code: "CU" },
+  { name: "Cyprus", code: "CY" },
+  { name: "Czech Republic", code: "CZ" },
+  { name: "Denmark", code: "DK" },
+  { name: "Djibouti", code: "DJ" },
+  { name: "Dominican Republic", code: "DO" },
+  { name: "Ecuador", code: "EC" },
+  { name: "Egypt", code: "EG" },
+  { name: "El Salvador", code: "SV" },
+  { name: "Estonia", code: "EE" },
+  { name: "Ethiopia", code: "ET" },
+  { name: "Fiji", code: "FJ" },
+  { name: "Finland", code: "FI" },
+  { name: "Georgia", code: "GE" },
+  { name: "Ghana", code: "GH" },
+  { name: "Greece", code: "GR" },
+  { name: "Guatemala", code: "GT" },
+  { name: "Guyana", code: "GY" },
+  { name: "Haiti", code: "HT" },
+  { name: "Honduras", code: "HN" },
+  { name: "Hong Kong", code: "HK" },
+  { name: "Hungary", code: "HU" },
+  { name: "Iceland", code: "IS" },
+  { name: "Indonesia", code: "ID" },
+  { name: "Iran", code: "IR" },
+  { name: "Iraq", code: "IQ" },
+  { name: "Ireland", code: "IE" },
+  { name: "Israel", code: "IL" },
+  { name: "Italy", code: "IT" },
+  { name: "Ivory Coast", code: "CI" },
+  { name: "Jamaica", code: "JM" },
+  { name: "Japan", code: "JP" },
+  { name: "Jordan", code: "JO" },
+  { name: "Kazakhstan", code: "KZ" },
+  { name: "Kenya", code: "KE" },
+  { name: "Kuwait", code: "KW" },
+  { name: "Kyrgyzstan", code: "KG" },
+  { name: "Laos", code: "LA" },
+  { name: "Latvia", code: "LV" },
+  { name: "Lebanon", code: "LB" },
+  { name: "Liberia", code: "LR" },
+  { name: "Libya", code: "LY" },
+  { name: "Liechtenstein", code: "LI" },
+  { name: "Lithuania", code: "LT" },
+  { name: "Luxembourg", code: "LU" },
+  { name: "Macau", code: "MO" },
+  { name: "Macedonia", code: "MK" },
+  { name: "Madagascar", code: "MG" },
+  { name: "Malawi", code: "MW" },
+  { name: "Malaysia", code: "MY" },
+  { name: "Maldives", code: "MV" },
+  { name: "Mali", code: "ML" },
+  { name: "Malta", code: "MT" },
+  { name: "Mauritius", code: "MU" },
+  { name: "Mexico", code: "MX" },
+  { name: "Moldova", code: "MD" },
+  { name: "Monaco", code: "MC" },
+  { name: "Mongolia", code: "MN" },
+  { name: "Montenegro", code: "ME" },
+  { name: "Morocco", code: "MA" },
+  { name: "Mozambique", code: "MZ" },
+  { name: "Myanmar", code: "MM" },
+  { name: "Namibia", code: "NA" },
+  { name: "Nepal", code: "NP" },
+  { name: "Netherlands", code: "NL" },
+  { name: "New Zealand", code: "NZ" },
+  { name: "Nicaragua", code: "NI" },
+  { name: "Niger", code: "NE" },
+  { name: "Nigeria", code: "NG" },
+  { name: "Norway", code: "NO" },
+  { name: "Oman", code: "OM" },
+  { name: "Pakistan", code: "PK" },
+  { name: "Palestine", code: "PS" },
+  { name: "Panama", code: "PA" },
+  { name: "Papua New Guinea", code: "PG" },
+  { name: "Paraguay", code: "PY" },
+  { name: "Peru", code: "PE" },
+  { name: "Philippines", code: "PH" },
+  { name: "Poland", code: "PL" },
+  { name: "Portugal", code: "PT" },
+  { name: "Qatar", code: "QA" },
+  { name: "Romania", code: "RO" },
+  { name: "Russia", code: "RU" },
+  { name: "Rwanda", code: "RW" },
+  { name: "Senegal", code: "SN" },
+  { name: "Serbia", code: "RS" },
+  { name: "Seychelles", code: "SC" },
+  { name: "Sierra Leone", code: "SL" },
+  { name: "Slovakia", code: "SK" },
+  { name: "Slovenia", code: "SI" },
+  { name: "Somalia", code: "SO" },
+  { name: "South Africa", code: "ZA" },
+  { name: "South Korea", code: "KR" },
+  { name: "Spain", code: "ES" },
+  { name: "Sri Lanka", code: "LK" },
+  { name: "Sudan", code: "SD" },
+  { name: "Suriname", code: "SR" },
+  { name: "Sweden", code: "SE" },
+  { name: "Switzerland", code: "CH" },
+  { name: "Syria", code: "SY" },
+  { name: "Taiwan", code: "TW" },
+  { name: "Tajikistan", code: "TJ" },
+  { name: "Tanzania", code: "TZ" },
+  { name: "Thailand", code: "TH" },
+  { name: "Togo", code: "TG" },
+  { name: "Trinidad and Tobago", code: "TT" },
+  { name: "Tunisia", code: "TN" },
+  { name: "Turkey", code: "TR" },
+  { name: "Turkmenistan", code: "TM" },
+  { name: "Uganda", code: "UG" },
+  { name: "Ukraine", code: "UA" },
+  { name: "Uruguay", code: "UY" },
+  { name: "Uzbekistan", code: "UZ" },
+  { name: "Venezuela", code: "VE" },
+  { name: "Vietnam", code: "VN" },
+  { name: "Yemen", code: "YE" },
+  { name: "Zambia", code: "ZM" },
+  { name: "Zimbabwe", code: "ZW" }
+];
+
+export const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa",
+  "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala",
+  "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
+  "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+  "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir",
+  "Ladakh", "Lakshadweep", "Puducherry"
+];
+
+/**
+ * Check if the given country string or code represents India.
+ */
+export function isIndia(country?: string, countryCode?: string): boolean {
+  if (countryCode && countryCode.toUpperCase() === "IN") return true;
+  if (country) {
+    const norm = country.trim().toLowerCase();
+    return norm === "india" || norm === "in";
+  }
+  return true; // Default to India if unspecified
+}
+
+/**
+ * Find country object matching name or ISO code. Defaults to India.
+ */
+export function findCountry(nameOrCode?: string): CountryOption {
+  if (!nameOrCode) return COUNTRIES[0];
+  const query = nameOrCode.trim().toLowerCase();
+  const matched = COUNTRIES.find(
+    c => c.code.toLowerCase() === query || c.name.toLowerCase() === query
+  );
+  return matched || { name: nameOrCode, code: "" };
+}
+
+/**
+ * Validate postal/zip code based on country.
+ */
+export function validatePostalCode(zip: string, country?: string, countryCode?: string): boolean {
+  const cleanZip = zip.trim();
+  if (isIndia(country, countryCode)) {
+    return /^\d{6}$/.test(cleanZip);
+  }
+  return cleanZip.length >= 2 && cleanZip.length <= 12 && /^[A-Za-z0-9\s\-]{2,12}$/.test(cleanZip);
+}
+
+/**
+ * Validate phone number based on country.
+ */
+export function validatePhoneNumber(phone: string, country?: string, countryCode?: string): {
+  valid: boolean;
+  formattedPhone: string;
+  error: string;
+} {
+  if (isIndia(country, countryCode)) {
+    const digits = phone.replace(/\D/g, "");
+    let baseNumber = digits;
+    if (digits.length === 12 && digits.startsWith("91")) {
+      baseNumber = digits.slice(2);
+    } else if (digits.length === 11 && digits.startsWith("0")) {
+      baseNumber = digits.slice(1);
+    }
+    const valid = baseNumber.length === 10;
+    return {
+      valid,
+      formattedPhone: `+91${baseNumber}`,
+      error: valid ? "" : "Enter a valid 10-digit mobile number"
+    };
+  }
+
+  // Non-India international format check
+  const phoneTrim = phone.trim();
+  const digits = phoneTrim.replace(/\D/g, "");
+  const valid = /^\+?[0-9\s\-]{7,20}$/.test(phoneTrim) && digits.length >= 7 && digits.length <= 15;
+  return {
+    valid,
+    formattedPhone: phoneTrim,
+    error: valid ? "" : "Enter a valid international phone number"
+  };
+}

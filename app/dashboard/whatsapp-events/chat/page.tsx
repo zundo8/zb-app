@@ -1321,7 +1321,7 @@ export default function WhatsAppChatPage() {
                       
                       <div className="min-w-0">
                         <span className="font-semibold text-[13px] text-zinc-200 block truncate">
-                          {c.customerName || `Customer (+${c.phoneNumber})`}
+                          {c.customerName || `Guest (+${c.phoneNumber})`}
                         </span>
                         
                         <p className="text-[11px] text-zinc-400 truncate mt-0.5 font-sans leading-normal">
@@ -1360,7 +1360,7 @@ export default function WhatsAppChatPage() {
                   {renderAvatar(activeConv?.customerName || null, activePhone)}
                   <div>
                     <h3 className="font-bold text-[14px] text-zinc-200">
-                      {activeConv?.customerName || "Unregistered Customer"}
+                      {activeConv?.customerName || `Guest (+${activePhone})`}
                     </h3>
                     <span className="text-xs text-zinc-400 font-mono">+{activePhone}</span>
                   </div>
@@ -1712,7 +1712,7 @@ export default function WhatsAppChatPage() {
                 {renderAvatar(activeConv?.customerName || null, activePhone, "w-20 h-20 text-xl font-extrabold")}
                 <div>
                   <h4 className="font-bold text-[14px] text-zinc-100 flex items-center justify-center gap-1">
-                    <span>{activeConv?.customerName || "Customer"}</span>
+                    <span>{activeConv?.customerName || "Guest"}</span>
                     {activeConv?.whatsappOptedOut && (
                       <span title="Consent Opted Out"><Ban className="w-3.5 h-3.5 text-rose-500" /></span>
                     )}

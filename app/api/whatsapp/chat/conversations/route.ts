@@ -6,28 +6,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { formatPhone } from '@/lib/whatsapp/client';
+import { isValidName } from '@/lib/utils/customerName';
 
 export const dynamic = 'force-dynamic';
-
-function isValidName(name?: string | null): boolean {
-  if (!name || typeof name !== 'string') return false;
-  const trimmed = name.trim();
-  if (trimmed.length < 2) return false;
-  const lower = trimmed.toLowerCase();
-  const genericNames = [
-    'customer',
-    'valued customer',
-    'unregistered customer',
-    'system',
-    'there',
-    'guest',
-    'n/a',
-    'unknown',
-    'null',
-    'undefined'
-  ];
-  return !genericNames.includes(lower);
-}
 
 function parseAddress(addrStr?: string | null) {
   if (!addrStr) return null;

@@ -312,8 +312,16 @@ export const authOptions: AuthOptions = {
             // ── EXISTING USER: Return immediately, sync Shopify in background ──
             console.log(`[AUTH] Fast-path: existing customer ${customer.id}`);
 
+            // Ensure customer phone is populated if missing
+            if (!customer.phone) {
+              customer = await prisma.customer.update({
+                where: { id: customer.id },
+                data: { phone: fullPhone },
+              });
+            }
+
             // Update name if provided and missing
-            if (providedName && (!customer.name || customer.name === "New User" || customer.name === "User")) {
+            if (providedName && (!customer.name || customer.name === "New User" || customer.name === "User" || customer.name === "Valued Customer")) {
               customer = await prisma.customer.update({
                 where: { id: customer.id },
                 data: { name: providedName },
@@ -346,15 +354,19 @@ export const authOptions: AuthOptions = {
 
                 console.log(`[AUTH-BG] Syncing Shopify customer ${shopifyCustomer.id} for local ${bgCustomerId}`);
 
-                // Update local customer with Shopify data
+                // Update local customer with Shopify data without overwriting existing email or phone
                 try {
+                  const currentCustomer = await prisma.customer.findUnique({
+                    where: { id: bgCustomerId },
+                    select: { email: true, phone: true }
+                  });
                   await prisma.customer.update({
                     where: { id: bgCustomerId },
                     data: {
                       shopifyId: String(shopifyCustomer.id),
-                      email: shopifyCustomer.email || undefined,
+                      email: currentCustomer?.email ? undefined : (shopifyCustomer.email || undefined),
                       name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
-                      phone: shopifyCustomer.phone || undefined,
+                      phone: currentCustomer?.phone ? undefined : (shopifyCustomer.phone || undefined),
                       ordersCount: shopifyCustomer.orders_count || 0,
                       totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
                     }
@@ -363,12 +375,16 @@ export const authOptions: AuthOptions = {
                   // Handle unique constraint violation on shopifyId defensively
                   if (e.code === 'P2002' && (e.meta?.target?.includes('shopifyId') || JSON.stringify(e).includes('shopifyId'))) {
                     console.warn(`[AUTH-BG] Unique constraint on shopifyId for customer ${bgCustomerId}. Retrying sync without shopifyId...`);
+                    const currentCustomer = await prisma.customer.findUnique({
+                      where: { id: bgCustomerId },
+                      select: { email: true, phone: true }
+                    });
                     await prisma.customer.update({
                       where: { id: bgCustomerId },
                       data: {
-                        email: shopifyCustomer.email || undefined,
+                        email: currentCustomer?.email ? undefined : (shopifyCustomer.email || undefined),
                         name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
-                        phone: shopifyCustomer.phone || undefined,
+                        phone: currentCustomer?.phone ? undefined : (shopifyCustomer.phone || undefined),
                         ordersCount: shopifyCustomer.orders_count || 0,
                         totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
                       }

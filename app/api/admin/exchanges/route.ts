@@ -12,7 +12,7 @@ export async function GET(req: Request) {
 
     const where = status && status !== 'all' ? { status } : {};
 
-    const [exchanges, total] = await Promise.all([
+    const [exchanges, total, statusGroups] = await Promise.all([
       prisma.exchangeRequest.findMany({
         where,
         take: limit,
@@ -27,8 +27,17 @@ export async function GET(req: Request) {
         },
         orderBy: { createdAt: "desc" }
       }),
-      prisma.exchangeRequest.count({ where })
+      prisma.exchangeRequest.count({ where }),
+      prisma.exchangeRequest.groupBy({
+        by: ['status'],
+        _count: { id: true }
+      })
     ]);
+
+    const statusCounts: Record<string, number> = {};
+    statusGroups.forEach((g: any) => {
+      statusCounts[g.status] = g._count.id;
+    });
 
     const formattedExchanges = exchanges.map((e: any) => ({
       exchangeRequestId: e.id,
@@ -49,7 +58,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       exchanges: formattedExchanges,
-      total
+      total,
+      statusCounts
     });
   } catch (error: any) {
     console.error("Fetch Admin Exchanges Error:", error);

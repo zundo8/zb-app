@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import ThreeDLogo from "./ThreeDLogo";
 import LazyVideo from "./LazyVideo";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { useSnapEvents } from "@/hooks/useSnapEvents";
 
 interface Policy {
   handle: string;
@@ -56,6 +57,7 @@ interface StorefrontFooterClientProps {
 
 export default function StorefrontFooterClient({ shop, policies, socialLinks }: StorefrontFooterClientProps) {
   const { trackSubscribe } = useMetaEvents();
+  const { trackSubscribe: trackSnapSubscribe } = useSnapEvents();
   // Mobile accordion states
   const [shopOpen, setShopOpen] = useState(false);
   const [customerCareOpen, setCustomerCareOpen] = useState(true); // Default open as shown in reference image
@@ -79,6 +81,7 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
       // Subscribe is a non-monetary newsletter signup — pass estimated lead value
       // for Meta's value-based optimization. Currency is INR.
       trackSubscribe(email, 'Newsletter Signup');
+      trackSnapSubscribe(email);
       toast.success("Thank you for joining our newsletter!", {
         description: "You have successfully subscribed to the Zica Bella newsletter.",
       });

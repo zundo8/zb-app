@@ -8,6 +8,7 @@ import LayoutWrapper from "@/components/LayoutWrapper";
 import StorefrontFooter from "@/components/StorefrontFooter";
 import { Toaster } from "sonner";
 import MetaPixelRouteTracker from "@/components/MetaPixelRouteTracker";
+import SnapPixelRouteTracker from "@/components/SnapPixelRouteTracker";
 import { NavigationProgress } from "@/components/ui/NavigationProgress";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 import { WebsiteJsonLd } from "@/components/seo/WebsiteJsonLd";
@@ -153,6 +154,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID || "2049977412558608";
+  const snapPixelId = process.env.NEXT_PUBLIC_SNAP_PIXEL_ID || "7d2481be-4ccf-42b2-b9ea-958c6c7bbdcd";
   const gtmId = process.env.NEXT_PUBLIC_GTM_ID || "GTM-TDGKF386";
 
   return (
@@ -241,6 +243,21 @@ export default function RootLayout({
             }
           `}
         </Script>
+        <Script id="snap-pixel" strategy="afterInteractive">
+          {`
+            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {
+              (function(e,t,n){if(e.snaptr)return;var a=e.snaptr=function()
+              {a.handleRequest?a.handleRequest.apply(a,arguments):a.queue.push(arguments)};
+              a.queue=[];var s='script';var r=t.createElement(s);r.async=!0;
+              r.src=n;var u=t.getElementsByTagName(s)[0];
+              if (u && u.parentNode) { u.parentNode.insertBefore(r,u); } else { (t.head || t.body).appendChild(r); }
+              })(window,document,'https://sc-static.net/scevent.min.js');
+
+              snaptr('init', '${snapPixelId}');
+              snaptr('track', 'PAGE_VIEW');
+            }
+          `}
+        </Script>
       </head>
       <body className={`${geistSans.variable} ${inter.variable} ${poppins.variable} antialiased`}>
         {/* Google Tag Manager (noscript) */}
@@ -257,6 +274,7 @@ export default function RootLayout({
         <NavigationProgress />
         <Providers>
           <MetaPixelRouteTracker />
+          <SnapPixelRouteTracker />
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}
           </LayoutWrapper>

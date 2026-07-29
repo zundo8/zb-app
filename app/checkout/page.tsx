@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { useSnapEvents } from "@/hooks/useSnapEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
 import { trackBeginCheckout as zbTrackBeginCheckout, trackPaymentInitiated as zbTrackPaymentInitiated } from "@/lib/analytics-tracker";
 import { saveUserDataToCookiesAndReinit, getClientCookie } from "@/lib/metaPixel";
@@ -43,6 +44,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import {
+  COUNTRIES,
+  INDIAN_STATES,
+  isIndia,
+  findCountry,
+  validatePostalCode,
+  validatePhoneNumber,
+} from "@/lib/countries";
 
 type Address = {
   name: string;
@@ -55,6 +64,7 @@ type Address = {
   state: string;
   zip: string;
   country: string;
+  countryCode?: string;
   lat?: number;
   lng?: number;
   placeId?: string;
@@ -71,6 +81,7 @@ type DBAddress = {
   state: string;
   zip: string;
   country: string;
+  countryCode?: string;
   isDefault: boolean;
   lat?: number | null;
   lng?: number | null;
@@ -92,6 +103,8 @@ const parseAddressComponents = (components: GoogleAddressComponent[]) => {
   let district = "";
   let state = "";
   let pincode = "";
+  let country = "";
+  let countryCode = "";
   
   let streetNumber = "";
   let premise = "";
@@ -105,6 +118,7 @@ const parseAddressComponents = (components: GoogleAddressComponent[]) => {
 
   components.forEach(comp => {
     const name = comp.long_name || comp.longText || comp.short_name || comp.shortText || "";
+    const shortName = comp.short_name || comp.shortText || name;
     const types = comp.types || [];
 
     if (types.includes("postal_code")) {
@@ -133,11 +147,12 @@ const parseAddressComponents = (components: GoogleAddressComponent[]) => {
       premise = name;
     } else if (types.includes("subpremise")) {
       subpremise = name;
+    } else if (types.includes("country")) {
+      country = name;
+      countryCode = shortName.toUpperCase();
     }
   });
 
-  // In India, locality is typically the city (e.g. Noida, New Delhi). 
-  // Fall back to administrative_area_level_2 (district) or sublocalities if not present.
   const finalCity = city || district || sublocality1 || sublocality || "";
 
   const streetParts = [
@@ -152,12 +167,11 @@ const parseAddressComponents = (components: GoogleAddressComponent[]) => {
     neighborhood
   ].filter(Boolean);
   
-  // Remove duplicates while preserving original order
   const uniqueStreetParts = streetParts.filter((item, index) => streetParts.indexOf(item) === index);
   const streetName = uniqueStreetParts.join(", ");
 
   let matchedState = "";
-  if (state) {
+  if (state && isIndia(country, countryCode)) {
     const lowerState = state.toLowerCase().trim();
     const found = INDIAN_STATES.find(s =>
       s.toLowerCase() === lowerState ||
@@ -167,11 +181,17 @@ const parseAddressComponents = (components: GoogleAddressComponent[]) => {
     if (found) matchedState = found;
   }
 
+  const cleanPincode = isIndia(country, countryCode)
+    ? pincode.replace(/\s/g, "").slice(0, 6)
+    : pincode.trim();
+
   return {
     city: finalCity,
     state: matchedState || state,
-    pincode: pincode.replace(/\s/g, "").slice(0, 6),
-    streetName
+    pincode: cleanPincode,
+    streetName,
+    country: country || (isIndia(country, countryCode) ? "India" : country),
+    countryCode
   };
 };
 
@@ -180,17 +200,6 @@ const BLOCKED_CHARS = /[`~!@#$%^&*()_+={}[\]|\\:;"'<>?/]/g;
 const sanitizeAddress = (val: string) => val.replace(BLOCKED_CHARS, "");
 const isValidAddressField = (val: string, minLen = 2) => val.trim().length >= minLen;
 
-/* ─── Indian states for dropdown ─────────────────────────────── */
-const INDIAN_STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
-  "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh",
-  "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
-  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
-  "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir",
-  "Ladakh", "Lakshadweep", "Puducherry"
-];
-
 export default function CheckoutPage() {
   const { data: session, status } = useSession();
   const { items, subtotal, clear } = useCart();
@@ -198,6 +207,7 @@ export default function CheckoutPage() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { trackInitiateCheckout, trackAddPaymentInfo } = useMetaEvents();
+  const { trackStartCheckout: trackSnapStartCheckout, trackAddBilling: trackSnapAddBilling } = useSnapEvents();
 
   const initialName = session?.user?.name || "";
   const isPhoneName = /^\+?[0-9\s\-]{8,15}$/.test(initialName.trim());
@@ -325,6 +335,7 @@ export default function CheckoutPage() {
       }
 
       trackInitiateCheckout(subtotal, items.length, 'INR', joinedCategories, contentIds, userData, contents);
+      trackSnapStartCheckout(subtotal, items.length, 'INR', joinedCategories, contentIds, userData);
       zbTrackBeginCheckout(subtotal, { num_items: items.length, currency: 'INR' });
 
       // Track Checkout Started event server-side
@@ -392,7 +403,6 @@ export default function CheckoutPage() {
         }
 
         const autocomplete = new Autocomplete(autocompleteInputRef.current, {
-          componentRestrictions: { country: "IN" },
           fields: ["address_components", "geometry", "place_id", "formatted_address", "name"],
           types: ["geocode", "establishment"]
         });
@@ -427,6 +437,8 @@ export default function CheckoutPage() {
             city: parsed.city || prev.city,
             state: parsed.state || prev.state,
             zip: parsed.pincode || prev.zip,
+            country: parsed.country || prev.country,
+            countryCode: parsed.countryCode || prev.countryCode,
             lat: lat != null ? lat : prev.lat,
             lng: lng != null ? lng : prev.lng,
             placeId: placeId || prev.placeId,
@@ -506,6 +518,8 @@ export default function CheckoutPage() {
                   city: parsed.city || prev.city,
                   state: parsed.state || prev.state,
                   zip: parsed.pincode || prev.zip,
+                  country: parsed.country || prev.country,
+                  countryCode: parsed.countryCode || prev.countryCode,
                   lat: latitude,
                   lng: longitude,
                   placeId: result.place_id || prev.placeId,
@@ -595,6 +609,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const fetchZipDetails = async () => {
+      if (!isIndia(address.country, address.countryCode)) return;
       const cleanZip = address.zip.trim();
       if (/^\d{6}$/.test(cleanZip)) {
         setZipLoading(true);
@@ -617,7 +632,7 @@ export default function CheckoutPage() {
       }
     };
     fetchZipDetails();
-  }, [address.zip]);
+  }, [address.zip, address.country, address.countryCode]);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("UPI");
   const codFee = 99;
@@ -836,15 +851,9 @@ export default function CheckoutPage() {
     }
 
     // Phone validation
-    const digits = address.phone.replace(/\D/g, "");
-    let baseNumber = digits;
-    if (digits.length === 12 && digits.startsWith("91")) {
-      baseNumber = digits.slice(2);
-    } else if (digits.length === 11 && digits.startsWith("0")) {
-      baseNumber = digits.slice(1);
-    }
-    if (baseNumber.length !== 10) {
-      errors.phone = "Enter a valid 10-digit mobile number";
+    const phoneRes = validatePhoneNumber(address.phone, address.country, address.countryCode);
+    if (!phoneRes.valid) {
+      errors.phone = phoneRes.error;
     }
 
     if (!isValidAddressField(address.houseNo, 1)) {
@@ -857,10 +866,10 @@ export default function CheckoutPage() {
       errors.city = "City is required";
     }
     if (!address.state.trim()) {
-      errors.state = "Select your state";
+      errors.state = isIndia(address.country, address.countryCode) ? "Select your state" : "Enter state / province / region";
     }
-    if (!/^\d{6}$/.test(address.zip.trim())) {
-      errors.zip = "Enter a valid 6-digit PIN code";
+    if (!validatePostalCode(address.zip, address.country, address.countryCode)) {
+      errors.zip = isIndia(address.country, address.countryCode) ? "Enter a valid 6-digit PIN code" : "Enter a valid postal / ZIP code";
     }
 
     setAddressErrors(errors);
@@ -874,11 +883,8 @@ export default function CheckoutPage() {
     setLoading(true);
 
     // Format phone
-    const digits = address.phone.replace(/\D/g, "");
-    let baseNumber = digits;
-    if (digits.length === 12 && digits.startsWith("91")) baseNumber = digits.slice(2);
-    else if (digits.length === 11 && digits.startsWith("0")) baseNumber = digits.slice(1);
-    const formattedPhone = `+91${baseNumber}`;
+    const phoneRes = validatePhoneNumber(address.phone, address.country, address.countryCode);
+    const formattedPhone = phoneRes.formattedPhone;
     const updatedAddress = { ...address, phone: formattedPhone };
     setAddress(updatedAddress);
 
@@ -950,6 +956,21 @@ export default function CheckoutPage() {
         'INR',
         contentIds,
         contents
+      );
+      trackSnapAddBilling(
+        subtotal,
+        'INR',
+        {
+          country: updatedAddress.country,
+          st: updatedAddress.state,
+          ct: updatedAddress.city,
+          zp: updatedAddress.zip,
+          fn,
+          ln,
+          em: updatedAddress.email || undefined,
+          ph: formattedPhone || undefined,
+        },
+        contentIds
       );
       zbTrackPaymentInitiated(subtotal, { payment_method: paymentMethod, currency: 'INR' });
       setPaymentInfoFired(true);
@@ -1596,6 +1617,21 @@ export default function CheckoutPage() {
                       'INR',
                       contentIds,
                       contents
+                    );
+                    trackSnapAddBilling(
+                      subtotal,
+                      'INR',
+                      {
+                        country: address.country,
+                        st: address.state,
+                        ct: address.city,
+                        zp: address.zip,
+                        fn,
+                        ln,
+                        em: address.email || undefined,
+                        ph: address.phone || undefined,
+                      },
+                      contentIds
                     );
                     setPaymentInfoFired(true);
                   }
@@ -2250,23 +2286,41 @@ export default function CheckoutPage() {
                         {/* Mobile Number */}
                         <div className="col-span-12">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.phone ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
-                            <div className="flex items-center text-[15px] font-semibold text-foreground/60 select-none mr-2 pl-1">
-                              <span>+91</span>
-                            </div>
-                            <div className="h-4 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2.5 shrink-0" />
-                            <input
-                              id="address-phone"
-                              name="phone"
-                              type="tel"
-                              placeholder="Mobile Number"
-                              aria-label="Mobile Number"
-                              autoComplete="tel"
-                              inputMode="tel"
-                              required
-                              value={address.phone.startsWith("+91") ? address.phone.slice(3) : address.phone}
-                              onChange={(e) => updateField("phone", e.target.value)}
-                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
-                            />
+                            {isIndia(address.country, address.countryCode) ? (
+                              <>
+                                <div className="flex items-center text-[15px] font-semibold text-foreground/60 select-none mr-2 pl-1">
+                                  <span>+91</span>
+                                </div>
+                                <div className="h-4 w-[1px] bg-black/[0.08] dark:bg-white/[0.08] mr-2.5 shrink-0" />
+                                <input
+                                  id="address-phone"
+                                  name="phone"
+                                  type="tel"
+                                  placeholder="Mobile Number"
+                                  aria-label="Mobile Number"
+                                  autoComplete="tel"
+                                  inputMode="tel"
+                                  required
+                                  value={address.phone.startsWith("+91") ? address.phone.slice(3) : address.phone}
+                                  onChange={(e) => updateField("phone", e.target.value)}
+                                  className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                                />
+                              </>
+                            ) : (
+                              <input
+                                id="address-phone"
+                                name="phone"
+                                type="tel"
+                                placeholder="Mobile Number (with country code)"
+                                aria-label="Mobile Number"
+                                autoComplete="tel"
+                                inputMode="tel"
+                                required
+                                value={address.phone}
+                                onChange={(e) => updateField("phone", e.target.value)}
+                                className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              />
+                            )}
                           </div>
                           {addressErrors.phone && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.phone}</p>}
                         </div>
@@ -2345,7 +2399,7 @@ export default function CheckoutPage() {
                           </div>
                         </div>
 
-                        {/* PIN Code */}
+                        {/* PIN / ZIP Code */}
                         <div className="col-span-6">
                           <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.zip ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <Map className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
@@ -2353,15 +2407,17 @@ export default function CheckoutPage() {
                               id="address-zip"
                               name="zip"
                               type="text"
-                              placeholder="PIN Code"
-                              aria-label="PIN Code"
+                              placeholder={isIndia(address.country, address.countryCode) ? "PIN Code" : "Postal / ZIP Code"}
+                              aria-label={isIndia(address.country, address.countryCode) ? "PIN Code" : "Postal / ZIP Code"}
                               autoComplete="postal-code"
-                              inputMode="numeric"
+                              inputMode={isIndia(address.country, address.countryCode) ? "numeric" : "text"}
                               required
-                              maxLength={6}
+                              maxLength={isIndia(address.country, address.countryCode) ? 6 : 12}
                               value={address.zip}
                               onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                const val = isIndia(address.country, address.countryCode)
+                                  ? e.target.value.replace(/\D/g, '').slice(0, 6)
+                                  : e.target.value;
                                 updateField("zip", val);
                               }}
                               className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
@@ -2393,28 +2449,75 @@ export default function CheckoutPage() {
                           {addressErrors.city && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.city}</p>}
                         </div>
 
-                        {/* State */}
+                        {/* Country Selector */}
                         <div className="col-span-6">
-                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.state ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.country ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
                             <Globe className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
-                            <span className={`text-[15px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/35" : "text-foreground"}`}>
-                              {address.state || "Select State"}
+                            <span className={`text-[15px] font-sans font-normal truncate pr-4 ${!address.country ? "text-foreground/35" : "text-foreground"}`}>
+                              {address.country || "Select Country"}
                             </span>
                             <ChevronDown className="absolute right-3 w-4 h-4 text-foreground/40 pointer-events-none" />
                             <select
-                              id="address-state"
-                              name="state"
+                              id="address-country"
+                              name="country"
                               required
-                              autoComplete="address-level1"
-                              value={address.state}
-                              onChange={(e) => updateField("state", e.target.value)}
+                              autoComplete="country-name"
+                              value={address.country}
+                              onChange={(e) => {
+                                const selectedName = e.target.value;
+                                const found = findCountry(selectedName);
+                                updateField("country", found.name);
+                                setAddress(prev => ({ ...prev, country: found.name, countryCode: found.code }));
+                              }}
                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-[15px]"
                             >
-                              <option value="" disabled>Select State</option>
-                              {INDIAN_STATES.map(s => (
-                                <option key={s} value={s} className="bg-background text-foreground text-[15px]">{s}</option>
+                              {COUNTRIES.map(c => (
+                                <option key={c.code} value={c.name} className="bg-background text-foreground text-[15px]">{c.name}</option>
                               ))}
                             </select>
+                          </div>
+                          {addressErrors.country && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.country}</p>}
+                        </div>
+
+                        {/* State */}
+                        <div className="col-span-6">
+                          <div className={`relative flex items-center w-full h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md ${addressErrors.state ? "border border-red-500/40 bg-red-500/[0.02]" : "border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30"}`}>
+                            <MapPin className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
+                            {isIndia(address.country, address.countryCode) ? (
+                              <>
+                                <span className={`text-[15px] font-sans font-normal truncate pr-4 ${!address.state ? "text-foreground/35" : "text-foreground"}`}>
+                                  {address.state || "Select State"}
+                                </span>
+                                <ChevronDown className="absolute right-3 w-4 h-4 text-foreground/40 pointer-events-none" />
+                                <select
+                                  id="address-state"
+                                  name="state"
+                                  required
+                                  autoComplete="address-level1"
+                                  value={address.state}
+                                  onChange={(e) => updateField("state", e.target.value)}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-[15px]"
+                                >
+                                  <option value="" disabled>Select State</option>
+                                  {INDIAN_STATES.map(s => (
+                                    <option key={s} value={s} className="bg-background text-foreground text-[15px]">{s}</option>
+                                  ))}
+                                </select>
+                              </>
+                            ) : (
+                              <input
+                                id="address-state"
+                                name="state"
+                                type="text"
+                                placeholder="State / Province / Region"
+                                aria-label="State / Province / Region"
+                                autoComplete="address-level1"
+                                required
+                                value={address.state}
+                                onChange={(e) => updateField("state", e.target.value)}
+                                className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] font-sans font-normal text-foreground placeholder:text-foreground/35 p-0"
+                              />
+                            )}
                           </div>
                           {addressErrors.state && <p className="text-[8px] text-red-500 mt-1 pl-1 leading-none">{addressErrors.state}</p>}
                         </div>

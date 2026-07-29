@@ -34,12 +34,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Fetch message history matching exact phone, formatted phone, or last 10 digits
-    const messages = await prisma.whatsAppMessage.findMany({
+    // Fetch message history: on initial load (no since), fetch top 300 desc then reverse to get recent messages asc
+    let messages = await prisma.whatsAppMessage.findMany({
       where: whereCondition,
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: since ? 'asc' : 'desc' },
       take: 300,
     });
+
+    if (!since) {
+      messages = messages.reverse();
+    }
 
     // Only run updateMany if there is at least one unread inbound message
     const hasUnreadInbound = messages.some(

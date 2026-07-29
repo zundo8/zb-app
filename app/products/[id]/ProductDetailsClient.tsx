@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, Loader2, Bookmark, X, Plus, ChevronLeft, ArrowLeft, ArrowRight } from "lucide-react";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { useSnapEvents } from "@/hooks/useSnapEvents";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import { parseShopifyRichText, formatProductDescription, matchKey } from "@/lib/utils";
 
@@ -114,10 +115,12 @@ export default function ProductDetailsClient({
 }) {
   const router = useRouter();
   const { trackViewContent, trackAddToCart, trackAddToWishlist } = useMetaEvents();
+  const { trackViewContent: trackSnapViewContent, trackAddToCart: trackSnapAddToCart, trackAddToWishlist: trackSnapAddToWishlist } = useSnapEvents();
 
   useEffect(() => {
     const variantId = product.variants?.[0]?.id?.toString() || product.id.toString();
     trackViewContent(variantId, product.title, parseFloat(product.variants?.[0]?.price || "0"), 'INR', product.product_type);
+    trackSnapViewContent(variantId, product.title, parseFloat(product.variants?.[0]?.price || "0"), 'INR', product.product_type);
     zbTrackViewItem(product.id.toString(), variantId, parseFloat(product.variants?.[0]?.price || "0"), { title: product.title });
   }, [product.id, product.title, product.product_type]);
 
@@ -288,8 +291,9 @@ export default function ProductDetailsClient({
       category: product.product_type
     });
 
-    // Track AddToCart in Meta Pixel
+    // Track AddToCart in Meta Pixel & Snap Pixel
     trackAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
+    trackSnapAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
 
     setIsAdded(true);
     toast.success(`${product.title} added to bag`);
@@ -327,8 +331,9 @@ export default function ProductDetailsClient({
       category: product.product_type
     });
 
-    // Track AddToCart in Meta Pixel
+    // Track AddToCart in Meta Pixel & Snap Pixel
     trackAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
+    trackSnapAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
 
     router.push("/checkout");
   };
@@ -541,6 +546,7 @@ export default function ProductDetailsClient({
                   setIsOpen(true);
                   if (!wasBookmarked) {
                     trackAddToWishlist(product.id.toString(), product.title, product.product_type);
+                    trackSnapAddToWishlist(product.id.toString(), product.title, product.product_type);
                   }
                   toast.success(wasBookmarked ? "Removed from bookmarks" : "Saved to bookmarks");
                 }}
@@ -872,6 +878,7 @@ export default function ProductDetailsClient({
                     setIsOpen(true);
                     if (!wasBookmarked) {
                       trackAddToWishlist(product.id.toString(), product.title, product.product_type);
+                      trackSnapAddToWishlist(product.id.toString(), product.title, product.product_type);
                     }
                     toast.success(wasBookmarked ? "Removed from bookmarks" : "Saved to bookmarks");
                   }}

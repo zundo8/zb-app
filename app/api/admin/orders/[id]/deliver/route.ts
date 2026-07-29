@@ -30,7 +30,10 @@ export async function POST(
 
     const updated = await prisma.order.update({
       where: { shopifyOrderId },
-      data: { deliveryStatus: 'delivered' },
+      data: {
+        deliveryStatus: 'delivered',
+        deliveredAt: order.deliveredAt || new Date(),
+      },
       include: {
         customer: true,
         items: true,

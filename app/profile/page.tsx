@@ -36,6 +36,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useBookmarks } from "@/lib/bookmark-context";
+import {
+  COUNTRIES,
+  INDIAN_STATES,
+  isIndia,
+  findCountry,
+  validatePostalCode,
+  validatePhoneNumber,
+} from "@/lib/countries";
 
 type DBAddress = {
   id: string;
@@ -48,6 +56,7 @@ type DBAddress = {
   state: string;
   zip: string;
   country: string;
+  countryCode?: string;
   isDefault: boolean;
 };
 
@@ -88,6 +97,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchZipDetails = async () => {
       if (!editingAddress || !editingAddress.zip) return;
+      if (!isIndia(editingAddress.country, editingAddress.countryCode)) return;
       const cleanZip = editingAddress.zip.trim();
       if (/^\d{6}$/.test(cleanZip)) {
         setZipLoading(true);
@@ -110,7 +120,7 @@ export default function ProfilePage() {
       }
     };
     fetchZipDetails();
-  }, [editingAddress?.zip]);
+  }, [editingAddress?.zip, editingAddress?.country, editingAddress?.countryCode]);
 
   const [updatingRegion, setUpdatingRegion] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -253,23 +263,31 @@ export default function ProfilePage() {
     if (!editingAddress) return;
     setAddressModalError("");
 
-    // Validate phone number
-    const phoneInput = editingAddress.phone || "";
-    const digits = phoneInput.replace(/\D/g, "");
-    let baseNumber = digits;
-    if (digits.length === 12 && digits.startsWith("91")) {
-      baseNumber = digits.slice(2);
-    } else if (digits.length === 11 && digits.startsWith("0")) {
-      baseNumber = digits.slice(1);
-    }
+    const selectedCountry = editingAddress.country || "India";
+    const selectedCountryCode = editingAddress.countryCode;
 
-    if (baseNumber.length !== 10) {
-      setAddressModalError("Please enter a valid 10-digit mobile number.");
+    // Validate phone number
+    const phoneRes = validatePhoneNumber(editingAddress.phone || "", selectedCountry, selectedCountryCode);
+    if (!phoneRes.valid) {
+      setAddressModalError(phoneRes.error);
       return;
     }
 
-    const formattedPhone = `+91${baseNumber}`;
-    const updatedAddress = { ...editingAddress, phone: formattedPhone };
+    // Validate postal code
+    if (!validatePostalCode(editingAddress.zip || "", selectedCountry, selectedCountryCode)) {
+      setAddressModalError(
+        isIndia(selectedCountry, selectedCountryCode)
+          ? "Please enter a valid 6-digit PIN code."
+          : "Please enter a valid postal / ZIP code."
+      );
+      return;
+    }
+
+    const updatedAddress = {
+      ...editingAddress,
+      phone: phoneRes.formattedPhone,
+      country: selectedCountry,
+    };
 
     setSavingAddress(true);
 
@@ -1042,17 +1060,28 @@ export default function ProfilePage() {
                   className="glass-input w-full px-3 py-2 text-[12px]"
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-foreground/35 font-semibold pointer-events-none">+91</span>
+                  {isIndia(editingAddress.country, editingAddress.countryCode) ? (
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-foreground/35 font-semibold pointer-events-none">+91</span>
+                      <input
+                        type="tel"
+                        placeholder="10-digit Phone"
+                        required
+                        value={editingAddress.phone?.startsWith("+91") ? editingAddress.phone.slice(3) : (editingAddress.phone || "")}
+                        onChange={(e) => setEditingAddress({ ...editingAddress, phone: e.target.value })}
+                        className="glass-input w-full pl-9 pr-3 py-2 text-[12px]"
+                      />
+                    </div>
+                  ) : (
                     <input
                       type="tel"
-                      placeholder="10-digit Phone"
+                      placeholder="Phone Number"
                       required
                       value={editingAddress.phone || ""}
                       onChange={(e) => setEditingAddress({ ...editingAddress, phone: e.target.value })}
-                      className="glass-input w-full pl-9 pr-3 py-2 text-[12px]"
+                      className="glass-input w-full px-3 py-2 text-[12px]"
                     />
-                  </div>
+                  )}
                   <input
                     type="email"
                     placeholder="Email"
@@ -1085,25 +1114,41 @@ export default function ProfilePage() {
                     onChange={(e) => setEditingAddress({ ...editingAddress, city: e.target.value })}
                     className="glass-input w-full px-3 py-2 text-[12px]"
                   />
-                  <input
-                    type="text"
-                    placeholder="State"
-                    required
-                    value={editingAddress.state || ""}
-                    onChange={(e) => setEditingAddress({ ...editingAddress, state: e.target.value })}
-                    className="glass-input w-full px-3 py-2 text-[12px]"
-                  />
+                  {isIndia(editingAddress.country, editingAddress.countryCode) ? (
+                    <select
+                      required
+                      value={editingAddress.state || ""}
+                      onChange={(e) => setEditingAddress({ ...editingAddress, state: e.target.value })}
+                      className="glass-input w-full px-3 py-2 text-[12px] bg-background text-foreground"
+                    >
+                      <option value="" disabled>Select State</option>
+                      {INDIAN_STATES.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="State / Province / Region"
+                      required
+                      value={editingAddress.state || ""}
+                      onChange={(e) => setEditingAddress({ ...editingAddress, state: e.target.value })}
+                      className="glass-input w-full px-3 py-2 text-[12px]"
+                    />
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="PIN Code (6 digits)"
+                      placeholder={isIndia(editingAddress.country, editingAddress.countryCode) ? "PIN Code (6 digits)" : "Postal / ZIP Code"}
                       required
-                      maxLength={6}
+                      maxLength={isIndia(editingAddress.country, editingAddress.countryCode) ? 6 : 12}
                       value={editingAddress.zip || ""}
                       onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        const val = isIndia(editingAddress.country, editingAddress.countryCode)
+                          ? e.target.value.replace(/\D/g, '').slice(0, 6)
+                          : e.target.value;
                         setEditingAddress({ ...editingAddress, zip: val });
                       }}
                       className="glass-input w-full px-3 py-2 text-[12px]"
@@ -1112,14 +1157,20 @@ export default function ProfilePage() {
                       <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-foreground/30" />
                     )}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Country"
+                  <select
                     required
-                    value={editingAddress.country || ""}
-                    onChange={(e) => setEditingAddress({ ...editingAddress, country: e.target.value })}
-                    className="glass-input w-full px-3 py-2 text-[12px]"
-                  />
+                    value={editingAddress.country || "India"}
+                    onChange={(e) => {
+                      const cName = e.target.value;
+                      const matched = findCountry(cName);
+                      setEditingAddress({ ...editingAddress, country: matched.name, countryCode: matched.code });
+                    }}
+                    className="glass-input w-full px-3 py-2 text-[12px] bg-background text-foreground"
+                  >
+                    {COUNTRIES.map(c => (
+                      <option key={c.code} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <label className="flex items-center gap-2 py-1 cursor-pointer">

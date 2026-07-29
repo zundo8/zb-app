@@ -219,8 +219,17 @@ export async function POST(req: Request) {
       // ── EXISTING USER: Return immediately ──
       console.log(`[Mobile Verify] Fast-path: existing customer ${customer.id}`);
 
+      // Ensure customer has phone populated if missing
+      if (!customer.phone) {
+        customer = await prisma.customer.update({
+          where: { id: customer.id },
+          data: { phone: fullPhone },
+          include: { communityMember: true }
+        });
+      }
+
       // Update name if provided and missing
-      if (name && (!customer.name || customer.name === "New User" || customer.name === "User")) {
+      if (name && (!customer.name || customer.name === "New User" || customer.name === "User" || customer.name === "Valued Customer")) {
         customer = await prisma.customer.update({
           where: { id: customer.id },
           data: { name },
@@ -261,13 +270,17 @@ export async function POST(req: Request) {
 
           console.log(`[Mobile Verify-BG] Syncing Shopify customer ${shopifyCustomer.id}`);
           try {
+            const currentCustomer = await prisma.customer.findUnique({
+              where: { id: bgCustomerId },
+              select: { email: true, phone: true }
+            });
             await prisma.customer.update({
               where: { id: bgCustomerId },
               data: {
                 shopifyId: String(shopifyCustomer.id),
-                email: shopifyCustomer.email || undefined,
+                email: currentCustomer?.email ? undefined : (shopifyCustomer.email || undefined),
                 name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
-                phone: shopifyCustomer.phone || undefined,
+                phone: currentCustomer?.phone ? undefined : (shopifyCustomer.phone || undefined),
                 ordersCount: shopifyCustomer.orders_count || 0,
                 totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
               }
@@ -276,12 +289,16 @@ export async function POST(req: Request) {
             // Handle unique constraint violation on shopifyId defensively
             if (e.code === 'P2002' && (e.meta?.target?.includes('shopifyId') || JSON.stringify(e).includes('shopifyId'))) {
               console.warn(`[Mobile Verify-BG] Unique constraint on shopifyId for customer ${bgCustomerId}. Retrying sync without shopifyId...`);
+              const currentCustomer = await prisma.customer.findUnique({
+                where: { id: bgCustomerId },
+                select: { email: true, phone: true }
+              });
               await prisma.customer.update({
                 where: { id: bgCustomerId },
                 data: {
-                  email: shopifyCustomer.email || undefined,
+                  email: currentCustomer?.email ? undefined : (shopifyCustomer.email || undefined),
                   name: `${shopifyCustomer.first_name || ""} ${shopifyCustomer.last_name || ""}`.trim() || undefined,
-                  phone: shopifyCustomer.phone || undefined,
+                  phone: currentCustomer?.phone ? undefined : (shopifyCustomer.phone || undefined),
                   ordersCount: shopifyCustomer.orders_count || 0,
                   totalSpent: parseFloat(shopifyCustomer.total_spent || "0"),
                 }

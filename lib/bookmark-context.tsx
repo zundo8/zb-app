@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { ShopifyProduct } from "./shopify-admin";
 import { useSession } from "next-auth/react";
 import { trackStorefrontEvent } from "@/lib/track-client";
+import { trackSnapClientEvent } from "@/lib/snapPixel";
 
 interface BookmarkContextType {
   bookmarks: (ShopifyProduct & { selectedVariantId?: string | null; selectedSize?: string | null })[];
@@ -181,6 +182,11 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
           variantId,
           size
         }
+      });
+      trackSnapClientEvent('ADD_TO_WISHLIST', {
+        item_ids: [product.id.toString()],
+        item_category: product.product_type,
+        description: product.title,
       });
     }
 

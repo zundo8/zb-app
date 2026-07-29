@@ -207,18 +207,42 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+    const cleanPhone = phone ? String(phone).trim() : null;
+    const cleanName = name ? String(name).trim() : customer.name;
+
+    // Check if another customer record exists with this email or phone
+    if (cleanEmail || cleanPhone) {
+      const phoneDigits = cleanPhone ? cleanPhone.replace(/\D/g, '').slice(-10) : '';
+      const duplicate = await prisma.customer.findFirst({
+        where: {
+          id: { not: customer.id },
+          OR: [
+            ...(cleanEmail ? [{ email: cleanEmail }] : []),
+            ...(phoneDigits.length === 10 ? [{ phone: { contains: phoneDigits } }] : []),
+          ]
+        }
+      });
+
+      if (duplicate) {
+        // Trigger customer deduplication to merge relations into primary record
+        const { mergeAllDuplicateCustomers } = await import('@/lib/services/customerDeduplicationService');
+        await mergeAllDuplicateCustomers();
+      }
+    }
+
     // 1. Update Shopify if they are synced
     if (customer.shopifyId && !customer.shopifyId.startsWith('otp_') && !customer.shopifyId.startsWith('mobile_') && !customer.shopifyId.startsWith('temp_') && !customer.shopifyId.startsWith('google_') && !customer.shopifyId.startsWith('apple_')) {
       try {
-        const nameParts = (name || '').trim().split(/\s+/);
+        const nameParts = (cleanName || '').trim().split(/\s+/);
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '.';
 
         await updateCustomer(customer.shopifyId, {
           first_name: firstName,
           last_name: lastName,
-          email: email || undefined,
-          phone: phone || undefined
+          email: cleanEmail || undefined,
+          phone: cleanPhone || undefined
         });
       } catch (shopifyErr: any) {
         console.error(`[Shopify Customer Update Failed] ID: ${customer.shopifyId}`, shopifyErr.message);
@@ -229,9 +253,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const updatedCustomer = await prisma.customer.update({
       where: { id: params.id },
       data: {
-        name,
-        email,
-        phone,
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
         whatsappOptedOut: whatsappOptedOut !== undefined ? whatsappOptedOut : undefined
       }
     });

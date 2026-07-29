@@ -85,15 +85,15 @@ export default function ReturnsPage() {
         const data = await res.json();
         setReturns(data.returns || []);
         
-        let pending = 0, approved = 0, rejected = 0, received = 0, refunded = 0;
-        data.returns.forEach((r: any) => {
-          if (r.status === "pending_approval") pending++;
-          if (r.status === "approved") approved++;
-          if (r.status === "rejected") rejected++;
-          if (r.status === "received") received++;
-          if (r.status === "refunded") refunded++;
+        const sc = data.statusCounts || {};
+        setSummary({
+          requested: sc.pending_approval || 0,
+          approved: sc.approved || 0,
+          rejected: sc.rejected || 0,
+          received: sc.received || 0,
+          refunded: sc.refunded || 0,
+          total: data.total || 0
         });
-        setSummary({ requested: pending, approved, rejected, received, refunded, total: data.total });
       }
     } catch (err) {
       console.error(err);

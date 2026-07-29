@@ -119,14 +119,36 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404, headers: corsHeaders });
     }
 
+    const cleanEmail = email !== undefined && email !== null ? String(email).trim().toLowerCase() : undefined;
+    const cleanPhone = phone !== undefined && phone !== null ? String(phone).trim() : undefined;
+
+    if ((cleanEmail && cleanEmail !== customer.email) || (cleanPhone && cleanPhone !== customer.phone)) {
+      const phoneDigits = cleanPhone ? cleanPhone.replace(/\D/g, '').slice(-10) : '';
+      const existingOther = await prisma.customer.findFirst({
+        where: {
+          id: { not: customer.id },
+          OR: [
+            ...(cleanEmail ? [{ email: cleanEmail }] : []),
+            ...(phoneDigits.length === 10 ? [{ phone: { contains: phoneDigits } }] : []),
+          ]
+        }
+      });
+      if (existingOther) {
+        return NextResponse.json(
+          { error: 'An account with this email or phone number already exists.' },
+          { status: 400, headers: corsHeaders }
+        );
+      }
+    }
+
     const updated = await prisma.customer.update({
       where: { id: customer.id },
       data: {
-        name: name !== undefined ? String(name) : undefined,
+        name: name !== undefined ? String(name).trim() : undefined,
         image: image !== undefined ? String(image) : undefined,
         defaultAddress: defaultAddress !== undefined ? String(defaultAddress) : undefined,
-        email: email !== undefined ? String(email) : undefined,
-        phone: phone !== undefined ? String(phone) : undefined,
+        email: cleanEmail !== undefined ? cleanEmail : undefined,
+        phone: cleanPhone !== undefined ? cleanPhone : undefined,
       },
     });
 

@@ -12,7 +12,7 @@ export async function GET(req: Request) {
 
     const where = status && status !== 'all' ? { status } : {};
 
-    const [returns, total] = await Promise.all([
+    const [returns, total, statusGroups] = await Promise.all([
       prisma.returnRequest.findMany({
         where,
         take: limit,
@@ -27,8 +27,17 @@ export async function GET(req: Request) {
         },
         orderBy: { createdAt: "desc" }
       }),
-      prisma.returnRequest.count({ where })
+      prisma.returnRequest.count({ where }),
+      prisma.returnRequest.groupBy({
+        by: ['status'],
+        _count: { id: true }
+      })
     ]);
+
+    const statusCounts: Record<string, number> = {};
+    statusGroups.forEach((g: any) => {
+      statusCounts[g.status] = g._count.id;
+    });
 
     const formattedReturns = returns.map((r: any) => ({
       returnRequestId: r.id,
@@ -46,7 +55,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       returns: formattedReturns,
-      total
+      total,
+      statusCounts
     });
   } catch (error: any) {
     console.error("Fetch Admin Returns Error:", error);

@@ -91,15 +91,13 @@ export default function ExchangesPage() {
         const data = await res.json();
         setExchanges(data.exchanges || []);
         
-        let pending = 0, approved = 0, rejected = 0, received = 0, completed = 0;
-        data.exchanges.forEach((e: any) => {
-          if (e.status === "pending_approval") pending++;
-          else if (e.status === "approved" || e.status === "return_created") approved++;
-          else if (e.status === "rejected") rejected++;
-          else if (e.status === "received" || e.status === "qc_passed") received++;
-          else if (e.status === "new_order_created" || e.status === "shipped" || e.status === "completed") completed++;
-        });
-        setSummary({ requested: pending, approved, rejected, received, completed, total: data.total });
+        const sc = data.statusCounts || {};
+        const pending = sc.pending_approval || 0;
+        const approved = (sc.approved || 0) + (sc.return_created || 0);
+        const rejected = sc.rejected || 0;
+        const received = (sc.received || 0) + (sc.qc_passed || 0);
+        const completed = (sc.new_order_created || 0) + (sc.shipped || 0) + (sc.completed || 0);
+        setSummary({ requested: pending, approved, rejected, received, completed, total: data.total || 0 });
       }
     } catch (err) {
       console.error(err);

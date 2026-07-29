@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Package, Truck, Calendar, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { useSnapEvents } from "@/hooks/useSnapEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
 import { trackPurchase as zbTrackPurchase } from "@/lib/analytics-tracker";
 
@@ -16,6 +17,7 @@ export default function OrderConfirmationPage() {
   const [loading, setLoading] = useState(true);
   const [purchasedPixel, setPurchasedPixel] = useState(false);
   const { trackPurchase } = useMetaEvents();
+  const { trackPurchase: trackSnapPurchase } = useSnapEvents();
 
   useEffect(() => {
     if (order) {
@@ -70,6 +72,7 @@ export default function OrderConfirmationPage() {
         })) || [];
 
         trackPurchase(order.id, val, 'INR', contentIds, userData, storedCategory, contents);
+        trackSnapPurchase(order.id, val, 'INR', contentIds, userData, storedCategory, contents.length);
         zbTrackPurchase(order.id, val, { num_items: contentIds.length, currency: 'INR' });
       }
 

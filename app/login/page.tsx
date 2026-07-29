@@ -8,6 +8,7 @@ import { ArrowRight, Loader2, ChevronDown, ShieldCheck, BadgeCheck, Gem, Sun, Mo
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { useSnapEvents } from "@/hooks/useSnapEvents";
 
 
 /* ────────────────────────────────────────────
@@ -35,6 +36,7 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
   const { trackCompleteRegistration } = useMetaEvents();
+  const { trackSignUp: trackSnapSignUp, trackLogin: trackSnapLogin } = useSnapEvents();
 
   const [step, setStep] = useState<"PHONE" | "NAME" | "OTP">("PHONE");
   const [phone, setPhone] = useState("");
@@ -413,6 +415,9 @@ export default function LoginPage() {
       } else if (result?.ok) {
         if (isNewUser) {
           trackCompleteRegistration();
+          trackSnapSignUp();
+        } else {
+          trackSnapLogin();
         }
         // Lock the form permanently — no more submissions allowed
         loginSucceededRef.current = true;

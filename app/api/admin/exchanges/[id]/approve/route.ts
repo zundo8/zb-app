@@ -63,55 +63,64 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         include: { returns: true }
       });
 
-      // 2. Create a reverse shipment for the return pickup
-      const reverseAwb = `ZBEXR${String(Math.floor(100000 + Math.random() * 900000))}`;
+      // 2. Create a reverse shipment tracking record with real Delhivery reverse pickup
+      let reverseAwb: string | null = null;
+      let pickupStatus = 'pickup_pending';
+      let delhiveryRaw: any = null;
+
+      try {
+        const { createReversePickup } = await import('@/lib/delhivery');
+        
+        let addrObj: any = {};
+        const shippingRaw = exchangeRequest.order.shippingAddress;
+        if (typeof shippingRaw === 'string') {
+          try { addrObj = JSON.parse(shippingRaw); } catch (_) { addrObj = { add: shippingRaw }; }
+        } else if (shippingRaw && typeof shippingRaw === 'object') {
+          addrObj = shippingRaw;
+        }
+
+        const customer = exchangeRequest.order.customer;
+        const name = addrObj.name || (addrObj.first_name ? `${addrObj.first_name} ${addrObj.last_name || ''}`.trim() : customer?.name || 'Customer');
+        const add = addrObj.add || addrObj.address1 || addrObj.street || addrObj.fullAddress || (typeof shippingRaw === 'string' ? shippingRaw : 'Address Not Specified');
+        const pin = addrObj.pin || addrObj.zip || addrObj.pincode || addrObj.postalCode || '110001';
+        const phone = addrObj.phone || customer?.phone || '9999999999';
+        const prodDesc = exchangeRequest.exchanges.map((ex: any) => ex.originalProduct?.sku || 'Item').join(', ');
+
+        const pickupRes = await createReversePickup({
+          name,
+          add,
+          pin: String(pin),
+          phone: String(phone),
+          order: exchangeRequest.order.shopifyOrderId || exchangeRequest.order.id,
+          products_desc: `Exchange Return: ${prodDesc}`,
+          weight: '500',
+          seller_name: 'Zica Bella',
+          pickup_location_name: process.env.DELHIVERY_PICKUP_LOCATION || 'Zica Bella Warehouse',
+        });
+
+        reverseAwb = pickupRes.awb;
+        pickupStatus = pickupRes.status;
+        delhiveryRaw = pickupRes.rawResponse;
+      } catch (dErr: any) {
+        console.error('[Exchange Approve] Delhivery reverse pickup failed:', dErr.message);
+        pickupStatus = 'pickup_registration_failed';
+        delhiveryRaw = { error: dErr.message, note: 'Delhivery pickup creation failed. Exchange approved locally.' };
+      }
+
       await tx.shipment.create({
         data: {
           orderId: exchangeRequest.orderId,
           awb: reverseAwb,
           trackingNumber: reverseAwb,
           courier: "Delhivery",
-          status: "pickup_pending",
-          trackingUrl: `https://www.delhivery.com/track/package/${reverseAwb}`,
-          rawDelhiveryResponse: JSON.stringify({
-            success: true,
-            pickup_pending: true,
-            message: "Exchange reverse pickup order registered."
-          })
+          status: pickupStatus,
+          type: "reverse_pickup",
+          trackingUrl: reverseAwb ? `https://www.delhivery.com/track/package/${reverseAwb}` : null,
+          rawDelhiveryResponse: JSON.stringify(delhiveryRaw)
         }
       });
 
-      // 3. Create a new local order for the replacement products
-      const newOrderShopifyId = `EXC-${exchangeRequest.order.shopifyOrderId}-${Date.now()}`;
-      const newItems = exchangeRequest.exchanges.map((ex: any) => ({
-        shopifyLineItemId: `EXC-ITEM-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-        productId: ex.newProductId,
-        title: ex.newProduct?.title || "Exchange Replacement",
-        quantity: 1,
-        price: ex.newProduct?.price || 0,
-        sku: ex.newProduct?.sku || ""
-      }));
-
-      const newOrder = await tx.order.create({
-        data: {
-          shopId: exchangeRequest.order.shopId,
-          shopifyOrderId: newOrderShopifyId,
-          customerId: exchangeRequest.customerId,
-          status: "confirmed",
-          orderType: "EXCHANGE",
-          totalPrice: exchangeRequest.priceDifference > 0 ? exchangeRequest.priceDifference : 0,
-          paymentStatus: exchangeRequest.priceDifference > 0 ? "paid" : "free",
-          fulfillmentStatus: "unfulfilled",
-          shippingAddress: exchangeRequest.order.shippingAddress,
-          billingAddress: exchangeRequest.order.billingAddress,
-          note: `Exchange from order #${exchangeRequest.order.shopifyOrderId}. ${exchangeRequest.exchanges.map((ex: any) => `${ex.originalProduct?.title} → ${ex.newProduct?.title}`).join(', ')}`,
-          items: {
-            create: newItems
-          }
-        }
-      });
-
-      // 4. Update the ExchangeRequest status & link to the return
+      // 3. Update the ExchangeRequest status & link to the return request
       const updatedRequest = await tx.exchangeRequest.update({
         where: { id },
         data: {
@@ -120,16 +129,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // 5. Update individual exchange items
+      // 4. Update individual exchange items (newOrderId will be populated later when create-order succeeds after QC)
       await tx.exchange.updateMany({
         where: { exchangeRequestId: id },
         data: {
           status: "APPROVED",
-          newOrderId: newOrder.id
+          newOrderId: null
         }
       });
 
-      // 6. Update original order status & auto-cancel any pending customer return requests for mutual exclusivity
+      // 5. Update original order status & auto-cancel any pending customer return requests for mutual exclusivity
       await tx.order.update({
         where: { id: exchangeRequest.orderId },
         data: { status: "exchange_approved" }
@@ -149,12 +158,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
       return {
         exchangeRequest: updatedRequest,
-        newOrderId: newOrder.id,
         returnRequestId: returnRequest.id,
       };
     });
 
-    console.log(`✅ Exchange ${id} approved. Return created: ${result.returnRequestId}, New order: ${result.newOrderId}`);
+    console.log(`✅ Exchange ${id} approved. Return created: ${result.returnRequestId}`);
 
     // SKU lifecycle tracking: mark original item SKUs as EXCHANGED
     try {
@@ -173,9 +181,45 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       console.error('[Exchange Approve] SKU status update failed:', skuErr);
     }
 
+    // Auto-send Exchange Confirmed & Exchange Pickup Scheduled WhatsApp notifications
+    try {
+      const { sendExchangeConfirmed, sendExchangePickupScheduled } = await import('@/lib/whatsapp/templates');
+      const cust = exchangeRequest.order.customer;
+      let phone = cust?.phone;
+      if (!phone && exchangeRequest.order.shippingAddress) {
+        try {
+          const parsed = typeof exchangeRequest.order.shippingAddress === 'string'
+            ? JSON.parse(exchangeRequest.order.shippingAddress)
+            : exchangeRequest.order.shippingAddress;
+          phone = parsed?.phone;
+        } catch (_) {}
+      }
+      if (phone) {
+        const orderIdDisplay = exchangeRequest.order.shopifyOrderId || exchangeRequest.orderId;
+        const customerName = cust?.name || 'Valued Customer';
+        const newItemName = exchangeRequest.exchanges.map((ex: any) => ex.newProduct?.title || 'Replacement Item').join(', ');
+
+        await sendExchangeConfirmed({
+          phone,
+          customerName,
+          orderId: orderIdDisplay,
+          newItemName,
+        });
+
+        await sendExchangePickupScheduled({
+          phone,
+          customerName,
+          orderId: orderIdDisplay,
+          pickupDate: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+          awbNumber: 'Pending',
+        });
+      }
+    } catch (waErr: any) {
+      console.error('[Exchange Approve] WhatsApp notification error:', waErr.message);
+    }
+
     return NextResponse.json({
       success: true,
-      newOrderId: result.newOrderId,
       returnRequestId: result.returnRequestId,
       exchangeRequest: result.exchangeRequest
     });

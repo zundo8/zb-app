@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { fetchAllOrders } from '@/lib/shopify-admin';
 import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
@@ -113,6 +112,7 @@ export async function GET(req: Request) {
         },
         items: true,
         shipments: {
+          where: { type: 'outbound' },
           orderBy: { createdAt: 'desc' },
           take: 1
         }
@@ -174,89 +174,13 @@ export async function GET(req: Request) {
       })
     );
 
-    let finalOrders = enrichedOrders;
-    let finalTotal = total;
-
-    if (finalOrders.length === 0) {
-      try {
-        const shopifyOrders = await fetchAllOrders(limit || 50);
-        finalOrders = shopifyOrders.map((so: any) => ({
-          id: String(so.id),
-          shopifyOrderId: String(so.id),
-          internalOrderNumber: so.name || `#${so.order_number}`,
-          orderType: 'WEB_STORE',
-          status: so.fulfillment_status || 'open',
-          paymentStatus: so.financial_status === 'paid' ? 'paid' : (so.financial_status || 'pending'),
-          fulfillmentStatus: so.fulfillment_status || 'unfulfilled',
-          totalPrice: parseFloat(so.total_price || '0'),
-          subtotalPrice: parseFloat(so.subtotal_price || '0'),
-          discountAmount: parseFloat(so.total_discounts || '0'),
-          paidAmount: so.financial_status === 'paid' ? parseFloat(so.total_price || '0') : 0,
-          currency: so.currency || 'INR',
-          createdAt: so.created_at,
-          updatedAt: so.updated_at,
-          customer: so.customer ? {
-            id: String(so.customer.id),
-            name: `${so.customer.first_name || ''} ${so.customer.last_name || ''}`.trim() || 'Customer',
-            email: so.customer.email,
-            phone: so.customer.phone || so.phone,
-          } : null,
-          items: (so.line_items || []).map((li: any) => ({
-            id: String(li.id),
-            title: li.title,
-            quantity: li.quantity,
-            price: parseFloat(li.price || '0'),
-            sku: li.sku,
-            variantTitle: li.variant_title
-          }))
-        }));
-        finalTotal = finalOrders.length;
-      } catch (shopifyErr: any) {
-        console.warn('[Admin Orders API] Shopify orders fallback error:', shopifyErr.message);
-      }
-    }
-
     return NextResponse.json({
       success: true,
-      orders: finalOrders,
-      total: finalTotal,
-      hasMore: finalTotal > offset + limit
+      orders: enrichedOrders,
+      total,
+      hasMore: total > offset + limit
     });
   } catch (error: any) {
-    try {
-      const shopifyOrders = await fetchAllOrders(50);
-      const finalOrders = shopifyOrders.map((so: any) => ({
-        id: String(so.id),
-        shopifyOrderId: String(so.id),
-        internalOrderNumber: so.name || `#${so.order_number}`,
-        orderType: 'WEB_STORE',
-        status: so.fulfillment_status || 'open',
-        paymentStatus: so.financial_status === 'paid' ? 'paid' : (so.financial_status || 'pending'),
-        fulfillmentStatus: so.fulfillment_status || 'unfulfilled',
-        totalPrice: parseFloat(so.total_price || '0'),
-        currency: so.currency || 'INR',
-        createdAt: so.created_at,
-        customer: so.customer ? {
-          id: String(so.customer.id),
-          name: `${so.customer.first_name || ''} ${so.customer.last_name || ''}`.trim() || 'Customer',
-          email: so.customer.email,
-          phone: so.customer.phone || so.phone,
-        } : null,
-        items: (so.line_items || []).map((li: any) => ({
-          id: String(li.id),
-          title: li.title,
-          quantity: li.quantity,
-          price: parseFloat(li.price || '0')
-        }))
-      }));
-      return NextResponse.json({
-        success: true,
-        orders: finalOrders,
-        total: finalOrders.length,
-        hasMore: false
-      });
-    } catch (e2) {
-      return handleAuthError(error);
-    }
+    return handleAuthError(error);
   }
 }

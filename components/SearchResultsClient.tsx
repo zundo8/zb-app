@@ -12,6 +12,7 @@ import { useBookmarks } from "@/lib/bookmark-context";
 import { handleImageError } from "./ImagePlaceholder";
 import { Search, LayoutGrid, Menu } from "lucide-react";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
+import { useSnapEvents } from "@/hooks/useSnapEvents";
 import dynamic from "next/dynamic";
 
 // Lazy-load modal to avoid SSR issues
@@ -36,10 +37,12 @@ export default function SearchResultsClient({
 }: Props) {
   const router = useRouter();
   const { trackSearch } = useMetaEvents();
+  const { trackSearch: trackSnapSearch } = useSnapEvents();
 
   useEffect(() => {
     if (query) {
       trackSearch(query);
+      trackSnapSearch(query);
     }
   }, [query]);
 

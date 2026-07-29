@@ -84,12 +84,28 @@ async function mergeCustomerCluster(primary: any, duplicateIds: string[], duplic
   const ordersCount = allOrders.length;
 
   // Best name, email, phone from duplicates
-  const bestName = primary.name && primary.name !== 'Valued Customer' && primary.name !== 'Guest User'
+  const bestName = primary.name && primary.name !== 'Valued Customer' && primary.name !== 'Guest User' && primary.name !== 'New User'
     ? primary.name
-    : duplicates.find((d: any) => d.name && d.name !== 'Valued Customer' && d.name !== 'Guest User')?.name || primary.name;
+    : duplicates.find((d: any) => d.name && d.name !== 'Valued Customer' && d.name !== 'Guest User' && d.name !== 'New User')?.name || primary.name;
 
-  const bestEmail = primary.email || duplicates.find((d: any) => d.email)?.email || null;
-  const bestPhone = primary.phone || duplicates.find((d: any) => d.phone)?.phone || null;
+  let bestEmail = primary.email || duplicates.find((d: any) => d.email)?.email || null;
+  let bestPhone = primary.phone || duplicates.find((d: any) => d.phone)?.phone || null;
+
+  if (!bestPhone) {
+    const linkedAddress = await prisma.address.findFirst({
+      where: { customerId: primary.id, phone: { not: '' } },
+      select: { phone: true }
+    });
+    if (linkedAddress?.phone) bestPhone = linkedAddress.phone;
+  }
+
+  if (!bestEmail) {
+    const linkedAddress = await prisma.address.findFirst({
+      where: { customerId: primary.id, email: { not: '' } },
+      select: { email: true }
+    });
+    if (linkedAddress?.email) bestEmail = linkedAddress.email;
+  }
 
   await prisma.customer.update({
     where: { id: primary.id },

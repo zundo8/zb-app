@@ -78,9 +78,9 @@ export async function GET(req: Request) {
                   where: { id: existing.id },
                   data: {
                     shopifyId,
-                    ...(email ? { email } : {}),
-                    ...(phone ? { phone } : {}),
-                    name: existing.name && existing.name !== 'Customer' ? existing.name : name,
+                    ...(!existing.email && email ? { email } : {}),
+                    ...(!existing.phone && phone ? { phone } : {}),
+                    name: existing.name && existing.name !== 'Customer' && existing.name !== 'Valued Customer' && existing.name !== 'Guest User' ? existing.name : name,
                     ordersCount: Math.max(existing.ordersCount, sc.orders_count || 0),
                     totalSpent: Math.max(existing.totalSpent, parseFloat(sc.total_spent || "0")),
                   },
@@ -113,6 +113,7 @@ export async function GET(req: Request) {
       take: limit * 2, // Take larger batch to allow in-memory deduplication
       skip: offset,
       include: {
+        addresses: true,
         orders: {
           orderBy: { createdAt: 'desc' },
           take: 10,
@@ -134,13 +135,29 @@ export async function GET(req: Request) {
     for (const c of dbCustomers) {
       if (seenIds.has(c.id)) continue;
 
-      const emailKey = getCleanEmail(c.email);
-      const phoneKey = getCleanPhone(c.phone);
+      const effectivePhone = c.phone || c.addresses?.find((a: any) => a.phone && a.phone.trim())?.phone || null;
+      const effectiveEmail = c.email || c.addresses?.find((a: any) => a.email && a.email.trim())?.email || null;
+
+      // Auto-heal missing phone or email in DB if found in linked addresses
+      if ((!c.phone && effectivePhone) || (!c.email && effectiveEmail)) {
+        prisma.customer.update({
+          where: { id: c.id },
+          data: {
+            ...(!c.phone && effectivePhone ? { phone: effectivePhone } : {}),
+            ...(!c.email && effectiveEmail ? { email: effectiveEmail } : {}),
+          }
+        }).catch(() => {});
+      }
+
+      const emailKey = getCleanEmail(effectiveEmail);
+      const phoneKey = getCleanPhone(effectivePhone);
       const dedupKey = emailKey ? `email:${emailKey}` : phoneKey ? `phone:${phoneKey}` : `id:${c.id}`;
 
       if (uniqueCustomersMap.has(dedupKey)) {
         // Merge order stats into existing customer record in payload
         const existing = uniqueCustomersMap.get(dedupKey);
+        if (!existing.phone && effectivePhone) existing.phone = effectivePhone;
+        if (!existing.email && effectiveEmail) existing.email = effectiveEmail;
         existing.totalOrders += c.ordersCount || c.orders.length;
         const cFulfilledOrders = c.orders.filter((o: any) => isOrderFulfilled(o.fulfillmentStatus));
         existing.totalSpent += cFulfilledOrders.reduce((sum: number, o: any) => sum + (o.totalPrice || 0), 0);
@@ -171,7 +188,7 @@ export async function GET(req: Request) {
         continue;
       }
 
-      const displayName = c.name || c.email || (c.shopifyId !== 'anonymous' ? c.shopifyId : 'Anonymous User');
+      const displayName = c.name || effectiveEmail || (c.shopifyId !== 'anonymous' ? c.shopifyId : 'Anonymous User');
       const totalOrders = c.ordersCount || c.orders.length;
       const fulfilledOrders = c.orders.filter((o: any) => isOrderFulfilled(o.fulfillmentStatus));
       const totalSpent = fulfilledOrders.reduce((sum: any, o: any) => sum + (o.totalPrice || 0), 0);
@@ -179,9 +196,9 @@ export async function GET(req: Request) {
       const customerObj = {
         id: c.id,
         shopifyId: c.shopifyId,
-        email: c.email,
+        email: effectiveEmail,
         name: displayName,
-        phone: c.phone,
+        phone: effectivePhone,
         createdAt: c.createdAt,
         lastLoginAt: c.lastLoginAt,
         totalOrders,
