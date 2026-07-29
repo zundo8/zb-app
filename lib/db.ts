@@ -53,7 +53,7 @@ const prismaClientSingleton = () => {
   const dbUrl = process.env.DATABASE_URL || '';
   const isSqlite = dbUrl.startsWith('file:');
 
-  const pgUrl =
+  let pgUrl =
     supabaseUrl ||
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL ||
@@ -61,13 +61,19 @@ const prismaClientSingleton = () => {
 
   const isValidPgUrl = pgUrl && !pgUrl.includes('(not available)') && !pgUrl.includes('placeholder') && pgUrl !== '';
 
-  if (isValidPgUrl && !dbUrl.startsWith('postgres') && !isSqlite) {
+  if (isValidPgUrl && !isSqlite) {
+    // Sanitize connection string SSL mode for Supabase / PostgreSQL pooled connection.
+    // node-postgres pg-connection-string converts sslmode=require into rejectUnauthorized: true,
+    // overriding Pool ssl option and causing TLS self-signed cert chain error.
+    if (pgUrl.includes('sslmode=require') || pgUrl.includes('sslmode=verify-ca') || pgUrl.includes('sslmode=verify-full')) {
+      pgUrl = pgUrl.replace(/sslmode=(require|verify-ca|verify-full)/g, 'sslmode=no-verify');
+    } else if (!pgUrl.includes('sslmode=')) {
+      pgUrl += (pgUrl.includes('?') ? '&' : '?') + 'sslmode=no-verify';
+    }
     process.env.DATABASE_URL = pgUrl;
-  }
-
-  // Always sync DATABASE_URL with what the pool will actually use
-  if (isValidPgUrl && pgUrl !== dbUrl) {
-    process.env.DATABASE_URL = pgUrl;
+    if (process.env.SUPABASE_DATABASE_URL) {
+      process.env.SUPABASE_DATABASE_URL = pgUrl;
+    }
   }
 
   const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
@@ -293,7 +299,13 @@ export async function getShopSettings() {
       ?? await prisma.shop.findFirst();
     if (shop) {
       const persistent = getPersistentSettings();
-      return { ...DEFAULT_SHOP_SETTINGS, ...persistent, ...shop };
+      const cleanShop: Record<string, any> = {};
+      for (const [k, v] of Object.entries(shop)) {
+        if (v !== null && v !== undefined) {
+          cleanShop[k] = v;
+        }
+      }
+      return { ...DEFAULT_SHOP_SETTINGS, ...persistent, ...cleanShop };
     }
     return getPersistentSettings();
   } catch (error: any) {
@@ -342,7 +354,14 @@ export async function updateShopSettings(updates: Record<string, any>) {
       });
     } catch {}
 
-    return { ...DEFAULT_SHOP_SETTINGS, ...updatedPersistent, ...shop };
+    const cleanShop: Record<string, any> = {};
+    for (const [k, v] of Object.entries(shop)) {
+      if (v !== null && v !== undefined) {
+        cleanShop[k] = v;
+      }
+    }
+
+    return { ...DEFAULT_SHOP_SETTINGS, ...updatedPersistent, ...cleanShop };
   } catch (error: any) {
     console.error('[DB] updateShopSettings DB update failed, falling back to persistent file:', error.message);
     return updatedPersistent;
