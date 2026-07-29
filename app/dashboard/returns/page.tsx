@@ -35,13 +35,16 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   pickup_scheduled: { color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20", label: "Pickup Scheduled" },
   received: { color: "text-teal-500", bg: "bg-teal-500/10", border: "border-teal-500/20", label: "Received" },
   refunded: { color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "Refunded" },
+  requested: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Requested" },
+  refund_pending: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Refund Pending" },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending_approval;
+  const normalized = (status || "").toLowerCase().replace(/[_-]/g, '_');
+  const cfg = STATUS_CONFIG[normalized] || STATUS_CONFIG.pending_approval;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.color.replace('text-', 'bg-')} ${status === 'pending_approval' ? 'animate-pulse' : ''}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.color.replace('text-', 'bg-')} ${normalized === 'pending_approval' || normalized === 'requested' ? 'animate-pulse' : ''}`} />
       {cfg.label}
     </span>
   );
@@ -317,7 +320,7 @@ export default function ReturnsPage() {
                     onClick={() => router.push(`/dashboard/returns/${req.returnRequestId}`)}
                   >
                     <td className="px-4 py-3">
-                      <span className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId}</span>
+                      <span className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId || req.orderId?.slice(0, 8)}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-[11px] font-medium text-foreground">{req.userName}</div>
@@ -326,7 +329,7 @@ export default function ReturnsPage() {
                     <td className="px-4 py-3 max-w-[200px] whitespace-normal hidden md:table-cell">
                       {req.items?.slice(0, 2).map((item: any, idx: number) => (
                         <div key={idx} className="text-[10px] text-foreground/70 mb-1">
-                          <span className="font-semibold">{item.product?.title || "Item"}</span> - {item.reason}
+                          <span className="font-semibold">{item.product?.title || item.title || "Item"}</span> - {item.reason}
                         </div>
                       ))}
                       {req.items?.length > 2 && (

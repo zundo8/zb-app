@@ -33,7 +33,13 @@ export async function GET(req: Request) {
     }
 
     const orders = await prisma.order.findMany({
-      where: { customerId: customer.id },
+      where: { 
+        customerId: customer.id,
+        NOT: [
+          { paymentStatus: { in: ['failed', 'cancelled', 'voided'] } },
+          { status: { in: ['FAILED', 'CANCELLED', 'cancelled', 'payment_failed'] } }
+        ]
+      },
       include: { 
         items: {
           include: {

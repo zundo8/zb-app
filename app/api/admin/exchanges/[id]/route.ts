@@ -29,7 +29,61 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     });
 
     if (!exchangeRequest) {
-      return NextResponse.json({ error: 'Exchange request not found' }, { status: 404 });
+      const standalone = await prisma.exchange.findUnique({
+        where: { id: params.id },
+        include: {
+          originalProduct: true,
+          newProduct: true,
+          order: {
+            include: {
+              items: true,
+              customer: true,
+              shipments: true
+            }
+          }
+        }
+      });
+      
+      if (!standalone) {
+        return NextResponse.json({ error: 'Exchange request not found' }, { status: 404 });
+      }
+
+      // Map to ExchangeRequest structure synthetically
+      const syntheticRequest = {
+        id: standalone.id,
+        orderId: standalone.orderId,
+        customerId: standalone.order?.customerId || "",
+        status: standalone.status.toLowerCase(),
+        priceDifference: standalone.priceDifference || 0,
+        paymentStatus: standalone.paymentStatus || 'not_required',
+        createdAt: standalone.createdAt,
+        updatedAt: standalone.updatedAt,
+        reason: standalone.reason,
+        returnRequestId: null,
+        newShopifyOrderId: standalone.newOrderId,
+        exchanges: [{
+          id: standalone.id,
+          orderId: standalone.orderId,
+          originalProductId: standalone.originalProductId,
+          newProductId: standalone.newProductId,
+          status: standalone.status,
+          priceDifference: standalone.priceDifference,
+          createdAt: standalone.createdAt,
+          updatedAt: standalone.updatedAt,
+          paymentStatus: standalone.paymentStatus,
+          newOrderId: standalone.newOrderId,
+          exchangeRequestId: null,
+          reason: standalone.reason,
+          qcStatus: standalone.qcStatus,
+          qcNotes: standalone.qcNotes,
+          originalProduct: standalone.originalProduct,
+          newProduct: standalone.newProduct
+        }],
+        order: standalone.order,
+        linkedReturn: null
+      };
+
+      return NextResponse.json({ exchangeRequest: syntheticRequest }, { status: 200 });
     }
 
     // Fetch the linked return request if it exists

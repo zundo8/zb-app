@@ -27,7 +27,11 @@ export async function GET(req: Request) {
             email ? { email: email } : undefined,
             phone ? { phone: phone } : undefined
           ].filter((v): v is { email: string } | { phone: string } => !!v)
-        }
+        },
+        NOT: [
+          { paymentStatus: { in: ['failed', 'cancelled', 'voided'] } },
+          { status: { in: ['FAILED', 'CANCELLED', 'cancelled', 'payment_failed'] } }
+        ]
       },
       include: {
         items: true,

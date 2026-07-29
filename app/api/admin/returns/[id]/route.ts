@@ -213,7 +213,55 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     });
 
     if (!returnRequest) {
-      return NextResponse.json({ error: 'Return request not found' }, { status: 404 });
+      const standalone = await prisma.return.findUnique({
+        where: { id: params.id },
+        include: {
+          product: true,
+          customer: true,
+          order: { include: { items: true, customer: true } }
+        }
+      });
+      
+      if (!standalone) {
+        return NextResponse.json({ error: 'Return request not found' }, { status: 404 });
+      }
+
+      // Map to ReturnRequest structure synthetically
+      const syntheticRequest = {
+        id: standalone.id,
+        orderId: standalone.orderId,
+        customerId: standalone.customerId,
+        status: standalone.status.toLowerCase(),
+        estimatedRefund: standalone.refundAmount || 0,
+        actualRefund: standalone.refundAmount,
+        createdAt: standalone.requestedAt,
+        updatedAt: standalone.updatedAt,
+        approvedAt: standalone.status === 'APPROVED' ? standalone.updatedAt : null,
+        reason: standalone.reason,
+        returns: [{
+          id: standalone.id,
+          orderId: standalone.orderId,
+          productId: standalone.productId,
+          customerId: standalone.customerId,
+          sku: standalone.sku,
+          quantity: standalone.quantity || 1,
+          reason: standalone.reason,
+          status: standalone.status,
+          requestedAt: standalone.requestedAt,
+          updatedAt: standalone.updatedAt,
+          returnMethod: standalone.returnMethod,
+          refundMethod: standalone.refundMethod,
+          trackingNumber: standalone.trackingNumber,
+          refundAmount: standalone.refundAmount,
+          storeCreditAmount: standalone.storeCreditAmount,
+          refundStatus: standalone.refundStatus,
+          returnRequestId: null,
+          product: standalone.product
+        }],
+        order: standalone.order
+      };
+
+      return NextResponse.json({ return: syntheticRequest }, { status: 200 });
     }
 
     return NextResponse.json({ return: returnRequest }, { status: 200 });

@@ -11,12 +11,11 @@ export async function GET(req: Request) {
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
     const where = status && status !== 'all' ? { status } : {};
+    const standaloneWhere = status && status !== 'all' ? { returnRequestId: null, status: status.toUpperCase() } : { returnRequestId: null };
 
-    const [returns, total, statusGroups] = await Promise.all([
+    const [returns, total, statusGroups, standaloneReturns, standaloneTotal, standaloneStatusGroups] = await Promise.all([
       prisma.returnRequest.findMany({
         where,
-        take: limit,
-        skip: offset,
         include: {
           returns: {
             include: { product: true }
@@ -31,18 +30,30 @@ export async function GET(req: Request) {
       prisma.returnRequest.groupBy({
         by: ['status'],
         _count: { id: true }
+      }),
+      prisma.return.findMany({
+        where: standaloneWhere,
+        include: {
+          product: true,
+          customer: true,
+          order: {
+            include: { customer: true }
+          }
+        },
+        orderBy: { requestedAt: "desc" }
+      }),
+      prisma.return.count({ where: standaloneWhere }),
+      prisma.return.groupBy({
+        by: ['status'],
+        where: { returnRequestId: null },
+        _count: { id: true }
       })
     ]);
-
-    const statusCounts: Record<string, number> = {};
-    statusGroups.forEach((g: any) => {
-      statusCounts[g.status] = g._count.id;
-    });
 
     const formattedReturns = returns.map((r: any) => ({
       returnRequestId: r.id,
       orderId: r.orderId,
-      shopifyOrderId: r.order?.shopifyOrderId,
+      shopifyOrderId: r.order?.shopifyOrderId || r.order?.shopifyOrderName || r.order?.internalOrderNumber || r.orderId,
       userId: r.customerId,
       userName: r.order?.customer?.name || "Unknown",
       userEmail: r.order?.customer?.email || "",
@@ -53,9 +64,53 @@ export async function GET(req: Request) {
       items: r.returns
     }));
 
+    const formattedStandalone = standaloneReturns.map((sr: any) => ({
+      returnRequestId: sr.id,
+      orderId: sr.orderId,
+      shopifyOrderId: sr.order?.shopifyOrderId || sr.order?.shopifyOrderName || sr.order?.internalOrderNumber || sr.orderId,
+      userId: sr.customerId,
+      userName: sr.order?.customer?.name || sr.customer?.name || "Unknown",
+      userEmail: sr.order?.customer?.email || sr.customer?.email || "",
+      status: sr.status.toLowerCase(),
+      estimatedRefund: sr.refundAmount || 0,
+      actualRefund: sr.refundAmount || null,
+      createdAt: sr.requestedAt || sr.updatedAt,
+      isStandalone: true,
+      items: [{
+        id: sr.id,
+        productId: sr.productId,
+        sku: sr.sku,
+        quantity: sr.quantity || 1,
+        reason: sr.reason,
+        refundAmount: sr.refundAmount,
+        status: sr.status,
+        product: sr.product
+      }]
+    }));
+
+    const combined = [...formattedReturns, ...formattedStandalone].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    const statusCounts: Record<string, number> = {};
+    
+    // Aggregate ReturnRequest status counts
+    statusGroups.forEach((g: any) => {
+      const s = g.status.toLowerCase();
+      statusCounts[s] = (statusCounts[s] || 0) + g._count.id;
+    });
+
+    // Aggregate standalone Return status counts
+    standaloneStatusGroups.forEach((g: any) => {
+      const s = g.status.toLowerCase();
+      statusCounts[s] = (statusCounts[s] || 0) + g._count.id;
+    });
+
+    const paginated = combined.slice(offset, offset + limit);
+
     return NextResponse.json({
-      returns: formattedReturns,
-      total,
+      returns: paginated,
+      total: combined.length,
       statusCounts
     });
   } catch (error: any) {

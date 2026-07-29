@@ -41,13 +41,15 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   new_order_created: { color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "New Order Created" },
   shipped: { color: "text-violet-500", bg: "bg-violet-500/10", border: "border-violet-500/20", label: "Shipped" },
   completed: { color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20", label: "Completed" },
+  requested: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Requested" }
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending_approval;
+  const normalized = (status || "").toLowerCase().replace(/[_-]/g, '_');
+  const cfg = STATUS_CONFIG[normalized] || STATUS_CONFIG.pending_approval;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.color.replace('text-', 'bg-')} ${status === 'pending_approval' ? 'animate-pulse' : ''}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.color.replace('text-', 'bg-')} ${normalized === 'pending_approval' || normalized === 'requested' ? 'animate-pulse' : ''}`} />
       {cfg.label}
     </span>
   );
@@ -321,7 +323,7 @@ export default function ExchangesPage() {
                     onClick={() => router.push(`/dashboard/exchanges/${req.exchangeRequestId}`)}
                   >
                     <td className="px-4 py-3">
-                      <span className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId}</span>
+                      <span className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId || req.orderId?.slice(0, 8)}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-[11px] font-medium text-foreground">{req.userName}</div>
@@ -330,9 +332,9 @@ export default function ExchangesPage() {
                     <td className="px-4 py-3 max-w-[250px] whitespace-normal hidden md:table-cell">
                       {req.items?.slice(0, 2).map((item: any, idx: number) => (
                         <div key={idx} className="flex items-center gap-2 mb-1.5 text-[10px] text-foreground/70">
-                          <span className="line-through opacity-70">{item.originalProduct?.title || "Item"}</span>
+                          <span className="line-through opacity-70">{item.originalProduct?.title || item.originalItem?.title || "Item"}</span>
                           <ArrowRight className="w-3 h-3 text-foreground/40 shrink-0" />
-                          <span className="font-semibold text-foreground">{item.newProduct?.title || "Replacement"}</span>
+                          <span className="font-semibold text-foreground">{item.newProduct?.title || item.newProductTitle || "Replacement"}</span>
                         </div>
                       ))}
                       {req.items?.length > 2 && (

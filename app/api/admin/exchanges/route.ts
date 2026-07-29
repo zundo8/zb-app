@@ -11,12 +11,11 @@ export async function GET(req: Request) {
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
     const where = status && status !== 'all' ? { status } : {};
+    const standaloneWhere = status && status !== 'all' ? { exchangeRequestId: null, status: status.toUpperCase() } : { exchangeRequestId: null };
 
-    const [exchanges, total, statusGroups] = await Promise.all([
+    const [exchanges, total, statusGroups, standaloneExchanges, standaloneTotal, standaloneStatusGroups] = await Promise.all([
       prisma.exchangeRequest.findMany({
         where,
-        take: limit,
-        skip: offset,
         include: {
           exchanges: {
             include: { originalProduct: true, newProduct: true }
@@ -31,18 +30,30 @@ export async function GET(req: Request) {
       prisma.exchangeRequest.groupBy({
         by: ['status'],
         _count: { id: true }
+      }),
+      prisma.exchange.findMany({
+        where: standaloneWhere,
+        include: {
+          originalProduct: true,
+          newProduct: true,
+          order: {
+            include: { customer: true }
+          }
+        },
+        orderBy: { createdAt: "desc" }
+      }),
+      prisma.exchange.count({ where: standaloneWhere }),
+      prisma.exchange.groupBy({
+        by: ['status'],
+        where: { exchangeRequestId: null },
+        _count: { id: true }
       })
     ]);
-
-    const statusCounts: Record<string, number> = {};
-    statusGroups.forEach((g: any) => {
-      statusCounts[g.status] = g._count.id;
-    });
 
     const formattedExchanges = exchanges.map((e: any) => ({
       exchangeRequestId: e.id,
       orderId: e.orderId,
-      shopifyOrderId: e.order?.shopifyOrderId,
+      shopifyOrderId: e.order?.shopifyOrderId || e.order?.shopifyOrderName || e.order?.internalOrderNumber || e.orderId,
       userId: e.customerId,
       userName: e.order?.customer?.name || "Unknown",
       userEmail: e.order?.customer?.email || "",
@@ -56,9 +67,64 @@ export async function GET(req: Request) {
       items: e.exchanges
     }));
 
+    const formattedStandalone = standaloneExchanges.map((se: any) => ({
+      exchangeRequestId: se.id,
+      orderId: se.orderId,
+      shopifyOrderId: se.order?.shopifyOrderId || se.order?.shopifyOrderName || se.order?.internalOrderNumber || se.orderId,
+      userId: se.order?.customerId || "",
+      userName: se.order?.customer?.name || "Unknown",
+      userEmail: se.order?.customer?.email || "",
+      status: se.status.toLowerCase(),
+      priceDifference: se.priceDifference || 0,
+      paymentStatus: se.paymentStatus || 'not_required',
+      createdAt: se.createdAt,
+      reason: se.reason,
+      returnRequestId: null,
+      newShopifyOrderId: se.newOrderId,
+      isStandalone: true,
+      items: [{
+        id: se.id,
+        orderId: se.orderId,
+        originalProductId: se.originalProductId,
+        newProductId: se.newProductId,
+        status: se.status,
+        priceDifference: se.priceDifference,
+        createdAt: se.createdAt,
+        updatedAt: se.updatedAt,
+        paymentStatus: se.paymentStatus,
+        newOrderId: se.newOrderId,
+        exchangeRequestId: null,
+        reason: se.reason,
+        qcStatus: se.qcStatus,
+        qcNotes: se.qcNotes,
+        originalProduct: se.originalProduct,
+        newProduct: se.newProduct
+      }]
+    }));
+
+    const combined = [...formattedExchanges, ...formattedStandalone].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    const statusCounts: Record<string, number> = {};
+    
+    // Aggregate ExchangeRequest status counts
+    statusGroups.forEach((g: any) => {
+      const s = g.status.toLowerCase();
+      statusCounts[s] = (statusCounts[s] || 0) + g._count.id;
+    });
+
+    // Aggregate standalone Exchange status counts
+    standaloneStatusGroups.forEach((g: any) => {
+      const s = g.status.toLowerCase();
+      statusCounts[s] = (statusCounts[s] || 0) + g._count.id;
+    });
+
+    const paginated = combined.slice(offset, offset + limit);
+
     return NextResponse.json({
-      exchanges: formattedExchanges,
-      total,
+      exchanges: paginated,
+      total: combined.length,
       statusCounts
     });
   } catch (error: any) {

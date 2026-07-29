@@ -36,19 +36,15 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   new_order_created: { color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "New Order Created" },
   shipped: { color: "text-violet-500", bg: "bg-violet-500/10", border: "border-violet-500/20", label: "Shipped" },
   completed: { color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20", label: "Completed" },
-  REQUESTED: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Requested" },
-  APPROVED: { color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20", label: "Approved" },
-  REJECTED: { color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20", label: "Rejected" },
-  RECEIVED: { color: "text-teal-500", bg: "bg-teal-500/10", border: "border-teal-500/20", label: "Received" },
-  QC_PASSED: { color: "text-cyan-500", bg: "bg-cyan-500/10", border: "border-cyan-500/20", label: "QC Passed" },
-  NEW_ORDER_CREATED: { color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "Order Created" },
+  requested: { color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Requested" }
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending_approval;
+  const normalized = (status || "").toLowerCase().replace(/[_-]/g, '_');
+  const cfg = STATUS_CONFIG[normalized] || STATUS_CONFIG.pending_approval;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.color.replace('text-', 'bg-')} ${status === 'pending_approval' ? 'animate-pulse' : ''}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.color.replace('text-', 'bg-')} ${normalized === 'pending_approval' || normalized === 'requested' ? 'animate-pulse' : ''}`} />
       {cfg.label}
     </span>
   );
@@ -430,7 +426,7 @@ export default function ExchangeDetailPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
                   <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Shopify Order</p>
-                  <p className="text-[12px] font-semibold text-foreground mt-1">#{order.shopifyOrderId}</p>
+                  <p className="text-[12px] font-semibold text-foreground mt-1">#{order.shopifyOrderId || order.id?.slice(0, 8)}</p>
                 </div>
                 <div>
                   <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Order Total</p>
