@@ -4,7 +4,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env.local') });
 const { Pool } = require('pg');
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 
 const pool = new Pool({
   connectionString: process.env.POSTGRES_PRISMA_URL,

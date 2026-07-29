@@ -227,37 +227,45 @@ export default function RootLayout({
             })
           }}
         />
-        <Script id="fb-pixel" strategy="beforeInteractive">
-          {`
-            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {
-              !function(f,b,e,v,n,t,s)
-              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-              n.queue=[];t=b.createElement(e);t.async=!0;
-              t.src=v;s=b.getElementsByTagName(e)[0];
-              s.parentNode.insertBefore(t,s)}(window, document,'script',
-              'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('set', 'autoConfig', false, '${pixelId}');
-              fbq('init', '${pixelId}');
-            }
-          `}
-        </Script>
-        <Script id="snap-pixel" strategy="afterInteractive">
-          {`
-            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {
-              (function(e,t,n){if(e.snaptr)return;var a=e.snaptr=function()
-              {a.handleRequest?a.handleRequest.apply(a,arguments):a.queue.push(arguments)};
-              a.queue=[];var s='script';var r=t.createElement(s);r.async=!0;
-              r.src=n;var u=t.getElementsByTagName(s)[0];
-              if (u && u.parentNode) { u.parentNode.insertBefore(r,u); } else { (t.head || t.body).appendChild(r); }
-              })(window,document,'https://sc-static.net/scevent.min.js');
+        <script
+          id="fb-pixel"
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {
+                !function(f,b,e,v,n,t,s)
+                {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                n.queue=[];t=b.createElement(e);t.async=!0;
+                t.src=v;s=b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t,s)}(window, document,'script',
+                'https://connect.facebook.net/en_US/fbevents.js');
+                fbq('set', 'autoConfig', false, '${pixelId}');
+                fbq('init', '${pixelId}');
+              }
+            `,
+          }}
+        />
+        {/* Snap Pixel Base Code */}
+        <script
+          id="snap-pixel"
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {
+                (function(e,t,n){if(e.snaptr)return;var a=e.snaptr=function()
+                {a.handleRequest?a.handleRequest.apply(a,arguments):a.queue.push(arguments)};
+                a.queue=[];var s='script';r=t.createElement(s);r.async=!0;
+                r.src=n;var u=t.getElementsByTagName(s)[0];
+                if (u && u.parentNode) { u.parentNode.insertBefore(r,u); } else { (document.head || document.body).appendChild(r); }
+                })(window,document,
+                'https://sc-static.net/scevent.min.js');
 
-              snaptr('init', '${snapPixelId}');
-              snaptr('track', 'PAGE_VIEW');
-            }
-          `}
-        </Script>
+                snaptr('init', '${snapPixelId}', {});
+                snaptr('track', 'PAGE_VIEW');
+              }
+            `,
+          }}
+        />
       </head>
       <body className={`${geistSans.variable} ${inter.variable} ${poppins.variable} antialiased`}>
         {/* Google Tag Manager (noscript) */}

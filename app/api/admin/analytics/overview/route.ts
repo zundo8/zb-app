@@ -363,7 +363,23 @@ async function handler(req: Request) {
   });
   } catch (error: any) {
     console.error('[Analytics Overview] Error:', error.message);
-    return NextResponse.json({ error: 'Failed to load analytics overview', details: error.message }, { status: 500 });
+    return NextResponse.json({
+      error: error.message || 'Failed to load analytics overview',
+      period: { from: new Date().toISOString(), to: new Date().toISOString() },
+      revenue: { total: 0, net: 0, gross: 0, refunds: 0, discounts: 0, change: 0 },
+      orders: { total: 0, aov: 0, cancelled: 0, returned: 0, refunded: 0, change: 0, statusBreakdown: [], paymentBreakdown: [] },
+      customers: { total: 0, new: 0, returning: 0, change: 0 },
+      logins: { total: 0, new: 0, change: 0, newChange: 0 },
+      visitors: { total: 0, active: 0, change: 0 },
+      sessions: { total: 0, web: 0, app: 0, change: 0 },
+      funnel: { pageViews: 0, productViews: 0, addToCart: 0, checkoutStarted: 0, paymentInitiated: 0, purchases: 0 },
+      carts: { total: 0, active: 0, abandoned: 0, converted: 0, abandonmentRate: 0 },
+      rates: { conversion: 0, addToCart: 0, cartToCheckout: 0, checkoutToPurchase: 0, cartAbandonment: 0 },
+      platformSplit: {
+        web: { orders: 0, revenue: 0, sessions: 0, visitors: 0 },
+        app: { orders: 0, revenue: 0, sessions: 0, visitors: 0 },
+      },
+    });
   }
 }
 

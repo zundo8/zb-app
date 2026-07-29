@@ -77,10 +77,10 @@ const prismaClientSingleton = () => {
 
   if (!pgUrl || pgUrl.includes('placeholder') || pgUrl === '' || pgUrl.includes('(not available)')) {
     console.error('[DB] No database URL found. Set DATABASE_URL.');
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('[DB] Critical database configuration error: SUPABASE_DATABASE_URL / DATABASE_URL is missing or invalid in production!');
+    if (process.env.ALLOW_DB_MOCK === 'true') {
+      return createMockPrismaClient('no_db_url');
     }
-    return createMockPrismaClient('no_db_url');
+    throw new Error('[DB] Critical database configuration error: SUPABASE_DATABASE_URL / DATABASE_URL is missing or invalid!');
   }
 
   // Log which URL we're connecting to (redact password)
@@ -88,21 +88,17 @@ const prismaClientSingleton = () => {
   console.log(`[DB] Connecting via: ${safeUrl}`);
 
   try {
-    // Force allow self-signed certificates globally for the process
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
     // Connection Pool Configuration:
-    // Increased max connections from 5 to 10 after Phase 1-3 query bounding & polling optimizations.
-    // This allows higher concurrency for storefront checkout/product requests alongside admin dashboard usage
-    // while staying safely within Supabase's transaction pooler (port 6543, Supavisor) client limits.
+    // Configured for Supabase pooler (port 6543 / Supavisor transaction pooler).
+    // Uses max: 1 connection per serverless invocation to prevent exhausting pooler slots.
     const pool = new Pool({
       connectionString: pgUrl,
       ssl: { 
         rejectUnauthorized: false 
       },
-      max: 10,
-      idleTimeoutMillis: 15000,
-      connectionTimeoutMillis: 10000, // Allows circuit breaker recovery under transient network pressure
+      max: 1,
+      idleTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000,
     });
 
     pool.on('error', (err) => {
@@ -184,14 +180,14 @@ const prismaClientSingleton = () => {
       }
     });
 
-    console.log('[DB] Prisma Client initialized with PgAdapter (SSL Patch v1.0.3 active)');
+    console.log('[DB] Prisma Client initialized with PgAdapter (Serverless Pooler max:1 active)');
     return extendedClient as any;
   } catch (error: any) {
     console.error('[DB] Critical Prisma initialization error:', error.message);
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[DB] Critical Prisma initialization error in production: ${error.message}`);
+    if (process.env.ALLOW_DB_MOCK === 'true') {
+      return createMockPrismaClient(`init_error: ${error.message}`);
     }
-    return createMockPrismaClient(`init_error: ${error.message}`);
+    throw new Error(`[DB] Critical Prisma initialization error: ${error.message}`);
   }
 };
 

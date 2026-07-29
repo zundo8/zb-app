@@ -1,4 +1,5 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+> [!IMPORTANT]
+> **DATABASE SECURITY NOTICE**: Database passwords previously committed in repository history have been compromised and MUST be rotated in Supabase (Settings → Database → Reset Database Password). Set all connection credentials strictly via `DATABASE_URL` (Supabase Pooled connection, port 6543) and `DIRECT_URL` (Supabase Direct connection, port 5432) in environment variables. Do NOT commit database passwords or connection strings to source control.
 
 ## Getting Started
 

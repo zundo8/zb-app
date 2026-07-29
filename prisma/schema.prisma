@@ -3,7 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Shop {
@@ -1863,9 +1865,12 @@ model AnalyticsEvent {
   deviceType  String?  @map("device_type")
   browser     String?
   os          String?
+  countryCode String?  @map("country_code")
   country     String?
   region      String?
   city        String?
+  lat         Float?
+  lng         Float?
   metadata    Json?
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -1896,9 +1901,12 @@ model AnalyticsSession {
   utmSource    String?   @map("utm_source")
   utmMedium    String?   @map("utm_medium")
   utmCampaign  String?   @map("utm_campaign")
+  countryCode  String?   @map("country_code")
   country      String?
   region       String?
   city         String?
+  lat          Float?
+  lng          Float?
   isNew        Boolean   @default(true) @map("is_new")
   startedAt    DateTime  @default(now()) @map("started_at")
   lastActiveAt DateTime  @default(now()) @map("last_active_at")

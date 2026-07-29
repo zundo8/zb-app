@@ -1,23 +1,43 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import dynamic from "next/dynamic";
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingBag, Users, Eye,
-  Activity, ShoppingCart, Target, BarChart3, Globe, Smartphone,
-  Monitor, RefreshCw, Loader2, CreditCard,
-  ArrowDownRight, Percent,
+  Activity, ShoppingCart, Target, BarChart3, Globe as GlobeIcon, Smartphone,
+  Monitor, RefreshCw, CreditCard,
+  ArrowDownRight, Percent, AlertTriangle, MapPin, Building2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import Globe3D from "@/components/Globe3D";
+
+// Dynamic Client-Only Import of Globe3D to prevent SSR hydration mismatches
+const Globe3D = dynamic(() => import("@/components/Globe3D"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full aspect-square flex items-center justify-center bg-foreground/[0.02] rounded-2xl">
+      <div className="w-6 h-6 border-2 border-foreground/20 border-t-foreground/80 rounded-full animate-spin" />
+    </div>
+  ),
+});
 
 // ─── Types ────────────────────────────────────────────────
 
+export interface VisitorPoint {
+  countryCode: string;
+  country: string;
+  city: string;
+  lat: number | null;
+  lng: number | null;
+  count: number;
+}
+
 interface OverviewData {
+  error?: string;
   period: { from: string; to: string };
   revenue: { total: number; net: number; gross: number; refunds: number; discounts: number; change: number };
   orders: {
@@ -39,6 +59,7 @@ interface OverviewData {
 }
 
 interface ChartData {
+  error?: string;
   timeSeries: {
     date: string; revenue: number; orders: number; sessions: number;
     visitors: number; add_to_cart: number; begin_checkout: number;
@@ -53,14 +74,32 @@ interface FunnelStage {
   dropOff: number; dropOffCount: number;
 }
 
+interface FunnelData {
+  error?: string;
+  funnel: FunnelStage[];
+}
+
 interface TrafficSource {
   source: string; medium: string; sessions: number; visitors: number;
   addToCart: number; checkouts: number; orders: number;
   revenue: number; conversionRate: number;
 }
 
+interface TrafficData {
+  error?: string;
+  sources: TrafficSource[];
+}
+
 interface RealtimeData {
-  summary: { totalActive: number; webActive: number; appActive: number; newVisitors: number; returningVisitors: number };
+  error?: string;
+  summary: {
+    totalActive: number;
+    webActive: number;
+    appActive: number;
+    newVisitors: number;
+    returningVisitors: number;
+    unknownCount?: number;
+  };
   topPages: { page: string; count: number }[];
   breakdowns: {
     device: Record<string, number>;
@@ -68,6 +107,8 @@ interface RealtimeData {
     os?: Record<string, number>;
     country?: Record<string, number>;
   };
+  visitorPoints?: VisitorPoint[];
+  unknownCount?: number;
 }
 
 // ─── Date Presets ─────────────────────────────────────────
@@ -124,12 +165,17 @@ export default function AnalyticsDashboard() {
   const [activePreset, setActivePreset] = useState(2); // Last 7 Days
   const [dateRange, setDateRange] = useState(DATE_PRESETS[2].getValue());
   const [platform, setPlatform] = useState<string | null>(null);
+
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [charts, setCharts] = useState<ChartData | null>(null);
   const [funnel, setFunnel] = useState<FunnelStage[] | null>(null);
+  const [funnelError, setFunnelError] = useState<string | null>(null);
   const [traffic, setTraffic] = useState<TrafficSource[] | null>(null);
+  const [trafficError, setTrafficError] = useState<string | null>(null);
   const [realtime, setRealtime] = useState<RealtimeData | null>(null);
+
   const [loading, setLoading] = useState(true);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string>("");
   const [activeChart, setActiveChart] = useState<"revenue" | "orders" | "sessions" | "conversion" | "logins" | "newLogins">("revenue");
   const abortRef = useRef<AbortController | null>(null);
 
@@ -148,38 +194,36 @@ export default function AnalyticsDashboard() {
 
     try {
       const results = await Promise.allSettled([
-        fetch(`/api/admin/analytics/overview?${params}`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
-        fetch(`/api/admin/analytics/charts?${params}`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
-        fetch(`/api/admin/analytics/funnel?${params}`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
-        fetch(`/api/admin/analytics/traffic?${params}`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
-        fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/admin/analytics/overview?${params}`, { signal: controller.signal }).then(r => r.json()),
+        fetch(`/api/admin/analytics/charts?${params}`, { signal: controller.signal }).then(r => r.json()),
+        fetch(`/api/admin/analytics/funnel?${params}`, { signal: controller.signal }).then(r => r.json()),
+        fetch(`/api/admin/analytics/traffic?${params}`, { signal: controller.signal }).then(r => r.json()),
+        fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }).then(r => r.json()),
       ]);
 
       if (controller.signal.aborted) return;
 
       const getValue = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value : null;
-      
-      const ovData = getValue(results[0]);
-      const chData = getValue(results[1]);
-      const fnData = getValue(results[2]);
-      const trData = getValue(results[3]);
-      const rtData = getValue(results[4]);
 
-      if (ovData && !ovData.error) setOverview(ovData);
+      const ovData: OverviewData | null = getValue(results[0]);
+      const chData: ChartData | null = getValue(results[1]);
+      const fnData: FunnelData | null = getValue(results[2]);
+      const trData: TrafficData | null = getValue(results[3]);
+      const rtData: RealtimeData | null = getValue(results[4]);
+
+      if (ovData) setOverview(ovData);
       if (chData) setCharts(chData);
-      if (fnData) setFunnel(fnData.funnel || []);
-      if (trData) setTraffic(trData.sources || []);
+      if (fnData) {
+        setFunnel(fnData.funnel || []);
+        setFunnelError(fnData.error || null);
+      }
+      if (trData) {
+        setTraffic(trData.sources || []);
+        setTrafficError(trData.error || null);
+      }
       if (rtData) setRealtime(rtData);
-      
-      // Log any failures for debugging
-      results.forEach((r, i) => {
-        if (r.status === 'rejected') {
-          const names = ['overview', 'charts', 'funnel', 'traffic', 'realtime'];
-          if (r.reason?.name !== 'AbortError') {
-            console.warn(`[Analytics] ${names[i]} failed:`, r.reason?.message);
-          }
-        }
-      });
+
+      setLastRefreshedAt(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     } catch (err: any) {
       if (err.name === "AbortError") return;
       console.error("[Analytics] Fetch error:", err);
@@ -190,14 +234,17 @@ export default function AnalyticsDashboard() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Auto-refresh realtime every 30s
+  // Auto-refresh realtime every 20s
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
         const res = await fetch("/api/admin/analytics/realtime");
-        if (res.ok) setRealtime(await res.json());
+        if (res.ok) {
+          const data = await res.json();
+          setRealtime(data);
+        }
       } catch { /* ignore */ }
-    }, 30_000);
+    }, 20_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -205,6 +252,51 @@ export default function AnalyticsDashboard() {
     setActivePreset(index);
     setDateRange(DATE_PRESETS[index].getValue());
   };
+
+  // Compute Top Countries & Top Cities ranked lists for the globe section
+  const { topCountries, topCities } = useMemo(() => {
+    if (!realtime) return { topCountries: [], topCities: [] };
+
+    const pts = realtime.visitorPoints || [];
+    const totalPtsCount = pts.reduce((acc, p) => acc + p.count, 0) || 1;
+
+    // Group by Country
+    const cMap = new Map<string, { code: string; name: string; count: number }>();
+    pts.forEach((p) => {
+      const code = p.countryCode || "XX";
+      const name = p.country || code;
+      const existing = cMap.get(code) || { code, name, count: 0 };
+      existing.count += p.count;
+      cMap.set(code, existing);
+    });
+
+    const countryList = Array.from(cMap.values())
+      .sort((a, b) => b.count - a.count)
+      .map((c) => ({
+        ...c,
+        share: Math.round((c.count / totalPtsCount) * 100),
+      }));
+
+    // Group by City
+    const cityMap = new Map<string, { city: string; country: string; count: number }>();
+    pts.forEach((p) => {
+      if (p.city && p.city !== "Unknown" && p.city !== "Centroid") {
+        const key = `${p.city}, ${p.countryCode}`;
+        const existing = cityMap.get(key) || { city: p.city, country: p.countryCode, count: 0 };
+        existing.count += p.count;
+        cityMap.set(key, existing);
+      }
+    });
+
+    const cityList = Array.from(cityMap.values())
+      .sort((a, b) => b.count - a.count)
+      .map((c) => ({
+        ...c,
+        share: Math.round((c.count / totalPtsCount) * 100),
+      }));
+
+    return { topCountries: countryList, topCities: cityList };
+  }, [realtime]);
 
   // ─── Change Badge ──────────────────────────────────────
   const ChangeBadge = ({ value }: { value: number }) => {
@@ -219,6 +311,19 @@ export default function AnalyticsDashboard() {
       </span>
     );
   };
+
+  // ─── Section Inline Error State ────────────────────────
+  const SectionError = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+    <div className="flex items-center justify-between p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs my-2">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+        <span>Failed to load section: {message}</span>
+      </div>
+      <button onClick={onRetry} className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 rounded-lg text-[10px] font-semibold transition-colors">
+        Retry
+      </button>
+    </div>
+  );
 
   // ─── KPI Card ──────────────────────────────────────────
   const KpiCard = ({ label, value, change, icon: Icon, prefix = "" }: {
@@ -245,14 +350,6 @@ export default function AnalyticsDashboard() {
     </motion.div>
   );
 
-  if (loading && !overview) {
-    return (
-      <div className="h-[60vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-foreground/20" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 pb-12">
       {/* ─── Header ──────────────────────────────────────── */}
@@ -261,9 +358,15 @@ export default function AnalyticsDashboard() {
           <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
           <p className="text-sm text-foreground/40 mt-1">Real-time e-commerce analytics & performance</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={fetchAll} disabled={loading} className="p-2 rounded-xl bg-foreground/5 hover:bg-foreground/10 transition-colors border border-foreground/10">
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+        <div className="flex items-center gap-3">
+          {lastRefreshedAt && (
+            <span className="text-[11px] text-foreground/40 font-medium">
+              Data as of <span className="text-foreground/70">{lastRefreshedAt}</span>
+            </span>
+          )}
+          <button onClick={fetchAll} disabled={loading} className="p-2.5 rounded-xl bg-foreground/5 hover:bg-foreground/10 transition-colors border border-foreground/10 flex items-center gap-1.5 text-xs font-medium">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+            <span>Refresh</span>
           </button>
         </div>
       </div>
@@ -291,7 +394,7 @@ export default function AnalyticsDashboard() {
         <div className="flex gap-1 bg-foreground/[0.03] rounded-xl p-1 border border-foreground/5">
           {[
             { label: "All", value: null },
-            { label: "Web", value: "web", icon: Globe },
+            { label: "Web", value: "web", icon: GlobeIcon },
             { label: "App", value: "app", icon: Smartphone },
           ].map((opt) => (
             <button
@@ -310,7 +413,7 @@ export default function AnalyticsDashboard() {
         </div>
 
         {/* Real-time indicator */}
-        {realtime && (
+        {realtime && !realtime.error && (
           <div className="flex items-center gap-2 ml-auto">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
             <span className="text-[11px] font-medium text-foreground/50">
@@ -320,8 +423,19 @@ export default function AnalyticsDashboard() {
         )}
       </div>
 
-      {/* ─── KPI Cards ───────────────────────────────────── */}
-      {overview && (
+      {/* ─── Overview Section Error ───────────────────────── */}
+      {overview?.error && (
+        <SectionError message={overview.error} onRetry={fetchAll} />
+      )}
+
+      {/* ─── KPI Cards / Loading Skeletons ──────────────── */}
+      {loading && !overview ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="glass-card p-5 rounded-2xl border border-foreground/5 h-24 animate-pulse bg-foreground/[0.02]" />
+          ))}
+        </div>
+      ) : overview ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
           <KpiCard label="Total Revenue" value={formatCurrency(overview.revenue.total)} change={overview.revenue.change} icon={DollarSign} />
           <KpiCard label="Net Revenue" value={formatCurrency(overview.revenue.net)} icon={CreditCard} />
@@ -336,10 +450,14 @@ export default function AnalyticsDashboard() {
           <KpiCard label="Add to Cart Rate" value={`${overview.rates.addToCart}%`} icon={ShoppingCart} />
           <KpiCard label="Cart Abandonment" value={`${overview.rates.cartAbandonment}%`} icon={ArrowDownRight} />
         </div>
-      )}
+      ) : null}
 
       {/* ─── Charts Section ──────────────────────────────── */}
-      {charts && charts.timeSeries.length > 0 && (
+      {charts?.error && <SectionError message={charts.error} onRetry={fetchAll} />}
+
+      {loading && !charts ? (
+        <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-80 animate-pulse bg-foreground/[0.02]" />
+      ) : charts && charts.timeSeries.length > 0 ? (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-sm font-semibold text-foreground/70">Performance Over Time</h2>
@@ -417,162 +535,174 @@ export default function AnalyticsDashboard() {
             </ResponsiveContainer>
           </div>
         </motion.div>
-      )}
+      ) : null}
 
       {/* ─── Funnel + Real-time Row ──────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Conversion Funnel */}
-        {funnel && funnel.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 lg:col-span-1">
-            <h2 className="text-sm font-semibold text-foreground/70 mb-5">Conversion Funnel</h2>
-            <div className="space-y-2">
-              {funnel.map((stage, i) => {
-                const maxSessions = funnel[0]?.sessions || 1;
-                const width = Math.max(20, (stage.sessions / maxSessions) * 100);
-                return (
-                  <div key={stage.stage} className="group">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-medium text-foreground/60">
-                        {FUNNEL_LABELS[stage.stage] || stage.stage}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold">{formatNumber(stage.sessions)}</span>
-                        {i > 0 && (
-                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
-                            stage.conversionFromPrevious >= 50 ? "text-emerald-500 bg-emerald-500/10" : "text-amber-500 bg-amber-500/10"
-                          }`}>
-                            {stage.conversionFromPrevious}%
-                          </span>
-                        )}
+        <div className="lg:col-span-1">
+          {funnelError && <SectionError message={funnelError} onRetry={fetchAll} />}
+          {loading && !funnel ? (
+            <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-96 animate-pulse bg-foreground/[0.02]" />
+          ) : funnel && funnel.length > 0 ? (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 h-full">
+              <h2 className="text-sm font-semibold text-foreground/70 mb-5">Conversion Funnel</h2>
+              <div className="space-y-2">
+                {funnel.map((stage, i) => {
+                  const maxSessions = funnel[0]?.sessions || 1;
+                  const width = Math.max(20, (stage.sessions / maxSessions) * 100);
+                  return (
+                    <div key={stage.stage} className="group">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-medium text-foreground/60">
+                          {FUNNEL_LABELS[stage.stage] || stage.stage}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold">{formatNumber(stage.sessions)}</span>
+                          {i > 0 && (
+                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+                              stage.conversionFromPrevious >= 50 ? "text-emerald-500 bg-emerald-500/10" : "text-amber-500 bg-amber-500/10"
+                            }`}>
+                              {stage.conversionFromPrevious}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-foreground/[0.04] rounded-lg h-7 overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${width}%` }}
+                          transition={{ duration: 0.8, delay: i * 0.1 }}
+                          className="h-full rounded-lg flex items-center justify-end pr-2"
+                          style={{ backgroundColor: FUNNEL_COLORS[i] || FUNNEL_COLORS[0], opacity: 0.8 }}
+                        >
+                          {i > 0 && stage.dropOffCount > 0 && (
+                            <span className="text-[9px] text-white/80 font-medium">
+                              -{formatNumber(stage.dropOffCount)}
+                            </span>
+                          )}
+                        </motion.div>
                       </div>
                     </div>
-                    <div className="w-full bg-foreground/[0.04] rounded-lg h-7 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${width}%` }}
-                        transition={{ duration: 0.8, delay: i * 0.1 }}
-                        className="h-full rounded-lg flex items-center justify-end pr-2"
-                        style={{ backgroundColor: FUNNEL_COLORS[i] || FUNNEL_COLORS[0], opacity: 0.8 }}
-                      >
-                        {i > 0 && stage.dropOffCount > 0 && (
-                          <span className="text-[9px] text-white/80 font-medium">
-                            -{formatNumber(stage.dropOffCount)}
-                          </span>
-                        )}
-                      </motion.div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
+                  );
+                })}
+              </div>
+            </motion.div>
+          ) : null}
+        </div>
 
         {/* Real-time Activity & 3D Globe */}
-        {realtime && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 lg:col-span-2 flex flex-col justify-between">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-              {/* Left Column: Metrics & Browsed Pages */}
-              <div className="flex flex-col justify-between h-full">
-                <div>
-                  <div className="flex items-center gap-2 mb-5">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <h2 className="text-sm font-semibold text-foreground/70">Real-Time Activity</h2>
-                  </div>
+        <div className="lg:col-span-2">
+          {realtime?.error && <SectionError message={realtime.error} onRetry={fetchAll} />}
+          {loading && !realtime ? (
+            <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-96 animate-pulse bg-foreground/[0.02]" />
+          ) : realtime ? (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 flex flex-col justify-between">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+                {/* Left Column: Metrics, Pages & Top Ranked Lists */}
+                <div className="flex flex-col justify-between h-full space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                      <h2 className="text-sm font-semibold text-foreground/70">Real-Time Activity</h2>
+                    </div>
 
-                  <div className="grid grid-cols-3 gap-3 mb-5">
-                    <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                      <div className="text-xl font-bold">{realtime.summary.totalActive}</div>
-                      <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Active Now</div>
-                    </div>
-                    <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                      <div className="text-xl font-bold">{realtime.summary.newVisitors}</div>
-                      <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">New</div>
-                    </div>
-                    <div className="text-center p-3 rounded-xl bg-foreground/[0.03] border border-foreground/5">
-                      <div className="text-xl font-bold">{realtime.summary.returningVisitors}</div>
-                      <div className="text-[9px] text-foreground/40 font-medium uppercase mt-1">Returning</div>
-                    </div>
-                  </div>
-
-                  {/* Top Pages */}
-                  <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Active Pages</h3>
-                  <div className="space-y-1 max-h-[140px] overflow-y-auto mb-6 pr-1 custom-scrollbar">
-                    {realtime.topPages.slice(0, 8).map((page, i) => (
-                      <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-foreground/[0.03] transition-colors">
-                        <span className="text-[11px] text-foreground/60 truncate max-w-[200px]">{page.page}</span>
-                        <span className="text-[11px] font-semibold">{page.count}</span>
+                    <div className="grid grid-cols-3 gap-2.5 mb-4">
+                      <div className="text-center p-2.5 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                        <div className="text-lg font-bold">{realtime.summary.totalActive}</div>
+                        <div className="text-[9px] text-foreground/40 font-medium uppercase mt-0.5">Active Now</div>
                       </div>
-                    ))}
-                    {realtime.topPages.length === 0 && (
-                      <div className="text-center py-6 text-foreground/20 text-xs">No active visitors</div>
-                    )}
-                  </div>
-                </div>
+                      <div className="text-center p-2.5 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                        <div className="text-lg font-bold">{realtime.summary.newVisitors}</div>
+                        <div className="text-[9px] text-foreground/40 font-medium uppercase mt-0.5">New</div>
+                      </div>
+                      <div className="text-center p-2.5 rounded-xl bg-foreground/[0.03] border border-foreground/5">
+                        <div className="text-lg font-bold">{realtime.summary.returningVisitors}</div>
+                        <div className="text-[9px] text-foreground/40 font-medium uppercase mt-0.5">Returning</div>
+                      </div>
+                    </div>
 
-                {/* Device & Browser distributions */}
-                <div className="pt-4 border-t border-foreground/5 grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Devices</h3>
-                    <div className="space-y-2">
-                      {Object.entries(realtime.breakdowns.device).map(([device, count]) => {
-                        const total = Object.values(realtime.breakdowns.device).reduce((a, b) => a + b, 0);
-                        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                        return (
-                          <div key={device} className="space-y-1">
-                            <div className="flex justify-between text-[10px] font-medium text-foreground/60 capitalize">
-                              <span>{device}</span>
-                              <span>{pct}%</span>
-                            </div>
-                            <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
-                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {Object.keys(realtime.breakdowns.device).length === 0 && (
-                        <div className="text-[10px] text-foreground/30 py-2 text-center">No devices</div>
+                    {/* Active Pages */}
+                    <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5">Active Pages</h3>
+                    <div className="space-y-1 max-h-[100px] overflow-y-auto mb-4 pr-1 custom-scrollbar">
+                      {realtime.topPages.slice(0, 5).map((page, i) => (
+                        <div key={i} className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-foreground/[0.03] transition-colors">
+                          <span className="text-[11px] text-foreground/60 truncate max-w-[180px]">{page.page}</span>
+                          <span className="text-[11px] font-semibold">{page.count}</span>
+                        </div>
+                      ))}
+                      {realtime.topPages.length === 0 && (
+                        <div className="text-center py-4 text-foreground/20 text-xs">No active visitors</div>
                       )}
                     </div>
                   </div>
 
-                  <div>
-                    <h3 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2">Browsers</h3>
-                    <div className="space-y-2">
-                      {Object.entries(realtime.breakdowns.browser).slice(0, 3).map(([browser, count]) => {
-                        const total = Object.values(realtime.breakdowns.browser).reduce((a, b) => a + b, 0);
-                        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                        return (
-                          <div key={browser} className="space-y-1">
-                            <div className="flex justify-between text-[10px] font-medium text-foreground/60 capitalize text-ellipsis overflow-hidden">
-                              <span className="truncate max-w-[80px]">{browser}</span>
-                              <span>{pct}%</span>
+                  {/* Top Countries & Cities Ranked Lists */}
+                  <div className="pt-3 border-t border-foreground/5 grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <MapPin className="w-3 h-3 text-indigo-400" />
+                        <h3 className="text-[10px] font-semibold text-foreground/50 uppercase tracking-wider">Top Countries</h3>
+                      </div>
+                      <div className="space-y-1.5 max-h-[110px] overflow-y-auto pr-1 custom-scrollbar">
+                        {topCountries.slice(0, 4).map((c) => (
+                          <div key={c.code} className="space-y-0.5">
+                            <div className="flex justify-between text-[10px] font-medium">
+                              <span className="text-foreground/70 truncate max-w-[80px]">{c.name}</span>
+                              <span className="text-foreground/40">{c.count} ({c.share}%)</span>
                             </div>
                             <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
-                              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${c.share}%` }} />
                             </div>
                           </div>
-                        );
-                      })}
-                      {Object.keys(realtime.breakdowns.browser).length === 0 && (
-                        <div className="text-[10px] text-foreground/30 py-2 text-center">No browsers</div>
-                      )}
+                        ))}
+                        {topCountries.length === 0 && (
+                          <div className="text-[10px] text-foreground/30 py-2 text-center">No location data</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Building2 className="w-3 h-3 text-purple-400" />
+                        <h3 className="text-[10px] font-semibold text-foreground/50 uppercase tracking-wider">Top Cities</h3>
+                      </div>
+                      <div className="space-y-1.5 max-h-[110px] overflow-y-auto pr-1 custom-scrollbar">
+                        {topCities.slice(0, 4).map((c) => (
+                          <div key={`${c.city}-${c.country}`} className="space-y-0.5">
+                            <div className="flex justify-between text-[10px] font-medium">
+                              <span className="text-foreground/70 truncate max-w-[80px]">{c.city}</span>
+                              <span className="text-foreground/40">{c.count} ({c.share}%)</span>
+                            </div>
+                            <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
+                              <div className="h-full bg-purple-500 rounded-full" style={{ width: `${c.share}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                        {topCities.length === 0 && (
+                          <div className="text-[10px] text-foreground/30 py-2 text-center">No city data</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Right Column: 3D Interactive Globe */}
-              <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-foreground/5 pt-6 md:pt-0 md:pl-6 min-h-[300px]">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Globe className="w-3.5 h-3.5 text-foreground/40 animate-pulse" />
-                  <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-wider">Live Geo Tracking</span>
+                {/* Right Column: Dynamic 3D Earth Globe */}
+                <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-foreground/5 pt-4 md:pt-0 md:pl-4 min-h-[300px]">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <GlobeIcon className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+                    <span className="text-[10px] font-bold text-foreground/50 uppercase tracking-wider">Live Geo Tracking</span>
+                  </div>
+                  <Globe3D
+                    points={realtime.visitorPoints || []}
+                    countries={realtime.breakdowns.country || {}}
+                    unknownCount={realtime.unknownCount || 0}
+                  />
                 </div>
-                <Globe3D countries={realtime.breakdowns.country || {}} />
               </div>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          ) : null}
+        </div>
       </div>
 
       {/* ─── Orders & Payments Row ───────────────────────── */}
@@ -619,6 +749,7 @@ export default function AnalyticsDashboard() {
       )}
 
       {/* ─── Traffic Sources ─────────────────────────────── */}
+      {trafficError && <SectionError message={trafficError} onRetry={fetchAll} />}
       {traffic && traffic.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
           <h2 className="text-sm font-semibold text-foreground/70 mb-4">Traffic Sources</h2>
@@ -640,7 +771,7 @@ export default function AnalyticsDashboard() {
                   <tr key={i} className="border-b border-foreground/[0.03] hover:bg-foreground/[0.02] transition-colors">
                     <td className="py-2.5 pr-4">
                       <div className="flex items-center gap-2">
-                        <Globe className="w-3 h-3 text-foreground/20" />
+                        <GlobeIcon className="w-3 h-3 text-foreground/20" />
                         <span className="font-medium text-foreground/70">{src.source}</span>
                         {src.medium && <span className="text-foreground/30">/ {src.medium}</span>}
                       </div>

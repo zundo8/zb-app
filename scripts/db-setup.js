@@ -1,7 +1,14 @@
 const { Pool } = require('pg');
 
+const dbUrl = process.env.DIRECT_URL || process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
+
+if (!dbUrl) {
+  console.error("❌ Error: Missing required database connection environment variable (DIRECT_URL or DATABASE_URL).");
+  process.exit(1);
+}
+
 const pool = new Pool({
-  connectionString: "postgresql://postgres:ZBdrip%406699@db.pmhgomkrzjgtfleavktp.supabase.co:5432/postgres?sslmode=no-verify",
+  connectionString: dbUrl,
   ssl: {
     rejectUnauthorized: false
   }

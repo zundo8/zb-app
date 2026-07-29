@@ -75,7 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const activeRef = useRef<HTMLAnchorElement>(null);
   useRealtimeSync();
 
-  const [dbStatus, setDbStatus] = useState<{ status: string; error: string | null; hint?: string | null } | null>(null);
+  const [dbStatus, setDbStatus] = useState<{ status: string; isMock?: boolean; mockReason?: string | null; error: string | null; hint?: string | null } | null>(null);
 
   // Poll DB health every 60s — lightweight check for the persistent banner
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (!cancelled) {
           if (res.ok) {
             const data = await res.json();
-            setDbStatus({ status: data.status, error: data.error, hint: data.hint });
+            setDbStatus({ status: data.status, isMock: data.isMock, mockReason: data.mockReason, error: data.error, hint: data.hint });
           } else {
             setDbStatus({ status: 'error', error: `HTTP ${res.status}` });
           }
@@ -749,21 +749,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Content area — scrollable */}
         <div className="flex-1 px-4 lg:px-8 py-4 lg:py-8 overflow-y-auto overflow-x-hidden custom-scrollbar relative w-full">
-          {/* DB Unavailable Banner */}
-          {dbStatus && dbStatus.status !== 'connected' && (
+          {/* DB Unavailable / Mock Fallback Banner */}
+          {dbStatus && (dbStatus.status !== 'connected' || dbStatus.isMock) && (
             <div className="max-w-[1400px] w-full mx-auto mb-4">
-              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 backdrop-blur-sm text-amber-200 dark:text-amber-300 text-sm font-medium">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border backdrop-blur-sm text-sm font-medium ${
+                dbStatus.isMock 
+                  ? 'border-purple-500/30 bg-purple-500/10 text-purple-200 dark:text-purple-300'
+                  : 'border-amber-500/20 bg-amber-500/10 text-amber-200 dark:text-amber-300'
+              }`}>
+                <AlertTriangle className={`w-4 h-4 shrink-0 ${dbStatus.isMock ? 'text-purple-400' : 'text-amber-400'}`} />
                 <span className="flex-1">
-                  Database connection issue — data may be incomplete or missing.
-                  {dbStatus.hint && <span className="text-amber-400/80 ml-1 text-xs block mt-0.5">{dbStatus.hint}</span>}
-                  {dbStatus.error && !dbStatus.hint && <span className="text-amber-400/70 ml-1 text-xs">({dbStatus.error})</span>}
+                  {dbStatus.isMock ? (
+                    <>
+                      Running on Mock Database Fallback (ALLOW_DB_MOCK=true). Real database is unreachable.
+                      {dbStatus.mockReason && <span className="opacity-80 ml-1 text-xs block mt-0.5">Reason: {dbStatus.mockReason}</span>}
+                    </>
+                  ) : (
+                    <>
+                      Database connection issue — real data may be unavailable.
+                      {dbStatus.hint && <span className="opacity-80 ml-1 text-xs block mt-0.5">{dbStatus.hint}</span>}
+                      {dbStatus.error && !dbStatus.hint && <span className="opacity-70 ml-1 text-xs">({dbStatus.error})</span>}
+                    </>
+                  )}
                 </span>
                 <a
                   href="/api/admin/db-status"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2 shrink-0"
+                  className={`text-xs underline underline-offset-2 shrink-0 ${dbStatus.isMock ? 'text-purple-300 hover:text-purple-200' : 'text-amber-400 hover:text-amber-300'}`}
                 >
                   Check status →
                 </a>

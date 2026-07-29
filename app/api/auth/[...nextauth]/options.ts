@@ -825,7 +825,7 @@ export const authOptions: AuthOptions = {
           const providedPassword = credentials.password.trim();
 
           const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || 'admin@zicabella.com').toLowerCase().trim();
-          const superAdminPassword = (process.env.SUPER_ADMIN_PASSWORD || 'ZBdrip@6699').trim();
+          const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD ? process.env.SUPER_ADMIN_PASSWORD.trim() : null;
 
           const allModules = [
             'DASHBOARD_HOME', 'SUPPORT', 'ORDERS', 'MOBILE_ORDERS', 'CUSTOMERS',
@@ -963,8 +963,8 @@ export const authOptions: AuthOptions = {
           };
         } catch (error: any) {
           console.error("[AUTH] Admin authorize error:", error);
-          if (credentials?.email?.toLowerCase().trim() === (process.env.SUPER_ADMIN_EMAIL || 'admin@zicabella.com').toLowerCase().trim()
-              && credentials?.password?.trim() === (process.env.SUPER_ADMIN_PASSWORD || 'ZBdrip@6699').trim()) {
+          if (process.env.SUPER_ADMIN_PASSWORD && credentials?.email?.toLowerCase().trim() === (process.env.SUPER_ADMIN_EMAIL || 'admin@zicabella.com').toLowerCase().trim()
+              && credentials?.password?.trim() === process.env.SUPER_ADMIN_PASSWORD.trim()) {
             console.log('[AUTH] Emergency fallback authorization for super admin!');
             const allModules = [
               'DASHBOARD_HOME', 'SUPPORT', 'ORDERS', 'MOBILE_ORDERS', 'CUSTOMERS',

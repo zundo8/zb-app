@@ -70,7 +70,7 @@ async function handler(req: Request) {
   return NextResponse.json({ funnel });
   } catch (error: any) {
     console.error('[Analytics Funnel] Error:', error.message);
-    return NextResponse.json({ funnel: [], error: error.message }, { status: 500 });
+    return NextResponse.json({ funnel: [], error: error.message });
   }
 }
 

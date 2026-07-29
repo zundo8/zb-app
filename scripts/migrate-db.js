@@ -8,8 +8,13 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env.local') });
 const { Pool } = require('pg');
 
-const oldDbUrl = 'postgresql://postgres:Zb-devop2026@db.nymlgypzrafgdkssjkgf.supabase.co:5432/postgres';
-const newDbUrl = 'postgresql://postgres:ZBdrip%406699@db.pmhgomkrzjgtfleavktp.supabase.co:5432/postgres';
+const oldDbUrl = process.env.SOURCE_DATABASE_URL;
+const newDbUrl = process.env.DEST_DATABASE_URL || process.env.DIRECT_URL || process.env.DATABASE_URL;
+
+if (!oldDbUrl || !newDbUrl) {
+  console.error("❌ Error: SOURCE_DATABASE_URL and DEST_DATABASE_URL (or DIRECT_URL / DATABASE_URL) must be set.");
+  process.exit(1);
+}
 
 const sourcePool = new Pool({
   connectionString: oldDbUrl,

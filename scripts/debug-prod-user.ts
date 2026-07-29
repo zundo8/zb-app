@@ -36,10 +36,10 @@ async function main() {
   console.log('PasswordHash:', user?.passwordHash);
 
   if (user) {
-    const testPasswords = ['ZBdrip@6699', 'ChooseAStrongPassword123!'];
+    const testPasswords = [process.env.SUPER_ADMIN_PASSWORD, 'ChooseAStrongPassword123!'].filter(Boolean) as string[];
     for (const pw of testPasswords) {
       const match = await bcrypt.compare(pw, user.passwordHash);
-      console.log(`Password matching '${pw}':`, match);
+      console.log(`Password matching provided test password:`, match);
     }
   } else {
     console.log('❌ User not found in database!');

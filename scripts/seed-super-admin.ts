@@ -14,8 +14,7 @@ if (fs.existsSync(envLocalPath)) {
   dotenv.config();
 }
 
-// SSL Patch
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 
 const dbUrl = process.env.POSTGRES_PRISMA_URL || 
               process.env.POSTGRES_URL || 

@@ -26,6 +26,11 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
+.env*
+*.env
+.env.local
+.env.production
 .env*.local
 
 # vercel
@@ -39,10 +44,8 @@ next-env.d.ts
 prisma/dev.db
 *.db
 *.csv
-.env
-.env.local
-.env.production
 digitalocean-app-spec.yaml
+scratch*.js
 
 
 # ZicaBella Native Builds (Keep these commented out to allow Xcode Cloud to see the project files)

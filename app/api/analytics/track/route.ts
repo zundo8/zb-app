@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIP, lookupIpGeo } from '@/lib/ip-geo';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,8 @@ export async function POST(req: Request) {
       value, currency, quantity, pageUrl, customerId,
       deviceType, browser, os, referrer,
       utmSource, utmMedium, utmCampaign, utmContent, utmTerm,
-      country, region, city, metadata,
+      countryCode: rawCountryCode, country: rawCountry, region: rawRegion, city: rawCity,
+      lat: rawLat, lng: rawLng, metadata,
     } = body;
 
     // Validate required fields
@@ -39,6 +41,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid event name' }, { status: 400 });
     }
 
+    // IP Extraction & Server Geolocation Lookup
+    const ip = getClientIP(req);
+    const ipGeo = (!rawCountryCode || rawLat == null || rawLng == null)
+      ? await lookupIpGeo(ip)
+      : null;
+
+    // Determine normalized location fields (Client GPS wins over IP Geo)
+    const finalCountryCode = (
+      rawCountryCode ||
+      ipGeo?.countryCode ||
+      (rawCountry && rawCountry.length === 2 ? rawCountry : null)
+    )?.toUpperCase() || null;
+
+    const finalCountry = rawCountry || ipGeo?.country || null;
+    const finalRegion = rawRegion || ipGeo?.region || null;
+    const finalCity = rawCity || ipGeo?.city || null;
+    const finalLat = rawLat != null ? parseFloat(String(rawLat)) : (ipGeo?.lat ?? null);
+    const finalLng = rawLng != null ? parseFloat(String(rawLng)) : (ipGeo?.lng ?? null);
+
     // Upsert session (if sessionId and anonymousId provided)
     if (sessionId && anonymousId) {
       try {
@@ -47,7 +68,27 @@ export async function POST(req: Request) {
         });
 
         if (existing) {
-          // Update existing session
+          // Update existing session: only set location fields if currently null,
+          // or if client GPS provided direct precise coords.
+          const updateLocationData: Record<string, any> = {};
+
+          if (finalCountryCode && !existing.countryCode) updateLocationData.countryCode = finalCountryCode;
+          if (finalCountry && !existing.country) updateLocationData.country = finalCountry;
+          if (finalRegion && !existing.region) updateLocationData.region = finalRegion;
+          if (finalCity && !existing.city) updateLocationData.city = finalCity;
+          if (finalLat != null && existing.lat == null) updateLocationData.lat = finalLat;
+          if (finalLng != null && existing.lng == null) updateLocationData.lng = finalLng;
+
+          // GPS override
+          if (rawLat != null && rawLng != null) {
+            updateLocationData.lat = parseFloat(String(rawLat));
+            updateLocationData.lng = parseFloat(String(rawLng));
+            if (finalCountryCode) updateLocationData.countryCode = finalCountryCode;
+            if (finalCountry) updateLocationData.country = finalCountry;
+            if (finalRegion) updateLocationData.region = finalRegion;
+            if (finalCity) updateLocationData.city = finalCity;
+          }
+
           await prisma.analyticsSession.update({
             where: { id: existing.id },
             data: {
@@ -55,10 +96,11 @@ export async function POST(req: Request) {
               currentPage: pageUrl || existing.currentPage,
               pageViews: eventName === 'page_view' ? { increment: 1 } : undefined,
               customerId: customerId || existing.customerId,
+              ...updateLocationData,
             },
           });
         } else {
-          // Check if this is a new visitor (no previous sessions with this anonymousId)
+          // Check if this is a new visitor
           const prevSessionCount = await prisma.analyticsSession.count({
             where: { anonymousId },
           });
@@ -79,15 +121,17 @@ export async function POST(req: Request) {
               utmSource: utmSource || null,
               utmMedium: utmMedium || null,
               utmCampaign: utmCampaign || null,
-              country: country || null,
-              region: region || null,
-              city: city || null,
+              countryCode: finalCountryCode,
+              country: finalCountry,
+              region: finalRegion,
+              city: finalCity,
+              lat: finalLat,
+              lng: finalLng,
               isNew: prevSessionCount === 0,
             },
           });
         }
       } catch (sessionErr: any) {
-        // Don't fail the event if session upsert fails
         console.warn('[Analytics] Session upsert failed:', sessionErr.message);
       }
     }
@@ -119,14 +163,16 @@ export async function POST(req: Request) {
           deviceType: deviceType || null,
           browser: browser || null,
           os: os || null,
-          country: country || null,
-          region: region || null,
-          city: city || null,
+          countryCode: finalCountryCode,
+          country: finalCountry,
+          region: finalRegion,
+          city: finalCity,
+          lat: finalLat,
+          lng: finalLng,
           metadata: metadata || null,
         },
       });
     } catch (eventErr: any) {
-      // Unique constraint violation = duplicate event = silently ignore
       if (eventErr.code === 'P2002') {
         return NextResponse.json({ ok: true, dedup: true });
       }
