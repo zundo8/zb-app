@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   SNAP_PIXEL_ID,
@@ -23,12 +23,18 @@ function uuidv4() {
 export function SnapPixelRouteTracker() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const lastTrackedPath = useRef<string | null>(null);
 
   useEffect(() => {
     // Exclude admin dashboard and admin routes from tracking
     if (!pathname || pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/web-store')) {
       return;
     }
+
+    if (pathname === lastTrackedPath.current) {
+      return;
+    }
+    lastTrackedPath.current = pathname;
 
     if (!SNAP_PIXEL_ID) {
       return;

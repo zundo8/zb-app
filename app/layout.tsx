@@ -261,7 +261,6 @@ export default function RootLayout({
                 'https://sc-static.net/scevent.min.js');
 
                 snaptr('init', '${snapPixelId}', {});
-                snaptr('track', 'PAGE_VIEW');
               }
             `,
           }}

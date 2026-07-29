@@ -109,7 +109,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdn.shopify.com; img-src 'self' data: blob: https://cdn.shopify.com https://*.supabase.co https://images.unsplash.com https://www.facebook.com https://*.fbsbx.com https://*.whatsapp.net; media-src 'self' data: blob: https://*.supabase.co https://cdn.shopify.com https://*.fbsbx.com https://*.whatsapp.net; connect-src 'self' https://*.supabase.co https://cdn.shopify.com https://api.razorpay.com https://connect.facebook.net https://www.facebook.com; frame-src 'self' https://api.razorpay.com;",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdn.shopify.com; img-src 'self' data: blob: https://cdn.shopify.com https://*.supabase.co https://images.unsplash.com https://www.facebook.com https://*.fbsbx.com https://*.whatsapp.net https://unpkg.com https://*.unpkg.com; media-src 'self' data: blob: https://*.supabase.co https://cdn.shopify.com https://*.fbsbx.com https://*.whatsapp.net; connect-src 'self' https://*.supabase.co https://cdn.shopify.com https://api.razorpay.com https://connect.facebook.net https://www.facebook.com https://unpkg.com https://*.unpkg.com; frame-src 'self' https://api.razorpay.com;",
           },
         ],
       },
