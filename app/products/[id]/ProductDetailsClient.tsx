@@ -8,6 +8,8 @@ import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import { parseShopifyRichText, formatProductDescription, matchKey } from "@/lib/utils";
+import { useCountry } from "@/lib/country-context";
+import { lockScroll, unlockScroll } from "@/lib/utils/scroll-lock";
 
 interface ShopSettings {
   showProductVideo: boolean;
@@ -114,6 +116,7 @@ export default function ProductDetailsClient({
   allImages?: any[];
 }) {
   const router = useRouter();
+  const { formatPrice: fmtPrice } = useCountry();
   const { trackViewContent, trackAddToCart, trackAddToWishlist } = useMetaEvents();
   const { trackViewContent: trackSnapViewContent, trackAddToCart: trackSnapAddToCart, trackAddToWishlist: trackSnapAddToWishlist } = useSnapEvents();
 
@@ -153,15 +156,15 @@ export default function ProductDetailsClient({
   useEffect(() => {
     if (isGalleryOpen) {
       document.body.classList.add("gallery-open");
-      document.body.style.overflow = "hidden";
+      lockScroll();
     } else {
       document.body.classList.remove("gallery-open");
-      document.body.style.overflow = "";
+      unlockScroll();
       setIsZoomed(false);
     }
     return () => {
       document.body.classList.remove("gallery-open");
-      document.body.style.overflow = "";
+      unlockScroll();
     };
   }, [isGalleryOpen]);
 
@@ -186,7 +189,19 @@ export default function ProductDetailsClient({
   }, [product.id]);
 
   useEffect(() => {
-    setWinHeight(window.innerHeight);
+    const updateHeight = () => {
+      const h = typeof window !== 'undefined'
+        ? (window.visualViewport ? window.visualViewport.height : window.innerHeight)
+        : 800;
+      setWinHeight(h);
+    };
+
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener("resize", updateHeight);
+    }
+
     recordVisit(product);
 
     // Track Product Viewed event
@@ -208,6 +223,13 @@ export default function ProductDetailsClient({
         localStorage.setItem('ctwa_clid', ctwa_clid);
       }
     }
+
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", updateHeight);
+      }
+    };
   }, [product, recordVisit]);
 
   // Optimized Scroll Effects for Safari
@@ -524,9 +546,9 @@ export default function ProductDetailsClient({
               <div>
                 <h1 className="text-[14px] font-bold tracking-[0.2em] uppercase text-foreground font-heading mb-1.5 leading-snug">{product.title}</h1>
                 <div className="flex items-center gap-2">
-                  <span className="text-[12px] font-medium text-foreground/60 tracking-tight">₹{parseFloat(initialPrice).toLocaleString('en-IN')}</span>
+                  <span className="text-[12px] font-medium text-foreground/60 tracking-tight">{fmtPrice(parseFloat(initialPrice)).formatted}</span>
                   {comparePrice && parseFloat(comparePrice) > parseFloat(initialPrice) && (
-                    <span className="text-[10px] font-light text-foreground/20 line-through tracking-wider">₹{parseFloat(comparePrice).toLocaleString('en-IN')}</span>
+                    <span className="text-[10px] font-light text-foreground/20 line-through tracking-wider">{fmtPrice(parseFloat(comparePrice)).formatted}</span>
                   )}
                 </div>
               </div>
@@ -729,7 +751,7 @@ export default function ProductDetailsClient({
                         {p.title}
                       </span>
                       <span className="text-[9px] font-sans font-light text-foreground/50">
-                        ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
+                        {fmtPrice(parseFloat(p.variants?.[0]?.price || initialPrice)).formatted}
                       </span>
                     </div>
                     <button
@@ -856,9 +878,9 @@ export default function ProductDetailsClient({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-normal text-foreground/60 dark:text-foreground/40 tracking-tight">₹{parseFloat(initialPrice).toLocaleString('en-IN')}</span>
+                    <span className="text-[11px] font-normal text-foreground/60 dark:text-foreground/40 tracking-tight">{fmtPrice(parseFloat(initialPrice)).formatted}</span>
                     {comparePrice && parseFloat(comparePrice) > parseFloat(initialPrice) && (
-                      <span className="text-[10px] font-light text-foreground/15 line-through tracking-wider">₹{parseFloat(comparePrice).toLocaleString('en-IN')}</span>
+                      <span className="text-[10px] font-light text-foreground/15 line-through tracking-wider">{fmtPrice(parseFloat(comparePrice)).formatted}</span>
                     )}
                   </div>
                 </div>
@@ -1156,7 +1178,7 @@ export default function ProductDetailsClient({
                               {p.title}
                             </span>
                             <span className="text-[9px] font-sans font-light text-foreground/50">
-                              ₹{parseFloat(initialPrice).toLocaleString('en-IN')}
+                              {fmtPrice(parseFloat(p.variants?.[0]?.price || initialPrice)).formatted}
                             </span>
                           </div>
                           <button

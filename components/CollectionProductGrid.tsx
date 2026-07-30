@@ -5,6 +5,7 @@ import { ShopifyProduct } from "@/lib/shopify-admin";
 import Link from "next/link";
 import Image from "next/image";
 import { handleImageError } from "@/components/ImagePlaceholder";
+import { useCountry } from "@/lib/country-context";
 
 interface CollectionProductGridProps {
   products: ShopifyProduct[];
@@ -13,6 +14,7 @@ interface CollectionProductGridProps {
 }
 
 export default function CollectionProductGrid({ products, viewMode, selectedSize }: CollectionProductGridProps) {
+  const { formatPrice: fmtPrice } = useCountry();
   if (products.length === 0) {
     return (
       <div className="text-center py-20">
@@ -142,11 +144,11 @@ export default function CollectionProductGrid({ products, viewMode, selectedSize
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] md:text-[11px] font-normal tracking-tight text-white/60">
-                      ₹{parseFloat(price).toLocaleString("en-IN")}
+                      {fmtPrice(parseFloat(price)).formatted}
                     </span>
                     {isOnSale && compareAtPrice && (
                       <span className="text-[8px] md:text-[10px] font-normal tracking-tight text-white/30 line-through">
-                        ₹{parseFloat(compareAtPrice).toLocaleString("en-IN")}
+                        {fmtPrice(parseFloat(compareAtPrice)).formatted}
                       </span>
                     )}
                   </div>

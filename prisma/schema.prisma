@@ -262,6 +262,7 @@ model Order {
   subtotalPrice         Float?
   totalTax              Float?
   currency              String            @default("INR")
+  displayCountry        String?           @map("display_country")
   paymentStatus         String
   fulfillmentStatus     String
   deliveryStatus        String            @default("pending")
@@ -439,17 +440,18 @@ model ExchangeRequest {
 }
 
 model Payment {
-  id         String   @id @default(cuid())
-  orderId    String
-  customerId String
-  amount     Float
-  type       String
-  status     String
-  gateway    String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  customer   Customer @relation(fields: [customerId], references: [id])
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  orderId      String
+  customerId   String
+  amount       Float
+  type         String
+  status       String
+  gateway      String
+  currencyCode String?  @default("INR") @map("currency_code")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customer     Customer @relation(fields: [customerId], references: [id])
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Shipment {
@@ -1938,3 +1940,31 @@ model WhatsAppSchedulerRun {
   @@map("whatsapp_scheduler_runs")
 }
 
+/// Global Multi-Country Storefront — country/currency configuration
+model GlobalStoreCountry {
+  id             String   @id @default(cuid())
+  code           String   @unique            // ISO 3166-1 alpha-2: IN, US, GB, CA, AU, AE, DE, ES
+  name           String                       // "United States"
+  currencyCode   String   @map("currency_code")  // ISO 4217: USD, GBP, CAD, AUD, AED, EUR, INR
+  currencySymbol String   @map("currency_symbol") // $, £, $, $, د.إ, €, ₹
+  locale         String   @default("en-IN")   // BCP 47 locale for Intl.NumberFormat
+  isBase         Boolean  @default(false)     // true only for IN — locks multiplier at 1.0
+  multiplier     Decimal  @default(1.0) @db.Decimal(10, 4)  // e.g. 2.5 — applied to INR base price
+  exchangeRate   Decimal  @db.Decimal(12, 6)  // INR → currencyCode conversion rate, admin-editable
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@map("global_store_countries")
+}
+
+/// Singleton settings row for global store feature toggles
+model GlobalStoreSettings {
+  id                 String   @id @default("singleton")
+  globalStoreEnabled Boolean  @default(false) @map("global_store_enabled")
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+
+  @@map("global_store_settings")
+}

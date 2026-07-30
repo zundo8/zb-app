@@ -35,6 +35,7 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
     "/web-store/coupons",
     "/web-store/logins",
     "/dashboard/webstore-settings/preferences",
+    "/dashboard/global-store",
   ],
   COMMUNITY: [
     "/dashboard/community/chat",
@@ -82,6 +83,7 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
     "/dashboard/live-carts",
     "/dashboard/app-logins",
     "/dashboard/payments/razorpay",
+    "/dashboard/global-store",
   ],
   AI_SERVICES: [
     "/dashboard/ai",
@@ -193,6 +195,8 @@ export default withAuth(
       // Admin API mappings for middleware double-guard
       "/api/admin/users": "ADMIN_USERS",
       "/api/admin/audit-logs": "ADMIN_USERS",
+      "/dashboard/global-store": "INTEGRATIONS",
+      "/api/admin/global-store": "INTEGRATIONS",
     };
 
     // Check module-specific page/API access

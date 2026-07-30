@@ -10,6 +10,8 @@ import { handleImageError } from "./ImagePlaceholder";
 import { toast } from "sonner";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useCountry } from "@/lib/country-context";
+import { lockScroll, unlockScroll } from "@/lib/utils/scroll-lock";
 
 interface Props {
   product: ShopifyProduct;
@@ -18,6 +20,7 @@ interface Props {
 }
 
 export default function QuickAddModal({ product, initialSize, onClose }: Props) {
+  const { formatPrice: fmtPrice } = useCountry();
   const { add } = useCart();
   const { trackAddToCart } = useMetaEvents();
   const { trackAddToCart: trackSnapAddToCart } = useSnapEvents();
@@ -59,8 +62,8 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
 
   // Prevent body scroll while modal is open
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    lockScroll();
+    return () => { unlockScroll(); };
   }, []);
 
   const handleAdd = () => {
@@ -149,7 +152,7 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
               {product.title}
             </p>
             <p className="text-[9px] font-normal text-foreground/50 tracking-widest mt-0.5">
-              ₹{parseFloat(price).toLocaleString("en-IN")}
+              {fmtPrice(parseFloat(price)).formatted}
             </p>
           </div>
           <button

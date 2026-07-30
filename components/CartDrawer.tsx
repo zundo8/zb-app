@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Minus, Plus, ShoppingBag, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/lib/cart-context";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { useCountry } from "@/lib/country-context";
+import { lockScroll, unlockScroll } from "@/lib/utils/scroll-lock";
 
 const CheckoutWebView = dynamic(() => import("./CheckoutWebView"), { ssr: false });
 const OrderSuccess = dynamic(() => import("./OrderSuccess"), { ssr: false });
@@ -18,12 +20,20 @@ interface CartDrawerProps {
 }
 
 export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
+  const { formatPrice: fmtPrice } = useCountry();
   const router = useRouter();
   const { items, count, subtotal, remove, update, clear } = useCart();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      lockScroll();
+      return () => unlockScroll();
+    }
+  }, [isOpen]);
 
   const handleCheckout = () => {
     if (items.length === 0) return;
@@ -134,7 +144,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                             )}
                             <div className="mt-auto flex justify-between items-center">
                               <p className="text-[11px] font-normal tracking-tight text-foreground/70">
-                                ₹{(parseFloat(item.price) * item.quantity).toLocaleString("en-IN")}
+                                {fmtPrice(parseFloat(item.price) * item.quantity).formatted}
                               </p>
                               <div
                                 className="flex items-center gap-1 rounded-lg px-1.5 py-1 bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/10 transition-colors duration-500"
@@ -177,7 +187,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       Estimated Total
                     </span>
                     <span className="text-[15px] font-normal tracking-tight text-foreground/80">
-                      ₹{subtotal.toLocaleString("en-IN")}
+                      {fmtPrice(subtotal).formatted}
                     </span>
                   </div>
 

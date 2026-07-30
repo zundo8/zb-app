@@ -23,6 +23,7 @@ import {
   ShoppingBag,
   Newspaper,
   Menu,
+  Globe,
   FileText,
   MessageSquare,
   Smartphone,
@@ -197,6 +198,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "All Products", href: "/web-store/products", icon: Sparkles, module: 'STOREFRONT' },
     { name: "Homepage Banners", href: "/web-store/banners", icon: Monitor, module: 'STOREFRONT' },
     { name: "Gallery CMS", href: "/web-store/gallery", icon: Sparkles, module: 'STOREFRONT' },
+    { name: "Global Store", href: "/dashboard/global-store", icon: Globe, module: 'STOREFRONT' },
     { name: "Preferences", href: "/dashboard/webstore-settings/preferences", icon: Settings, module: 'STOREFRONT' },
   ];
 
@@ -223,6 +225,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Live Carts", href: "/dashboard/live-carts", icon: ShoppingCart, module: 'INTEGRATIONS' },
     { name: "App Login Logs", href: "/dashboard/app-logins", icon: History, module: 'INTEGRATIONS' },
     { name: "Razorpay", href: "/dashboard/payments/razorpay", icon: CreditCard, module: 'INTEGRATIONS' },
+    { name: "Global Store", href: "/dashboard/global-store", icon: Globe, module: 'INTEGRATIONS' },
   ];
 
   const intelligenceNav = [

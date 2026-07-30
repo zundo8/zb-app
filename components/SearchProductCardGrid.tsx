@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import ProductCardImage from "./ProductCardImage";
+import { useCountry } from "@/lib/country-context";
 
 // Lazy-load modal to avoid SSR issues
 const QuickAddModal = dynamic(() => import("./QuickAddModal"), { ssr: false });
@@ -23,6 +24,7 @@ export default function SearchProductCardGrid({ product, priority = false, selec
   const price = variant?.price || "0";
   const compareAtPrice = variant?.compare_at_price;
   const isOnSale = compareAtPrice && parseFloat(compareAtPrice) > parseFloat(price);
+  const { formatPrice: fmtPrice } = useCountry();
 
   const productSlug = product.handle || product.id;
 
@@ -113,11 +115,11 @@ export default function SearchProductCardGrid({ product, priority = false, selec
             
             <div className="flex items-center gap-2 mt-1">
               <p className="text-[9px] md:text-[10px] font-normal tracking-tight text-foreground/60">
-                ₹{parseFloat(price).toLocaleString("en-IN")}
+                {fmtPrice(parseFloat(price)).formatted}
               </p>
               {isOnSale && compareAtPrice && (
                 <p className="text-[8px] md:text-[9px] font-normal tracking-tight text-foreground/25 line-through decoration-foreground/15">
-                  ₹{parseFloat(compareAtPrice).toLocaleString("en-IN")}
+                  {fmtPrice(parseFloat(compareAtPrice)).formatted}
                 </p>
               )}
             </div>

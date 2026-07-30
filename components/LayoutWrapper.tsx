@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import StorefrontLayout from "@/components/StorefrontLayout";
-import { useEffect, useState } from "react";
+import { CountryProvider } from "@/lib/country-context";
 
 export default function LayoutWrapper({ 
   children, 
@@ -21,8 +21,10 @@ export default function LayoutWrapper({
     return <>{children}</>;
   }
   return (
-    <StorefrontLayout footer={footer}>
-      {children}
-    </StorefrontLayout>
+    <CountryProvider>
+      <StorefrontLayout footer={footer}>
+        {children}
+      </StorefrontLayout>
+    </CountryProvider>
   );
 }

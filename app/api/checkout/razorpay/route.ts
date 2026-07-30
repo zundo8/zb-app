@@ -3,6 +3,7 @@ import Razorpay from "razorpay";
 import prisma from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { resolveAndSyncCustomerAddress } from "@/lib/services/customerService";
+import { toMinorUnits } from "@/lib/global-pricing";
 
 export const dynamic = 'force-dynamic';
 
@@ -38,10 +39,10 @@ export async function POST(req: Request) {
     return rateLimitResult.response;
   }
   try {
-    const body = await req.json();
     const {
       amount,
-      currency,
+      currency = "INR",
+      displayCountry = "IN",
       receipt,
       notes,
       address,
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
       couponCode,
       couponDiscount = 0,
       storeCreditAmount = 0,
-    } = body;
+    } = await req.json();
 
     // Validate required fields
     if (!amount || typeof amount !== "number" || amount <= 0) {
@@ -79,9 +80,10 @@ export async function POST(req: Request) {
       keyId = shop?.razorpayKeyId || keyId;
     }
 
+    const currencyCode = (currency || "INR").toUpperCase();
     const options = {
-      amount: Math.round(amount * 100), // Razorpay expects amount in paise
-      currency: currency || "INR",
+      amount: toMinorUnits(amount, currencyCode),
+      currency: currencyCode,
       receipt: receipt || `rcpt_${Date.now()}`,
       notes: notes || {},
     };
@@ -163,7 +165,8 @@ export async function POST(req: Request) {
               totalPrice: total || amount,
               subtotalPrice: subtotal || amount,
               totalTax: 0,
-              currency: currency || "INR",
+              currency: currencyCode,
+              displayCountry: displayCountry || "IN",
               paymentStatus: "pending",
               fulfillmentStatus: "unfulfilled",
               deliveryStatus: "pending",

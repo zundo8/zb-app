@@ -43,6 +43,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
+import { useCountry } from "@/lib/country-context";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import {
   COUNTRIES,
@@ -201,6 +202,7 @@ const sanitizeAddress = (val: string) => val.replace(BLOCKED_CHARS, "");
 const isValidAddressField = (val: string, minLen = 2) => val.trim().length >= minLen;
 
 export default function CheckoutPage() {
+  const { countryCode, countryConfig, globalStoreEnabled, formatPrice: fmtPrice } = useCountry();
   const { data: session, status } = useSession();
   const { items, subtotal, clear } = useCart();
   const router = useRouter();
@@ -701,7 +703,8 @@ export default function CheckoutPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               amount: paymentAmount,
-              currency: "INR",
+              currency: countryConfig?.currencyCode || "INR",
+              displayCountry: countryCode,
               address: checkoutAddress,
               items,
               subtotal,
@@ -1331,7 +1334,8 @@ export default function CheckoutPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             amount: paymentAmount,
-            currency: "INR",
+            currency: countryConfig?.currencyCode || "INR",
+            displayCountry: countryCode,
             address: checkoutAddress,
             items,
             subtotal,

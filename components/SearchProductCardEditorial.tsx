@@ -12,6 +12,7 @@ import ProductCardImage from "./ProductCardImage";
 import dynamic from "next/dynamic";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useCountry } from "@/lib/country-context";
 
 const QuickAddModal = dynamic(() => import("./QuickAddModal"), { ssr: false });
 
@@ -48,6 +49,7 @@ interface Props {
 }
 
 export default function SearchProductCardEditorial({ chunk, index, priority = false }: Props) {
+  const { formatPrice: fmtPrice } = useCountry();
   const { add } = useCart();
   const { trackAddToCart } = useMetaEvents();
   const { trackAddToCart: trackSnapAddToCart } = useSnapEvents();
@@ -180,7 +182,7 @@ export default function SearchProductCardEditorial({ chunk, index, priority = fa
                       {p4.title}
                     </h3>
                     <span className="text-[9px] text-foreground/45 mt-0.5 block">
-                      ₹{parseFloat(d.price).toLocaleString("en-IN")}
+                      {fmtPrice(parseFloat(d.price)).formatted}
                     </span>
                     <p className="text-[9.5px] text-foreground/35 leading-relaxed font-light mt-2 line-clamp-2">
                       {d.description}
@@ -263,11 +265,11 @@ export default function SearchProductCardEditorial({ chunk, index, priority = fa
                 {/* Price */}
                 <div className="flex items-baseline gap-2 mb-4">
                   <span className="text-[11px] md:text-xs tracking-widest text-foreground/75 font-light">
-                    ₹{parseFloat(p1Details.price).toLocaleString("en-IN")}
+                    {fmtPrice(parseFloat(p1Details.price)).formatted}
                   </span>
                   {p1Details.isOnSale && p1Details.compareAtPrice && (
                     <span className="text-[9px] md:text-[10px] tracking-widest text-foreground/25 line-through decoration-foreground/10">
-                      ₹{parseFloat(p1Details.compareAtPrice).toLocaleString("en-IN")}
+                      {fmtPrice(parseFloat(p1Details.compareAtPrice)).formatted}
                     </span>
                   )}
                 </div>
@@ -429,7 +431,7 @@ export default function SearchProductCardEditorial({ chunk, index, priority = fa
                         {prod.title}
                       </p>
                       <span className="text-[8px] text-foreground/45 mt-0.5 font-light">
-                        ₹{parseFloat(d.price).toLocaleString("en-IN")}
+                        {fmtPrice(parseFloat(d.price)).formatted}
                       </span>
                     </div>
                   </div>
@@ -474,7 +476,7 @@ export default function SearchProductCardEditorial({ chunk, index, priority = fa
                         {prod.title}
                       </p>
                       <span className="text-[7.5px] text-foreground/45 mt-0.5">
-                        ₹{parseFloat(d.price).toLocaleString("en-IN")}
+                        {fmtPrice(parseFloat(d.price)).formatted}
                       </span>
                     </div>
                   </div>

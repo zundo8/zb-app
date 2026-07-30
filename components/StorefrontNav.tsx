@@ -41,8 +41,9 @@ export default function StorefrontNav() {
   
   return (
     <div
-      className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] max-w-[340px] z-50 transition-all duration-700 pointer-events-none"
+      className="fixed left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] max-w-[340px] z-50 transition-all duration-700 pointer-events-none"
       style={{ 
+        bottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))",
         transform: shouldHide ? "translate(-50%, 140%)" : "translate(-50%, 0)", 
         opacity: shouldHide ? 0 : 1,
       }}

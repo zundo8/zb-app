@@ -1,6 +1,7 @@
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import Razorpay from 'razorpay';
 import prisma from '@/lib/db';
+import { toMinorUnits } from '@/lib/global-pricing';
 
 /**
  * Automatically processes a refund via Razorpay for cancelled orders.
@@ -170,8 +171,8 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
     const creds = await resolveRazorpayCredentials();
     const razorpayInstance = new Razorpay({ key_id: creds.key_id, key_secret: creds.key_secret });
     
-    // Razorpay amounts are in paise (cents), so multiply by 100
-    const amountInPaise = Math.round(refundAmount * 100);
+    // Razorpay amounts are in minor units (paise/cents/etc.)
+    const amountInPaise = toMinorUnits(refundAmount, order.currency || 'INR');
 
     const refund = await razorpayInstance.payments.refund(paymentId, {
       amount: amountInPaise,

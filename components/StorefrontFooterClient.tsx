@@ -16,7 +16,8 @@ import {
   CreditCard, 
   ChevronDown, 
   ChevronUp,
-  Globe
+  Globe,
+  Check
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
@@ -25,6 +26,7 @@ import ThreeDLogo from "./ThreeDLogo";
 import LazyVideo from "./LazyVideo";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useCountry } from "@/lib/country-context";
 
 interface Policy {
   handle: string;
@@ -56,12 +58,14 @@ interface StorefrontFooterClientProps {
 }
 
 export default function StorefrontFooterClient({ shop, policies, socialLinks }: StorefrontFooterClientProps) {
+  const { countryCode, setCountry, activeCountries, globalStoreEnabled } = useCountry();
   const { trackSubscribe } = useMetaEvents();
   const { trackSubscribe: trackSnapSubscribe } = useSnapEvents();
   // Mobile accordion states
   const [shopOpen, setShopOpen] = useState(false);
   const [customerCareOpen, setCustomerCareOpen] = useState(true); // Default open as shown in reference image
   const [supportOpen, setSupportOpen] = useState(false);
+  const [shipToOpen, setShipToOpen] = useState(false);
 
   // Newsletter state
   const [email, setEmail] = useState("");
@@ -271,7 +275,7 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
 
         </div>
 
-        {/* Bottom bar with Copyright & Policies */}
+        {/* Bottom bar with Copyright, Policies & Country Selector */}
         <div className="mt-20 pt-8 border-t border-foreground/[0.04] flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <p className="text-[8px] font-semibold uppercase tracking-[0.2em] text-foreground/15">
@@ -287,9 +291,31 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
               </Link>
             ))}
           </div>
-          <p className="text-[8px] font-semibold uppercase tracking-[0.2em] text-foreground/15">
-            DESIGNED IN ITALY · CRAFTED IN INDIA
-          </p>
+
+          <div className="flex flex-wrap items-center gap-6">
+            {globalStoreEnabled && activeCountries.length > 0 && (
+              <div className="flex items-center gap-2 bg-foreground/[0.03] dark:bg-white/[0.04] border border-foreground/[0.08] dark:border-white/10 hover:border-foreground/20 dark:hover:border-white/20 rounded-full px-3.5 py-1.5 transition-colors">
+                <Globe className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+                <span className="text-[8.5px] font-bold uppercase tracking-[0.15em] text-foreground/40 shrink-0">SHIP TO:</span>
+                <select
+                  value={countryCode}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="bg-transparent text-[9.5px] font-medium tracking-wide text-foreground/80 dark:text-white/80 focus:outline-none cursor-pointer pr-1"
+                  aria-label="Select Country / Currency"
+                >
+                  {activeCountries.map((c) => (
+                    <option key={c.code} value={c.code} className="bg-background text-foreground text-xs">
+                      {c.name} ({c.currencySymbol} {c.currencyCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <p className="text-[8px] font-semibold uppercase tracking-[0.2em] text-foreground/15">
+              DESIGNED IN ITALY · CRAFTED IN INDIA
+            </p>
+          </div>
         </div>
       </div>
 
@@ -524,7 +550,88 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
             </AnimatePresence>
           </div>
 
-          {/* Panel 4: STAY IN THE LOOP (Static Card) */}
+          {/* Panel 4: SHIP TO (Collapsible Country Selector Accordion) */}
+          {globalStoreEnabled && activeCountries.length > 0 && (
+            <div className="relative z-10 bg-white dark:bg-[#0c0c0c] border border-gray-100 dark:border-white/[0.04] rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-colors overflow-hidden">
+              <button 
+                onClick={() => setShipToOpen(!shipToOpen)}
+                className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-foreground">
+                    SHIP TO
+                  </span>
+                  {(() => {
+                    const active = activeCountries.find((c) => c.code === countryCode);
+                    return active ? (
+                      <span className="text-[8.5px] font-medium tracking-wider text-foreground/40 bg-foreground/[0.04] dark:bg-white/[0.06] border border-foreground/[0.06] dark:border-white/[0.08] px-2 py-0.5 rounded-full">
+                        {active.name} ({active.currencySymbol})
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                {shipToOpen ? <ChevronUp className="w-4 h-4 text-foreground/50" /> : <ChevronDown className="w-4 h-4 text-foreground/50" />}
+              </button>
+              
+              <AnimatePresence initial={false}>
+                {shipToOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-5 pb-5 pt-0">
+                      <div className="h-px w-full bg-gray-50 dark:bg-white/[0.02] mb-4" />
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {activeCountries.map((c) => {
+                          const isSelected = c.code === countryCode;
+                          return (
+                            <button
+                              key={c.code}
+                              type="button"
+                              onClick={() => setCountry(c.code)}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left group ${
+                                isSelected
+                                  ? "border-foreground/20 bg-foreground/[0.04] dark:bg-white/[0.06]"
+                                  : "border-gray-100 dark:border-white/[0.06] bg-gray-50/50 dark:bg-white/[0.01] hover:border-foreground/20 dark:hover:border-white/20"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all shadow-sm ${
+                                  isSelected
+                                    ? "border-foreground/30 bg-foreground text-background dark:bg-white dark:text-black"
+                                    : "border-gray-100 dark:border-white/[0.06] text-foreground/60 bg-white dark:bg-[#121212] group-hover:text-foreground group-hover:border-foreground/20 dark:group-hover:border-white/20"
+                                }`}>
+                                  <Globe className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className={`text-[10px] font-medium tracking-wide transition-colors ${
+                                    isSelected ? "text-foreground font-semibold" : "text-foreground/70 group-hover:text-foreground"
+                                  }`}>
+                                    {c.name}
+                                  </span>
+                                  <span className="text-[8.5px] font-mono text-foreground/40">
+                                    {c.currencySymbol} {c.currencyCode}
+                                  </span>
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <Check className="w-4 h-4 text-foreground dark:text-white shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Panel 5: STAY IN THE LOOP (Static Card) */}
           <div ref={revealContainerRef} className="relative w-full">
             <motion.div
               style={{ y: revealY, opacity: revealOpacity }}
@@ -563,10 +670,13 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
 
         </div>
 
-        {/* Mobile Bottom Footer Copyright Details */}
-        <div className="w-full max-w-md flex justify-between items-center text-[7.5px] tracking-[0.12em] font-semibold text-foreground/25 px-1.5 mt-8">
-          <span>© {new Date().getFullYear()} ZICABELLA</span>
-          <span>CRAFTED IN INDIA • ALL RIGHTS RESERVED</span>
+        {/* Mobile / Desktop Bottom Footer Copyright */}
+        <div className="w-full max-w-md flex justify-center items-center gap-3 text-[7.5px] tracking-[0.12em] font-semibold text-foreground/25 px-1.5 mt-8">
+          <div className="flex items-center gap-2">
+            <span>© {new Date().getFullYear()} ZICABELLA</span>
+            <span>•</span>
+            <span>CRAFTED IN INDIA</span>
+          </div>
         </div>
 
       </div>

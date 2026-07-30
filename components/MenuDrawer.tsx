@@ -1,10 +1,12 @@
 "use client";
 
-import { X, User, Package, Info, Users, BookOpen, Handshake, ChevronRight, Search, RotateCcw } from "lucide-react";
+import { X, User, Package, Info, Users, BookOpen, Handshake, ChevronRight, Search, RotateCcw, Globe, ChevronDown, ChevronUp, Check } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { useCountry } from "@/lib/country-context";
+import { lockScroll, unlockScroll } from "@/lib/utils/scroll-lock";
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -39,10 +41,19 @@ const PRIMARY_NAV = [
 const SHOP_TERMS = ["T-shirt", "Jeans", "Pants", "Trousers", "Jorts", "Shirts"];
 
 export default function MenuDrawer({ isOpen, onClose }: MenuDrawerProps) {
+  const { countryCode, setCountry, activeCountries, globalStoreEnabled } = useCountry();
+  const [countryOpen, setCountryOpen] = useState(false);
   const [collections, setCollections] = useState<ShopifyCollection[]>(FALLBACK_COLLECTIONS);
   const [loading, setLoading] = useState(true);
   const { data: session } = useSession();
   const profileImage = session?.user?.image || (session as any)?.customer?.image;
+
+  useEffect(() => {
+    if (isOpen) {
+      lockScroll();
+      return () => unlockScroll();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -158,6 +169,79 @@ export default function MenuDrawer({ isOpen, onClose }: MenuDrawerProps) {
                     </Link>
                   ))}
                 </nav>
+
+                {/* ─── Country Selector (Ship To) ─── */}
+                {globalStoreEnabled && activeCountries.length > 0 && (
+                  <div className="pt-1">
+                    <div className="h-[1px] bg-foreground/5 mb-3.5" />
+                    
+                    {/* Compact Collapsible Header */}
+                    <button
+                      type="button"
+                      onClick={() => setCountryOpen(!countryOpen)}
+                      className="w-full group flex items-center justify-between py-2 px-3 rounded-2xl bg-foreground/[0.03] dark:bg-white/[0.04] border border-foreground/[0.06] dark:border-white/[0.08] hover:border-foreground/15 transition-all text-left"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Globe className="w-3.5 h-3.5 text-foreground/40 shrink-0" strokeWidth={1.5} />
+                        <span className="text-[10px] font-bold text-foreground/50 group-hover:text-foreground transition-colors uppercase tracking-[0.08em] shrink-0">
+                          SHIP TO
+                        </span>
+                        {(() => {
+                          const active = activeCountries.find((c) => c.code === countryCode);
+                          return active ? (
+                            <span className="text-[8.5px] font-medium tracking-wider text-foreground/70 bg-background/80 dark:bg-black/60 px-2 py-0.5 rounded-full border border-foreground/5 truncate">
+                              {active.name} · {active.currencySymbol}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                      {countryOpen ? (
+                        <ChevronUp className="w-3.5 h-3.5 text-foreground/40 shrink-0" strokeWidth={1.5} />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-foreground/40 shrink-0" strokeWidth={1.5} />
+                      )}
+                    </button>
+
+                    {/* Compact Expandable Country Options */}
+                    <AnimatePresence initial={false}>
+                      {countryOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                          className="overflow-hidden pt-2 space-y-1"
+                        >
+                          {activeCountries.map((c) => {
+                            const isSelected = c.code === countryCode;
+                            return (
+                              <button
+                                key={c.code}
+                                type="button"
+                                onClick={() => setCountry(c.code)}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all ${
+                                  isSelected
+                                    ? "bg-foreground/10 dark:bg-white/10 text-foreground font-semibold"
+                                    : "hover:bg-foreground/[0.04] dark:hover:bg-white/[0.04] text-foreground/60 hover:text-foreground"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 text-[10px] tracking-wide">
+                                  <span>{c.name}</span>
+                                  <span className="text-[8.5px] font-mono text-foreground/40">
+                                    ({c.currencySymbol} {c.currencyCode})
+                                  </span>
+                                </div>
+                                {isSelected && (
+                                  <Check className="w-3.5 h-3.5 text-foreground dark:text-white shrink-0" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
 
               </div>
             </div>

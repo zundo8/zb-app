@@ -9,10 +9,12 @@ import { useCart } from "@/lib/cart-context";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
+import { useCountry } from "@/lib/country-context";
 
 const QuickAddModal = dynamic(() => import("@/components/QuickAddModal"), { ssr: false });
 
 export default function WishlistPage() {
+  const { formatPrice: fmtPrice } = useCountry();
   const { bookmarks, removeBookmark } = useBookmarks();
   const { add: addToCart } = useCart();
   const [isLoaded, setIsLoaded] = useState(false);
@@ -160,7 +162,7 @@ export default function WishlistPage() {
                           {product.title}
                         </h3>
                         <p className="text-[13px] font-semibold tracking-tight text-foreground/55">
-                          ₹{price}
+                          {fmtPrice(parseFloat(price) || 0).formatted}
                         </p>
                       </div>
    

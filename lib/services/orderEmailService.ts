@@ -88,8 +88,11 @@ async function sendDynamicEmail(
   fallbackText: string,
   extraVars: Record<string, any> = {}
 ) {
-  const currencySymbol = order.currency === 'USD' ? '$' : '₹';
+  const currencySymbols: Record<string, string> = {
+    INR: '₹', USD: '$', GBP: '£', CAD: '$', AUD: '$', AED: 'د.إ', EUR: '€'
+  };
   const currencyCode = order.currency || 'INR';
+  const currencySymbol = currencySymbols[currencyCode] || '₹';
   const orderDateStr = order.orderDate || new Date().toLocaleDateString('en-IN', { dateStyle: 'long' });
   const itemsHtml = await getItemsHtml(order.items, currencySymbol);
 

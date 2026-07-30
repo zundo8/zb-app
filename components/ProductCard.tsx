@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import ProductCardImage from "./ProductCardImage";
+import { useCountry } from "@/lib/country-context";
 
 // Lazy-load modal to avoid SSR issues
 const QuickAddModal = dynamic(() => import("./QuickAddModal"), { ssr: false });
@@ -23,6 +24,9 @@ export default function ProductCard({ product, priority = false, selectedSize }:
   const price = variant?.price || "0";
   const compareAtPrice = variant?.compare_at_price;
   const isOnSale = compareAtPrice && parseFloat(compareAtPrice) > parseFloat(price);
+  const { formatPrice } = useCountry();
+  const displayPrice = formatPrice(parseFloat(price));
+  const displayComparePrice = compareAtPrice ? formatPrice(parseFloat(compareAtPrice)) : null;
 
   // Use handle for SEO-friendly URLs — falls back to id if handle unavailable
   const productSlug = product.handle || product.id;
@@ -73,11 +77,11 @@ export default function ProductCard({ product, priority = false, selectedSize }:
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <p className="text-[8px] sm:text-[9px] font-sans font-normal tracking-tight text-foreground/50 uppercase">
-                ₹{parseFloat(price).toLocaleString("en-IN")}
+                {displayPrice.formatted}
               </p>
-              {isOnSale && compareAtPrice && (
+              {isOnSale && displayComparePrice && (
                 <p className="text-[7.5px] font-sans font-normal tracking-tight text-foreground/25 uppercase line-through">
-                  ₹{parseFloat(compareAtPrice).toLocaleString("en-IN")}
+                  {displayComparePrice.formatted}
                 </p>
               )}
             </div>

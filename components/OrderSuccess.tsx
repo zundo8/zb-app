@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Package, ArrowRight, Sparkles } from "lucide-react";
+import { lockScroll, unlockScroll } from "@/lib/utils/scroll-lock";
 
 interface Props {
   onContinue: () => void;
@@ -11,8 +12,8 @@ interface Props {
 export default function OrderSuccess({ onContinue }: Props) {
   // Prevent body scroll while shown
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    lockScroll();
+    return () => unlockScroll();
   }, []);
 
   return (

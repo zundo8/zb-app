@@ -7,8 +7,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useBookmarks } from "@/lib/bookmark-context";
 import { useCart } from "@/lib/cart-context";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { handleImageError } from "./ImagePlaceholder";
+import { useCountry } from "@/lib/country-context";
+import { lockScroll, unlockScroll } from "@/lib/utils/scroll-lock";
 
 const QuickAddModal = dynamic(() => import("./QuickAddModal"), { ssr: false });
 
@@ -18,9 +20,17 @@ interface BookmarkDrawerProps {
 }
 
 export default function BookmarkDrawer({ isOpen, onClose }: BookmarkDrawerProps) {
+  const { formatPrice: fmtPrice } = useCountry();
   const { bookmarks, removeBookmark } = useBookmarks();
   const { add: addToCart } = useCart();
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      lockScroll();
+      return () => unlockScroll();
+    }
+  }, [isOpen]);
 
   const handleQuickAdd = (product: any) => {
     const variants = product.variants || [];
@@ -124,7 +134,7 @@ export default function BookmarkDrawer({ isOpen, onClose }: BookmarkDrawerProps)
                             {product.title}
                           </p>
                           <p className="text-[11px] font-normal tracking-tight text-foreground/60">
-                            ₹{parseFloat(product.variants[0].price).toLocaleString("en-IN")}
+                            {fmtPrice(parseFloat(product.variants[0].price)).formatted}
                           </p>
                         </div>
                         
