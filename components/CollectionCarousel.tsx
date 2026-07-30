@@ -61,19 +61,18 @@ export default function CollectionCarousel({ collections }: { collections: Colle
   // Pointer swipe with velocity detection
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
-    if ((e.target as HTMLElement).closest("button, a, [data-card]")) return;
+    if ((e.target as HTMLElement).closest("button")) return;
     dragStartX.current = e.clientX;
     dragStartTime.current = Date.now();
     isDragging.current = true;
     hasMoved.current = false;
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {}
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging.current) return;
-    if (Math.abs(e.clientX - dragStartX.current) > 6) hasMoved.current = true;
+    if (Math.abs(e.clientX - dragStartX.current) > 6) {
+      hasMoved.current = true;
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -120,13 +119,8 @@ export default function CollectionCarousel({ collections }: { collections: Colle
                   collection={col}
                   diff={diff}
                   fallback={FALLBACKS[i % FALLBACKS.length]}
-                  onSelect={() => {
-                    if (diff === 0) {
-                      router.push(`/collections/${col.handle}`);
-                    } else {
-                      setIndex(i);
-                    }
-                  }}
+                  hasMoved={hasMoved}
+                  onSelect={() => setIndex(i)}
                 />
               );
             })}
@@ -165,7 +159,7 @@ export default function CollectionCarousel({ collections }: { collections: Colle
         </div>
       </div>
 
-      {/* ─── MOBILE VIEW (sm and below) — UNTOUCHED ─── */}
+      {/* ─── MOBILE VIEW (sm and below) ─── */}
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -191,6 +185,8 @@ export default function CollectionCarousel({ collections }: { collections: Colle
                   collection={col}
                   diff={diff}
                   fallback={FALLBACKS[i % FALLBACKS.length]}
+                  hasMoved={hasMoved}
+                  onSelect={() => setIndex(i)}
                 />
               );
             })}
@@ -205,12 +201,16 @@ function StackedCard({
   collection,
   diff,
   fallback,
+  hasMoved,
+  onSelect,
 }: {
   collection: Collection;
   diff: number;
-  isActive?: boolean;
   fallback: string;
+  hasMoved: React.MutableRefObject<boolean>;
+  onSelect: () => void;
 }) {
+  const router = useRouter();
   const absDiff = Math.abs(diff);
   const isActive = absDiff < 0.1;
 
@@ -218,6 +218,55 @@ function StackedCard({
   const translateX = diff * 18;
   const scale = isActive ? 1 : Math.max(0.9, 1 - absDiff * 0.04);
   const opacity = Math.max(0, 1 - absDiff * 0.15);
+
+  const collectionHref = collection.handle ? `/collections/${collection.handle}` : "/collections";
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (hasMoved.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (isActive) {
+      router.push(collectionHref);
+    } else {
+      e.preventDefault();
+      onSelect();
+    }
+  };
+
+  const cardContent = (
+    <div className="w-full h-full relative">
+      <Image
+        src={collection.image?.src || fallback}
+        alt={collection.title}
+        fill
+        sizes="(max-width: 768px) 85vw, 400px"
+        className="object-cover pointer-events-none"
+        priority={isActive}
+      />
+
+      {/* Minimal bottom text — only on active card */}
+      {isActive && (
+        <div
+          className="absolute inset-x-0 bottom-0 pb-5 pt-16 flex items-end justify-center pointer-events-none"
+          style={{
+            background: "linear-gradient(to top, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.08) 50%, transparent 100%)",
+          }}
+        >
+          <motion.span
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="text-[12px] font-normal text-white/90 tracking-[0.08em] drop-shadow-sm"
+            style={{ fontFamily: "'HeadingPro', sans-serif" }}
+          >
+            {collection.title}
+          </motion.span>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <motion.div
@@ -228,7 +277,7 @@ function StackedCard({
         opacity,
       }}
       transition={SPRING}
-      className="absolute select-none pointer-events-none will-change-transform"
+      className="absolute select-none pointer-events-auto cursor-pointer will-change-transform"
       style={{
         width: "min(82vw, 380px)",
         aspectRatio: "3 / 4.2",
@@ -241,35 +290,15 @@ function StackedCard({
           : `0 ${Math.max(4, 14 - absDiff * 4)}px ${Math.max(10, 35 - absDiff * 8)}px -6px rgba(0, 0, 0, ${Math.max(0.1, 0.3 - absDiff * 0.08)})`,
       }}
     >
-      <div className="w-full h-full relative">
-        <Image
-          src={collection.image?.src || fallback}
-          alt={collection.title}
-          fill
-          sizes="(max-width: 768px) 85vw, 400px"
-          className="object-cover pointer-events-none"
-          priority={isActive}
-        />
-
-        {/* Minimal bottom text — only on active card */}
-        {isActive && (
-          <div className="absolute inset-x-0 bottom-0 pb-5 pt-16 flex items-end justify-center pointer-events-none"
-            style={{
-              background: "linear-gradient(to top, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.08) 50%, transparent 100%)",
-            }}
-          >
-            <motion.span
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              className="text-[12px] font-normal text-white/90 tracking-[0.08em] drop-shadow-sm"
-              style={{ fontFamily: "'HeadingPro', sans-serif" }}
-            >
-              {collection.title}
-            </motion.span>
-          </div>
-        )}
-      </div>
+      {isActive ? (
+        <Link href={collectionHref} onClick={handleCardClick} className="block w-full h-full">
+          {cardContent}
+        </Link>
+      ) : (
+        <div onClick={handleCardClick} className="w-full h-full">
+          {cardContent}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -278,13 +307,16 @@ function DesktopStackedCard({
   collection,
   diff,
   fallback,
+  hasMoved,
   onSelect,
 }: {
   collection: Collection;
   diff: number;
   fallback: string;
+  hasMoved: React.MutableRefObject<boolean>;
   onSelect: () => void;
 }) {
+  const router = useRouter();
   const absDiff = Math.abs(diff);
   const isActive = absDiff < 0.1;
 
@@ -292,6 +324,22 @@ function DesktopStackedCard({
   const translateX = diff * 360;
   const scale = isActive ? 1 : Math.max(0.8, 1 - absDiff * 0.1);
   const opacity = Math.max(0, 1 - absDiff * 0.3);
+
+  const collectionHref = collection.handle ? `/collections/${collection.handle}` : "/collections";
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (hasMoved.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (isActive) {
+      router.push(collectionHref);
+    } else {
+      e.preventDefault();
+      onSelect();
+    }
+  };
 
   const cardContent = (
     <div className="w-full h-full relative">
@@ -336,9 +384,6 @@ function DesktopStackedCard({
         opacity,
       }}
       transition={SPRING}
-      data-card="true"
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
       className="absolute select-none pointer-events-auto cursor-pointer will-change-transform group transition-all duration-300"
       style={{
         width: "350px",
@@ -353,14 +398,15 @@ function DesktopStackedCard({
       }}
     >
       {isActive ? (
-        <Link href={`/collections/${collection.handle}`} className="block w-full h-full">
+        <Link href={collectionHref} onClick={handleCardClick} className="block w-full h-full">
           {cardContent}
         </Link>
       ) : (
-        <div onClick={onSelect} className="w-full h-full">
+        <div onClick={handleCardClick} className="w-full h-full">
           {cardContent}
         </div>
       )}
     </motion.div>
   );
 }
+
