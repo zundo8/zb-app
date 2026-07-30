@@ -349,7 +349,9 @@ export default withAuth(
 
 export const config = {
   matcher: [
+    "/dashboard",
     "/dashboard/:path*",
+    "/web-store",
     "/web-store/:path*",
     "/api/admin/:path*",
     "/api/web-store/:path*",

@@ -1,39 +1,38 @@
 "use client";
 
 /**
- * ImagePlaceholder — Shows the ZB logo as a centered, subtle placeholder
+ * ImagePlaceholder — Shows a subtle image placeholder
  * whenever product images are loading or unavailable.
  */
 export default function ImagePlaceholder({ className = "" }: { className?: string }) {
   return (
     <div
-      className={`flex items-center justify-center w-full h-full bg-foreground/[0.03] ${className}`}
+      className={`flex items-center justify-center w-full h-full bg-foreground/[0.03] overflow-hidden ${className}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/zb-logo-220px.png"
+        src="/section-image1.webp"
         alt="Zica Bella"
         draggable={false}
-        className="w-12 h-12 opacity-30 select-none animate-pulse object-contain"
+        className="w-full h-full object-cover opacity-80 select-none"
       />
     </div>
   );
 }
 
 /**
- * handleImageError — Replaces a broken image with the ZB logo placeholder.
+ * handleImageError — Replaces a broken image with a clean local streetwear fallback image.
  * Use as: onError={handleImageError} on any <img> or Next <Image>.
  */
 export function handleImageError(e: React.SyntheticEvent<HTMLImageElement>) {
   const target = e.currentTarget;
-  // Prevent infinite loop if the logo itself fails
-  if (target.src.includes("zb-logo-220px.png")) return;
-  target.srcset = ""; // Essential: Clear Next.js srcset so it doesn't override src
-  target.src = "/zb-logo-220px.png";
-  target.style.objectFit = "scale-down";
-  // Creating a massive padding forces object-fit to shrink the image into a tiny central icon.
-  // 40% padding means it only occupies the central 20% area down to its nominal 220px size limit.
-  target.style.padding = "40%"; 
-  target.style.opacity = "0.3";
-  target.style.filter = "grayscale(100%) brightness(1.5)";
+  // Prevent infinite loop if fallback image itself fails
+  if (target.src.includes("section-image1.webp") || target.src.includes("load-image-1.jpg")) return;
+  target.srcset = ""; // Clear Next.js srcset so it doesn't override src
+  target.src = "/section-image1.webp";
+  target.style.objectFit = "cover";
+  target.style.padding = "0px";
+  target.style.opacity = "1";
+  target.style.filter = "none";
 }
+

@@ -111,6 +111,37 @@ interface RealtimeData {
   unknownCount?: number;
 }
 
+interface LocationCountry {
+  code: string;
+  name: string;
+  sessions: number;
+  visitors: number;
+  share: number;
+}
+
+interface LocationCity {
+  city: string;
+  countryCode: string;
+  sessions: number;
+  visitors: number;
+  share: number;
+  lat: number | null;
+  lng: number | null;
+}
+
+interface LocationsData {
+  error?: string;
+  topCountries: LocationCountry[];
+  topCities: LocationCity[];
+  visitorPoints: VisitorPoint[];
+  summary: {
+    totalWithLocation: number;
+    totalWithoutLocation: number;
+    uniqueCountries: number;
+    uniqueCities: number;
+  };
+}
+
 // ─── Date Presets ─────────────────────────────────────────
 
 const DATE_PRESETS = [
@@ -173,6 +204,8 @@ export default function AnalyticsDashboard() {
   const [traffic, setTraffic] = useState<TrafficSource[] | null>(null);
   const [trafficError, setTrafficError] = useState<string | null>(null);
   const [realtime, setRealtime] = useState<RealtimeData | null>(null);
+  const [locations, setLocations] = useState<LocationsData | null>(null);
+  const [locationsError, setLocationsError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>("");
@@ -199,6 +232,7 @@ export default function AnalyticsDashboard() {
         fetch(`/api/admin/analytics/funnel?${params}`, { signal: controller.signal }).then(r => r.json()),
         fetch(`/api/admin/analytics/traffic?${params}`, { signal: controller.signal }).then(r => r.json()),
         fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }).then(r => r.json()),
+        fetch(`/api/admin/analytics/locations?${params}`, { signal: controller.signal }).then(r => r.json()),
       ]);
 
       if (controller.signal.aborted) return;
@@ -210,6 +244,7 @@ export default function AnalyticsDashboard() {
       const fnData: FunnelData | null = getValue(results[2]);
       const trData: TrafficData | null = getValue(results[3]);
       const rtData: RealtimeData | null = getValue(results[4]);
+      const locData: LocationsData | null = getValue(results[5]);
 
       if (ovData) setOverview(ovData);
       if (chData) setCharts(chData);
@@ -222,6 +257,10 @@ export default function AnalyticsDashboard() {
         setTrafficError(trData.error || null);
       }
       if (rtData) setRealtime(rtData);
+      if (locData) {
+        setLocations(locData);
+        setLocationsError(locData.error || null);
+      }
 
       setLastRefreshedAt(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     } catch (err: any) {
@@ -253,14 +292,26 @@ export default function AnalyticsDashboard() {
     setDateRange(DATE_PRESETS[index].getValue());
   };
 
-  // Compute Top Countries & Top Cities ranked lists for the globe section
-  const { topCountries, topCities } = useMemo(() => {
-    if (!realtime) return { topCountries: [], topCities: [] };
+  // Globe points: prefer historical locations data, fall back to realtime
+  const globePoints = useMemo<VisitorPoint[]>(() => {
+    // Historical data from locations API (covers selected date range)
+    if (locations && locations.visitorPoints && locations.visitorPoints.length > 0) {
+      return locations.visitorPoints;
+    }
+    // Fallback to realtime visitor points
+    if (realtime && realtime.visitorPoints && realtime.visitorPoints.length > 0) {
+      return realtime.visitorPoints;
+    }
+    return [];
+  }, [locations, realtime]);
+
+  // Realtime-only top countries/cities for the live sidebar
+  const { realtimeTopCountries, realtimeTopCities } = useMemo(() => {
+    if (!realtime) return { realtimeTopCountries: [], realtimeTopCities: [] };
 
     const pts = realtime.visitorPoints || [];
     const totalPtsCount = pts.reduce((acc, p) => acc + p.count, 0) || 1;
 
-    // Group by Country
     const cMap = new Map<string, { code: string; name: string; count: number }>();
     pts.forEach((p) => {
       const code = p.countryCode || "XX";
@@ -272,12 +323,8 @@ export default function AnalyticsDashboard() {
 
     const countryList = Array.from(cMap.values())
       .sort((a, b) => b.count - a.count)
-      .map((c) => ({
-        ...c,
-        share: Math.round((c.count / totalPtsCount) * 100),
-      }));
+      .map((c) => ({ ...c, share: Math.round((c.count / totalPtsCount) * 100) }));
 
-    // Group by City
     const cityMap = new Map<string, { city: string; country: string; count: number }>();
     pts.forEach((p) => {
       if (p.city && p.city !== "Unknown" && p.city !== "Centroid") {
@@ -290,12 +337,9 @@ export default function AnalyticsDashboard() {
 
     const cityList = Array.from(cityMap.values())
       .sort((a, b) => b.count - a.count)
-      .map((c) => ({
-        ...c,
-        share: Math.round((c.count / totalPtsCount) * 100),
-      }));
+      .map((c) => ({ ...c, share: Math.round((c.count / totalPtsCount) * 100) }));
 
-    return { topCountries: countryList, topCities: cityList };
+    return { realtimeTopCountries: countryList, realtimeTopCities: cityList };
   }, [realtime]);
 
   // ─── Change Badge ──────────────────────────────────────
@@ -450,6 +494,115 @@ export default function AnalyticsDashboard() {
           <KpiCard label="Add to Cart Rate" value={`${overview.rates.addToCart}%`} icon={ShoppingCart} />
           <KpiCard label="Cart Abandonment" value={`${overview.rates.cartAbandonment}%`} icon={ArrowDownRight} />
         </div>
+      ) : null}
+
+      {/* ─── Top Visitor Locations ──────────────────────────── */}
+      {locationsError && <SectionError message={locationsError} onRetry={fetchAll} />}
+      {loading && !locations ? (
+        <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-80 animate-pulse bg-foreground/[0.02]" />
+      ) : locations ? (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <GlobeIcon className="w-4 h-4 text-blue-400" />
+              <h2 className="text-sm font-semibold text-foreground/70">Top Visitor Locations</h2>
+            </div>
+            {locations.summary && (
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-foreground/40 font-medium">
+                  {formatNumber(locations.summary.uniqueCountries)} countries · {formatNumber(locations.summary.uniqueCities)} cities
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Globe Column */}
+            <div className="lg:col-span-1 flex flex-col items-center justify-center min-h-[280px]">
+              <div className="flex items-center gap-1.5 mb-1">
+                <GlobeIcon className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[10px] font-bold text-foreground/50 uppercase tracking-wider">Visitor Map</span>
+              </div>
+              <Globe3D
+                points={globePoints}
+                countries={realtime?.breakdowns?.country || {}}
+                unknownCount={locations.summary?.totalWithoutLocation || 0}
+              />
+            </div>
+
+            {/* Top Countries Column */}
+            <div className="lg:col-span-1">
+              <div className="flex items-center gap-1.5 mb-3">
+                <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                <h3 className="text-[11px] font-semibold text-foreground/50 uppercase tracking-wider">Top Countries</h3>
+              </div>
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
+                {locations.topCountries.slice(0, 10).map((c, idx) => (
+                  <div key={c.code} className="group">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-foreground/30 w-4">{idx + 1}</span>
+                        <span className="text-[11px] font-medium text-foreground/70">{c.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-foreground/40">{formatNumber(c.visitors)} visitors</span>
+                        <span className="text-[10px] font-semibold text-foreground/60 bg-foreground/[0.04] px-1.5 py-0.5 rounded">{c.share}%</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-foreground/[0.04] rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.max(c.share, 2)}%` }}
+                        transition={{ duration: 0.6, delay: idx * 0.05 }}
+                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400"
+                      />
+                    </div>
+                  </div>
+                ))}
+                {locations.topCountries.length === 0 && (
+                  <div className="text-center py-8 text-foreground/20 text-xs">No country data available</div>
+                )}
+              </div>
+            </div>
+
+            {/* Top Cities Column */}
+            <div className="lg:col-span-1">
+              <div className="flex items-center gap-1.5 mb-3">
+                <Building2 className="w-3.5 h-3.5 text-purple-400" />
+                <h3 className="text-[11px] font-semibold text-foreground/50 uppercase tracking-wider">Top Cities</h3>
+              </div>
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
+                {locations.topCities.slice(0, 10).map((c, idx) => (
+                  <div key={`${c.city}-${c.countryCode}`} className="group">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-foreground/30 w-4">{idx + 1}</span>
+                        <div>
+                          <span className="text-[11px] font-medium text-foreground/70">{c.city}</span>
+                          <span className="text-[10px] text-foreground/30 ml-1">{c.countryCode}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-foreground/40">{formatNumber(c.visitors)} visitors</span>
+                        <span className="text-[10px] font-semibold text-foreground/60 bg-foreground/[0.04] px-1.5 py-0.5 rounded">{c.share}%</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-foreground/[0.04] rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.max(c.share, 2)}%` }}
+                        transition={{ duration: 0.6, delay: idx * 0.05 }}
+                        className="h-full rounded-full bg-gradient-to-r from-purple-500 to-purple-400"
+                      />
+                    </div>
+                  </div>
+                ))}
+                {locations.topCities.length === 0 && (
+                  <div className="text-center py-8 text-foreground/20 text-xs">No city data available</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
       ) : null}
 
       {/* ─── Charts Section ──────────────────────────────── */}
@@ -637,27 +790,27 @@ export default function AnalyticsDashboard() {
                     </div>
                   </div>
 
-                  {/* Top Countries & Cities Ranked Lists */}
+                  {/* Realtime Top Countries & Cities */}
                   <div className="pt-3 border-t border-foreground/5 grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
                         <MapPin className="w-3 h-3 text-indigo-400" />
-                        <h3 className="text-[10px] font-semibold text-foreground/50 uppercase tracking-wider">Top Countries</h3>
+                        <h3 className="text-[10px] font-semibold text-foreground/50 uppercase tracking-wider">Active Countries</h3>
                       </div>
                       <div className="space-y-1.5 max-h-[110px] overflow-y-auto pr-1 custom-scrollbar">
-                        {topCountries.slice(0, 4).map((c) => (
+                        {realtimeTopCountries.slice(0, 4).map((c) => (
                           <div key={c.code} className="space-y-0.5">
                             <div className="flex justify-between text-[10px] font-medium">
                               <span className="text-foreground/70 truncate max-w-[80px]">{c.name}</span>
                               <span className="text-foreground/40">{c.count} ({c.share}%)</span>
                             </div>
                             <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
-                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${c.share}%` }} />
+                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.max(c.share, 4)}%` }} />
                             </div>
                           </div>
                         ))}
-                        {topCountries.length === 0 && (
-                          <div className="text-[10px] text-foreground/30 py-2 text-center">No location data</div>
+                        {realtimeTopCountries.length === 0 && (
+                          <div className="text-[10px] text-foreground/30 py-2 text-center">No active visitors</div>
                         )}
                       </div>
                     </div>
@@ -665,29 +818,29 @@ export default function AnalyticsDashboard() {
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
                         <Building2 className="w-3 h-3 text-purple-400" />
-                        <h3 className="text-[10px] font-semibold text-foreground/50 uppercase tracking-wider">Top Cities</h3>
+                        <h3 className="text-[10px] font-semibold text-foreground/50 uppercase tracking-wider">Active Cities</h3>
                       </div>
                       <div className="space-y-1.5 max-h-[110px] overflow-y-auto pr-1 custom-scrollbar">
-                        {topCities.slice(0, 4).map((c) => (
+                        {realtimeTopCities.slice(0, 4).map((c) => (
                           <div key={`${c.city}-${c.country}`} className="space-y-0.5">
                             <div className="flex justify-between text-[10px] font-medium">
                               <span className="text-foreground/70 truncate max-w-[80px]">{c.city}</span>
                               <span className="text-foreground/40">{c.count} ({c.share}%)</span>
                             </div>
                             <div className="h-1 bg-foreground/[0.04] rounded-full overflow-hidden">
-                              <div className="h-full bg-purple-500 rounded-full" style={{ width: `${c.share}%` }} />
+                              <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.max(c.share, 4)}%` }} />
                             </div>
                           </div>
                         ))}
-                        {topCities.length === 0 && (
-                          <div className="text-[10px] text-foreground/30 py-2 text-center">No city data</div>
+                        {realtimeTopCities.length === 0 && (
+                          <div className="text-[10px] text-foreground/30 py-2 text-center">No active visitors</div>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Right Column: Dynamic 3D Earth Globe */}
+                {/* Right Column: Dynamic 3D Earth Globe for Real-time Activity */}
                 <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-foreground/5 pt-4 md:pt-0 md:pl-4 min-h-[300px]">
                   <div className="flex items-center gap-1.5 mb-1">
                     <GlobeIcon className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
@@ -695,7 +848,7 @@ export default function AnalyticsDashboard() {
                   </div>
                   <Globe3D
                     points={realtime.visitorPoints || []}
-                    countries={realtime.breakdowns.country || {}}
+                    countries={realtime.breakdowns?.country || {}}
                     unknownCount={realtime.unknownCount || 0}
                   />
                 </div>

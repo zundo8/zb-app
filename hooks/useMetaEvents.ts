@@ -258,7 +258,15 @@ export function useMetaEvents() {
     });
 
     // GA4 equivalent: add_payment_info
-    trackGAEvent('add_payment_info');
+    trackGAEvent('add_payment_info', {
+      value,
+      currency,
+      items: finalContents.map((item: any) => ({
+        item_id: item.id,
+        quantity: item.quantity,
+        price: item.item_price !== undefined ? item.item_price : (value ? value / (finalContents.length || 1) : undefined)
+      }))
+    });
   };
 
   const trackInitiateCheckout = (
@@ -413,7 +421,10 @@ export function useMetaEvents() {
       currency,
       items: mappedContents.map(item => ({
         item_id: item.id,
-        quantity: item.quantity
+        item_name: item.title || 'Product',
+        price: item.item_price || item.price,
+        quantity: item.quantity,
+        item_category: item.category || contentCategory || undefined
       }))
     });
   };
@@ -585,8 +596,10 @@ export function useMetaEvents() {
       currency,
       items: mappedContents.map(item => ({
         item_id: item.id,
+        item_name: item.title || 'Product',
+        price: item.item_price || item.price,
         quantity: item.quantity,
-        price: item.item_price
+        item_category: item.category || contentCategory || undefined
       }))
     });
   };

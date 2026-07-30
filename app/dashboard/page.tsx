@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   PackageSearch,
@@ -133,11 +134,18 @@ const PAGE_NAMES: Record<string, string> = {
 };
 
 export default function DashboardOverview() {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [serviceSummary, setServiceSummary] = useState<ServiceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/dashboard/login');
+    }
+  }, [status, router]);
 
   const user = session?.user as any;
   const permissions = user?.permissions || [];

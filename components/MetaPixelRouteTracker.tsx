@@ -14,7 +14,7 @@ import {
   clearGuestPiiCookies,
 } from '@/lib/metaPixel';
 import { buildClientUserData } from '@/lib/buildMetaUserData';
-import { enrichSessionWithGeolocation } from '@/lib/geolocation-enrichment';
+
 import { pageview as trackGAPageView } from '@/lib/gtag';
 import { trackPageView as trackZBPageView } from '@/lib/analytics-tracker';
 
@@ -247,13 +247,7 @@ export function MetaPixelRouteTracker() {
       console.warn('[Meta Pixel Enrichment] Identity enrichment failed (non-fatal):', err);
     });
 
-    // Fire one-shot geolocation enrichment for EMQ address fields (ct/st/zp/country).
-    // Runs after PageView and identity enrichment, fully fire-and-forget.
-    // The sessionStorage guard inside ensures it only runs once per session,
-    // even across route changes. Never blocks rendering or hydration.
-    enrichSessionWithGeolocation().catch(() => {
-      // Fail completely silently — geolocation is a nice-to-have enrichment
-    });
+
   }, [session, pathname]);
 
   return null;

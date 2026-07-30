@@ -55,7 +55,7 @@ export async function headers(): Promise<HeadersInit> {
 // In-memory cache for GET requests to prevent rate limiting (429)
 // especially during dashboard polling.
 const requestCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 10000; // 10 seconds cache
+const CACHE_TTL = 3 * 60 * 1000; // 3 minutes cache
 
 export async function shopifyFetch<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(await adminUrl(endpoint));

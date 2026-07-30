@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { getClientIP, lookupIpGeo } from "@/lib/ip-geo";
 import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
@@ -26,7 +27,29 @@ export async function POST(req: Request) {
       items, guestId, name, email, phone, source,
       city, state, zip, country, latitude, longitude 
     } = body;
-    
+
+    // ── IP Geolocation Fallback ──
+    // If client didn't provide geo data (user denied/ignored location prompt),
+    // derive city/state/country from IP. This ensures every cart record has
+    // at least IP-level location for the abandoned carts admin page.
+    let finalCity = city || null;
+    let finalState = state || null;
+    let finalZip = zip || null;
+    let finalCountry = country || null;
+    let finalLat = latitude !== undefined && latitude !== null ? parseFloat(String(latitude)) : null;
+    let finalLng = longitude !== undefined && longitude !== null ? parseFloat(String(longitude)) : null;
+
+    if (!city && !state && !country) {
+      const ipGeo = await lookupIpGeo(getClientIP(req));
+      if (ipGeo) {
+        finalCity = ipGeo.city || null;
+        finalState = ipGeo.region || null;
+        finalCountry = ipGeo.country || null;
+        finalLat = ipGeo.lat ?? null;
+        finalLng = ipGeo.lng ?? null;
+        // No zip from IP geo — leave as-is
+      }
+    }
     // 1. Resolve customer identity (Mobile Auth vs NextAuth Session)
     const auth = getAppAuthFromRequest(req);
     const appCustomer = auth ? await resolveAuthCustomer(auth) : null;
@@ -121,12 +144,12 @@ export async function POST(req: Request) {
           email: email || customerEmail || null,
           subtotal: calculatedSubtotal,
           lastActivityAt: new Date(),
-          city: city || null,
-          state: state || null,
-          zip: zip || null,
-          country: country || null,
-          latitude: latitude !== undefined && latitude !== null ? parseFloat(String(latitude)) : null,
-          longitude: longitude !== undefined && longitude !== null ? parseFloat(String(longitude)) : null,
+          city: finalCity,
+          state: finalState,
+          zip: finalZip,
+          country: finalCountry,
+          latitude: finalLat,
+          longitude: finalLng,
         }
       });
     } else {
@@ -140,12 +163,12 @@ export async function POST(req: Request) {
           phone: phone || customerPhone || undefined,
           email: email || customerEmail || undefined,
           source: cartSource, // Ensure source is kept up-to-date
-          city: city || undefined,
-          state: state || undefined,
-          zip: zip || undefined,
-          country: country || undefined,
-          latitude: latitude !== undefined && latitude !== null ? parseFloat(String(latitude)) : undefined,
-          longitude: longitude !== undefined && longitude !== null ? parseFloat(String(longitude)) : undefined,
+          city: finalCity || undefined,
+          state: finalState || undefined,
+          zip: finalZip || undefined,
+          country: finalCountry || undefined,
+          latitude: finalLat ?? undefined,
+          longitude: finalLng ?? undefined,
         }
       });
     }

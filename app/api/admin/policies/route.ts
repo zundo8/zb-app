@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,11 @@ export async function POST(req: Request) {
       }
     });
 
+    try {
+      revalidatePath('/policies/[handle]', 'page');
+      if (newPolicy.handle) revalidatePath(`/policies/${newPolicy.handle}`);
+    } catch {}
+
     return NextResponse.json({ success: true, policy: newPolicy });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
@@ -69,6 +75,11 @@ export async function PATCH(req: Request) {
       }
     });
 
+    try {
+      revalidatePath('/policies/[handle]', 'page');
+      if (updatedPolicy.handle) revalidatePath(`/policies/${updatedPolicy.handle}`);
+    } catch {}
+
     return NextResponse.json({ success: true, policy: updatedPolicy });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
@@ -84,9 +95,14 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Policy ID is required' }, { status: 400 });
     }
 
-    await prisma.policy.delete({
+    const deletedPolicy = await prisma.policy.delete({
       where: { id }
     });
+
+    try {
+      revalidatePath('/policies/[handle]', 'page');
+      if (deletedPolicy.handle) revalidatePath(`/policies/${deletedPolicy.handle}`);
+    } catch {}
 
     return NextResponse.json({ success: true });
   } catch (e: any) {

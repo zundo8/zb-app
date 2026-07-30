@@ -46,7 +46,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
       {!isMobileApp && <StorefrontHeader collections={collections} />}
       
       {/* ── Main Content ── */}
-      <div className="relative z-10 w-full overflow-x-hidden">
+      <div className="relative z-10 w-full overflow-x-clip">
         {children}
       </div>
 

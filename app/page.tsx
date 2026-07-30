@@ -1,4 +1,4 @@
-import { fetchProducts, fetchEnabledCollections, fetchPolicies, fetchCollectionByHandle } from "@/lib/shopify-admin";
+import { fetchProducts, fetchEnabledCollections, fetchPolicies, fetchCollectionByHandle, FALLBACK_PRODUCTS } from "@/lib/shopify-admin";
 import prisma, { getStoreSettings, getShopSettings, DEFAULT_SHOP_SETTINGS } from "@/lib/db";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -55,11 +55,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  const settings = await getStoreSettings('homepage');
-  const s = await getShopSettings();
+  const [settings, s] = await Promise.all([
+    getStoreSettings('homepage'),
+    getShopSettings(),
+  ]);
 
   // Concurrently fetch all independent assets to optimize TTFB and speed up the homepage loading
-  const [collections, policies, banners, products] = await Promise.all([
+  const [collections, policies, banners, fetchedProducts] = await Promise.all([
     fetchEnabledCollections('page').catch(() => []),
     fetchPolicies().catch(() => []),
     (async () => {
@@ -100,6 +102,11 @@ export default async function Home() {
       }
     })(),
   ]);
+
+  // Ensure homepage product list ALWAYS has at least 16 products to fill all sections
+  const products: ShopifyProduct[] = (fetchedProducts && fetchedProducts.length >= 16)
+    ? fetchedProducts
+    : Array.from(new Set([...(fetchedProducts || []), ...FALLBACK_PRODUCTS])).slice(0, 16);
 
   const nullIfEmpty = (val: string | null | undefined): string | null => {
     if (val === undefined || val === null) return null;
@@ -317,7 +324,7 @@ export default async function Home() {
         <div className="glass-divider my-4 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8" />
 
         {/* ─── COLLECTIONS CAROUSEL ─── */}
-        <section className="render-deferred-carousel py-4 max-w-6xl mx-auto overflow-hidden px-3 sm:px-6 lg:px-8 min-h-[200px]">
+        <section className="render-deferred-carousel py-4 max-w-6xl md:max-w-full mx-auto overflow-hidden px-3 sm:px-6 lg:px-8 min-h-[200px]">
           {s?.showArchive && archiveTitle && (
             <div className="flex justify-center mb-3 px-4">
               <span className="glass-label">— {archiveTitle} —</span>

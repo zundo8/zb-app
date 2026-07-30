@@ -66,6 +66,7 @@ interface SettingsData {
   enabledCollectionsHeader: string;
   enabledCollectionsPage: string;
   enabledCollectionsMenu: string;
+  feedExcludedCollections: string;
   flipbookImage: string;
   flipbookImageMobile: string;
   flipbookVideo: string;
@@ -451,7 +452,7 @@ export default function StorefrontSettingsPage() {
         'communityTitle', 'communitySubtitle', 'spotlightTitle', 'spotlightSubtitle',
         'spotlightCollection', 'spotlightProducts',
         'kineticMeshTitle', 'kineticMeshProducts', 'enabledCollectionsHeader', 
-        'enabledCollectionsPage', 'enabledCollectionsMenu',
+        'enabledCollectionsPage', 'enabledCollectionsMenu', 'feedExcludedCollections',
         'flipbookImage', 'flipbookImageMobile', 'flipbookVideo', 'flipbookVideoMobile', 'flipbookTitle', 'flipbookTag', 'flipbookDesc',
         'flipbookLink',
         'showRingCarousel', 'ringCarouselTitle', 'ringCarouselItems', 'footerLogo3dUrl',
@@ -896,6 +897,34 @@ export default function StorefrontSettingsPage() {
                             className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${active ? 'bg-foreground text-background border-transparent' : 'bg-background text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
                          >
                             {c.title}
+                         </button>
+                      );
+                   })}
+                 </div>
+              </div>
+             {/* Product Feed Excluded Collections */}
+             <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-foreground/[0.03] pb-2">
+                   <div>
+                      <p className="text-[11px] font-semibold text-foreground tracking-tight">Product Feed Excluded Collections</p>
+                      <span className="text-[8px] text-foreground/45 uppercase tracking-widest">Selected collections will be excluded from /feed.xml (Meta, Snap, TikTok, Google)</span>
+                   </div>
+                   <span className="text-[9px] font-semibold text-amber-500 uppercase tracking-widest">{safeParseArray(settings.feedExcludedCollections).length} Excluded</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                   {allCollections.map(c => {
+                      const excluded = safeParseArray(settings.feedExcludedCollections).includes(c.handle);
+                      return (
+                         <button 
+                            key={c.id}
+                            onClick={() => {
+                               const current = safeParseArray(settings.feedExcludedCollections);
+                               const next = excluded ? current.filter((h: any) => h !== c.handle) : [...current, c.handle];
+                               set('feedExcludedCollections')(JSON.stringify(next));
+                            }}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-colors border ${excluded ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-background text-foreground/50 border-foreground/[0.05] hover:border-foreground/20'}`}
+                         >
+                            {excluded ? `🚫 ${c.title}` : c.title}
                          </button>
                       );
                    })}

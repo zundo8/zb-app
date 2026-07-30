@@ -13,6 +13,7 @@ import {
   Check,
   X,
   ArrowUpDown,
+  Rss,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -52,6 +53,8 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "draft">("all");
   const [updating, setUpdating] = useState<number | null>(null);
+  const [updatingFeed, setUpdatingFeed] = useState<number | null>(null);
+  const [feedMap, setFeedMap] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("title");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -60,10 +63,20 @@ export default function ProductsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/shopify/products?limit=250");
+      const [res, feedRes] = await Promise.all([
+        fetch("/api/shopify/products?limit=250"),
+        fetch("/api/admin/products-list/feed-toggle").catch(() => null),
+      ]);
       const data = await res.json();
       setProducts(data.products || []);
       if (data.error) setError(`Shopify API: ${data.error}`);
+
+      if (feedRes && feedRes.ok) {
+        const feedData = await feedRes.json();
+        if (feedData.feedMap) {
+          setFeedMap(feedData.feedMap);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unknown error occurred");
     } finally {
@@ -78,6 +91,27 @@ export default function ProductsPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const toggleFeed = async (product: ShopifyProduct) => {
+    const currentInFeed = feedMap[String(product.id)] ?? true;
+    const nextInFeed = !currentInFeed;
+    setUpdatingFeed(product.id);
+    try {
+      const res = await fetch("/api/admin/products-list/feed-toggle", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopifyProductId: String(product.id), includeInFeed: nextInFeed }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Update failed");
+      setFeedMap((prev) => ({ ...prev, [String(product.id)]: nextInFeed }));
+      showToast(`"${product.title}" ${nextInFeed ? "included in" : "excluded from"} feed`);
+    } catch (err) {
+      showToast(`Error: ${err instanceof Error ? err.message : "Update failed"}`);
+    } finally {
+      setUpdatingFeed(null);
+    }
   };
 
   const toggleStatus = async (product: ShopifyProduct) => {
@@ -277,12 +311,13 @@ export default function ProductsPage() {
         ) : (
           <>
             {/* Table Header — desktop */}
-            <div className="hidden md:grid grid-cols-[1fr,100px,80px,100px,100px,44px] gap-4 px-5 py-3 border-b border-foreground/[0.06] bg-foreground/[0.02] items-center">
+            <div className="hidden md:grid grid-cols-[1fr,100px,80px,100px,100px,60px,44px] gap-4 px-5 py-3 border-b border-foreground/[0.06] bg-foreground/[0.02] items-center">
               <SortHeader label="Product" sortId="title" />
               <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider text-center">Type</span>
               <SortHeader label="Stock" sortId="stock" />
               <SortHeader label="Price" sortId="price" />
               <SortHeader label="Status" sortId="status" />
+              <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider text-center">Feed</span>
               <span />
             </div>
 
@@ -294,13 +329,14 @@ export default function ProductsPage() {
                 );
                 const isUpdating = updating === product.id;
                 const isLowStock = totalStock > 0 && totalStock < 10;
+                const inFeed = feedMap[String(product.id)] ?? true;
 
                 return (
                   <motion.div
                     key={product.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="grid grid-cols-1 md:grid-cols-[1fr,100px,80px,100px,100px,44px] gap-3 md:gap-4 px-5 py-3.5 items-center hover:bg-foreground/[0.015] transition-colors"
+                    className="grid grid-cols-1 md:grid-cols-[1fr,100px,80px,100px,100px,60px,44px] gap-3 md:gap-4 px-5 py-3.5 items-center hover:bg-foreground/[0.015] transition-colors"
                   >
                     {/* Product Info */}
                     <Link
@@ -354,6 +390,18 @@ export default function ProductsPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleFeed(product)}
+                          disabled={updatingFeed === product.id}
+                          className={`p-1.5 rounded-full text-[10px] font-medium transition-all ${
+                            inFeed
+                              ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                              : "bg-foreground/[0.05] text-foreground/30"
+                          }`}
+                          title={inFeed ? "Included in product feed" : "Excluded from feed"}
+                        >
+                          <Rss className="w-3 h-3" />
+                        </button>
                         <button
                           onClick={() => toggleStatus(product)}
                           disabled={isUpdating}
@@ -435,6 +483,26 @@ export default function ProductsPage() {
                           <EyeOff className="w-3 h-3" />
                         )}
                         {product.status}
+                      </button>
+                    </div>
+
+                    {/* Feed toggle — desktop */}
+                    <div className="hidden md:flex justify-center">
+                      <button
+                        onClick={() => toggleFeed(product)}
+                        disabled={updatingFeed === product.id}
+                        className={`p-2 rounded-lg transition-all disabled:opacity-50 ${
+                          inFeed
+                            ? "text-sky-500 hover:bg-sky-500/10"
+                            : "text-foreground/20 hover:text-foreground/40 hover:bg-foreground/[0.05]"
+                        }`}
+                        title={inFeed ? "Included in /feed.xml (Click to exclude)" : "Excluded from /feed.xml (Click to include)"}
+                      >
+                        {updatingFeed === product.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Rss className="w-3.5 h-3.5" />
+                        )}
                       </button>
                     </div>
 

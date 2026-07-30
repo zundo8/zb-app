@@ -13,7 +13,7 @@ export function withSnaptr(callback: (snaptr: any) => void, eventLabel = 'unknow
     return;
   }
 
-  const MAX_RETRIES = 30; // 30 × 100ms = 3 seconds
+  const MAX_RETRIES = 50; // 50 × 100ms = 5 seconds
   let attempt = 0;
 
   const retry = () => {

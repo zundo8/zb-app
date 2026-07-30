@@ -250,11 +250,36 @@ export const COUNTRY_CENTROIDS: Record<string, [number, number]> = {
   ZW: [-19.0154, 29.1549],
 };
 
+const COUNTRY_NAME_MAP: Record<string, string> = {
+  INDIA: "IN",
+  "UNITED STATES": "US",
+  USA: "US",
+  "UNITED KINGDOM": "GB",
+  UK: "GB",
+  CANADA: "CA",
+  AUSTRALIA: "AU",
+  GERMANY: "DE",
+  FRANCE: "FR",
+  SINGAPORE: "SG",
+  UAE: "AE",
+  "UNITED ARAB EMIRATES": "AE",
+  JAPAN: "JP",
+  CHINA: "CN",
+  BRAZIL: "BR",
+  MEXICO: "MX",
+  SPAIN: "ES",
+  ITALY: "IT",
+  NETHERLANDS: "NL",
+  SWITZERLAND: "CH",
+};
+
 /**
- * Get centroid [lat, lng] for ISO-2 code with case insensitive fallback.
+ * Get centroid [lat, lng] for ISO-2 code or country name with case insensitive fallback.
  */
 export function getCountryCentroid(countryCode: string | null | undefined): [number, number] | null {
   if (!countryCode) return null;
-  const code = countryCode.trim().toUpperCase();
+  const raw = countryCode.trim().toUpperCase();
+  const code = COUNTRY_NAME_MAP[raw] || raw;
   return COUNTRY_CENTROIDS[code] || null;
 }
+

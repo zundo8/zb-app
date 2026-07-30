@@ -39,6 +39,15 @@ interface RingPoint {
   count: number;
 }
 
+// ─── Color Palette for Globe Points ─────────────────────
+// Vibrant warm tones that pop on a blue satellite globe
+const getPointColor = (count: number): string => {
+  if (count > 10) return "#ef4444";  // Red – heavy traffic
+  if (count > 5) return "#f97316";   // Orange – high traffic
+  if (count > 2) return "#eab308";   // Yellow – moderate
+  return "#10b981";                   // Emerald – single/light
+};
+
 export default function Globe3D({ points = [], countries = {}, unknownCount = 0 }: Globe3DProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const globeEl = useRef<any>(null);
@@ -99,8 +108,8 @@ export default function Globe3D({ points = [], countries = {}, unknownCount = 0 
             country: p.country || "Unknown",
             city: p.city || "Unknown",
             count: p.count || 1,
-            color: p.count > 5 ? "#f43f5e" : p.count > 1 ? "#a855f7" : "#6366f1",
-            size: Math.min(0.6, 0.2 + (p.count || 1) * 0.08),
+            color: getPointColor(p.count || 1),
+            size: Math.min(0.8, 0.15 + (p.count || 1) * 0.06),
           });
         }
       });
@@ -117,8 +126,8 @@ export default function Globe3D({ points = [], countries = {}, unknownCount = 0 
               country: countryKey,
               city: "Centroid",
               count,
-              color: count > 5 ? "#f43f5e" : "#6366f1",
-              size: Math.min(0.6, 0.2 + count * 0.08),
+              color: getPointColor(count),
+              size: Math.min(0.8, 0.15 + count * 0.06),
             });
           }
         }
@@ -143,11 +152,14 @@ export default function Globe3D({ points = [], countries = {}, unknownCount = 0 
       const controls = globeEl.current.controls();
       if (controls) {
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.9;
+        controls.autoRotateSpeed = 0.6;
         controls.enableZoom = true;
         controls.minDistance = 180;
         controls.maxDistance = 450;
       }
+
+      // Set initial point-of-view to show India/Asia region (primary audience)
+      globeEl.current.pointOfView({ lat: 20, lng: 78, altitude: 2.2 }, 1000);
     }
   }, [mounted, dimensions]);
 
@@ -166,57 +178,63 @@ export default function Globe3D({ points = [], countries = {}, unknownCount = 0 
         width={dimensions.width}
         height={dimensions.height}
         backgroundColor="rgba(0, 0, 0, 0)"
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
-        bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-        atmosphereColor="#6366f1"
-        atmosphereAltitude={0.18}
+        globeImageUrl="/globe/earth-blue-marble.jpg"
+        bumpImageUrl="/globe/earth-topology.png"
+        atmosphereColor="#3b82f6"
+        atmosphereAltitude={0.25}
+        showAtmosphere={true}
         
         // Points layer
         pointsData={processedPoints}
-        pointColor={(d: any) => d.color || "#6366f1"}
-        pointAltitude={0.03}
-        pointRadius={(d: any) => d.size || 0.25}
+        pointColor={(d: any) => d.color || "#10b981"}
+        pointAltitude={0.04}
+        pointRadius={(d: any) => d.size || 0.2}
         pointResolution={32}
         pointsMerge={false}
 
         // Tooltip formatting
         pointLabel={(d: any) => `
           <div style="
-            background: rgba(10, 10, 18, 0.92);
-            backdrop-filter: blur(12px);
+            background: rgba(10, 10, 18, 0.94);
+            backdrop-filter: blur(16px);
             color: #ffffff;
-            padding: 8px 12px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
             font-family: system-ui, -apple-system, sans-serif;
             font-size: 11px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
             pointer-events: none;
-            line-height: 1.4;
+            line-height: 1.5;
+            min-width: 140px;
           ">
-            <div style="font-weight: 700; color: #a5b4fc; margin-bottom: 2px;">
-              ${d.city && d.city !== "Unknown" && d.city !== "Centroid" ? `${d.city}, ` : ""}${d.country} (${d.countryCode})
+            <div style="font-weight: 700; color: #93c5fd; margin-bottom: 3px; font-size: 12px;">
+              ${d.city && d.city !== "Unknown" && d.city !== "Centroid" ? `${d.city}, ` : ""}${d.country}
             </div>
-            <div style="color: #94a3b8; font-size: 10px; display: flex; items-center; gap: 4px;">
-              <span style="color: #34d399; font-weight: 600;">● ${d.count}</span> active visitor${d.count > 1 ? "s" : ""}
+            <div style="color: #94a3b8; font-size: 10px; display: flex; align-items: center; gap: 6px;">
+              <span style="display: inline-flex; align-items: center; gap: 3px;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: ${d.color}; display: inline-block;"></span>
+                <span style="color: #e2e8f0; font-weight: 600;">${d.count}</span>
+              </span>
+              session${d.count > 1 ? "s" : ""}
             </div>
           </div>
         `}
 
         // Pulse Rings layer
         ringsData={ringPoints}
-        ringColor={() => (t: number) => `rgba(99, 102, 241, ${Math.max(0, 1 - t)})`}
-        ringMaxRadius={(d: any) => Math.min(5, 2 + (d.count || 1) * 0.6)}
-        ringPropagationSpeed={1.5}
-        ringRepeatPeriod={1400}
+        ringColor={() => (t: number) => `rgba(79, 156, 247, ${Math.max(0, 1 - t)})`}
+        ringMaxRadius={(d: any) => Math.min(5, 1.5 + (d.count || 1) * 0.5)}
+        ringPropagationSpeed={1.2}
+        ringRepeatPeriod={1600}
       />
 
       {/* Empty State Overlay */}
       {processedPoints.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-background/20 backdrop-blur-[2px] rounded-2xl p-4 text-center">
-          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping mb-2" />
-          <span className="text-xs font-semibold text-foreground/60 tracking-wide">Waiting for live visitors…</span>
-          <span className="text-[10px] text-foreground/30 mt-0.5">Real-time sessions will appear on the map</span>
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping mb-2" />
+          <span className="text-xs font-semibold text-foreground/60 tracking-wide">Waiting for visitor data…</span>
+          <span className="text-[10px] text-foreground/30 mt-0.5">Sessions will appear on the globe</span>
         </div>
       )}
 

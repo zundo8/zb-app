@@ -43,7 +43,7 @@ export default function ProductCardImage({
     [images]
   );
   const count = imageSrcs.length;
-  const fallback = "/zb-logo-220px.png";
+  const fallback = "/section-image1.webp";
   const firstSrc = imageSrcs[0] || fallback;
   const hasMultiple = count > 1;
 
@@ -302,9 +302,6 @@ export default function ProductCardImage({
                         className="object-cover select-none"
                         style={{
                           ...(isSoldOut ? { filter: "grayscale(0.4)" } : {}),
-                          ...(isFallback
-                            ? { objectFit: "contain", padding: "25%", opacity: 0.3 }
-                            : {}),
                         }}
                       />
                     ) : null}
@@ -374,9 +371,7 @@ export default function ProductCardImage({
               style={
                 isSoldOut
                   ? { filter: "grayscale(0.4)" }
-                  : isFallback
-                    ? { objectFit: "contain", padding: "25%", opacity: 0.3 }
-                    : {}
+                  : {}
               }
             />
           </div>

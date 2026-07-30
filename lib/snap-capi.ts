@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 const SNAP_PIXEL_ID = process.env.NEXT_PUBLIC_SNAP_PIXEL_ID || '7d2481be-4ccf-42b2-b9ea-958c6c7bbdcd';
-const SNAP_CAPI_ACCESS_TOKEN = process.env.SNAP_CAPI_ACCESS_TOKEN || 'eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzY1MjMzNDcxLCJzdWIiOiI1YTJlMmMwNi03MDM5LTQ2NGUtYTllMi02OTNlYzhlNjE2NmZ-UFJPRFVDVElPTn43MGNhNTU0ZC0zYWZhLTQ2YjEtOTkxYy1kYWZjMTk1Yzk4MTcifQ.SMsg1Ieuc87FWtN2AQaaQbbaXm2D9zTXoQePyq46tt0';
+const SNAP_CAPI_ACCESS_TOKEN = process.env.SNAP_CAPI_ACCESS_TOKEN || '';
 
 export interface SnapCapiEventPayload {
   eventName: string; // PAGE_VIEW, VIEW_CONTENT, ADD_CART, ADD_TO_WISHLIST, SEARCH, START_CHECKOUT, ADD_BILLING, PURCHASE, SIGN_UP, LOGIN, SUBSCRIBE
@@ -31,6 +31,7 @@ export interface SnapCapiEventPayload {
     number_items?: number | string;
     search_string?: string;
     description?: string;
+    transaction_id?: string;
   };
 }
 
@@ -134,6 +135,9 @@ export async function sendSnapEvent(payload: SnapCapiEventPayload): Promise<{ su
       }
       if (payload.customData.description) {
         customDataObj.description = payload.customData.description;
+      }
+      if (payload.customData.transaction_id) {
+        customDataObj.transaction_id = payload.customData.transaction_id;
       }
     }
 

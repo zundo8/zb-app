@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { trackStorefrontEvent } from "@/lib/track-client";
 import { trackAddToCart as zbTrackAddToCart, trackRemoveFromCart as zbTrackRemoveFromCart } from "@/lib/analytics-tracker";
+import { enrichSessionWithGeolocation } from "@/lib/geolocation-enrichment";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -128,6 +129,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     // ZB First-Party Analytics
     zbTrackAddToCart(item.productId, item.variantId, parseFloat(item.price) || 0, 1, { title: item.title, size: item.size });
+
+    // One-shot geolocation enrichment for EMQ address fields (ct/st/zp/country).
+    // The sessionStorage guard inside ensures it fires at most once per session,
+    // even across multiple add-to-cart actions. Fully fire-and-forget.
+    enrichSessionWithGeolocation().catch(() => {});
 
     setItems((prev) => {
       const existing = prev.find((i) => i.id === id);

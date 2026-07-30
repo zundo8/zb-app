@@ -5,6 +5,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/options';
 import prisma from '@/lib/db';
 import { DEMO_PHONES_RAW, DEMO_EMAILS_RAW } from '@/lib/metaPixel';
 import { buildServerUserData } from '@/lib/buildMetaUserData';
+import { getClientIP, lookupIpGeo, type IpGeoResult } from '@/lib/ip-geo';
 import crypto from 'crypto';
 
 function normalizePhone(p: string | undefined): string | undefined {
@@ -130,6 +131,18 @@ export async function POST(req: NextRequest) {
     const fbLoginId = req.cookies.get('zb_fb_login_id')?.value;
     const guestDob = req.cookies.get('zb_guest_dob')?.value;
 
+    // ── IP Geolocation Fallback ──
+    // If all client-side address cookies are absent (user denied/ignored location prompt)
+    // AND the event is not Purchase or AddPaymentInfo (those use checkout Google Maps data),
+    // look up city/state/country from the visitor's IP address.
+    // Mirrors the pattern already used in app/api/analytics/track/route.ts.
+    let ipGeo: IpGeoResult | null = null;
+    const hasClientGeo = !!(guestCountry || guestState || guestCity || guestZip);
+    const isProtectedEvent = ['Purchase', 'AddPaymentInfo'].includes(eventName);
+    if (!hasClientGeo && !isProtectedEvent) {
+      ipGeo = await lookupIpGeo(getClientIP(req));
+    }
+
     // Issue 5 fix: Apply server-side value adjustment for Purchase and InitiateCheckout.
     // The client sends the real order/cart value; the adjustment happens here so
     // the real value is never exposed in browser JS or network traffic to Meta.
@@ -182,9 +195,9 @@ export async function POST(req: NextRequest) {
         ph: userData?.ph || guestPhone,
         fn: userData?.fn || guestFn,
         ln: userData?.ln || guestLn,
-        country: userData?.country || guestCountry,
-        st: userData?.st || guestState,
-        ct: userData?.ct || guestCity,
+        country: userData?.country || guestCountry || ipGeo?.countryCode?.toLowerCase(),
+        st: userData?.st || guestState || ipGeo?.region,
+        ct: userData?.ct || guestCity || ipGeo?.city,
         zp: userData?.zp || guestZip,
         fb_login_id: userData?.fb_login_id || fbLoginId,
         db: userData?.db || guestDob,
@@ -275,9 +288,9 @@ export async function POST(req: NextRequest) {
       ph: userData?.ph || guestPhone || sessionUserData.ph,
       fn: userData?.fn || guestFn || sessionUserData.fn,
       ln: userData?.ln || guestLn || sessionUserData.ln,
-      country: userData?.country || guestCountry,
-      st: userData?.st || guestState,
-      ct: userData?.ct || guestCity,
+      country: userData?.country || guestCountry || ipGeo?.countryCode?.toLowerCase(),
+      st: userData?.st || guestState || ipGeo?.region,
+      ct: userData?.ct || guestCity || ipGeo?.city,
       zp: userData?.zp || guestZip,
       fb_login_id: userData?.fb_login_id || fbLoginId,
       db: userData?.db || guestDob || sessionUserData.db,

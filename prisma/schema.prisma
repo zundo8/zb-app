@@ -115,6 +115,7 @@ model Shop {
   collectionsMediaLink     String?
   collectionProductOrders  String?    @default("{}")
   shopAllLink              String?    @default("/collections/all")
+  feedExcludedCollections  String?    @default("[]")
   zicaAiSupportEnabled     Boolean    @default(true)
   zicaAiWhatsappEnabled    Boolean    @default(true)
   customers                Customer[]
@@ -329,6 +330,7 @@ model Product {
   shopId            String
   shopifyProductId  String            @unique
   title             String
+  includeInFeed     Boolean           @default(true)
   sku               String?
   barcode           String?
   inventoryItemId   String?           @unique

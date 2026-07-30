@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendSnapEvent } from '@/lib/snap-capi';
 import { getReportedValue } from '@/lib/metaCapi';
+import { getClientIP, lookupIpGeo } from '@/lib/ip-geo';
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,6 +47,16 @@ export async function POST(req: NextRequest) {
     const guestCity = req.cookies.get('zb_guest_ct')?.value;
     const guestZip = req.cookies.get('zb_guest_zp')?.value;
 
+    // ── IP Geolocation Fallback ──
+    // If all client-side address cookies are absent (user denied/ignored location prompt)
+    // AND the event is not PURCHASE (that uses checkout Google Maps data),
+    // look up city/state/country from the visitor's IP address.
+    let ipGeo: Awaited<ReturnType<typeof lookupIpGeo>> = null;
+    const hasClientGeo = !!(guestCountry || guestState || guestCity || guestZip);
+    if (!hasClientGeo && eventName !== 'PURCHASE') {
+      ipGeo = await lookupIpGeo(getClientIP(req));
+    }
+
     // Apply server-side value adjustment for PURCHASE and START_CHECKOUT (matching Meta's getReportedValue)
     let adjustedCustomData = customData ? { ...customData } : undefined;
     if (adjustedCustomData?.price !== undefined) {
@@ -62,9 +73,9 @@ export async function POST(req: NextRequest) {
       ph: userData?.ph || guestPhone,
       fn: userData?.fn || guestFn,
       ln: userData?.ln || guestLn,
-      country: userData?.country || guestCountry,
-      st: userData?.st || guestState,
-      ct: userData?.ct || guestCity,
+      country: userData?.country || guestCountry || ipGeo?.countryCode?.toLowerCase(),
+      st: userData?.st || guestState || ipGeo?.region,
+      ct: userData?.ct || guestCity || ipGeo?.city,
       zp: userData?.zp || guestZip,
     };
 

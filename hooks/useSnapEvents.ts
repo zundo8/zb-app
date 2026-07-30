@@ -216,6 +216,7 @@ export function useSnapEvents() {
       item_ids: contentIds,
       item_category: contentCategory,
       number_items: numberItems || contentIds.length || 1,
+      transaction_id: orderId,
     };
 
     trackSnapClientEvent('PURCHASE', customData, base.eventId);
