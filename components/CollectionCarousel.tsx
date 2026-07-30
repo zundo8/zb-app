@@ -20,22 +20,31 @@ const FALLBACKS = [
   "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=800&auto=format&fit=crop",
 ];
 
-// Apple-level spring physics — snappy, no bounce
+// Fluid Apple-style spring physics for smooth release snap
 const SPRING = {
   type: "spring" as const,
-  stiffness: 380,
-  damping: 38,
-  mass: 0.7,
+  stiffness: 280,
+  damping: 30,
+  mass: 0.6,
   restDelta: 0.001,
+};
+
+const INSTANT = {
+  type: "tween" as const,
+  duration: 0,
 };
 
 export default function CollectionCarousel({ collections }: { collections: Collection[] }) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
+  const [dragOffset, setDragOffset] = useState(0);
   const total = collections.length;
+
   const dragStartX = useRef(0);
+  const dragStartY = useRef(0);
   const dragStartTime = useRef(0);
   const isDragging = useRef(false);
+  const isHorizontalDrag = useRef<boolean | null>(null);
   const hasMoved = useRef(false);
   const lastWheelTime = useRef(0);
 
@@ -58,20 +67,37 @@ export default function CollectionCarousel({ collections }: { collections: Colle
     go(delta > 0 ? 1 : -1);
   };
 
-  // Pointer swipe with velocity detection
+  // Fluid pointer / touch gesture handling
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     if ((e.target as HTMLElement).closest("button")) return;
+
     dragStartX.current = e.clientX;
+    dragStartY.current = e.clientY;
     dragStartTime.current = Date.now();
     isDragging.current = true;
     hasMoved.current = false;
+    isHorizontalDrag.current = null;
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging.current) return;
-    if (Math.abs(e.clientX - dragStartX.current) > 6) {
-      hasMoved.current = true;
+
+    const dx = e.clientX - dragStartX.current;
+    const dy = e.clientY - dragStartY.current;
+
+    // Disambiguate vertical page scroll vs horizontal carousel drag
+    if (isHorizontalDrag.current === null) {
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        isHorizontalDrag.current = Math.abs(dx) > Math.abs(dy);
+      }
+    }
+
+    if (isHorizontalDrag.current) {
+      if (Math.abs(dx) > 6) {
+        hasMoved.current = true;
+      }
+      setDragOffset(dx);
     }
   };
 
@@ -82,11 +108,14 @@ export default function CollectionCarousel({ collections }: { collections: Colle
     const dx = e.clientX - dragStartX.current;
     const dt = Date.now() - dragStartTime.current;
     const velocity = Math.abs(dx) / Math.max(dt, 1);
-    const threshold = velocity > 0.4 ? 18 : 50;
+    const threshold = velocity > 0.35 ? 25 : 70;
 
-    if (Math.abs(dx) > threshold) {
+    if (isHorizontalDrag.current && Math.abs(dx) > threshold) {
       go(dx < 0 ? 1 : -1);
     }
+
+    setDragOffset(0);
+    isHorizontalDrag.current = null;
   };
 
   if (!total) return null;
@@ -107,17 +136,19 @@ export default function CollectionCarousel({ collections }: { collections: Colle
           {/* Stage for desktop cards */}
           <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
             {collections.map((col, i) => {
-              let diff = i - index;
+              let rawDiff = i - index - dragOffset / 360;
+              let diff = rawDiff;
               if (diff > total / 2) diff -= total;
               if (diff < -total / 2) diff += total;
 
-              if (Math.abs(diff) > 3) return null;
+              if (Math.abs(diff) > 3.5) return null;
 
               return (
                 <DesktopStackedCard
                   key={`desk-${col.id}`}
                   collection={col}
                   diff={diff}
+                  isDragging={isDragging.current}
                   fallback={FALLBACKS[i % FALLBACKS.length]}
                   hasMoved={hasMoved}
                   onSelect={() => setIndex(i)}
@@ -172,18 +203,20 @@ export default function CollectionCarousel({ collections }: { collections: Colle
         <div className="relative w-full flex items-center justify-center" style={{ height: "min(72vh, 560px)" }}>
           <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
             {collections.map((col, i) => {
-              let diff = i - index;
+              let rawDiff = i - index - dragOffset / 280;
+              let diff = rawDiff;
               if (diff > total / 2) diff -= total;
               if (diff < -total / 2) diff += total;
 
               // Only render nearby cards
-              if (Math.abs(diff) > 3) return null;
+              if (Math.abs(diff) > 3.5) return null;
 
               return (
                 <StackedCard
                   key={col.id}
                   collection={col}
                   diff={diff}
+                  isDragging={isDragging.current}
                   fallback={FALLBACKS[i % FALLBACKS.length]}
                   hasMoved={hasMoved}
                   onSelect={() => setIndex(i)}
@@ -200,12 +233,14 @@ export default function CollectionCarousel({ collections }: { collections: Colle
 function StackedCard({
   collection,
   diff,
+  isDragging,
   fallback,
   hasMoved,
   onSelect,
 }: {
   collection: Collection;
   diff: number;
+  isDragging: boolean;
   fallback: string;
   hasMoved: React.MutableRefObject<boolean>;
   onSelect: () => void;
@@ -276,7 +311,7 @@ function StackedCard({
         scale,
         opacity,
       }}
-      transition={SPRING}
+      transition={isDragging ? INSTANT : SPRING}
       className="absolute select-none pointer-events-auto cursor-pointer will-change-transform"
       style={{
         width: "min(82vw, 380px)",
@@ -306,12 +341,14 @@ function StackedCard({
 function DesktopStackedCard({
   collection,
   diff,
+  isDragging,
   fallback,
   hasMoved,
   onSelect,
 }: {
   collection: Collection;
   diff: number;
+  isDragging: boolean;
   fallback: string;
   hasMoved: React.MutableRefObject<boolean>;
   onSelect: () => void;
@@ -383,7 +420,7 @@ function DesktopStackedCard({
         scale,
         opacity,
       }}
-      transition={SPRING}
+      transition={isDragging ? INSTANT : SPRING}
       className="absolute select-none pointer-events-auto cursor-pointer will-change-transform group transition-all duration-300"
       style={{
         width: "350px",
@@ -409,4 +446,5 @@ function DesktopStackedCard({
     </motion.div>
   );
 }
+
 
