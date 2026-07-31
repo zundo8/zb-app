@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Minus, Plus, Trash2, ShoppingBag, Loader2, Lock, LogIn, User } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
+import { useCountry } from "@/lib/country-context";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 
@@ -18,6 +19,7 @@ export default function CartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { items, count, subtotal, remove, update, clear, loadFromDB } = useCart();
+  const { formatPrice: fmtPrice } = useCountry();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -257,7 +259,7 @@ export default function CartPage() {
                         </p>
                       )}
                       <p className="text-[9.5px] font-inter font-semibold tracking-wider text-foreground/70">
-                        ₹{(parseFloat(item.price) * item.quantity).toLocaleString("en-IN")}
+                        {fmtPrice(parseFloat(item.price) * item.quantity).formatted}
                       </p>
                     </div>
 
@@ -305,7 +307,7 @@ export default function CartPage() {
                   <div className="flex justify-between items-center mb-3">
                     <span className="text-[8px] font-extralight uppercase tracking-widest text-foreground/40">Subtotal</span>
                     <span className="text-[9.5px] font-inter font-semibold tracking-wider text-foreground/70">
-                      ₹{subtotal.toLocaleString("en-IN")}
+                      {fmtPrice(subtotal).formatted}
                     </span>
                   </div>
                   <div className="flex justify-between items-center mb-3">
@@ -316,7 +318,7 @@ export default function CartPage() {
                   <div className="flex justify-between items-center">
                     <span className="glass-heading text-[10px]">Total</span>
                     <span className="font-inter font-bold text-[13px] text-foreground/85">
-                      ₹{subtotal.toLocaleString("en-IN")}
+                      {fmtPrice(subtotal).formatted}
                     </span>
                   </div>
                 </div>

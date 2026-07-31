@@ -209,13 +209,10 @@ export default function CheckoutPage() {
   );
 
   const fmtAmount = useCallback(
-    (amount: number): string => {
-      if (!globalStoreEnabled || !countryConfig || countryConfig.isBase) {
-        return `₹${amount.toLocaleString("en-IN")}`;
-      }
-      return formatPriceString(amount, countryConfig.currencyCode, countryConfig.locale);
+    (basePriceINR: number): string => {
+      return fmtPrice(basePriceINR).formatted;
     },
-    [globalStoreEnabled, countryConfig]
+    [fmtPrice]
   );
   const { data: session, status } = useSession();
   const { items, subtotal, clear } = useCart();
@@ -719,7 +716,14 @@ export default function CheckoutPage() {
         try {
           const fullStreet = [address.houseNo, address.street, address.landmark].filter(Boolean).join(", ");
           const checkoutAddress = { ...address, street: fullStreet || address.street };
-          const paymentAmount = paymentMethod === "COD" ? codFee : finalTotal;
+          const convertedItems = items.map(item => ({
+            ...item,
+            price: fmtPrice(parseFloat(item.price)).amount,
+          }));
+          const convertedSubtotal = fmtPrice(subtotal).amount;
+          const convertedTotal = fmtPrice(finalTotal).amount;
+          const paymentAmount = paymentMethod === "COD" ? codFee : convertedTotal;
+
           const res = await fetch("/api/checkout/razorpay", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -728,14 +732,14 @@ export default function CheckoutPage() {
               currency: countryConfig?.currencyCode || "INR",
               displayCountry: countryCode,
               address: checkoutAddress,
-              items,
-              subtotal,
-              total: finalTotal,
+              items: convertedItems,
+              subtotal: convertedSubtotal,
+              total: convertedTotal,
               paymentMethod,
               codFee: paymentMethod === "COD" ? codFee : 0,
               couponCode: couponValid ? couponCode : null,
-              couponDiscount: couponDiscount,
-              storeCreditAmount: appliedStoreCredit,
+              couponDiscount: fmtPrice(couponDiscount).amount,
+              storeCreditAmount: fmtPrice(appliedStoreCredit).amount,
               notes: {
                 name: address.name,
                 email: address.email || "",
@@ -1338,7 +1342,13 @@ export default function CheckoutPage() {
       }
 
       // Case 2: Partial Store Credit or Standard Payment
-      const paymentAmount = paymentMethod === "COD" ? codFee : finalTotal;
+      const convertedItems = items.map(item => ({
+        ...item,
+        price: fmtPrice(parseFloat(item.price)).amount,
+      }));
+      const convertedSubtotal = fmtPrice(subtotal).amount;
+      const convertedTotal = fmtPrice(finalTotal).amount;
+      const paymentAmount = paymentMethod === "COD" ? codFee : convertedTotal;
 
       let orderId = "";
       let keyId = "";
@@ -1359,14 +1369,14 @@ export default function CheckoutPage() {
             currency: countryConfig?.currencyCode || "INR",
             displayCountry: countryCode,
             address: checkoutAddress,
-            items,
-            subtotal,
-            total: finalTotal,
+            items: convertedItems,
+            subtotal: convertedSubtotal,
+            total: convertedTotal,
             paymentMethod,
             codFee: paymentMethod === "COD" ? codFee : 0,
             couponCode: couponValid ? couponCode : null,
-            couponDiscount: couponDiscount,
-            storeCreditAmount: appliedStoreCredit,
+            couponDiscount: fmtPrice(couponDiscount).amount,
+            storeCreditAmount: fmtPrice(appliedStoreCredit).amount,
             notes: {
               name: address.name,
               email: address.email || "",
@@ -1389,7 +1399,7 @@ export default function CheckoutPage() {
         orderId: orderId,
         metadata: {
           amount: paymentAmount,
-          currency: 'INR',
+          currency: countryConfig?.currencyCode || 'INR',
           paymentMethod,
           num_items: items.length
         }
@@ -1406,18 +1416,18 @@ export default function CheckoutPage() {
             body: JSON.stringify({
               address: checkoutAddress,
               paymentMethod,
-              items,
-              total: finalTotal,
-              subtotal,
+              items: convertedItems,
+              total: convertedTotal,
+              subtotal: convertedSubtotal,
               currency: countryConfig?.currencyCode || "INR",
               displayCountry: countryCode,
               codFee: paymentMethod === "COD" ? codFee : 0,
               razorpay: response,
               couponCode: couponValid ? couponCode : null,
-              couponDiscount: couponDiscount,
+              couponDiscount: fmtPrice(couponDiscount).amount,
               applyAsStoreCredit,
-              cashbackAmount,
-              storeCreditAmount: appliedStoreCredit,
+              cashbackAmount: fmtPrice(cashbackAmount).amount,
+              storeCreditAmount: fmtPrice(appliedStoreCredit).amount,
               guestId: getClientCookie("zb_device_id"),
             }),
           });

@@ -18,6 +18,7 @@ import {
   Calendar
 } from "lucide-react";
 import Link from "next/link";
+import { formatPriceString } from "@/lib/global-pricing-client";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function OrdersPage() {
@@ -242,7 +243,7 @@ export default function OrdersPage() {
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-[12px] font-inter font-bold tracking-tight text-foreground">₹{order.totalPrice.toLocaleString('en-IN')}</p>
+                      <p className="text-[12px] font-inter font-bold tracking-tight text-foreground">{formatPriceString(Number(order.totalPrice), order.currency || "INR", "en-US")}</p>
                       <Link href={`/orders/${order.id}`} className="inline-flex items-center gap-1 mt-1 text-[8px] font-bold uppercase tracking-wider text-foreground/40 hover:text-foreground transition-colors">
                         Details <ChevronRight className="w-3 h-3" />
                       </Link>

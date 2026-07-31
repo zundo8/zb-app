@@ -10,6 +10,8 @@ import { useSnapEvents } from "@/hooks/useSnapEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
 import { trackPurchase as zbTrackPurchase } from "@/lib/analytics-tracker";
 
+import { formatPriceString } from "@/lib/global-pricing-client";
+
 export default function OrderConfirmationPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -198,12 +200,12 @@ export default function OrderConfirmationPage() {
             {order.items?.map((item: any, idx: number) => (
               <div key={idx} className="flex justify-between items-center text-[11px] font-medium">
                 <span className="text-foreground/60 truncate max-w-[200px]">{item.quantity}x {item.title}</span>
-                <span className="font-bold text-foreground/45">₹{item.price.toLocaleString()}</span>
+                <span className="font-bold text-foreground/45">{formatPriceString(Number(item.price), order.currency || "INR", "en-US")}</span>
               </div>
             ))}
             <div className="pt-3.5 border-t border-foreground/5 flex justify-between items-center">
               <span className="font-black text-[10px] uppercase tracking-widest text-foreground/75">Total</span>
-              <span className="text-lg font-black tracking-tight">₹{order.totalPrice.toLocaleString()}</span>
+              <span className="text-lg font-black tracking-tight">{formatPriceString(Number(order.totalPrice), order.currency || "INR", "en-US")}</span>
             </div>
           </div>
         </div>

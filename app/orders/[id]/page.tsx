@@ -23,6 +23,7 @@ import {
   X
 } from "lucide-react";
 import Link from "next/link";
+import { formatPriceString } from "@/lib/global-pricing-client";
 import { useParams, useRouter } from "next/navigation";
 
 const STEPS = [
@@ -488,10 +489,10 @@ export default function OrderDetailsPage() {
                    </div>
                    <div className="flex-1 min-w-0">
                       <h5 className="text-[10px] font-bold text-foreground/80 truncate uppercase tracking-tight">{item.title}</h5>
-                      <p className="text-[8px] font-extralight text-foreground/40 mt-0.5 font-mono">Qty: {item.quantity} · INR {(item.price).toLocaleString('en-IN')}</p>
+                      <p className="text-[8px] font-extralight text-foreground/40 mt-0.5 font-mono">Qty: {item.quantity} · {formatPriceString(Number(item.price), order.currency || "INR", "en-US")}</p>
                    </div>
                    <div className="text-right">
-                      <p className="text-[10px] font-inter font-bold text-foreground/60">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+                      <p className="text-[10px] font-inter font-bold text-foreground/60">{formatPriceString(Number(item.price) * item.quantity, order.currency || "INR", "en-US")}</p>
                    </div>
                 </div>
               ))}
@@ -561,12 +562,12 @@ export default function OrderDetailsPage() {
            <div className="p-5 rounded-3xl glass-panel space-y-3">
               <div className="flex justify-between items-center text-[11px] font-medium text-foreground/60">
                  <span>Subtotal</span>
-                 <span className="font-bold text-foreground/80">₹{(order.subtotalPrice || (order.totalPrice + (order.discountAmount || 0))).toLocaleString('en-IN')}</span>
+                 <span className="font-bold text-foreground/80">{formatPriceString(Number(order.subtotalPrice || (order.totalPrice + (order.discountAmount || 0))), order.currency || "INR", "en-US")}</span>
               </div>
               {order.discountAmount > 0 && (
                  <div className="flex justify-between items-center text-[11px] font-medium text-foreground/60">
                     <span>Discount ({order.discountCode || 'Coupon'})</span>
-                    <span className="font-bold text-emerald-500/80">- ₹{(order.discountAmount).toLocaleString('en-IN')}</span>
+                    <span className="font-bold text-emerald-500/80">- {formatPriceString(Number(order.discountAmount), order.currency || "INR", "en-US")}</span>
                  </div>
               )}
               <div className="flex justify-between items-center text-[11px] font-medium text-foreground/60">
@@ -575,7 +576,7 @@ export default function OrderDetailsPage() {
               </div>
               <div className="pt-4 mt-2 border-t border-foreground/5 flex justify-between items-center">
                  <span className="text-[12px] font-black uppercase tracking-widest text-foreground/50">Total</span>
-                 <span className="text-lg font-black tracking-tight text-foreground">₹{(order.totalPrice).toLocaleString('en-IN')}</span>
+                 <span className="text-lg font-black tracking-tight text-foreground">{formatPriceString(Number(order.totalPrice), order.currency || "INR", "en-US")}</span>
               </div>
            </div>
         </div>
