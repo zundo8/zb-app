@@ -137,7 +137,6 @@ export default function ProductDetailsClient({
   const [direction, setDirection] = useState(0);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
-  const [winHeight, setWinHeight] = useState(800);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -189,19 +188,6 @@ export default function ProductDetailsClient({
   }, [product.id]);
 
   useEffect(() => {
-    const updateHeight = () => {
-      const h = typeof window !== 'undefined'
-        ? (window.visualViewport ? window.visualViewport.height : window.innerHeight)
-        : 800;
-      setWinHeight(h);
-    };
-
-    updateHeight();
-    window.addEventListener("resize", updateHeight);
-    if (typeof window !== 'undefined' && window.visualViewport) {
-      window.visualViewport.addEventListener("resize", updateHeight);
-    }
-
     recordVisit(product);
 
     // Track Product Viewed event
@@ -223,13 +209,6 @@ export default function ProductDetailsClient({
         localStorage.setItem('ctwa_clid', ctwa_clid);
       }
     }
-
-    return () => {
-      window.removeEventListener("resize", updateHeight);
-      if (typeof window !== 'undefined' && window.visualViewport) {
-        window.visualViewport.removeEventListener("resize", updateHeight);
-      }
-    };
   }, [product, recordVisit]);
 
   // Optimized Scroll Effects for Safari

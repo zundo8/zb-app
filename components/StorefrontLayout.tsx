@@ -34,7 +34,7 @@ export default function StorefrontLayout({ children, footer }: StorefrontLayoutP
   }, []);
 
   return (
-    <div className="liquid-glass-body min-h-[100dvh] max-w-full text-foreground selection:bg-white/10 transition-colors duration-500">
+    <div className="liquid-glass-body min-h-screen max-w-full text-foreground selection:bg-white/10 transition-colors duration-500">
       <Script
         type="module"
         src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"

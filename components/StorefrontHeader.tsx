@@ -112,7 +112,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
   return (
     <>
       {/* ── Desktop Header Pill (md and up) ── */}
-      <header className="hidden md:flex fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-5xl z-50 px-5 h-11 items-center justify-between pointer-events-auto bg-white/75 dark:bg-white/[0.04] backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-full transition-all duration-300">
+      <header className="hidden md:flex fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-5xl z-50 px-5 h-11 items-center justify-between pointer-events-auto bg-white/75 dark:bg-white/[0.04] backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-full transition-[background-color,border-color,box-shadow,opacity] duration-300">
         {/* Left: Brand */}
         <Link href="/" className="flex items-center gap-2 active:scale-95 transition-all z-10 py-1 px-2.5 rounded-full hover:bg-foreground/5 dark:hover:bg-white/5">
           <div className="relative w-5 h-5 dark:invert">
@@ -224,7 +224,7 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
       </header>
 
       {/* ── Mobile Header (Floating Minimal Split Design) ── */}
-      <div className="flex md:hidden fixed top-4 left-4 right-4 z-50 items-center justify-between pointer-events-none transition-all duration-300">
+      <div className="flex md:hidden fixed top-4 left-4 right-4 z-50 items-center justify-between pointer-events-none">
         
         {/* Left: Glass Pill with Menu & Title */}
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.3)] pointer-events-auto active:scale-[0.98] transition-all">

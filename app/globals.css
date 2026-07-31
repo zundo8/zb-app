@@ -144,7 +144,6 @@
   
   html {
     min-height: 100vh;
-    min-height: 100dvh;
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -217,7 +216,6 @@
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
-    min-height: 100dvh; /* iOS dynamic viewport height */
     transition: background-color 0.5s ease, color 0.3s ease;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
     width: 100%;
