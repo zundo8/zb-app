@@ -647,18 +647,15 @@ export default function CheckoutPage() {
     fetchZipDetails();
   }, [address.zip, address.country, address.countryCode]);
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PAYNOW");
+   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PAYNOW");
 
-  // Auto-switch payment method based on country
+  // Ensure paymentMethod is either PAYNOW or COD
   useEffect(() => {
-    if (isInternational && paymentMethod !== "CARD") {
-      setPaymentMethod("CARD");
-    } else if (!isInternational && (paymentMethod === "CARD" || paymentMethod === "UPI" || paymentMethod === "PAYLATER" || paymentMethod === "EMI")) {
+    if (paymentMethod !== "PAYNOW" && paymentMethod !== "COD") {
       setPaymentMethod("PAYNOW");
     }
-  }, [isInternational, paymentMethod]);
+  }, [paymentMethod]);
 
-  const codFee = 99;
   const shipping = 0;
 
   // Coupon state
@@ -681,6 +678,14 @@ export default function CheckoutPage() {
   const appliedStoreCredit = useStoreCredit ? Math.min(availableStoreCredit, totalBeforeStoreCredit) : 0;
   const finalTotal = Math.max(0, totalBeforeStoreCredit - appliedStoreCredit);
   const total = finalTotal;
+
+  // Calculate COD upfront fee:
+  // Domestic India: fixed ₹99
+  // International: 10% of order value in target currency
+  const codFeeBase = isInternational ? finalTotal * 0.10 : 99;
+  const codFeeDisplay = fmtPrice(codFeeBase);
+  const codFee = isInternational ? codFeeDisplay.amount : 99;
+  const codFeeFormatted = isInternational ? codFeeDisplay.formatted : `₹99`;
 
   // Fetch available store credit balance when customer email/phone or session changes
   useEffect(() => {
@@ -1589,14 +1594,12 @@ export default function CheckoutPage() {
       <div className={isMobileOnly ? "md:hidden flex flex-col w-full" : "hidden md:flex flex-col w-full"}>
         {/* Payment selection segment tabs */}
         {(() => {
-          const availableMethods = isInternational
-            ? [{ id: "CARD" as PaymentMethod, label: "CARD (INTERNATIONAL)" }]
-            : [
-                { id: "PAYNOW" as PaymentMethod, label: "PAY NOW" },
-                { id: "COD" as PaymentMethod, label: "COD" }
-              ];
+          const availableMethods = [
+            { id: "PAYNOW" as PaymentMethod, label: "PAY NOW" },
+            { id: "COD" as PaymentMethod, label: "COD" }
+          ];
           return (
-            <div className={`grid ${isInternational ? "grid-cols-1" : "grid-cols-2"} gap-1 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-4`}>
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-4">
               {availableMethods.map((method) => {
                 const isActive = paymentMethod === method.id;
                 return (
@@ -1670,23 +1673,19 @@ export default function CheckoutPage() {
             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
               <Banknote className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
               <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
-                Pay ₹{codFee} upfront via UPI (deducted from total). Remaining ₹{Math.max(0, finalTotal - codFee).toLocaleString("en-IN")} due at delivery.
+                {isInternational
+                  ? `Pay ${codFeeFormatted} upfront (10% of order value, deducted from total). Remaining ${fmtAmount(Math.max(0, finalTotal - codFeeBase))} due at delivery.`
+                  : `Pay ₹99 upfront (deducted from total). Remaining ₹${Math.max(0, finalTotal - 99).toLocaleString("en-IN")} due at delivery.`}
               </p>
             </div>
           )}
-          {paymentMethod === "PAYNOW" && !isInternational && (
+          {paymentMethod === "PAYNOW" && (
             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
               <CreditCard className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
               <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
-                Pay securely via UPI, Credit/Debit Cards, Netbanking, Wallets, Pay Later, or EMI in the Razorpay window.
-              </p>
-            </div>
-          )}
-          {isInternational && (
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
-              <CreditCard className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
-              <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
-                Pay securely using any International Credit/Debit Card or supported method in {countryConfig?.currencyCode || "USD"}.
+                {isInternational
+                  ? `Pay securely using any Credit/Debit Card or supported payment method in ${countryConfig?.currencyCode || "USD"}.`
+                  : "Pay securely via UPI, Credit/Debit Cards, Netbanking, Wallets, Pay Later, or EMI in the next screen."}
               </p>
             </div>
           )}
@@ -1788,7 +1787,7 @@ export default function CheckoutPage() {
           {paymentMethod === "COD" && (
             <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
               <span className="text-foreground/45">COD Upfront (included)</span>
-              <span className="text-foreground/60">₹{codFee}</span>
+              <span className="text-foreground/60">{codFeeFormatted}</span>
             </div>
           )}
 
@@ -1807,12 +1806,12 @@ export default function CheckoutPage() {
               </div>
               <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
                 <span className="text-foreground/40">Due at Delivery</span>
-                <span className="text-foreground/75">₹{Math.max(0, finalTotal - codFee).toLocaleString("en-IN")}</span>
+                <span className="text-foreground/75">{fmtAmount(Math.max(0, finalTotal - codFeeBase))}</span>
               </div>
               <div className="h-[1px] bg-foreground/5 my-0.5" />
               <div className="flex justify-between items-center">
                 <span className="font-light text-[9px] text-foreground/45 uppercase tracking-widest">Pay Now (Upfront)</span>
-                <span className="text-base font-medium text-foreground tracking-tight leading-none">₹{codFee}</span>
+                <span className="text-base font-medium text-foreground tracking-tight leading-none">{codFeeFormatted}</span>
               </div>
             </div>
           ) : (
@@ -1984,7 +1983,7 @@ export default function CheckoutPage() {
                   : finalTotal === 0
                   ? `PAY ${fmtAmount(0)} WITH STORE CREDIT`
                   : paymentMethod === "COD"
-                  ? `PAY ₹${codFee} & PLACE COD ORDER`
+                  ? `PAY ${codFeeFormatted} & PLACE COD ORDER`
                   : `PAY ${fmtAmount(finalTotal)} SECURELY`}
               </span>
               <div className="w-8 h-8 rounded-lg bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0">
