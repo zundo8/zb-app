@@ -60,19 +60,15 @@ export async function uploadToStorage(buffer: Buffer, mimeType: string, original
 
 /**
  * Uploads a social sharing image file buffer to Supabase storage bucket 'store-assets/social-sharing/' and returns its public URL.
- * Falls back to base64 data URL if credentials are not configured.
+ * Throws an Error if Supabase credentials are missing or if the upload fails.
+ * Base64 data URIs are strictly forbidden because social crawlers (Meta, Twitter, etc.) cannot fetch data: URIs.
  */
 export async function uploadSocialSharingImage(buffer: Buffer, mimeType: string, originalName: string): Promise<{ url: string; fallback: boolean }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.warn('[Storage] Supabase credentials not found. Falling back to base64 encoding.');
-    const base64 = buffer.toString('base64');
-    return {
-      url: `data:${mimeType};base64,${base64}`,
-      fallback: true
-    };
+    throw new Error('[Storage] Missing Supabase credentials. Please configure NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY).');
   }
 
   // Determine file extension
@@ -104,12 +100,8 @@ export async function uploadSocialSharingImage(buffer: Buffer, mimeType: string,
       fallback: false
     };
   } catch (error: any) {
-    console.error('[Storage] Supabase social sharing upload failed, falling back to base64:', error.message);
-    const base64 = buffer.toString('base64');
-    return {
-      url: `data:${mimeType};base64,${base64}`,
-      fallback: true
-    };
+    console.error('[Storage] Supabase social sharing upload failed:', error.message);
+    throw new Error(`[Storage] Failed to upload social sharing image: ${error.message}`);
   }
 }
 

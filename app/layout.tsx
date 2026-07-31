@@ -101,7 +101,8 @@ export const metadata: Metadata = {
       'India\'s premier luxury streetwear label. Shop custom boxy oversized t-shirts, vintage acid-wash drop shoulder tees, and premium loopback hoodies. Crafted in India, worn with intent.',
     images: [
       {
-        url: '/og-image.jpg',
+        url: `${siteUrl}/og-image.jpg`,
+        secureUrl: `${siteUrl}/og-image.jpg`,
         width: 1200,
         height: 630,
         alt: 'Zica Bella® | Premium Streetwear & Heavyweight Graphic Tees',

@@ -18,13 +18,26 @@ import { Metadata } from "next";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 
+/**
+ * Resolves the social sharing image URL for Open Graph, Twitter, and JSON-LD metadata.
+ * Meta (Facebook), Twitter, LinkedIn, and other social crawlers cannot fetch data: URIs,
+ * blob: URIs, or relative paths, causing empty/broken link previews in ads and shares.
+ * Returns the candidate image URL ONLY if it is an absolute http(s) URL; otherwise falls back to og-image.jpg.
+ */
+function resolveSocialImageUrl(candidate?: string | null): string {
+  if (candidate && /^https?:\/\//i.test(candidate)) {
+    return candidate;
+  }
+  return `${siteUrl}/og-image.jpg`;
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getStoreSettings('homepage');
   const title = settings?.homePageTitle || 'Zica Bella® | Premium Streetwear, Heavyweight Hoodies & Oversized Tees';
   const description = settings?.metaDescription || 'Zica Bella crafts luxury Indian streetwear for modern men, oversized heavyweight tees, acid-wash finishes, cargos and modern denim designed for bold everyday style.';
-  const imageUrl = settings?.socialImageUrl || `${siteUrl}/og-image.jpg`;
+  const imageUrl = resolveSocialImageUrl(settings?.socialImageUrl);
   const twitterCardType = settings?.twitterCardType || 'summary_large_image';
 
   return {
@@ -36,8 +49,10 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [
         {
           url: imageUrl,
+          secureUrl: imageUrl,
           width: 1200,
           height: 630,
+          type: 'image/jpeg',
           alt: settings?.socialImageAlt || title,
         }
       ],
@@ -589,7 +604,7 @@ export default async function Home() {
               "name": "Zica Bella",
               "url": siteUrl,
               "logo": `${siteUrl}/zb-logo-220px.png`,
-              "image": settings?.socialImageUrl || `${siteUrl}/og-image.jpg`,
+              "image": resolveSocialImageUrl(settings?.socialImageUrl),
               "description": settings?.metaDescription || "Zica Bella® is recognized as India's premier luxury streetwear label and the fastest growing global fashion app. Redefining street culture with custom 240+ GSM heavyweight oversized graphic tees, vintage acid-wash shirts, custom loopback fleece hoodies, and raw-edge streetwear accessories for a relentless global community.",
               "slogan": "Redefine The Standard",
               "award": ["India's #1 Premium Streetwear Brand", "World's Fastest Growing Fashion Brand"],
