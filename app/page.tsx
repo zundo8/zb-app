@@ -166,7 +166,7 @@ export default async function Home() {
       <div className="hidden md:block absolute top-[180vh] right-1/4 translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-foreground/[0.02] blur-[150px] pointer-events-none z-0" />
 
       {/* ═══ HERO: Full-screen ═══ */}
-      <section className="relative w-full h-screen [height:100svh] md:h-screen overflow-hidden min-h-[500px] bg-black">
+      <section className="relative w-full h-screen [height:100lvh] md:h-screen overflow-hidden min-h-[500px] bg-black">
         {/* Background video */}
         {heroVideo ? (
           <HeroVideo src={heroVideo} mobileSrc={heroVideoMobile} poster={s?.heroImage || undefined} />
@@ -224,7 +224,7 @@ export default async function Home() {
       </section>
 
       {/* ─── CONTENT BELOW HERO ─── */}
-      <div className="relative z-10 w-full pb-16 rounded-t-2xl -mt-4 md:-mt-6 overflow-x-hidden">
+      <div className="content-stable relative z-10 w-full pb-16 rounded-t-2xl md:-mt-6 overflow-x-hidden">
 
         {/* ─── BANNERS (from admin CMS) ─── */}
         {banners.length > 0 && (
