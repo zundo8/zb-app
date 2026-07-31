@@ -111,7 +111,23 @@ export function CountryProvider({
           const data = await res.json();
           if (!cancelled) {
             setGlobalStoreEnabled(data.globalStoreEnabled ?? false);
-            setActiveCountries(data.countries ?? []);
+            const countries: CountryPricingConfig[] = data.countries ?? [];
+            setActiveCountries(countries);
+
+            // Auto-detection logic: if no cookie is set, use detected country from server
+            const cookieCountry = getCookie("zb_country");
+            if (!cookieCountry && data.detectedCountryCode) {
+              const isValid = countries.some((c) => c.code === data.detectedCountryCode);
+              if (isValid) {
+                setCountryCode(data.detectedCountryCode);
+                setCookie("zb_country", data.detectedCountryCode);
+              }
+            } else if (cookieCountry) {
+              const isValid = countries.some((c) => c.code === cookieCountry);
+              if (isValid) {
+                setCountryCode(cookieCountry);
+              }
+            }
           }
         }
       } catch {
@@ -123,11 +139,10 @@ export function CountryProvider({
     return () => { cancelled = true; };
   }, [initialConfig]);
 
-  // Read country from cookie on mount if not provided
+  // Read country from cookie when activeCountries updates
   useEffect(() => {
     const cookieCountry = getCookie("zb_country");
     if (cookieCountry && cookieCountry !== countryCode) {
-      // Validate against active countries
       const valid = activeCountries.some((c) => c.code === cookieCountry);
       if (valid) {
         setCountryCode(cookieCountry);

@@ -45,6 +45,7 @@ import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useCountry } from "@/lib/country-context";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import { formatPriceString } from "@/lib/global-pricing-client";
 import {
   COUNTRIES,
   INDIAN_STATES,
@@ -203,6 +204,19 @@ const isValidAddressField = (val: string, minLen = 2) => val.trim().length >= mi
 
 export default function CheckoutPage() {
   const { countryCode, countryConfig, globalStoreEnabled, formatPrice: fmtPrice } = useCountry();
+  const isInternational = Boolean(
+    globalStoreEnabled && countryCode !== "IN" && countryConfig && !countryConfig.isBase
+  );
+
+  const fmtAmount = useCallback(
+    (amount: number): string => {
+      if (!globalStoreEnabled || !countryConfig || countryConfig.isBase) {
+        return `₹${amount.toLocaleString("en-IN")}`;
+      }
+      return formatPriceString(amount, countryConfig.currencyCode, countryConfig.locale);
+    },
+    [globalStoreEnabled, countryConfig]
+  );
   const { data: session, status } = useSession();
   const { items, subtotal, clear } = useCart();
   const router = useRouter();
@@ -637,6 +651,14 @@ export default function CheckoutPage() {
   }, [address.zip, address.country, address.countryCode]);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("UPI");
+
+  // Auto-switch to CARD for international orders (UPI/COD/PayLater/EMI are India-only)
+  useEffect(() => {
+    if (isInternational && paymentMethod !== "CARD") {
+      setPaymentMethod("CARD");
+    }
+  }, [isInternational, paymentMethod]);
+
   const codFee = 99;
   const shipping = 0;
 
@@ -1387,6 +1409,8 @@ export default function CheckoutPage() {
               items,
               total: finalTotal,
               subtotal,
+              currency: countryConfig?.currencyCode || "INR",
+              displayCountry: countryCode,
               codFee: paymentMethod === "COD" ? codFee : 0,
               razorpay: response,
               couponCode: couponValid ? couponCode : null,
@@ -1411,11 +1435,11 @@ export default function CheckoutPage() {
           } else {
             // CRITICAL: Payment was captured successfully, but database registration failed.
             // Do not allow retry to prevent double-charging the customer.
-            setError(`Your payment of ₹${paymentAmount} was successful (ID: ${response.razorpay_payment_id || "N/A"}), but we encountered an issue registering your order. Please do NOT try paying again. Contact support at support@zicabella.com with your payment ID so we can verify and manually create your order.`);
+            setError(`Your payment of ${fmtAmount(paymentAmount)} was successful (ID: ${response.razorpay_payment_id || "N/A"}), but we encountered an issue registering your order. Please do NOT try paying again. Contact support at support@zicabella.com with your payment ID so we can verify and manually create your order.`);
             setLoading(false);
           }
         } catch {
-          setError(`Your payment of ₹${paymentAmount} was successful (ID: ${response.razorpay_payment_id || "N/A"}), but we encountered a connection issue confirming your order. Please do NOT try paying again. Contact support at support@zicabella.com with your payment ID so we can confirm your order manually.`);
+          setError(`Your payment of ${fmtAmount(paymentAmount)} was successful (ID: ${response.razorpay_payment_id || "N/A"}), but we encountered a connection issue confirming your order. Please do NOT try paying again. Contact support at support@zicabella.com with your payment ID so we can confirm your order manually.`);
           setLoading(false);
         } finally {
           paymentLockRef.current = false;
@@ -1465,7 +1489,7 @@ export default function CheckoutPage() {
       const options: any = {
         key: keyId,
         amount: orderData.amount,
-        currency: "INR",
+        currency: orderData.currency || countryConfig?.currencyCode || "INR",
         name: "Zica Bella",
         description: paymentMethod === "COD" ? "COD Upfront Fee" : "Order Payment",
         order_id: orderId,
@@ -1495,10 +1519,10 @@ export default function CheckoutPage() {
         },
       };
 
-      // Configure display blocks to show only the selected method in the Razorpay modal
-      if (paymentMethod === "UPI" || paymentMethod === "COD") {
-        // UPI: Standard Checkout auto-detects installed UPI apps on mobile,
-        // shows QR code on desktop, and supports VPA entry — all handled natively
+      // Configure display blocks for domestic orders, or default card prefill for international
+      if (isInternational) {
+        options.prefill.method = "card";
+      } else if (paymentMethod === "UPI" || paymentMethod === "COD") {
         options.prefill.method = "upi";
         options.config = {
           display: {
@@ -1579,14 +1603,19 @@ export default function CheckoutPage() {
     return (
       <div className={isMobileOnly ? "md:hidden flex flex-col w-full" : "hidden md:flex flex-col w-full"}>
         {/* Payment selection segment tabs */}
-        <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-4">
-          {[
-            { id: "UPI" as PaymentMethod, label: "UPI" },
-            { id: "CARD" as PaymentMethod, label: "CARD" },
-            { id: "PAYLATER" as PaymentMethod, label: "PAY LATER" },
-            { id: "EMI" as PaymentMethod, label: "EMI" },
-            { id: "COD" as PaymentMethod, label: "COD" }
-          ].map((method) => {
+        {(() => {
+          const availableMethods = isInternational
+            ? [{ id: "CARD" as PaymentMethod, label: "CARD (INTERNATIONAL)" }]
+            : [
+                { id: "UPI" as PaymentMethod, label: "UPI" },
+                { id: "CARD" as PaymentMethod, label: "CARD" },
+                { id: "PAYLATER" as PaymentMethod, label: "PAY LATER" },
+                { id: "EMI" as PaymentMethod, label: "EMI" },
+                { id: "COD" as PaymentMethod, label: "COD" }
+              ];
+          return (
+            <div className={`grid ${isInternational ? "grid-cols-1" : "grid-cols-5"} gap-1 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-4`}>
+              {availableMethods.map((method) => {
             const isActive = paymentMethod === method.id;
             return (
               <button
@@ -1650,6 +1679,8 @@ export default function CheckoutPage() {
             );
           })}
         </div>
+        );
+        })()}
 
         {/* UPI/COD info — Razorpay Standard Checkout handles UPI app selection natively */}
         {(paymentMethod === "UPI" || paymentMethod === "COD") && (
@@ -1697,13 +1728,13 @@ export default function CheckoutPage() {
                   Size: {item.size || "Free"} &nbsp;•&nbsp; Qty: {item.quantity}
                 </p>
               </div>
-              <span className="text-[10px] font-normal text-foreground/80 shrink-0">₹{(parseFloat(item.price) * item.quantity).toLocaleString("en-IN")}</span>
+              <span className="text-[10px] font-normal text-foreground/80 shrink-0">{fmtAmount(parseFloat(item.price) * item.quantity)}</span>
             </div>
           ))}
         </div>
 
-        {/* Store Credit Wallet Card */}
-        {availableStoreCredit > 0 && (
+        {/* Store Credit Wallet Card (Domestic India only) */}
+        {!isInternational && availableStoreCredit > 0 && (
           <div className="apple-glass-capsule p-3.5 rounded-2xl flex flex-col gap-2.5 transition-all duration-300 border-emerald-500/20 bg-emerald-500/[0.04]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -1742,27 +1773,27 @@ export default function CheckoutPage() {
         <div className="apple-glass-capsule p-4 rounded-2xl flex flex-col gap-2.5">
           <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
             <span className="text-foreground/40">Subtotal</span>
-            <span className="text-foreground/75">₹{subtotal.toLocaleString("en-IN")}</span>
+            <span className="text-foreground/75">{fmtAmount(subtotal)}</span>
           </div>
 
           {couponDiscount > 0 && !applyAsStoreCredit && (
             <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
               <span className="text-emerald-400/90">Discount ({couponCode})</span>
-              <span className="text-emerald-400/90">- ₹{couponDiscount.toLocaleString("en-IN")}</span>
+              <span className="text-emerald-400/90">- {fmtAmount(couponDiscount)}</span>
             </div>
           )}
 
           {appliedStoreCredit > 0 && (
             <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
               <span className="text-emerald-400/90">Store Credit Applied</span>
-              <span className="text-emerald-400/90">- ₹{appliedStoreCredit.toLocaleString("en-IN")}</span>
+              <span className="text-emerald-400/90">- {fmtAmount(appliedStoreCredit)}</span>
             </div>
           )}
 
           {cashbackAmount > 0 && (
             <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
               <span className="text-emerald-400/90">Cashback ({couponCode})</span>
-              <span className="text-emerald-400/90">+ ₹{cashbackAmount.toLocaleString("en-IN")}</span>
+              <span className="text-emerald-400/90">+ {fmtAmount(cashbackAmount)}</span>
             </div>
           )}
 
@@ -1784,7 +1815,7 @@ export default function CheckoutPage() {
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
                 <span className="text-foreground/40">Order Total</span>
-                <span className="text-foreground/75">₹{finalTotal.toLocaleString("en-IN")}</span>
+                <span className="text-foreground/75">{fmtAmount(finalTotal)}</span>
               </div>
               <div className="flex justify-between items-center text-[9px] font-light uppercase tracking-wider">
                 <span className="text-foreground/40">Due at Delivery</span>
@@ -1799,7 +1830,7 @@ export default function CheckoutPage() {
           ) : (
             <div className="flex justify-between items-center">
               <span className="font-light text-[9px] text-foreground/45 uppercase tracking-widest">Total</span>
-              <span className="text-base font-medium text-foreground tracking-tight leading-none">₹{finalTotal.toLocaleString("en-IN")}</span>
+              <span className="text-base font-medium text-foreground tracking-tight leading-none">{fmtAmount(finalTotal)}</span>
             </div>
           )}
         </div>
@@ -1963,10 +1994,10 @@ export default function CheckoutPage() {
                 {loading
                   ? "PROCESSING..."
                   : finalTotal === 0
-                  ? `PAY ₹0 WITH STORE CREDIT`
+                  ? `PAY ${fmtAmount(0)} WITH STORE CREDIT`
                   : paymentMethod === "COD"
                   ? `PAY ₹${codFee} & PLACE COD ORDER`
-                  : `PAY ₹${finalTotal.toLocaleString("en-IN")} SECURELY`}
+                  : `PAY ${fmtAmount(finalTotal)} SECURELY`}
               </span>
               <div className="w-8 h-8 rounded-lg bg-white/10 dark:bg-black/10 flex items-center justify-center text-white dark:text-black shrink-0">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" strokeWidth={2.5} />}
