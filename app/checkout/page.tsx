@@ -90,7 +90,7 @@ type DBAddress = {
   placeId?: string | null;
 };
 
-type PaymentMethod = "UPI" | "CARD" | "COD" | "PAYLATER" | "EMI";
+type PaymentMethod = "PAYNOW" | "COD" | "CARD" | "UPI" | "PAYLATER" | "EMI";
 
 interface GoogleAddressComponent {
   long_name?: string;
@@ -647,12 +647,14 @@ export default function CheckoutPage() {
     fetchZipDetails();
   }, [address.zip, address.country, address.countryCode]);
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("UPI");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PAYNOW");
 
-  // Auto-switch to CARD for international orders (UPI/COD/PayLater/EMI are India-only)
+  // Auto-switch payment method based on country
   useEffect(() => {
     if (isInternational && paymentMethod !== "CARD") {
       setPaymentMethod("CARD");
+    } else if (!isInternational && (paymentMethod === "CARD" || paymentMethod === "UPI" || paymentMethod === "PAYLATER" || paymentMethod === "EMI")) {
+      setPaymentMethod("PAYNOW");
     }
   }, [isInternational, paymentMethod]);
 
@@ -1529,49 +1531,22 @@ export default function CheckoutPage() {
         },
       };
 
-      // Configure display blocks for domestic orders, or default card prefill for international
+      // Configure display blocks for domestic orders (PAYNOW opens full Razorpay modal; COD opens UPI for upfront fee)
       if (isInternational) {
         options.prefill.method = "card";
-      } else if (paymentMethod === "UPI" || paymentMethod === "COD") {
+      } else if (paymentMethod === "COD") {
         options.prefill.method = "upi";
         options.config = {
           display: {
             blocks: {
               upi: {
-                name: "Pay using UPI",
+                name: "Pay Upfront Fee via UPI",
                 instruments: [
                   { method: "upi", flows: ["intent", "collect", "qr"] }
                 ]
               }
             },
             sequence: ["block.upi"],
-            preferences: { show_default_blocks: false }
-          }
-        };
-      } else if (paymentMethod === "CARD") {
-        options.prefill.method = "card";
-        options.config = {
-          display: {
-            blocks: { card: { name: "Pay via Card", instruments: [{ method: "card" }] } },
-            sequence: ["block.card"],
-            preferences: { show_default_blocks: false }
-          }
-        };
-      } else if (paymentMethod === "PAYLATER") {
-        options.prefill.method = "paylater";
-        options.config = {
-          display: {
-            blocks: { paylater: { name: "Pay Later", instruments: [{ method: "paylater" }] } },
-            sequence: ["block.paylater"],
-            preferences: { show_default_blocks: false }
-          }
-        };
-      } else if (paymentMethod === "EMI") {
-        options.prefill.method = "emi";
-        options.config = {
-          display: {
-            blocks: { emi: { name: "EMI Options", instruments: [{ method: "emi" }] } },
-            sequence: ["block.emi"],
             preferences: { show_default_blocks: false }
           }
         };
@@ -1617,102 +1592,105 @@ export default function CheckoutPage() {
           const availableMethods = isInternational
             ? [{ id: "CARD" as PaymentMethod, label: "CARD (INTERNATIONAL)" }]
             : [
-                { id: "UPI" as PaymentMethod, label: "UPI" },
-                { id: "CARD" as PaymentMethod, label: "CARD" },
-                { id: "PAYLATER" as PaymentMethod, label: "PAY LATER" },
-                { id: "EMI" as PaymentMethod, label: "EMI" },
+                { id: "PAYNOW" as PaymentMethod, label: "PAY NOW" },
                 { id: "COD" as PaymentMethod, label: "COD" }
               ];
           return (
-            <div className={`grid ${isInternational ? "grid-cols-1" : "grid-cols-5"} gap-1 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-4`}>
+            <div className={`grid ${isInternational ? "grid-cols-1" : "grid-cols-2"} gap-1 p-1 rounded-xl bg-foreground/[0.03] border border-foreground/5 mb-4`}>
               {availableMethods.map((method) => {
-            const isActive = paymentMethod === method.id;
-            return (
-              <button
-                key={method.id}
-                type="button"
-                onClick={() => {
-                  setPaymentMethod(method.id);
-                  const nameParts = (address.name || "").trim().split(/\s+/);
-                  const fn = nameParts[0] || undefined;
-                  const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
+                const isActive = paymentMethod === method.id;
+                return (
+                  <button
+                    key={method.id}
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod(method.id);
+                      const nameParts = (address.name || "").trim().split(/\s+/);
+                      const fn = nameParts[0] || undefined;
+                      const ln = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
 
-                  const contentIds = items.map(item => item.productId);
-                  const contents = items.map(item => ({
-                    id: item.productId,
-                    quantity: item.quantity,
-                    item_price: parseFloat(item.price)
-                  }));
+                      const contentIds = items.map(item => item.productId);
+                      const contents = items.map(item => ({
+                        id: item.productId,
+                        quantity: item.quantity,
+                        item_price: parseFloat(item.price)
+                      }));
 
-                  if (!paymentInfoFired) {
-                    trackAddPaymentInfo(
-                      {
-                        country: address.country,
-                        st: address.state,
-                        ct: address.city,
-                        zp: address.zip,
-                        fn,
-                        ln,
-                        em: address.email || undefined,
-                        ph: address.phone || undefined,
-                      },
-                      subtotal,
-                      'INR',
-                      contentIds,
-                      contents
-                    );
-                    trackSnapAddBilling(
-                      subtotal,
-                      'INR',
-                      {
-                        country: address.country,
-                        st: address.state,
-                        ct: address.city,
-                        zp: address.zip,
-                        fn,
-                        ln,
-                        em: address.email || undefined,
-                        ph: address.phone || undefined,
-                      },
-                      contentIds
-                    );
-                    setPaymentInfoFired(true);
-                  }
-                }}
-                className={`py-2 px-0.5 text-[7px] min-[360px]:text-[8px] sm:text-[9.5px] font-normal uppercase tracking-[0.05em] min-[360px]:tracking-[0.1em] sm:tracking-[0.12em] rounded-lg text-center transition-all duration-300 border whitespace-nowrap ${isActive
-                  ? "bg-foreground/[0.08] dark:bg-white/[0.1] border-foreground/15 dark:border-white/15 text-foreground scale-[1.02]"
-                  : "border-transparent text-foreground/40 hover:text-foreground hover:bg-foreground/[0.02]"
-                  }`}
-              >
-                {method.label}
-              </button>
-            );
-          })}
-        </div>
-        );
+                      if (!paymentInfoFired) {
+                        trackAddPaymentInfo(
+                          {
+                            country: address.country,
+                            st: address.state,
+                            ct: address.city,
+                            zp: address.zip,
+                            fn,
+                            ln,
+                            em: address.email || undefined,
+                            ph: address.phone || undefined,
+                          },
+                          subtotal,
+                          countryConfig?.currencyCode || 'INR',
+                          contentIds,
+                          contents
+                        );
+                        trackSnapAddBilling(
+                          subtotal,
+                          countryConfig?.currencyCode || 'INR',
+                          {
+                            country: address.country,
+                            st: address.state,
+                            ct: address.city,
+                            zp: address.zip,
+                            fn,
+                            ln,
+                            em: address.email || undefined,
+                            ph: address.phone || undefined,
+                          },
+                          contentIds
+                        );
+                        setPaymentInfoFired(true);
+                      }
+                    }}
+                    className={`py-2.5 px-2 text-[8px] min-[360px]:text-[9px] sm:text-[10px] font-medium uppercase tracking-[0.1em] sm:tracking-[0.12em] rounded-lg text-center transition-all duration-300 border whitespace-nowrap ${isActive
+                      ? "bg-foreground/[0.08] dark:bg-white/[0.1] border-foreground/15 dark:border-white/15 text-foreground scale-[1.02] font-bold shadow-xs"
+                      : "border-transparent text-foreground/40 hover:text-foreground hover:bg-foreground/[0.02]"
+                      }`}
+                  >
+                    {method.label}
+                  </button>
+                );
+              })}
+            </div>
+          );
         })()}
 
-        {/* UPI/COD info — Razorpay Standard Checkout handles UPI app selection natively */}
-        {(paymentMethod === "UPI" || paymentMethod === "COD") && (
-          <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-300 mb-4 w-full">
-            {paymentMethod === "COD" && (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
-                <Banknote className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
-                <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
-                  Pay ₹{codFee} upfront via UPI (deducted from total). Remaining ₹{(total - codFee).toLocaleString("en-IN")} due at delivery.
-                </p>
-              </div>
-            )}
+        {/* Payment info banners */}
+        <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-300 mb-4 w-full">
+          {paymentMethod === "COD" && (
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
+              <Banknote className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+              <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
+                Pay ₹{codFee} upfront via UPI (deducted from total). Remaining ₹{Math.max(0, finalTotal - codFee).toLocaleString("en-IN")} due at delivery.
+              </p>
+            </div>
+          )}
+          {paymentMethod === "PAYNOW" && !isInternational && (
             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
               <CreditCard className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
               <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
-                {paymentMethod === "COD"
-                  ? "You\u2019ll be redirected to a secure payment window to complete the upfront fee via UPI."
-                  : "You\u2019ll be redirected to a secure payment window where you can pay using any UPI app, UPI ID, or scan a QR code."}
+                Pay securely via UPI, Credit/Debit Cards, Netbanking, Wallets, Pay Later, or EMI in the Razorpay window.
               </p>
             </div>
-          </div>
-        )}
+          )}
+          {isInternational && (
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5">
+              <CreditCard className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+              <p className="text-[9px] font-light text-foreground/60 leading-relaxed">
+                Pay securely using any International Credit/Debit Card or supported method in {countryConfig?.currencyCode || "USD"}.
+              </p>
+            </div>
+          )}
+        </div>
 
       </div>
     );
