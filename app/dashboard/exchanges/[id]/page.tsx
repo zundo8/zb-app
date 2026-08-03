@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Check, X, Clock, Package, TruckIcon, CheckCircle2, XCircle, CreditCard, AlertTriangle, RefreshCw, User, Mail, Phone, ArrowRight, ShoppingBag, ClipboardCheck, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 
 const STATUS_STEPS = [
   { key: "pending_approval", label: "Requested", icon: Clock },
@@ -249,8 +250,8 @@ export default function ExchangeDetailPage() {
               <h1 className="text-lg font-semibold text-foreground tracking-tight">Exchange #{(data.id || exchangeId).slice(0, 8)}</h1>
               <StatusBadge status={currentStatus} />
             </div>
-            <p className="text-[10px] text-foreground/40 mt-0.5">
-              Created {new Date(data.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+            <p className="text-[10px] font-medium text-foreground/50 mt-0.5 font-mono">
+              Requested on: {formatExactDateTime(data.createdAt, true)}
             </p>
           </div>
         </div>
@@ -320,69 +321,93 @@ export default function ExchangeDetailPage() {
               <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em]">Exchange Items ({exchanges.length})</p>
             </div>
             <div className="divide-y divide-foreground/[0.03]">
-              {exchanges.map((ex: any, idx: number) => (
-                <div key={idx} className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <StatusBadge status={ex.status || "REQUESTED"} />
-                    {ex.qcStatus && (
-                      <span className={`text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${ex.qcStatus === 'passed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                        QC: {ex.qcStatus}
-                      </span>
+              {exchanges.map((ex: any, idx: number) => {
+                const origTitle = ex.originalProduct?.title || "Original Item";
+                const origSku = ex.originalProduct?.sku;
+                const origV = extractItemVariantAndSize(origTitle, origSku);
+
+                const newTitle = ex.newProduct?.title || "Replacement Item";
+                const newSku = ex.newProduct?.sku;
+                const newV = extractItemVariantAndSize(newTitle, newSku);
+
+                return (
+                  <div key={idx} className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <StatusBadge status={ex.status || "REQUESTED"} />
+                      {ex.qcStatus && (
+                        <span className={`text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${ex.qcStatus === 'passed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                          QC: {ex.qcStatus}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 flex-col sm:flex-row">
+                      {/* Original Product */}
+                      <div className="flex-1 p-3 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 w-full">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[8px] font-bold text-rose-500/60 uppercase tracking-widest">Returning Item</p>
+                          {origV.size && (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 text-[8px] font-mono font-bold uppercase">
+                              Size: {origV.size}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
+                            {ex.originalProduct?.featuredImage ? (
+                              <img src={ex.originalProduct.featuredImage} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <Package className="w-4 h-4 text-foreground/20" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold text-foreground truncate">{origTitle}</p>
+                            <p className="text-[9px] text-foreground/40 font-mono">SKU: {origSku || "N/A"}</p>
+                            <p className="text-[10px] font-semibold text-foreground mt-0.5">₹{(ex.originalProduct?.price || 0).toLocaleString("en-IN")}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <ArrowRight className="w-5 h-5 text-foreground/20 shrink-0 hidden sm:block" />
+
+                      {/* New Product */}
+                      <div className="flex-1 p-3 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10 w-full">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[8px] font-bold text-emerald-500/60 uppercase tracking-widest">Requested Replacement</p>
+                          {newV.size && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-mono font-bold uppercase border border-emerald-500/20">
+                              Size: {newV.size}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
+                            {ex.newProduct?.featuredImage ? (
+                              <img src={ex.newProduct.featuredImage} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <Package className="w-4 h-4 text-foreground/20" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold text-foreground truncate">{newTitle}</p>
+                            <p className="text-[9px] text-foreground/40 font-mono">SKU: {newSku || "N/A"}</p>
+                            <p className="text-[10px] font-semibold text-foreground mt-0.5">₹{(ex.newProduct?.price || 0).toLocaleString("en-IN")}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {ex.qcNotes && (
+                      <div className="mt-3 p-2 bg-foreground/[0.02] rounded-lg">
+                        <p className="text-[9px] text-foreground/50"><span className="font-bold">QC Notes:</span> {ex.qcNotes}</p>
+                      </div>
+                    )}
+                    {ex.reason && (
+                      <div className="mt-2 p-2 bg-foreground/[0.02] rounded-lg">
+                        <p className="text-[9px] text-foreground/50"><span className="font-bold">Reason:</span> {ex.reason}</p>
+                      </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    {/* Original Product */}
-                    <div className="flex-1 p-3 rounded-xl bg-rose-500/[0.03] border border-rose-500/10">
-                      <p className="text-[8px] font-bold text-rose-500/60 uppercase tracking-widest mb-2">Returning</p>
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
-                          {ex.originalProduct?.featuredImage ? (
-                            <img src={ex.originalProduct.featuredImage} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <Package className="w-4 h-4 text-foreground/20" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold text-foreground truncate">{ex.originalProduct?.title || "Original Item"}</p>
-                          <p className="text-[9px] text-foreground/40">SKU: {ex.originalProduct?.sku || "N/A"}</p>
-                          <p className="text-[10px] font-semibold text-foreground mt-0.5">₹{(ex.originalProduct?.price || 0).toLocaleString("en-IN")}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <ArrowRight className="w-5 h-5 text-foreground/20 shrink-0" />
-
-                    {/* New Product */}
-                    <div className="flex-1 p-3 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10">
-                      <p className="text-[8px] font-bold text-emerald-500/60 uppercase tracking-widest mb-2">Replacement</p>
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
-                          {ex.newProduct?.featuredImage ? (
-                            <img src={ex.newProduct.featuredImage} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <Package className="w-4 h-4 text-foreground/20" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold text-foreground truncate">{ex.newProduct?.title || "Replacement"}</p>
-                          <p className="text-[9px] text-foreground/40">SKU: {ex.newProduct?.sku || "N/A"}</p>
-                          <p className="text-[10px] font-semibold text-foreground mt-0.5">₹{(ex.newProduct?.price || 0).toLocaleString("en-IN")}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  {ex.qcNotes && (
-                    <div className="mt-3 p-2 bg-foreground/[0.02] rounded-lg">
-                      <p className="text-[9px] text-foreground/50"><span className="font-bold">QC Notes:</span> {ex.qcNotes}</p>
-                    </div>
-                  )}
-                  {ex.reason && (
-                    <div className="mt-2 p-2 bg-foreground/[0.02] rounded-lg">
-                      <p className="text-[9px] text-foreground/50"><span className="font-bold">Reason:</span> {ex.reason}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -413,7 +438,7 @@ export default function ExchangeDetailPage() {
                 </div>
                 <div>
                   <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Created</p>
-                  <p className="text-[11px] font-semibold text-foreground mt-1">{new Date(linkedReturn.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                  <p className="text-[11px] font-semibold text-foreground mt-1 font-mono">{formatExactDateTime(linkedReturn.createdAt)}</p>
                 </div>
               </div>
             </div>
@@ -422,7 +447,7 @@ export default function ExchangeDetailPage() {
           {/* Original Order */}
           {order && (
             <div className="bg-background border border-foreground/[0.05] rounded-xl p-5">
-              <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em] mb-4">Original Order</p>
+              <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em] mb-4">Original Order Details</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
                   <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Shopify Order</p>
@@ -437,8 +462,8 @@ export default function ExchangeDetailPage() {
                   <p className="text-[12px] font-semibold text-foreground mt-1 capitalize">{order.paymentStatus}</p>
                 </div>
                 <div>
-                  <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Date</p>
-                  <p className="text-[12px] font-semibold text-foreground mt-1">{new Date(order.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                  <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Exact Order Time</p>
+                  <p className="text-[11px] font-semibold text-foreground mt-1 font-mono">{formatExactDateTime(order.createdAt, true)}</p>
                 </div>
               </div>
             </div>

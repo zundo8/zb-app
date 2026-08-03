@@ -121,3 +121,83 @@ export function formatProductDescription(content: string | null | undefined): st
   return `<p>${trimmed}</p>`;
 }
 
+/**
+ * Formats a date string or Date object to an exact, human-readable date AND time.
+ * Example: "Aug 04, 2026 at 04:35:02 AM" or "04 Aug 2026, 04:35 AM"
+ */
+export function formatExactDateTime(dateInput: string | Date | null | undefined, includeSeconds = false): string {
+  if (!dateInput) return "N/A";
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return "N/A";
+
+  const options: Intl.DateTimeFormatOptions = {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  };
+
+  if (includeSeconds) {
+    options.second = "2-digit";
+  }
+
+  return date.toLocaleString("en-IN", options);
+}
+
+/**
+ * Robustly extracts size and variant information from product titles, SKUs, and variant properties.
+ */
+export function extractItemVariantAndSize(
+  title?: string | null,
+  sku?: string | null,
+  variantTitle?: string | null
+): { size: string | null; variant: string | null; formattedLabel: string | null } {
+  let size: string | null = null;
+  let variant: string | null = null;
+
+  // 1. Explicit variant title provided (e.g. "Size: M", "XL", "Black / L")
+  if (variantTitle && variantTitle !== "Default Title" && variantTitle !== "Default") {
+    variant = variantTitle.trim();
+    const vMatch = variant.match(/(?:Size:\s*|\b)(XS|S|M|L|XL|2XL|3XL|XXL|XXXL|\d{2,3})(?:\b|$)/i);
+    if (vMatch) {
+      size = vMatch[1].toUpperCase();
+    }
+  }
+
+  // 2. Extract size from product title (e.g. "Double Loopback Hoodie - XL" or "Oversized Tee (Size: M)")
+  if (!size && title) {
+    const titleMatch = title.match(/(?:-\s*|\/\s*|Size:\s*|\(\s*)(XS|S|M|L|XL|2XL|3XL|XXL|XXXL)(?:\s*\)|\b)/i);
+    if (titleMatch) {
+      size = titleMatch[1].toUpperCase();
+    }
+  }
+
+  // 3. Extract size from SKU (e.g. "ZB22TS01M", "HOODIE-BLK-XL", "TEE-L")
+  if (!size && sku) {
+    const skuMatch = sku.match(/(?:[-_])(XS|S|M|L|XL|2XL|3XL|XXL|XXXL)$/i) ||
+                     sku.match(/ZB\d+[A-Z]+\d+(XS|S|M|L|XL|2XL|3XL|XXL|XXXL)$/i);
+    if (skuMatch) {
+      size = skuMatch[1].toUpperCase();
+    }
+  }
+
+  // 4. Extract variant name from title if title contains separator
+  if (!variant && title && title.includes("-")) {
+    const parts = title.split("-").map(p => p.trim());
+    if (parts.length > 1) {
+      variant = parts.slice(1).join(" - ");
+    }
+  }
+
+  const formattedLabel = size ? `Size: ${size}` : (variant || (sku ? `SKU: ${sku}` : null));
+
+  return {
+    size,
+    variant: variant || size,
+    formattedLabel,
+  };
+}
+
+

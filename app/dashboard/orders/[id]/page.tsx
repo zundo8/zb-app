@@ -37,6 +37,7 @@ import {
   ScanLine
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 import DelhiveryActions from "@/components/orders/DelhiveryActions";
 import LineItemEditor from "@/components/orders/LineItemEditor";
 
@@ -417,10 +418,16 @@ export default function OrderDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-6 px-4">
-              <p className="text-[11px] text-foreground/40 font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                {new Date(order.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              <p className="text-[11px] text-foreground/70 font-mono uppercase tracking-wide flex items-center gap-2">
+                <Clock className="w-4 h-4 text-foreground/40" />
+                Placed: {formatExactDateTime(order.createdAt, true)}
               </p>
+              {order.paymentCapturedAt && (
+                <p className="text-[10px] text-emerald-400 font-mono uppercase tracking-wide flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Captured: {formatExactDateTime(order.paymentCapturedAt)}
+                </p>
+              )}
               {order.shopifyOrderId && !order.shopifyOrderId.startsWith('#') && (
                 <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
@@ -564,7 +571,17 @@ export default function OrderDetailPage() {
                       {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <Box className="w-6 h-6 text-foreground/10 mx-auto mt-5" />}
                     </div>
                     <div className="space-y-1">
-                      <h4 className="text-[14px] font-semibold text-foreground tracking-tight">{item.title}</h4>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h4 className="text-[14px] font-bold text-foreground tracking-tight">{item.title}</h4>
+                        {(() => {
+                          const vInfo = extractItemVariantAndSize(item.title, item.sku);
+                          return vInfo.size ? (
+                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono font-bold uppercase border border-emerald-500/20">
+                              Size: {vInfo.size}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                       <div className="flex flex-wrap items-center gap-3">
                         <span className="text-[10px] text-foreground/60 dark:text-foreground/45 font-bold uppercase tracking-widest">
                           QTY: {item.quantity}

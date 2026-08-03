@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Search, CheckCircle2, XCircle, RefreshCw, Package, CreditCard, AlertTriangle, Check, X, Clock, Inbox, Eye, ArrowRight, TruckIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 
 type ReturnRequest = {
   returnRequestId: string;
@@ -320,20 +321,41 @@ export default function ReturnsPage() {
                     onClick={() => router.push(`/dashboard/returns/${req.returnRequestId}`)}
                   >
                     <td className="px-4 py-3">
-                      <span className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId || req.orderId?.slice(0, 8)}</span>
+                      <div className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId || req.orderId?.slice(0, 8)}</div>
+                      {(req as any).orderCreatedAt && (
+                        <div className="text-[9px] text-foreground/40 mt-0.5 font-mono">
+                          Ordered: {formatExactDateTime((req as any).orderCreatedAt)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-[11px] font-medium text-foreground">{req.userName}</div>
                       <div className="text-[9px] text-foreground/40 mt-0.5">{req.userEmail}</div>
                     </td>
-                    <td className="px-4 py-3 max-w-[200px] whitespace-normal hidden md:table-cell">
-                      {req.items?.slice(0, 2).map((item: any, idx: number) => (
-                        <div key={idx} className="text-[10px] text-foreground/70 mb-1">
-                          <span className="font-semibold">{item.product?.title || item.title || "Item"}</span> - {item.reason}
-                        </div>
-                      ))}
+                    <td className="px-4 py-3 max-w-[260px] whitespace-normal hidden md:table-cell">
+                      {req.items?.slice(0, 2).map((item: any, idx: number) => {
+                        const itemTitle = item.product?.title || item.title || "Returned Item";
+                        const itemSku = item.sku || item.product?.sku;
+                        const vInfo = extractItemVariantAndSize(itemTitle, itemSku, item.variantTitle);
+                        return (
+                          <div key={idx} className="text-[10px] text-foreground/80 mb-1.5 p-1.5 rounded-lg bg-foreground/[0.02] border border-foreground/5">
+                            <div className="font-semibold text-foreground flex items-center justify-between gap-2">
+                              <span>{itemTitle}</span>
+                              {vInfo.size && (
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-mono font-bold uppercase border border-emerald-500/20">
+                                  Size: {vInfo.size}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[9px] text-foreground/40 mt-0.5 flex items-center justify-between gap-2">
+                              <span>Reason: {item.reason || "Return"}</span>
+                              {itemSku && <span className="font-mono text-[8px]">SKU: {itemSku}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
                       {req.items?.length > 2 && (
-                        <span className="text-[9px] text-foreground/40">+{req.items.length - 2} more</span>
+                        <span className="text-[9px] text-foreground/40 font-medium">+{req.items.length - 2} more items</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -343,7 +365,8 @@ export default function ReturnsPage() {
                       <StatusBadge status={req.status} />
                     </td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
-                      <span className="text-[10px] text-foreground/50">{new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                      <div className="text-[10px] font-medium text-foreground/70">{formatExactDateTime(req.createdAt)}</div>
+                      <div className="text-[8px] text-foreground/30 uppercase tracking-widest font-mono">Requested At</div>
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">

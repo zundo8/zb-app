@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Inbox, ArrowRight, X, Search, Plus, Eye, Package, TruckIcon, CreditCard, ArrowLeftRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 
 type ExchangeRequest = {
   exchangeRequestId: string;
@@ -323,22 +324,54 @@ export default function ExchangesPage() {
                     onClick={() => router.push(`/dashboard/exchanges/${req.exchangeRequestId}`)}
                   >
                     <td className="px-4 py-3">
-                      <span className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId || req.orderId?.slice(0, 8)}</span>
+                      <div className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId || req.orderId?.slice(0, 8)}</div>
+                      {(req as any).orderCreatedAt && (
+                        <div className="text-[9px] text-foreground/40 mt-0.5 font-mono">
+                          Ordered: {formatExactDateTime((req as any).orderCreatedAt)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-[11px] font-medium text-foreground">{req.userName}</div>
                       <div className="text-[9px] text-foreground/40 mt-0.5">{req.userEmail}</div>
                     </td>
-                    <td className="px-4 py-3 max-w-[250px] whitespace-normal hidden md:table-cell">
-                      {req.items?.slice(0, 2).map((item: any, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2 mb-1.5 text-[10px] text-foreground/70">
-                          <span className="line-through opacity-70">{item.originalProduct?.title || item.originalItem?.title || "Item"}</span>
-                          <ArrowRight className="w-3 h-3 text-foreground/40 shrink-0" />
-                          <span className="font-semibold text-foreground">{item.newProduct?.title || item.newProductTitle || "Replacement"}</span>
-                        </div>
-                      ))}
+                    <td className="px-4 py-3 max-w-[320px] whitespace-normal hidden md:table-cell">
+                      {req.items?.slice(0, 2).map((item: any, idx: number) => {
+                        const origTitle = item.originalProduct?.title || item.originalItem?.title || "Original Item";
+                        const origSku = item.originalProduct?.sku || item.originalSku;
+                        const origV = extractItemVariantAndSize(origTitle, origSku, item.originalVariant);
+
+                        const newTitle = item.newProduct?.title || item.newProductTitle || "Replacement Item";
+                        const newSku = item.newProduct?.sku || item.newSku;
+                        const newV = extractItemVariantAndSize(newTitle, newSku, item.newVariant);
+
+                        return (
+                          <div key={idx} className="p-2 rounded-lg bg-foreground/[0.02] border border-foreground/5 mb-1.5 text-[10px]">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5 line-through opacity-70">
+                                <span>{origTitle}</span>
+                                {origV.size && (
+                                  <span className="px-1 py-0.2 rounded bg-foreground/10 text-[8px] font-mono font-bold">
+                                    {origV.size}
+                                  </span>
+                                )}
+                              </div>
+                              <ArrowRight className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                                <span>{newTitle}</span>
+                                {newV.size && (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-mono font-bold border border-emerald-500/20">
+                                    Size: {newV.size}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {item.reason && <div className="text-[9px] text-foreground/40 mt-1">Reason: {item.reason}</div>}
+                          </div>
+                        );
+                      })}
                       {req.items?.length > 2 && (
-                        <span className="text-[9px] text-foreground/40">+{req.items.length - 2} more</span>
+                        <span className="text-[9px] text-foreground/40 font-medium">+{req.items.length - 2} more items</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -351,7 +384,8 @@ export default function ExchangesPage() {
                       <StatusBadge status={req.status} />
                     </td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
-                      <span className="text-[10px] text-foreground/50">{new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                      <div className="text-[10px] font-medium text-foreground/70">{formatExactDateTime(req.createdAt)}</div>
+                      <div className="text-[8px] text-foreground/30 uppercase tracking-widest font-mono">Requested At</div>
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">

@@ -18,6 +18,7 @@ import {
   Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 
 interface OrderItem {
   id: string;
@@ -437,18 +438,39 @@ export default function OrdersPage() {
                           </div>
                         )}
                       </div>
-                      <p className="text-[10px] text-foreground/25 font-bold uppercase tracking-widest flex items-center gap-2">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      <p className="text-[10px] text-foreground/50 font-medium tracking-wide flex items-center gap-1.5 mt-0.5 font-mono">
+                        <Calendar className="w-3 h-3 text-foreground/30" />
+                        {formatExactDateTime(order.createdAt, true)}
                       </p>
                     </div>
                   </div>
 
                   <div className="col-span-3">
                     <p className="text-[14px] font-bold text-foreground/80 tracking-tight mb-0.5">{order.customer?.name || "Guest Checkout"}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-foreground/25 font-semibold truncate max-w-[200px]">
+                    <div className="flex items-center gap-2 text-[10px] text-foreground/40 font-semibold truncate max-w-[200px] mb-1">
                       {order.customer?.email || order.customer?.phone || "Private Contact"}
                     </div>
+                    {order.items && order.items.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {order.items.slice(0, 2).map((item, idx) => {
+                          const vInfo = extractItemVariantAndSize(item.title, item.sku);
+                          return (
+                            <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-foreground/5 text-[9px] text-foreground/70 border border-foreground/5 font-mono">
+                              <span className="font-semibold text-foreground truncate max-w-[100px]">{item.title}</span>
+                              {vInfo.size && (
+                                <span className="font-bold text-emerald-400 bg-emerald-500/10 px-1 rounded">
+                                  {vInfo.size}
+                                </span>
+                              )}
+                              <span className="text-foreground/40">x{item.quantity}</span>
+                            </span>
+                          );
+                        })}
+                        {order.items.length > 2 && (
+                          <span className="text-[9px] text-foreground/30 font-bold self-center">+{order.items.length - 2} more</span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="col-span-2">

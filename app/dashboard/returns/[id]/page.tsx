@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Check, X, Clock, Package, TruckIcon, CheckCircle2, XCircle, CreditCard, AlertTriangle, RefreshCw, User, MapPin, Mail, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 
 const STATUS_STEPS = [
   { key: "pending_approval", label: "Requested", icon: Clock },
@@ -198,8 +199,8 @@ export default function ReturnDetailPage() {
               <h1 className="text-lg font-semibold text-foreground tracking-tight">Return #{(data.id || returnId).slice(0, 8)}</h1>
               <StatusBadge status={currentStatus} />
             </div>
-            <p className="text-[10px] text-foreground/40 mt-0.5">
-              Created {new Date(data.createdAt || data.requestedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+            <p className="text-[10px] font-medium text-foreground/50 mt-0.5 font-mono">
+              Requested on: {formatExactDateTime(data.createdAt || data.requestedAt, true)}
             </p>
           </div>
         </div>
@@ -271,49 +272,62 @@ export default function ReturnDetailPage() {
               <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em]">Returned Items ({returnItems.length})</p>
             </div>
             <div className="divide-y divide-foreground/[0.03]">
-              {returnItems.map((item: any, idx: number) => (
-                <div key={idx} className="p-5 flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
-                    {item.product?.featuredImage ? (
-                      <img src={item.product.featuredImage} alt={item.product?.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <Package className="w-5 h-5 text-foreground/20" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[12px] font-semibold text-foreground">{item.product?.title || item.title || "Product"}</p>
-                        <p className="text-[10px] text-foreground/40 mt-0.5">SKU: {item.sku || "N/A"}</p>
-                      </div>
-                      <StatusBadge status={item.status || "REQUESTED"} />
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-4">
-                      <div>
-                        <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Reason</p>
-                        <p className="text-[11px] text-foreground/70 mt-0.5">{item.reason || "Not specified"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Refund Amount</p>
-                        <p className="text-[11px] font-semibold text-foreground mt-0.5">₹{(item.refundAmount || 0).toLocaleString("en-IN")}</p>
-                      </div>
-                      {item.storeCreditAmount > 0 && (
-                        <div>
-                          <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Store Credit</p>
-                          <p className="text-[11px] font-semibold text-emerald-500 mt-0.5">₹{item.storeCreditAmount.toLocaleString("en-IN")}</p>
-                        </div>
+              {returnItems.map((item: any, idx: number) => {
+                const itemTitle = item.product?.title || item.title || "Product";
+                const itemSku = item.sku || item.product?.sku;
+                const vInfo = extractItemVariantAndSize(itemTitle, itemSku, item.variantTitle);
+
+                return (
+                  <div key={idx} className="p-5 flex items-start gap-4">
+                    <div className="w-16 h-16 rounded-xl bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
+                      {item.product?.featuredImage ? (
+                        <img src={item.product.featuredImage} alt={itemTitle} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="w-5 h-5 text-foreground/20" />
                       )}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[13px] font-bold text-foreground">{itemTitle}</p>
+                            {vInfo.size && (
+                              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[9px] font-mono font-bold uppercase border border-emerald-500/20">
+                                Size: {vInfo.size}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-foreground/40 mt-1 font-mono">SKU: {itemSku || "N/A"} • Qty: {item.quantity || 1}</p>
+                        </div>
+                        <StatusBadge status={item.status || "REQUESTED"} />
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-4 pt-2 border-t border-foreground/5">
+                        <div>
+                          <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Reason</p>
+                          <p className="text-[11px] text-foreground/70 mt-0.5">{item.reason || "Not specified"}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Refund Amount</p>
+                          <p className="text-[11px] font-semibold text-foreground mt-0.5">₹{(item.refundAmount || 0).toLocaleString("en-IN")}</p>
+                        </div>
+                        {item.storeCreditAmount > 0 && (
+                          <div>
+                            <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Store Credit</p>
+                            <p className="text-[11px] font-semibold text-emerald-500 mt-0.5">₹{item.storeCreditAmount.toLocaleString("en-IN")}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Order Details */}
           {order && (
             <div className="bg-background border border-foreground/[0.05] rounded-xl p-5">
-              <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em] mb-4">Original Order</p>
+              <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em] mb-4">Original Order Details</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
                   <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Shopify Order</p>
@@ -328,8 +342,8 @@ export default function ReturnDetailPage() {
                   <p className="text-[12px] font-semibold text-foreground mt-1 capitalize">{order.paymentStatus}</p>
                 </div>
                 <div>
-                  <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Order Date</p>
-                  <p className="text-[12px] font-semibold text-foreground mt-1">{new Date(order.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                  <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Exact Order Time</p>
+                  <p className="text-[11px] font-semibold text-foreground mt-1 font-mono">{formatExactDateTime(order.createdAt, true)}</p>
                 </div>
               </div>
             </div>
