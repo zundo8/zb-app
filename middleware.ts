@@ -20,7 +20,8 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
   LOGISTICS: ["/dashboard/logistics"],
   RETURNS_EXCHANGES: [
     "/dashboard/returns",
-    "/dashboard/exchanges"
+    "/dashboard/exchanges",
+    "/dashboard/refunds"
   ],
   STOREFRONT: [
     "/web-store",
@@ -63,6 +64,7 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
     "/dashboard/payments",
     "/dashboard/payments/store-credits",
     "/dashboard/payments/refunds",
+    "/dashboard/refunds",
   ],
   MANUFACTURING: [
     "/dashboard/manufacturing",

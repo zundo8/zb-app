@@ -81,6 +81,7 @@ const MODULE_PAGES: Record<string, { name: string; href: string }[]> = {
   RETURNS_EXCHANGES: [
     { name: "Returns Portal", href: "/dashboard/returns" },
     { name: "Exchanges Portal", href: "/dashboard/exchanges" },
+    { name: "Refunds Portal", href: "/dashboard/refunds" },
   ],
   STOREFRONT: [
     { name: "Overview Dashboard", href: "/web-store" },
@@ -108,10 +109,10 @@ const MODULE_PAGES: Record<string, { name: string; href: string }[]> = {
     { name: "Customer Wishlist", href: "/dashboard/wishlist" },
     { name: "Push Notifications", href: "/dashboard/notifications" },
     { name: "Discounts & Promos", href: "/dashboard/marketing/discounts" },
-    { name: "WhatsApp Campaign Hub", href: "/dashboard/marketing/whatsapp" },
-    { name: "Email Campaigns", href: "/dashboard/marketing/email" },
+    { name: "WhatsApp Marketing Hub", href: "/dashboard/marketing/whatsapp" },
+    { name: "Email Marketing Center", href: "/dashboard/marketing/email" },
     { name: "SMS Campaigns", href: "/dashboard/marketing/sms" },
-    { name: "WhatsApp Events Overview", href: "/dashboard/whatsapp-events/overview" },
+    { name: "WhatsApp Overview", href: "/dashboard/whatsapp-events/overview" },
     { name: "WhatsApp Events Feed", href: "/dashboard/whatsapp-events/events" },
     { name: "WhatsApp Campaign Analytics", href: "/dashboard/whatsapp-events/campaign-analytics" },
     { name: "WhatsApp Template Manager", href: "/dashboard/whatsapp-events/templates" },
@@ -121,7 +122,7 @@ const MODULE_PAGES: Record<string, { name: string; href: string }[]> = {
   FINANCIAL: [
     { name: "Payments Dashboard", href: "/dashboard/payments" },
     { name: "Store Credits Manager", href: "/dashboard/payments/store-credits" },
-    { name: "Refunds Portal", href: "/dashboard/payments/refunds" },
+    { name: "Refunds Portal", href: "/dashboard/refunds" },
   ],
   MANUFACTURING: [
     { name: "Manufacturing Hub", href: "/dashboard/manufacturing" },

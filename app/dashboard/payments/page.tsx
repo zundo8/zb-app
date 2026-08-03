@@ -28,7 +28,7 @@ export default function PaymentsPage() {
       title: "Refunds",
       description: "View and track all refunds issued through returns or manual processes.",
       icon: ArrowRightLeft,
-      href: "/dashboard/payments/refunds",
+      href: "/dashboard/refunds",
       color: "text-rose-500",
       bg: "bg-rose-500/10",
       stats: "Track Refunds"

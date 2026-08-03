@@ -108,6 +108,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/dashboard/payments": "Payments Board",
   "/dashboard/payments/store-credits": "Store Credits Wallet",
   "/dashboard/payments/refunds": "Refunds Queue",
+  "/dashboard/refunds": "Refunds Queue",
   "/dashboard/manufacturing": "Manufacturing Hub",
   "/dashboard/manufacturing/designs": "Design Assignments",
   "/dashboard/manufacturing/samples": "Sample Room",
