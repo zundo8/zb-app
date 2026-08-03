@@ -107,10 +107,58 @@ export async function GET(request: Request) {
 }
 
 function deduplicateWebStoreOrders(orders: any[]) {
+  if (!orders || orders.length === 0) return [];
+
+  // Step 1: Group and deduplicate by exact orderNumber or razorpayOrderId
+  const uniqueByNumber = new Map<string, any>();
+
+  for (const order of orders) {
+    const numKey = (order.orderNumber || "").trim().toUpperCase();
+    const rzpKey = (order.razorpayOrderId || "").trim();
+
+    let existingKey = "";
+    if (numKey && numKey !== "N/A") {
+      existingKey = `NUM_${numKey}`;
+    } else if (rzpKey) {
+      existingKey = `RZP_${rzpKey}`;
+    }
+
+    if (existingKey) {
+      const existing = uniqueByNumber.get(existingKey);
+      if (!existing) {
+        uniqueByNumber.set(existingKey, order);
+      } else {
+        const existingStatus = (existing.paymentStatus || "").toLowerCase();
+        const currentStatus = (order.paymentStatus || "").toLowerCase();
+
+        const statusRank = (s: string) => {
+          if (s === "paid" || s === "cod_upfront_paid") return 3;
+          if (s === "pending" || s === "open" || s === "payment_pending") return 2;
+          return 1;
+        };
+
+        if (statusRank(currentStatus) > statusRank(existingStatus)) {
+          uniqueByNumber.set(existingKey, order);
+        } else if (statusRank(currentStatus) === statusRank(existingStatus)) {
+          const existingTime = new Date(existing.updatedAt || existing.createdAt).getTime();
+          const currentTime = new Date(order.updatedAt || order.createdAt).getTime();
+          if (currentTime > existingTime) {
+            uniqueByNumber.set(existingKey, order);
+          }
+        }
+      }
+    } else {
+      uniqueByNumber.set(`ID_${order.id}`, order);
+    }
+  }
+
+  const dedupedList = Array.from(uniqueByNumber.values());
+
+  // Step 2: Separate confirmed vs unconfirmed
   const confirmedOrders: any[] = [];
   const unconfirmedOrders: any[] = [];
 
-  for (const order of orders) {
+  for (const order of dedupedList) {
     const pStatus = (order.paymentStatus || "").toLowerCase().trim();
     const pMethod = (order.paymentMethod || "").toLowerCase().trim();
     const isPaid = pStatus === "paid" || pStatus === "cod_upfront_paid" || pStatus === "refunded";
@@ -123,13 +171,14 @@ function deduplicateWebStoreOrders(orders: any[]) {
     }
   }
 
-  const finalOrders: any[] = [...confirmedOrders];
-
+  // Step 3: Collapse unconfirmed orders for customers with a confirmed order in the same session window
   const getCustomerKey = (o: any) => {
     const email = (o.customerEmail || "").toLowerCase().trim();
     const phone = (o.customerPhone || "").replace(/\D/g, "").slice(-10);
     return email || phone || o.id;
   };
+
+  const finalOrders: any[] = [...confirmedOrders];
 
   const unconfirmedByCustomer: { [key: string]: any[] } = {};
   for (const uOrder of unconfirmedOrders) {
