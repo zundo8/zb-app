@@ -32,6 +32,42 @@ export async function POST(req: Request) {
       storeCreditAmount = 0,
     } = body;
 
+    let finalCouponCode = couponCode ? String(couponCode).trim().toUpperCase() : null;
+    let finalCouponDiscount = Number(couponDiscount) || 0;
+
+    const pmUpper = (paymentMethod || '').toUpperCase().trim();
+    const isCodOrder = pmUpper === 'COD' || pmUpper.includes('COD');
+
+    if (finalCouponCode) {
+      const dbCoupon = await prisma.webStoreCoupon.findFirst({
+        where: { code: finalCouponCode, isActive: true }
+      });
+
+      if (!dbCoupon) {
+        finalCouponCode = null;
+        finalCouponDiscount = 0;
+      } else {
+        if (dbCoupon.applicability === 'PREPAID_ONLY' && isCodOrder) {
+          console.warn(`[Checkout Complete] Stripped PREPAID_ONLY coupon ${finalCouponCode} from COD order`);
+          finalCouponCode = null;
+          finalCouponDiscount = 0;
+        } else if (dbCoupon.applicability === 'COD_ONLY' && !isCodOrder) {
+          console.warn(`[Checkout Complete] Stripped COD_ONLY coupon ${finalCouponCode} from prepaid order`);
+          finalCouponCode = null;
+          finalCouponDiscount = 0;
+        } else if (dbCoupon.applicability === 'CUSTOM_RATES') {
+          const rateType = isCodOrder ? dbCoupon.codDiscountType : dbCoupon.prepaidDiscountType;
+          const rateVal = Number(isCodOrder ? dbCoupon.codDiscountValue : dbCoupon.prepaidDiscountValue);
+          const sub = Number(subtotal || 0);
+          if (rateType === 'percentage') {
+            finalCouponDiscount = Math.round((sub * rateVal) / 100);
+          } else {
+            finalCouponDiscount = Math.min(rateVal, sub);
+          }
+        }
+      }
+    }
+
     const parsedStoreCredit = Number(storeCreditAmount) || 0;
     const isFullStoreCredit = paymentMethod === "store_credit" || paymentMethod === "STORE_CREDIT" || Number(total) === 0;
 
@@ -308,11 +344,11 @@ export async function POST(req: Request) {
       ],
       total_tax: 0,
       currency: "INR",
-      ...(couponDiscount && Number(couponDiscount) > 0 ? {
+      ...(finalCouponDiscount && Number(finalCouponDiscount) > 0 ? {
         discount_codes: [
           {
-            code: couponCode || "DISCOUNT",
-            amount: parseFloat(String(couponDiscount)).toFixed(2),
+            code: finalCouponCode || "DISCOUNT",
+            amount: parseFloat(String(finalCouponDiscount)).toFixed(2),
             type: "fixed_amount"
           }
         ]
@@ -434,7 +470,6 @@ export async function POST(req: Request) {
     }
 
     let localOrder: any = null;
-    const isCodOrder = paymentMethod.toUpperCase() === "COD" || paymentMethod.toLowerCase() === "cod";
     const finalPaymentMethod = isFullStoreCredit ? "store_credit" : isCodOrder ? "cod" : "razorpay";
 
     if (existingPreCreatedOrder) {
@@ -484,8 +519,8 @@ export async function POST(req: Request) {
           paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
           orderType: "WEB_STORE",
           tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
-          discountCode: couponCode || null,
-          discountAmount: Number(couponDiscount) || 0,
+          discountCode: finalCouponCode || null,
+          discountAmount: Number(finalCouponDiscount) || 0,
           internalOrderNumber: universalOrderNumber,
           shopifyOrderName: sOrder ? sOrder.name : null,
           shopifySyncStatus: sOrder ? 'synced' : 'failed',
@@ -675,8 +710,8 @@ export async function POST(req: Request) {
             })) as any,
             subtotal: subtotal,
             shippingCharge: 0,
-            discountCode: couponCode || null,
-            discountAmount: Number(couponDiscount) || 0,
+            discountCode: finalCouponCode || null,
+            discountAmount: Number(finalCouponDiscount) || 0,
             storeCreditAmount: parsedStoreCredit,
             totalAmount: total,
             paymentStatus: isFullStoreCredit ? "paid" : isCodOrder ? "cod_upfront_paid" : "paid",

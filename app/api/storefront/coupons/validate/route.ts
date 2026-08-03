@@ -78,8 +78,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // Check payment method applicability
-    const isCOD = paymentMethod?.toUpperCase() === "COD";
+    // Check payment method applicability (COD upfront payment is STILL a COD order)
+    const pmUpper = (paymentMethod || "").toUpperCase().trim();
+    const isCOD = pmUpper === "COD" || pmUpper.includes("COD");
 
     if (coupon.applicability === "PREPAID_ONLY" && isCOD) {
       return NextResponse.json({

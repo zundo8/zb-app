@@ -1120,7 +1120,7 @@ export default function CheckoutPage() {
 
   // Client-side local evaluation helper for ranking coupons
   const calculateCouponDiscount = useCallback((coupon: any, subtotalAmount: number, payMethod: string) => {
-    const isCOD = payMethod === "COD";
+    const isCOD = payMethod === "COD" || (payMethod && payMethod.toUpperCase().includes("COD"));
 
     // check minimum order value
     if (subtotalAmount < Number(coupon.minOrderValue || 0)) {
@@ -1281,12 +1281,12 @@ export default function CheckoutPage() {
     }
   }, [activeCoupons, subtotal, paymentMethod, isManualCoupon, calculateCouponDiscount]);
 
-  // Re-validate coupon when payment method changes (only for manually applied/pinned coupons)
+  // Re-validate coupon when payment method changes (for ALL coupons to ensure PREPAID_ONLY is never allowed for COD)
   useEffect(() => {
-    if (isManualCoupon && couponValid && couponCode) {
-      handleApplyCoupon(couponCode, paymentMethod, false);
+    if (couponCode) {
+      handleApplyCoupon(couponCode, paymentMethod, !isManualCoupon);
     }
-  }, [paymentMethod, isManualCoupon]);
+  }, [paymentMethod]);
 
   const handlePlaceOrder = async () => {
     // Synchronous double-submit lock check

@@ -56,6 +56,42 @@ export async function POST(req: Request) {
       storeCreditAmount = 0,
     } = await req.json();
 
+    let finalCouponCode = couponCode ? String(couponCode).trim().toUpperCase() : null;
+    let finalCouponDiscount = Number(couponDiscount) || 0;
+
+    const pmUpper = (paymentMethod || '').toUpperCase().trim();
+    const isCodOrder = pmUpper === 'COD' || pmUpper.includes('COD');
+
+    if (finalCouponCode) {
+      const dbCoupon = await prisma.webStoreCoupon.findFirst({
+        where: { code: finalCouponCode, isActive: true }
+      });
+
+      if (!dbCoupon) {
+        finalCouponCode = null;
+        finalCouponDiscount = 0;
+      } else {
+        if (dbCoupon.applicability === 'PREPAID_ONLY' && isCodOrder) {
+          console.warn(`[Razorpay Checkout] Stripped PREPAID_ONLY coupon ${finalCouponCode} from COD order`);
+          finalCouponCode = null;
+          finalCouponDiscount = 0;
+        } else if (dbCoupon.applicability === 'COD_ONLY' && !isCodOrder) {
+          console.warn(`[Razorpay Checkout] Stripped COD_ONLY coupon ${finalCouponCode} from prepaid order`);
+          finalCouponCode = null;
+          finalCouponDiscount = 0;
+        } else if (dbCoupon.applicability === 'CUSTOM_RATES') {
+          const rateType = isCodOrder ? dbCoupon.codDiscountType : dbCoupon.prepaidDiscountType;
+          const rateVal = Number(isCodOrder ? dbCoupon.codDiscountValue : dbCoupon.prepaidDiscountValue);
+          const sub = Number(subtotal || amount);
+          if (rateType === 'percentage') {
+            finalCouponDiscount = Math.round((sub * rateVal) / 100);
+          } else {
+            finalCouponDiscount = Math.min(rateVal, sub);
+          }
+        }
+      }
+    }
+
     // Validate required fields
     if (!amount || typeof amount !== "number" || amount <= 0) {
       return NextResponse.json(
@@ -181,8 +217,8 @@ export async function POST(req: Request) {
               note: storeCreditAmount > 0
                 ? `Order creation in process - ₹${storeCreditAmount} Store Credit applied - Remaining Payment pending`
                 : "Order creation in process - Payment pending",
-              discountCode: couponCode || null,
-              discountAmount: Number(couponDiscount) || 0,
+              discountCode: finalCouponCode || null,
+              discountAmount: Number(finalCouponDiscount) || 0,
               storeCreditAmount: Number(storeCreditAmount) || 0,
               internalOrderNumber: universalOrderNumber,
               shopifySyncStatus: 'failed',
