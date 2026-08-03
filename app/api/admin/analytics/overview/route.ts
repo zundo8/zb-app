@@ -43,8 +43,8 @@ async function handler(req: Request) {
 
     const platformFilter = platform ? { platform } : {};
 
-    const paidStatuses = ['paid'];
-    const excludeStatuses = ['cancelled'];
+    const paidStatuses = ['paid', 'cod_upfront_paid', 'cod', 'pending', 'open', 'partially_paid', 'authorized'];
+    const excludeStatuses = ['cancelled', 'payment_failed'];
 
     // ─── 1. REVENUE & ORDERS (CURR & PREV) ───────────────────────────
     const [revenueAgg, prevRevenueAgg, refundAgg] = await Promise.all([

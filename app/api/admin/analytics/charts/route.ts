@@ -40,8 +40,8 @@ async function handler(req: Request) {
       COALESCE(SUM("totalPrice"), 0) AS revenue
     FROM "Order"
     WHERE "createdAt" >= $1 AND "createdAt" <= $2
-      AND "paymentStatus" IN ('paid')
-      AND "status" NOT IN ('cancelled')
+      AND "paymentStatus" IN ('paid', 'cod_upfront_paid', 'cod', 'pending', 'open', 'partially_paid', 'authorized')
+      AND "status" NOT IN ('cancelled', 'payment_failed')
       ${orderTypeCondition}
     GROUP BY bucket
     ORDER BY bucket ASC
