@@ -14,7 +14,6 @@ export default function robots(): MetadataRoute.Robots {
     '/cart',
     '/login',
     '/unauthorized',
-    '/_next/',
   ];
 
   return {

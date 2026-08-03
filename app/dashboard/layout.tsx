@@ -170,6 +170,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [session, pathname, router]);
 
+  // Admin Inactivity Auto-logout (1 hour = 3,600,000 ms)
+  useEffect(() => {
+    const role = (session?.user as any)?.role;
+    if (role !== "ADMIN" && role !== "SUPER_ADMIN") return;
+
+    let inactivityTimer: NodeJS.Timeout;
+    const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 1 hour
+
+    const resetInactivityTimer = () => {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(async () => {
+        console.warn("[AUTH] Auto logging out due to 1 hour of inactivity.");
+        await signOut({ callbackUrl: "/dashboard/login" });
+      }, INACTIVITY_LIMIT_MS);
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    events.forEach((evt) => window.addEventListener(evt, resetInactivityTimer, { passive: true }));
+
+    resetInactivityTimer();
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      events.forEach((evt) => window.removeEventListener(evt, resetInactivityTimer));
+    };
+  }, [session]);
+
   // Scroll the active link into view on mount and when pathname changes
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -210,6 +237,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Price Tags", href: "/dashboard/price-tags", icon: Tag, module: 'INVENTORY' },
     { name: "Returns", href: "/dashboard/returns", icon: Undo2, module: 'RETURNS_EXCHANGES' },
     { name: "Exchanges", href: "/dashboard/exchanges", icon: ArrowLeftRight, module: 'RETURNS_EXCHANGES' },
+    { name: "Refunds", href: "/dashboard/refunds", icon: Coins, module: 'RETURNS_EXCHANGES' },
     { name: "Logistics", href: "/dashboard/logistics", icon: Truck, module: 'LOGISTICS' },
   ];
 

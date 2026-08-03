@@ -91,39 +91,13 @@ export async function POST(req: Request) {
             reason: item.reason || notes || 'Customer requested return via app',
             status: 'REQUESTED',
             returnMethod: method || null,
-            refundMethod: refundMethod || 'ORIGINAL',
+            refundMethod: refundMethod === 'STORE_CREDIT' ? 'store_credit' : 'original_method',
             refundAmount: orderItem.price * (item.quantity || 1),
+            storeCreditAmount: refundMethod === 'STORE_CREDIT' ? orderItem.price * (item.quantity || 1) : 0,
+            refundStatus: 'PENDING',
           },
         });
         createdReturns.push(returnRecord);
-
-        // If customer chose store credits, credit immediately and mark as completed
-        if (refundMethod === 'STORE_CREDIT') {
-          const creditAmount = orderItem.price * (item.quantity || 1);
-          await prisma.$transaction([
-            prisma.customer.update({
-              where: { id: order.customerId },
-              data: { storeCredits: { increment: creditAmount } },
-            }),
-            prisma.storeCredit.create({
-              data: {
-                customerId: order.customerId,
-                amount: creditAmount,
-                type: 'CREDIT',
-                description: `Refund for return on order #${order.shopifyOrderId} — ${orderItem.title}`,
-                orderId: order.id,
-                returnId: returnRecord.id,
-              },
-            }),
-            prisma.return.update({
-              where: { id: returnRecord.id },
-              data: {
-                storeCreditAmount: creditAmount,
-                refundStatus: 'COMPLETED',
-              },
-            }),
-          ]);
-        }
       } else if (action === 'exchange') {
         if (!orderItem.productId) continue;
         const exchangeRecord = await prisma.exchange.create({
@@ -133,10 +107,46 @@ export async function POST(req: Request) {
             newProductId: orderItem.productId,
             status: 'REQUESTED',
             priceDifference: 0,
+            qcStatus: 'pending',
           },
         });
         createdExchanges.push(exchangeRecord);
       }
+    }
+
+    // Send email notification to developer@zicabella.com
+    try {
+      if (createdReturns.length > 0 || createdExchanges.length > 0) {
+        const { sendRefundRequestNotification } = await import('@/lib/services/refundNotificationService');
+        const isReturn = createdReturns.length > 0;
+        const totalAmount = createdReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+        
+        await sendRefundRequestNotification({
+          returnRequestId: createdReturns[0]?.id,
+          exchangeRequestId: createdExchanges[0]?.id,
+          orderId: order.id,
+          shopifyOrderId: order.shopifyOrderId,
+          customerName: order.customer?.name || 'Customer',
+          customerEmail: order.customer?.email,
+          customerPhone: order.customer?.phone,
+          items: items.map((i) => {
+            const oi = order.items.find((x: any) => x.id === i.lineItemId || x.shopifyLineItemId === i.lineItemId);
+            return {
+              title: oi?.title || oi?.name || 'Requested Item',
+              sku: oi?.sku,
+              quantity: i.quantity || 1,
+              price: oi?.price || 0,
+              reason: i.reason || notes,
+            };
+          }),
+          totalRefundAmount: totalAmount,
+          refundMethod: refundMethod === 'STORE_CREDIT' ? 'store_credit' : 'original_method',
+          reason: notes || items[0]?.reason,
+          requestType: isReturn ? 'RETURN' : 'EXCHANGE',
+        });
+      }
+    } catch (notifErr: any) {
+      console.error('[AppOrderReturn] Notification email error:', notifErr);
     }
 
     const totalCreated = createdReturns.length + createdExchanges.length;

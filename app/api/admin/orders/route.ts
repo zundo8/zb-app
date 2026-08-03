@@ -13,20 +13,11 @@ export async function GET(req: Request) {
     const status = searchParams.get('status');
     const paymentStatus = searchParams.get('paymentStatus');
     const fulfillmentStatus = searchParams.get('fulfillmentStatus');
-    const platform = searchParams.get('platform');
     const search = searchParams.get('search');
-    const sync = searchParams.get('sync') === 'true';
-
-    // Removed automatic live sync on every request to avoid "heavy load" and timeout issues.
-    // Syncing is now handled manually via the 'Sync Shopify' button in the dashboard.
 
     const conditions: any[] = [];
     
     // ─── STRICT ORDER SEPARATION ───
-    // The main Orders page should ONLY show orders where payment has actually completed (or approved COD).
-    // It must EXCLUDE:
-    // 1. WebStore orders that are pending payment, payment failed, or cancelled
-    // 2. Mobile orders that are still in pending/awaiting_approval status
     conditions.push({
       NOT: {
         OR: [
@@ -97,82 +88,112 @@ export async function GET(req: Request) {
     }
 
     const where = conditions.length > 0 ? { AND: conditions } : {};
-    console.log('[Admin Orders] Final WHERE clause:', JSON.stringify(where));
 
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            }
+          },
+          items: true,
+          shipments: {
+            where: { type: 'outbound' },
+            orderBy: { createdAt: 'desc' },
+            take: 1
           }
         },
-        items: true,
-        shipments: {
-          where: { type: 'outbound' },
-          orderBy: { createdAt: 'desc' },
-          take: 1
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip: offset,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.order.count({ where })
+    ]);
+
+    // ─── BATCHED WEB STORE ORDER LOOKUP (ELIMINATES N+1 DB QUERIES) ───
+    const razorpayIds = orders.map((o: any) => o.razorpayOrderId).filter(Boolean);
+    const localIdNotes = orders.map((o: any) => `Local: ${o.id}`);
+    const shopifyIdNotes = orders.map((o: any) => o.shopifyOrderId ? `Shopify: ${o.shopifyOrderId}` : null).filter(Boolean) as string[];
+
+    const orClauses: any[] = [];
+    if (razorpayIds.length > 0) {
+      orClauses.push({ razorpayOrderId: { in: razorpayIds } });
+    }
+    localIdNotes.forEach((noteStr: string) => {
+      orClauses.push({ notes: { contains: noteStr } });
+    });
+    shopifyIdNotes.forEach((noteStr: string) => {
+      orClauses.push({ notes: { contains: noteStr } });
     });
 
-    const total = await prisma.order.count({ where });
+    const webStoreOrders = orClauses.length > 0
+      ? await prisma.webStoreOrder.findMany({ where: { OR: orClauses } })
+      : [];
 
-    const enrichedOrders = await Promise.all(
-      orders.map(async (order: any) => {
-        let webStoreOrder = null;
-        if (order.razorpayOrderId) {
-          webStoreOrder = await prisma.webStoreOrder.findFirst({
-            where: { razorpayOrderId: order.razorpayOrderId }
-          });
-        }
-        if (!webStoreOrder) {
-          webStoreOrder = await prisma.webStoreOrder.findFirst({
-            where: { notes: { contains: `Local: ${order.id}` } }
-          });
-        }
-        if (!webStoreOrder && order.shopifyOrderId) {
-          webStoreOrder = await prisma.webStoreOrder.findFirst({
-            where: { notes: { contains: `Shopify: ${order.shopifyOrderId}` } }
-          });
-        }
+    const byRazorpayId = new Map<string, any>();
+    const byNotes = new Map<string, any>();
 
-        const codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
-        const paymentMethod = webStoreOrder?.paymentMethod || order.paymentMethod;
-        const paymentStatus = webStoreOrder?.paymentStatus || order.paymentStatus;
-        const discountAmount = webStoreOrder?.discountAmount 
-          ? Number(webStoreOrder.discountAmount) 
-          : (order.discountAmount || 0);
+    webStoreOrders.forEach((wso: any) => {
+      if (wso.razorpayOrderId) byRazorpayId.set(wso.razorpayOrderId, wso);
+      if (wso.notes) byNotes.set(wso.notes, wso);
+    });
 
-        let totalPrice = order.totalPrice;
-        const subtotalPrice = order.subtotalPrice || totalPrice;
-        if (discountAmount > 0 && Math.abs(totalPrice - subtotalPrice) < 0.01) {
-          totalPrice = subtotalPrice - discountAmount;
+    const enrichedOrders = orders.map((order: any) => {
+      let webStoreOrder = null;
+      if (order.razorpayOrderId) {
+        webStoreOrder = byRazorpayId.get(order.razorpayOrderId);
+      }
+      if (!webStoreOrder) {
+        for (const [notes, wso] of byNotes.entries()) {
+          if (notes.includes(`Local: ${order.id}`)) {
+            webStoreOrder = wso;
+            break;
+          }
         }
-        
-        let paidAmount = 0;
-        if (paymentMethod === 'COD' || paymentMethod === 'cod') {
-          paidAmount = codUpfrontPaid;
-        } else if (paymentStatus === 'paid' || paymentStatus === 'success') {
-          paidAmount = totalPrice;
+      }
+      if (!webStoreOrder && order.shopifyOrderId) {
+        for (const [notes, wso] of byNotes.entries()) {
+          if (notes.includes(`Shopify: ${order.shopifyOrderId}`)) {
+            webStoreOrder = wso;
+            break;
+          }
         }
+      }
 
-        return {
-          ...order,
-          totalPrice,
-          codUpfrontPaid,
-          paymentMethod,
-          paymentStatus,
-          paidAmount
-        };
-      })
-    );
+      const codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
+      const paymentMethod = webStoreOrder?.paymentMethod || order.paymentMethod;
+      const paymentStatus = webStoreOrder?.paymentStatus || order.paymentStatus;
+      const discountAmount = webStoreOrder?.discountAmount 
+        ? Number(webStoreOrder.discountAmount) 
+        : (order.discountAmount || 0);
+
+      let totalPrice = order.totalPrice;
+      const subtotalPrice = order.subtotalPrice || totalPrice;
+      if (discountAmount > 0 && Math.abs(totalPrice - subtotalPrice) < 0.01) {
+        totalPrice = subtotalPrice - discountAmount;
+      }
+      
+      let paidAmount = 0;
+      if (paymentMethod === 'COD' || paymentMethod === 'cod') {
+        paidAmount = codUpfrontPaid;
+      } else if (paymentStatus === 'paid' || paymentStatus === 'success') {
+        paidAmount = totalPrice;
+      }
+
+      return {
+        ...order,
+        totalPrice,
+        codUpfrontPaid,
+        paymentMethod,
+        paymentStatus,
+        paidAmount
+      };
+    });
 
     return NextResponse.json({
       success: true,

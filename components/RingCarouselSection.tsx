@@ -148,7 +148,7 @@ export default function RingCarouselSection({ title, itemsConfig }: RingCarousel
                     prefetch={false}
                   >
                     {/* Plain minimal card — image only, rounded-none for streetwear vibe */}
-                    <div className="w-full h-full rounded-none overflow-hidden relative bg-foreground/[0.03] transition-all duration-500 group-hover/card:bg-foreground/[0.05]">
+                    <div className="ring-card-hover w-full h-full rounded-none overflow-hidden relative bg-foreground/[0.03] transition-all duration-500">
                       <NextImage
                         src={item.image}
                         alt={item.title || "Accessory"}
@@ -156,7 +156,7 @@ export default function RingCarouselSection({ title, itemsConfig }: RingCarousel
                         sizes="(max-width: 640px) 140px, (max-width: 768px) 160px, (max-width: 1024px) 220px, 260px"
                         quality={75}
                         loading="lazy"
-                        className="object-contain select-none p-3 md:p-5 group-hover/card:scale-105 transition-transform duration-700 ease-out"
+                        className="ring-card-hover-img object-contain select-none p-3 md:p-5 transition-transform duration-700 ease-out"
                         onError={handleImageError}
                       />
                     </div>

@@ -132,15 +132,13 @@ export async function POST(req: NextRequest) {
     const guestDob = req.cookies.get('zb_guest_dob')?.value;
 
     // ── IP Geolocation Fallback ──
-    // If all client-side address cookies are absent (user denied/ignored location prompt)
-    // AND the event is not Purchase or AddPaymentInfo (those use checkout Google Maps data),
+    // If all client-side address cookies are absent (user denied/ignored location prompt),
     // look up city/state/country from the visitor's IP address.
-    // Mirrors the pattern already used in app/api/analytics/track/route.ts.
+    // Applies to ALL events so country/region parameters are always sent to Meta.
     let ipGeo: IpGeoResult | null = null;
     const hasClientGeo = !!(guestCountry || guestState || guestCity || guestZip);
-    const isProtectedEvent = ['Purchase', 'AddPaymentInfo'].includes(eventName);
-    if (!hasClientGeo && !isProtectedEvent) {
-      ipGeo = await lookupIpGeo(getClientIP(req));
+    if (!hasClientGeo) {
+      ipGeo = await lookupIpGeo(ip);
     }
 
     // Issue 5 fix: Apply server-side value adjustment for Purchase and InitiateCheckout.

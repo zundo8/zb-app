@@ -7,6 +7,8 @@ import ProductDetailsClient from "./ProductDetailsClient";
 import { Metadata } from "next";
 import { ProductJsonLd } from "@/components/seo/ProductJsonLd";
 import { Breadcrumb } from "@/components/seo/Breadcrumb";
+import { getProductAggregateRating } from "@/lib/reviews/getProductAggregateRating";
+import { ProductReviews } from "@/components/reviews/ProductReviews";
 
 export const revalidate = 60; // ISR: revalidate every 60 seconds
 
@@ -158,6 +160,9 @@ export default async function ProductPage({ params }: { params: { id: string } }
   const initialPrice = product.variants?.[0]?.price || "0.00";
   const comparePrice = product.variants?.[0]?.compare_at_price;
 
+  // Fetch real aggregate rating from verified reviews — never hardcoded
+  const aggregateRating = await getProductAggregateRating(product.id.toString());
+
   const productLdData = {
     id: product.id.toString(),
     name: product.title,
@@ -171,7 +176,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
     inStock: product.variants?.some(v => (v.inventory_quantity || 0) > 0) || false,
     brand: "Zica Bella",
     category: product.product_type || "Apparel > Tops > T-Shirts",
-    rating: { value: 4.9, count: 184 }
+    rating: aggregateRating, // undefined when no reviews → omits aggregateRating from JSON-LD
   };
 
   return (
@@ -192,6 +197,10 @@ export default async function ProductPage({ params }: { params: { id: string } }
         recommendedProducts={recommendedProducts}
         allImages={images}
       />
+      {/* Verified customer reviews section — on-page content matches JSON-LD */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 text-foreground">
+        <ProductReviews productId={product.id.toString()} />
+      </div>
     </>
   );
 }

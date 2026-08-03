@@ -20,18 +20,45 @@ export async function generateMetadata({
   const { collection } = await fetchCollectionByHandle(params.handle, 1).catch(() => ({ collection: null }));
 
   const titleMap: Record<string, string> = {
-    'graphic-tees': 'Heavyweight Graphic Tees | Premium Streetwear | Zica Bella®',
+    'graphic-tees': 'Heavyweight Graphic Tees for Men | Premium Streetwear | Zica Bella®',
     'tshirts-under-5000': 'Luxury Streetwear Tees Under ₹5000 | Zica Bella®',
-    'oversized-tees': 'Oversized drop-shoulder Tees | Heavyweight Blanks | Zica Bella®',
+    'oversized-tees': 'Oversized Drop-Shoulder T-Shirts for Men | Heavyweight Blanks | Zica Bella®',
+    'tshirts': 'Acid Wash T-Shirts for Men | Vintage Streetwear Tees | Zica Bella®',
+    'authentic-streetwear': 'Heavyweight 240 GSM Cotton T-Shirts for Men | Premium Streetwear | Zica Bella®',
+    'jeans': 'Baggy Jeans & Wide Leg Denim for Men | Streetwear Denim | Zica Bella®',
+    'shorts': 'Denim Jorts & Baggy Shorts for Men | Streetwear Shorts | Zica Bella®',
+    'shirts': 'Oversized Streetwear Shirts for Men | Utility Shirts | Zica Bella®',
+    'jackets': 'Streetwear Jackets for Men | Leather & Denim Jackets | Zica Bella®',
+    'jersey': 'Oversized Streetwear Jerseys for Men | Graphic Jerseys | Zica Bella®',
+    'new-arrivals': 'New Streetwear Arrivals for Men | Latest Drops | Zica Bella®',
+    'best-sellers': 'Best Selling Streetwear for Men | Top Picks | Zica Bella®',
   };
 
   const descMap: Record<string, string> = {
     'graphic-tees':
-      'Explore India\'s finest heavyweight graphic tees. Crafted with custom-engineered oversized drop-shoulder patterns, premium double-yarn cotton, and high-density vintage prints. Wear with intent.',
+      'Explore India\'s finest heavyweight graphic tees for men. Crafted with custom-engineered oversized drop-shoulder patterns, premium double-yarn cotton, and high-density vintage prints. Wear with intent.',
     'tshirts-under-5000':
       'Discover premium graphic tees and oversized street fits under ₹5000. Luxury fabric architecture, hand-finished washes, and bold graphics without the luxury markup.',
     'oversized-tees':
-      'Boxy drop-shoulder oversized t-shirts engineered from custom heavyweight cotton blanks. The ultimate subculture streetwear essential for men & women.',
+      'Boxy drop-shoulder oversized t-shirts for men engineered from custom heavyweight cotton blanks. The ultimate subculture streetwear essential.',
+    'tshirts':
+      'Shop acid wash t-shirts for men at Zica Bella. Each tee features unique vintage acid-wash finishes on heavyweight 240+ GSM cotton, with relaxed drop-shoulder silhouettes and pre-shrunk construction that holds its form.',
+    'authentic-streetwear':
+      'Discover heavyweight 240 GSM cotton t-shirts built for substance over trend. Zica Bella\'s premium blanks use double-yarn combed cotton, delivering structured boxy drape and lasting shape retention from XS to 3XL.',
+    'jeans':
+      'Shop baggy jeans and wide leg denim for men at Zica Bella. Raw-edge finishing, vintage washes, and carpenter-style constructions in relaxed streetwear silhouettes. Premium heavyweight denim designed for bold everyday style.',
+    'shorts':
+      'Shop denim jorts and baggy shorts for men at Zica Bella. Oversized fits with raw-edge hems, acid-wash options, laser-printed graphics, and utility detailing — engineered for summer streetwear.',
+    'shirts':
+      'Discover oversized streetwear shirts for men at Zica Bella. Featuring panelled construction, corduroy accents, utility zip detailing, and relaxed boxy fits in premium fabrics.',
+    'jackets':
+      'Shop streetwear jackets for men at Zica Bella — leather jackets with crocodile textures, premium denim jackets with vintage washes, and layered outerwear designed for street style impact.',
+    'jersey':
+      'Oversized streetwear jerseys with bold graphic prints, mesh panels, and motorsport-inspired designs. Engineered for high-impact street style.',
+    'new-arrivals':
+      'Discover the latest streetwear drops at Zica Bella. New arrivals featuring heavyweight oversized tees, acid-wash denim, graphic jerseys, and premium streetwear designed and crafted in India.',
+    'best-sellers':
+      'Shop Zica Bella\'s best-selling streetwear — the pieces our community reaches for most. Heavyweight graphic tees, baggy denim, acid-wash favourites, and streetwear essentials.',
   };
 
   const collectionTitle = collection?.title || params.handle.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');

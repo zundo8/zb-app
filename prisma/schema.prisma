@@ -515,6 +515,24 @@ model Review {
   featuredUser   FeaturedUser @relation(fields: [featuredUserId], references: [id], onDelete: Cascade)
 }
 
+model ProductReview {
+  id               String   @id @default(cuid())
+  productId        String
+  orderId          String
+  userId           String
+  rating           Int
+  title            String?
+  body             String
+  verifiedPurchase Boolean  @default(true)
+  status           String   @default("VISIBLE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([status])
+}
+
 model Admin {
   id        String   @id @default(cuid())
   username  String   @unique

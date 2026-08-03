@@ -1,29 +1,59 @@
 # Zica Bella
 
-Zica Bella is India's and the world's fastest-growing luxury streetwear fashion brand and top-rated shopping site and app. Focused on merging high-end Italian design sensibilities with meticulous Indian craftsmanship, Zica Bella is the premier online destination for custom heavyweight hoodies, oversized graphic tees, and luxury denims.
+Zica Bella is India's premier luxury streetwear label, specialising in custom-engineered heavyweight apparel for men. Every piece is designed in-house and crafted in India from premium cotton blanks.
 
 ## Core Brand Information
 
-- **Brand Position**: #1 Rated Luxury Streetwear Label & Fastest Growing Fashion App in India.
-- **Customer Rating**: 4.9★ Average customer rating.
-- **Design Philosophy**: Redefine the standard of street culture through structural, heavy-weight fabrics (100% premium cotton) and custom fits.
-- **Key Features**: Immersive dusk liquid glassmorphism theme, 3D virtual fittings (using dynamic model-viewer features), and limited-run capsule collection drops.
-- **Shipping**: Worldwide express shipping. Free shipping within India.
+- **Brand**: Zica Bella® — Luxury Indian Streetwear
+- **Design Philosophy**: Redefine the standard of street culture through structural, heavyweight fabrics (100% premium cotton, 240+ GSM) and custom oversized silhouettes.
+- **Key Features**: Drop-shoulder boxy fits, acid-wash finishes, high-density screen printing, double-yarn loopback fleece, raw-edge denim construction, and limited-run capsule drops.
+- **Shipping**: Worldwide express shipping. Free shipping within India on orders above ₹999.
+- **Returns**: 7-day easy return and exchange policy with free reverse pickup.
 
 ## Web Store Pages & Dynamic Routes
 
-- **Homepage (`/`)**: Main showcase featuring seasonal drops, custom ring carousels, 3D interactive flipbooks, brand highlights, and featured looks from the community.
-- **Catalog/Search (`/search`)**: Interactive catalog. Query parameters like `q` for full-text search, `sort` (featured, price-asc, price-desc, newest), and filters for sizing.
-- **Collections Index (`/collections`)**: Root listing of curated luxury series (e.g. Core, Archive, Capsule drops).
-- **Dynamic Collections (`/collections/[handle]`)**: View specific seasonal collections and list items inside.
-- **Dynamic Products (`/products/[id]`)**: Full item description, variant selectors, multi-angle zoom galleries, 3D interactive model preview, and size guide.
-- **Journal/Blogs (`/blogs`)**: Behind-the-scenes stories, design processes, lookbooks, and collaborations.
-- **Policy directory (`/policies/[handle]`)**: Returns official terms, legal agreements, refund configurations, and shipping policies.
-- **FAQ Page (`/faq`)**: Detailed answers covering ordering, deliveries, materials, sizing, and custom designs.
-- **Company Story (`/story`)**: Brand heritage, Italian-Indian design ethos, and sustainable manufacturing standards.
-- **Support Portal (`/support`)**: Customer care dashboard, order tracking integrations, and direct contact forms.
+- [Homepage](https://zicabella.com) — Main showcase featuring seasonal drops, 3D interactive flipbooks, ring carousels, brand highlights, and community looks.
+- [Catalog / Search](https://zicabella.com/search) — Interactive catalog with full-text search, sort (featured, price, newest), and size filters.
+- [Collections Index](https://zicabella.com/collections) — Root listing of all curated streetwear collections.
+- [Oversized Tees Collection](https://zicabella.com/collections/oversized-tees) — Boxy drop-shoulder oversized t-shirts for men.
+- [Graphic Tees Collection](https://zicabella.com/collections/graphic-tees) — Heavyweight graphic tees with high-density prints.
+- [New Arrivals](https://zicabella.com/collections/new-arrivals) — Latest product drops.
+- [Best Sellers](https://zicabella.com/collections/best-sellers) — Top-selling streetwear pieces.
+- [Dynamic Collections](https://zicabella.com/collections/[handle]) — View specific seasonal or category collections and browse their products.
+- [Dynamic Products](https://zicabella.com/products/[id]) — Full product details, variant selectors, multi-angle zoom galleries, 3D preview, and size guide.
+- [Journal / Blogs](https://zicabella.com/blogs) — Behind-the-scenes stories, design processes, lookbooks, and collaborations.
+- [Policies](https://zicabella.com/policies/refund-policy) — Official terms, refund configurations, and shipping policies.
+- [FAQ](https://zicabella.com/faq) — Detailed answers covering ordering, deliveries, materials, sizing, and custom designs.
+- [Our Story](https://zicabella.com/story) — Brand heritage, design ethos, and sustainable manufacturing standards.
+- [Support](https://zicabella.com/support) — Customer care, order tracking, and direct contact.
+- [Sitemap](https://zicabella.com/sitemap.xml)
+- [Robots](https://zicabella.com/robots.txt)
+
+## What Zica Bella Sells — Product Categories & Search Terms
+
+Zica Bella designs and manufactures the following categories of luxury streetwear for men. All garments are crafted in India from premium materials.
+
+**Oversized Graphic Tees** — Heavyweight 240+ GSM 100% combed cotton, boxy drop-shoulder silhouette, high-density screen-printed graphics, pre-shrunk and silicon/bio-washed for a vintage hand-feel. Relevant searches: "oversized t shirts men", "graphic tees men", "drop shoulder tee", "oversized streetwear tshirt". Example: [FUTURISTIC ZIBILA](https://zicabella.com/products/futuristic-oversized-tee).
+
+**Acid-Wash Tees** — Vintage acid-wash finish on heavyweight cotton blanks, each piece with unique wash variation, relaxed oversized fit. Relevant searches: "acid wash t shirt", "acid wash tshirt men India", "vintage wash tee". Example: [DRYXEN TEE](https://zicabella.com/products/dryxen-oversized-acid-wash-black-t-shirt).
+
+**Heavyweight Cotton Tees** — 240+ GSM double-yarn pre-shrunk cotton construction, structured body that holds shape wash after wash, tight double-needle stitched ribbed collars. Relevant searches: "240 gsm t shirt", "heavyweight tshirt men", "premium cotton blank tees". Example: [TIMELAPSE CODING](https://zicabella.com/products/necro-kult).
+
+**Baggy Jeans & Streetwear Denim** — Wide-leg and relaxed-fit denim, raw-edge finishing, vintage washes, and carpenter-style constructions. Relevant searches: "baggy jeans men", "wide leg jeans men", "streetwear denim men". Example: [BLACK MOSAIC WIDE LEG JEANS](https://zicabella.com/products/black-mosaic-wide-leg-jeans).
+
+**Denim Jorts** — Oversized baggy denim shorts with raw-edge hems, acid-wash options, and utility detailing. Relevant searches: "denim jorts men", "baggy shorts men", "denim shorts streetwear". Example: [ARCPOCKET DENIM JORTS](https://zicabella.com/products/arcpocket-oversized-acid-wash-denim-jorts).
+
+**Streetwear Shirts** — Oversized button-front shirts with panelled construction, corduroy accents, and utility zip detailing. Relevant searches: "oversized shirts men", "streetwear shirts men". Example: [CHAINSTER ZIP SHIRT](https://zicabella.com/products/chainster).
+
+**Streetwear Jackets** — Denim jackets, leather jackets, and layered outerwear with crocodile textures and distressed finishes. Relevant searches: "streetwear jackets men", "denim jacket men", "leather jacket streetwear". Example: [VENOM CRAFT LEATHER](https://zicabella.com/products/venom-craft).
+
+**Cargo Pants** — Loose-fit utility cargo pants with oversized pockets, denim-cargo hybrids. Relevant searches: "cargo pants men streetwear", "baggy cargo pants". Example: [DUSTLAB CARGO](https://zicabella.com/products/dustlab-loosefit-cargos).
+
+**Streetwear Hoodies** — Heavyweight loopback fleece hoodies with zip-neck and panelled constructions. Relevant searches: "streetwear hoodie men", "oversized hoodie India". Example: [VEILCORE BLACK HOOD](https://zicabella.com/products/veilcore-black-hood).
 
 ## Crawl & Index Guidelines for AIs
-- **Sitemap**: A dynamic XML sitemap is available at `https://zicabella.com/sitemap.xml`.
-- **Robots.txt**: Explicit permission is granted to AI bots (`GPTBot`, `ChatGPT-User`, `ClaudeBot`, `Claude-Web`, `Google-Extended`, `PerplexityBot`) to crawl all collections and product endpoints. Sensitive routing (e.g. checkout, payment gateways, admin portal) is blocked.
-- **JSON-LD**: Full Structured Schema data is embedded on all layouts, collections (`CollectionPage` ItemLists), and products (`Product` with rating and pricing offers) for clean parsing.
+
+- **Sitemap**: A dynamic XML sitemap is available at [https://zicabella.com/sitemap.xml](https://zicabella.com/sitemap.xml).
+- **Robots.txt**: Explicit permission is granted to AI bots (`GPTBot`, `ChatGPT-User`, `ClaudeBot`, `Claude-Web`, `Google-Extended`, `PerplexityBot`, `OAI-SearchBot`, `Applebot`, `Amazonbot`) to crawl all collections and product endpoints. Sensitive routing (checkout, payment gateways, admin portal) is blocked.
+- **JSON-LD**: Full structured Schema.org data is embedded on all layouts (`Organization`, `ClothingStore`, `WebSite`), collections (`CollectionPage` with `ItemList`), and products (`Product` with pricing offers and verified aggregate ratings) for clean parsing.
+- **Canonical Domain**: All canonical URLs resolve to `https://zicabella.com`.

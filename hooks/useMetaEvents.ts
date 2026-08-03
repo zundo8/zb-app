@@ -16,6 +16,20 @@ async function sendToCapiRoute(payload: Record<string, any>): Promise<any> {
     // empty fields are omitted, and all events get consistent identity enrichment.
     const rawIdentity = getMetaIdentityCookies();
     const builtIdentity = buildClientUserData(rawIdentity);
+
+    // Inject sessionStorage geo data fallback if cookies are absent
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const geoStr = sessionStorage.getItem('zb_geo_data');
+        if (geoStr) {
+          const geoData = JSON.parse(geoStr);
+          if (!builtIdentity.country && geoData.countryCode) builtIdentity.country = geoData.countryCode.toLowerCase();
+          if (!builtIdentity.st && geoData.state) builtIdentity.st = geoData.state.toLowerCase();
+          if (!builtIdentity.ct && geoData.city) builtIdentity.ct = geoData.city.toLowerCase();
+          if (!builtIdentity.zp && geoData.zip) builtIdentity.zp = geoData.zip;
+        }
+      }
+    } catch {}
     
     // Check user logged in status
     const isLoggedIn = getClientCookie('zb_user_logged_in') === 'true';

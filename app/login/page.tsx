@@ -9,6 +9,7 @@ import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { getClientCookie } from "@/lib/metaPixel";
 
 
 /* ────────────────────────────────────────────
@@ -399,7 +400,8 @@ export default function LoginPage() {
       const result = await signIn("otp", { 
         phone: fullPhone, 
         otp: finalOtp, 
-        name: (name || "").trim(), 
+        name: (name || "").trim(),
+        ip: getClientCookie("zb_client_ip") || "", 
         redirect: false, 
         callbackUrl 
       });

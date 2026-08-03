@@ -67,10 +67,11 @@ export function MetaPixelRouteTracker() {
     // 3. Capture fbclid from URL and set as _fbc cookie (Click ID)
     const urlParams = new URLSearchParams(window.location.search);
     const fbclid = urlParams.get('fbclid');
+    let fbcVal = getClientCookie('_fbc') || undefined;
     if (fbclid) {
       const host = window.location.hostname;
       const depth = host.split('.').length > 2 ? host.split('.').length - 1 : 1;
-      const fbcVal = `fb.${depth}.${Date.now()}.${fbclid}`;
+      fbcVal = `fb.${depth}.${Date.now()}.${fbclid}`;
       setClientCookie('_fbc', fbcVal, 90);
     }
 
@@ -106,7 +107,22 @@ export function MetaPixelRouteTracker() {
     // Server-side CAPI PageView — fires NOW with sync-available identity data
     // Use the shared builder for consistent empty-value filtering and demo blocking.
     const rawIdentity = getMetaIdentityCookies();
+    if (fbcVal && !rawIdentity.fbc) {
+      rawIdentity.fbc = fbcVal;
+    }
     const builtIdentity: Record<string, any> = { ...buildClientUserData(rawIdentity) };
+
+    // Inject sessionStorage geo data fallback if cookies are absent
+    try {
+      const geoStr = sessionStorage.getItem('zb_geo_data');
+      if (geoStr) {
+        const geoData = JSON.parse(geoStr);
+        if (!builtIdentity.country && geoData.countryCode) builtIdentity.country = geoData.countryCode.toLowerCase();
+        if (!builtIdentity.st && geoData.state) builtIdentity.st = geoData.state.toLowerCase();
+        if (!builtIdentity.ct && geoData.city) builtIdentity.ct = geoData.city.toLowerCase();
+        if (!builtIdentity.zp && geoData.zip) builtIdentity.zp = geoData.zip;
+      }
+    } catch {}
 
     // For anonymous PageView events, strip identity PII fields (em, ph, fn, ln, db, fb_login_id).
     // Preserve address fields (country, st, ct, zp) from session cookies to improve Meta EMQ.

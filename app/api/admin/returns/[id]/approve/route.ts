@@ -36,39 +36,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // 2. Update individual return items
+      // 2. Update individual return items (keep refundStatus PENDING until QC and Admin Refund Approval)
       await tx.return.updateMany({
         where: { returnRequestId: id },
         data: { 
           status: "APPROVED",
-          refundAmount: isStoreCredit ? 0 : refundAmount,
+          refundAmount: isStoreCredit ? refundAmount : refundAmount,
           storeCreditAmount: isStoreCredit ? refundAmount : 0,
-          refundStatus: isStoreCredit ? "COMPLETED" : "PENDING",
+          refundStatus: "PENDING",
           refundMethod: isStoreCredit ? "store_credit" : "original_method"
         }
       });
-
-      // 3. If store credit, update customer balance and create txn
-      if (isStoreCredit && customerId) {
-        await tx.customer.update({
-          where: { id: customerId },
-          data: {
-            storeCredits: {
-              increment: refundAmount
-            }
-          }
-        });
-
-        await tx.storeCredit.create({
-          data: {
-            customerId,
-            amount: refundAmount,
-            type: "REFUND",
-            description: `Refund for return of order #${returnRequest.orderId}`,
-            returnId: id
-          }
-        });
-      }
 
       // 4. Update order status & auto-cancel any pending exchange requests for mutual exclusivity
       await tx.order.update({

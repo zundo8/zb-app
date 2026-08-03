@@ -1,31 +1,21 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   ShoppingCart,
   Loader2,
   RefreshCw,
   ChevronDown,
-  ChevronUp,
   ChevronRight,
-  ExternalLink,
   Search,
   Plus,
-  X,
-  Edit2,
-  Check,
-  Truck,
-  CreditCard,
   Package,
   Calendar,
-  Filter,
   ArrowRight,
-  Clock,
   Smartphone,
   ShoppingBag,
-  AlertCircle,
-  MoreHorizontal
+  Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -111,6 +101,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("any");
@@ -122,8 +113,19 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const LIMIT = 50;
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const fetchOrders = useCallback(async (silent = false) => {
-    if (!silent && orders.length === 0) setLoading(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    if (!silent && orders.length === 0) {
+      setLoading(true);
+    } else if (silent) {
+      setIsRefreshing(true);
+    }
+
     try {
       let finalStatus = statusFilter;
       let finalPayment = paymentFilter;
@@ -134,17 +136,22 @@ export default function OrdersPage() {
       if (tab === 'open') finalStatus = 'active';
 
       const offset = (page - 1) * LIMIT;
-      const url = `/api/admin/orders?limit=${LIMIT}&offset=${offset}&status=${finalStatus}&paymentStatus=${finalPayment}&fulfillmentStatus=${finalFulfillment}&search=${search}`;
-      const res = await fetch(url);
+      const url = `/api/admin/orders?limit=${LIMIT}&offset=${offset}&status=${finalStatus}&paymentStatus=${finalPayment}&fulfillmentStatus=${finalFulfillment}&search=${encodeURIComponent(search)}`;
+      
+      const res = await fetch(url, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      
       const data = await res.json();
       if (data.success) {
         setOrders(data.orders);
         setTotal(data.total || 0);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      if (err.name === "AbortError") return;
+      console.error("[Orders] Fetch error:", err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab, page, orders.length]);
 
@@ -153,8 +160,16 @@ export default function OrdersPage() {
   }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab]);
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchOrders(false), 300);
+    const timer = setTimeout(() => fetchOrders(false), 250);
     return () => clearTimeout(timer);
+  }, [fetchOrders]);
+
+  // Background SWR auto-refresh every 15 seconds for live order sync
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchOrders(true);
+    }, 15_000);
+    return () => clearInterval(interval);
   }, [fetchOrders]);
 
   useEffect(() => {
@@ -170,11 +185,10 @@ export default function OrdersPage() {
     setSyncing(true);
     setToast("Initializing Deep Shopify Sync...");
     
-    // Safety timeout to prevent stuck UI
     const timeout = setTimeout(() => {
       setSyncing(false);
       setToast("Sync taking longer than expected. Refreshing list...");
-      fetchOrders();
+      fetchOrders(false);
     }, 30000);
 
     try {
@@ -184,7 +198,7 @@ export default function OrdersPage() {
       
       if (data.success) {
         setToast(`Live Manifest Synchronized: ${data.synced?.orders || 0} orders updated`);
-        fetchOrders();
+        fetchOrders(false);
       } else {
         setToast("Sync partial failure. Check logs.");
       }
@@ -221,9 +235,17 @@ export default function OrdersPage() {
               <ShoppingBag className="w-6 h-6 text-foreground/30" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground uppercase">
-                Order Manifest
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground uppercase">
+                  Order Manifest
+                </h1>
+                {isRefreshing && (
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-wider">
+                    <Zap className="w-3 h-3 animate-bounce" />
+                    <span>Live</span>
+                  </div>
+                )}
+              </div>
               <p className="text-[11px] text-foreground/20 font-bold uppercase tracking-[0.4em] mt-1">
                 Global Transactional Database
               </p>

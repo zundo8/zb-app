@@ -3,13 +3,15 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingBag, Users, Eye,
   Activity, ShoppingCart, Target, BarChart3, Globe as GlobeIcon, Smartphone,
   Monitor, RefreshCw, CreditCard,
   ArrowDownRight, Percent, AlertTriangle, MapPin, Building2,
+  Flame, Sparkles, Laptop, ShieldCheck, Zap
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -142,6 +144,33 @@ interface LocationsData {
   };
 }
 
+interface ProductMetric {
+  productId: string;
+  title: string;
+  image: string | null;
+  handle: string | null;
+  count: number;
+  revenue?: number;
+}
+
+interface ProductRate {
+  productId: string;
+  title: string;
+  views: number;
+  addToCarts: number;
+  purchases: number;
+  viewToCartRate: number;
+  cartToPurchaseRate: number;
+}
+
+interface ProductsData {
+  error?: string;
+  mostViewed: ProductMetric[];
+  mostAddedToCart: ProductMetric[];
+  bestSelling: ProductMetric[];
+  productRates: ProductRate[];
+}
+
 // ─── Date Presets ─────────────────────────────────────────
 
 const DATE_PRESETS = [
@@ -206,19 +235,29 @@ export default function AnalyticsDashboard() {
   const [realtime, setRealtime] = useState<RealtimeData | null>(null);
   const [locations, setLocations] = useState<LocationsData | null>(null);
   const [locationsError, setLocationsError] = useState<string | null>(null);
+  const [products, setProducts] = useState<ProductsData | null>(null);
+  const [productsError, setProductsError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>("");
   const [activeChart, setActiveChart] = useState<"revenue" | "orders" | "sessions" | "conversion" | "logins" | "newLogins">("revenue");
+  const [activeProductTab, setActiveProductTab] = useState<"bestSelling" | "mostViewed" | "mostAddedToCart" | "productRates">("bestSelling");
+  
   const abortRef = useRef<AbortController | null>(null);
 
-  const fetchAll = useCallback(async () => {
-    // Cancel any in-flight requests
+  const fetchAll = useCallback(async (silent = false) => {
+    // Cancel in-flight requests
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setLoading(true);
+    if (!silent && !overview) {
+      setLoading(true);
+    } else if (silent) {
+      setIsBackgroundRefreshing(true);
+    }
+
     const params = new URLSearchParams({
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
@@ -233,6 +272,7 @@ export default function AnalyticsDashboard() {
         fetch(`/api/admin/analytics/traffic?${params}`, { signal: controller.signal }).then(r => r.json()),
         fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }).then(r => r.json()),
         fetch(`/api/admin/analytics/locations?${params}`, { signal: controller.signal }).then(r => r.json()),
+        fetch(`/api/admin/analytics/products?${params}`, { signal: controller.signal }).then(r => r.json()),
       ]);
 
       if (controller.signal.aborted) return;
@@ -245,6 +285,7 @@ export default function AnalyticsDashboard() {
       const trData: TrafficData | null = getValue(results[3]);
       const rtData: RealtimeData | null = getValue(results[4]);
       const locData: LocationsData | null = getValue(results[5]);
+      const prData: ProductsData | null = getValue(results[6]);
 
       if (ovData) setOverview(ovData);
       if (chData) setCharts(chData);
@@ -261,6 +302,10 @@ export default function AnalyticsDashboard() {
         setLocations(locData);
         setLocationsError(locData.error || null);
       }
+      if (prData) {
+        setProducts(prData);
+        setProductsError(prData.error || null);
+      }
 
       setLastRefreshedAt(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     } catch (err: any) {
@@ -268,24 +313,19 @@ export default function AnalyticsDashboard() {
       console.error("[Analytics] Fetch error:", err);
     } finally {
       setLoading(false);
+      setIsBackgroundRefreshing(false);
     }
-  }, [dateRange, platform]);
+  }, [dateRange, platform, overview]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { fetchAll(false); }, [dateRange, platform]);
 
-  // Auto-refresh realtime every 20s
+  // Background SWR auto-refresh every 15s for real live data sync
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch("/api/admin/analytics/realtime");
-        if (res.ok) {
-          const data = await res.json();
-          setRealtime(data);
-        }
-      } catch { /* ignore */ }
-    }, 20_000);
+    const interval = setInterval(() => {
+      fetchAll(true);
+    }, 15_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchAll]);
 
   const handlePresetChange = (index: number) => {
     setActivePreset(index);
@@ -294,11 +334,9 @@ export default function AnalyticsDashboard() {
 
   // Globe points: prefer historical locations data, fall back to realtime
   const globePoints = useMemo<VisitorPoint[]>(() => {
-    // Historical data from locations API (covers selected date range)
     if (locations && locations.visitorPoints && locations.visitorPoints.length > 0) {
       return locations.visitorPoints;
     }
-    // Fallback to realtime visitor points
     if (realtime && realtime.visitorPoints && realtime.visitorPoints.length > 0) {
       return realtime.visitorPoints;
     }
@@ -400,15 +438,21 @@ export default function AnalyticsDashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
-          <p className="text-sm text-foreground/40 mt-1">Real-time e-commerce analytics & performance</p>
+          <p className="text-sm text-foreground/40 mt-1">Real-time e-commerce analytics & performance engine</p>
         </div>
         <div className="flex items-center gap-3">
+          {isBackgroundRefreshing && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+              <Zap className="w-3 h-3 animate-bounce" />
+              <span>Live Syncing</span>
+            </div>
+          )}
           {lastRefreshedAt && (
             <span className="text-[11px] text-foreground/40 font-medium">
               Data as of <span className="text-foreground/70">{lastRefreshedAt}</span>
             </span>
           )}
-          <button onClick={fetchAll} disabled={loading} className="p-2.5 rounded-xl bg-foreground/5 hover:bg-foreground/10 transition-colors border border-foreground/10 flex items-center gap-1.5 text-xs font-medium">
+          <button onClick={() => fetchAll(false)} disabled={loading} className="p-2.5 rounded-xl bg-foreground/5 hover:bg-foreground/10 transition-colors border border-foreground/10 flex items-center gap-1.5 text-xs font-medium">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
             <span>Refresh</span>
           </button>
@@ -469,7 +513,7 @@ export default function AnalyticsDashboard() {
 
       {/* ─── Overview Section Error ───────────────────────── */}
       {overview?.error && (
-        <SectionError message={overview.error} onRetry={fetchAll} />
+        <SectionError message={overview.error} onRetry={() => fetchAll(false)} />
       )}
 
       {/* ─── KPI Cards / Loading Skeletons ──────────────── */}
@@ -497,7 +541,7 @@ export default function AnalyticsDashboard() {
       ) : null}
 
       {/* ─── Top Visitor Locations ──────────────────────────── */}
-      {locationsError && <SectionError message={locationsError} onRetry={fetchAll} />}
+      {locationsError && <SectionError message={locationsError} onRetry={() => fetchAll(false)} />}
       {loading && !locations ? (
         <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-80 animate-pulse bg-foreground/[0.02]" />
       ) : locations ? (
@@ -606,7 +650,7 @@ export default function AnalyticsDashboard() {
       ) : null}
 
       {/* ─── Charts Section ──────────────────────────────── */}
-      {charts?.error && <SectionError message={charts.error} onRetry={fetchAll} />}
+      {charts?.error && <SectionError message={charts.error} onRetry={() => fetchAll(false)} />}
 
       {loading && !charts ? (
         <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-80 animate-pulse bg-foreground/[0.02]" />
@@ -690,11 +734,116 @@ export default function AnalyticsDashboard() {
         </motion.div>
       ) : null}
 
+      {/* ─── TOP PRODUCTS & CONVERSION SECTION (NEW) ──────────────────── */}
+      {productsError && <SectionError message={productsError} onRetry={() => fetchAll(false)} />}
+      {products && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+            <div className="flex items-center gap-2">
+              <Flame className="w-4 h-4 text-amber-500 animate-pulse" />
+              <h2 className="text-sm font-semibold text-foreground/70">Top Products & Product Conversion Performance</h2>
+            </div>
+            <div className="flex flex-wrap gap-1 bg-foreground/[0.03] rounded-lg p-0.5 border border-foreground/5">
+              {[
+                { id: "bestSelling", label: "Best Sellers" },
+                { id: "mostViewed", label: "Most Viewed" },
+                { id: "mostAddedToCart", label: "Top Carts" },
+                { id: "productRates", label: "Conversion Rates" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveProductTab(tab.id as any)}
+                  className={`px-3 py-1 rounded-md text-[10px] font-medium transition-all ${
+                    activeProductTab === tab.id ? "bg-foreground text-background shadow-sm" : "text-foreground/40 hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {activeProductTab !== "productRates" ? (
+              <motion.div
+                key={activeProductTab}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3"
+              >
+                {(products[activeProductTab] as ProductMetric[]).slice(0, 8).map((prod, idx) => (
+                  <div key={prod.productId || idx} className="p-3.5 rounded-xl bg-foreground/[0.02] border border-foreground/5 hover:border-foreground/10 transition-all flex items-center gap-3 group">
+                    <div className="w-12 h-12 rounded-lg bg-foreground/5 shrink-0 overflow-hidden relative border border-foreground/5">
+                      {prod.image ? (
+                        <Image src={prod.image} alt={prod.title} fill className="object-cover group-hover:scale-105 transition-transform" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-foreground/20">
+                          <ShoppingBag className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[12px] font-medium text-foreground/80 truncate mb-0.5">{prod.title}</h4>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-foreground/40">
+                          {activeProductTab === "bestSelling" ? `${prod.count} sold` : `${prod.count} events`}
+                        </span>
+                        {prod.revenue !== undefined && (
+                          <span className="text-[11px] font-semibold text-emerald-400">
+                            {formatCurrency(prod.revenue)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {(products[activeProductTab] as ProductMetric[]).length === 0 && (
+                  <div className="col-span-4 text-center py-10 text-foreground/30 text-xs">No product analytics recorded in this period</div>
+                )}
+              </motion.div>
+            ) : (
+              <motion.div key="rates" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="text-foreground/40 uppercase tracking-wider border-b border-foreground/5">
+                      <th className="text-left py-2 pr-4 font-semibold">Product</th>
+                      <th className="text-right py-2 px-2 font-semibold">Views</th>
+                      <th className="text-right py-2 px-2 font-semibold">Carts</th>
+                      <th className="text-right py-2 px-2 font-semibold">Purchases</th>
+                      <th className="text-right py-2 px-2 font-semibold">View → Cart</th>
+                      <th className="text-right py-2 pl-2 font-semibold">Cart → Purchase</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.productRates.slice(0, 10).map((r, i) => (
+                      <tr key={i} className="border-b border-foreground/[0.03] hover:bg-foreground/[0.02] transition-colors">
+                        <td className="py-2.5 pr-4 font-medium text-foreground/70">{r.title}</td>
+                        <td className="text-right py-2.5 px-2 font-semibold">{formatNumber(r.views)}</td>
+                        <td className="text-right py-2.5 px-2">{formatNumber(r.addToCarts)}</td>
+                        <td className="text-right py-2.5 px-2 font-semibold">{formatNumber(r.purchases)}</td>
+                        <td className="text-right py-2.5 px-2 font-semibold text-indigo-400">{r.viewToCartRate}%</td>
+                        <td className="text-right py-2.5 pl-2 font-semibold text-emerald-400">{r.cartToPurchaseRate}%</td>
+                      </tr>
+                    ))}
+                    {products.productRates.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-foreground/30 text-xs">No conversion data available</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
+
       {/* ─── Funnel + Real-time Row ──────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Conversion Funnel */}
         <div className="lg:col-span-1">
-          {funnelError && <SectionError message={funnelError} onRetry={fetchAll} />}
+          {funnelError && <SectionError message={funnelError} onRetry={() => fetchAll(false)} />}
           {loading && !funnel ? (
             <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-96 animate-pulse bg-foreground/[0.02]" />
           ) : funnel && funnel.length > 0 ? (
@@ -746,13 +895,13 @@ export default function AnalyticsDashboard() {
 
         {/* Real-time Activity & 3D Globe */}
         <div className="lg:col-span-2">
-          {realtime?.error && <SectionError message={realtime.error} onRetry={fetchAll} />}
+          {realtime?.error && <SectionError message={realtime.error} onRetry={() => fetchAll(false)} />}
           {loading && !realtime ? (
             <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-96 animate-pulse bg-foreground/[0.02]" />
           ) : realtime ? (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 flex flex-col justify-between">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-                {/* Left Column: Metrics, Pages & Top Ranked Lists */}
+                {/* Left Column: Metrics, Pages & Devices */}
                 <div className="flex flex-col justify-between h-full space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-4">
@@ -789,6 +938,40 @@ export default function AnalyticsDashboard() {
                       )}
                     </div>
                   </div>
+
+                  {/* Device & OS Distribution */}
+                  {realtime.breakdowns && (
+                    <div className="pt-3 border-t border-foreground/5 grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="flex items-center gap-1 mb-1 text-[10px] font-semibold text-foreground/40 uppercase">
+                          <Laptop className="w-3 h-3 text-indigo-400" />
+                          <span>Devices</span>
+                        </div>
+                        <div className="space-y-1">
+                          {Object.entries(realtime.breakdowns.device || {}).slice(0, 3).map(([dev, cnt]) => (
+                            <div key={dev} className="flex items-center justify-between text-[10px]">
+                              <span className="text-foreground/60 capitalize">{dev}</span>
+                              <span className="font-semibold text-foreground/40">{cnt}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1 mb-1 text-[10px] font-semibold text-foreground/40 uppercase">
+                          <ShieldCheck className="w-3 h-3 text-purple-400" />
+                          <span>Browsers</span>
+                        </div>
+                        <div className="space-y-1">
+                          {Object.entries(realtime.breakdowns.browser || {}).slice(0, 3).map(([br, cnt]) => (
+                            <div key={br} className="flex items-center justify-between text-[10px]">
+                              <span className="text-foreground/60 capitalize">{br}</span>
+                              <span className="font-semibold text-foreground/40">{cnt}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Realtime Top Countries & Cities */}
                   <div className="pt-3 border-t border-foreground/5 grid grid-cols-2 gap-3">
@@ -902,7 +1085,7 @@ export default function AnalyticsDashboard() {
       )}
 
       {/* ─── Traffic Sources ─────────────────────────────── */}
-      {trafficError && <SectionError message={trafficError} onRetry={fetchAll} />}
+      {trafficError && <SectionError message={trafficError} onRetry={() => fetchAll(false)} />}
       {traffic && traffic.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
           <h2 className="text-sm font-semibold text-foreground/70 mb-4">Traffic Sources</h2>
@@ -934,7 +1117,7 @@ export default function AnalyticsDashboard() {
                     <td className="text-right py-2.5 px-2">{src.checkouts}</td>
                     <td className="text-right py-2.5 px-2 font-semibold">{src.orders}</td>
                     <td className="text-right py-2.5 px-2 font-semibold">{formatCurrency(src.revenue)}</td>
-                    <td className="text-right py-2.5 pl-2">
+                    <td className="text-right py-2 pl-2">
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                         src.conversionRate > 2 ? "text-emerald-500 bg-emerald-500/10" : "text-foreground/40 bg-foreground/5"
                       }`}>

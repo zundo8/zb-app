@@ -145,12 +145,13 @@ export async function POST(req: Request) {
             reason: item.comments ? `${item.reason} - ${item.comments}` : item.reason,
             status: item.status,
             refundAmount: item.refundAmount,
-            refundMethod: item.refundMethod
+            refundMethod: item.refundMethod,
+            refundStatus: "PENDING"
           }))
         }
       },
       include: {
-        returns: true
+        returns: { include: { product: true } }
       }
     });
 
@@ -159,6 +160,33 @@ export async function POST(req: Request) {
       where: { id: orderId },
       data: { status: "return_initiated" }
     });
+
+    // Dispatch notification to developer@zicabella.com
+    try {
+      const customer = await prisma.customer.findUnique({ where: { id: resolvedUserId } });
+      const { sendRefundRequestNotification } = await import("@/lib/services/refundNotificationService");
+      await sendRefundRequestNotification({
+        returnRequestId: returnRequest.id,
+        orderId: order.id,
+        shopifyOrderId: order.shopifyOrderId,
+        customerName: customer?.name || "Customer",
+        customerEmail: customer?.email,
+        customerPhone: customer?.phone,
+        items: returnRequest.returns.map((r: any) => ({
+          title: r.product?.title || r.sku || "Returned Item",
+          sku: r.sku,
+          quantity: r.quantity || 1,
+          price: r.refundAmount || 0,
+          reason: r.reason
+        })),
+        totalRefundAmount: estimatedRefund,
+        refundMethod: refundMethod || "original_method",
+        reason: returnItems[0]?.reason,
+        requestType: "RETURN"
+      });
+    } catch (notifErr: any) {
+      console.error("[CreateReturn] Failed to send notification email:", notifErr);
+    }
 
     return NextResponse.json({
       returnRequestId: returnRequest.id,

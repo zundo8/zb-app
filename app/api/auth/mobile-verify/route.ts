@@ -7,6 +7,7 @@ import { SmsService } from "@/lib/services/sms.service";
 export const dynamic = "force-dynamic";
 
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIP } from "@/lib/ip-geo";
 
 async function autoOptInCustomer(phone: string, customerId: string) {
   try {
@@ -169,7 +170,8 @@ export async function POST(req: Request) {
         data: {
           phone: phone,
           status: "FAILED",
-          userAgent: req.headers.get("user-agent") || "Mobile App"
+          userAgent: req.headers.get("user-agent") || "Mobile App",
+          ip: getClientIP(req),
         }
       }).catch(console.error);
 
@@ -245,7 +247,7 @@ export async function POST(req: Request) {
 
       // Log success (non-blocking)
       prisma.appLogin.create({
-        data: { phone: fullPhone, status: "SUCCESS", userAgent: req.headers.get("user-agent") || "Mobile App" }
+        data: { phone: fullPhone, status: "SUCCESS", userAgent: req.headers.get("user-agent") || "Mobile App", ip: getClientIP(req) }
       }).catch(console.error);
 
       const token = signAppToken({
@@ -476,7 +478,7 @@ export async function POST(req: Request) {
     }).catch(console.error);
 
     prisma.appLogin.create({
-      data: { phone: fullPhone, status: "SUCCESS", userAgent: req.headers.get("user-agent") || "Mobile App" }
+      data: { phone: fullPhone, status: "SUCCESS", userAgent: req.headers.get("user-agent") || "Mobile App", ip: getClientIP(req) }
     }).catch(console.error);
 
     const token = signAppToken({

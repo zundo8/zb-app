@@ -1016,6 +1016,7 @@ export default function ProductDetailsClient({
                   </div>
                   <div 
                     className="rounded-[1rem] p-3 border border-foreground/[0.06] bg-foreground/[0.01]"
+                    data-nosnippet=""
                   >
                     {activeTab === "details" ? (
                       <ProductDescriptionContainer

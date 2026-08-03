@@ -34,8 +34,18 @@ const INSTANT = {
   duration: 0,
 };
 
+/**
+ * Wraps rawDiff into the range (-total/2, total/2] so cards always
+ * take the shortest visual path around the ring.
+ */
+function wrapDiff(rawDiff: number, total: number): number {
+  let d = rawDiff % total;
+  if (d > total / 2) d -= total;
+  if (d <= -total / 2) d += total;
+  return d;
+}
+
 export default function CollectionCarousel({ collections }: { collections: Collection[] }) {
-  const router = useRouter();
   const [index, setIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const total = collections.length;
@@ -120,6 +130,9 @@ export default function CollectionCarousel({ collections }: { collections: Colle
 
   if (!total) return null;
 
+  // How many neighbor cards to render on each side
+  const renderRadius = Math.min(3, Math.floor(total / 2));
+
   return (
     <>
       {/* ─── DESKTOP VIEW (md and up) ─── */}
@@ -136,12 +149,10 @@ export default function CollectionCarousel({ collections }: { collections: Colle
           {/* Stage for desktop cards */}
           <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
             {collections.map((col, i) => {
-              let rawDiff = i - index - dragOffset / 360;
-              let diff = rawDiff;
-              if (diff > total / 2) diff -= total;
-              if (diff < -total / 2) diff += total;
+              const rawDiff = i - index - dragOffset / 360;
+              const diff = wrapDiff(rawDiff, total);
 
-              if (Math.abs(diff) > 3.5) return null;
+              if (Math.abs(diff) > renderRadius + 0.5) return null;
 
               return (
                 <DesktopStackedCard
@@ -203,13 +214,11 @@ export default function CollectionCarousel({ collections }: { collections: Colle
         <div className="relative w-full flex items-center justify-center" style={{ height: "min(72vh, 560px)" }}>
           <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
             {collections.map((col, i) => {
-              let rawDiff = i - index - dragOffset / 280;
-              let diff = rawDiff;
-              if (diff > total / 2) diff -= total;
-              if (diff < -total / 2) diff += total;
+              const rawDiff = i - index - dragOffset / 280;
+              const diff = wrapDiff(rawDiff, total);
 
               // Only render nearby cards
-              if (Math.abs(diff) > 3.5) return null;
+              if (Math.abs(diff) > renderRadius + 0.5) return null;
 
               return (
                 <StackedCard
@@ -246,13 +255,14 @@ function StackedCard({
   onSelect: () => void;
 }) {
   const router = useRouter();
+  const [imgSrc, setImgSrc] = useState(collection.image?.src || fallback);
   const absDiff = Math.abs(diff);
   const isActive = absDiff < 0.1;
 
   // Tight stack: side cards offset by small px amount, scale down slightly
   const translateX = diff * 18;
   const scale = isActive ? 1 : Math.max(0.9, 1 - absDiff * 0.04);
-  const opacity = Math.max(0, 1 - absDiff * 0.15);
+  const opacity = Math.max(0.2, 1 - absDiff * 0.12);
 
   const collectionHref = collection.handle ? `/collections/${collection.handle}` : "/collections";
 
@@ -273,12 +283,13 @@ function StackedCard({
   const cardContent = (
     <div className="w-full h-full relative">
       <Image
-        src={collection.image?.src || fallback}
+        src={imgSrc}
         alt={collection.title}
         fill
         sizes="(max-width: 768px) 85vw, 400px"
         className="object-cover pointer-events-none"
         priority={isActive}
+        onError={() => setImgSrc(fallback)}
       />
 
       {/* Minimal bottom text — only on active card */}
@@ -354,13 +365,14 @@ function DesktopStackedCard({
   onSelect: () => void;
 }) {
   const router = useRouter();
+  const [imgSrc, setImgSrc] = useState(collection.image?.src || fallback);
   const absDiff = Math.abs(diff);
   const isActive = absDiff < 0.1;
 
   // Spread cards across desktop width to utilize wide screen space elegantly
   const translateX = diff * 360;
   const scale = isActive ? 1 : Math.max(0.8, 1 - absDiff * 0.1);
-  const opacity = Math.max(0, 1 - absDiff * 0.3);
+  const opacity = Math.max(0.2, 1 - absDiff * 0.25);
 
   const collectionHref = collection.handle ? `/collections/${collection.handle}` : "/collections";
 
@@ -381,16 +393,17 @@ function DesktopStackedCard({
   const cardContent = (
     <div className="w-full h-full relative">
       <Image
-        src={collection.image?.src || fallback}
+        src={imgSrc}
         alt={collection.title}
         fill
         sizes="400px"
-        className="object-cover pointer-events-none group-hover:scale-105 transition-transform duration-700"
+        className="object-cover pointer-events-none"
         priority={isActive}
+        onError={() => setImgSrc(fallback)}
       />
 
       {/* Gradient overlay */}
-      <div className={`absolute inset-0 transition-opacity duration-300 ${isActive ? 'bg-gradient-to-t from-black/60 via-transparent to-transparent' : 'bg-black/25 group-hover:bg-black/10'}`} />
+      <div className={`absolute inset-0 transition-opacity duration-300 ${isActive ? 'bg-gradient-to-t from-black/60 via-transparent to-transparent' : 'bg-black/25'}`} />
 
       {/* Title overlay */}
       <div 
@@ -421,7 +434,7 @@ function DesktopStackedCard({
         opacity,
       }}
       transition={isDragging ? INSTANT : SPRING}
-      className="absolute select-none pointer-events-auto cursor-pointer will-change-transform group transition-all duration-300"
+      className="absolute select-none pointer-events-auto cursor-pointer will-change-transform"
       style={{
         width: "350px",
         aspectRatio: "3 / 4.2",
@@ -446,5 +459,3 @@ function DesktopStackedCard({
     </motion.div>
   );
 }
-
-

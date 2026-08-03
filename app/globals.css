@@ -380,6 +380,20 @@
 }
 
 /* ============================================
+   RING CAROUSEL — HOVER-CAPABLE DEVICES ONLY
+   Prevents "sticky hover" on touch (tap fires
+   :hover and stays until next tap).
+   ============================================ */
+@media (hover: hover) and (pointer: fine) {
+  .ring-card-hover:hover {
+    background-color: hsl(var(--foreground) / 0.05);
+  }
+  .ring-card-hover:hover .ring-card-hover-img {
+    transform: scale(1.05);
+  }
+}
+
+/* ============================================
    UTILITY CLASSES
    ============================================ */
 .transparent-glass {

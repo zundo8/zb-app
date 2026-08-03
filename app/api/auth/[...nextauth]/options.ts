@@ -189,6 +189,7 @@ export const authOptions: AuthOptions = {
         otp: { label: "OTP", type: "text" },
         name: { label: "Name", type: "text" },
         userAgent: { label: "UserAgent", type: "text" },
+        ip: { label: "IP", type: "text" },
       },
       async authorize(credentials) {
         try {
@@ -196,6 +197,7 @@ export const authOptions: AuthOptions = {
           const providedPhone = String(credentials?.phone || "").trim();
           const providedName = String(credentials?.name || "").trim();
           const providedUserAgent = String(credentials?.userAgent || "Web Browser").trim();
+          const providedIp = String(credentials?.ip || "").trim() || null;
 
           // Validate OTP format
           if (!/^\d{6}$/.test(providedOtp)) {
@@ -272,7 +274,8 @@ export const authOptions: AuthOptions = {
               data: {
                 phone: fullPhone,
                 status: "OTP_INVALID",
-                userAgent: providedUserAgent
+                userAgent: providedUserAgent,
+                ip: providedIp,
               }
             }).catch(console.error);
 
@@ -330,7 +333,7 @@ export const authOptions: AuthOptions = {
 
             // Log success (non-blocking)
             prisma.appLogin.create({
-              data: { phone: fullPhone, status: "LOGGED_IN", userAgent: providedUserAgent }
+              data: { phone: fullPhone, status: "LOGGED_IN", userAgent: providedUserAgent, ip: providedIp }
             }).catch(console.error);
 
             // ── BACKGROUND: Shopify sync (non-blocking, fire-and-forget) ──
@@ -698,7 +701,8 @@ export const authOptions: AuthOptions = {
             data: {
               phone: fullPhone,
               status: "ACCOUNT_CREATED",
-              userAgent: providedUserAgent
+              userAgent: providedUserAgent,
+              ip: providedIp,
             }
           }).catch(console.error);
 
@@ -1049,6 +1053,7 @@ export const authOptions: AuthOptions = {
         token.role = role;
         token.permissions = permissions;
         token.loginTime = Math.floor(Date.now() / 1000);
+        token.lastActivity = Math.floor(Date.now() / 1000);
         token.needsPasswordChange = (user as any).needsPasswordChange ?? null;
         token.phone = phone;
         token.email = email;
@@ -1070,13 +1075,28 @@ export const authOptions: AuthOptions = {
         }
       }
 
-      // Absolute 8-hour limit for admins
+      // ── Admin Session Enforcement ──
       if (token.role === "ADMIN" || token.role === "SUPER_ADMIN") {
-        const eightHoursInSeconds = 8 * 60 * 60;
         const currentTime = Math.floor(Date.now() / 1000);
+
+        // 1. Absolute 8-hour limit (hard cap)
+        const eightHoursInSeconds = 8 * 60 * 60;
         if (token.loginTime && (currentTime - (token.loginTime as number)) > eightHoursInSeconds) {
+          console.log(`[AUTH] Admin session expired (8h absolute limit) for user ${token.id}`);
           return null as any; // Invalidates the token
         }
+
+        // 2. Inactivity timeout: 1 hour
+        // The lastActivity is bumped by the client via /api/auth/session calls
+        // triggered by user interaction (mouse, keyboard, scroll).
+        const oneHourInSeconds = 60 * 60;
+        if (token.lastActivity && (currentTime - (token.lastActivity as number)) > oneHourInSeconds) {
+          console.log(`[AUTH] Admin session expired (1h inactivity) for user ${token.id}`);
+          return null as any; // Invalidates the token
+        }
+
+        // Bump lastActivity on each token refresh (triggered by getSession/useSession)
+        token.lastActivity = currentTime;
       }
 
       return token;
@@ -1128,7 +1148,8 @@ export const authOptions: AuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 28800, // 8 hours absolute limit
+    maxAge: 10 * 24 * 60 * 60, // 10 days — webstore customers stay logged in
+    // Admin sessions are enforced via JWT callback (1h inactivity + 8h absolute)
   },
   cookies: {
     sessionToken: {

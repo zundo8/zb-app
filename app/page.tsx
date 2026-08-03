@@ -181,7 +181,7 @@ export default async function Home() {
       <div className="hidden md:block absolute top-[180vh] right-1/4 translate-x-1/2 w-[min(700px,100vw)] h-[700px] rounded-full bg-foreground/[0.02] blur-[150px] pointer-events-none z-0" />
 
       {/* ═══ HERO: Full-screen ═══ */}
-      <section className="relative w-full h-screen [height:100lvh] md:h-screen overflow-hidden min-h-[500px] bg-black">
+      <section className="relative w-full h-screen overflow-hidden min-h-[500px] bg-black">
         {/* Background video */}
         {heroVideo ? (
           <HeroVideo src={heroVideo} mobileSrc={heroVideoMobile} poster={s?.heroImage || undefined} />
@@ -605,15 +605,8 @@ export default async function Home() {
               "url": siteUrl,
               "logo": `${siteUrl}/zb-logo-220px.png`,
               "image": resolveSocialImageUrl(settings?.socialImageUrl),
-              "description": settings?.metaDescription || "Zica Bella® is recognized as India's premier luxury streetwear label and the fastest growing global fashion app. Redefining street culture with custom 240+ GSM heavyweight oversized graphic tees, vintage acid-wash shirts, custom loopback fleece hoodies, and raw-edge streetwear accessories for a relentless global community.",
+              "description": settings?.metaDescription || "Zica Bella® is India's premier luxury streetwear label. Redefining street culture with custom 240+ GSM heavyweight oversized graphic tees, vintage acid-wash shirts, custom loopback fleece hoodies, and raw-edge streetwear denim for a relentless global community.",
               "slogan": "Redefine The Standard",
-              "award": ["India's #1 Premium Streetwear Brand", "World's Fastest Growing Fashion Brand"],
-              "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.9",
-                "reviewCount": "5420",
-                "bestRating": "5"
-              },
               "hasOfferCatalog": {
                 "@type": "OfferCatalog",
                 "name": "Zica Bella Collections",

@@ -222,11 +222,6 @@ export default function RootLayout({
                 "postalCode": "201305",
                 "addressCountry": "IN"
               },
-              "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.9",
-                "reviewCount": "5420"
-              },
               "sameAs": [
                 "https://www.instagram.com/zica.bella",
                 "https://www.youtube.com/@Zicabella"
