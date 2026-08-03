@@ -96,11 +96,95 @@ export async function GET(request: Request) {
       })
     );
 
-    return NextResponse.json({ orders: enrichedOrders });
+    // Deduplicate order attempts (collapse multiple failed attempts and hide abandoned draft pre-creates)
+    const deduplicatedOrders = deduplicateWebStoreOrders(enrichedOrders);
+
+    return NextResponse.json({ orders: deduplicatedOrders });
   } catch (error: any) {
     console.error("[Web Store Orders GET] Error:", error);
     return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
   }
+}
+
+function deduplicateWebStoreOrders(orders: any[]) {
+  const confirmedOrders: any[] = [];
+  const unconfirmedOrders: any[] = [];
+
+  for (const order of orders) {
+    const pStatus = (order.paymentStatus || "").toLowerCase().trim();
+    const pMethod = (order.paymentMethod || "").toLowerCase().trim();
+    const isPaid = pStatus === "paid" || pStatus === "cod_upfront_paid" || pStatus === "refunded";
+    const isCOD = pMethod === "cod";
+
+    if (isPaid || isCOD) {
+      confirmedOrders.push(order);
+    } else {
+      unconfirmedOrders.push(order);
+    }
+  }
+
+  const finalOrders: any[] = [...confirmedOrders];
+
+  const getCustomerKey = (o: any) => {
+    const email = (o.customerEmail || "").toLowerCase().trim();
+    const phone = (o.customerPhone || "").replace(/\D/g, "").slice(-10);
+    return email || phone || o.id;
+  };
+
+  const unconfirmedByCustomer: { [key: string]: any[] } = {};
+  for (const uOrder of unconfirmedOrders) {
+    const key = getCustomerKey(uOrder);
+    if (!unconfirmedByCustomer[key]) {
+      unconfirmedByCustomer[key] = [];
+    }
+    unconfirmedByCustomer[key].push(uOrder);
+  }
+
+  for (const key of Object.keys(unconfirmedByCustomer)) {
+    const customerUnconfirmed = unconfirmedByCustomer[key];
+    const customerConfirmed = confirmedOrders.filter(
+      (cOrder) => getCustomerKey(cOrder) === key
+    );
+
+    customerUnconfirmed.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    const filteredUnconfirmedForCustomer: any[] = [];
+
+    for (const uOrder of customerUnconfirmed) {
+      const uTime = new Date(uOrder.createdAt).getTime();
+
+      // Check if a confirmed order exists for this customer around the same attempt time window (-30m to +2h)
+      const hasMatchingConfirmed = customerConfirmed.some((cOrder) => {
+        const cTime = new Date(cOrder.createdAt).getTime();
+        const diffMs = cTime - uTime;
+        return diffMs >= -30 * 60 * 1000 && diffMs <= 2 * 60 * 60 * 1000;
+      });
+
+      if (hasMatchingConfirmed) {
+        continue;
+      }
+
+      // Check if we already kept a more recent unconfirmed attempt for this session (within 2 hours)
+      const alreadyKeptSession = filteredUnconfirmedForCustomer.some((kOrder) => {
+        const kTime = new Date(kOrder.createdAt).getTime();
+        return Math.abs(kTime - uTime) <= 2 * 60 * 60 * 1000;
+      });
+
+      if (!alreadyKeptSession) {
+        filteredUnconfirmedForCustomer.push(uOrder);
+      }
+    }
+
+    finalOrders.push(...filteredUnconfirmedForCustomer);
+  }
+
+  finalOrders.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  return finalOrders;
 }
 
 // POST: Create a web store order (called by storefront checkout)

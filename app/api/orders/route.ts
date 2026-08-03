@@ -35,10 +35,18 @@ export async function GET(req: Request) {
     const orders = await prisma.order.findMany({
       where: { 
         customerId: customer.id,
-        NOT: [
-          { paymentStatus: { in: ['failed', 'cancelled', 'voided'] } },
-          { status: { in: ['FAILED', 'CANCELLED', 'cancelled', 'payment_failed'] } }
-        ]
+        NOT: {
+          OR: [
+            { status: { in: ['failed', 'FAILED', 'payment_failed', 'payment_pending', 'CANCELLED', 'cancelled'] } },
+            { paymentStatus: { in: ['failed', 'cancelled', 'voided', 'FAILED', 'CANCELLED'] } },
+            {
+              AND: [
+                { paymentStatus: { notIn: ['paid', 'cod_upfront_paid', 'partially_paid', 'refunded', 'partially_refunded', 'PAID', 'SUCCESS', 'success'] } },
+                { paymentMethod: { notIn: ['COD', 'cod', 'Cash on Delivery', 'cash_on_delivery'] } }
+              ]
+            }
+          ]
+        }
       },
       include: { 
         items: {

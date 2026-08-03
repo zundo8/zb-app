@@ -40,10 +40,21 @@ export async function GET(
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    // Fetch this customer's full order history
+    // Fetch this customer's confirmed order history (excluding failed/unconfirmed pending payment attempts)
     const orderHistory = await prisma.webStoreOrder.findMany({
       where: {
         customerEmail: customer.email,
+        NOT: {
+          OR: [
+            { paymentStatus: { in: ["failed", "cancelled", "payment_pending", "pending"] } },
+            {
+              AND: [
+                { paymentStatus: { notIn: ["paid", "cod_upfront_paid", "refunded"] } },
+                { paymentMethod: { notIn: ["cod", "COD"] } }
+              ]
+            }
+          ]
+        }
       },
       orderBy: {
         createdAt: "desc",

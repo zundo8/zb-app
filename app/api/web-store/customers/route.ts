@@ -47,6 +47,17 @@ export async function GET(request: Request) {
         const ordersCount = await prisma.webStoreOrder.count({
           where: {
             customerEmail: customer.email,
+            NOT: {
+              OR: [
+                { paymentStatus: { in: ["failed", "cancelled", "payment_pending", "pending"] } },
+                {
+                  AND: [
+                    { paymentStatus: { notIn: ["paid", "cod_upfront_paid", "refunded"] } },
+                    { paymentMethod: { notIn: ["cod", "COD"] } }
+                  ]
+                }
+              ]
+            }
           },
         });
 
