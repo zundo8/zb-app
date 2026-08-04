@@ -354,7 +354,12 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
         type: "body",
         parameters: variables.map((v: string) => {
           const key = v.replace(/[{}]/g, "");
-          return { type: "text", text: sendTestParams[key] || sendTestParams[v] || `Test ${key}` };
+          const isNumeric = /^\d+$/.test(key);
+          const pObj: any = { type: "text", text: sendTestParams[key] || sendTestParams[v] || `Test ${key}` };
+          if (!isNumeric) {
+            pObj.parameter_name = key;
+          }
+          return pObj;
         })
       });
     }
@@ -898,10 +903,15 @@ function QuickSendMessage() {
     if (variables.length > 0) {
       const bodyParams = variables.map((v: string) => {
         const key = v.replace(/[{}]/g, "");
-        return {
+        const isNumeric = /^\d+$/.test(key);
+        const pObj: any = {
           type: "text",
           text: params[key] || params[v] || ""
         };
+        if (!isNumeric) {
+          pObj.parameter_name = key;
+        }
+        return pObj;
       });
       components.push({
         type: "body",

@@ -69,10 +69,16 @@ function buildGenericComponents(varNames, payload, recipientName) {
       }
     }
 
-    bodyParams.push({
+    const isNumeric = /^\d+$/.test(vKey);
+    const paramObj = {
       type: 'text',
       text: String(val || '')
-    });
+    };
+    if (!isNumeric) {
+      paramObj.parameter_name = vKey;
+    }
+
+    bodyParams.push(paramObj);
   }
 
   if (bodyParams.length > 0) {
