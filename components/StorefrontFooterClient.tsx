@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { 
   Instagram, 
   Youtube, 
@@ -20,7 +20,7 @@ import {
   Check
 } from "lucide-react";
 import Link from "next/link";
-import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useTransform, useMotionValue } from "framer-motion";
 import { toast } from "sonner";
 import ThreeDLogo from "./ThreeDLogo";
 import LazyVideo from "./LazyVideo";
@@ -70,12 +70,69 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
   // Newsletter state
   const [email, setEmail] = useState("");
 
-  // Mobile newsletter reveal animation
+  // Stable scroll-progress that ignores in-app browser toolbar-triggered
+  // viewport resizes (50-150px height-only changes).
   const revealContainerRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: revealContainerRef,
-    offset: ["start end", "end end"],
-  });
+  const scrollYProgress = useMotionValue(0);
+  const cachedFooterLayout = useRef<{ top: number; height: number; winW: number; winH: number } | null>(null);
+
+  const measureFooterLayout = useCallback(() => {
+    const el = revealContainerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    cachedFooterLayout.current = {
+      top: rect.top + scrollTop,
+      height: rect.height,
+      winW: window.innerWidth,
+      winH: window.innerHeight,
+    };
+  }, []);
+
+  useEffect(() => {
+    measureFooterLayout();
+
+    const onScroll = () => {
+      const layout = cachedFooterLayout.current;
+      if (!layout) return;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const winH = window.innerHeight;
+      // offset: ["start end", "end end"] means:
+      //   progress 0 = element top reaches viewport bottom
+      //   progress 1 = element bottom reaches viewport bottom
+      const start = layout.top - winH; // element top at viewport bottom
+      const end = layout.top + layout.height - winH; // element bottom at viewport bottom
+      const range = end - start;
+      if (range <= 0) return;
+      const progress = Math.min(1, Math.max(0, (scrollTop - start) / range));
+      scrollYProgress.set(progress);
+    };
+
+    const onResize = () => {
+      const prev = cachedFooterLayout.current;
+      if (!prev) {
+        measureFooterLayout();
+        return;
+      }
+      const newW = window.innerWidth;
+      const newH = window.innerHeight;
+      const dW = Math.abs(newW - prev.winW);
+      const dH = Math.abs(newH - prev.winH);
+      // Ignore height-only changes in the 40-160px range (toolbar toggle)
+      if (dW < 2 && dH >= 40 && dH <= 160) return;
+      measureFooterLayout();
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    onScroll();
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [measureFooterLayout, scrollYProgress]);
+
   const revealY = useTransform(scrollYProgress, [0, 1], [-55, 0]);
   const revealOpacity = useTransform(scrollYProgress, [0, 1], [0, 1]);
 

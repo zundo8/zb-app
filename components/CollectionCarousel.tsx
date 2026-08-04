@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,7 +47,11 @@ function wrapDiff(rawDiff: number, total: number): number {
 
 export default function CollectionCarousel({ collections }: { collections: Collection[] }) {
   const [index, setIndex] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0);
+  // rAF-throttled drag offset: ref is updated synchronously per pointermove,
+  // state is flushed at most once per animation frame for 60fps smoothness.
+  const dragOffsetRef = useRef(0);
+  const [dragOffsetForRender, setDragOffsetForRender] = useState(0);
+  const rafId = useRef(0);
   const total = collections.length;
 
   const dragStartX = useRef(0);
@@ -88,6 +92,7 @@ export default function CollectionCarousel({ collections }: { collections: Colle
     isDragging.current = true;
     hasMoved.current = false;
     isHorizontalDrag.current = null;
+    dragOffsetRef.current = 0;
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -107,13 +112,26 @@ export default function CollectionCarousel({ collections }: { collections: Colle
       if (Math.abs(dx) > 6) {
         hasMoved.current = true;
       }
-      setDragOffset(dx);
+      // Write to ref synchronously (zero overhead), schedule rAF flush
+      dragOffsetRef.current = dx;
+      if (!rafId.current) {
+        rafId.current = requestAnimationFrame(() => {
+          setDragOffsetForRender(dragOffsetRef.current);
+          rafId.current = 0;
+        });
+      }
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!isDragging.current) return;
     isDragging.current = false;
+
+    // Cancel any pending rAF before committing final state
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = 0;
+    }
 
     const dx = e.clientX - dragStartX.current;
     const dt = Date.now() - dragStartTime.current;
@@ -124,9 +142,17 @@ export default function CollectionCarousel({ collections }: { collections: Colle
       go(dx < 0 ? 1 : -1);
     }
 
-    setDragOffset(0);
+    dragOffsetRef.current = 0;
+    setDragOffsetForRender(0);
     isHorizontalDrag.current = null;
   };
+
+  // Clean up rAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+    };
+  }, []);
 
   if (!total) return null;
 
@@ -149,7 +175,7 @@ export default function CollectionCarousel({ collections }: { collections: Colle
           {/* Stage for desktop cards */}
           <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
             {collections.map((col, i) => {
-              const rawDiff = i - index - dragOffset / 360;
+              const rawDiff = i - index - dragOffsetForRender / 360;
               const diff = wrapDiff(rawDiff, total);
 
               if (Math.abs(diff) > renderRadius + 0.5) return null;
@@ -214,7 +240,7 @@ export default function CollectionCarousel({ collections }: { collections: Colle
         <div className="relative w-full flex items-center justify-center" style={{ height: "min(72vh, 560px)" }}>
           <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
             {collections.map((col, i) => {
-              const rawDiff = i - index - dragOffset / 280;
+              const rawDiff = i - index - dragOffsetForRender / 280;
               const diff = wrapDiff(rawDiff, total);
 
               // Only render nearby cards

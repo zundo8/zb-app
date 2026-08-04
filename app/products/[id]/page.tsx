@@ -1,8 +1,6 @@
-import { fetchProductByHandle, fetchProducts, resolveShopifyGid, ShopifyProduct, fetchCollections } from "@/lib/shopify-admin";
-import Image from "next/image";
+import { fetchProductByHandle, fetchProducts, resolveShopifyGid, ShopifyProduct } from "@/lib/shopify-admin";
 import Link from "next/link";
-import { ChevronLeft, ShoppingBag, Heart, Share2 } from "lucide-react";
-import prisma, { getShopSettings } from "@/lib/db";
+import { getShopSettings } from "@/lib/db";
 import ProductDetailsClient from "./ProductDetailsClient";
 import { Metadata } from "next";
 import { ProductJsonLd } from "@/components/seo/ProductJsonLd";
@@ -17,7 +15,12 @@ export async function generateMetadata({
 }: {
   params: { id: string }
 }): Promise<Metadata> {
-  const product = await fetchProductByHandle(params.id).catch(() => null);
+  let product: ShopifyProduct | null = null;
+  try {
+    product = await fetchProductByHandle(params.id);
+  } catch {
+    // Silently fall through to "not found" metadata
+  }
 
   if (!product) {
     return {
@@ -121,26 +124,43 @@ export async function generateMetadata({
 }
 
 export default async function ProductPage({ params }: { params: { id: string } }) {
-  const [product, shop, allProducts] = await Promise.all([
-    fetchProductByHandle(params.id).catch(() => null),
-    getShopSettings().catch(() => null),
-    fetchProducts(12).catch(() => [])
-  ]);
+  let product: ShopifyProduct | null = null;
+  let shop: any = null;
+  let allProducts: ShopifyProduct[] = [];
 
-  const recommendedProducts = allProducts.filter((p: ShopifyProduct) => p.id.toString() !== params.id);
+  try {
+    [product, shop, allProducts] = await Promise.all([
+      fetchProductByHandle(params.id).catch(() => null),
+      getShopSettings().catch(() => null),
+      fetchProducts(12).catch(() => [] as ShopifyProduct[])
+    ]);
+  } catch (err) {
+    console.error('[ProductPage] Fatal error fetching product data:', err);
+    // Fall through — product will be null and "not found" UI renders
+  }
 
-  // Resolve metafield GIDs to URLs
-  if (product?.metafields) {
-    await Promise.all(
-      product.metafields.map(async (meta) => {
-        if (meta.value && typeof meta.value === 'string' && meta.value.startsWith('gid://shopify/')) {
-          const resolvedUrl = await resolveShopifyGid(meta.value);
-          if (resolvedUrl) {
-            meta.value = resolvedUrl;
+  const recommendedProducts = (allProducts || []).filter((p: ShopifyProduct) => p.id?.toString() !== params.id);
+
+  // Resolve metafield GIDs to URLs — wrapped in try/catch to prevent page crash
+  try {
+    if (product?.metafields && Array.isArray(product.metafields)) {
+      await Promise.all(
+        product.metafields.map(async (meta) => {
+          try {
+            if (meta.value && typeof meta.value === 'string' && meta.value.startsWith('gid://shopify/')) {
+              const resolvedUrl = await resolveShopifyGid(meta.value);
+              if (resolvedUrl) {
+                meta.value = resolvedUrl;
+              }
+            }
+          } catch {
+            // Individual metafield resolution failure is non-critical
           }
-        }
-      })
-    );
+        })
+      );
+    }
+  } catch (err) {
+    console.error('[ProductPage] Error resolving metafield GIDs:', err);
   }
 
   if (!product) {
@@ -161,7 +181,13 @@ export default async function ProductPage({ params }: { params: { id: string } }
   const comparePrice = product.variants?.[0]?.compare_at_price;
 
   // Fetch real aggregate rating from verified reviews — never hardcoded
-  const aggregateRating = await getProductAggregateRating(product.id.toString());
+  let aggregateRating: { value: number; count: number } | undefined;
+  try {
+    aggregateRating = await getProductAggregateRating(product.id.toString());
+  } catch (err) {
+    console.error('[ProductPage] Error fetching aggregate rating:', err);
+    // Non-critical — JSON-LD simply omits aggregateRating
+  }
 
   const productLdData = {
     id: product.id.toString(),

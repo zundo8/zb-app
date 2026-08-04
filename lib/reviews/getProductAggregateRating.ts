@@ -7,23 +7,28 @@ import prisma from '@/lib/db';
 export async function getProductAggregateRating(
   productId: string
 ): Promise<{ value: number; count: number } | undefined> {
-  const result = await prisma.productReview.aggregate({
-    where: {
-      productId,
-      status: 'VISIBLE',
-    },
-    _avg: { rating: true },
-    _count: { rating: true },
-  });
+  try {
+    const result = await prisma.productReview.aggregate({
+      where: {
+        productId,
+        status: 'VISIBLE',
+      },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
 
-  if (!result._count.rating || result._count.rating === 0) {
+    if (!result._count.rating || result._count.rating === 0) {
+      return undefined;
+    }
+
+    return {
+      value: Math.round((result._avg.rating || 0) * 10) / 10, // one decimal
+      count: result._count.rating,
+    };
+  } catch (err) {
+    console.error('[Reviews] getProductAggregateRating error:', err);
     return undefined;
   }
-
-  return {
-    value: Math.round((result._avg.rating || 0) * 10) / 10, // one decimal
-    count: result._count.rating,
-  };
 }
 
 /**
@@ -45,24 +50,29 @@ export async function getProductReviews(
 > {
   const { limit = 20, offset = 0 } = options;
 
-  return prisma.productReview.findMany({
-    where: {
-      productId,
-      status: 'VISIBLE',
-    },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-    skip: offset,
-    select: {
-      id: true,
-      rating: true,
-      title: true,
-      body: true,
-      userId: true,
-      verifiedPurchase: true,
-      createdAt: true,
-    },
-  });
+  try {
+    return await prisma.productReview.findMany({
+      where: {
+        productId,
+        status: 'VISIBLE',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        rating: true,
+        title: true,
+        body: true,
+        userId: true,
+        verifiedPurchase: true,
+        createdAt: true,
+      },
+    });
+  } catch (err) {
+    console.error('[Reviews] getProductReviews error:', err);
+    return [];
+  }
 }
 
 /**
@@ -73,20 +83,25 @@ export async function getProductReviews(
 export async function getStoreAggregateRating(): Promise<
   { value: number; count: number } | undefined
 > {
-  const result = await prisma.productReview.aggregate({
-    where: {
-      status: 'VISIBLE',
-    },
-    _avg: { rating: true },
-    _count: { rating: true },
-  });
+  try {
+    const result = await prisma.productReview.aggregate({
+      where: {
+        status: 'VISIBLE',
+      },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
 
-  if (!result._count.rating || result._count.rating === 0) {
+    if (!result._count.rating || result._count.rating === 0) {
+      return undefined;
+    }
+
+    return {
+      value: Math.round((result._avg.rating || 0) * 10) / 10,
+      count: result._count.rating,
+    };
+  } catch (err) {
+    console.error('[Reviews] getStoreAggregateRating error:', err);
     return undefined;
   }
-
-  return {
-    value: Math.round((result._avg.rating || 0) * 10) / 10,
-    count: result._count.rating,
-  };
 }

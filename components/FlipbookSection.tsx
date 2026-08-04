@@ -1,7 +1,7 @@
 "use client";
 
-import { motion, useScroll, useTransform, useSpring } from "framer-motion";
-import { useRef, useState, useEffect } from "react";
+import { motion, useTransform, useSpring, useMotionValue } from "framer-motion";
+import { useRef, useState, useEffect, useCallback } from "react";
 import NextImage from "next/image";
 import Link from "next/link";
 import { handleImageError } from "./ImagePlaceholder";
@@ -56,10 +56,69 @@ export default function FlipbookSection({ imgUrl, videoUrl, imgUrlMobile, videoU
     });
   }, [isVisible]);
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start end", "end start"],
-  });
+  // Stable scroll-progress that ignores in-app browser toolbar-triggered
+  // viewport resizes (50-150px height-only changes).
+  const scrollYProgress = useMotionValue(0);
+  const cachedLayout = useRef<{ top: number; height: number; winW: number; winH: number } | null>(null);
+
+  const measureLayout = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    cachedLayout.current = {
+      top: rect.top + scrollTop,
+      height: rect.height,
+      winW: window.innerWidth,
+      winH: window.innerHeight,
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    measureLayout();
+
+    const onScroll = () => {
+      const layout = cachedLayout.current;
+      if (!layout) return;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const winH = window.innerHeight;
+      // offset: ["start end", "end start"] means:
+      //   progress 0 = element top reaches viewport bottom
+      //   progress 1 = element bottom reaches viewport top
+      const start = layout.top - winH; // element top at viewport bottom
+      const end = layout.top + layout.height; // element bottom at viewport top
+      const range = end - start;
+      if (range <= 0) return;
+      const progress = Math.min(1, Math.max(0, (scrollTop - start) / range));
+      scrollYProgress.set(progress);
+    };
+
+    const onResize = () => {
+      const prev = cachedLayout.current;
+      if (!prev) {
+        measureLayout();
+        return;
+      }
+      const newW = window.innerWidth;
+      const newH = window.innerHeight;
+      const dW = Math.abs(newW - prev.winW);
+      const dH = Math.abs(newH - prev.winH);
+      // Ignore height-only changes in the 40-160px range (toolbar toggle)
+      if (dW < 2 && dH >= 40 && dH <= 160) return;
+      measureLayout();
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    // Fire once to set initial progress
+    onScroll();
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [mounted, measureLayout, scrollYProgress]);
 
   const smoothProgress = useSpring(scrollYProgress, { stiffness: 80, damping: 25, restDelta: 0.001 });
   const imageScale = useTransform(smoothProgress, [0, 0.5, 1], [1.05, 1, 1.05]);

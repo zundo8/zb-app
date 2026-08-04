@@ -32,12 +32,20 @@ export async function ProductReviews({
 }: {
   productId: string;
 }) {
-  const [aggregate, reviews] = await Promise.all([
-    getProductAggregateRating(productId),
-    getProductReviews(productId, { limit: 10 }),
-  ]);
+  let aggregate: { value: number; count: number } | undefined;
+  let reviews: Awaited<ReturnType<typeof getProductReviews>> = [];
 
-  if (!aggregate || reviews.length === 0) {
+  try {
+    [aggregate, reviews] = await Promise.all([
+      getProductAggregateRating(productId),
+      getProductReviews(productId, { limit: 10 }),
+    ]);
+  } catch (err) {
+    console.error('[ProductReviews] Error fetching reviews:', err);
+    return null;
+  }
+
+  if (!aggregate || !reviews || reviews.length === 0) {
     return null;
   }
 
