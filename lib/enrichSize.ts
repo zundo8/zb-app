@@ -31,6 +31,17 @@ export async function enrichSingleItem(item: any, parentOrder?: any) {
   const productId = item.productId || item.product?.id || item.originalProductId || item.newProductId;
   const orderId = item.orderId || parentOrder?.id;
 
+  // Fast path: if size and sku are already resolved in-memory, return immediately
+  if (size && sku) {
+    const resolvedVariantTitle = variantTitle || `Size: ${size}`;
+    return {
+      ...item,
+      sku,
+      size,
+      variantTitle: resolvedVariantTitle,
+    };
+  }
+
   // 1. Cross-reference WebStoreOrder items JSON if size is missing
   if (!size) {
     try {
@@ -86,7 +97,7 @@ export async function enrichSingleItem(item: any, parentOrder?: any) {
         `SELECT size FROM product_skus WHERE UPPER(sku) = $1 AND size IS NOT NULL AND size != '' LIMIT 1`,
         sku.trim().toUpperCase()
       );
-      if (skuRecs.length > 0 && skuRecs[0].size) {
+      if (skuRecs && skuRecs.length > 0 && skuRecs[0].size) {
         size = skuRecs[0].size.trim().toUpperCase();
       }
     } catch (_) {}
@@ -99,7 +110,7 @@ export async function enrichSingleItem(item: any, parentOrder?: any) {
         `SELECT size FROM product_skus WHERE product_id = $1 AND size IS NOT NULL AND size != '' LIMIT 1`,
         productId
       );
-      if (prodSkuRecs.length > 0 && prodSkuRecs[0].size) {
+      if (prodSkuRecs && prodSkuRecs.length > 0 && prodSkuRecs[0].size) {
         size = prodSkuRecs[0].size.trim().toUpperCase();
       }
     } catch (_) {}
@@ -118,7 +129,7 @@ export async function enrichSingleItem(item: any, parentOrder?: any) {
             `SELECT sku FROM product_skus WHERE product_id = $1 LIMIT 1`,
             productId
           );
-      if (skuQuery.length > 0 && skuQuery[0].sku) {
+      if (skuQuery && skuQuery.length > 0 && skuQuery[0].sku) {
         sku = skuQuery[0].sku;
       }
     } catch (_) {}
@@ -126,19 +137,6 @@ export async function enrichSingleItem(item: any, parentOrder?: any) {
 
   const resolvedSize = size || null;
   const resolvedVariantTitle = variantTitle || (resolvedSize ? `Size: ${resolvedSize}` : null);
-
-  // Backfill resolved size into OrderItem DB table if missing
-  if (resolvedSize && item.id && !item.size) {
-    try {
-      await prisma.orderItem.update({
-        where: { id: item.id },
-        data: {
-          size: resolvedSize,
-          variantTitle: resolvedVariantTitle,
-        }
-      });
-    } catch (_) {}
-  }
 
   return {
     ...item,

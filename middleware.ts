@@ -104,6 +104,15 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
 
+    // Defense-in-depth: www -> apex 308 redirect
+    const host = req.headers.get("x-forwarded-host")?.split(":")[0] || req.headers.get("host")?.split(":")[0] || req.nextUrl.hostname;
+    if (host === "www.zicabella.com" || req.nextUrl.hostname === "www.zicabella.com") {
+      const url = req.nextUrl.clone();
+      url.hostname = "zicabella.com";
+      url.protocol = "https";
+      return NextResponse.redirect(url, 308);
+    }
+
     // Allow login page to load without checks to avoid redirect loop
     if (pathname === '/dashboard/login') {
       return NextResponse.next();
@@ -121,13 +130,13 @@ export default withAuth(
     if (["POST", "PUT", "DELETE"].includes(req.method)) {
       const origin = req.headers.get("origin");
       const referer = req.headers.get("referer");
-      const host = req.headers.get("host") || "";
+      const currentHost = req.headers.get("host") || "";
 
       if (process.env.NODE_ENV === "production") {
         if (origin) {
           try {
             const originHost = new URL(origin).host;
-            if (originHost !== host) {
+            if (originHost !== currentHost) {
               return new NextResponse(JSON.stringify({ error: "CSRF validation failed: Origin mismatch" }), {
                 status: 403,
                 headers: { "Content-Type": "application/json" }
@@ -142,7 +151,7 @@ export default withAuth(
         } else if (referer) {
           try {
             const refererHost = new URL(referer).host;
-            if (refererHost !== host) {
+            if (refererHost !== currentHost) {
               return new NextResponse(JSON.stringify({ error: "CSRF validation failed: Referer mismatch" }), {
                 status: 403,
                 headers: { "Content-Type": "application/json" }
@@ -331,6 +340,22 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         const { pathname } = req.nextUrl;
+        const host = req.headers.get("x-forwarded-host")?.split(":")[0] || req.headers.get("host")?.split(":")[0] || req.nextUrl.hostname;
+
+        // www -> apex redirect backstop: bypass auth check so middleware function handles 308 redirect
+        if (host === "www.zicabella.com" || req.nextUrl.hostname === "www.zicabella.com") {
+          return true;
+        }
+
+        // Determine if route requires NextAuth admin validation
+        const isAdminRoute =
+          pathname.startsWith('/dashboard') ||
+          pathname.startsWith('/web-store') ||
+          pathname.startsWith('/api/admin') ||
+          (pathname.startsWith('/api/web-store') && !(pathname === '/api/web-store/banners' || pathname === '/api/web-store/gallery')) ||
+          pathname === '/api/payments/refund';
+
+        if (!isAdminRoute) return true;
         
         // Skip auth for login page to avoid redirect loop
         if (pathname === '/dashboard/login') return true;
@@ -355,12 +380,6 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    "/dashboard",
-    "/dashboard/:path*",
-    "/web-store",
-    "/web-store/:path*",
-    "/api/admin/:path*",
-    "/api/web-store/:path*",
-    "/api/payments/refund",
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

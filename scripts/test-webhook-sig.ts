@@ -2,19 +2,9 @@ import { validateWebhookSignature } from '../lib/services/logistics';
 import * as crypto from 'crypto';
 
 function runTests() {
-  console.log('--- RUNNING WEBHOOK SIGNATURE REGRESSION TESTS ---');
+  console.log('--- RUNNING WEBHOOK SIGNATURE & LOGISTICS REGRESSION TESTS ---');
   
-  const payload = JSON.stringify({ test: 'data', amount: 100 });
-  const secret = 'super-secret-key-123';
-  
-  // Generate correct signature
-  const correctHmac = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-
   let failed = false;
-
   const assert = (condition: boolean, message: string) => {
     if (!condition) {
       console.error(`❌ FAIL: ${message}`);
@@ -24,70 +14,85 @@ function runTests() {
     }
   };
 
-  // Case 1: Valid HMAC-SHA256 signature -> returns true
+  const realToken = 'c82d8f7d564741aec53416706e08698efe27ed708e66ec922f3f3537156fa5f9';
+  const realSecret = 'a70060748d8cc056b1cf78452c91535b7795552574df54ef9791570b490afedf';
+  const samplePayload = JSON.stringify({
+    Shipment: {
+      AWB: '84527810000033',
+      ReferenceNo: '1001',
+      Status: { Status: 'In Transit', StatusDateTime: '2026-08-05T00:00:00Z' }
+    }
+  });
+
+  // Test 1: Real values static token comparison (matching secret token)
   assert(
-    validateWebhookSignature(payload, correctHmac, secret, 'generic') === true,
-    'Valid HMAC signature should validate'
+    validateWebhookSignature(samplePayload, realToken, realToken, 'delhivery') === true,
+    'Test 1a: Delhivery static token validation succeeds when stored secret matches incoming header token'
+  );
+  assert(
+    validateWebhookSignature(samplePayload, realToken, realSecret, 'delhivery') === false,
+    'Test 1b: Delhivery static token validation returns false when stored secret differs from header token'
   );
 
-  // Case 2: Tampered payload with valid-for-original-payload signature -> returns false
-  const tamperedPayload = JSON.stringify({ test: 'data', amount: 999 });
+  // Test 2: Tampered / short token -> returns false
   assert(
-    validateWebhookSignature(tamperedPayload, correctHmac, secret, 'generic') === false,
-    'Tampered payload should fail validation'
+    validateWebhookSignature(samplePayload, 'short_tampered_token', realToken, 'delhivery') === false,
+    'Test 2a: Short/tampered token fails static token validation'
+  );
+  assert(
+    validateWebhookSignature(samplePayload, 'c82d8f7d564741aec53416706e08698efe27ed708e66ec922f3f3537156fa5f9_invalid', realToken, 'delhivery') === false,
+    'Test 2b: Mismatched length token fails static token validation'
   );
 
-  // Case 3: Signature with sha256= prefix -> still validates correctly after stripping
+  // Test 3: Token with prefixes (Bearer/Token) and whitespace
   assert(
-    validateWebhookSignature(payload, `sha256=${correctHmac}`, secret, 'generic') === true,
-    'Signature with sha256= prefix should validate'
+    validateWebhookSignature(samplePayload, `Bearer ${realToken} `, realToken, 'delhivery') === true,
+    'Test 3a: Header with Bearer prefix and trailing space validates correctly'
+  );
+  assert(
+    validateWebhookSignature(samplePayload, `Token ${realToken}`, realToken, 'delhivery') === true,
+    'Test 3b: Header with Token prefix validates correctly'
   );
 
-  // Case 4: Signature with Bearer prefix -> still validates correctly after stripping (computed using HMAC)
-  const delhiveryEmptyPayloadHmac = crypto
-    .createHmac('sha256', secret)
-    .update('')
-    .digest('hex');
+  // Test 4: DELHIVERY_WEBHOOK_MODE env override ('hmac')
+  process.env.DELHIVERY_WEBHOOK_MODE = 'hmac';
+  const delhiveryHmac = crypto.createHmac('sha256', realSecret).update(samplePayload).digest('hex');
   assert(
-    validateWebhookSignature('', `Bearer ${delhiveryEmptyPayloadHmac}`, secret, 'delhivery') === true,
-    'Delhivery validation with Bearer prefix should validate'
+    validateWebhookSignature(samplePayload, delhiveryHmac, realSecret, 'delhivery') === true,
+    'Test 4a: Delhivery HMAC mode override validates computed HMAC-SHA256'
+  );
+  assert(
+    validateWebhookSignature(samplePayload, realToken, realSecret, 'delhivery') === false,
+    'Test 4b: Delhivery HMAC mode override rejects static token when expecting HMAC'
+  );
+  delete process.env.DELHIVERY_WEBHOOK_MODE; // Reset to default ('token')
+
+  // Test 5: Shiprocket / Generic provider (remains HMAC-SHA256)
+  const genericHmac = crypto.createHmac('sha256', realSecret).update(samplePayload).digest('hex');
+  assert(
+    validateWebhookSignature(samplePayload, genericHmac, realSecret, 'generic') === true,
+    'Test 5a: Generic provider validates HMAC-SHA256 correctly'
+  );
+  assert(
+    validateWebhookSignature(samplePayload, realToken, realSecret, 'generic') === false,
+    'Test 5b: Generic provider rejects static token'
   );
 
-  // Case 5: Delhivery signature using HMAC -> validates
+  // Test 6: Missing secret or missing signature handling
   assert(
-    validateWebhookSignature('', delhiveryEmptyPayloadHmac, secret, 'delhivery') === true,
-    'Delhivery validation with HMAC should validate'
+    validateWebhookSignature(samplePayload, '', realSecret, 'delhivery') === false,
+    'Test 6a: Missing signature returns false'
   );
-
-  // Case 6: Missing secret or missing signature -> returns false without throwing
-  try {
-    assert(
-      validateWebhookSignature(payload, correctHmac, '', 'generic') === false,
-      'Missing secret should return false'
-    );
-    assert(
-      validateWebhookSignature(payload, '', secret, 'generic') === false,
-      'Missing signature should return false'
-    );
-  } catch (err: any) {
-    assert(false, `Missing secret/signature threw an error: ${err.message}`);
-  }
-
-  // Case 7: Invalid/mismatched signature lengths or formats should not throw
-  try {
-    assert(
-      validateWebhookSignature(payload, 'short-sig', secret, 'generic') === false,
-      'Mismatched signature length should return false without throwing'
-    );
-  } catch (err: any) {
-    assert(false, `Mismatched signature length threw an error: ${err.message}`);
-  }
+  assert(
+    validateWebhookSignature(samplePayload, realToken, '', 'delhivery') === false,
+    'Test 6b: Missing secret returns false'
+  );
 
   if (failed) {
     console.error('\n❌ SOME TESTS FAILED');
     process.exit(1);
   } else {
-    console.log('\n🎉 ALL TESTS PASSED SUCCESSFULLY');
+    console.log('\n🎉 ALL WEBHOOK SIGNATURE TESTS PASSED SUCCESSFULLY');
     process.exit(0);
   }
 }

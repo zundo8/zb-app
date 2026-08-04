@@ -184,17 +184,24 @@ export async function POST(req: Request) {
       });
     }
 
+    // Extract settlement preference (PREPAID_NOW vs COD_ON_DELIVERY)
+    const rawPref = body.settlementPreference || paymentDetails?.settlementPreference || paymentDetails?.paymentMethod;
+    const settlementPreference = (rawPref === 'COD_ON_DELIVERY' || rawPref === 'cod') ? 'COD_ON_DELIVERY' : 'PREPAID_NOW';
+
     // Use calculated price difference, fall back to client-provided if available
     const finalPriceDifference = calculatedPriceDifference || paymentDetails?.priceDifference || 0;
 
-    // If positive diff, require payment
+    let paymentStatus = "not_required";
     if (finalPriceDifference > 0) {
-      if (!paymentDetails || !paymentDetails.paymentId) {
-        return NextResponse.json({ error: "Payment required for price difference" }, { status: 400 });
+      if (settlementPreference === "PREPAID_NOW") {
+        if (!paymentDetails || !paymentDetails.paymentId) {
+          return NextResponse.json({ error: "Payment required for prepaid exchange price difference" }, { status: 400 });
+        }
+        paymentStatus = "paid";
+      } else {
+        paymentStatus = "cod_pending";
       }
     }
-
-    const paymentStatus = finalPriceDifference > 0 ? "paid" : "not_required";
 
     const exchangeRequest = await prisma.exchangeRequest.create({
       data: {
@@ -203,7 +210,8 @@ export async function POST(req: Request) {
         status: "pending_approval",
         priceDifference: finalPriceDifference,
         paymentStatus,
-        paymentId: paymentDetails?.paymentId,
+        paymentId: paymentDetails?.paymentId || null,
+        settlementPreference: settlementPreference,
         reason: exchangeItems[0]?.reason || "Exchange request",
         exchanges: {
           create: itemsToExchange.map((item: any) => ({

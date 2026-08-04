@@ -68,6 +68,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       // 5. Create a reverse shipment tracking record with real Delhivery reverse pickup
       let reverseAwb: string | null = null;
       let pickupStatus = 'pickup_pending';
+      let requestStatus = 'approved';
       let delhiveryRaw: any = null;
 
       try {
@@ -93,7 +94,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           add,
           pin: String(pin),
           phone: String(phone),
-          order: returnRequest.order.shopifyOrderId || returnRequest.order.id,
+          order: returnRequest.id, // Deterministic request reference
           products_desc: `Return: ${prodDesc}`,
           weight: '500',
           seller_name: 'Zica Bella',
@@ -102,11 +103,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
         reverseAwb = pickupRes.awb;
         pickupStatus = pickupRes.status;
+        requestStatus = 'approved';
         delhiveryRaw = pickupRes.rawResponse;
       } catch (dErr: any) {
         console.error('[Return Approve] Delhivery reverse pickup failed:', dErr.message);
         pickupStatus = 'pickup_registration_failed';
-        delhiveryRaw = { error: dErr.message, note: 'Delhivery pickup creation failed. Return approved locally.' };
+        requestStatus = 'approved_pickup_failed';
+        delhiveryRaw = { error: dErr.message, note: 'Delhivery pickup creation failed. Marked as approved_pickup_failed for admin retry.' };
       }
 
       await tx.shipment.create({
@@ -122,7 +125,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      return updatedRequest;
+      // Update ReturnRequest status & store reverseAwb
+      const finalRequest = await tx.returnRequest.update({
+        where: { id },
+        data: {
+          status: requestStatus,
+          reverseAwb: reverseAwb
+        }
+      });
+
+      return { finalRequest, reverseAwb };
     });
 
     // Mark SKUs on returned items as RETURNED (not yet restocked — that happens on RECEIVED)
@@ -158,7 +170,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           customerName,
           orderId: orderIdDisplay,
           pickupDate: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-          awbNumber: 'Pending',
+          awbNumber: result.reverseAwb || 'Pickup Scheduled',
         });
       }
     } catch (waErr: any) {

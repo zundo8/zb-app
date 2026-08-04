@@ -96,12 +96,12 @@ export async function GET(req: NextRequest) {
       warnings: warnings.slice(0, 15), // Limit report view size
       fixes: fixes.slice(0, 15),
       sitemap: {
-        url: "https://www.zicabella.com/sitemap.xml",
+        url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com'}/sitemap.xml`,
         status: "Active",
         lastGenerated: new Date().toISOString()
       },
       robots: {
-        url: "https://www.zicabella.com/robots.txt",
+        url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com'}/robots.txt`,
         status: "Active",
         rulesCount: 16
       }

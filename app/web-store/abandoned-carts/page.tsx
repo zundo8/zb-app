@@ -185,7 +185,8 @@ export default function AbandonedCartsPage() {
   useEffect(() => {
     if (selectedCart) {
       const name = selectedCart.customer?.name || "Customer";
-      const checkoutUrl = `https://www.zicabella.com/cart?recover=${selectedCart.id}`;
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
+      const checkoutUrl = `${siteUrl}/cart?recover=${selectedCart.id}`;
       
       setEmailSubject("We saved your Zica Bella shopping bag!");
       setEmailBody(`Hi ${name},\n\nWe noticed you left some beautiful pieces in your shopping bag. Complete your checkout now and make them yours!\n\nRestore your cart with a single click here:\n${checkoutUrl}\n\nWarm regards,\nZica Bella Team`);

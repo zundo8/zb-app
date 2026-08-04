@@ -1,16 +1,33 @@
 import { NextResponse } from 'next/server';
 import { updateOrderTracking } from '@/lib/delhivery/tracking';
+import { validateWebhookSignature, resolveWebhookSecret } from '@/lib/services/logistics';
 
 export async function POST(req: Request) {
   try {
-    const signature = req.headers.get('x-delhivery-secret');
-    const secret = process.env.DELHIVERY_WEBHOOK_SECRET;
+    const rawBody = await req.text();
+    const signature = (
+      req.headers.get('x-delhivery-signature') ||
+      req.headers.get('x-delhivery-secret') ||
+      req.headers.get('authorization') || ''
+    ).trim();
 
-    if (!secret || signature !== secret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { secret } = await resolveWebhookSecret();
+
+    if (secret && signature) {
+      const isValid = validateWebhookSignature(rawBody, signature, secret, 'delhivery');
+      if (!isValid) {
+        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+      }
+    } else if (secret && !signature) {
+      return NextResponse.json({ error: 'Missing webhook signature' }, { status: 401 });
     }
 
-    const payload = await req.json();
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+    }
 
     // Trigger async processing in a fire-and-forget block to bypass the 500ms timeout
     (async () => {

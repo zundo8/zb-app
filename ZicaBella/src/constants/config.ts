@@ -18,16 +18,16 @@ export const config = {
   footerLogo3dGlb:
     'https://cdn.shopify.com/3d/models/e024b09e83a75c03/Zicabella-silver-logo.glb',
   /** Store / marketing contact page (matches web footer). */
-  contactPage: 'https://www.zicabella.com/policies/contact-information',
+  contactPage: 'https://zicabella.com/policies/contact-information',
   heroVideoUrl: 'https://app.zicabella.com/zb-video-heroo.mp4',
   razorpay: {
     keyId: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || '',
   },
   policies: {
-    privacy: 'https://www.zicabella.com/policies/privacy-policy',
-    refund: 'https://www.zicabella.com/policies/refund-policy',
-    shipping: 'https://www.zicabella.com/policies/shipping-policy',
-    terms: 'https://www.zicabella.com/policies/terms-of-service',
+    privacy: 'https://zicabella.com/policies/privacy-policy',
+    refund: 'https://zicabella.com/policies/refund-policy',
+    shipping: 'https://zicabella.com/policies/shipping-policy',
+    terms: 'https://zicabella.com/policies/terms-of-service',
   },
   trending: ['T-shirt', 'Jeans', 'Pants', 'Trousers', 'Jorts', 'Shirts', 'Acid Tees', 'Leather'],
 };

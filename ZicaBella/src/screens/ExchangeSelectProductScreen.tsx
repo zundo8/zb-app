@@ -148,19 +148,22 @@ export default function ExchangeSelectProductScreen() {
       }
     }
 
-    // Direct exchange if no extra payment, otherwise mock payment for now
     if (priceDifference > 0) {
-      // In real app, integrate Razorpay here
-      Alert.alert('Payment Required', `You need to pay ${formatPrice(priceDifference)} difference. Proceed to mock payment?`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Pay & Submit', onPress: () => processExchange('mock_payment_id') }
-      ]);
+      Alert.alert(
+        'Payment Option',
+        `Price difference: ${formatPrice(priceDifference)}. How would you like to settle the difference?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Pay on Delivery (COD)', onPress: () => processExchange(null, 'COD_ON_DELIVERY') },
+          { text: 'Pay Now (Prepaid)', onPress: () => processExchange('mock_payment_id', 'PREPAID_NOW') }
+        ]
+      );
     } else {
-      processExchange(null);
+      processExchange(null, 'PREPAID_NOW');
     }
   };
 
-  const processExchange = async (paymentId: string | null) => {
+  const processExchange = async (paymentId: string | null, settlementPreference: 'PREPAID_NOW' | 'COD_ON_DELIVERY' = 'PREPAID_NOW') => {
     setIsSubmitting(true);
     try {
       const token = useAuthStore.getState().token;
@@ -187,10 +190,11 @@ export default function ExchangeSelectProductScreen() {
           orderId: order.id,
           userId: user?.id,
           exchangeItems: exchangeItemsPayload,
+          settlementPreference,
           paymentDetails: {
             priceDifference,
             paymentId,
-            paymentMethod: paymentId ? 'razorpay' : 'cod'
+            paymentMethod: settlementPreference === 'COD_ON_DELIVERY' ? 'cod' : 'razorpay'
           }
         })
       });

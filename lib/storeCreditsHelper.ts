@@ -190,3 +190,54 @@ export async function voidAllExpiredCredits() {
     console.error(`[Store Credits Helper] Error in voidAllExpiredCredits:`, err.message);
   }
 }
+
+/**
+ * Issues store credits to a customer and updates their ledger and balance.
+ */
+export async function issueStoreCredits({
+  customerId,
+  amount,
+  description,
+  orderId,
+  returnId,
+  expiresAt,
+}: {
+  customerId: string;
+  amount: number;
+  description: string;
+  orderId?: string;
+  returnId?: string;
+  expiresAt?: Date | null;
+}) {
+  if (amount <= 0) return;
+
+  const result = await prisma.$transaction(async (tx: any) => {
+    const cred = await tx.storeCredit.create({
+      data: {
+        customerId,
+        amount,
+        type: 'exchange_adjustment',
+        description,
+        orderId: orderId || null,
+        returnId: returnId || null,
+        remainingAmount: amount,
+        expiresAt: expiresAt || null,
+      }
+    });
+
+    await tx.customer.update({
+      where: { id: customerId },
+      data: {
+        storeCredits: {
+          increment: amount
+        }
+      }
+    });
+
+    return cred;
+  });
+
+  console.log(`[Store Credits Helper] Issued ₹${amount} store credit to customer ${customerId}`);
+  return result;
+}
+

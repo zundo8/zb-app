@@ -66,6 +66,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       // 2. Create a reverse shipment tracking record with real Delhivery reverse pickup
       let reverseAwb: string | null = null;
       let pickupStatus = 'pickup_pending';
+      let requestStatus = 'approved';
       let delhiveryRaw: any = null;
 
       try {
@@ -91,7 +92,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           add,
           pin: String(pin),
           phone: String(phone),
-          order: exchangeRequest.order.shopifyOrderId || exchangeRequest.order.id,
+          order: exchangeRequest.id, // Deterministic request reference
           products_desc: `Exchange Return: ${prodDesc}`,
           weight: '500',
           seller_name: 'Zica Bella',
@@ -100,11 +101,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
         reverseAwb = pickupRes.awb;
         pickupStatus = pickupRes.status;
+        requestStatus = 'approved';
         delhiveryRaw = pickupRes.rawResponse;
       } catch (dErr: any) {
         console.error('[Exchange Approve] Delhivery reverse pickup failed:', dErr.message);
         pickupStatus = 'pickup_registration_failed';
-        delhiveryRaw = { error: dErr.message, note: 'Delhivery pickup creation failed. Exchange approved locally.' };
+        requestStatus = 'approved_pickup_failed';
+        delhiveryRaw = { error: dErr.message, note: 'Delhivery pickup creation failed. Marked as approved_pickup_failed for admin retry.' };
       }
 
       await tx.shipment.create({
@@ -120,16 +123,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // 3. Update the ExchangeRequest status & link to the return request
+      // 3. Update the ExchangeRequest status & link to the return request & store reverseAwb
       const updatedRequest = await tx.exchangeRequest.update({
         where: { id },
         data: {
-          status: "approved",
+          status: requestStatus,
           returnRequestId: returnRequest.id,
+          reverseAwb: reverseAwb
         }
       });
 
-      // 4. Update individual exchange items (newOrderId will be populated later when create-order succeeds after QC)
+      // 4. Update individual exchange items
       await tx.exchange.updateMany({
         where: { exchangeRequestId: id },
         data: {
@@ -138,7 +142,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // 5. Update original order status & auto-cancel any pending customer return requests for mutual exclusivity
+      // 5. Update original order status & auto-cancel pending customer return requests for mutual exclusivity
       await tx.order.update({
         where: { id: exchangeRequest.orderId },
         data: { status: "exchange_approved" }
@@ -159,16 +163,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return {
         exchangeRequest: updatedRequest,
         returnRequestId: returnRequest.id,
+        reverseAwb,
+        requestStatus,
       };
     });
 
-    console.log(`✅ Exchange ${id} approved. Return created: ${result.returnRequestId}`);
+    console.log(`✅ Exchange ${id} processed. Status: ${result.requestStatus}, Return created: ${result.returnRequestId}, AWB: ${result.reverseAwb || 'NONE'}`);
 
     // SKU lifecycle tracking: mark original item SKUs as EXCHANGED
     try {
       const { markSkuStatus } = await import('@/lib/services/skuService');
       for (const ex of exchangeRequest.exchanges) {
-        // Find the original item's SKU from the order items
         const orderItem = exchangeRequest.order.items.find(
           (oi: any) => oi.productId === ex.originalProductId
         );
@@ -181,7 +186,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       console.error('[Exchange Approve] SKU status update failed:', skuErr);
     }
 
-    // Auto-send Exchange Confirmed & Exchange Pickup Scheduled WhatsApp notifications
+    // Auto-send WhatsApp notifications with real reverse AWB if available
     try {
       const { sendExchangeConfirmed, sendExchangePickupScheduled } = await import('@/lib/whatsapp/templates');
       const cust = exchangeRequest.order.customer;
@@ -211,7 +216,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           customerName,
           orderId: orderIdDisplay,
           pickupDate: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-          awbNumber: 'Pending',
+          awbNumber: result.reverseAwb || 'Pickup Scheduled',
         });
       }
     } catch (waErr: any) {

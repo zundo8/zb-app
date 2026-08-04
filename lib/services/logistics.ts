@@ -805,14 +805,15 @@ export async function resolveWebhookSecret(): Promise<{ secret: string; source: 
   if (envSecret) return { secret: envSecret, source: 'env' };
 
   const shop = await prisma.shop.findFirst({ select: { webhookSecret: true } });
-  if (shop?.webhookSecret) return { secret: shop.webhookSecret.trim(), source: 'db' };
+  if (shop?.webhookSecret?.trim()) return { secret: shop.webhookSecret.trim(), source: 'db' };
 
   return { secret: '', source: 'none' };
 }
 
 /**
  * Validate a webhook signature from the logistics partner.
- * All providers use HMAC-SHA256 hex signature verification.
+ * - provider === 'delhivery': supports static shared-secret token comparison (default) or HMAC-SHA256 based on DELHIVERY_WEBHOOK_MODE env ('token' | 'hmac').
+ * - provider === 'shiprocket' / 'generic': HMAC-SHA256 hex comparison.
  */
 export function validateWebhookSignature(
   payload: string,
@@ -826,23 +827,50 @@ export function validateWebhookSignature(
     const cleanSignature = signature
       .replace(/^sha256=/i, '')
       .replace(/^Bearer\s+/i, '')
+      .replace(/^Token\s+/i, '')
       .trim();
     const cleanSecret = secret.trim();
 
-    // All providers — HMAC-SHA256 hex comparison
+    if (provider === 'delhivery') {
+      const mode = (process.env.DELHIVERY_WEBHOOK_MODE || 'token').trim().toLowerCase();
+      if (mode === 'token') {
+        const sigBuf = Buffer.from(cleanSignature);
+        const secretBuf = Buffer.from(cleanSecret);
+
+        if (sigBuf.length !== secretBuf.length) {
+          console.warn(`[Logistics] Webhook signature validation failed (mode=token). Header length (${sigBuf.length}) != Secret length (${secretBuf.length})`);
+          return false;
+        }
+
+        const matches = crypto.timingSafeEqual(sigBuf, secretBuf);
+        if (!matches) {
+          console.warn(`[Logistics] Webhook signature validation failed (mode=token). Token mismatch.`);
+        }
+        return matches;
+      }
+    }
+
+    // HMAC-SHA256 comparison for shiprocket/generic or delhivery in hmac mode
     const expectedSignature = crypto
       .createHmac('sha256', cleanSecret)
       .update(payload)
       .digest('hex');
 
     if (cleanSignature.length !== expectedSignature.length) {
+      if (provider === 'delhivery') {
+        console.warn(`[Logistics] Webhook signature validation failed (mode=hmac). Signature length mismatch.`);
+      }
       return false;
     }
 
-    return crypto.timingSafeEqual(
+    const matches = crypto.timingSafeEqual(
       Buffer.from(cleanSignature),
       Buffer.from(expectedSignature)
     );
+    if (!matches && provider === 'delhivery') {
+      console.warn(`[Logistics] Webhook signature validation failed (mode=hmac). Signature mismatch.`);
+    }
+    return matches;
   } catch (err) {
     console.error('[Logistics] Webhook signature validation error:', err);
     return false;

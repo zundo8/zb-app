@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { createOrder } from "@/lib/shopify-admin";
+import { issueStoreCredits } from "@/lib/storeCreditsHelper";
+import { createDelhiveryShipment, fetchWaybill } from "@/lib/delhivery";
 
 /**
  * POST /api/admin/exchanges/[id]/create-order
- * Creates a Shopify order with ₹0 amount for the exchange replacement.
- * This is called after QC passes and the admin confirms.
+ * Creates the replacement Shopify+local order, handles COD/Prepaid/Store Credit,
+ * and generates a forward Delhivery shipment with AWB.
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -27,8 +29,33 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: "Exchange request not found" }, { status: 404 });
     }
 
+    // Idempotency check: if order already created, return existing
+    if (exchangeRequest.status === "new_order_created" && exchangeRequest.newShopifyOrderId) {
+      const existingOrder = await prisma.order.findUnique({
+        where: { shopifyOrderId: exchangeRequest.newShopifyOrderId }
+      });
+      return NextResponse.json({
+        success: true,
+        message: "Order already created for this exchange",
+        shopifyOrderId: exchangeRequest.newShopifyOrderId,
+        localOrderId: existingOrder?.id || null,
+        exchangeRequest
+      });
+    }
+
     if (!["qc_passed", "received", "approved"].includes(exchangeRequest.status)) {
-      return NextResponse.json({ error: "Exchange must pass QC before creating Shopify order" }, { status: 400 });
+      return NextResponse.json({ error: `Exchange must pass QC before creating replacement order. Current status: ${exchangeRequest.status}` }, { status: 400 });
+    }
+
+    const priceDiff = exchangeRequest.priceDifference || 0;
+    const isCod = exchangeRequest.settlementPreference === "COD_ON_DELIVERY" && priceDiff > 0;
+    const orderTotalAmount = priceDiff > 0 ? priceDiff : 0;
+    const isNegativeDiff = priceDiff < 0;
+    const negativeDiffAmount = Math.abs(priceDiff);
+
+    let paymentStatus = "free";
+    if (priceDiff > 0) {
+      paymentStatus = isCod ? "cod_pending" : "paid";
     }
 
     // Build the Shopify order payload
@@ -38,44 +65,36 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       shippingAddress = exchangeRequest.order.shippingAddress 
         ? JSON.parse(exchangeRequest.order.shippingAddress)
         : null;
-    } catch {
-      // shippingAddress might not be JSON
-    }
+    } catch (_) {}
 
-    // Build line items from exchange replacement products
     const lineItems = exchangeRequest.exchanges.map((ex: any) => {
       const newProduct = ex.newProduct;
       return {
         title: newProduct?.title || "Exchange Replacement",
         quantity: 1,
-        price: "0.00", // Zero amount since it's an exchange
+        price: orderTotalAmount > 0 ? (orderTotalAmount / exchangeRequest.exchanges.length).toFixed(2) : "0.00",
         sku: newProduct?.sku || "",
         requires_shipping: true,
       };
     });
 
-    // Build the Shopify order
     const shopifyOrderPayload: any = {
       line_items: lineItems,
-      financial_status: "paid",
+      financial_status: paymentStatus === "paid" ? "paid" : "pending",
       fulfillment_status: null,
-      note: `Exchange order for original order #${exchangeRequest.order.shopifyOrderId}. Items: ${exchangeRequest.exchanges.map((ex: any) => `${ex.originalProduct?.title} → ${ex.newProduct?.title}`).join(', ')}`,
-      tags: `exchange,exchange-order,original-order-${exchangeRequest.order.shopifyOrderId}`,
+      note: `Exchange replacement for original order #${exchangeRequest.order.shopifyOrderId || exchangeRequest.orderId}. Settlement: ${exchangeRequest.settlementPreference}`,
+      tags: `exchange,exchange-order,original-order-${exchangeRequest.order.shopifyOrderId || exchangeRequest.orderId}${isCod ? ',COD' : ''}`,
       total_discounts: "0.00",
       send_receipt: true,
       send_fulfillment_receipt: true,
     };
 
-    // Add customer info if available
     if (customer?.shopifyId) {
-      shopifyOrderPayload.customer = {
-        id: parseInt(customer.shopifyId, 10)
-      };
+      shopifyOrderPayload.customer = { id: parseInt(customer.shopifyId, 10) };
     } else if (customer?.email) {
       shopifyOrderPayload.email = customer.email;
     }
 
-    // Add shipping address
     if (shippingAddress && typeof shippingAddress === 'object') {
       shopifyOrderPayload.shipping_address = shippingAddress;
     }
@@ -90,19 +109,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     } catch (shopifyError: any) {
       console.error("⚠️ Shopify order creation failed:", shopifyError.message);
       return NextResponse.json({
-        error: `Shopify order creation failed: ${shopifyError.message}. Please verify product availability and Shopify credentials before retrying.`
+        error: `Shopify order creation failed: ${shopifyError.message}. Please verify product availability before retrying.`
       }, { status: 502 });
     }
 
     if (!shopifyOrderId) {
-      return NextResponse.json({
-        error: "Shopify order creation returned no order ID."
-      }, { status: 500 });
+      return NextResponse.json({ error: "Shopify order creation returned no order ID." }, { status: 500 });
     }
 
-    // Create the real local Order & update the exchange request transactionally
+    // Execute local order creation, exchange status update, and store credit issuance transactionally
     const result = await prisma.$transaction(async (tx: any) => {
-      // 1. Create real local Order row for replacement items
       const newItems = (shopifyOrder.line_items || []).map((li: any) => {
         const matchingEx = exchangeRequest.exchanges.find((ex: any) => ex.newProduct?.sku === li.sku);
         return {
@@ -115,6 +131,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         };
       });
 
+      // 1. Local Order creation
       const localOrder = await tx.order.create({
         data: {
           shopId: exchangeRequest.order.shopId,
@@ -122,8 +139,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           customerId: exchangeRequest.customerId,
           status: "confirmed",
           orderType: "EXCHANGE",
-          totalPrice: exchangeRequest.priceDifference > 0 ? exchangeRequest.priceDifference : 0,
-          paymentStatus: exchangeRequest.priceDifference > 0 ? "paid" : "free",
+          totalPrice: orderTotalAmount,
+          paymentStatus: paymentStatus,
           fulfillmentStatus: "unfulfilled",
           shippingAddress: exchangeRequest.order.shippingAddress,
           billingAddress: exchangeRequest.order.billingAddress,
@@ -134,7 +151,32 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // 2. Update the exchange request with the new Shopify order ID
+      // 2. Issue Store Credit for negative difference if applicable
+      let storeCreditRecord = null;
+      if (isNegativeDiff && negativeDiffAmount > 0) {
+        storeCreditRecord = await tx.storeCredit.create({
+          data: {
+            customerId: exchangeRequest.customerId,
+            amount: negativeDiffAmount,
+            type: "exchange_adjustment",
+            description: `Store credit issued for exchange adjustment on order #${exchangeRequest.order.shopifyOrderId || exchangeRequest.orderId}`,
+            orderId: localOrder.id,
+            remainingAmount: negativeDiffAmount,
+            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1-year expiry
+          }
+        });
+
+        await tx.customer.update({
+          where: { id: exchangeRequest.customerId },
+          data: {
+            storeCredits: {
+              increment: negativeDiffAmount
+            }
+          }
+        });
+      }
+
+      // 3. Update ExchangeRequest status
       const updatedRequest = await tx.exchangeRequest.update({
         where: { id },
         data: {
@@ -143,7 +185,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       });
 
-      // 3. Update individual exchange items with the local Order.id
+      // 4. Update individual exchange items
       await tx.exchange.updateMany({
         where: { exchangeRequestId: id },
         data: {
@@ -154,15 +196,84 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
       return {
         updatedRequest,
-        localOrderId: localOrder.id
+        localOrderId: localOrder.id,
+        storeCreditIssued: negativeDiffAmount
       };
     });
 
-    // Auto-send Exchange Item Shipped WhatsApp notification
+    // 5. Create Forward Delhivery Shipment for the replacement order
+    let forwardAwb: string | null = null;
+    let forwardShipmentStatus = 'manifested';
+    let delhiveryShipmentRaw: any = null;
+
+    try {
+      let addrObj: any = {};
+      const shippingRaw = exchangeRequest.order.shippingAddress;
+      if (typeof shippingRaw === 'string') {
+        try { addrObj = JSON.parse(shippingRaw); } catch (_) { addrObj = { add: shippingRaw }; }
+      } else if (shippingRaw && typeof shippingRaw === 'object') {
+        addrObj = shippingRaw;
+      }
+
+      const name = addrObj.name || (addrObj.first_name ? `${addrObj.first_name} ${addrObj.last_name || ''}`.trim() : customer?.name || 'Customer');
+      const add = addrObj.add || addrObj.address1 || addrObj.street || addrObj.fullAddress || (typeof shippingRaw === 'string' ? shippingRaw : 'Address Not Specified');
+      const pin = addrObj.pin || addrObj.zip || addrObj.pincode || addrObj.postalCode || '110001';
+      const phone = addrObj.phone || customer?.phone || '9999999999';
+      const prodDesc = exchangeRequest.exchanges.map((ex: any) => ex.newProduct?.sku || 'Replacement Item').join(', ');
+
+      const delhRes = await createDelhiveryShipment({
+        name,
+        add,
+        pin: String(pin),
+        phone: String(phone),
+        order: shopifyOrderId,
+        payment_mode: isCod ? 'COD' : 'Prepaid',
+        total_amount: String(orderTotalAmount),
+        cod_amount: isCod ? String(priceDiff) : '0',
+        products_desc: `Exchange Replacement: ${prodDesc}`,
+        weight: '500',
+        shipping_mode: 'Surface',
+        seller_name: 'Zica Bella',
+      }, process.env.DELHIVERY_PICKUP_LOCATION || 'Zica Bella Warehouse');
+
+      delhiveryShipmentRaw = delhRes;
+      forwardAwb = delhRes?.packages?.[0]?.waybill || delhRes?.packages?.[0]?.wbn || delhRes?.upload_wbn || null;
+
+      if (!forwardAwb) {
+        // Fallback waybill fetch
+        try {
+          const wbData = await fetchWaybill();
+          if (wbData?.waybill) forwardAwb = wbData.waybill;
+        } catch (_) {}
+      }
+
+      if (forwardAwb) {
+        await prisma.order.update({
+          where: { id: result.localOrderId },
+          data: { delhivery_awb: forwardAwb }
+        });
+
+        await prisma.shipment.create({
+          data: {
+            orderId: result.localOrderId,
+            awb: forwardAwb,
+            trackingNumber: forwardAwb,
+            courier: "Delhivery",
+            status: forwardShipmentStatus,
+            type: "outbound",
+            trackingUrl: `https://www.delhivery.com/track/package/${forwardAwb}`,
+            rawDelhiveryResponse: JSON.stringify(delhiveryShipmentRaw)
+          }
+        });
+      }
+    } catch (shipErr: any) {
+      console.error("[Exchange Create Order] Forward Delhivery shipment creation warning:", shipErr.message);
+    }
+
+    // 6. Send WhatsApp notification with REAL forward AWB and tracking URL
     try {
       const { sendExchangeShipped } = await import('@/lib/whatsapp/templates');
-      const cust = exchangeRequest.order.customer;
-      let phone = cust?.phone;
+      let phone = customer?.phone;
       if (!phone && exchangeRequest.order.shippingAddress) {
         try {
           const parsed = typeof exchangeRequest.order.shippingAddress === 'string'
@@ -173,13 +284,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
       if (phone) {
         const orderIdDisplay = shopifyOrder?.name || shopifyOrderId;
-        const customerName = cust?.name || 'Valued Customer';
+        const customerName = customer?.name || 'Valued Customer';
         await sendExchangeShipped({
           phone,
           customerName,
           orderId: orderIdDisplay,
-          trackingNumber: shopifyOrderId || 'N/A',
-          trackingUrl: `https://app.zicabella.com/orders/${shopifyOrderId}`,
+          trackingNumber: forwardAwb || shopifyOrderId || 'N/A',
+          trackingUrl: forwardAwb ? `https://www.delhivery.com/track/package/${forwardAwb}` : `https://app.zicabella.com/orders/${shopifyOrderId}`,
         });
       }
     } catch (waErr: any) {
@@ -190,16 +301,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       success: true,
       shopifyOrderId,
       localOrderId: result.localOrderId,
-      shopifyOrder: shopifyOrder ? {
-        id: shopifyOrder.id,
-        name: shopifyOrder.name,
-        order_number: shopifyOrder.order_number,
-        total_price: shopifyOrder.total_price,
-      } : null,
+      forwardAwb,
+      storeCreditIssued: result.storeCreditIssued,
       exchangeRequest: result.updatedRequest
     });
   } catch (error: any) {
-    console.error("Create Exchange Shopify Order Error:", error);
+    console.error("Create Exchange Replacement Order Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

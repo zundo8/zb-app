@@ -130,6 +130,8 @@ export default function ExchangeRequestPage() {
     return diff;
   }, 0);
 
+  const [settlementPreference, setSettlementPreference] = useState<"PREPAID_NOW" | "COD_ON_DELIVERY">("PREPAID_NOW");
+
   const submitExchangeRequest = async (paymentId: string | null = null, paymentMethod: string = 'cod') => {
     const exchangeItemsPayload = Array.from(selectedItems).map(itemId => {
       const item = order.items.find((i: any) => i.id === itemId);
@@ -148,10 +150,11 @@ export default function ExchangeRequestPage() {
       body: JSON.stringify({
         orderId: order.id,
         exchangeItems: exchangeItemsPayload,
+        settlementPreference,
         paymentDetails: {
           priceDifference,
           paymentId,
-          paymentMethod
+          paymentMethod: settlementPreference === 'COD_ON_DELIVERY' ? 'cod' : 'razorpay'
         }
       })
     });
@@ -179,7 +182,7 @@ export default function ExchangeRequestPage() {
     setError("");
 
     try {
-      if (priceDifference > 0) {
+      if (priceDifference > 0 && settlementPreference === "PREPAID_NOW") {
         // Clean and normalize phone helper
         const cleanAndNormalizePhone = (phoneStr: string) => {
           const digits = phoneStr.replace(/\D/g, "");
@@ -194,7 +197,6 @@ export default function ExchangeRequestPage() {
         const finalEmail = (session?.user?.email || order?.customer?.email || "").trim();
         const finalName = (session?.user?.name || order?.customer?.name || "Zica Customer").trim();
 
-        // Client-side console logging for debugging prefill validation
         console.log("[Razorpay Exchange Prefill]", {
           userId: (session?.user as any)?.id || "guest",
           name: finalName,
@@ -262,7 +264,7 @@ export default function ExchangeRequestPage() {
               },
               sequence: ["block.upi"],
               preferences: {
-                show_default_blocks: true // Prioritize UPI, but show other methods as fallback
+                show_default_blocks: true
               }
             }
           }
@@ -275,7 +277,7 @@ export default function ExchangeRequestPage() {
         const rzp = new (window as any).Razorpay(options);
         rzp.open();
       } else {
-        await submitExchangeRequest(null, 'cod');
+        await submitExchangeRequest(null, settlementPreference === 'COD_ON_DELIVERY' ? 'cod' : 'free');
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -435,6 +437,35 @@ export default function ExchangeRequestPage() {
       {/* Fixed Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-foreground/5 px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="max-w-2xl mx-auto">
+          {priceDifference > 0 && (
+            <div className="mb-3 space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/50">Settlement Option for Difference</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSettlementPreference("PREPAID_NOW")}
+                  className={`flex-1 py-2 rounded-xl text-[10px] font-bold border transition-all ${
+                    settlementPreference === "PREPAID_NOW"
+                      ? "bg-foreground text-background border-foreground"
+                      : "border-foreground/10 text-foreground/50 hover:border-foreground/20"
+                  }`}
+                >
+                  Pay Now (Prepaid)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettlementPreference("COD_ON_DELIVERY")}
+                  className={`flex-1 py-2 rounded-xl text-[10px] font-bold border transition-all ${
+                    settlementPreference === "COD_ON_DELIVERY"
+                      ? "bg-foreground text-background border-foreground"
+                      : "border-foreground/10 text-foreground/50 hover:border-foreground/20"
+                  }`}
+                >
+                  Pay on Delivery (COD)
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex justify-between items-center mb-3">
             <span className="text-[11px] text-foreground/50 font-medium">
               {priceDifference > 0 ? "Additional Payment" : priceDifference < 0 ? "Refund Credit" : "Price Difference"}
@@ -453,7 +484,7 @@ export default function ExchangeRequestPage() {
             ) : (
               <>
                 <ArrowLeftRight className="w-4 h-4" />
-                {priceDifference > 0 ? 'Proceed to Payment' : 'Submit Exchange Request'}
+                {priceDifference > 0 ? (settlementPreference === "PREPAID_NOW" ? 'Proceed to Payment' : 'Submit COD Exchange Request') : 'Submit Exchange Request'}
               </>
             )}
           </button>

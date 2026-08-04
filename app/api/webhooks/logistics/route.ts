@@ -96,26 +96,32 @@ async function logToWebhookLogs(
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
-    const signature =
-      req.headers.get('authorization') ||
-      req.headers.get('x-webhook-signature') ||
-      req.headers.get('x-shiprocket-signature') ||
-      req.headers.get('x-delhivery-signature') || '';
-
-    // Validate webhook signature using the unified secret resolver
-    const { secret, source } = await resolveWebhookSecret();
 
     // Parse payload early to assist provider detection
     let earlyPayload: { Shipment?: unknown } | null = null;
     try { earlyPayload = JSON.parse(rawBody) as { Shipment?: unknown }; } catch {}
 
-    // Detect provider: Delhivery sends Bearer token in Authorization header
+    // Detect provider: Delhivery sends x-delhivery-signature or nested Shipment object
     const isDelhivery =
-      !!req.headers.get('authorization') ||
       !!req.headers.get('x-delhivery-signature') ||
       !!earlyPayload?.Shipment;
 
     const provider = isDelhivery ? 'delhivery' : 'generic';
+
+    // Signature precedence: for Delhivery, x-delhivery-signature MUST take priority
+    // over stray authorization header
+    const signature = (isDelhivery
+      ? (req.headers.get('x-delhivery-signature') ||
+         req.headers.get('x-webhook-signature') ||
+         req.headers.get('authorization') || '')
+      : (req.headers.get('authorization') ||
+         req.headers.get('x-webhook-signature') ||
+         req.headers.get('x-shiprocket-signature') ||
+         req.headers.get('x-delhivery-signature') || '')).trim();
+
+    // Validate webhook signature using the unified secret resolver
+    const { secret, source } = await resolveWebhookSecret();
+    const mode = (process.env.DELHIVERY_WEBHOOK_MODE || 'token').trim().toLowerCase();
 
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
@@ -127,18 +133,18 @@ export async function POST(req: NextRequest) {
       if (!isValid) {
         const secretTail = secret ? secret.slice(-4) : '';
         const sigHead = signature ? signature.slice(0, 12) : '';
-        console.error(`[Webhook] Signature mismatch. Secret source=${source}, secret tail=****${secretTail}, signature received=${sigHead}...`);
+        console.warn(`[Webhook] Signature mismatch. provider=${provider}, mode=${mode}, source=${source}, secret tail=****${secretTail}, token head=${sigHead}..., rawBody length=${rawBody.length}`);
         
-        const debugPayload = `Secret source: ${source} | Secret tail: ****${secretTail} | Received signature: ${signature} | IP: ${ip} | RawBody: ${rawBody}`;
+        const debugPayload = `Provider: ${provider} | Mode: ${mode} | Secret source: ${source} | Secret tail: ****${secretTail} | Received token head: ${sigHead}... | IP: ${ip} | RawBody length: ${rawBody.length}`;
         await logToWebhookLogs('delhivery', debugPayload, 'unauthorized_signature_mismatch');
         return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
       }
     } else if (!signature && secret) {
       // Secret configured but no signature sent — reject
       const secretTail = secret ? secret.slice(-4) : '';
-      console.error(`[Webhook] No signature provided from IP ${ip} at ${new Date().toISOString()} but webhook secret is configured. Secret source=${source}, secret tail=****${secretTail}`);
+      console.warn(`[Webhook] No signature provided from IP ${ip} at ${new Date().toISOString()} but webhook secret is configured. provider=${provider}, mode=${mode}, source=${source}, secret tail=****${secretTail}, rawBody length=${rawBody.length}`);
       
-      const debugPayload = `Secret source: ${source} | Secret tail: ****${secretTail} | IP: ${ip} | RawBody: ${rawBody}`;
+      const debugPayload = `Provider: ${provider} | Mode: ${mode} | Secret source: ${source} | Secret tail: ****${secretTail} | IP: ${ip} | RawBody length: ${rawBody.length}`;
       await logToWebhookLogs('delhivery', debugPayload, 'unauthorized_missing_signature');
       return NextResponse.json({ error: 'Missing webhook signature' }, { status: 401 });
     }
@@ -235,32 +241,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'AWB not tracked' }, { status: 200 });
     }
 
-    // Append event to scan history
-    const existingEvents = JSON.parse(shipment.events || '[]');
-    existingEvents.push({
-      status: normalizedStatus,
+    // Use central tracking helper to update shipment, order, and reverse requests
+    const { updateOrderTracking } = await import('@/lib/delhivery/tracking');
+    await updateOrderTracking({
+      awb: trackingNumber,
+      shopifyOrderId: shipmentData.ReferenceNo || '',
+      status: rawStatus,
+      statusDateTime: timestamp,
+      statusType: description,
       location,
-      timestamp,
-      description: description || `Status updated to ${normalizedStatus}`,
+      instructions: description,
     });
-
-    // Update shipment
-    const updateData: {
-      status: string;
-      currentLocation: string;
-      events: string;
-      estimatedDelivery?: Date;
-    } = {
-      status: normalizedStatus,
-      currentLocation: location || shipment.currentLocation || '',
-      events: JSON.stringify(existingEvents),
-    };
-    if (estimatedDelivery) {
-      updateData.estimatedDelivery = new Date(estimatedDelivery);
-    }
-
-    await prisma.shipment.update({ where: { id: shipment.id }, data: updateData });
-    await prisma.order.update({ where: { id: shipment.orderId }, data: { deliveryStatus: normalizedStatus } });
 
     // Mark event processed
     await prisma.webhookEvent.update({
@@ -271,10 +262,10 @@ export async function POST(req: NextRequest) {
     // Log successful processing to webhook_logs
     await logToWebhookLogs('delhivery', rawBody, 'processed');
 
-    console.log(`[Webhook] ✅ Updated shipment ${shipment.id} → ${normalizedStatus}`);
+    console.log(`[Webhook] ✅ Processed tracking update for AWB ${trackingNumber} → ${normalizedStatus}`);
 
     // SKU lifecycle tracking: restore SKUs when RTO is detected
-    if (normalizedStatus === 'rto') {
+    if (normalizedStatus === 'rto' && shipment) {
       try {
         const { restoreOrderSkus } = await import('@/lib/services/skuService');
         const restoredCount = await restoreOrderSkus(shipment.orderId, 'RTO_RESTORE', 'System (Delhivery RTO)');
@@ -282,20 +273,13 @@ export async function POST(req: NextRequest) {
           console.log(`[Webhook] Restored ${restoredCount} SKU(s) for RTO order ${shipment.orderId}`);
         }
       } catch (skuErr) {
-        console.error(`[Webhook] SKU restoration on RTO failed for order ${shipment.orderId}:`, skuErr);
+        console.error(`[Webhook] SKU restoration on RTO failed:`, skuErr);
       }
     }
 
-    // TODO: Trigger push notification for key events
-    // const pushEvents = ['out_for_delivery', 'delivered', 'rto'];
-    // if (pushEvents.includes(normalizedStatus)) {
-    //   await sendPushNotification(shipment.order.customer.id, { ... });
-    // }
-
     return NextResponse.json({
       success: true,
-      shipmentId: shipment.id,
-      orderId: shipment.orderId,
+      awb: trackingNumber,
       status: normalizedStatus,
     });
   } catch (error) {

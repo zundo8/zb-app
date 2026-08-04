@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     const phone = cart.phone || cart.customer?.phone;
     const email = cart.email || cart.customer?.email;
     const name = cart.customer?.name || "Customer";
-    const checkoutUrl = `https://www.zicabella.com/cart?recover=${cart.id}`;
+    const checkoutUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com'}/cart?recover=${cart.id}`;
 
     try {
       const normPhone = phone ? phone.replace(/\D/g, "").slice(-10) : null;

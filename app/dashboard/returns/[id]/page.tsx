@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, Check, X, Clock, Package, TruckIcon, CheckCircle2, XCircle, CreditCard, AlertTriangle, RefreshCw, User, MapPin, Mail, Phone } from "lucide-react";
+import { Loader2, ArrowLeft, Check, X, Clock, Package, TruckIcon, CheckCircle2, XCircle, CreditCard, AlertTriangle, RefreshCw, User, MapPin, Mail, Phone, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 import VariantBadge from "@/components/admin/VariantBadge";
@@ -80,10 +80,39 @@ export default function ReturnDetailPage() {
     }
   };
 
-  // Refund modal
+  // Refund modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundType, setRefundType] = useState<"original_method" | "store_credit">("original_method");
+
+  // AWB Modal State
+  const [showAwbModal, setShowAwbModal] = useState(false);
+  const [inputAwb, setInputAwb] = useState("");
+
+  const handleSaveAwb = async () => {
+    if (!inputAwb.trim()) return;
+    setActionLoading("update-awb");
+    try {
+      const res = await fetch(`/api/admin/returns/${returnId}/update-awb`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ awb: inputAwb.trim() }),
+      });
+      if (res.ok) {
+        showToast("Reverse AWB updated & synced with Delhivery!");
+        setShowAwbModal(false);
+        setInputAwb("");
+        fetchDetail();
+      } else {
+        const err = await res.json();
+        showToast(`Error: ${err.error}`);
+      }
+    } catch (err) {
+      showToast("Action failed");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -170,6 +199,28 @@ export default function ReturnDetailPage() {
       customerId: data?.customerId || data?.customer?.id,
     });
     setShowRefundModal(false);
+  };
+
+  const handleRegeneratePickup = async () => {
+    setActionLoading("regenerate-pickup");
+    try {
+      const res = await fetch(`/api/admin/returns/${returnId}/regenerate-pickup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        const result = await res.json();
+        showToast(`Reverse pickup regenerated! AWB: ${result.awb}`);
+        fetchDetail();
+      } else {
+        const err = await res.json();
+        showToast(`Error: ${err.error}`);
+      }
+    } catch (err) {
+      showToast("Action failed");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   if (loading) {
@@ -409,6 +460,39 @@ export default function ReturnDetailPage() {
             </div>
           )}
 
+          {/* Reverse Pickup Logistics */}
+          <div className="bg-background border border-foreground/[0.05] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em]">Logistics & Tracking</p>
+              <button
+                onClick={() => {
+                  setInputAwb(data.reverseAwb || "");
+                  setShowAwbModal(true);
+                }}
+                className="text-[9px] font-bold text-blue-500 uppercase tracking-widest hover:underline"
+              >
+                + Edit Reverse AWB
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-foreground/50">Reverse AWB</span>
+                {data.reverseAwb ? (
+                  <a
+                    href={`https://www.delhivery.com/track/package/${data.reverseAwb}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-semibold text-blue-500 hover:underline flex items-center gap-1 font-mono"
+                  >
+                    {data.reverseAwb} <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : (
+                  <span className="text-[10px] text-foreground/40">Not Generated</span>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Refund Summary */}
           <div className="bg-background border border-foreground/[0.05] rounded-xl p-5">
             <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.3em] mb-4">Refund Summary</p>
@@ -464,7 +548,17 @@ export default function ReturnDetailPage() {
                   </button>
                 </>
               )}
-              {currentStatus === "approved" && (
+              {(currentStatus === "approved_pickup_failed" || (currentStatus === "approved" && !data.reverseAwb)) && (
+                <button
+                  onClick={handleRegeneratePickup}
+                  disabled={!!actionLoading}
+                  className="w-full py-2.5 bg-amber-500 text-white rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {actionLoading === "regenerate-pickup" ? <Loader2 className="w-3 h-3 animate-spin" /> : <TruckIcon className="w-3.5 h-3.5" />}
+                  Regenerate Reverse Pickup
+                </button>
+              )}
+              {(currentStatus === "approved" || currentStatus === "in_transit") && (
                 <button
                   onClick={() => handleStatusUpdate("received")}
                   disabled={!!actionLoading}
@@ -514,6 +608,44 @@ export default function ReturnDetailPage() {
                 </div>
                 <button onClick={handleRefundSubmit} className="w-full py-2.5 bg-emerald-500 text-white rounded-md text-[10px] font-semibold uppercase tracking-[0.15em] hover:bg-emerald-600 transition-colors mt-2 flex items-center justify-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Approve Request
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AWB Edit Modal */}
+      <AnimatePresence>
+        {showAwbModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+            <div className="absolute inset-0 z-0" onClick={() => setShowAwbModal(false)} />
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-background w-full max-w-sm rounded-xl p-6 border border-foreground/[0.05] shadow-lg relative z-10">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-[12px] font-semibold text-foreground tracking-widest uppercase">
+                  Update Reverse Pickup AWB
+                </h2>
+                <button onClick={() => setShowAwbModal(false)} className="text-foreground/40 hover:text-foreground"><X className="w-4 h-4" /></button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[9px] font-semibold uppercase tracking-widest text-foreground/50 mb-1.5">Delhivery AWB Number</label>
+                  <input
+                    type="text"
+                    value={inputAwb}
+                    onChange={(e) => setInputAwb(e.target.value)}
+                    className="w-full bg-foreground/[0.02] border border-foreground/[0.05] focus:border-foreground/20 rounded-md px-3 py-2.5 text-[12px] font-mono text-foreground outline-none"
+                    placeholder="Enter Delhivery AWB..."
+                  />
+                </div>
+                <button
+                  onClick={handleSaveAwb}
+                  disabled={!!actionLoading || !inputAwb.trim()}
+                  className="w-full py-2.5 bg-blue-500 text-white rounded-md text-[10px] font-semibold uppercase tracking-[0.15em] hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {actionLoading === "update-awb" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  Save & Sync with Delhivery
                 </button>
               </div>
             </motion.div>
