@@ -453,13 +453,14 @@ export default function OrdersPage() {
                     {order.items && order.items.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {order.items.slice(0, 2).map((item, idx) => {
-                          const vInfo = extractItemVariantAndSize(item.title, item.sku);
+                          const vInfo = extractItemVariantAndSize(item.title, item.sku, (item as any).variantTitle, (item as any).size);
+                          const resolvedSize = (item as any).size || vInfo.size;
                           return (
-                            <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-foreground/5 text-[9px] text-foreground/70 border border-foreground/5 font-mono">
+                            <span key={idx} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-foreground/5 text-[9px] text-foreground/70 border border-foreground/5 font-mono">
                               <span className="font-semibold text-foreground truncate max-w-[100px]">{item.title}</span>
-                              {vInfo.size && (
-                                <span className="font-bold text-emerald-400 bg-emerald-500/10 px-1 rounded">
-                                  {vInfo.size}
+                              {resolvedSize && (
+                                <span className="font-extrabold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 rounded">
+                                  {resolvedSize}
                                 </span>
                               )}
                               <span className="text-foreground/40">x{item.quantity}</span>

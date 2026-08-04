@@ -43,8 +43,8 @@ export async function POST(req: Request) {
 
     // IP Extraction & Server Geolocation Lookup
     const ip = getClientIP(req);
-    const ipGeo = (!rawCountryCode || rawLat == null || rawLng == null)
-      ? await lookupIpGeo(ip)
+    const ipGeo = (!rawCountryCode || !rawCountry || !rawCity || rawLat == null || rawLng == null)
+      ? await lookupIpGeo(ip, req)
       : null;
 
     // Determine normalized location fields (Client GPS wins over IP Geo)

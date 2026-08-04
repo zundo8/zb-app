@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     let finalLng = longitude !== undefined && longitude !== null ? parseFloat(String(longitude)) : null;
 
     if (!city && !state && !country) {
-      const ipGeo = await lookupIpGeo(getClientIP(req));
+      const ipGeo = await lookupIpGeo(getClientIP(req), req);
       if (ipGeo) {
         finalCity = ipGeo.city || null;
         finalState = ipGeo.region || null;
@@ -154,22 +154,34 @@ export async function POST(req: Request) {
       });
     } else {
       // Update existing cart details
+      const updateData: Record<string, any> = {
+        updatedAt: new Date(),
+        lastActivityAt: new Date(),
+        subtotal: calculatedSubtotal,
+        phone: phone || customerPhone || cart.phone || undefined,
+        email: email || customerEmail || cart.email || undefined,
+        source: cartSource, // Ensure source is kept up-to-date
+      };
+
+      // Ensure location fields are updated if new values are available or if cart previously missed them
+      if (finalCity !== null && finalCity !== undefined) updateData.city = finalCity;
+      else if (!cart.city && finalCity) updateData.city = finalCity;
+
+      if (finalState !== null && finalState !== undefined) updateData.state = finalState;
+      else if (!cart.state && finalState) updateData.state = finalState;
+
+      if (finalZip !== null && finalZip !== undefined) updateData.zip = finalZip;
+      else if (!cart.zip && finalZip) updateData.zip = finalZip;
+
+      if (finalCountry !== null && finalCountry !== undefined) updateData.country = finalCountry;
+      else if (!cart.country && finalCountry) updateData.country = finalCountry;
+
+      if (finalLat !== null && finalLat !== undefined) updateData.latitude = finalLat;
+      if (finalLng !== null && finalLng !== undefined) updateData.longitude = finalLng;
+
       cart = await prisma.cart.update({
         where: { id: cart.id },
-        data: {
-          updatedAt: new Date(),
-          lastActivityAt: new Date(),
-          subtotal: calculatedSubtotal,
-          phone: phone || customerPhone || undefined,
-          email: email || customerEmail || undefined,
-          source: cartSource, // Ensure source is kept up-to-date
-          city: finalCity || undefined,
-          state: finalState || undefined,
-          zip: finalZip || undefined,
-          country: finalCountry || undefined,
-          latitude: finalLat ?? undefined,
-          longitude: finalLng ?? undefined,
-        }
+        data: updateData,
       });
     }
 

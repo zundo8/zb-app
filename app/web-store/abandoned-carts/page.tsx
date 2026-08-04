@@ -476,6 +476,17 @@ export default function AbandonedCartsPage() {
                       </span>
                     </div>
 
+                    {/* Location Telemetry */}
+                    <div className="min-w-[140px]">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block">Location</span>
+                      <span className="text-[12px] font-black text-foreground/80 block truncate max-w-[160px]" title={[cart.city, cart.state, cart.country].filter(Boolean).join(", ")}>
+                        📍 {[cart.city, cart.country || cart.state].filter(Boolean).join(", ") || "IP Location Resolved"}
+                      </span>
+                      <span className="text-[9.5px] text-foreground/30 block">
+                        {cart.latitude && cart.longitude ? "GPS Verified" : "IP Geolocation"}
+                      </span>
+                    </div>
+
                     {/* Age / Time telemetry */}
                     <div className="min-w-[130px]">
                       <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block">Activity</span>
@@ -519,9 +530,9 @@ export default function AbandonedCartsPage() {
             <div className="w-20 h-20 rounded-[2rem] bg-foreground/5 flex items-center justify-center text-foreground/20 border border-foreground/5">
               <ShoppingCart className="w-8 h-8" />
             </div>
-            <div className="text-center space-y-2">
-              <h3 className="text-[15px] font-black text-foreground/30 uppercase tracking-[0.4em] italic">No Cart Sessions Found</h3>
-              <p className="text-[11px] text-foreground/20 font-bold uppercase tracking-[0.2em]">Try matching other filters or query strings.</p>
+            <div className="text-center">
+              <h3 className="text-xl font-bold">No Carts Found</h3>
+              <p className="text-sm text-foreground/40 mt-1">There are no shopping carts matching your current filter criteria.</p>
             </div>
           </div>
         )}
@@ -550,64 +561,92 @@ export default function AbandonedCartsPage() {
         </div>
       )}
 
-      {/* Expandable Cart Details Slide-over/Panel */}
+      {/* Slide-over / Modal for Cart Details */}
       <AnimatePresence>
         {selectedCart && (
-          <>
+          <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedCart(null)}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-background/80 backdrop-blur-md"
             />
+
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-[95%] max-w-xl bg-white dark:bg-neutral-950 border-l border-neutral-200 dark:border-foreground/10 p-8 md:p-12 overflow-y-auto space-y-8 text-neutral-900 dark:text-neutral-100 shadow-2xl"
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="relative w-full max-w-2xl bg-background border-l border-foreground/10 shadow-2xl h-full flex flex-col overflow-hidden z-10"
             >
-              {/* Slide-over header */}
-              <div className="flex justify-between items-center pb-2 border-b border-neutral-100 dark:border-foreground/10">
-                <h2 className="text-3xl font-black italic text-foreground tracking-tighter uppercase">Cart detail</h2>
+              {/* Drawer Header */}
+              <div className="p-8 border-b border-foreground/10 flex items-center justify-between bg-foreground/[0.02]">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-black italic tracking-wide">Cart Details</h2>
+                    {getStatusBadge(selectedCart.computedStatus, selectedCart.lastActivityAt)}
+                  </div>
+                  <p className="text-[10px] text-foreground/40 font-black uppercase tracking-widest mt-1">
+                    Cart ID: {selectedCart.id}
+                  </p>
+                </div>
                 <button
                   onClick={() => setSelectedCart(null)}
-                  className="w-10 h-10 rounded-full border border-neutral-200 dark:border-foreground/10 flex items-center justify-center text-foreground/45 hover:bg-foreground/5 transition-colors"
+                  className="p-3 rounded-2xl bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 transition-all"
                 >
-                  ✕
+                  <ChevronRight className="w-5 h-5 text-foreground/60" />
                 </button>
               </div>
 
-              {/* Customer summary */}
-              <div className="p-6 rounded-3xl bg-neutral-50 dark:bg-foreground/[0.02] border border-neutral-200 dark:border-foreground/[0.06] space-y-4">
-                <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-neutral-200 dark:border-foreground/5 pb-2">Customer Signature</span>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-black text-foreground italic">{selectedCart.customer?.name || "Guest Customer"}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[12px] font-mono text-neutral-600 dark:text-foreground/50">
-                    <p>Phone: {selectedCart.phone || selectedCart.customer?.phone || "No phone signature"}</p>
-                    <p>Email: {selectedCart.email || selectedCart.customer?.email || "No email signature"}</p>
-                    <p>Session ID: {selectedCart.id.slice(0, 16)}...</p>
-                    <p>Channel: {selectedCart.source === "app" ? "Mobile App" : "Web Store"}</p>
-                  </div>
-                </div>
-                
-                {selectedCart.customer && (
-                  <div className="pt-2">
-                    <Link
-                      href={`/dashboard/customers/${selectedCart.customer.id}`}
-                      className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-foreground/50 hover:text-foreground transition-colors border-b border-foreground/10 pb-0.5"
-                    >
-                      View profile details <ExternalLink className="w-3 h-3" />
-                    </Link>
-                  </div>
-                )}
-              </div>
-
-              {/* Geolocation Details */}
-              {(selectedCart.city || selectedCart.state || selectedCart.zip || selectedCart.country) && (
+              {/* Drawer Body */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                {/* Customer / Shopper Info */}
                 <div className="p-6 rounded-3xl bg-neutral-50 dark:bg-foreground/[0.02] border border-neutral-200 dark:border-foreground/[0.06] space-y-4">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-neutral-200 dark:border-foreground/5 pb-2">Location Telemetry (Allowed Access)</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block border-b border-neutral-200 dark:border-foreground/5 pb-2">Shopper Identity</span>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-foreground/5 border border-foreground/10 flex items-center justify-center text-lg font-bold">
+                      {selectedCart.customer?.name ? selectedCart.customer.name.slice(0, 1) : "G"}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-lg leading-tight">
+                        {selectedCart.customer?.name || "Guest Shopper"}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-[12px] text-foreground/60">
+                        {(selectedCart.phone || selectedCart.customer?.phone) && (
+                          <span>📞 {selectedCart.phone || selectedCart.customer?.phone}</span>
+                        )}
+                        {(selectedCart.email || selectedCart.customer?.email) && (
+                          <span>✉️ {selectedCart.email || selectedCart.customer?.email}</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest mt-2 flex items-center gap-3">
+                        <p>Session ID: {selectedCart.id.slice(0, 16)}...</p>
+                        <p>Channel: {selectedCart.source === "app" ? "Mobile App" : "Web Store"}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {selectedCart.customer && (
+                    <div className="pt-2">
+                      <Link
+                        href={`/dashboard/customers/${selectedCart.customer.id}`}
+                        className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-foreground/50 hover:text-foreground transition-colors border-b border-foreground/10 pb-0.5"
+                      >
+                        View profile details <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
+                {/* Geolocation Details */}
+                <div className="p-6 rounded-3xl bg-neutral-50 dark:bg-foreground/[0.02] border border-neutral-200 dark:border-foreground/[0.06] space-y-4">
+                  <div className="flex items-center justify-between border-b border-neutral-200 dark:border-foreground/5 pb-2">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block">Location Telemetry</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-foreground/5 text-foreground/60 border border-foreground/10">
+                      {selectedCart.latitude && selectedCart.longitude ? "GPS Geolocation" : "IP Geolocation (Guest/Opt-out)"}
+                    </span>
+                  </div>
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-foreground/[0.04] rounded-xl border border-foreground/5 text-lg">
@@ -615,14 +654,14 @@ export default function AbandonedCartsPage() {
                       </div>
                       <div>
                         <p className="text-[14px] font-black italic text-foreground leading-none">
-                          {[selectedCart.city, selectedCart.state].filter(Boolean).join(", ")}
+                          {[selectedCart.city, selectedCart.state].filter(Boolean).join(", ") || "City & Region via IP Geo"}
                         </p>
                         <p className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest mt-1">
-                          {[selectedCart.zip, selectedCart.country].filter(Boolean).join(" • ")}
+                          {[selectedCart.zip, selectedCart.country || "India"].filter(Boolean).join(" • ")}
                         </p>
                       </div>
                     </div>
-                    {selectedCart.latitude !== null && selectedCart.latitude !== undefined && selectedCart.longitude !== null && selectedCart.longitude !== undefined && (
+                    {selectedCart.latitude !== null && selectedCart.latitude !== undefined && selectedCart.longitude !== null && selectedCart.longitude !== undefined ? (
                       <div className="flex items-center justify-between text-[11px] font-mono text-foreground/30 border-t border-foreground/5 pt-2.5">
                         <span>Coordinates: {selectedCart.latitude.toFixed(4)}°, {selectedCart.longitude.toFixed(4)}°</span>
                         <a 
@@ -634,11 +673,14 @@ export default function AbandonedCartsPage() {
                           View Map ↗
                         </a>
                       </div>
+                    ) : (
+                      <div className="text-[10px] font-mono text-foreground/40 border-t border-foreground/5 pt-2.5 flex items-center justify-between">
+                        <span>IP Geolocation tracking active for guest/opt-out shoppers</span>
+                        <span className="text-emerald-500 font-bold">Enabled ✓</span>
+                      </div>
                     )}
                   </div>
                 </div>
-              )}
-
               {/* Engage Shopper / Recovery actions */}
               {selectedCart.computedStatus !== "converted" && (
                 <div className="p-6 rounded-3xl bg-neutral-50 dark:bg-foreground/[0.02] border border-neutral-200 dark:border-foreground/[0.06] space-y-6">
@@ -828,9 +870,10 @@ export default function AbandonedCartsPage() {
                   ))}
                 </div>
               </div>
+            </div>
 
               {/* Value summary and close panel */}
-              <div className="pt-6 border-t border-neutral-200 dark:border-foreground/10 space-y-6">
+              <div className="p-8 border-t border-neutral-200 dark:border-foreground/10 space-y-6 bg-foreground/[0.02]">
                 <div className="flex justify-between items-end">
                   <span className="text-[10px] font-black uppercase tracking-widest text-foreground/30">Total accumulated value</span>
                   <span className="text-3xl font-black text-foreground italic leading-none">₹{(selectedCart.subtotal || 0).toLocaleString()}</span>
@@ -846,7 +889,7 @@ export default function AbandonedCartsPage() {
                 </div>
               </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 

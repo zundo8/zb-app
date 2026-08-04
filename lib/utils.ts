@@ -152,34 +152,56 @@ export function formatExactDateTime(dateInput: string | Date | null | undefined,
 export function extractItemVariantAndSize(
   title?: string | null,
   sku?: string | null,
-  variantTitle?: string | null
+  variantTitle?: string | null,
+  explicitSize?: string | null
 ): { size: string | null; variant: string | null; formattedLabel: string | null } {
-  let size: string | null = null;
+  let size: string | null = explicitSize ? explicitSize.trim().toUpperCase() : null;
   let variant: string | null = null;
 
-  // 1. Explicit variant title provided (e.g. "Size: M", "XL", "Black / L")
-  if (variantTitle && variantTitle !== "Default Title" && variantTitle !== "Default") {
+  const validSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'XXL', 'XXXL', '26', '28', '30', '32', '34', '36', '38', '40', '42'];
+
+  // 1. Explicit variant title provided (e.g. "Size: M", "32", "XL", "Black / L")
+  if (!size && variantTitle && variantTitle !== "Default Title" && variantTitle !== "Default") {
     variant = variantTitle.trim();
-    const vMatch = variant.match(/(?:Size:\s*|\b)(XS|S|M|L|XL|2XL|3XL|XXL|XXXL|\d{2,3})(?:\b|$)/i);
+    const vMatch = variant.match(/(?:Size:\s*|\b)(XS|S|M|L|XL|2XL|3XL|4XL|XXL|XXXL|26|28|30|32|34|36|38|40|42)(?:\b|$)/i);
     if (vMatch) {
       size = vMatch[1].toUpperCase();
     }
   }
 
-  // 2. Extract size from product title (e.g. "Double Loopback Hoodie - XL" or "Oversized Tee (Size: M)")
+  // 2. Extract size from product title (e.g. "OFFSET RUSTFORM UTILITY DENIM - 32" or "Double Loopback Hoodie (Size: M)")
   if (!size && title) {
-    const titleMatch = title.match(/(?:-\s*|\/\s*|Size:\s*|\(\s*)(XS|S|M|L|XL|2XL|3XL|XXL|XXXL)(?:\s*\)|\b)/i);
+    const titleMatch = title.match(/(?:-\s*|\/\s*|Size:\s*|Size\s+|\(\s*)(XS|S|M|L|XL|2XL|3XL|4XL|XXL|XXXL|26|28|30|32|34|36|38|40|42)(?:\s*\)|\b|$)/i);
     if (titleMatch) {
       size = titleMatch[1].toUpperCase();
     }
   }
 
-  // 3. Extract size from SKU (e.g. "ZB22TS01M", "HOODIE-BLK-XL", "TEE-L")
+  // 3. Extract size from SKU (e.g. "ZB22TS01M", "ZB01AB02CDM1234", "HOODIE-BLK-XL", "DENIM-32", etc.)
   if (!size && sku) {
-    const skuMatch = sku.match(/(?:[-_])(XS|S|M|L|XL|2XL|3XL|XXL|XXXL)$/i) ||
-                     sku.match(/ZB\d+[A-Z]+\d+(XS|S|M|L|XL|2XL|3XL|XXL|XXXL)$/i);
-    if (skuMatch) {
-      size = skuMatch[1].toUpperCase();
+    const sUpper = sku.trim().toUpperCase();
+
+    // A. Standard hyphen/underscore/slash/space suffix: e.g. -M, -32, _XL
+    const suffixMatch = sUpper.match(/(?:[-_/\s])(XS|S|M|L|XL|2XL|3XL|4XL|XXL|XXXL|26|28|30|32|34|36|38|40|42)$/i);
+    if (suffixMatch) {
+      size = suffixMatch[1];
+    } else {
+      // B. Custom ZB SKU format with embedded size code (e.g. ZB01AB02CDM1234 or ZB22TS01M or ZB2608UT013201)
+      const customZbMatch = sUpper.match(/ZB\d+[A-Z]+\d+([A-Z]{1,4}|\d{2})/);
+      if (customZbMatch) {
+        const potentialSize = customZbMatch[1];
+        if (validSizes.includes(potentialSize)) {
+          size = potentialSize;
+        }
+      }
+    }
+
+    if (!size) {
+      // C. General embedded token match
+      const embeddedMatch = sUpper.match(/(?:^|[-_/\s])(XS|S|M|L|XL|2XL|3XL|4XL|XXL|XXXL|26|28|30|32|34|36|38|40|42)(?:[-_/\s]|$)/i);
+      if (embeddedMatch) {
+        size = embeddedMatch[1];
+      }
     }
   }
 
@@ -199,5 +221,6 @@ export function extractItemVariantAndSize(
     formattedLabel,
   };
 }
+
 
 

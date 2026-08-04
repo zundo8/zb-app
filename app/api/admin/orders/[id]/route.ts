@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { fetchProductById } from '@/lib/shopify-admin';
+import { extractItemVariantAndSize } from '@/lib/utils';
 
 /**
  * Resolve the variant-specific inventory_item_id for a product_skus record.
@@ -47,51 +48,46 @@ async function resolveSkuInventoryItemId(skuRec: any): Promise<{ inventoryItemId
   }
   return { inventoryItemId: null, variantId: null };
 }
+
 function extractSize(orderItem: any): string {
-  const sizes = ['XXXL', 'XXL', 'XL', 'XS', 'S', 'M', 'L']; // match longer sizes first (e.g. XXL before L)
-  
-  // 1. Try to extract from title
-  if (orderItem.title) {
-    const upperTitle = orderItem.title.toUpperCase();
-    
-    // Check if there is a ' - ' pattern
-    const titleParts = upperTitle.split(' - ');
-    if (titleParts.length > 1) {
-      const variantPart = titleParts[titleParts.length - 1].trim();
-      // If variantPart is something like "BLACK / M"
-      const slashParts = variantPart.split('/');
-      const finalPart = slashParts[slashParts.length - 1].trim();
-      for (const size of sizes) {
-        if (finalPart === size || finalPart === `SIZE ${size}`) {
-          return size;
-        }
-      }
-    }
-    
-    // Fallback: check if title ends with size or has "size X" or " - X"
-    for (const size of sizes) {
-      if (
-        upperTitle.endsWith(` ${size}`) || 
-        upperTitle.endsWith(`-${size}`) || 
-        upperTitle.endsWith(`/${size}`) ||
-        upperTitle.includes(` SIZE ${size} `) ||
-        upperTitle.endsWith(` SIZE ${size}`)
-      ) {
-        return size;
-      }
-    }
-  }
+  if (orderItem.size) return orderItem.size.toString().trim().toUpperCase();
+  const vInfo = extractItemVariantAndSize(orderItem.title, orderItem.sku, orderItem.variantTitle, orderItem.size);
+  return vInfo.size || '';
+}
 
-  // 2. Try to extract from Shopify SKU (e.g. "HOODIE-M" or "ZB-SWEATER-L")
-  if (orderItem.sku) {
-    const skuParts = orderItem.sku.split('-');
-    const lastPart = skuParts[skuParts.length - 1].toUpperCase().trim();
-    if (sizes.includes(lastPart)) {
-      return lastPart;
-    }
-  }
-
-  return '';
+async function enrichItemsWithSize(rawItems: any[]) {
+  return Promise.all(
+    rawItems.map(async (item) => {
+      let size = extractSize(item);
+      if (!size && item.sku) {
+        try {
+          const skuRecs: any[] = await prisma.$queryRawUnsafe(
+            `SELECT size FROM product_skus WHERE UPPER(sku) = $1 AND size IS NOT NULL AND size != '' LIMIT 1`,
+            item.sku.trim().toUpperCase()
+          );
+          if (skuRecs.length > 0 && skuRecs[0].size) {
+            size = skuRecs[0].size.trim().toUpperCase();
+          }
+        } catch (_) {}
+      }
+      if (!size && item.productId) {
+        try {
+          const prodSkuRecs: any[] = await prisma.$queryRawUnsafe(
+            `SELECT size FROM product_skus WHERE product_id = $1 AND size IS NOT NULL AND size != '' LIMIT 1`,
+            item.productId
+          );
+          if (prodSkuRecs.length > 0 && prodSkuRecs[0].size) {
+            size = prodSkuRecs[0].size.trim().toUpperCase();
+          }
+        } catch (_) {}
+      }
+      return {
+        ...item,
+        size: size || null,
+        variantTitle: item.variantTitle || (size ? `Size: ${size}` : null)
+      };
+    })
+  );
 }
 
 export const dynamic = 'force-dynamic';
@@ -143,11 +139,26 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
             }
           });
           if (syncedOrder) {
-            return NextResponse.json({ success: true, order: syncedOrder });
+            const enrichedSyncedItems = await enrichItemsWithSize(syncedOrder.items);
+            return NextResponse.json({ success: true, order: { ...syncedOrder, items: enrichedSyncedItems } });
           }
         }
 
         // Format the unsynced MobileOrder to match OrderDetail schema
+        const enrichedMobileItems = await enrichItemsWithSize(
+          mobileOrder.items.map((item: any) => ({
+            id: item.id,
+            orderId: item.mobileOrderId,
+            productId: item.productId,
+            variantId: item.variantId,
+            title: item.title,
+            quantity: item.quantity,
+            price: item.price,
+            sku: item.sku,
+            image: item.image || item.product?.featuredImage || null,
+          }))
+        );
+
         const mappedOrder = {
           id: mobileOrder.id,
           shopId: mobileOrder.customer.shopId,
@@ -181,17 +192,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
           discountAmount: mobileOrder.discountAmount,
           discountCode: mobileOrder.discountCode,
           customer: mobileOrder.customer,
-          items: mobileOrder.items.map((item: any) => ({
-            id: item.id,
-            orderId: item.mobileOrderId,
-            productId: item.productId,
-            variantId: item.variantId,
-            title: item.title,
-            quantity: item.quantity,
-            price: item.price,
-            sku: item.sku,
-            image: item.image || item.product?.featuredImage || null,
-          })),
+          items: enrichedMobileItems,
           payments: [],
           shipments: [],
           delhivery_awb: null,
@@ -237,9 +238,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       });
     }
 
+    const enrichedItems = await enrichItemsWithSize(order.items);
+
     // Enrich the order payload with correct webstore fields if available
     const enrichedOrder = {
       ...order,
+      items: enrichedItems,
       codUpfrontPaid: webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0,
       codUpfrontPaymentId: webStoreOrder?.codUpfrontPaymentId || null,
       discountCode: webStoreOrder?.discountCode || order.discountCode,
