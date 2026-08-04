@@ -118,21 +118,8 @@ function validateVariables(text) {
   const allBraces = text.match(/\{\{([^}]+)\}\}/g) || [];
   for (const brace of allBraces) {
     const inner = brace.slice(2, -2).trim();
-    if (!/^\d+$/.test(inner)) {
-      throw new Error(`Invalid variable placeholder: ${brace}. Placeholders must contain digits only, e.g., {{1}}.`);
-    }
-    const val = parseInt(inner, 10);
-    if (val === 0) {
-      throw new Error(`Invalid variable placeholder: ${brace}. Variables must start from {{1}} (no {{0}}).`);
-    }
-  }
-  const numericVars = allBraces.map(brace => parseInt(brace.slice(2, -2).trim(), 10));
-  if (numericVars.length > 0) {
-    const uniqueSorted = Array.from(new Set(numericVars)).sort((a, b) => a - b);
-    for (let i = 0; i < uniqueSorted.length; i++) {
-      if (uniqueSorted[i] !== i + 1) {
-        throw new Error(`Variable placeholders must be sequential and start at {{1}}. Missing {{${i + 1}}}.`);
-      }
+    if (!/^[a-zA-Z0-9_]+$/.test(inner)) {
+      throw new Error(`Invalid variable placeholder: ${brace}. Placeholders must contain alphanumeric characters or underscores.`);
     }
   }
 }

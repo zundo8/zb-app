@@ -347,13 +347,21 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
     setSendingTest(true);
     const toastId = toast.loading("Sending test...");
     const bodyComp = sendTestTemplate.components?.find((c: any) => c.type === "BODY");
-    const variables = bodyComp?.text?.match(/\{\{\d+\}\}/g) || [];
+    const variables = bodyComp?.text?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || [];
     const components: any[] = [];
-    if (variables.length > 0) components.push({ type: "body", parameters: variables.map((v: string) => ({ type: "text", text: sendTestParams[v.replace(/[{}]/g, "")] || `Test ${v}` })) });
+    if (variables.length > 0) {
+      components.push({
+        type: "body",
+        parameters: variables.map((v: string) => {
+          const key = v.replace(/[{}]/g, "");
+          return { type: "text", text: sendTestParams[key] || sendTestParams[v] || `Test ${key}` };
+        })
+      });
+    }
     const headerComp = sendTestTemplate.components?.find((c: any) => c.type === "HEADER");
     if (headerComp?.format === "IMAGE") components.unshift({ type: "header", parameters: [{ type: "image", image: { link: "https://cdn.shopify.com/s/files/1/0955/5394/5881/files/zica-bella-logo_834c1ed2-2f09-4f73-bb9f-152a03f59ad2.png?v=1773354221" } }] });
     try {
-      const res = await fetch("/api/whatsapp/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: sendTestPhone, templateName: sendTestTemplate.name, languageCode: sendTestTemplate.language || "en_US", components }) });
+      const res = await fetch("/api/whatsapp/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: sendTestPhone, templateName: sendTestTemplate.name, languageCode: sendTestTemplate.language || "en", components }) });
       const data = await res.json();
       if (res.ok && data.success) toast.success(`Test sent! ID: ${data.messageId}`, { id: toastId });
       else toast.error(data.error || "Failed to send test.", { id: toastId });
@@ -489,14 +497,14 @@ function TemplatesManager({ onRefresh }: { onRefresh: () => void }) {
                 <input type="text" value={sendTestPhone} onChange={e => setSendTestPhone(e.target.value)} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500/50 text-sm font-mono" />
               </div>
               {(() => {
-                const bodyVars = sendTestTemplate.components?.find((c: any) => c.type === "BODY")?.text?.match(/\{\{\d+\}\}/g) || [];
+                const bodyVars = sendTestTemplate.components?.find((c: any) => c.type === "BODY")?.text?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || [];
                 if (bodyVars.length === 0) return null;
                 return (
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-foreground/60 uppercase">Parameters</label>
                     {bodyVars.map((v: string) => {
-                      const num = v.replace(/[{}]/g, "");
-                      return <input key={num} type="text" placeholder={`Value for {{${num}}}`} value={sendTestParams[num] || ""} onChange={e => setSendTestParams(p => ({ ...p, [num]: e.target.value }))} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2 outline-none focus:border-emerald-500/50 text-sm" />;
+                      const key = v.replace(/[{}]/g, "");
+                      return <input key={key} type="text" placeholder={`Value for {{${key}}}`} value={sendTestParams[key] || ""} onChange={e => setSendTestParams(p => ({ ...p, [key]: e.target.value }))} className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-4 py-2 outline-none focus:border-emerald-500/50 text-sm" />;
                     })}
                   </div>
                 );
@@ -857,13 +865,14 @@ function QuickSendMessage() {
   const footerComp = selectedTemplate?.components?.find((c: any) => c.type === "FOOTER");
   const textHeader = selectedTemplate?.components?.find((c: any) => c.type === "HEADER" && c.format === "TEXT")?.text || "";
   const buttonsComp = selectedTemplate?.components?.find((c: any) => c.type === "BUTTONS");
-  const variables = bodyText.match(/\{\{\d+\}\}/g) || [];
+  const variables = bodyText.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || [];
 
   const handleSelectCustomer = (cust: any) => {
     setPhone(cust.phone);
     // Autofill first variable with customer name if applicable
     if (variables.length > 0) {
-      setParams(prev => ({ ...prev, "1": cust.customerName }));
+      const firstKey = variables[0].replace(/[{}]/g, "");
+      setParams(prev => ({ ...prev, [firstKey]: cust.customerName, "1": cust.customerName }));
     }
     setCustomerSearch(cust.customerName);
     setShowCustomerDropdown(false);
@@ -888,10 +897,10 @@ function QuickSendMessage() {
     const components: any[] = [];
     if (variables.length > 0) {
       const bodyParams = variables.map((v: string) => {
-        const num = v.replace(/[^0-9]/g, "");
+        const key = v.replace(/[{}]/g, "");
         return {
           type: "text",
-          text: params[num] || ""
+          text: params[key] || params[v] || ""
         };
       });
       components.push({
@@ -915,7 +924,7 @@ function QuickSendMessage() {
         body: JSON.stringify({
           to: phone,
           templateName: selectedTemplate.name,
-          languageCode: selectedTemplate.language || "en_US",
+          languageCode: selectedTemplate.language || "en",
           components
         })
       });
@@ -942,8 +951,8 @@ function QuickSendMessage() {
     if (!bodyText) return "Preview will appear here...";
     let text = bodyText;
     variables.forEach((v: string) => {
-      const num = v.replace(/[^0-9]/g, "");
-      const val = params[num] || `[Variable {{${num}}}]`;
+      const key = v.replace(/[{}]/g, "");
+      const val = params[key] || params[v] || `[Variable {{${key}}}]`;
       text = text.replace(v, val);
     });
     return text;
@@ -1056,16 +1065,16 @@ function QuickSendMessage() {
               <label className="text-xs font-semibold text-foreground/60 uppercase block font-mono">4. Dynamic Variables</label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {variables.map((v: string) => {
-                  const num = v.replace(/[^0-9]/g, "");
+                  const key = v.replace(/[{}]/g, "");
                   return (
-                    <div key={num}>
-                      <label className="text-[10px] text-muted-foreground block mb-1 font-mono">Placeholder {`{{${num}}}`}</label>
+                    <div key={key}>
+                      <label className="text-[10px] text-muted-foreground block mb-1 font-mono">Placeholder {`{{${key}}}`}</label>
                       <input
                         type="text"
                         required
-                        placeholder={`Value for {{${num}}}`}
-                        value={params[num] || ""}
-                        onChange={(e) => setParams(prev => ({ ...prev, [num]: e.target.value }))}
+                        placeholder={`Value for {{${key}}}`}
+                        value={params[key] || ""}
+                        onChange={(e) => setParams(prev => ({ ...prev, [key]: e.target.value }))}
                         className="w-full bg-foreground/5 border border-foreground/10 rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500/50 text-sm"
                       />
                     </div>

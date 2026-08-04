@@ -31,34 +31,44 @@ async function resolveGenericTemplate(templateName) {
 
   if (!templateRecord) return null;
 
-  let numVars = 0;
+  let varNames = [];
   const lang = templateRecord.language || 'en';
 
   if (templateRecord.components) {
     const bodyComp = templateRecord.components.find(c => c.type === 'BODY');
     if (bodyComp && bodyComp.text) {
-      const matches = bodyComp.text.match(/\{\{(\d+)\}\}/g) || [];
-      numVars = matches.length;
+      const matches = Array.from(bodyComp.text.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g));
+      varNames = matches.map(m => m[1]);
     }
   }
 
-  return { templateRecord, numVars, lang };
+  return { templateRecord, numVars: varNames.length, varNames, lang };
 }
 
 /**
  * Builds body components for a generic template from the campaign payload
  * and recipient name.
  */
-function buildGenericComponents(numVars, payload, recipientName) {
+function buildGenericComponents(varNames, payload, recipientName) {
   const components = [];
   const bodyParams = [];
+  const names = Array.isArray(varNames) ? varNames : Array.from({ length: Number(varNames) || 0 }, (_, i) => String(i + 1));
 
-  for (let v = 1; v <= numVars; v++) {
-    let val = payload[v] || payload[`var_${v}`] || payload[String(v)] || payload[`param_${v}`];
-    // Auto replace first variable with customer name if empty or generic placeholder
-    if (v === 1 && (!val || val === 'customerName' || val === 'name' || val === 'Priya' || val === 'there')) {
-      val = recipientName || 'there';
+  for (let i = 0; i < names.length; i++) {
+    const vKey = names[i];
+    const lowerKey = vKey.toLowerCase();
+    let val = payload[vKey] || payload[lowerKey] || payload[i + 1] || payload[String(i + 1)] || payload[`var_${vKey}`] || payload[`param_${vKey}`];
+
+    if (!val) {
+      if (lowerKey.includes('name') || lowerKey.includes('customer') || i === 0) {
+        val = recipientName || payload.name || payload.customerName || 'Customer';
+      } else if (lowerKey.includes('order') || lowerKey.includes('id')) {
+        val = payload.orderId || payload.order_id || 'Order';
+      } else {
+        val = 'Zica Bella';
+      }
     }
+
     bodyParams.push({
       type: 'text',
       text: String(val || '')
@@ -100,18 +110,18 @@ export async function sendCampaignRecipient(recipient, campaignId, type, payload
 
     if (isGeneric) {
       // Resolve generic template details if not pre-resolved
-      let numVars = genericTemplateInfo?.numVars ?? 0;
+      let varNames = genericTemplateInfo?.varNames ?? genericTemplateInfo?.numVars ?? 0;
       let lang = genericTemplateInfo?.lang ?? 'en';
 
       if (!genericTemplateInfo) {
         const resolved = await resolveGenericTemplate(type);
         if (resolved) {
-          numVars = resolved.numVars;
+          varNames = resolved.varNames;
           lang = resolved.lang;
         }
       }
 
-      const components = buildGenericComponents(numVars, payload, recipient.name);
+      const components = buildGenericComponents(varNames, payload, recipient.name);
 
       // Call direct WhatsApp send service
       const apiResult = await WhatsAppService.sendTemplateMessage(recipient.phone, type, lang, components);
@@ -264,7 +274,7 @@ export async function runBroadcastInBackground(campaignId, type, payload) {
     if (isGeneric) {
       const resolved = await resolveGenericTemplate(type);
       if (resolved) {
-        genericTemplateInfo = { numVars: resolved.numVars, lang: resolved.lang };
+        genericTemplateInfo = { numVars: resolved.numVars, varNames: resolved.varNames, lang: resolved.lang };
       }
     }
 
