@@ -43,7 +43,6 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: 'cover',
   themeColor: '#0a0a0a',
 };
@@ -56,23 +55,6 @@ export const metadata: Metadata = {
   },
   description:
     'India\'s premier luxury streetwear label. Discover boxy drop-shoulder oversized graphic tees, vintage acid-wash shirts, custom heavyweight loopback hoodies, and limited drop capsules. Engineered with premium double-yarn cotton blanks. Crafted in India, worn with intent. Free shipping above ₹999.',
-  keywords: [
-    'Zica Bella',
-    'luxury streetwear India',
-    'premium graphic tees India',
-    'heavyweight oversized tshirts',
-    'best tshirts under 5000',
-    'drop shoulder tees online',
-    'vintage acid wash t-shirt',
-    'loopback cotton hoodies',
-    'd2c fashion brand India',
-    'subculture street apparel',
-    'boxy fit graphic tees',
-    'limited edition streetwear drops',
-    'crafted in India clothing',
-    'aesthetic oversized hoodies',
-    'Indian streetwear design',
-  ],
   authors: [{ name: 'Zica Bella', url: siteUrl }],
   creator: 'Zica Bella',
   publisher: 'Zica Bella',
@@ -200,8 +182,6 @@ export default function RootLayout({
           }}
         />
         <link rel="preconnect" href="https://cdn.shopify.com" />
-        <link rel="preconnect" href="https://flagcdn.com" />
-        <link rel="preconnect" href="https://db.zicabella.com" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -234,8 +214,9 @@ export default function RootLayout({
             })
           }}
         />
-        <script
+        <Script
           id="fb-pixel"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {
@@ -254,8 +235,9 @@ export default function RootLayout({
           }}
         />
         {/* Snap Pixel Base Code */}
-        <script
+        <Script
           id="snap-pixel"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {

@@ -40,6 +40,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 import DelhiveryActions from "@/components/orders/DelhiveryActions";
 import LineItemEditor from "@/components/orders/LineItemEditor";
+import VariantBadge from "@/components/admin/VariantBadge";
+import InlineSizeSelector from "@/components/admin/InlineSizeSelector";
 
 interface OrderItem {
   id: string;
@@ -306,6 +308,29 @@ export default function OrderDetailPage() {
     }
   };
 
+  const handleUpdateOrderItemSize = async (orderItemId: string, newSize: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/orders/update-size", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderItemId, size: newSize }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update size");
+      }
+      setToast("Size updated successfully");
+      fetchOrder(true);
+    } catch (e: any) {
+      setToast(e.message || "Failed to update size");
+      throw e;
+    } finally {
+      setSaving(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
   const handleAction = async (action: string) => {
     setDelhiveryLoading(true);
     try {
@@ -407,7 +432,12 @@ export default function OrderDetailPage() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-black tracking-tighter uppercase italic">Order {order.internalOrderNumber || (order.orderNumber && `#${order.orderNumber}`) || `#${order.id.slice(-6).toUpperCase()}`}</h1>
+                <h1 className="text-3xl font-black tracking-tighter uppercase italic">
+                  Order {order.internalOrderNumber || order.shopifyOrderName || (order.orderNumber && `#${order.orderNumber}`) || `#${order.id.slice(-6).toUpperCase()}`}
+                  {order.shopifyOrderName && order.internalOrderNumber && order.shopifyOrderName !== order.internalOrderNumber && (
+                    <span className="ml-2 text-lg text-foreground/40 font-normal">({order.shopifyOrderName})</span>
+                  )}
+                </h1>
                 <div className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${order.status === 'cancelled' || order.status === 'payment_failed' ? 'bg-rose-500/10 text-rose-500' : 'bg-blue-500/10 text-blue-500'}`}>
                   {order.status}
                 </div>
@@ -578,16 +608,15 @@ export default function OrderDetailPage() {
                         {(() => {
                           const vInfo = extractItemVariantAndSize(item.title, item.sku, item.variantTitle, item.size);
                           const resolvedSize = item.size || vInfo.size;
-                          return resolvedSize ? (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-mono font-black uppercase tracking-wider shadow-sm shadow-amber-500/5">
-                              <Tag className="w-3.5 h-3.5 text-amber-400" />
-                              <span>SIZE: {resolvedSize}</span>
-                            </div>
-                          ) : (
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-foreground/5 border border-foreground/10 text-foreground/50 text-[10px] font-mono font-bold uppercase tracking-wider">
-                              <Tag className="w-3 h-3 text-foreground/30" />
-                              <span>SIZE: UNASSIGNED</span>
-                            </div>
+                          const resolvedVariant = item.variantTitle || vInfo.variant;
+                          return (
+                            <InlineSizeSelector
+                              size={resolvedSize}
+                              variantTitle={resolvedVariant}
+                              itemId={item.id}
+                              itemType="orderItem"
+                              onUpdateSize={(sz) => handleUpdateOrderItemSize(item.id, sz)}
+                            />
                           );
                         })()}
                       </div>

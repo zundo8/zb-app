@@ -145,20 +145,35 @@ export async function POST(req: NextRequest) {
 
             // Mark corresponding Cart as converted
             const matchCart = (order.tags || "").match(/cart-([A-Za-z0-9_-]+)/);
-            const cartId = matchCart ? matchCart[1] : null;
-            if (cartId) {
-              try {
+            const cartIdTag = matchCart ? matchCart[1] : null;
+            try {
+              let targetCartId = cartIdTag;
+              if (!targetCartId) {
+                const matched = await prisma.cart.findFirst({
+                  where: {
+                    convertedOrderId: null,
+                    status: { not: "converted" },
+                    OR: [
+                      ...(order.customerId ? [{ customerId: order.customerId }] : [])
+                    ]
+                  },
+                  orderBy: { lastActivityAt: "desc" }
+                });
+                if (matched) targetCartId = matched.id;
+              }
+
+              if (targetCartId) {
                 await prisma.cart.update({
-                  where: { id: cartId },
+                  where: { id: targetCartId },
                   data: {
                     status: "converted",
                     convertedOrderId: order.id
                   }
                 });
-                console.log(`[Razorpay Webhook] Cart ${cartId} successfully converted.`);
-              } catch (cartErr: any) {
-                console.error("[Razorpay Webhook] Cart conversion update failed:", cartErr.message);
+                console.log(`[Razorpay Webhook] Cart ${targetCartId} successfully converted for order ${order.id}.`);
               }
+            } catch (cartErr: any) {
+              console.error("[Razorpay Webhook] Cart conversion update failed:", cartErr.message);
             }
 
             // Sync to Shopify if not already synced

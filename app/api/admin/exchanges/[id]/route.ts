@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { enrichExchangeItem, enrichItemsWithSize } from '@/lib/enrichSize';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,7 +84,23 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         linkedReturn: null
       };
 
-      return NextResponse.json({ exchangeRequest: syntheticRequest }, { status: 200 });
+      const enrichedExchanges = await Promise.all(
+        (syntheticRequest.exchanges || []).map(enrichExchangeItem)
+      );
+
+      const enrichedOrderItems = syntheticRequest.order?.items
+        ? await enrichItemsWithSize(syntheticRequest.order.items)
+        : [];
+
+      return NextResponse.json({
+        exchangeRequest: {
+          ...syntheticRequest,
+          exchanges: enrichedExchanges,
+          order: syntheticRequest.order
+            ? { ...syntheticRequest.order, items: enrichedOrderItems }
+            : null,
+        }
+      }, { status: 200 });
     }
 
     // Fetch the linked return request if it exists
@@ -97,12 +114,24 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       });
     }
 
-    return NextResponse.json({
-      exchangeRequest: {
-        ...exchangeRequest,
-        linkedReturn,
-      }
-    }, { status: 200 });
+      const enrichedExchanges = await Promise.all(
+        (exchangeRequest.exchanges || []).map(enrichExchangeItem)
+      );
+
+      const enrichedOrderItems = exchangeRequest.order?.items
+        ? await enrichItemsWithSize(exchangeRequest.order.items)
+        : [];
+
+      return NextResponse.json({
+        exchangeRequest: {
+          ...exchangeRequest,
+          exchanges: enrichedExchanges,
+          order: exchangeRequest.order
+            ? { ...exchangeRequest.order, items: enrichedOrderItems }
+            : null,
+          linkedReturn,
+        }
+      }, { status: 200 });
   } catch (error: any) {
     console.error('Exchange Detail API Error:', error.message);
     return NextResponse.json({ error: 'Failed to fetch exchange' }, { status: 500 });

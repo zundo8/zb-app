@@ -138,10 +138,12 @@ ON web_store_banners (position) WHERE is_active = TRUE;
 -- ────────────────────────────────────────────────────────────────
 
 -- Generate Sequential Web Order Numbers on Insert
-CREATE OR REPLACE TRIGGER trg_generate_web_order_number
-BEFORE INSERT ON web_store_orders
-FOR EACH ROW
-EXECUTE FUNCTION generate_web_order_number();
+-- DISABLED: New orders use universal numbering via lib/orderNumber.ts (ZB81000+)
+-- Existing #ZB4xxxx numbers are preserved. The function and sequence remain for reference.
+-- CREATE OR REPLACE TRIGGER trg_generate_web_order_number
+-- BEFORE INSERT ON web_store_orders
+-- FOR EACH ROW
+-- EXECUTE FUNCTION generate_web_order_number();
 
 -- Update timestamps automatically on edit
 CREATE OR REPLACE TRIGGER trg_update_customers_timestamp

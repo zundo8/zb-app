@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Check, X, Clock, Package, TruckIcon, CheckCircle2, XCircle, CreditCard, AlertTriangle, RefreshCw, User, MapPin, Mail, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
+import VariantBadge from "@/components/admin/VariantBadge";
+import InlineSizeSelector from "@/components/admin/InlineSizeSelector";
 
 const STATUS_STEPS = [
   { key: "pending_approval", label: "Requested", icon: Clock },
@@ -56,6 +58,27 @@ export default function ReturnDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  const handleUpdateReturnSize = async (returnItemId: string, newSize: string) => {
+    try {
+      const res = await fetch("/api/admin/returns/update-size", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnId: returnItemId, size: newSize }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update return size");
+      }
+      setToast("Size updated successfully");
+      setTimeout(() => setToast(null), 3000);
+      fetchDetail();
+    } catch (e: any) {
+      setToast(e.message || "Failed to update return size");
+      setTimeout(() => setToast(null), 3000);
+      throw e;
+    }
+  };
 
   // Refund modal
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -273,9 +296,11 @@ export default function ReturnDetailPage() {
             </div>
             <div className="divide-y divide-foreground/[0.03]">
               {returnItems.map((item: any, idx: number) => {
-                const itemTitle = item.product?.title || item.title || "Product";
+                const itemTitle = item.title || item.product?.title || "Product";
                 const itemSku = item.sku || item.product?.sku;
-                const vInfo = extractItemVariantAndSize(itemTitle, itemSku, item.variantTitle);
+                const vInfo = extractItemVariantAndSize(itemTitle, itemSku, item.variantTitle, item.size);
+                const resolvedSize = item.size || vInfo.size;
+                const resolvedVariant = item.variantTitle || vInfo.variant;
 
                 return (
                   <div key={idx} className="p-5 flex items-start gap-4">
@@ -289,13 +314,15 @@ export default function ReturnDetailPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-[13px] font-bold text-foreground">{itemTitle}</p>
-                            {vInfo.size && (
-                              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[9px] font-mono font-bold uppercase border border-emerald-500/20">
-                                Size: {vInfo.size}
-                              </span>
-                            )}
+                            <InlineSizeSelector
+                              size={resolvedSize}
+                              variantTitle={resolvedVariant}
+                              itemId={item.id}
+                              itemType="return"
+                              onUpdateSize={(sz) => handleUpdateReturnSize(item.id, sz)}
+                            />
                           </div>
                           <p className="text-[10px] text-foreground/40 mt-1 font-mono">SKU: {itemSku || "N/A"} • Qty: {item.quantity || 1}</p>
                         </div>

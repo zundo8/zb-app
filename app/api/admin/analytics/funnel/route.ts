@@ -5,22 +5,31 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 
 export const dynamic = 'force-dynamic';
 
+// Valid platform values for allow-list validation (Item 6)
+const VALID_PLATFORMS = ['web', 'app'] as const;
+
 async function handler(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
-    const platform = searchParams.get('platform');
+    const rawPlatform = searchParams.get('platform');
+
+    // Validate platform against allow-list (Item 6)
+    const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
 
     const now = new Date();
     const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endDate = to ? new Date(to) : now;
+    const rawEnd = to ? new Date(to) : now;
+    const endDate = rawEnd > now ? now : rawEnd;
 
-    const platformSql = platform ? `AND platform = '${platform}'` : '';
+    // Parameterized platform condition (Item 6 — kill SQL injection)
+    const platformCondition = platform ? `AND platform = $3` : '';
+    const queryArgs: any[] = platform ? [startDate, endDate, platform] : [startDate, endDate];
 
     const funnelStages = ['page_view', 'view_item', 'add_to_cart', 'begin_checkout', 'payment_initiated', 'purchase'];
 
-    // Single consolidated SQL aggregation for all stages
+    // Single consolidated SQL aggregation for all stages — parameterized
     const rawCounts: any[] = await prisma.$queryRawUnsafe(`
       SELECT
         event_name,
@@ -29,9 +38,9 @@ async function handler(req: Request) {
       FROM analytics_events
       WHERE created_at >= $1 AND created_at <= $2
         AND event_name IN ('page_view', 'view_item', 'add_to_cart', 'begin_checkout', 'payment_initiated', 'purchase')
-        ${platformSql}
+        ${platformCondition}
       GROUP BY event_name
-    `, startDate, endDate);
+    `, ...queryArgs);
 
     const countsMap = new Map<string, { sessions: number; users: number }>();
     rawCounts.forEach((r: any) => {

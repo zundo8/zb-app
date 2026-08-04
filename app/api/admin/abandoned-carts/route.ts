@@ -1,7 +1,34 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { isOrderValidConverted } from "@/lib/cartValidation";
 
 export const dynamic = "force-dynamic";
+
+function normalizePhone(p?: string | null): string | null {
+  if (!p) return null;
+  const digits = p.replace(/\D/g, "");
+  if (digits.length >= 10) return digits.slice(-10);
+  return digits || null;
+}
+
+const validConvertedOrderClause = {
+  convertedOrder: {
+    isNot: null,
+    NOT: [
+      { status: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "draft", "voided"] } },
+      { paymentStatus: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "voided"] } }
+    ],
+    OR: [
+      { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "PAID", "SUCCESS", "success", "captured"] } },
+      {
+        AND: [
+          { paymentMethod: { in: ["COD", "cod", "Cash on Delivery", "cash_on_delivery"] } },
+          { status: { in: ["approved", "open", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "CONFIRMED", "confirmed", "placed"] } }
+        ]
+      }
+    ]
+  }
+};
 
 export async function GET(req: Request) {
   try {
@@ -19,6 +46,105 @@ export async function GET(req: Request) {
     const delayMinutes = delaySetting ? (parseInt(delaySetting.value, 10) || 5) : 5;
     const abandonmentThreshold = new Date(Date.now() - delayMinutes * 60 * 1000);
 
+    // 1a. Quick Auto-Reconciliation: match unlinked active/abandoned carts ONLY with completed/processed paid or COD Orders
+    try {
+      const unconvertedCarts = await prisma.cart.findMany({
+        where: {
+          convertedOrderId: null,
+          status: { notIn: ["converted", "merged"] },
+          items: { some: {} }
+        },
+        take: 50,
+        orderBy: { createdAt: "desc" }
+      });
+
+      for (const cart of unconvertedCarts) {
+        const normCartPhone = normalizePhone(cart.phone);
+        
+        const matchedOrder = await prisma.order.findFirst({
+          where: {
+            createdAt: { gte: new Date(cart.createdAt.getTime() - 60 * 60 * 1000) },
+            NOT: [
+              { status: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "draft", "voided"] } },
+              { paymentStatus: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "voided"] } }
+            ],
+            OR: [
+              { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "PAID", "SUCCESS", "success", "captured"] } },
+              {
+                AND: [
+                  { paymentMethod: { in: ["COD", "cod", "Cash on Delivery", "cash_on_delivery"] } },
+                  { status: { in: ["approved", "open", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "CONFIRMED", "confirmed", "placed"] } }
+                ]
+              }
+            ],
+            AND: [
+              {
+                OR: [
+                  ...(cart.customerId ? [{ customerId: cart.customerId }] : []),
+                  ...(cart.email ? [{ customer: { email: { equals: cart.email, mode: "insensitive" as const } } }] : []),
+                  ...(normCartPhone ? [{ customer: { phone: { contains: normCartPhone } } }] : []),
+                  ...(normCartPhone ? [{ shippingAddress: { contains: normCartPhone } }] : []),
+                  ...(cart.email ? [{ shippingAddress: { contains: cart.email } }] : [])
+                ]
+              }
+            ]
+          },
+          orderBy: { createdAt: "asc" }
+        });
+
+        if (matchedOrder) {
+          await prisma.cart.update({
+            where: { id: cart.id },
+            data: {
+              status: "converted",
+              convertedOrderId: matchedOrder.id
+            }
+          });
+        }
+      }
+    } catch (reconcileErr: any) {
+      console.warn("[Abandoned Carts API] Auto-reconciliation warning:", reconcileErr?.message);
+    }
+
+    // 1b. Self-Healing DB Repair: Unlink historical carts that were linked to failed/pending/cancelled orders
+    try {
+      const potentiallyInvalidCarts = await prisma.cart.findMany({
+        where: {
+          OR: [
+            { status: "converted" },
+            { convertedOrderId: { not: null } }
+          ]
+        },
+        include: {
+          convertedOrder: {
+            select: {
+              id: true,
+              status: true,
+              paymentStatus: true,
+              paymentMethod: true
+            }
+          }
+        },
+        take: 100
+      });
+
+      for (const cart of potentiallyInvalidCarts) {
+        const isValid = isOrderValidConverted(cart.convertedOrder);
+        if (!isValid) {
+          const restoredStatus = cart.lastActivityAt <= abandonmentThreshold ? "abandoned" : "active";
+          await prisma.cart.update({
+            where: { id: cart.id },
+            data: {
+              convertedOrderId: null,
+              status: restoredStatus
+            }
+          });
+        }
+      }
+    } catch (cleanErr: any) {
+      console.warn("[Abandoned Carts API] Self-healing cleanup warning:", cleanErr?.message);
+    }
+
     const andClauses: any[] = [
       { items: { some: {} } }
     ];
@@ -28,23 +154,28 @@ export async function GET(req: Request) {
       andClauses.push({ source: sourceFilter });
     }
 
-    // Filter by status (including computed-on-read logic)
+    // Filter by status (strict conversion validation)
     if (statusFilter === "live") {
       andClauses.push({
         status: "active",
-        lastActivityAt: { gt: abandonmentThreshold }
+        lastActivityAt: { gt: abandonmentThreshold },
+        NOT: [validConvertedOrderClause]
       });
     } else if (statusFilter === "abandoned") {
       andClauses.push({
+        NOT: [validConvertedOrderClause],
         OR: [
           { status: "abandoned" },
           { status: "active", lastActivityAt: { lte: abandonmentThreshold } }
         ]
       });
     } else if (statusFilter === "converted") {
-      andClauses.push({ status: "converted" });
+      andClauses.push(validConvertedOrderClause);
     } else if (statusFilter === "expired") {
-      andClauses.push({ status: "expired" });
+      andClauses.push({
+        status: "expired",
+        NOT: [validConvertedOrderClause]
+      });
     }
 
     // Filter by search query (customer name, email, phone)
@@ -91,6 +222,9 @@ export async function GET(req: Request) {
             internalOrderNumber: true,
             totalPrice: true,
             createdAt: true,
+            status: true,
+            paymentStatus: true,
+            paymentMethod: true,
           }
         }
       },
@@ -101,23 +235,83 @@ export async function GET(req: Request) {
       take: limit
     });
 
+    // Compute Summary Stats for Admin Dashboard KPI Header
+    const [liveCount, abandonedCount, convertedCount, expiredCount] = await Promise.all([
+      prisma.cart.count({
+        where: {
+          items: { some: {} },
+          status: "active",
+          lastActivityAt: { gt: abandonmentThreshold },
+          NOT: [validConvertedOrderClause]
+        }
+      }),
+      prisma.cart.count({
+        where: {
+          items: { some: {} },
+          NOT: [validConvertedOrderClause],
+          OR: [
+            { status: "abandoned" },
+            { status: "active", lastActivityAt: { lte: abandonmentThreshold } }
+          ]
+        }
+      }),
+      prisma.cart.count({
+        where: {
+          items: { some: {} },
+          ...validConvertedOrderClause
+        }
+      }),
+      prisma.cart.count({
+        where: {
+          items: { some: {} },
+          status: "expired",
+          NOT: [validConvertedOrderClause]
+        }
+      })
+    ]);
+
+    const convertedAggregate = await prisma.cart.aggregate({
+      where: {
+        items: { some: {} },
+        ...validConvertedOrderClause
+      },
+      _sum: { subtotal: true }
+    });
+
+    const convertedRevenue = Math.round(convertedAggregate._sum.subtotal || 0);
+    const totalTracked = liveCount + abandonedCount + convertedCount + expiredCount;
+    const recoveryRate = (abandonedCount + convertedCount) > 0
+      ? Math.round((convertedCount / (abandonedCount + convertedCount)) * 100)
+      : 0;
+
     // Process carts to map final computed status
     let mappedCarts = carts.map((cart: any) => {
+      const order = cart.convertedOrder;
+      const isValidConverted = isOrderValidConverted(order);
+
       let computedStatus = cart.status;
-      if (cart.status === "active" && cart.lastActivityAt <= abandonmentThreshold) {
+      if (isValidConverted) {
+        computedStatus = "converted";
+      } else if (cart.status === "expired") {
+        computedStatus = "expired";
+      } else if (cart.lastActivityAt <= abandonmentThreshold || cart.status === "abandoned") {
         computedStatus = "abandoned";
+      } else {
+        computedStatus = "active";
       }
 
       return {
         ...cart,
+        convertedOrder: isValidConverted ? order : null,
+        convertedOrderId: isValidConverted ? cart.convertedOrderId : null,
         computedStatus
       };
     });
 
     let finalTotal = total;
 
-    // Fallback: If DB yields 0 carts or DB is down, fetch directly from Shopify Admin API checkouts
-    if (mappedCarts.length === 0) {
+    // Fallback: If DB yields 0 total tracked carts and no filters active, fetch directly from Shopify Admin API checkouts
+    if (totalTracked === 0 && statusFilter === "all" && sourceFilter === "all" && !searchQuery) {
       try {
         const { shopifyFetch } = await import("@/lib/shopify-client");
         const shopifyRes: any = await shopifyFetch("checkouts.json", { limit: "250" });
@@ -181,6 +375,15 @@ export async function GET(req: Request) {
         page,
         limit,
         totalPages: Math.ceil(finalTotal / limit) || 1
+      },
+      stats: {
+        totalTracked,
+        liveCount,
+        abandonedCount,
+        convertedCount,
+        expiredCount,
+        convertedRevenue,
+        recoveryRate
       }
     });
   } catch (error: any) {
@@ -218,10 +421,20 @@ export async function GET(req: Request) {
       }));
       return NextResponse.json({
         carts: mappedCarts,
-        pagination: { total: mappedCarts.length, page: 1, limit: 20, totalPages: Math.ceil(mappedCarts.length / 20) || 1 }
+        pagination: { total: mappedCarts.length, page: 1, limit: 20, totalPages: Math.ceil(mappedCarts.length / 20) || 1 },
+        stats: {
+          totalTracked: mappedCarts.length,
+          liveCount: 0,
+          abandonedCount: mappedCarts.length,
+          convertedCount: 0,
+          expiredCount: 0,
+          convertedRevenue: 0,
+          recoveryRate: 0
+        }
       });
     } catch (e2) {
       return NextResponse.json({ error: "Failed to fetch abandoned carts" }, { status: 500 });
     }
   }
 }
+

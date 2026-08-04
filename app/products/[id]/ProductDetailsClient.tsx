@@ -847,9 +847,9 @@ export default function ProductDetailsClient({
               <div className="flex justify-between items-start mb-2 px-1 relative z-10">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-[11px] sm:text-[12px] font-bold tracking-[0.25em] uppercase leading-tight text-foreground/90 font-heading">
+                    <p className="text-[11px] sm:text-[12px] font-bold tracking-[0.25em] uppercase leading-tight text-foreground/90 font-heading">
                       {product.title}
-                    </h1>
+                    </p>
                     {comparePrice && parseFloat(comparePrice) > parseFloat(initialPrice) && (
                       <div className="bg-foreground text-background px-1.5 py-[1px] rounded-[2px] leading-none mb-1">
                         <span className="text-[6px] font-bold uppercase tracking-tighter whitespace-nowrap">Sale</span>

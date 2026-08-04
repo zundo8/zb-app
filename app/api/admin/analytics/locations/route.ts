@@ -5,19 +5,30 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 
 export const dynamic = 'force-dynamic';
 
+// Valid platform values for allow-list validation (Item 6)
+const VALID_PLATFORMS = ['web', 'app'] as const;
+
 async function handler(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
-    const platform = searchParams.get('platform');
+    const rawPlatform = searchParams.get('platform');
+
+    // Validate platform against allow-list (Item 6)
+    const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
 
     const now = new Date();
     const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-    const endDate = to ? new Date(to) : now;
+    const rawEnd = to ? new Date(to) : now;
+    const endDate = rawEnd > now ? now : rawEnd;
 
     const dateFilter = { gte: startDate, lte: endDate };
     const platformFilter = platform ? { platform } : {};
+
+    // Parameterized platform condition (Item 6 — kill SQL injection)
+    const platformCondition = platform ? `AND platform = $3` : '';
+    const queryArgs: any[] = platform ? [startDate, endDate, platform] : [startDate, endDate];
 
     // ─── Top Countries (from sessions with location data) ────────
     const countrySessions: any[] = await prisma.$queryRawUnsafe(`
@@ -29,11 +40,11 @@ async function handler(req: Request) {
       FROM analytics_sessions
       WHERE started_at >= $1 AND started_at <= $2
         AND (country_code IS NOT NULL OR country IS NOT NULL)
-        ${platform ? `AND platform = '${platform}'` : ''}
+        ${platformCondition}
       GROUP BY UPPER(COALESCE(country_code, country)), COALESCE(country, country_code)
       ORDER BY session_count DESC
       LIMIT 30
-    `, startDate, endDate);
+    `, ...queryArgs);
 
     const totalCountrySessions = countrySessions.reduce((sum: number, c: any) => sum + Number(c.session_count), 0) || 1;
 
@@ -57,11 +68,11 @@ async function handler(req: Request) {
       FROM analytics_sessions
       WHERE started_at >= $1 AND started_at <= $2
         AND city IS NOT NULL AND city != '' AND LOWER(city) != 'unknown'
-        ${platform ? `AND platform = '${platform}'` : ''}
+        ${platformCondition}
       GROUP BY city, UPPER(COALESCE(country_code, country))
       ORDER BY session_count DESC
       LIMIT 30
-    `, startDate, endDate);
+    `, ...queryArgs);
 
     const totalCitySessions = citySessions.reduce((sum: number, c: any) => sum + Number(c.session_count), 0) || 1;
 
@@ -95,11 +106,11 @@ async function handler(req: Request) {
       FROM analytics_sessions
       WHERE started_at >= $1 AND started_at <= $2
         AND (country_code IS NOT NULL OR country IS NOT NULL OR lat IS NOT NULL)
-        ${platform ? `AND platform = '${platform}'` : ''}
+        ${platformCondition}
       GROUP BY 1, 2, 3
       ORDER BY session_count DESC
       LIMIT 100
-    `, startDate, endDate);
+    `, ...queryArgs);
 
     const visitorPoints = geoPoints.map((p: any) => ({
       countryCode: (p.country_code || 'IN').toUpperCase(),

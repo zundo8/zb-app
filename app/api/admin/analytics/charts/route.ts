@@ -5,16 +5,27 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 
 export const dynamic = 'force-dynamic';
 
+// Canonical realized-revenue statuses (must match overview/route.ts)
+const REALIZED_PAYMENT_SQL = `('paid', 'partially_paid', 'cod_upfront_paid', 'cod')`;
+const EXCLUDED_STATUS_SQL = `('cancelled', 'payment_failed', 'pending', 'draft', 'abandoned', 'FAILED', 'CANCELLED', 'payment_pending')`;
+
+// Valid platform values for allow-list validation
+const VALID_PLATFORMS = ['web', 'app'] as const;
+
 async function handler(req: Request) {
   try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
-  const platform = searchParams.get('platform');
+  const rawPlatform = searchParams.get('platform');
+
+  // Validate platform against allow-list (Item 6)
+  const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
 
   const now = new Date();
   const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-  const endDate = to ? new Date(to) : now;
+  const rawEnd = to ? new Date(to) : now;
+  const endDate = rawEnd > now ? now : rawEnd;
 
   // Determine aggregation granularity
   const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -24,15 +35,19 @@ async function handler(req: Request) {
   else if (durationDays <= 365) truncUnit = 'week';
   else truncUnit = 'month';
 
-  const platformFilter = platform ? `AND platform = '${platform}'` : '';
-
-  // Order/revenue time series from Order table
+  // Build parameterized platform conditions
   const orderTypeCondition = platform === 'web'
     ? `AND "orderType" IN ('WEB_STORE', 'REGULAR')`
     : platform === 'app'
       ? `AND "orderType" IN ('MOBILE', 'MOBILE_APP')`
       : '';
 
+  // Platform filter for analytics tables — parameterized (Item 6)
+  const platformCondition = platform ? `AND platform = $3` : '';
+  const baseArgs: any[] = [startDate, endDate];
+  const platformArgs: any[] = platform ? [startDate, endDate, platform] : [startDate, endDate];
+
+  // Order/revenue time series — using canonical realized statuses (Item 1)
   const orderTimeSeries: any[] = await prisma.$queryRawUnsafe(`
     SELECT
       date_trunc('${truncUnit}', "createdAt") AS bucket,
@@ -40,14 +55,14 @@ async function handler(req: Request) {
       COALESCE(SUM("totalPrice"), 0) AS revenue
     FROM "Order"
     WHERE "createdAt" >= $1 AND "createdAt" <= $2
-      AND "paymentStatus" IN ('paid', 'cod_upfront_paid', 'cod', 'pending', 'open', 'partially_paid', 'authorized')
-      AND "status" NOT IN ('cancelled', 'payment_failed')
+      AND "paymentStatus" IN ${REALIZED_PAYMENT_SQL}
+      AND "status" NOT IN ${EXCLUDED_STATUS_SQL}
       ${orderTypeCondition}
     GROUP BY bucket
     ORDER BY bucket ASC
-  `, startDate, endDate);
+  `, ...baseArgs);
 
-  // Session/visitor time series
+  // Session/visitor time series — parameterized platform (Item 6)
   const sessionTimeSeries: any[] = await prisma.$queryRawUnsafe(`
     SELECT
       date_trunc('${truncUnit}', started_at) AS bucket,
@@ -55,12 +70,12 @@ async function handler(req: Request) {
       COUNT(DISTINCT anonymous_id) AS visitors
     FROM analytics_sessions
     WHERE started_at >= $1 AND started_at <= $2
-      ${platformFilter}
+      ${platformCondition}
     GROUP BY bucket
     ORDER BY bucket ASC
-  `, startDate, endDate);
+  `, ...platformArgs);
 
-  // Event time series (add_to_cart, begin_checkout, purchase)
+  // Event time series — parameterized platform (Item 6)
   const eventTimeSeries: any[] = await prisma.$queryRawUnsafe(`
     SELECT
       date_trunc('${truncUnit}', created_at) AS bucket,
@@ -69,10 +84,10 @@ async function handler(req: Request) {
     FROM analytics_events
     WHERE created_at >= $1 AND created_at <= $2
       AND event_name IN ('add_to_cart', 'begin_checkout', 'purchase', 'page_view', 'view_item')
-      ${platformFilter}
+      ${platformCondition}
     GROUP BY bucket, event_name
     ORDER BY bucket ASC
-  `, startDate, endDate);
+  `, ...platformArgs);
 
   // Login/signup time series
   const loginTimeSeries: any[] = await prisma.$queryRawUnsafe(`
@@ -85,7 +100,7 @@ async function handler(req: Request) {
       AND status IN ('LOGGED_IN', 'SUCCESS', 'ACCOUNT_CREATED')
     GROUP BY bucket
     ORDER BY bucket ASC
-  `, startDate, endDate);
+  `, ...baseArgs);
 
   // Merge into unified time series
   const bucketMap = new Map<string, any>();

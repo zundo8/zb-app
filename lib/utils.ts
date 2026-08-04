@@ -222,5 +222,14 @@ export function extractItemVariantAndSize(
   };
 }
 
-
-
+/**
+ * Convenience helper to extract the resolved size string from variant_title, sku, and title.
+ */
+export function extractSizeFromVariant(
+  variantTitle?: string | null,
+  sku?: string | null,
+  title?: string | null
+): string | null {
+  const info = extractItemVariantAndSize(title, sku, variantTitle);
+  return info.size || null;
+}

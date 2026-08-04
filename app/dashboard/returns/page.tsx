@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Loader2, Search, CheckCircle2, XCircle, RefreshCw, Package, CreditCard, AlertTriangle, Check, X, Clock, Inbox, Eye, ArrowRight, TruckIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
+import { formatDisplayOrderNumber } from "@/lib/formatOrderNumber";
+import VariantBadge from "@/components/admin/VariantBadge";
+import InlineSizeSelector from "@/components/admin/InlineSizeSelector";
 
 type ReturnRequest = {
   returnRequestId: string;
@@ -76,6 +79,25 @@ export default function ReturnsPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleUpdateReturnSize = async (returnItemId: string, newSize: string) => {
+    try {
+      const res = await fetch("/api/admin/returns/update-size", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnId: returnItemId, size: newSize }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update return size");
+      }
+      showToast("Size updated successfully");
+      fetchReturns(true);
+    } catch (e: any) {
+      showToast(e.message || "Failed to update return size");
+      throw e;
+    }
   };
 
   const fetchReturns = useCallback(async (silent = false) => {
@@ -321,7 +343,7 @@ export default function ReturnsPage() {
                     onClick={() => router.push(`/dashboard/returns/${req.returnRequestId}`)}
                   >
                     <td className="px-4 py-3">
-                      <div className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId || req.orderId?.slice(0, 8)}</div>
+                      <div className="text-[11px] font-semibold text-foreground">{formatDisplayOrderNumber(req.shopifyOrderId || req.orderId)}</div>
                       {(req as any).orderCreatedAt && (
                         <div className="text-[9px] text-foreground/40 mt-0.5 font-mono">
                           Ordered: {formatExactDateTime((req as any).orderCreatedAt)}
@@ -332,22 +354,27 @@ export default function ReturnsPage() {
                       <div className="text-[11px] font-medium text-foreground">{req.userName}</div>
                       <div className="text-[9px] text-foreground/40 mt-0.5">{req.userEmail}</div>
                     </td>
-                    <td className="px-4 py-3 max-w-[260px] whitespace-normal hidden md:table-cell">
+                    <td className="px-4 py-3 max-w-[280px] whitespace-normal hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
                       {req.items?.slice(0, 2).map((item: any, idx: number) => {
-                        const itemTitle = item.product?.title || item.title || "Returned Item";
+                        const itemTitle = item.title || item.product?.title || "Returned Item";
                         const itemSku = item.sku || item.product?.sku;
-                        const vInfo = extractItemVariantAndSize(itemTitle, itemSku, item.variantTitle);
+                        const vInfo = extractItemVariantAndSize(itemTitle, itemSku, item.variantTitle, item.size);
+                        const resolvedSize = item.size || vInfo.size;
+                        const resolvedVariant = item.variantTitle || vInfo.variant;
+
                         return (
-                          <div key={idx} className="text-[10px] text-foreground/80 mb-1.5 p-1.5 rounded-lg bg-foreground/[0.02] border border-foreground/5">
+                          <div key={idx} className="text-[10px] text-foreground/80 mb-1.5 p-2 rounded-xl bg-foreground/[0.02] border border-foreground/5 space-y-1">
                             <div className="font-semibold text-foreground flex items-center justify-between gap-2">
-                              <span>{itemTitle}</span>
-                              {vInfo.size && (
-                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-mono font-bold uppercase border border-emerald-500/20">
-                                  Size: {vInfo.size}
-                                </span>
-                              )}
+                              <span className="truncate max-w-[140px]">{itemTitle}</span>
+                              <InlineSizeSelector
+                                size={resolvedSize}
+                                variantTitle={resolvedVariant}
+                                itemId={item.id}
+                                itemType="return"
+                                onUpdateSize={(sz) => handleUpdateReturnSize(item.id, sz)}
+                              />
                             </div>
-                            <div className="text-[9px] text-foreground/40 mt-0.5 flex items-center justify-between gap-2">
+                            <div className="text-[9px] text-foreground/40 flex items-center justify-between gap-2">
                               <span>Reason: {item.reason || "Return"}</span>
                               {itemSku && <span className="font-mono text-[8px]">SKU: {itemSku}</span>}
                             </div>

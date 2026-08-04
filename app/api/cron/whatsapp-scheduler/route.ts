@@ -5,6 +5,7 @@ import { runBroadcastInBackground, sendCampaignRecipient, finalizeCampaignIfComp
 import { WhatsAppService } from '@/lib/services/whatsapp.service';
 import { getWhatsAppSetting } from '@/lib/whatsapp/logger';
 import { formatPhone } from '@/lib/whatsapp/client';
+import { isOrderValidConverted } from '@/lib/cartValidation';
 
 export const dynamic = 'force-dynamic';
 
@@ -435,7 +436,7 @@ export async function GET(req: NextRequest) {
       const carts = await db.cart.findMany({
         where: {
           convertedOrderId: null,
-          status: { not: 'expired' },
+          status: { notIn: ['converted', 'expired', 'merged'] },
           lastActivityAt: { gte: cutoffDate },
           items: { some: {} },
           OR: [
@@ -445,7 +446,15 @@ export async function GET(req: NextRequest) {
         },
         include: {
           customer: true,
-          items: true
+          items: true,
+          convertedOrder: {
+            select: {
+              id: true,
+              status: true,
+              paymentStatus: true,
+              paymentMethod: true
+            }
+          }
         },
         take: 50
       });
@@ -488,11 +497,71 @@ export async function GET(req: NextRequest) {
       });
 
       for (const cart of carts) {
+        if (cart.status === 'converted' || (cart.convertedOrder && isOrderValidConverted(cart.convertedOrder))) {
+          console.log(`[WhatsApp Scheduler] Cart ${cart.id} is already converted. Skipping automated recovery.`);
+          continue;
+        }
+
         const phone = cart.phone || cart.customer?.phone;
         if (!phone) continue;
         
         const formattedPhone = formatPhone(phone);
         if (!formattedPhone) continue;
+
+        // ── CRITICAL: Pre-send phone-based conversion check ──
+        // Catch carts whose customer has already placed a valid order but
+        // the cart.convertedOrderId wasn't linked yet (race condition).
+        // This prevents converted customers from receiving recovery messages.
+        let isPhoneConverted = false;
+        try {
+          const normDigits = formattedPhone.replace(/\D/g, "").slice(-10);
+          if (normDigits.length >= 10) {
+            const matchedOrder = await db.order.findFirst({
+              where: {
+                createdAt: { gte: new Date(cart.createdAt.getTime() - 60 * 60 * 1000) },
+                NOT: [
+                  { status: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "draft", "voided"] } },
+                  { paymentStatus: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "voided"] } }
+                ],
+                OR: [
+                  { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "PAID", "SUCCESS", "success", "captured"] } },
+                  {
+                    AND: [
+                      { paymentMethod: { in: ["COD", "cod", "Cash on Delivery", "cash_on_delivery"] } },
+                      { status: { in: ["approved", "open", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "CONFIRMED", "confirmed", "placed"] } }
+                    ]
+                  }
+                ],
+                AND: [
+                  {
+                    OR: [
+                      ...(cart.customerId ? [{ customerId: cart.customerId }] : []),
+                      { customer: { phone: { contains: normDigits } } },
+                      { shippingAddress: { contains: normDigits } },
+                      ...(cart.email ? [{ customer: { email: { equals: cart.email, mode: "insensitive" as const } } }] : []),
+                      ...(cart.email ? [{ shippingAddress: { contains: cart.email } }] : [])
+                    ]
+                  }
+                ]
+              },
+              orderBy: { createdAt: "asc" }
+            });
+
+            if (matchedOrder) {
+              isPhoneConverted = true;
+              // Auto-link the cart to the matched order
+              await db.cart.update({
+                where: { id: cart.id },
+                data: { status: "converted", convertedOrderId: matchedOrder.id }
+              }).catch(() => {});
+              console.log(`[WhatsApp Scheduler] Cart ${cart.id} auto-reconciled to order ${matchedOrder.id} via phone match. Skipping recovery.`);
+            }
+          }
+        } catch (reconErr: any) {
+          console.warn(`[WhatsApp Scheduler] Pre-send conversion check failed for cart ${cart.id}:`, reconErr?.message);
+        }
+
+        if (isPhoneConverted) continue;
 
         // Fetch recoveries linked directly by cartId
         const sentForCart = cartMessages.filter((m: any) => m.cartId === cart.id);
@@ -567,6 +636,20 @@ export async function GET(req: NextRequest) {
               productHandle: firstItem.handle || '',
               cartId: cart.id
             });
+
+            // Handle skipped (converted cart protection triggered inside sendAndLog)
+            if (res.skipped) {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 1 } },
+                data: {
+                  status: 'skipped',
+                  body: `Template: ${step1Template} | SKIPPED (cart converted) | Cart: ${cart.id}`,
+                  errorMessage: res.error || 'Cart already converted',
+                }
+              });
+              console.log(`[Scheduler] Cart ${cart.id} Step 1 skipped — cart converted.`);
+              continue;
+            }
 
             if (res.success) {
               try {
@@ -655,6 +738,20 @@ export async function GET(req: NextRequest) {
               cartId: cart.id
             });
 
+            // Handle skipped (converted cart protection triggered inside sendAndLog)
+            if (res.skipped) {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 2 } },
+                data: {
+                  status: 'skipped',
+                  body: `Template: ${step2Template} | SKIPPED (cart converted) | Cart: ${cart.id}`,
+                  errorMessage: res.error || 'Cart already converted',
+                }
+              });
+              console.log(`[Scheduler] Cart ${cart.id} Step 2 skipped — cart converted.`);
+              continue;
+            }
+
             if (res.success) {
               try {
                 await db.whatsAppMessage.update({
@@ -733,6 +830,20 @@ export async function GET(req: NextRequest) {
               itemCount: cart.items.length,
               cartId: cart.id
             });
+
+            // Handle skipped (converted cart protection triggered inside sendAndLog)
+            if (res.skipped) {
+              await db.whatsAppMessage.update({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 3 } },
+                data: {
+                  status: 'skipped',
+                  body: `Template: ${step3Template} | SKIPPED (cart converted) | Cart: ${cart.id}`,
+                  errorMessage: res.error || 'Cart already converted',
+                }
+              });
+              console.log(`[Scheduler] Cart ${cart.id} Step 3 skipped — cart converted.`);
+              continue;
+            }
 
             if (res.success) {
               try {

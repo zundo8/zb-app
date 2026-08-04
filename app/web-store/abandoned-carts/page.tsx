@@ -85,6 +85,7 @@ export default function AbandonedCartsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "live" | "abandoned" | "converted" | "expired">("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | "webstore" | "app">("all");
   const [selectedCart, setSelectedCart] = useState<Cart | null>(null);
+  const [stats, setStats] = useState<any>(null);
   
   // Marketing / Recovery tab states
   const [activeChannelTab, setActiveChannelTab] = useState<"whatsapp" | "email" | "sms" | "call">("whatsapp");
@@ -102,8 +103,8 @@ export default function AbandonedCartsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCarts, setTotalCarts] = useState(0);
 
-  const fetchCarts = useCallback(async () => {
-    setRefreshing(true);
+  const fetchCarts = useCallback(async (isSilent = false) => {
+    if (!isSilent) setRefreshing(true);
     try {
       const params = new URLSearchParams({
         status: statusFilter,
@@ -118,25 +119,28 @@ export default function AbandonedCartsPage() {
         setCarts(data.carts || []);
         setTotalCarts(data.pagination?.total || 0);
         setTotalPages(data.pagination?.totalPages || 1);
+        if (data.stats) {
+          setStats(data.stats);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch abandoned carts:", error);
-      toast.error("Error connecting to server");
+      if (!isSilent) toast.error("Error connecting to server");
     } finally {
       setLoading(false);
-      setRefreshing(false);
+      if (!isSilent) setRefreshing(false);
     }
   }, [statusFilter, sourceFilter, searchQuery, page]);
 
   useEffect(() => {
-    fetchCarts();
+    fetchCarts(false);
 
-    // Lightweight polling every 10 seconds (only if page is visible)
+    // Lightweight real-time polling every 3 seconds (only if page is visible)
     const intervalId = setInterval(() => {
       if (document.visibilityState === "visible") {
-        fetchCarts();
+        fetchCarts(true);
       }
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(intervalId);
   }, [fetchCarts]);
@@ -337,7 +341,7 @@ export default function AbandonedCartsPage() {
 
         <div className="flex items-center gap-6">
           <button
-            onClick={fetchCarts}
+            onClick={() => fetchCarts(false)}
             disabled={refreshing}
             className="flex items-center justify-center gap-4 px-10 py-5 rounded-[2rem] text-[11px] font-black tracking-[0.3em] uppercase bg-foreground text-background hover:scale-105 transition-all active:scale-95 disabled:opacity-50 shadow-2xl"
           >
@@ -345,6 +349,75 @@ export default function AbandonedCartsPage() {
             {refreshing ? "Updating sessions..." : "Refresh list"}
           </button>
         </div>
+      </div>
+
+      {/* Executive KPI Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <GlassCard className="p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-foreground/40 mb-3">
+            <span className="text-[9px] font-black uppercase tracking-widest">Total Tracked</span>
+            <ShoppingCart className="w-4 h-4 text-foreground/50" />
+          </div>
+          <div>
+            <div className="text-3xl font-black italic text-foreground tracking-tight">{stats?.totalTracked || 0}</div>
+            <span className="text-[9px] font-bold text-foreground/30 uppercase tracking-wider block mt-1">Sessions</span>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-emerald-400 mb-3">
+            <span className="text-[9px] font-black uppercase tracking-widest">Live Carts</span>
+            <Activity className="w-4 h-4 animate-pulse text-emerald-400" />
+          </div>
+          <div>
+            <div className="text-3xl font-black italic text-emerald-400 tracking-tight">{stats?.liveCount || 0}</div>
+            <span className="text-[9px] font-bold text-emerald-500/50 uppercase tracking-wider block mt-1">Active Now</span>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-amber-500 mb-3">
+            <span className="text-[9px] font-black uppercase tracking-widest">Abandoned</span>
+            <Clock className="w-4 h-4 text-amber-500" />
+          </div>
+          <div>
+            <div className="text-3xl font-black italic text-amber-500 tracking-tight">{stats?.abandonedCount || 0}</div>
+            <span className="text-[9px] font-bold text-amber-500/50 uppercase tracking-wider block mt-1">Need Recovery</span>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-emerald-500 mb-3">
+            <span className="text-[9px] font-black uppercase tracking-widest">Converted</span>
+            <ShoppingBag className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div>
+            <div className="text-3xl font-black italic text-emerald-500 tracking-tight">{stats?.convertedCount || 0}</div>
+            <span className="text-[9px] font-bold text-emerald-500/50 uppercase tracking-wider block mt-1">Orders Placed</span>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-foreground/40 mb-3">
+            <span className="text-[9px] font-black uppercase tracking-widest">Recovered Revenue</span>
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div>
+            <div className="text-2xl font-black italic text-foreground tracking-tight">₹{(stats?.convertedRevenue || 0).toLocaleString()}</div>
+            <span className="text-[9px] font-bold text-emerald-400/60 uppercase tracking-wider block mt-1">Converted Value</span>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-foreground/40 mb-3">
+            <span className="text-[9px] font-black uppercase tracking-widest">Recovery Rate</span>
+            <Zap className="w-4 h-4 text-amber-400" />
+          </div>
+          <div>
+            <div className="text-3xl font-black italic text-foreground tracking-tight">{stats?.recoveryRate || 0}%</div>
+            <span className="text-[9px] font-bold text-foreground/30 uppercase tracking-wider block mt-1">Conversion %</span>
+          </div>
+        </GlassCard>
       </div>
 
       {/* Filter and Search Bar */}
@@ -510,14 +583,24 @@ export default function AbandonedCartsPage() {
                         <ChevronRight className="w-4 h-4" />
                       </button>
 
-                      {cart.computedStatus !== "converted" && (cart.phone || cart.customer?.phone) && (
-                        <button
-                          onClick={() => handleSendWhatsApp(cart)}
-                          className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 transition-all hover:scale-105 active:scale-95 font-bold uppercase tracking-widest text-[9px]"
+                      {cart.computedStatus === "converted" ? (
+                        <Link
+                          href={`/dashboard/orders?search=${cart.convertedOrder?.internalOrderNumber || cart.convertedOrderId || ''}`}
+                          className="flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 transition-all hover:scale-105 active:scale-95 font-bold uppercase tracking-widest text-[9px]"
                         >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          Recover
-                        </button>
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          {cart.convertedOrder?.internalOrderNumber || "Order"}
+                        </Link>
+                      ) : (
+                        (cart.phone || cart.customer?.phone) && (
+                          <button
+                            onClick={() => handleSendWhatsApp(cart)}
+                            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 transition-all hover:scale-105 active:scale-95 font-bold uppercase tracking-widest text-[9px]"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Recover
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -819,19 +902,30 @@ export default function AbandonedCartsPage() {
               )}
 
               {/* Conversion order details */}
-              {selectedCart.computedStatus === "converted" && selectedCart.convertedOrder && (
-                <div className="p-6 rounded-3xl bg-emerald-500/5 border border-emerald-500/10 space-y-4">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 block border-b border-emerald-500/10 pb-2">Converted Order Link</span>
-                  <div className="flex justify-between items-center">
+              {selectedCart.computedStatus === "converted" && (
+                <div className="p-6 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 space-y-4 shadow-lg">
+                  <div className="flex items-center gap-3 border-b border-emerald-500/20 pb-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black">✓</div>
                     <div>
-                      <h4 className="text-md font-black text-foreground italic">{selectedCart.convertedOrder.internalOrderNumber}</h4>
-                      <p className="text-[10px] text-neutral-500 dark:text-foreground/45 font-mono">Value: ₹{selectedCart.convertedOrder.totalPrice.toLocaleString()}</p>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500 block">Cart Successfully Converted</span>
+                      <h4 className="text-lg font-black text-foreground italic">
+                        {selectedCart.convertedOrder?.internalOrderNumber ? `Order #${selectedCart.convertedOrder.internalOrderNumber}` : "Converted to Order"}
+                      </h4>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center pt-1">
+                    <div>
+                      {selectedCart.convertedOrder?.totalPrice ? (
+                        <p className="text-[11px] text-foreground/70 font-mono">Order Amount: ₹{selectedCart.convertedOrder.totalPrice.toLocaleString()}</p>
+                      ) : (
+                        <p className="text-[11px] text-foreground/70 font-mono">Linked Order ID: {selectedCart.convertedOrderId || 'Verified'}</p>
+                      )}
                     </div>
                     <Link
-                      href={`/dashboard/orders?search=${selectedCart.convertedOrder.internalOrderNumber}`}
-                      className="px-5 py-3 rounded-2xl bg-foreground text-background text-[9px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all"
+                      href={`/dashboard/orders?search=${selectedCart.convertedOrder?.internalOrderNumber || selectedCart.convertedOrderId || ''}`}
+                      className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all flex items-center gap-2"
                     >
-                      View Order
+                      <ExternalLink className="w-3.5 h-3.5" /> View Order Details
                     </Link>
                   </div>
                 </div>

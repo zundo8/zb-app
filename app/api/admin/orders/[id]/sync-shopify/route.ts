@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { createOrder, createCustomer } from '@/lib/shopify-admin';
+import { extractSizeFromVariant } from '@/lib/utils';
 
 /**
  * POST /api/admin/orders/[id]/sync-shopify
@@ -397,6 +398,10 @@ export async function POST(
           }
           const itemImage = shopifyProductId ? productImageMap.get(shopifyProductId) : null;
 
+          const vTitle = item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : null;
+          const vId = item.variant_id ? String(item.variant_id) : null;
+          const itemSize = extractSizeFromVariant(item.variant_title, item.sku, item.title);
+
           await prisma.orderItem.upsert({
             where: { shopifyLineItemId: String(item.id) },
             create: {
@@ -408,12 +413,18 @@ export async function POST(
               price: parseFloat(item.price || '0'),
               sku: item.sku || null,
               image: itemImage || null,
+              variantId: vId,
+              variantTitle: vTitle,
+              size: itemSize,
             },
             update: {
               quantity: item.quantity,
               price: parseFloat(item.price || '0'),
               sku: item.sku || null,
               image: itemImage || null,
+              variantId: vId,
+              variantTitle: vTitle,
+              size: itemSize,
             }
           });
         }));

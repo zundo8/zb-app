@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
 import prisma from "@/lib/db";
+import { extractItemVariantAndSize } from "@/lib/utils";
 
 export async function POST(req: Request) {
   try {
@@ -158,12 +159,28 @@ export async function POST(req: Request) {
       const itemDiff = (newPrice - originalPrice) * (item.quantity || 1);
       calculatedPriceDifference += itemDiff;
 
+      const repSize = item.replacementVariant?.size || item.replacementSize || item.selectedSize || item.size || item.replacementVariantTitle || null;
+      const repVariant = item.replacementVariantTitle || (repSize ? `Size: ${repSize}` : null) || item.variantTitle || null;
+
+      const origV = extractItemVariantAndSize(orderItem.title, orderItem.sku, orderItem.variantTitle, orderItem.size);
+      const newV = extractItemVariantAndSize(newProduct.title, newProduct.sku, repVariant || item.variantTitle);
+
+      const resolvedOrigSize = item.originalSize || orderItem.size || origV.size || null;
+      const resolvedOrigVariant = item.originalVariantTitle || orderItem.variantTitle || origV.variant || (resolvedOrigSize ? `Size: ${resolvedOrigSize}` : null);
+
+      const resolvedNewSize = repSize || newV.size || null;
+      const resolvedNewVariant = repVariant || newV.variant || (resolvedNewSize ? `Size: ${resolvedNewSize}` : null);
+
       itemsToExchange.push({
         originalProductId,
         newProductId: newProduct.id, // Store the resolved database CUID
         status: "REQUESTED",
         priceDifference: itemDiff,
-        reason: item.reason || "Customer exchange request"
+        reason: item.reason || "Customer exchange request",
+        originalVariantTitle: resolvedOrigVariant,
+        originalSize: resolvedOrigSize,
+        newVariantTitle: resolvedNewVariant,
+        newSize: resolvedNewSize,
       });
     }
 
@@ -196,7 +213,11 @@ export async function POST(req: Request) {
             status: item.status,
             priceDifference: item.priceDifference,
             paymentStatus,
-            reason: item.reason
+            reason: item.reason,
+            originalVariantTitle: item.originalVariantTitle,
+            originalSize: item.originalSize,
+            newVariantTitle: item.newVariantTitle,
+            newSize: item.newSize,
           }))
         }
       },

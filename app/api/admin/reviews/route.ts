@@ -43,29 +43,45 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      // Find product IDs matching search title or slug
+      // Find product IDs matching search title or handle
       const matchingProducts = await prisma.product.findMany({
         where: {
           OR: [
             { title: { contains: search, mode: 'insensitive' } },
-            { slug: { contains: search, mode: 'insensitive' } },
+            { handle: { contains: search, mode: 'insensitive' } },
           ],
         },
         select: { id: true },
       });
       const matchingProductIds = matchingProducts.map((p: any) => p.id);
 
-      // Find user IDs matching search name or email
-      const matchingUsers = await prisma.user.findMany({
-        where: {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
-          ],
-        },
-        select: { id: true },
-      });
-      const matchingUserIds = matchingUsers.map((u: any) => u.id);
+      // Find customer/user IDs matching search name or email
+      const [matchingCustomers, matchingUsers] = await Promise.all([
+        prisma.customer.findMany({
+          where: {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          },
+          select: { id: true },
+        }),
+        prisma.user.findMany({
+          where: {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          },
+          select: { id: true },
+        }),
+      ]);
+      const matchingUserIds = Array.from(
+        new Set([
+          ...matchingCustomers.map((c: any) => c.id),
+          ...matchingUsers.map((u: any) => u.id),
+        ])
+      );
 
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
@@ -108,14 +124,20 @@ export async function GET(request: NextRequest) {
     const productIds = Array.from(new Set(reviews.map((r: any) => r.productId)));
     const userIds = Array.from(new Set(reviews.map((r: any) => r.userId)));
 
-    type ProductDetail = { id: string; title: string; images: any; price: number; slug: string };
-    type UserDetail = { id: string; name: string | null; email: string };
+    type ProductDetail = { id: string; title: string; featuredImage: string | null; price: number | null; handle: string | null };
+    type UserDetail = { id: string; name: string | null; email: string | null };
 
-    const [products, users] = await Promise.all([
+    const [products, customers, staffUsers] = await Promise.all([
       productIds.length > 0
         ? prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, title: true, images: true, price: true, slug: true },
+            select: { id: true, title: true, featuredImage: true, price: true, handle: true },
+          })
+        : [],
+      userIds.length > 0
+        ? prisma.customer.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, name: true, email: true },
           })
         : [],
       userIds.length > 0
@@ -127,13 +149,15 @@ export async function GET(request: NextRequest) {
     ]);
 
     const productMap = new Map<string, ProductDetail>(products.map((p: ProductDetail) => [p.id, p]));
-    const userMap = new Map<string, UserDetail>(users.map((u: UserDetail) => [u.id, u]));
+    const userMap = new Map<string, UserDetail>();
+    customers.forEach((c: UserDetail) => userMap.set(c.id, c));
+    staffUsers.forEach((u: UserDetail) => {
+      if (!userMap.has(u.id)) userMap.set(u.id, u);
+    });
 
     const enrichedReviews = reviews.map((rev: any) => {
       const prod = productMap.get(rev.productId);
       const user = userMap.get(rev.userId);
-      const parsedImages = typeof prod?.images === 'string' ? JSON.parse(prod.images) : (prod?.images || []);
-      const thumbnail = Array.isArray(parsedImages) && parsedImages.length > 0 ? parsedImages[0] : null;
 
       return {
         ...rev,
@@ -141,16 +165,16 @@ export async function GET(request: NextRequest) {
           ? {
               id: prod.id,
               title: prod.title,
-              slug: prod.slug,
-              price: prod.price,
-              image: thumbnail,
+              slug: prod.handle || prod.id,
+              price: prod.price || 0,
+              image: prod.featuredImage || null,
             }
           : null,
         user: user
           ? {
               id: user.id,
-              name: user.name || 'Anonymous',
-              email: user.email,
+              name: user.name || 'Customer',
+              email: user.email || '',
             }
           : null,
       };
@@ -244,15 +268,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Identify user
+    // Identify or resolve user
     let userId = session.user.id;
     if (reviewerEmail) {
-      const existingUser = await prisma.user.findUnique({
-        where: { email: reviewerEmail.toLowerCase().trim() },
+      const cleanEmail = reviewerEmail.toLowerCase().trim();
+      const existingCustomer = await prisma.customer.findFirst({
+        where: { email: { equals: cleanEmail, mode: 'insensitive' } },
         select: { id: true },
       });
-      if (existingUser) {
-        userId = existingUser.id;
+
+      if (existingCustomer) {
+        userId = existingCustomer.id;
+      } else {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: cleanEmail },
+          select: { id: true },
+        });
+
+        if (existingUser) {
+          userId = existingUser.id;
+        } else {
+          // Create customer record if reviewer details provided
+          const newCust = await prisma.customer.create({
+            data: {
+              shopId: (await prisma.shop.findFirst({ select: { id: true } }))?.id || 'default',
+              shopifyId: `manual_cust_${Date.now()}`,
+              email: cleanEmail,
+              name: reviewerName?.trim() || 'Verified Customer',
+            },
+            select: { id: true },
+          });
+          userId = newCust.id;
+        }
       }
     }
 

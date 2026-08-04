@@ -658,6 +658,10 @@ export default function CheckoutPage() {
 
   const shipping = 0;
 
+  // Checkout Session & Prefetch Guard
+  const [checkoutSessionId] = useState(() => `cs_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
+  const lastPrefetchKeyRef = useRef("");
+
   // Coupon state
   const [couponCode, setCouponCode] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
@@ -719,6 +723,12 @@ export default function CheckoutPage() {
   // Background prefetch of the Razorpay order when entering Step 2 or changing payment configurations
   useEffect(() => {
     if (step === 2 && items.length > 0 && address.name && address.phone && finalTotal > 0) {
+      const currentPrefetchKey = `${paymentMethod}_${finalTotal}_${codFee}_${couponValid ? couponCode : ''}_${couponDiscount}_${appliedStoreCredit}_${items.length}`;
+      if (lastPrefetchKeyRef.current === currentPrefetchKey && prefetchedOrder) {
+        return;
+      }
+      lastPrefetchKeyRef.current = currentPrefetchKey;
+
       const prefetchRazorpayOrder = async () => {
         try {
           const fullStreet = [address.houseNo, address.street, address.landmark].filter(Boolean).join(", ");
@@ -742,11 +752,13 @@ export default function CheckoutPage() {
               items: convertedItems,
               subtotal: convertedSubtotal,
               total: convertedTotal,
+              shipping,
               paymentMethod,
               codFee: paymentMethod === "COD" ? codFee : 0,
               couponCode: couponValid ? couponCode : null,
               couponDiscount: fmtPrice(couponDiscount).amount,
               storeCreditAmount: fmtPrice(appliedStoreCredit).amount,
+              checkoutSessionId,
               notes: {
                 name: address.name,
                 email: address.email || "",
@@ -769,7 +781,7 @@ export default function CheckoutPage() {
 
       prefetchRazorpayOrder();
     }
-  }, [step, paymentMethod, total, codFee, address.name, address.email, address.phone, items.length]);
+  }, [step, paymentMethod, total, codFee, address.name, address.email, address.phone, items.length, checkoutSessionId]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -1349,12 +1361,39 @@ export default function CheckoutPage() {
       }
 
       // Case 2: Partial Store Credit or Standard Payment
+      // Synchronously check coupon applicability before placing order
+      let activeCouponDiscount = couponDiscount;
+      let activeCouponValid = couponValid;
+      let activeCouponCode = couponCode;
+
+      if (activeCouponValid && activeCouponCode) {
+        const matchedActive = activeCoupons.find((c: any) => c.code === activeCouponCode);
+        if (matchedActive) {
+          const calc = calculateCouponDiscount(matchedActive, subtotal, paymentMethod);
+          if (!calc.eligible) {
+            console.warn(`[Checkout] Coupon ${activeCouponCode} ineligible for ${paymentMethod}, stripping client-side.`);
+            activeCouponDiscount = 0;
+            activeCouponValid = false;
+            activeCouponCode = "";
+            setCouponDiscount(0);
+            setCouponValid(false);
+            setCouponCode("");
+            setCouponMessage("");
+            setCashbackAmount(0);
+          }
+        }
+      }
+
+      const effectiveTotalBeforeSC = subtotal - (applyAsStoreCredit ? 0 : activeCouponDiscount) + shipping;
+      const effectiveSC = useStoreCredit ? Math.min(availableStoreCredit, effectiveTotalBeforeSC) : 0;
+      const effectiveFinalTotal = Math.max(0, effectiveTotalBeforeSC - effectiveSC);
+
       const convertedItems = items.map(item => ({
         ...item,
         price: fmtPrice(parseFloat(item.price)).amount,
       }));
       const convertedSubtotal = fmtPrice(subtotal).amount;
-      const convertedTotal = fmtPrice(finalTotal).amount;
+      const convertedTotal = fmtPrice(effectiveFinalTotal).amount;
       const paymentAmount = paymentMethod === "COD" ? codFee : convertedTotal;
 
       let orderId = "";
@@ -1379,11 +1418,13 @@ export default function CheckoutPage() {
             items: convertedItems,
             subtotal: convertedSubtotal,
             total: convertedTotal,
+            shipping,
             paymentMethod,
             codFee: paymentMethod === "COD" ? codFee : 0,
-            couponCode: couponValid ? couponCode : null,
-            couponDiscount: fmtPrice(couponDiscount).amount,
+            couponCode: activeCouponValid ? activeCouponCode : null,
+            couponDiscount: fmtPrice(activeCouponDiscount).amount,
             storeCreditAmount: fmtPrice(appliedStoreCredit).amount,
+            checkoutSessionId,
             notes: {
               name: address.name,
               email: address.email || "",

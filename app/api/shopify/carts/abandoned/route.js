@@ -14,6 +14,8 @@ export async function GET() {
       localCarts = await prisma.cart.findMany({
         where: {
           items: { some: {} },
+          convertedOrderId: null,
+          status: { notIn: ['converted', 'merged'] },
           OR: [
             { status: 'abandoned' },
             { status: 'active', lastActivityAt: { lte: thirtyMinutesAgo } }

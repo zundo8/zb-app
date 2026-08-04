@@ -17,12 +17,12 @@ export async function getProductAggregateRating(
       _count: { rating: true },
     });
 
-    if (!result._count.rating || result._count.rating === 0) {
+    if (!result?._count?.rating || result._count.rating === 0) {
       return undefined;
     }
 
     return {
-      value: Math.round((result._avg.rating || 0) * 10) / 10, // one decimal
+      value: Math.round((result._avg?.rating || 0) * 10) / 10, // one decimal
       count: result._count.rating,
     };
   } catch (err) {
@@ -92,12 +92,12 @@ export async function getStoreAggregateRating(): Promise<
       _count: { rating: true },
     });
 
-    if (!result._count.rating || result._count.rating === 0) {
+    if (!result?._count?.rating || result._count.rating === 0) {
       return undefined;
     }
 
     return {
-      value: Math.round((result._avg.rating || 0) * 10) / 10,
+      value: Math.round((result._avg?.rating || 0) * 10) / 10,
       count: result._count.rating,
     };
   } catch (err) {

@@ -5,7 +5,7 @@ import ProductDetailsClient from "./ProductDetailsClient";
 import { Metadata } from "next";
 import { ProductJsonLd } from "@/components/seo/ProductJsonLd";
 import { Breadcrumb } from "@/components/seo/Breadcrumb";
-import { getProductAggregateRating } from "@/lib/reviews/getProductAggregateRating";
+import { getProductAggregateRating, getProductReviews } from "@/lib/reviews/getProductAggregateRating";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 
 export const revalidate = 60; // ISR: revalidate every 60 seconds
@@ -51,8 +51,8 @@ export async function generateMetadata({
     categoryTag = 'Heavyweight Oversized Tee';
   }
 
-  // Create a premium, unique streetwear title
-  const title = `${product.title} | ${categoryTag} | Zica Bella®`
+  // Use product title so root template appends single brand suffix (~50-60 chars total)
+  const title = product.title;
 
   // Process tags & title to extract specifications
   const tagsList = product.tags ? product.tags.split(',').map((t: string) => t.trim().toLowerCase()) : [];
@@ -75,26 +75,11 @@ export async function generateMetadata({
   // Construct dynamic description using Shopify product data and tags
   const description = `Shop ${product.title} at Zica Bella® for ${priceFormatted}. Premium ${categoryTag.toLowerCase()} featuring ${specText} ${shortDesc ? `Details: ${shortDesc}` : ''} Crafted in India, worn with intent. Free shipping above ₹999.`.slice(0, 290);
 
-  // Dynamic keyword generation
-  const customKeywords = [
-    product.title,
-    'Zica Bella',
-    categoryTag,
-    product.product_type || 'streetwear apparel',
-    ...tagsList,
-    'oversized graphic tee',
-    'luxury streetwear India',
-    'drop shoulder fit',
-    'street wear accessories',
-    'premium cotton blanks',
-  ].filter((v, i, self) => v && self.indexOf(v) === i).slice(0, 15);
-
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 
   return {
     title,
     description,
-    keywords: customKeywords,
     alternates: {
       canonical: `${siteUrl}/products/${product.handle}`,
     },
@@ -180,13 +165,17 @@ export default async function ProductPage({ params }: { params: { id: string } }
   const initialPrice = product.variants?.[0]?.price || "0.00";
   const comparePrice = product.variants?.[0]?.compare_at_price;
 
-  // Fetch real aggregate rating from verified reviews — never hardcoded
+  // Fetch real aggregate rating & reviews from verified buyers — for SEO & AI bots
   let aggregateRating: { value: number; count: number } | undefined;
+  let visibleReviewsList: any[] = [];
   try {
-    aggregateRating = await getProductAggregateRating(product.id.toString());
+    [aggregateRating, visibleReviewsList] = await Promise.all([
+      getProductAggregateRating(product.id.toString()),
+      getProductReviews(product.id.toString(), { limit: 10 }),
+    ]);
   } catch (err) {
-    console.error('[ProductPage] Error fetching aggregate rating:', err);
-    // Non-critical — JSON-LD simply omits aggregateRating
+    console.error('[ProductPage] Error fetching review data:', err);
+    // Non-critical — JSON-LD simply omits rating/reviews
   }
 
   const productLdData = {
@@ -202,7 +191,15 @@ export default async function ProductPage({ params }: { params: { id: string } }
     inStock: product.variants?.some(v => (v.inventory_quantity || 0) > 0) || false,
     brand: "Zica Bella",
     category: product.product_type || "Apparel > Tops > T-Shirts",
-    rating: aggregateRating, // undefined when no reviews → omits aggregateRating from JSON-LD
+    rating: aggregateRating,
+    reviews: visibleReviewsList.map(r => ({
+      id: r.id,
+      rating: r.rating,
+      title: r.title,
+      body: r.body,
+      authorName: "Verified Buyer",
+      createdAt: r.createdAt,
+    })),
   };
 
   return (

@@ -118,6 +118,17 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'www.zicabella.com',
+          },
+        ],
+        destination: 'https://zicabella.com/:path*',
+        permanent: true,
+      },
+      {
         source: '/shop',
         destination: '/collections',
         permanent: true,

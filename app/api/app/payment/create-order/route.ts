@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
 import prisma from '@/lib/db';
-import { allocateOrderNumber } from '@/lib/order-utils';
+import { assignFailedOrderNumber } from '@/lib/orderNumber';
 
 import { getCorsHeaders, handleCorsOptions } from '@/lib/cors';
 
@@ -103,26 +103,13 @@ export async function POST(req: Request) {
         if (shop) {
           const customer = await resolveMobileCustomer(shop.id, orderData, userAuth);
           
-          // Generate universal internal order number
-          const date = new Date();
-          const yy = String(date.getFullYear()).slice(-2);
-          const mm = String(date.getMonth() + 1).padStart(2, '0');
-          const yymm = `${yy}${mm}`;
-          
+          // Generate pending order number (real ZB number assigned at payment success)
           let universalOrderNumber = '';
           try {
-            const seqRes: any[] = await prisma.$queryRawUnsafe(`
-              INSERT INTO order_sequences (year_month, current_value)
-              VALUES ($1, 1)
-              ON CONFLICT (year_month)
-              DO UPDATE SET current_value = order_sequences.current_value + 1
-              RETURNING current_value;
-            `, yymm);
-            const seqVal = seqRes[0].current_value;
-            universalOrderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
+            universalOrderNumber = await assignFailedOrderNumber(prisma, { cause: 'pending' });
           } catch (seqErr: any) {
-            console.error('[MobileCheckout] Failed to generate universal internal order number:', seqErr.message);
-            universalOrderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
+            console.error('[MobileCheckout] Failed to generate pending order number:', seqErr.message);
+            universalOrderNumber = `ZBPP${Date.now().toString().slice(-8)}`;
           }
 
           const resolvedItems = await Promise.all((orderData.lineItems || []).map(async (li: any, idx: number) => {

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { enrichSingleItem } from "@/lib/enrichSize";
+import { extractItemVariantAndSize } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -50,59 +52,116 @@ export async function GET(req: Request) {
       })
     ]);
 
-    const formattedExchanges = exchanges.map((e: any) => ({
-      exchangeRequestId: e.id,
-      orderId: e.orderId,
-      shopifyOrderId: e.order?.shopifyOrderId || e.order?.shopifyOrderName || e.order?.internalOrderNumber || e.orderId,
-      orderCreatedAt: e.order?.createdAt,
-      userId: e.customerId,
-      userName: e.order?.customer?.name || "Unknown",
-      userEmail: e.order?.customer?.email || "",
-      status: e.status,
-      priceDifference: e.priceDifference,
-      paymentStatus: e.paymentStatus,
-      createdAt: e.createdAt,
-      reason: e.reason,
-      returnRequestId: e.returnRequestId,
-      newShopifyOrderId: e.newShopifyOrderId,
-      items: e.exchanges
-    }));
+    const enrichExchangeItem = async (ex: any) => {
+      let origSize = ex.originalSize;
+      let origVariant = ex.originalVariantTitle;
 
-    const formattedStandalone = standaloneExchanges.map((se: any) => ({
-      exchangeRequestId: se.id,
-      orderId: se.orderId,
-      shopifyOrderId: se.order?.shopifyOrderId || se.order?.shopifyOrderName || se.order?.internalOrderNumber || se.orderId,
-      orderCreatedAt: se.order?.createdAt,
-      userId: se.order?.customerId || "",
-      userName: se.order?.customer?.name || "Unknown",
-      userEmail: se.order?.customer?.email || "",
-      status: se.status.toLowerCase(),
-      priceDifference: se.priceDifference || 0,
-      paymentStatus: se.paymentStatus || 'not_required',
-      createdAt: se.createdAt,
-      reason: se.reason,
-      returnRequestId: null,
-      newShopifyOrderId: se.newOrderId,
-      isStandalone: true,
-      items: [{
-        id: se.id,
-        orderId: se.orderId,
-        originalProductId: se.originalProductId,
-        newProductId: se.newProductId,
-        status: se.status,
-        priceDifference: se.priceDifference,
-        createdAt: se.createdAt,
-        updatedAt: se.updatedAt,
-        paymentStatus: se.paymentStatus,
-        newOrderId: se.newOrderId,
-        exchangeRequestId: null,
-        reason: se.reason,
-        qcStatus: se.qcStatus,
-        qcNotes: se.qcNotes,
-        originalProduct: se.originalProduct,
-        newProduct: se.newProduct
-      }]
-    }));
+      if (!origSize || !origVariant) {
+        const enrichedOrig = await enrichSingleItem({
+          title: ex.originalProduct?.title,
+          sku: ex.originalProduct?.sku,
+          productId: ex.originalProductId,
+          size: ex.originalSize,
+          variantTitle: ex.originalVariantTitle,
+        });
+        origSize = origSize || enrichedOrig.size;
+        origVariant = origVariant || enrichedOrig.variantTitle;
+      }
+
+      let newSize = ex.newSize;
+      let newVariant = ex.newVariantTitle;
+
+      if (!newSize || !newVariant) {
+        const enrichedNew = await enrichSingleItem({
+          title: ex.newProduct?.title,
+          sku: ex.newProduct?.sku,
+          productId: ex.newProductId,
+          size: ex.newSize,
+          variantTitle: ex.newVariantTitle,
+        });
+        newSize = newSize || enrichedNew.size;
+        newVariant = newVariant || enrichedNew.variantTitle;
+      }
+
+      return {
+        ...ex,
+        originalSize: origSize || null,
+        originalVariant: origVariant || (origSize ? `Size: ${origSize}` : null),
+        originalVariantTitle: origVariant || null,
+        newSize: newSize || null,
+        newVariant: newVariant || (newSize ? `Size: ${newSize}` : null),
+        newVariantTitle: newVariant || null,
+      };
+    };
+
+    const formattedExchanges = await Promise.all(
+      exchanges.map(async (e: any) => {
+        const enrichedItems = await Promise.all((e.exchanges || []).map(enrichExchangeItem));
+        return {
+          exchangeRequestId: e.id,
+          orderId: e.orderId,
+          shopifyOrderId: e.order?.shopifyOrderName || e.order?.internalOrderNumber || (e.order?.shopifyOrderId && `#${e.order.shopifyOrderId.replace('#', '')}`) || e.orderId,
+          orderCreatedAt: e.order?.createdAt,
+          userId: e.customerId,
+          userName: e.order?.customer?.name || "Unknown",
+          userEmail: e.order?.customer?.email || "",
+          status: e.status,
+          priceDifference: e.priceDifference,
+          paymentStatus: e.paymentStatus,
+          createdAt: e.createdAt,
+          reason: e.reason,
+          returnRequestId: e.returnRequestId,
+          newShopifyOrderId: e.newShopifyOrderId,
+          items: enrichedItems
+        };
+      })
+    );
+
+    const formattedStandalone = await Promise.all(
+      standaloneExchanges.map(async (se: any) => {
+        const enrichedItem = await enrichExchangeItem({
+          id: se.id,
+          orderId: se.orderId,
+          originalProductId: se.originalProductId,
+          newProductId: se.newProductId,
+          status: se.status,
+          priceDifference: se.priceDifference,
+          createdAt: se.createdAt,
+          updatedAt: se.updatedAt,
+          paymentStatus: se.paymentStatus,
+          newOrderId: se.newOrderId,
+          exchangeRequestId: null,
+          reason: se.reason,
+          qcStatus: se.qcStatus,
+          qcNotes: se.qcNotes,
+          originalProduct: se.originalProduct,
+          newProduct: se.newProduct,
+          originalVariantTitle: se.originalVariantTitle,
+          originalSize: se.originalSize,
+          newVariantTitle: se.newVariantTitle,
+          newSize: se.newSize,
+        });
+
+        return {
+          exchangeRequestId: se.id,
+          orderId: se.orderId,
+          shopifyOrderId: se.order?.shopifyOrderName || se.order?.internalOrderNumber || (se.order?.shopifyOrderId && `#${se.order.shopifyOrderId.replace('#', '')}`) || se.orderId,
+          orderCreatedAt: se.order?.createdAt,
+          userId: se.order?.customerId || "",
+          userName: se.order?.customer?.name || "Unknown",
+          userEmail: se.order?.customer?.email || "",
+          status: se.status.toLowerCase(),
+          priceDifference: se.priceDifference || 0,
+          paymentStatus: se.paymentStatus || 'not_required',
+          createdAt: se.createdAt,
+          reason: se.reason,
+          returnRequestId: null,
+          newShopifyOrderId: se.newOrderId,
+          isStandalone: true,
+          items: [enrichedItem]
+        };
+      })
+    );
 
     const combined = [...formattedExchanges, ...formattedStandalone].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -160,10 +219,17 @@ export async function POST(req: Request) {
          newProductId = product?.id;
       }
 
+      const origV = extractItemVariantAndSize(originalItem.title, originalItem.sku, originalItem.variantTitle, originalItem.size);
+      const newV = extractItemVariantAndSize(item.newVariantTitle || item.newTitle, item.newSku, item.newVariantTitle);
+
       return {
         originalProductId: originalItem.productId,
         newProductId: newProductId,
-        reason: item.reason || "Admin manual exchange"
+        reason: item.reason || "Admin manual exchange",
+        originalVariantTitle: originalItem.variantTitle || origV.variant,
+        originalSize: originalItem.size || origV.size,
+        newVariantTitle: item.newVariantTitle || newV.variant || null,
+        newSize: item.newSize || newV.size || null,
       };
     }));
 
@@ -179,7 +245,11 @@ export async function POST(req: Request) {
               newProductId: ex.newProductId!,
               orderId,
               status: 'REQUESTED',
-              reason: ex.reason
+              reason: ex.reason,
+              originalVariantTitle: ex.originalVariantTitle,
+              originalSize: ex.originalSize,
+              newVariantTitle: ex.newVariantTitle,
+              newSize: ex.newSize,
             }))
           }
         },

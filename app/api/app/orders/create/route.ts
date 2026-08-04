@@ -3,7 +3,7 @@ import prisma from '@/lib/db';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
 import { createOrder, createCustomer } from '@/lib/shopify-admin';
 import { extractNumericId } from '@/lib/utils';
-import { allocateOrderNumber } from '@/lib/order-utils';
+import { assignUniversalOrderNumber, assignFailedOrderNumber, isFailedPrefixNumber } from '@/lib/orderNumber';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,28 +104,32 @@ export async function POST(req: Request) {
       });
     }
 
-    // Determine the universal order number: reuse if pre-initiated, otherwise generate a new sequence number
+    // Determine the universal order number: reuse if pre-initiated, otherwise generate based on payment status
     let orderNumber = '';
     if (existingOrder && existingOrder.internalOrderNumber) {
-      orderNumber = existingOrder.internalOrderNumber;
+      // If the existing order has a pending prefix number and payment succeeded, promote it
+      if (paymentStatus === 'paid' && isFailedPrefixNumber(existingOrder.internalOrderNumber)) {
+        const oldNumber = existingOrder.internalOrderNumber;
+        orderNumber = await assignUniversalOrderNumber(prisma);
+        const previousNumbers = [existingOrder.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+        await prisma.order.update({
+          where: { id: existingOrder.id },
+          data: { internalOrderNumber: orderNumber, previousOrderNumbers: previousNumbers || null }
+        });
+        console.log(`[MobileCheckoutComplete] Promoted order ${oldNumber} → ${orderNumber}`);
+      } else {
+        orderNumber = existingOrder.internalOrderNumber;
+      }
     } else {
-      const date = new Date();
-      const yy = String(date.getFullYear()).slice(-2);
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
-      const yymm = `${yy}${mm}`;
       try {
-        const seqRes: any[] = await prisma.$queryRawUnsafe(`
-          INSERT INTO order_sequences (year_month, current_value)
-          VALUES ($1, 1)
-          ON CONFLICT (year_month)
-          DO UPDATE SET current_value = order_sequences.current_value + 1
-          RETURNING current_value;
-        `, yymm);
-        const seqVal = seqRes[0].current_value;
-        orderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
+        if (paymentStatus === 'paid') {
+          orderNumber = await assignUniversalOrderNumber(prisma);
+        } else {
+          orderNumber = await assignFailedOrderNumber(prisma, { cause: paymentMethod === 'COD' ? 'pending' : 'pending' });
+        }
       } catch (seqErr: any) {
-        console.error('[MobileCheckoutComplete] Failed to generate universal internal order number:', seqErr.message);
-        orderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
+        console.error('[MobileCheckoutComplete] Failed to generate order number:', seqErr.message);
+        orderNumber = paymentStatus === 'paid' ? `ZB${Date.now().toString().slice(-8)}` : `ZBPP${Date.now().toString().slice(-8)}`;
       }
     }
 
@@ -389,13 +393,18 @@ export async function POST(req: Request) {
 
       // Mark active or abandoned cart converted and link convertedOrderId
       try {
+        const cleanMobPhone = customerPhone ? customerPhone.replace(/\D/g, "") : null;
+        const last10MobPhone = cleanMobPhone && cleanMobPhone.length >= 10 ? cleanMobPhone.slice(-10) : cleanMobPhone;
+
         const matchingCarts = await prisma.cart.findMany({
           where: {
-            status: { in: ["active", "abandoned"] },
+            convertedOrderId: null,
+            status: { notIn: ["converted"] },
             OR: [
-              { customerId: resolvedCustomerId },
+              ...(resolvedCustomerId ? [{ customerId: resolvedCustomerId }] : []),
               ...(customerPhone ? [{ phone: customerPhone }] : []),
-              ...(customerEmail ? [{ email: customerEmail }] : [])
+              ...(last10MobPhone ? [{ phone: { contains: last10MobPhone } }] : []),
+              ...(customerEmail ? [{ email: { equals: customerEmail, mode: "insensitive" as const } }] : [])
             ]
           },
           orderBy: { lastActivityAt: "desc" }
@@ -599,13 +608,18 @@ export async function POST(req: Request) {
 
     // Mark active or abandoned cart converted and link convertedOrderId
     try {
+      const cleanMobPhone2 = customerPhone ? customerPhone.replace(/\D/g, "") : null;
+      const last10MobPhone2 = cleanMobPhone2 && cleanMobPhone2.length >= 10 ? cleanMobPhone2.slice(-10) : cleanMobPhone2;
+
       const matchingCarts = await prisma.cart.findMany({
         where: {
-          status: { in: ["active", "abandoned"] },
+          convertedOrderId: null,
+          status: { notIn: ["converted"] },
           OR: [
-            { customerId: resolvedCustomerId },
+            ...(resolvedCustomerId ? [{ customerId: resolvedCustomerId }] : []),
             ...(customerPhone ? [{ phone: customerPhone }] : []),
-            ...(customerEmail ? [{ email: customerEmail }] : [])
+            ...(last10MobPhone2 ? [{ phone: { contains: last10MobPhone2 } }] : []),
+            ...(customerEmail ? [{ email: { equals: customerEmail, mode: "insensitive" as const } }] : [])
           ]
         },
         orderBy: { lastActivityAt: "desc" }

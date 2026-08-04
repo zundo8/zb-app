@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Check, X, Clock, Package, TruckIcon, CheckCircle2, XCircle, CreditCard, AlertTriangle, RefreshCw, User, Mail, Phone, ArrowRight, ShoppingBag, ClipboardCheck, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
+import VariantBadge from "@/components/admin/VariantBadge";
+import InlineSizeSelector from "@/components/admin/InlineSizeSelector";
 
 const STATUS_STEPS = [
   { key: "pending_approval", label: "Requested", icon: Clock },
@@ -60,6 +62,27 @@ export default function ExchangeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  const handleUpdateExchangeSize = async (exchangeItemId: string, itemType: "original" | "new", newSize: string) => {
+    try {
+      const res = await fetch("/api/admin/exchanges/update-size", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exchangeId: exchangeItemId, itemType, size: newSize }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update size");
+      }
+      setToast("Size updated successfully");
+      setTimeout(() => setToast(null), 3000);
+      fetchDetail();
+    } catch (e: any) {
+      setToast(e.message || "Failed to update size");
+      setTimeout(() => setToast(null), 3000);
+      throw e;
+    }
+  };
 
   // QC Modal
   const [showQcModal, setShowQcModal] = useState(false);
@@ -323,12 +346,16 @@ export default function ExchangeDetailPage() {
             <div className="divide-y divide-foreground/[0.03]">
               {exchanges.map((ex: any, idx: number) => {
                 const origTitle = ex.originalProduct?.title || "Original Item";
-                const origSku = ex.originalProduct?.sku;
-                const origV = extractItemVariantAndSize(origTitle, origSku);
+                const origSku = ex.originalSku || ex.originalProduct?.sku;
+                const origV = extractItemVariantAndSize(origTitle, origSku, ex.originalVariantTitle || ex.originalVariant, ex.originalSize);
+                const origSize = ex.originalSize || origV.size;
+                const origVariant = ex.originalVariantTitle || ex.originalVariant || origV.variant;
 
                 const newTitle = ex.newProduct?.title || "Replacement Item";
-                const newSku = ex.newProduct?.sku;
-                const newV = extractItemVariantAndSize(newTitle, newSku);
+                const newSku = ex.newSku || ex.newProduct?.sku;
+                const newV = extractItemVariantAndSize(newTitle, newSku, ex.newVariantTitle || ex.newVariant, ex.newSize);
+                const newSize = ex.newSize || newV.size;
+                const newVariant = ex.newVariantTitle || ex.newVariant || newV.variant;
 
                 return (
                   <div key={idx} className="p-5">
@@ -342,17 +369,19 @@ export default function ExchangeDetailPage() {
                     </div>
                     <div className="flex items-center gap-3 flex-col sm:flex-row">
                       {/* Original Product */}
-                      <div className="flex-1 p-3 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 w-full">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-[8px] font-bold text-rose-500/60 uppercase tracking-widest">Returning Item</p>
-                          {origV.size && (
-                            <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 text-[8px] font-mono font-bold uppercase">
-                              Size: {origV.size}
-                            </span>
-                          )}
+                      <div className="flex-1 p-4 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 w-full space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[8px] font-bold text-rose-500/80 uppercase tracking-widest">Returning Item</p>
+                          <InlineSizeSelector
+                            size={origSize}
+                            variantTitle={origVariant}
+                            itemId={ex.id}
+                            itemType="original"
+                            onUpdateSize={(sz) => handleUpdateExchangeSize(ex.id, "original", sz)}
+                          />
                         </div>
                         <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
+                          <div className="w-14 h-14 rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
                             {ex.originalProduct?.featuredImage ? (
                               <img src={ex.originalProduct.featuredImage} className="w-full h-full object-cover" alt="" />
                             ) : (
@@ -360,8 +389,8 @@ export default function ExchangeDetailPage() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-[11px] font-semibold text-foreground truncate">{origTitle}</p>
-                            <p className="text-[9px] text-foreground/40 font-mono">SKU: {origSku || "N/A"}</p>
+                            <p className="text-[12px] font-semibold text-foreground truncate">{origTitle}</p>
+                            <p className="text-[9px] text-foreground/40 font-mono mt-0.5">SKU: {origSku || "N/A"}</p>
                             <p className="text-[10px] font-semibold text-foreground mt-0.5">₹{(ex.originalProduct?.price || 0).toLocaleString("en-IN")}</p>
                           </div>
                         </div>
@@ -370,17 +399,19 @@ export default function ExchangeDetailPage() {
                       <ArrowRight className="w-5 h-5 text-foreground/20 shrink-0 hidden sm:block" />
 
                       {/* New Product */}
-                      <div className="flex-1 p-3 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10 w-full">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-[8px] font-bold text-emerald-500/60 uppercase tracking-widest">Requested Replacement</p>
-                          {newV.size && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-mono font-bold uppercase border border-emerald-500/20">
-                              Size: {newV.size}
-                            </span>
-                          )}
+                      <div className="flex-1 p-4 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10 w-full space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[8px] font-bold text-emerald-500/80 uppercase tracking-widest">Requested Replacement</p>
+                          <InlineSizeSelector
+                            size={newSize}
+                            variantTitle={newVariant}
+                            itemId={ex.id}
+                            itemType="new"
+                            onUpdateSize={(sz) => handleUpdateExchangeSize(ex.id, "new", sz)}
+                          />
                         </div>
                         <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
+                          <div className="w-14 h-14 rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] overflow-hidden shrink-0 flex items-center justify-center">
                             {ex.newProduct?.featuredImage ? (
                               <img src={ex.newProduct.featuredImage} className="w-full h-full object-cover" alt="" />
                             ) : (
@@ -388,8 +419,8 @@ export default function ExchangeDetailPage() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-[11px] font-semibold text-foreground truncate">{newTitle}</p>
-                            <p className="text-[9px] text-foreground/40 font-mono">SKU: {newSku || "N/A"}</p>
+                            <p className="text-[12px] font-semibold text-foreground truncate">{newTitle}</p>
+                            <p className="text-[9px] text-foreground/40 font-mono mt-0.5">SKU: {newSku || "N/A"}</p>
                             <p className="text-[10px] font-semibold text-foreground mt-0.5">₹{(ex.newProduct?.price || 0).toLocaleString("en-IN")}</p>
                           </div>
                         </div>

@@ -110,34 +110,57 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
           newStatus &&
           (newStatus !== order.paymentStatus || failureReason !== order.paymentFailureReason)
         ) {
+          const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
+          const finalPaymentStatus = isCOD && newStatus === "paid" ? "cod_upfront_paid" : newStatus;
+
           // 1. Update WebStoreOrder
           await prisma.webStoreOrder.update({
             where: { id: order.id },
             data: {
-              paymentStatus: newStatus,
+              paymentStatus: finalPaymentStatus,
               razorpayPaymentId: newPaymentId || order.razorpayPaymentId,
               paymentFailureReason: failureReason,
+              ...(isCOD && (finalPaymentStatus === "cod_upfront_paid" || finalPaymentStatus === "paid") ? {
+                codUpfrontPaid: Number(order.codUpfrontPaid) || 99,
+                codUpfrontPaymentId: newPaymentId || order.razorpayPaymentId || null,
+                notes: `COD Order (₹${Number(order.codUpfrontPaid) || 99} upfront fee paid via Razorpay) | Order: ${order.orderNumber}`
+              } : {})
             },
           });
 
           // 2. Update matching Order in main Order table
-          await prisma.order.updateMany({
-            where: { razorpayOrderId: order.razorpayOrderId },
-            data: {
-              paymentStatus: newStatus,
-              status: newStatus === "paid" || newStatus === "cod_upfront_paid" ? "OPEN" : "FAILED",
-              razorpayPaymentId: newPaymentId || undefined,
-              paymentFailureReason: failureReason,
-              cancelledAt: newStatus === "cancelled" || newStatus === "failed" ? new Date() : undefined,
-              cancelledBy: newStatus === "cancelled" ? "customer" : undefined,
-            },
+          const matchingMainOrders = await prisma.order.findMany({
+            where: { razorpayOrderId: order.razorpayOrderId }
           });
+
+          for (const mOrder of matchingMainOrders) {
+            const cleanedTags = (mOrder.tags || '')
+              .split(',')
+              .map((t: string) => t.trim())
+              .filter((t: string) => Boolean(t) && t !== 'payment_pending' && t !== 'Order creation in process')
+              .concat(isCOD ? ['cod_upfront_paid'] : ['paid'])
+              .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+              .join(', ');
+
+            await prisma.order.update({
+              where: { id: mOrder.id },
+              data: {
+                paymentStatus: finalPaymentStatus,
+                status: finalPaymentStatus === "paid" || finalPaymentStatus === "cod_upfront_paid" ? "open" : (newStatus === "cancelled" ? "cancelled" : "payment_failed"),
+                razorpayPaymentId: newPaymentId || undefined,
+                paymentFailureReason: failureReason,
+                cancelledAt: newStatus === "cancelled" || newStatus === "failed" ? new Date() : undefined,
+                cancelledBy: newStatus === "cancelled" ? "customer" : undefined,
+                tags: cleanedTags,
+              },
+            });
+          }
 
           syncedOrders.push({
             id: order.id,
             orderNumber: order.orderNumber,
             oldStatus: order.paymentStatus,
-            newStatus,
+            newStatus: finalPaymentStatus,
             failureReason,
           });
         }

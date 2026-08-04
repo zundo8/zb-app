@@ -93,7 +93,7 @@ export async function GET(req: Request) {
           });
         }
         
-        const orderNumber = webStoreOrder?.orderNumber || (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') ? order.shopifyOrderId : `#ZB${order.id.slice(-5).toUpperCase()}`);
+        const orderNumber = order.internalOrderNumber || webStoreOrder?.orderNumber || (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') ? order.shopifyOrderId : `#ZB${order.id.slice(-5).toUpperCase()}`);
         
         // Filter out auto-created internal exchange returns from customer view
         const userReturnRequests = (order.returnRequests || []).filter((r: any) => !r.reason || !r.reason.includes('EXCHANGE_RETURN'));

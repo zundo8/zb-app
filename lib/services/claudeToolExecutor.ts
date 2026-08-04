@@ -798,18 +798,34 @@ async function getOrderByNumber(orderNumber: string, principal?: Principal): Pro
 
   const searchTerm = orderNumber.trim();
 
-  // Build flexible search: try internalOrderNumber, shopifyOrderName, shopifyOrderId
+  // Build flexible search: try internalOrderNumber, shopifyOrderName, shopifyOrderId, previousOrderNumbers
   const whereConditions: any[] = [
     { internalOrderNumber: searchTerm },
     { internalOrderNumber: { contains: searchTerm, mode: 'insensitive' } },
+    { previousOrderNumbers: { contains: searchTerm, mode: 'insensitive' } },
     { shopifyOrderName: searchTerm },
     { shopifyOrderName: { contains: searchTerm, mode: 'insensitive' } },
     { shopifyOrderId: searchTerm },
   ];
 
+  // If search term is purely numeric (e.g. "81000"), try prepending "ZB", "ZBPF", "ZBPP", "ZBCX", "ZBXX", "#ZB"
+  if (/^\d+$/.test(searchTerm)) {
+    whereConditions.push(
+      { internalOrderNumber: `ZB${searchTerm}` },
+      { internalOrderNumber: `ZBPF${searchTerm}` },
+      { internalOrderNumber: `ZBPP${searchTerm}` },
+      { internalOrderNumber: `ZBCX${searchTerm}` },
+      { internalOrderNumber: `ZBXX${searchTerm}` },
+      { shopifyOrderName: `#ZB${searchTerm}` }
+    );
+  }
+
   // Also try with/without # prefix for Shopify order names
   if (searchTerm.startsWith('#')) {
-    whereConditions.push({ shopifyOrderName: searchTerm.slice(1) });
+    whereConditions.push(
+      { shopifyOrderName: searchTerm.slice(1) },
+      { internalOrderNumber: searchTerm.slice(1) }
+    );
   } else {
     whereConditions.push({ shopifyOrderName: `#${searchTerm}` });
   }
@@ -860,7 +876,7 @@ async function getOrderByNumber(orderNumber: string, principal?: Principal): Pro
       }
     }
     return JSON.stringify({
-      error: `No order found matching "${searchTerm}". Please verify the order number and try again. Order numbers typically look like ZB-DDMM-NNNNN.`,
+      error: `No order found matching "${searchTerm}". Please verify the order number and try again. Order numbers typically look like ZB81000 or ZB71909.`,
     });
   }
 

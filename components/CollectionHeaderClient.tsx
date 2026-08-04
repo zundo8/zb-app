@@ -150,7 +150,7 @@ export default function CollectionHeaderClient({
                   {/* Title */}
                   {isActive && (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <motion.span
+                      <motion.h1
                         initial={{ opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.35, delay: 0.08 }}
@@ -158,7 +158,7 @@ export default function CollectionHeaderClient({
                         style={{ fontFamily: "'HeadingPro', sans-serif" }}
                       >
                         {col.title}
-                      </motion.span>
+                      </motion.h1>
                     </div>
                   )}
                 </Link>

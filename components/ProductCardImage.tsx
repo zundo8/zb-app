@@ -237,6 +237,7 @@ export default function ProductCardImage({
       onClick={handleClick}
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
+      aria-label={title}
     >
       <div
         ref={containerRef}

@@ -198,13 +198,13 @@ export async function POST(req: Request) {
       });
 
       if (items.length > 0) {
-        const validItems = items.filter((item: any) => item.productId && item.variantId);
+        const validItems = items.filter((item: any) => item && (item.productId || item.title || item.variantId || item.id));
         if (validItems.length > 0) {
           const result = await tx.cartItem.createMany({
             data: validItems.map((item: any) => ({
               cartId: cart.id,
-              productId: String(item.productId),
-              variantId: String(item.variantId),
+              productId: item.productId ? String(item.productId) : String(item.id || item.variantId || Math.random()),
+              variantId: item.variantId ? String(item.variantId) : null,
               handle: item.handle || null,
               title: item.title || "Product",
               price: parseFloat(String(item.price)) || 0,

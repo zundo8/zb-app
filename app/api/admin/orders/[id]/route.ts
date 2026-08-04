@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { fetchProductById } from '@/lib/shopify-admin';
 import { extractItemVariantAndSize } from '@/lib/utils';
+import { enrichItemsWithSize, extractSize } from '@/lib/enrichSize';
 
 /**
  * Resolve the variant-specific inventory_item_id for a product_skus record.
@@ -49,46 +50,7 @@ async function resolveSkuInventoryItemId(skuRec: any): Promise<{ inventoryItemId
   return { inventoryItemId: null, variantId: null };
 }
 
-function extractSize(orderItem: any): string {
-  if (orderItem.size) return orderItem.size.toString().trim().toUpperCase();
-  const vInfo = extractItemVariantAndSize(orderItem.title, orderItem.sku, orderItem.variantTitle, orderItem.size);
-  return vInfo.size || '';
-}
-
-async function enrichItemsWithSize(rawItems: any[]) {
-  return Promise.all(
-    rawItems.map(async (item) => {
-      let size = extractSize(item);
-      if (!size && item.sku) {
-        try {
-          const skuRecs: any[] = await prisma.$queryRawUnsafe(
-            `SELECT size FROM product_skus WHERE UPPER(sku) = $1 AND size IS NOT NULL AND size != '' LIMIT 1`,
-            item.sku.trim().toUpperCase()
-          );
-          if (skuRecs.length > 0 && skuRecs[0].size) {
-            size = skuRecs[0].size.trim().toUpperCase();
-          }
-        } catch (_) {}
-      }
-      if (!size && item.productId) {
-        try {
-          const prodSkuRecs: any[] = await prisma.$queryRawUnsafe(
-            `SELECT size FROM product_skus WHERE product_id = $1 AND size IS NOT NULL AND size != '' LIMIT 1`,
-            item.productId
-          );
-          if (prodSkuRecs.length > 0 && prodSkuRecs[0].size) {
-            size = prodSkuRecs[0].size.trim().toUpperCase();
-          }
-        } catch (_) {}
-      }
-      return {
-        ...item,
-        size: size || null,
-        variantTitle: item.variantTitle || (size ? `Size: ${size}` : null)
-      };
-    })
-  );
-}
+// Using shared enrichItemsWithSize and extractSize from @/lib/enrichSize
 
 export const dynamic = 'force-dynamic';
 
@@ -238,7 +200,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       });
     }
 
-    const enrichedItems = await enrichItemsWithSize(order.items);
+    const enrichedItems = await enrichItemsWithSize(order.items, order);
 
     // Enrich the order payload with correct webstore fields if available
     const enrichedOrder = {

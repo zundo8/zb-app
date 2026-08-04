@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Inbox, ArrowRight, X, Search, Plus, Eye, Package, TruckIcon, CreditCard, ArrowLeftRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
+import { formatDisplayOrderNumber } from "@/lib/formatOrderNumber";
+import VariantBadge from "@/components/admin/VariantBadge";
+import InlineSizeSelector from "@/components/admin/InlineSizeSelector";
 
 type ExchangeRequest = {
   exchangeRequestId: string;
@@ -81,6 +84,25 @@ export default function ExchangesPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleUpdateExchangeSize = async (exchangeItemId: string, itemType: "original" | "new", newSize: string) => {
+    try {
+      const res = await fetch("/api/admin/exchanges/update-size", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exchangeId: exchangeItemId, itemType, size: newSize }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update size");
+      }
+      showToast("Size updated successfully");
+      fetchExchanges();
+    } catch (e: any) {
+      showToast(e.message || "Failed to update size");
+      throw e;
+    }
   };
 
   const fetchExchanges = useCallback(async () => {
@@ -324,7 +346,7 @@ export default function ExchangesPage() {
                     onClick={() => router.push(`/dashboard/exchanges/${req.exchangeRequestId}`)}
                   >
                     <td className="px-4 py-3">
-                      <div className="text-[11px] font-semibold text-foreground">#{req.shopifyOrderId || req.orderId?.slice(0, 8)}</div>
+                      <div className="text-[11px] font-semibold text-foreground">{formatDisplayOrderNumber(req.shopifyOrderId || req.orderId)}</div>
                       {(req as any).orderCreatedAt && (
                         <div className="text-[9px] text-foreground/40 mt-0.5 font-mono">
                           Ordered: {formatExactDateTime((req as any).orderCreatedAt)}
@@ -335,38 +357,46 @@ export default function ExchangesPage() {
                       <div className="text-[11px] font-medium text-foreground">{req.userName}</div>
                       <div className="text-[9px] text-foreground/40 mt-0.5">{req.userEmail}</div>
                     </td>
-                    <td className="px-4 py-3 max-w-[320px] whitespace-normal hidden md:table-cell">
+                    <td className="px-4 py-3 max-w-[340px] whitespace-normal hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
                       {req.items?.slice(0, 2).map((item: any, idx: number) => {
                         const origTitle = item.originalProduct?.title || item.originalItem?.title || "Original Item";
                         const origSku = item.originalProduct?.sku || item.originalSku;
-                        const origV = extractItemVariantAndSize(origTitle, origSku, item.originalVariant);
+                        const origV = extractItemVariantAndSize(origTitle, origSku, item.originalVariantTitle || item.originalVariant, item.originalSize);
+                        const origSize = item.originalSize || origV.size;
+                        const origVariant = item.originalVariantTitle || item.originalVariant || origV.variant;
 
                         const newTitle = item.newProduct?.title || item.newProductTitle || "Replacement Item";
                         const newSku = item.newProduct?.sku || item.newSku;
-                        const newV = extractItemVariantAndSize(newTitle, newSku, item.newVariant);
+                        const newV = extractItemVariantAndSize(newTitle, newSku, item.newVariantTitle || item.newVariant, item.newSize);
+                        const newSize = item.newSize || newV.size;
+                        const newVariant = item.newVariantTitle || item.newVariant || newV.variant;
 
                         return (
-                          <div key={idx} className="p-2 rounded-lg bg-foreground/[0.02] border border-foreground/5 mb-1.5 text-[10px]">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div className="flex items-center gap-1.5 line-through opacity-70">
-                                <span>{origTitle}</span>
-                                {origV.size && (
-                                  <span className="px-1 py-0.2 rounded bg-foreground/10 text-[8px] font-mono font-bold">
-                                    {origV.size}
-                                  </span>
-                                )}
+                          <div key={idx} className="p-2.5 rounded-xl bg-foreground/[0.02] border border-foreground/5 mb-1.5 text-[10px] space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap justify-between">
+                              <div className="flex items-center gap-1.5 opacity-80">
+                                <span className="line-through text-foreground/60 font-medium truncate max-w-[100px]">{origTitle}</span>
+                                <InlineSizeSelector
+                                  size={origSize}
+                                  variantTitle={origVariant}
+                                  itemId={item.id}
+                                  itemType="original"
+                                  onUpdateSize={(sz) => handleUpdateExchangeSize(item.id, "original", sz)}
+                                />
                               </div>
-                              <ArrowRight className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <ArrowRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                               <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                                <span>{newTitle}</span>
-                                {newV.size && (
-                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-mono font-bold border border-emerald-500/20">
-                                    Size: {newV.size}
-                                  </span>
-                                )}
+                                <span className="truncate max-w-[100px]">{newTitle}</span>
+                                <InlineSizeSelector
+                                  size={newSize}
+                                  variantTitle={newVariant}
+                                  itemId={item.id}
+                                  itemType="new"
+                                  onUpdateSize={(sz) => handleUpdateExchangeSize(item.id, "new", sz)}
+                                />
                               </div>
                             </div>
-                            {item.reason && <div className="text-[9px] text-foreground/40 mt-1">Reason: {item.reason}</div>}
+                            {item.reason && <div className="text-[9px] text-foreground/40 font-medium">Reason: {item.reason}</div>}
                           </div>
                         );
                       })}

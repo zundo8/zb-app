@@ -15,11 +15,19 @@ interface ProductJsonLdProps {
     brand?: string
     category?: string
     rating?: { value: number; count: number }
+    reviews?: {
+      id: string
+      rating: number
+      title?: string | null
+      body: string
+      authorName?: string
+      createdAt: string | Date
+    }[]
   }
 }
 
 export function ProductJsonLd({ product }: ProductJsonLdProps) {
-  const data = {
+  const data: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     '@id': `https://zicabella.com/products/${product.slug}`,
@@ -109,6 +117,24 @@ export function ProductJsonLd({ product }: ProductJsonLdProps) {
         bestRating: 5,
         worstRating: 1,
       },
+    }),
+    ...(product.reviews && product.reviews.length > 0 && {
+      review: product.reviews.map((rev) => ({
+        '@type': 'Review',
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: rev.rating,
+          bestRating: 5,
+          worstRating: 1,
+        },
+        author: {
+          '@type': 'Person',
+          name: rev.authorName || 'Verified Customer',
+        },
+        reviewBody: rev.body,
+        ...(rev.title && { name: rev.title }),
+        datePublished: new Date(rev.createdAt).toISOString().split('T')[0],
+      })),
     }),
   }
 

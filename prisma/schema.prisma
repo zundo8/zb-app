@@ -201,6 +201,8 @@ model Cart {
   @@index([status])
   @@index([lastActivityAt])
   @@index([source])
+  @@index([createdAt])
+  @@index([abandonedAt])
   @@map("cart_sessions")
 }
 
@@ -298,6 +300,7 @@ model Order {
   cancelledAt           DateTime?         @map("cancelled_at")
   cancelledBy           String?           @map("cancelled_by")
   paymentFailureReason  String?           @map("payment_failure_reason")
+  previousOrderNumbers  String?           @map("previous_order_numbers")
   deliveredAt           DateTime?         @map("delivered_at")
   exchanges             Exchange[]
   exchangeRequests      ExchangeRequest[]
@@ -310,6 +313,13 @@ model Order {
   shipments             Shipment[]
   cartSession           Cart?             @relation("ConvertedOrder")
   webhookEvents         WebhookEvent[]
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([paymentStatus, createdAt])
+  @@index([orderType, createdAt])
+  @@index([customerId, createdAt])
+  @@index([refundStatus])
 }
 
 model OrderItem {
@@ -322,6 +332,9 @@ model OrderItem {
   price             Float
   sku               String?
   image             String?
+  variantId         String?
+  variantTitle      String?
+  size              String?
   order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product           Product? @relation(fields: [productId], references: [id])
 }
@@ -380,6 +393,9 @@ model Return {
   storeCreditAmount Float?
   refundStatus      String?
   returnRequestId   String?
+  variantTitle      String?
+  size              String?
+  title             String?
   customer          Customer       @relation(fields: [customerId], references: [id])
   order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product           Product        @relation(fields: [productId], references: [id])
@@ -402,24 +418,28 @@ model ReturnRequest {
 }
 
 model Exchange {
-  id                String           @id @default(cuid())
-  orderId           String
-  originalProductId String
-  newProductId      String
-  status            String           @default("REQUESTED")
-  priceDifference   Float            @default(0)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  paymentStatus     String?
-  newOrderId        String?
-  exchangeRequestId String?
-  reason            String?
-  qcStatus          String?          @default("pending")
-  qcNotes           String?
-  exchangeRequest   ExchangeRequest? @relation(fields: [exchangeRequestId], references: [id])
-  newProduct        Product          @relation("NewProduct", fields: [newProductId], references: [id])
-  order             Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  originalProduct   Product          @relation("OriginalProduct", fields: [originalProductId], references: [id])
+  id                   String           @id @default(cuid())
+  orderId              String
+  originalProductId    String
+  newProductId         String
+  status               String           @default("REQUESTED")
+  priceDifference      Float            @default(0)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  paymentStatus        String?
+  newOrderId           String?
+  exchangeRequestId    String?
+  reason               String?
+  qcStatus             String?          @default("pending")
+  qcNotes              String?
+  originalVariantTitle String?
+  originalSize         String?
+  newVariantTitle      String?
+  newSize              String?
+  exchangeRequest      ExchangeRequest? @relation(fields: [exchangeRequestId], references: [id])
+  newProduct           Product          @relation("NewProduct", fields: [newProductId], references: [id])
+  order                Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  originalProduct      Product          @relation("OriginalProduct", fields: [originalProductId], references: [id])
 }
 
 model ExchangeRequest {

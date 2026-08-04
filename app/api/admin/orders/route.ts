@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
+import { enrichItemsWithSize } from '@/lib/enrichSize';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,7 +78,9 @@ export async function GET(req: Request) {
       conditions.push({
         OR: [
           { shopifyOrderId: { contains: search, mode: 'insensitive' } },
+          { shopifyOrderName: { contains: search, mode: 'insensitive' } },
           { internalOrderNumber: { contains: search, mode: 'insensitive' } },
+          { previousOrderNumbers: { contains: search, mode: 'insensitive' } },
           { note: { contains: search, mode: 'insensitive' } },
           { tags: { contains: search, mode: 'insensitive' } },
           { customer: { name: { contains: search, mode: 'insensitive' } } },
@@ -185,8 +188,11 @@ export async function GET(req: Request) {
         paidAmount = totalPrice;
       }
 
+      const displayOrderNumber = order.internalOrderNumber || order.shopifyOrderName || (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_') ? `#${order.shopifyOrderId.replace('#', '')}` : null) || `#${order.id.slice(-6).toUpperCase()}`;
+
       return {
         ...order,
+        displayOrderNumber,
         totalPrice,
         codUpfrontPaid,
         paymentMethod,
@@ -195,9 +201,16 @@ export async function GET(req: Request) {
       };
     });
 
+    const fullyEnrichedOrders = await Promise.all(
+      enrichedOrders.map(async (order: any) => ({
+        ...order,
+        items: await enrichItemsWithSize(order.items || [], order)
+      }))
+    );
+
     return NextResponse.json({
       success: true,
-      orders: enrichedOrders,
+      orders: fullyEnrichedOrders,
       total,
       hasMore: total > offset + limit
     });

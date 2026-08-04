@@ -9,6 +9,7 @@ import { authOptions } from "../../auth/[...nextauth]/options";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { resolveAndSyncCustomerAddress } from "@/lib/services/customerService";
 import { debitStoreCredits } from "@/lib/storeCreditsHelper";
+import { assignUniversalOrderNumber, isFailedPrefixNumber } from "@/lib/orderNumber";
 
 export async function POST(req: Request) {
   const rateLimitResult = await checkRateLimit(req, "checkout-complete", { maxRequests: 30, windowMs: 60_000 });
@@ -259,26 +260,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // Generate universal internal order number
-    const date = new Date();
-    const yy = String(date.getFullYear()).slice(-2);
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const yymm = `${yy}${mm}`;
-
+    // Generate universal order number for successful order
     let universalOrderNumber = '';
     try {
-      const seqRes: any[] = await prisma.$queryRawUnsafe(`
-        INSERT INTO order_sequences (year_month, current_value)
-        VALUES ($1, 1)
-        ON CONFLICT (year_month)
-        DO UPDATE SET current_value = order_sequences.current_value + 1
-        RETURNING current_value;
-      `, yymm);
-      const seqVal = seqRes[0].current_value;
-      universalOrderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
+      universalOrderNumber = await assignUniversalOrderNumber(prisma);
     } catch (seqErr: any) {
-      console.error('[Checkout] Failed to generate universal internal order number:', seqErr.message);
-      universalOrderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
+      console.error('[Checkout] Failed to generate universal order number:', seqErr.message);
+      universalOrderNumber = `ZB${Date.now().toString().slice(-8)}`;
     }
 
     // 3. Create Order in Shopify
@@ -473,28 +461,61 @@ export async function POST(req: Request) {
     const finalPaymentMethod = isFullStoreCredit ? "store_credit" : isCodOrder ? "cod" : "razorpay";
 
     if (existingPreCreatedOrder) {
-      universalOrderNumber = existingPreCreatedOrder.internalOrderNumber || universalOrderNumber;
-      localOrder = await prisma.order.update({
-        where: { id: existingPreCreatedOrder.id },
-        data: {
-          shopifyOrderId: shopifyOrderId,
-          status: isCodOrder ? "open" : "approved",
-          paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
-          razorpayPaymentId: razorpay?.razorpay_payment_id || null,
-          paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
-          paymentMethod: finalPaymentMethod,
-          storeCreditAmount: parsedStoreCredit,
-          tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
-          note: isFullStoreCredit
-            ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
-            : isCodOrder
-            ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
-            : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
-          shopifyOrderName: sOrder ? sOrder.name : null,
-          shopifySyncStatus: sOrder ? 'synced' : 'failed',
-          shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
-        }
-      });
+      // Promote: if the pre-created order has a failed/pending prefix number, assign a real ZB number
+      const oldNumber = existingPreCreatedOrder.internalOrderNumber;
+      if (isFailedPrefixNumber(oldNumber)) {
+        // Keep the old prefix number for traceability
+        const previousNumbers = [existingPreCreatedOrder.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+        // universalOrderNumber was already assigned above as a fresh ZB number
+        console.log(`[Checkout Complete] Promoting order ${oldNumber} → ${universalOrderNumber}`);
+        localOrder = await prisma.order.update({
+          where: { id: existingPreCreatedOrder.id },
+          data: {
+            shopifyOrderId: shopifyOrderId,
+            status: isCodOrder ? "open" : "approved",
+            paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
+            razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+            paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
+            paymentMethod: finalPaymentMethod,
+            storeCreditAmount: parsedStoreCredit,
+            tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
+            note: isFullStoreCredit
+              ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
+              : isCodOrder
+              ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
+              : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
+            shopifyOrderName: sOrder ? sOrder.name : null,
+            shopifySyncStatus: sOrder ? 'synced' : 'failed',
+            shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
+            internalOrderNumber: universalOrderNumber,
+            previousOrderNumbers: previousNumbers || null,
+          }
+        });
+      } else {
+        // Already has a real ZB number or legacy number — keep it
+        universalOrderNumber = existingPreCreatedOrder.internalOrderNumber || universalOrderNumber;
+        localOrder = await prisma.order.update({
+          where: { id: existingPreCreatedOrder.id },
+          data: {
+            shopifyOrderId: shopifyOrderId,
+            status: isCodOrder ? "open" : "approved",
+            paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
+            razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+            paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
+            paymentMethod: finalPaymentMethod,
+            storeCreditAmount: parsedStoreCredit,
+            tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
+            note: isFullStoreCredit
+              ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
+              : isCodOrder
+              ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
+              : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
+            shopifyOrderName: sOrder ? sOrder.name : null,
+            shopifySyncStatus: sOrder ? 'synced' : 'failed',
+            shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
+          }
+        });
+      }
       console.log(`[Checkout Complete] Updated pre-created order ${localOrder.id} (${universalOrderNumber}) status to paid/approved`);
     } else {
       localOrder = await prisma.order.create({
@@ -568,8 +589,8 @@ export async function POST(req: Request) {
           metadata: {
             paymentMethod: finalPaymentMethod,
             orderNumber: universalOrderNumber,
-            couponCode: couponCode || null,
-            discountAmount: Number(couponDiscount) || 0,
+            couponCode: finalCouponCode || null,
+            discountAmount: Number(finalCouponDiscount) || 0,
             storeCreditAmount: parsedStoreCredit,
           },
         },
@@ -582,14 +603,21 @@ export async function POST(req: Request) {
 
     // Mark active or abandoned cart converted
     try {
+      const cleanPhone = address.phone ? address.phone.replace(/\D/g, "") : null;
+      const last10Phone = cleanPhone && cleanPhone.length >= 10 ? cleanPhone.slice(-10) : cleanPhone;
+      const rawCartId = body.cartId || body.cart_id;
+
       const matchingCarts = await prisma.cart.findMany({
         where: {
-          status: { in: ["active", "abandoned"] },
+          convertedOrderId: null,
+          status: { notIn: ["converted"] },
           OR: [
-            { customerId: localCustomer.id },
+            ...(rawCartId ? [{ id: rawCartId }, { sessionToken: rawCartId }] : []),
+            ...(body.guestId ? [{ sessionToken: body.guestId }] : []),
+            ...(localCustomer?.id ? [{ customerId: localCustomer.id }] : []),
             ...(address.phone ? [{ phone: address.phone }] : []),
-            ...(address.email ? [{ email: address.email }] : []),
-            ...(body.guestId ? [{ sessionToken: body.guestId }] : [])
+            ...(last10Phone ? [{ phone: { contains: last10Phone } }] : []),
+            ...(address.email ? [{ email: { equals: address.email, mode: "insensitive" as const } }] : [])
           ]
         },
         orderBy: { lastActivityAt: "desc" }
@@ -612,27 +640,27 @@ export async function POST(req: Request) {
             data: { status: "merged" }
           });
         }
-        console.log(`[Checkout] Marked cart converted: ${primaryCart.id} for customer: ${localCustomer.id}`);
+        console.log(`[Checkout] Marked cart converted: ${primaryCart.id} for order: ${localOrder.id}`);
       }
     } catch (cartErr: any) {
       console.error("[Checkout] Failed to mark cart converted:", cartErr.message);
     }
 
     // Increment coupon usedCount if coupon was applied
-    if (couponCode) {
+    if (finalCouponCode) {
       try {
         await prisma.webStoreCoupon.update({
-          where: { code: couponCode.toUpperCase().trim() },
+          where: { code: finalCouponCode.toUpperCase().trim() },
           data: { usedCount: { increment: 1 } },
         });
-        console.log(`[Checkout] Successfully incremented usage for coupon: ${couponCode}`);
+        console.log(`[Checkout] Successfully incremented usage for coupon: ${finalCouponCode}`);
       } catch (couponUsageErr: any) {
-        console.error(`[Checkout] Failed to increment usedCount for coupon: ${couponCode}`, couponUsageErr.message);
+        console.error(`[Checkout] Failed to increment usedCount for coupon: ${finalCouponCode}`, couponUsageErr.message);
       }
     }
 
     // Issue cashback if coupon has cashback store credits enabled
-    if (couponCode && Number(cashbackAmount) > 0) {
+    if (finalCouponCode && Number(cashbackAmount) > 0) {
       try {
         const cbAmt = parseFloat(String(cashbackAmount));
         const expiresAt = new Date();
@@ -650,7 +678,7 @@ export async function POST(req: Request) {
               customerId: localCustomer.id,
               amount: cbAmt,
               type: "COUPON_REBATE",
-              description: `Cashback for applying coupon code ${couponCode.toUpperCase()}`,
+              description: `Cashback for applying coupon code ${finalCouponCode.toUpperCase()}`,
               orderId: localOrder.id,
               expiresAt,
               remainingAmount: cbAmt
@@ -754,7 +782,7 @@ export async function POST(req: Request) {
         paymentMethod: finalPaymentMethod,
         subtotal: Number(subtotal),
         shipping: 0,
-        discount: Number(couponDiscount) || 0,
+        discount: Number(finalCouponDiscount) || 0,
         shippingAddress: `${address.street || ''}, ${address.city || ''}, ${address.state || ''} - ${address.zip || ''}, ${address.country || 'India'}`,
       };
 

@@ -19,7 +19,7 @@ async function main() {
   try {
     console.log("Connected to Supabase PostgreSQL!");
 
-    // 1. Create order_sequences table
+    // 1. Create order_sequences table (legacy — preserved for historical data)
     console.log("Creating/verifying order_sequences table...");
     await client.query(`
       CREATE TABLE IF NOT EXISTS order_sequences (
@@ -27,6 +27,11 @@ async function main() {
         current_value INTEGER NOT NULL DEFAULT 0
       );
     `);
+
+    // 1b. Create universal order numbering sequences (ZB81000+)
+    console.log("Creating/verifying universal order numbering sequences...");
+    await client.query(`CREATE SEQUENCE IF NOT EXISTS zb_universal_order_seq START WITH 81000;`);
+    await client.query(`CREATE SEQUENCE IF NOT EXISTS zb_failed_order_seq START WITH 81000;`);
 
     // 2. Modify shopifyOrderId to be nullable
     console.log("Altering 'Order' table column 'shopifyOrderId' to be nullable...");

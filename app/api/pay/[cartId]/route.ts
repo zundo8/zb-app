@@ -1,6 +1,9 @@
 import { NextResponse, NextRequest } from "next/server";
 import Razorpay from "razorpay";
 import prisma from "@/lib/db";
+import { assignFailedOrderNumber } from "@/lib/orderNumber";
+
+import { isOrderValidConverted } from "@/lib/cartValidation";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +46,14 @@ export async function GET(
       return NextResponse.json({ error: "Shop not configured" }, { status: 500 });
     }
 
-    // 3. Check if already converted and redirect to success
+    // 3. Check if already converted and redirect to success if valid
     if (cart.status === "converted" && cart.convertedOrderId) {
-      return NextResponse.redirect(new URL(`/checkout/success?order_id=${cart.convertedOrderId}`, req.url));
+      const convertedOrder = await prisma.order.findUnique({
+        where: { id: cart.convertedOrderId }
+      });
+      if (convertedOrder && isOrderValidConverted(convertedOrder)) {
+        return NextResponse.redirect(new URL(`/checkout/success?order_id=${cart.convertedOrderId}`, req.url));
+      }
     }
 
     // 4. Resolve/Find customer
@@ -137,25 +145,12 @@ export async function GET(
     }
 
     if (!paymentLinkUrl) {
-      // Generate a new internal order number
-      const date = new Date();
-      const yy = String(date.getFullYear()).slice(-2);
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
-      const yymm = `${yy}${mm}`;
-      
+      // Generate a pending order number (real ZB number assigned at payment success)
       let universalOrderNumber = '';
       try {
-        const seqRes: any[] = await prisma.$queryRawUnsafe(`
-          INSERT INTO order_sequences (year_month, current_value)
-          VALUES ($1, 1)
-          ON CONFLICT (year_month)
-          DO UPDATE SET current_value = order_sequences.current_value + 1
-          RETURNING current_value;
-        `, yymm);
-        const seqVal = seqRes[0].current_value;
-        universalOrderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
+        universalOrderNumber = await assignFailedOrderNumber(prisma, { cause: 'pending' });
       } catch (seqErr: any) {
-        universalOrderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
+        universalOrderNumber = `ZBPP${Date.now().toString().slice(-8)}`;
       }
 
       // Create a Razorpay Order first

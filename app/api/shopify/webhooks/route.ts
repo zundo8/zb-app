@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import prisma from '@/lib/db';
+import { extractSizeFromVariant } from '@/lib/utils';
 
 export async function POST(req: Request) {
   const topic = req.headers.get('x-shopify-topic');
@@ -140,7 +141,7 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
   let extractedNumber = '';
   if (!existingLocalOrder) {
     // 1. Try tags matching
-    const tagMatch = (orderData.tags || '').match(/zb-order-(ZB-\d{4}-\d{5})/i);
+    const tagMatch = (orderData.tags || '').match(/zb-order-(ZB(?:PF|PP|CX|XX)?\d+|ZB-\d{4}-\d{5})/i);
     if (tagMatch) {
       extractedNumber = tagMatch[1];
     }
@@ -148,7 +149,7 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
     // 2. Try note attributes matching
     if (!extractedNumber && orderData.note_attributes) {
       const attr = orderData.note_attributes.find((na: any) => na.name === 'internal_order_number');
-      if (attr && typeof attr.value === 'string' && attr.value.startsWith('ZB-')) {
+      if (attr && typeof attr.value === 'string' && attr.value.startsWith('ZB')) {
         extractedNumber = attr.value;
       }
     }
@@ -365,6 +366,10 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
         itemImage = prod?.featuredImage || null;
       }
 
+      const vTitle = item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : null;
+      const vId = item.variant_id ? String(item.variant_id) : null;
+      const itemSize = extractSizeFromVariant(item.variant_title, item.sku, item.title);
+
       await prisma.orderItem.upsert({
         where: { shopifyLineItemId: item.id.toString() },
         create: {
@@ -375,13 +380,19 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
           quantity: item.quantity,
           price: parseFloat(item.price || '0'),
           sku: item.sku || null,
-          image: itemImage || null
+          image: itemImage || null,
+          variantId: vId,
+          variantTitle: vTitle,
+          size: itemSize,
         },
         update: {
           quantity: item.quantity,
           price: parseFloat(item.price || '0'),
           sku: item.sku || null,
-          image: itemImage || null
+          image: itemImage || null,
+          variantId: vId,
+          variantTitle: vTitle,
+          size: itemSize,
         }
       });
     }
@@ -420,13 +431,13 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
             const alreadySent = await prisma.whatsAppMessage.findFirst({
               where: { orderId: String(orderIdStr), templateName }
             });
-            if (!alreadySent) {
               const firstLineItem = (orderData.line_items || [])[0];
               const productImageUrl = firstLineItem?.image?.src || firstLineItem?.image || '';
               const orderStatusUrl = orderData.order_status_url || '';
+              const totalAmount = orderData.total_price || orderData.current_total_price || '';
+              const itemCount = (orderData.line_items || []).length || 1;
               const { sendOrderConfirmation } = await import('@/lib/whatsapp/templates');
-              await sendOrderConfirmation({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr), productImageUrl, orderStatusUrl });
-            }
+              await sendOrderConfirmation({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr), productImageUrl, orderStatusUrl, totalAmount, itemCount });
           }
         }
       } else if (topic === 'orders/fulfilled') {
@@ -501,8 +512,10 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
             if (!alreadySent) {
               const firstLineItem = (orderData.line_items || [])[0];
               const productImageUrl = firstLineItem?.image?.src || firstLineItem?.image || '';
+              const totalAmount = orderData.total_price || orderData.current_total_price || '';
+              const itemCount = (orderData.line_items || []).length || 1;
               const { sendDelivered } = await import('@/lib/whatsapp/templates');
-              await sendDelivered({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr), productImageUrl });
+              await sendDelivered({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr), productImageUrl, totalAmount, itemCount });
             }
           }
         } else if (isOutForDelivery) {

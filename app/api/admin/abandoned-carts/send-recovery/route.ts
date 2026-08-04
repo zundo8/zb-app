@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { sendAbandonedCart, sendCustomCartRecovery } from "@/lib/whatsapp/templates";
 import { SmsService } from "@/lib/services/sms.service";
 import { sendMail } from "@/lib/mailer";
+import { isOrderValidConverted } from "@/lib/cartValidation";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,15 @@ export async function POST(req: Request) {
       where: { id: cartId },
       include: {
         customer: true,
-        items: true
+        items: true,
+        convertedOrder: {
+          select: {
+            id: true,
+            status: true,
+            paymentStatus: true,
+            paymentMethod: true
+          }
+        }
       }
     });
 
@@ -26,10 +35,65 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Cart not found" }, { status: 404 });
     }
 
+    // Check 1: Direct cart-to-order link
+    if (cart.status === "converted" || (cart.convertedOrder && isOrderValidConverted(cart.convertedOrder))) {
+      return NextResponse.json({ error: "Cart is already converted to a completed order. Recovery message blocked." }, { status: 400 });
+    }
+
+    // Check 2: Phone/email-based order matching (catches race conditions where
+    // checkout completed but cart.convertedOrderId wasn't linked yet)
     const phone = cart.phone || cart.customer?.phone;
     const email = cart.email || cart.customer?.email;
     const name = cart.customer?.name || "Customer";
     const checkoutUrl = `https://www.zicabella.com/cart?recover=${cart.id}`;
+
+    try {
+      const normPhone = phone ? phone.replace(/\D/g, "").slice(-10) : null;
+      if (normPhone && normPhone.length >= 10) {
+        const matchedOrder = await prisma.order.findFirst({
+          where: {
+            createdAt: { gte: new Date(cart.createdAt.getTime() - 60 * 60 * 1000) },
+            NOT: [
+              { status: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "draft", "voided"] } },
+              { paymentStatus: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "voided"] } }
+            ],
+            OR: [
+              { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "PAID", "SUCCESS", "success", "captured"] } },
+              {
+                AND: [
+                  { paymentMethod: { in: ["COD", "cod", "Cash on Delivery", "cash_on_delivery"] } },
+                  { status: { in: ["approved", "open", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "CONFIRMED", "confirmed", "placed"] } }
+                ]
+              }
+            ],
+            AND: [
+              {
+                OR: [
+                  ...(cart.customerId ? [{ customerId: cart.customerId }] : []),
+                  { customer: { phone: { contains: normPhone } } },
+                  { shippingAddress: { contains: normPhone } },
+                  ...(email ? [{ customer: { email: { equals: email, mode: "insensitive" as const } } }] : []),
+                  ...(email ? [{ shippingAddress: { contains: email } }] : [])
+                ]
+              }
+            ]
+          }
+        });
+
+        if (matchedOrder) {
+          // Auto-link the cart
+          await prisma.cart.update({
+            where: { id: cart.id },
+            data: { status: "converted", convertedOrderId: matchedOrder.id }
+          }).catch(() => {});
+          return NextResponse.json({
+            error: "Customer has already placed a completed order. Recovery message blocked to prevent duplicate messaging."
+          }, { status: 400 });
+        }
+      }
+    } catch (reconErr: any) {
+      console.warn("[Send Recovery] Pre-send conversion check warning:", reconErr?.message);
+    }
 
     if (channel === "whatsapp") {
       if (!phone) return NextResponse.json({ error: "No phone number available for this cart" }, { status: 400 });

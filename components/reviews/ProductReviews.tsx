@@ -73,27 +73,37 @@ export async function ProductReviews({
         {reviews.map((review) => (
           <div
             key={review.id}
-            className="p-3 rounded-lg border border-foreground/[0.04] bg-foreground/[0.01]"
+            itemScope
+            itemType="https://schema.org/Review"
+            className="p-3.5 rounded-xl border border-foreground/[0.06] bg-foreground/[0.015] backdrop-blur-sm"
           >
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <StarRating rating={review.rating} />
+                <div itemProp="reviewRating" itemScope itemType="https://schema.org/Rating">
+                  <meta itemProp="ratingValue" content={review.rating.toString()} />
+                  <meta itemProp="bestRating" content="5" />
+                  <meta itemProp="worstRating" content="1" />
+                  <StarRating rating={review.rating} />
+                </div>
+                <span itemProp="author" itemScope itemType="https://schema.org/Person" className="text-[9px] font-semibold text-foreground/70">
+                  <span itemProp="name">Verified Buyer</span>
+                </span>
                 {review.verifiedPurchase && (
-                  <span className="text-[7px] font-bold uppercase tracking-wider text-emerald-500/70 bg-emerald-500/5 px-1.5 py-0.5 rounded-full">
+                  <span className="text-[7px] font-bold uppercase tracking-wider text-emerald-500/80 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">
                     Verified Buyer
                   </span>
                 )}
               </div>
-              <span className="text-[8px] text-foreground/25">
+              <time itemProp="datePublished" dateTime={new Date(review.createdAt).toISOString()} className="text-[8px] text-foreground/30 font-medium">
                 {formatDate(review.createdAt)}
-              </span>
+              </time>
             </div>
             {review.title && (
-              <p className="text-[9.5px] font-semibold text-foreground/70 mb-0.5">
+              <p itemProp="name" className="text-[10px] font-bold text-foreground/80 mb-1">
                 {review.title}
               </p>
             )}
-            <p className="text-[9px] text-foreground/50 leading-relaxed">
+            <p itemProp="reviewBody" className="text-[9.5px] text-foreground/60 leading-relaxed font-sans">
               {review.body}
             </p>
           </div>

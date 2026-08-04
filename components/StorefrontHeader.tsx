@@ -111,6 +111,14 @@ export default function StorefrontHeader({ collections: initialCollections = [] 
 
   return (
     <>
+      {/* Skip to Content Landmark */}
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-black focus:text-white dark:focus:bg-white dark:focus:text-black focus:rounded-lg focus:shadow-2xl text-xs uppercase tracking-wider font-semibold"
+      >
+        Skip to content
+      </a>
+
       {/* ── Desktop Header Pill (md and up) ── */}
       <header className="hidden md:flex fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-5xl z-50 px-5 h-11 items-center justify-between pointer-events-auto bg-white/75 dark:bg-white/[0.04] backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-full transition-[background-color,border-color,box-shadow,opacity] duration-300">
         {/* Left: Brand */}

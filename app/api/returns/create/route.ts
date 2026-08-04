@@ -125,7 +125,10 @@ export async function POST(req: Request) {
         status: "REQUESTED",
         refundAmount: itemRefund,
         refundMethod: refundMethod || "original_method",
-        comments: returnItem.comments
+        comments: returnItem.comments,
+        variantTitle: orderItem.variantTitle,
+        size: orderItem.size,
+        title: orderItem.title,
       });
     }
 
@@ -146,7 +149,10 @@ export async function POST(req: Request) {
             status: item.status,
             refundAmount: item.refundAmount,
             refundMethod: item.refundMethod,
-            refundStatus: "PENDING"
+            refundStatus: "PENDING",
+            variantTitle: item.variantTitle,
+            size: item.size,
+            title: item.title,
           }))
         }
       },

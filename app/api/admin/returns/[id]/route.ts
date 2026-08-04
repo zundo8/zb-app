@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { createRefund } from '@/lib/shopify-admin';
+import { enrichSingleItem, enrichItemsWithSize } from '@/lib/enrichSize';
 
 export const dynamic = 'force-dynamic';
 
@@ -261,10 +262,42 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         order: standalone.order
       };
 
-      return NextResponse.json({ return: syntheticRequest }, { status: 200 });
+      const enrichedReturns = await Promise.all(
+        (syntheticRequest.returns || []).map(enrichSingleItem)
+      );
+
+      const enrichedOrderItems = syntheticRequest.order?.items
+        ? await enrichItemsWithSize(syntheticRequest.order.items)
+        : [];
+
+      return NextResponse.json({
+        return: {
+          ...syntheticRequest,
+          returns: enrichedReturns,
+          order: syntheticRequest.order
+            ? { ...syntheticRequest.order, items: enrichedOrderItems }
+            : null
+        }
+      }, { status: 200 });
     }
 
-    return NextResponse.json({ return: returnRequest }, { status: 200 });
+    const enrichedReturns = await Promise.all(
+      (returnRequest.returns || []).map(enrichSingleItem)
+    );
+
+    const enrichedOrderItems = returnRequest.order?.items
+      ? await enrichItemsWithSize(returnRequest.order.items)
+      : [];
+
+    return NextResponse.json({
+      return: {
+        ...returnRequest,
+        returns: enrichedReturns,
+        order: returnRequest.order
+          ? { ...returnRequest.order, items: enrichedOrderItems }
+          : null
+      }
+    }, { status: 200 });
   } catch (error: any) {
     console.error('Return Detail API Error:', error.message);
     return NextResponse.json({ error: 'Failed to fetch return' }, { status: 500 });

@@ -20,11 +20,13 @@ import {
   Home,
   RotateCcw,
   ArrowLeftRight,
-  X
+  X,
+  Star
 } from "lucide-react";
 import Link from "next/link";
 import { formatPriceString } from "@/lib/global-pricing-client";
 import { useParams, useRouter } from "next/navigation";
+import OrderReviewModal from "@/components/reviews/OrderReviewModal";
 
 const STEPS = [
   { id: "order_placed",   label: "Order Placed",   icon: CheckCircle2 },
@@ -51,8 +53,30 @@ export default function OrderDetailsPage() {
   const [syncing, setSyncing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewableItems, setReviewableItems] = useState<any[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const router = useRouter();
+
+  const fetchReviewableItems = async () => {
+    try {
+      const res = await fetch(`/api/orders/${id}/reviewable`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.items) {
+          setReviewableItems(data.items);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching reviewable items:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (order && (order.deliveryStatus || "").toLowerCase() === "delivered") {
+      fetchReviewableItems();
+    }
+  }, [order]);
 
   useEffect(() => {
     if (status === "unauthenticated" && !loading) {
@@ -583,6 +607,20 @@ export default function OrderDetailsPage() {
 
         {/* ACTION BUTTONS */}
         <div className="space-y-3 mb-20">
+          {/* Rate & Review button for delivered orders */}
+          {(order?.deliveryStatus || '').toLowerCase() === 'delivered' && (
+            <button
+              onClick={() => {
+                fetchReviewableItems();
+                setShowReviewModal(true);
+              }}
+              className="w-full py-4 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-amber-500/5"
+            >
+              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+              <span>{reviewableItems.some(i => i.reviewed) ? "View & Update Product Reviews" : "Rate & Review Products"}</span>
+            </button>
+          )}
+
           {/* Return & Exchange buttons for delivered orders within window */}
           {isReturnWindowOpen && !hasActiveReturn && !hasActiveExchange && (
             <div className="flex gap-3">
@@ -633,6 +671,22 @@ export default function OrderDetailsPage() {
           </Link>
         </div>
       </main>
+
+      {/* Review Modal */}
+      <OrderReviewModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        orderId={id as string}
+        orderNumber={order?.orderNumber || order?.shopifyOrderId || `#${(id as string).slice(-6).toUpperCase()}`}
+        items={reviewableItems.length > 0 ? reviewableItems : (order?.items || []).map((i: any) => ({
+          id: i.id,
+          productId: i.productId || i.id,
+          title: i.title,
+          image: i.image,
+          reviewed: false,
+        }))}
+        onReviewSubmitted={fetchReviewableItems}
+      />
 
       {/* Toast Notice */}
       <AnimatePresence>

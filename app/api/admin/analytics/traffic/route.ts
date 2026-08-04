@@ -13,7 +13,8 @@ async function handler(req: Request) {
 
   const now = new Date();
   const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-  const endDate = to ? new Date(to) : now;
+  const rawEnd = to ? new Date(to) : now;
+  const endDate = rawEnd > now ? now : rawEnd;
 
   const dateFilter = { gte: startDate, lte: endDate };
 

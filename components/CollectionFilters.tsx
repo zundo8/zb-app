@@ -44,6 +44,7 @@ export default function CollectionFilters({ allSizes }: CollectionFiltersProps) 
           <select 
             value={sortBy}
             onChange={(e) => updateFilters({ sort: e.target.value })}
+            aria-label="Sort by"
             className="absolute top-1/2 left-1 -translate-y-1/2 w-[120px] bg-transparent pl-3 pr-6 py-2.5 text-[10px] font-light uppercase tracking-[0.2em] text-foreground/50 appearance-none outline-none cursor-pointer hover:bg-foreground/[0.03] hover:text-foreground/80 rounded-full origin-left scale-[0.55] transition-all"
           >
             <option value="featured">Featured</option>
@@ -61,6 +62,7 @@ export default function CollectionFilters({ allSizes }: CollectionFiltersProps) 
           <select 
             value={selectedSize}
             onChange={(e) => updateFilters({ size: e.target.value })}
+            aria-label="Filter by size"
             className="absolute top-1/2 left-1 -translate-y-1/2 w-[85px] bg-transparent pl-3 pr-6 py-2.5 text-[10px] font-light uppercase tracking-[0.2em] text-foreground/50 appearance-none outline-none cursor-pointer hover:bg-foreground/[0.03] hover:text-foreground/80 rounded-full origin-left scale-[0.55] transition-all"
           >
             <option value="">Size</option>
@@ -77,6 +79,7 @@ export default function CollectionFilters({ allSizes }: CollectionFiltersProps) 
         <div className="pr-1 pl-0.5">
           <button
             onClick={cycleView}
+            aria-label="Toggle view mode"
             className="w-6 h-6 flex items-center justify-center text-foreground/30 hover:text-foreground/70 hover:bg-foreground/[0.03] rounded-full transition-all active:scale-95"
           >
             {viewMode === "current" ? <LayoutGrid className="w-3 h-3" strokeWidth={1} /> : 

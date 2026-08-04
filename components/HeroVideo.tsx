@@ -13,7 +13,12 @@ interface HeroVideoProps {
 export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = false }: HeroVideoProps) {
   const [isMuted, setIsMuted] = useState(true);
   const [isInView, setIsInView] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.matchMedia("(max-width: 768px)").matches;
+    }
+    return false;
+  });
   const [mounted, setMounted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -55,7 +60,7 @@ export default function HeroVideo({ src, mobileSrc, poster, showControlOnly = fa
     }
   };
 
-  const activeSrc = (mounted && isMobile && mobileSrc) ? mobileSrc : src;
+  const activeSrc = (isMobile && mobileSrc) ? mobileSrc : src;
 
   return (
     <div 

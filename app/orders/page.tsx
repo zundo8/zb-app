@@ -15,11 +15,13 @@ import {
   RotateCcw,
   ArrowLeftRight,
   Sparkles,
-  Calendar
+  Calendar,
+  Star
 } from "lucide-react";
 import Link from "next/link";
 import { formatPriceString } from "@/lib/global-pricing-client";
 import { useRouter, useSearchParams } from "next/navigation";
+import OrderReviewModal from "@/components/reviews/OrderReviewModal";
 
 export default function OrdersPage() {
   const { data: session, status } = useSession();
@@ -30,7 +32,34 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(initialTab);
+  const [activeReviewOrder, setActiveReviewOrder] = useState<any | null>(null);
+  const [activeReviewItems, setActiveReviewItems] = useState<any[]>([]);
   const router = useRouter();
+
+  const handleOpenReviewModal = async (order: any) => {
+    setActiveReviewOrder(order);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/reviewable`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.items) {
+          setActiveReviewItems(data.items);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error("Error loading order review items", e);
+    }
+    setActiveReviewItems(
+      (order.items || []).map((i: any) => ({
+        id: i.id,
+        productId: i.productId || i.id,
+        title: i.title,
+        image: i.image,
+        reviewed: false,
+      }))
+    );
+  };
 
   useEffect(() => {
     if (status === "unauthenticated" && !loading) {
@@ -242,11 +271,28 @@ export default function OrdersPage() {
                         {orderItems.length > 1 ? `+ ${orderItems.length - 1} more items` : `1 item`}
                       </p>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 flex flex-col items-end gap-1">
                       <p className="text-[12px] font-inter font-bold tracking-tight text-foreground">{formatPriceString(Number(order.totalPrice), order.currency || "INR", "en-US")}</p>
-                      <Link href={`/orders/${order.id}`} className="inline-flex items-center gap-1 mt-1 text-[8px] font-bold uppercase tracking-wider text-foreground/40 hover:text-foreground transition-colors">
-                        Details <ChevronRight className="w-3 h-3" />
-                      </Link>
+                      
+                      <div className="flex items-center gap-2">
+                        {((order.deliveryStatus || order.status || '').toLowerCase() === 'delivered') && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleOpenReviewModal(order);
+                            }}
+                            className="inline-flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider text-amber-400 hover:text-amber-300 transition-colors bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20"
+                          >
+                            <Star className="w-2.5 h-2.5 fill-amber-400" />
+                            <span>Review</span>
+                          </button>
+                        )}
+
+                        <Link href={`/orders/${order.id}`} className="inline-flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider text-foreground/40 hover:text-foreground transition-colors">
+                          Details <ChevronRight className="w-3 h-3" />
+                        </Link>
+                      </div>
                     </div>
                   </div>
 
@@ -276,6 +322,16 @@ export default function OrdersPage() {
           </div>
         )}
       </main>
+
+      {/* Review Modal */}
+      <OrderReviewModal
+        isOpen={!!activeReviewOrder}
+        onClose={() => setActiveReviewOrder(null)}
+        orderId={activeReviewOrder?.id || ""}
+        orderNumber={activeReviewOrder?.orderNumber || activeReviewOrder?.shopifyOrderId || (activeReviewOrder ? `#${activeReviewOrder.id.slice(-6).toUpperCase()}` : "")}
+        items={activeReviewItems}
+        onReviewSubmitted={() => fetchOrders(true)}
+      />
     </div>
   );
 }

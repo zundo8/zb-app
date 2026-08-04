@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import prisma from "@/lib/db";
 import { syncPendingWebStoreOrders } from "@/lib/services/razorpaySyncService";
+import { assignFailedOrderNumber } from "@/lib/orderNumber";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,10 @@ export async function GET(request: Request) {
     }
     if (paymentStatus && paymentStatus !== "all") {
       where.paymentStatus = paymentStatus;
+    } else {
+      where.paymentStatus = {
+        notIn: ["payment_pending", "payment_failed", "pending", "failed", "cancelled", "FAILED"],
+      };
     }
     if (paymentMethod && paymentMethod !== "all") {
       where.paymentMethod = {
@@ -263,15 +268,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Generate a fallback order number — DB trigger will override on Postgres
-    const fallbackOrderNumber = `ZB-WEB-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    // Generate a pending order number — real ZB number assigned at payment success
+    let pendingOrderNumber: string;
+    try {
+      pendingOrderNumber = await assignFailedOrderNumber(prisma, { cause: 'pending' });
+    } catch {
+      pendingOrderNumber = `ZBPP${Date.now().toString().slice(-8)}`;
+    }
 
-    // Normalize paymentMethod to valid DB constraint values ('razorpay' or 'cod')
     const normalizedPaymentMethod = paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay";
 
     const createdOrder = await prisma.webStoreOrder.create({
       data: {
-        orderNumber: fallbackOrderNumber, // DB trigger will override on Postgres; fallback used on other DBs
+        orderNumber: pendingOrderNumber,
         customerName,
         customerEmail,
         customerPhone: customerPhone || "",

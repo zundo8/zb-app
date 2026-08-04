@@ -92,6 +92,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           // Ignore parse errors
         }
 
+        // Include guest contact info from sessionStorage so the admin dashboard
+        // can identify cart owners immediately (e.g. from checkout form autosave)
+        let guestContact: Record<string, string> = {};
+        try {
+          const guestPhone = sessionStorage.getItem('zb_guest_phone') || localStorage.getItem('zb_guest_phone');
+          const guestEmail = sessionStorage.getItem('zb_guest_email') || localStorage.getItem('zb_guest_email');
+          if (guestPhone) guestContact.phone = guestPhone;
+          if (guestEmail) guestContact.email = guestEmail;
+        } catch (e) {
+          // Ignore storage errors
+        }
+
         const { getTrafficSource } = await import("@/lib/traffic-source");
         const trafficSource = getTrafficSource();
 
@@ -102,7 +114,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             items,
             guestId: deviceId,
             source: trafficSource,
-            ...geoDetails
+            ...geoDetails,
+            ...guestContact
           })
         });
       } catch (err) {
@@ -110,7 +123,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const timer = setTimeout(syncCartWithBackend, 1000);
+    // Fast 300ms debounce for near-instant real-time cart tracking in admin dashboard
+    const timer = setTimeout(syncCartWithBackend, 300);
     return () => clearTimeout(timer);
   }, [items]);
 

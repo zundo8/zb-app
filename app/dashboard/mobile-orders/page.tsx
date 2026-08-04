@@ -295,7 +295,7 @@ export default function MobileOrdersPage() {
                           <div>
                             <div className="flex items-center gap-3 mb-0.5">
                               <span className="text-[15px] font-black text-foreground tracking-tighter italic">
-                                #{order.orderNumber.replace('#', '')}
+                                {order.orderNumber.startsWith('ZB') ? order.orderNumber : `#${order.orderNumber.replace('#', '')}`}
                               </span>
                               {isShopifySynced && (
                                 <div className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[7px] font-black text-emerald-500 uppercase">Synced</div>

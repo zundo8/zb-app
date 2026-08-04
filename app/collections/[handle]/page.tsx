@@ -20,18 +20,18 @@ export async function generateMetadata({
   const { collection } = await fetchCollectionByHandle(params.handle, 1).catch(() => ({ collection: null }));
 
   const titleMap: Record<string, string> = {
-    'graphic-tees': 'Heavyweight Graphic Tees for Men | Premium Streetwear | Zica Bella®',
-    'tshirts-under-5000': 'Luxury Streetwear Tees Under ₹5000 | Zica Bella®',
-    'oversized-tees': 'Oversized Drop-Shoulder T-Shirts for Men | Heavyweight Blanks | Zica Bella®',
-    'tshirts': 'Acid Wash T-Shirts for Men | Vintage Streetwear Tees | Zica Bella®',
-    'authentic-streetwear': 'Heavyweight 240 GSM Cotton T-Shirts for Men | Premium Streetwear | Zica Bella®',
-    'jeans': 'Baggy Jeans & Wide Leg Denim for Men | Streetwear Denim | Zica Bella®',
-    'shorts': 'Denim Jorts & Baggy Shorts for Men | Streetwear Shorts | Zica Bella®',
-    'shirts': 'Oversized Streetwear Shirts for Men | Utility Shirts | Zica Bella®',
-    'jackets': 'Streetwear Jackets for Men | Leather & Denim Jackets | Zica Bella®',
-    'jersey': 'Oversized Streetwear Jerseys for Men | Graphic Jerseys | Zica Bella®',
-    'new-arrivals': 'New Streetwear Arrivals for Men | Latest Drops | Zica Bella®',
-    'best-sellers': 'Best Selling Streetwear for Men | Top Picks | Zica Bella®',
+    'graphic-tees': 'Heavyweight Graphic Tees',
+    'tshirts-under-5000': 'Streetwear Tees Under ₹5000',
+    'oversized-tees': 'Oversized Drop-Shoulder T-Shirts',
+    'tshirts': 'Acid Wash T-Shirts',
+    'authentic-streetwear': 'Heavyweight 240 GSM Cotton T-Shirts',
+    'jeans': 'Baggy Jeans & Wide Leg Denim',
+    'shorts': 'Denim Jorts & Baggy Shorts',
+    'shirts': 'Oversized Streetwear Shirts',
+    'jackets': 'Streetwear Jackets',
+    'jersey': 'Oversized Streetwear Jerseys',
+    'new-arrivals': 'New Streetwear Arrivals',
+    'best-sellers': 'Best Selling Streetwear',
   };
 
   const descMap: Record<string, string> = {
@@ -62,28 +62,16 @@ export async function generateMetadata({
   };
 
   const collectionTitle = collection?.title || params.handle.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  const title = titleMap[params.handle] ?? `${collectionTitle} | Luxury Streetwear Drop | Zica Bella®`;
+  const title = titleMap[params.handle] ?? collectionTitle;
   const description =
     descMap[params.handle] ??
     `Shop the ${collectionTitle} capsule collection at Zica Bella®. Featuring custom relaxed silhouettes, heavyweight premium blanks, and original subculture graphics. Designed in Italy, crafted in India.`;
-
-  const customKeywords = [
-    collectionTitle,
-    'Zica Bella collections',
-    'luxury streetwear India',
-    'oversized fit t-shirts',
-    'heavyweight hoodies',
-    'graphic print apparel',
-    'streetwear capsule drop',
-    'pre-shrunk cotton blanks',
-  ];
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com';
 
   return {
     title,
     description,
-    keywords: customKeywords.join(', '),
     alternates: {
       canonical: `${siteUrl}/collections/${params.handle}`,
     },

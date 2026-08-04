@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { enrichSingleItem } from "@/lib/enrichSize";
 
 export const dynamic = "force-dynamic";
 
@@ -50,45 +51,71 @@ export async function GET(req: Request) {
       })
     ]);
 
-    const formattedReturns = returns.map((r: any) => ({
-      returnRequestId: r.id,
-      orderId: r.orderId,
-      shopifyOrderId: r.order?.shopifyOrderId || r.order?.shopifyOrderName || r.order?.internalOrderNumber || r.orderId,
-      orderCreatedAt: r.order?.createdAt,
-      userId: r.customerId,
-      userName: r.order?.customer?.name || "Unknown",
-      userEmail: r.order?.customer?.email || "",
-      status: r.status,
-      estimatedRefund: r.estimatedRefund,
-      actualRefund: r.actualRefund,
-      createdAt: r.createdAt,
-      items: r.returns
-    }));
+    const formattedReturns = await Promise.all(
+      returns.map(async (r: any) => {
+        const enrichedItems = await Promise.all(
+          (r.returns || []).map(async (item: any) => {
+            const enriched = await enrichSingleItem({
+              ...item,
+              title: item.title || item.product?.title || "Product",
+              variantTitle: item.variantTitle || null,
+              size: item.size || null,
+            });
+            return enriched;
+          })
+        );
 
-    const formattedStandalone = standaloneReturns.map((sr: any) => ({
-      returnRequestId: sr.id,
-      orderId: sr.orderId,
-      shopifyOrderId: sr.order?.shopifyOrderId || sr.order?.shopifyOrderName || sr.order?.internalOrderNumber || sr.orderId,
-      orderCreatedAt: sr.order?.createdAt,
-      userId: sr.customerId,
-      userName: sr.order?.customer?.name || sr.customer?.name || "Unknown",
-      userEmail: sr.order?.customer?.email || sr.customer?.email || "",
-      status: sr.status.toLowerCase(),
-      estimatedRefund: sr.refundAmount || 0,
-      actualRefund: sr.refundAmount || null,
-      createdAt: sr.requestedAt || sr.updatedAt,
-      isStandalone: true,
-      items: [{
-        id: sr.id,
-        productId: sr.productId,
-        sku: sr.sku,
-        quantity: sr.quantity || 1,
-        reason: sr.reason,
-        refundAmount: sr.refundAmount,
-        status: sr.status,
-        product: sr.product
-      }]
-    }));
+        return {
+          returnRequestId: r.id,
+          orderId: r.orderId,
+          shopifyOrderId: r.order?.shopifyOrderName || r.order?.internalOrderNumber || (r.order?.shopifyOrderId && `#${r.order.shopifyOrderId.replace('#', '')}`) || r.orderId,
+          orderCreatedAt: r.order?.createdAt,
+          userId: r.customerId,
+          userName: r.order?.customer?.name || "Unknown",
+          userEmail: r.order?.customer?.email || "",
+          status: r.status,
+          estimatedRefund: r.estimatedRefund,
+          actualRefund: r.actualRefund,
+          createdAt: r.createdAt,
+          items: enrichedItems
+        };
+      })
+    );
+
+    const formattedStandalone = await Promise.all(
+      standaloneReturns.map(async (sr: any) => {
+        const rawItem = {
+          id: sr.id,
+          productId: sr.productId,
+          sku: sr.sku,
+          quantity: sr.quantity || 1,
+          reason: sr.reason,
+          refundAmount: sr.refundAmount,
+          status: sr.status,
+          product: sr.product,
+          title: sr.title || sr.product?.title || "Product",
+          variantTitle: sr.variantTitle || null,
+          size: sr.size || null,
+        };
+        const enrichedItem = await enrichSingleItem(rawItem);
+
+        return {
+          returnRequestId: sr.id,
+          orderId: sr.orderId,
+          shopifyOrderId: sr.order?.shopifyOrderName || sr.order?.internalOrderNumber || (sr.order?.shopifyOrderId && `#${sr.order.shopifyOrderId.replace('#', '')}`) || sr.orderId,
+          orderCreatedAt: sr.order?.createdAt,
+          userId: sr.customerId,
+          userName: sr.order?.customer?.name || sr.customer?.name || "Unknown",
+          userEmail: sr.order?.customer?.email || sr.customer?.email || "",
+          status: sr.status.toLowerCase(),
+          estimatedRefund: sr.refundAmount || 0,
+          actualRefund: sr.refundAmount || null,
+          createdAt: sr.requestedAt || sr.updatedAt,
+          isStandalone: true,
+          items: [enrichedItem]
+        };
+      })
+    );
 
     const combined = [...formattedReturns, ...formattedStandalone].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -144,7 +171,10 @@ export async function POST(req: Request) {
         sku: orderItem.sku,
         quantity: item.quantity || orderItem.quantity,
         reason: item.reason || "Admin manual return",
-        refundAmount: (orderItem.price * (item.quantity || orderItem.quantity))
+        refundAmount: (orderItem.price * (item.quantity || orderItem.quantity)),
+        variantTitle: orderItem.variantTitle,
+        size: orderItem.size,
+        title: orderItem.title,
       };
     }));
 
@@ -164,7 +194,10 @@ export async function POST(req: Request) {
               quantity: item.quantity,
               reason: item.reason,
               refundAmount: item.refundAmount,
-              status: "REQUESTED"
+              status: "REQUESTED",
+              variantTitle: item.variantTitle,
+              size: item.size,
+              title: item.title,
             }))
           }
         },

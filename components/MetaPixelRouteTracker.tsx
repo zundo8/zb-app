@@ -75,19 +75,8 @@ export function MetaPixelRouteTracker() {
       setClientCookie('_fbc', fbcVal, 90);
     }
 
-    // 4. Resolve client public IP (IPv6 preferred) in background — non-blocking.
-    // The cookie will be available for CAPI calls on this and subsequent page loads.
-    const cachedIp = getClientCookie('zb_client_ip');
-    if (!cachedIp) {
-      fetch('https://api64.ipify.org?format=json')
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data?.ip) {
-            setClientCookie('zb_client_ip', data.ip, 1);
-          }
-        })
-        .catch(() => {}); // silently ignore — proxy headers are fallback
-    }
+    // 4. Note: Client IP resolution relies on server CAPI proxy headers (x-forwarded-for) 
+    // to avoid redundant client-side network calls and CSP violations.
 
     // ─── STEP 2: Fire PageView IMMEDIATELY with sync-available data ───
 

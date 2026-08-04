@@ -237,6 +237,7 @@ export default function AnalyticsDashboard() {
   const [locationsError, setLocationsError] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductsData | null>(null);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
@@ -245,6 +246,7 @@ export default function AnalyticsDashboard() {
   const [activeProductTab, setActiveProductTab] = useState<"bestSelling" | "mostViewed" | "mostAddedToCart" | "productRates">("bestSelling");
   
   const abortRef = useRef<AbortController | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const fetchAll = useCallback(async (silent = false) => {
     // Cancel in-flight requests
@@ -252,7 +254,7 @@ export default function AnalyticsDashboard() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    if (!silent && !overview) {
+    if (!silent && !hasLoadedRef.current) {
       setLoading(true);
     } else if (silent) {
       setIsBackgroundRefreshing(true);
@@ -264,9 +266,13 @@ export default function AnalyticsDashboard() {
       ...(platform ? { platform } : {}),
     });
 
+    // Bypass server cache on explicit preset/platform changes (Item 4)
+    const overviewParams = new URLSearchParams(params);
+    if (!silent) overviewParams.set('bypassCache', 'true');
+
     try {
       const results = await Promise.allSettled([
-        fetch(`/api/admin/analytics/overview?${params}`, { signal: controller.signal }).then(r => r.json()),
+        fetch(`/api/admin/analytics/overview?${overviewParams}`, { signal: controller.signal }).then(r => r.json()),
         fetch(`/api/admin/analytics/charts?${params}`, { signal: controller.signal }).then(r => r.json()),
         fetch(`/api/admin/analytics/funnel?${params}`, { signal: controller.signal }).then(r => r.json()),
         fetch(`/api/admin/analytics/traffic?${params}`, { signal: controller.signal }).then(r => r.json()),
@@ -287,7 +293,10 @@ export default function AnalyticsDashboard() {
       const locData: LocationsData | null = getValue(results[5]);
       const prData: ProductsData | null = getValue(results[6]);
 
-      if (ovData) setOverview(ovData);
+      if (ovData) {
+        setOverview(ovData);
+        setOverviewError(ovData.error || null);
+      }
       if (chData) setCharts(chData);
       if (fnData) {
         setFunnel(fnData.funnel || []);
@@ -307,6 +316,7 @@ export default function AnalyticsDashboard() {
         setProductsError(prData.error || null);
       }
 
+      hasLoadedRef.current = true;
       setLastRefreshedAt(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     } catch (err: any) {
       if (err.name === "AbortError") return;
@@ -315,8 +325,10 @@ export default function AnalyticsDashboard() {
       setLoading(false);
       setIsBackgroundRefreshing(false);
     }
-  }, [dateRange, platform, overview]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, platform]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchAll(false); }, [dateRange, platform]);
 
   // Background SWR auto-refresh every 15s for real live data sync
@@ -511,9 +523,17 @@ export default function AnalyticsDashboard() {
         )}
       </div>
 
-      {/* ─── Overview Section Error ───────────────────────── */}
-      {overview?.error && (
-        <SectionError message={overview.error} onRetry={() => fetchAll(false)} />
+      {/* ─── Overview Error Banner (Item 7) ───────────────── */}
+      {overviewError && (
+        <div className="flex items-center justify-between p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span>Analytics data may be incomplete: {overviewError}</span>
+          </div>
+          <button onClick={() => fetchAll(false)} className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 rounded-lg text-[10px] font-semibold transition-colors">
+            Retry
+          </button>
+        </div>
       )}
 
       {/* ─── KPI Cards / Loading Skeletons ──────────────── */}

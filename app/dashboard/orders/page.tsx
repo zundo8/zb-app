@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
+import { formatDisplayOrderNumber } from "@/lib/formatOrderNumber";
+import VariantBadge from "@/components/admin/VariantBadge";
+import InlineSizeSelector from "@/components/admin/InlineSizeSelector";
 
 interface OrderItem {
   id: string;
@@ -49,6 +52,8 @@ interface Order {
   items: OrderItem[];
   shipments: any[];
   internalOrderNumber?: string | null;
+  displayOrderNumber?: string | null;
+  shopifyOrderName?: string | null;
   shopifySyncStatus?: string | null;
   shopifySyncError?: string | null;
   discountAmount?: number;
@@ -155,6 +160,25 @@ export default function OrdersPage() {
       setIsRefreshing(false);
     }
   }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab, page, orders.length]);
+
+  const handleUpdateOrderItemSize = async (orderItemId: string, newSize: string) => {
+    try {
+      const res = await fetch("/api/admin/orders/update-size", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderItemId, size: newSize }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update order item size");
+      }
+      setToast("Size updated successfully");
+      fetchOrders(true);
+    } catch (e: any) {
+      setToast(e.message || "Failed to update order item size");
+      throw e;
+    }
+  };
 
   useEffect(() => {
     setPage(1);
@@ -412,8 +436,23 @@ export default function OrdersPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-[14px] font-bold text-foreground tracking-tighter">
-                          {order.internalOrderNumber || (order.shopifyOrderId && `#${order.shopifyOrderId.replace('#', '')}`) || `#${order.id.slice(-6).toUpperCase()}`}
+                          {formatDisplayOrderNumber(order.displayOrderNumber || order.internalOrderNumber || order.shopifyOrderName || order.shopifyOrderId || order.id)}
                         </span>
+                        {order.shopifyOrderName && order.internalOrderNumber && order.shopifyOrderName !== order.internalOrderNumber && (
+                          <span className="text-[10px] font-medium text-foreground/40">
+                            ({order.shopifyOrderName})
+                          </span>
+                        )}
+                        {order.internalOrderNumber?.startsWith('ZBPF') && (
+                          <div className="px-1.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-[8px] font-bold text-rose-500 uppercase tracking-tighter flex items-center gap-1">
+                            FAILED
+                          </div>
+                        )}
+                        {order.internalOrderNumber?.startsWith('ZBPP') && (
+                          <div className="px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-[8px] font-bold text-amber-500 uppercase tracking-tighter flex items-center gap-1">
+                            PENDING
+                          </div>
+                        )}
                         {isMobile && (
                           <div className="px-1.5 py-0.5 rounded-md bg-foreground/5 border border-foreground/10 text-[8px] font-bold text-foreground/30 uppercase tracking-tighter">
                             APP
@@ -455,14 +494,17 @@ export default function OrdersPage() {
                         {order.items.slice(0, 2).map((item, idx) => {
                           const vInfo = extractItemVariantAndSize(item.title, item.sku, (item as any).variantTitle, (item as any).size);
                           const resolvedSize = (item as any).size || vInfo.size;
+                          const resolvedVariantTitle = (item as any).variantTitle || vInfo.variant;
                           return (
-                            <span key={idx} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-foreground/5 text-[9px] text-foreground/70 border border-foreground/5 font-mono">
+                            <span key={idx} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-foreground/5 text-[9px] text-foreground/70 border border-foreground/5 font-mono" onClick={(e) => e.stopPropagation()}>
                               <span className="font-semibold text-foreground truncate max-w-[100px]">{item.title}</span>
-                              {resolvedSize && (
-                                <span className="font-extrabold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 rounded">
-                                  {resolvedSize}
-                                </span>
-                              )}
+                              <InlineSizeSelector
+                                size={resolvedSize}
+                                variantTitle={resolvedVariantTitle}
+                                itemId={item.id}
+                                itemType="orderItem"
+                                onUpdateSize={(sz) => handleUpdateOrderItemSize(item.id, sz)}
+                              />
                               <span className="text-foreground/40">x{item.quantity}</span>
                             </span>
                           );

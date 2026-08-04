@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import { paymentLog } from '@/lib/payment-logger';
 import { recoverOrphanedRazorpayOrder } from '@/lib/services/razorpayRecoveryService';
 import { notifyAdminTeam } from '@/lib/services/zohoMailService';
+import { assignUniversalOrderNumber, assignFailedOrderNumber, isFailedPrefixNumber } from '@/lib/orderNumber';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +89,15 @@ export async function POST(req: Request) {
         const targetPaymentStatus = isCOD ? "cod_upfront_paid" : "paid";
 
         if (order.paymentStatus !== targetPaymentStatus && order.paymentStatus !== 'paid') {
+          const currentTags = order.tags || '';
+          const cleanedTags = currentTags
+            .split(',')
+            .map((t: string) => t.trim())
+            .filter((t: string) => Boolean(t) && t !== 'payment_pending' && t !== 'Order creation in process')
+            .concat(isCOD ? ['cod_upfront_paid'] : ['paid'])
+            .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+            .join(', ');
+
           await prisma.order.update({
             where: { id: order.id },
             data: {
@@ -95,14 +105,51 @@ export async function POST(req: Request) {
               razorpayPaymentId,
               paymentCapturedAt: new Date(),
               status: (order.status === 'PENDING' || order.status === 'awaiting_approval' || order.status === 'payment_pending') ? 'OPEN' : order.status,
+              tags: cleanedTags,
+              note: isCOD ? `COD Order (₹${payment.amount / 100} upfront fee paid via Razorpay - Payment ID: ${razorpayPaymentId}) | InternalOrderId: ${order.id}` : order.note,
             },
           });
+
+          // Promote: if order has a failed/pending prefix number, assign a real ZB number
+          if (isFailedPrefixNumber(order.internalOrderNumber)) {
+            try {
+              const oldNumber = order.internalOrderNumber;
+              const newNumber = await assignUniversalOrderNumber(prisma);
+              const previousNumbers = [order.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+              await prisma.order.update({
+                where: { id: order.id },
+                data: {
+                  internalOrderNumber: newNumber,
+                  previousOrderNumbers: previousNumbers || null,
+                  tags: (cleanedTags || '').replace(`zb-order-${oldNumber}`, `zb-order-${newNumber}`),
+                },
+              });
+              // Update matching WebStoreOrder
+              await prisma.webStoreOrder.updateMany({
+                where: { orderNumber: oldNumber! },
+                data: { orderNumber: newNumber },
+              });
+              // Update matching MobileOrder
+              await prisma.mobileOrder.updateMany({
+                where: { orderNumber: oldNumber! },
+                data: { orderNumber: newNumber },
+              });
+              paymentLog('info', 'webhook', { message: `Promoted order ${oldNumber} → ${newNumber}` });
+            } catch (promoteErr: any) {
+              console.error(`[Razorpay Webhook] Failed to promote order number:`, promoteErr.message);
+            }
+          }
 
           await prisma.webStoreOrder.updateMany({
             where: { razorpayOrderId },
             data: {
               paymentStatus: targetPaymentStatus,
               razorpayPaymentId,
+              ...(isCOD ? {
+                codUpfrontPaid: String(payment.amount / 100),
+                codUpfrontPaymentId: razorpayPaymentId,
+                notes: `COD Order (₹${payment.amount / 100} upfront fee paid via Razorpay) | Order: ${order.internalOrderNumber}`
+              } : {})
             },
           });
 
@@ -197,6 +244,26 @@ export async function POST(req: Request) {
             paymentFailureReason: failureReason,
           },
         });
+
+        // Assign a ZBPF failed prefix number if the order doesn't have one yet
+        try {
+          const failedOrder = await prisma.order.findFirst({ where: { razorpayOrderId } });
+          if (failedOrder && !failedOrder.internalOrderNumber?.startsWith('ZBPF')) {
+            const oldNumber = failedOrder.internalOrderNumber;
+            const failedNumber = await assignFailedOrderNumber(prisma, { cause: 'payment_failed' });
+            const previousNumbers = [failedOrder.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+            await prisma.order.update({
+              where: { id: failedOrder.id },
+              data: {
+                internalOrderNumber: failedNumber,
+                previousOrderNumbers: oldNumber ? (previousNumbers || null) : null,
+              },
+            });
+          }
+        } catch (failedNumErr: any) {
+          console.error('[Razorpay Webhook] Failed to assign ZBPF number:', failedNumErr.message);
+        }
+
         await prisma.webStoreOrder.updateMany({
           where: { razorpayOrderId },
           data: {

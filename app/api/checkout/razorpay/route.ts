@@ -4,6 +4,7 @@ import prisma from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { resolveAndSyncCustomerAddress } from "@/lib/services/customerService";
 import { toMinorUnits } from "@/lib/global-pricing";
+import { assignFailedOrderNumber } from "@/lib/orderNumber";
 
 export const dynamic = 'force-dynamic';
 
@@ -49,11 +50,13 @@ export async function POST(req: Request) {
       items,
       subtotal,
       total,
+      shipping = 0,
       paymentMethod = 'razorpay',
       codFee = 0,
       couponCode,
       couponDiscount = 0,
       storeCreditAmount = 0,
+      checkoutSessionId,
     } = await req.json();
 
     let finalCouponCode = couponCode ? String(couponCode).trim().toUpperCase() : null;
@@ -92,8 +95,14 @@ export async function POST(req: Request) {
       }
     }
 
+    const rawSubtotal = Number(subtotal || amount || 0);
+    const rawShipping = Number(shipping || 0);
+    const rawStoreCredit = Number(storeCreditAmount || 0);
+    const calculatedTotal = Math.max(0, rawSubtotal + rawShipping - finalCouponDiscount - rawStoreCredit);
+    const chargeAmount = isCodOrder ? (Number(codFee) > 0 ? Number(codFee) : Number(amount)) : calculatedTotal;
+
     // Validate required fields
-    if (!amount || typeof amount !== "number" || amount <= 0) {
+    if (!chargeAmount || typeof chargeAmount !== "number" || chargeAmount <= 0) {
       return NextResponse.json(
         { error: "Invalid amount. Must be a positive number." },
         { status: 400 }
@@ -118,7 +127,7 @@ export async function POST(req: Request) {
 
     const currencyCode = (currency || "INR").toUpperCase();
     const options = {
-      amount: toMinorUnits(amount, currencyCode),
+      amount: toMinorUnits(chargeAmount, currencyCode),
       currency: currencyCode,
       receipt: receipt || `rcpt_${Date.now()}`,
       notes: notes || {},
@@ -129,7 +138,7 @@ export async function POST(req: Request) {
     let localOrderId: string | null = null;
     let universalOrderNumber: string | null = null;
 
-    // ─── Pre-Create Order & WebStoreOrder in Local DB ───
+    // ─── Pre-Create or Update Pending Order & WebStoreOrder in Local DB ───
     if (address && items && Array.isArray(items) && items.length > 0) {
       try {
         const shop = await prisma.shop.findFirst();
@@ -137,28 +146,7 @@ export async function POST(req: Request) {
           // 1. Save Customer & Address
           const { customer } = await resolveAndSyncCustomerAddress(shop.id, address);
 
-          // 2. Generate Universal Internal Order Number
-          const date = new Date();
-          const yy = String(date.getFullYear()).slice(-2);
-          const mm = String(date.getMonth() + 1).padStart(2, '0');
-          const yymm = `${yy}${mm}`;
-
-          try {
-            const seqRes: any[] = await prisma.$queryRawUnsafe(`
-              INSERT INTO order_sequences (year_month, current_value)
-              VALUES ($1, 1)
-              ON CONFLICT (year_month)
-              DO UPDATE SET current_value = order_sequences.current_value + 1
-              RETURNING current_value;
-            `, yymm);
-            const seqVal = seqRes[0].current_value;
-            universalOrderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
-          } catch (seqErr: any) {
-            console.error('[Razorpay Checkout] Failed to generate order number:', seqErr.message);
-            universalOrderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
-          }
-
-          // 3. Resolve Line Items
+          // 2. Resolve Line Items
           const resolvedItems = await Promise.all(items.map(async (item: any, index: number) => {
             let dbProductId = null;
             let image = item.image || null;
@@ -191,94 +179,187 @@ export async function POST(req: Request) {
           const fullStreet = [address.houseNo, address.street, address.landmark, address.apartment].filter(Boolean).join(", ");
           const checkoutAddress = { ...address, street: fullStreet || address.street };
 
-          // 4. Create Pending Order
-          const localOrder = await prisma.order.create({
-            data: {
-              shopId: shop.id,
-              shopifyOrderId: null,
-              customerId: customer.id,
-              status: "payment_pending",
-              totalPrice: total || amount,
-              subtotalPrice: subtotal || amount,
-              totalTax: 0,
-              currency: currencyCode,
-              displayCountry: displayCountry || "IN",
-              paymentStatus: "pending",
-              fulfillmentStatus: "unfulfilled",
-              deliveryStatus: "pending",
-              shippingAddress: JSON.stringify(checkoutAddress),
-              billingAddress: JSON.stringify(checkoutAddress),
-              razorpayOrderId: rzpOrder.id,
-              razorpayPaymentId: null,
-              paymentMethod: paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay",
-              paymentCapturedAt: null,
-              orderType: "WEB_STORE",
-              tags: `WebStoreOrder, Web, ${paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay"}, zb-order-${universalOrderNumber}, payment_pending, Order creation in process`,
-              note: storeCreditAmount > 0
-                ? `Order creation in process - ₹${storeCreditAmount} Store Credit applied - Remaining Payment pending`
-                : "Order creation in process - Payment pending",
-              discountCode: finalCouponCode || null,
-              discountAmount: Number(finalCouponDiscount) || 0,
-              storeCreditAmount: Number(storeCreditAmount) || 0,
-              internalOrderNumber: universalOrderNumber,
-              shopifySyncStatus: 'failed',
-              shopifySyncError: 'Order pre-created at payment initiation; payment pending',
-              items: {
-                create: resolvedItems.map((item: any) => ({
-                  shopifyLineItemId: item.shopifyLineItemId,
-                  productId: item.productId,
-                  title: item.title,
-                  quantity: item.quantity,
-                  price: item.price,
-                  sku: item.sku,
-                  image: item.image
-                }))
-              }
-            }
-          });
-
-          localOrderId = localOrder.id;
-
-          // 5. Create Pending WebStoreOrder for Web Store Dashboard
-          try {
-            await prisma.webStoreOrder.create({
-              data: {
-                orderNumber: universalOrderNumber,
-                customerName: address.name,
-                customerEmail: address.email,
-                customerPhone: address.phone || "",
-                shippingAddress: checkoutAddress as any,
-                items: items.map((item: any) => ({
-                  product_id: item.productId,
-                  variant_id: item.variantId || "",
-                  title: item.title,
-                  image_url: item.image || "",
-                  quantity: item.quantity,
-                  price: Number(item.price) || 0,
-                  size: item.size || ""
-                })) as any,
-                subtotal: subtotal || amount,
-                shippingCharge: 0,
-                discountCode: couponCode || null,
-                discountAmount: Number(couponDiscount) || 0,
-                storeCreditAmount: Number(storeCreditAmount) || 0,
-                totalAmount: total || amount,
-                paymentStatus: "payment_pending",
-                paymentMethod: paymentMethod.toLowerCase() === "cod" ? "cod" : "razorpay",
-                razorpayOrderId: rzpOrder.id,
-                razorpayPaymentId: null,
-                fulfillmentStatus: "unfulfilled",
-                notes: storeCreditAmount > 0
-                  ? `Order creation in process - ₹${storeCreditAmount} Store Credit applied - Remaining Payment pending`
-                  : "Order creation in process - Payment pending",
-                source: "web"
-              }
+          // 3. Check for existing pending order in current checkout session
+          let existingPendingOrder: any = null;
+          if (checkoutSessionId) {
+            existingPendingOrder = await prisma.order.findFirst({
+              where: {
+                status: 'payment_pending',
+                tags: { contains: `cs_${checkoutSessionId}` },
+              },
+              orderBy: { createdAt: 'desc' },
             });
-          } catch (wsErr: any) {
-            console.error("[Razorpay Pre-Create] WebStoreOrder creation notice:", wsErr.message);
           }
 
-          console.log(`[Razorpay Pre-Create] Successfully pre-created pending order ${universalOrderNumber} (${localOrder.id}) with ₹${storeCreditAmount} store credit for Razorpay order ${rzpOrder.id}`);
+          if (existingPendingOrder) {
+            universalOrderNumber = existingPendingOrder.internalOrderNumber;
+            const updatedOrder = await prisma.order.update({
+              where: { id: existingPendingOrder.id },
+              data: {
+                totalPrice: calculatedTotal,
+                subtotalPrice: rawSubtotal,
+                shippingAddress: JSON.stringify(checkoutAddress),
+                billingAddress: JSON.stringify(checkoutAddress),
+                razorpayOrderId: rzpOrder.id,
+                paymentMethod: isCodOrder ? "cod" : "razorpay",
+                discountCode: finalCouponCode || null,
+                discountAmount: Number(finalCouponDiscount) || 0,
+                storeCreditAmount: Number(rawStoreCredit) || 0,
+                note: rawStoreCredit > 0
+                  ? `Order creation in process - ₹${rawStoreCredit} Store Credit applied - Remaining Payment pending`
+                  : "Order creation in process - Payment pending",
+              }
+            });
+            localOrderId = updatedOrder.id;
+
+            await prisma.lineItem.deleteMany({ where: { orderId: updatedOrder.id } });
+            await prisma.lineItem.createMany({
+              data: resolvedItems.map((item: any) => ({
+                orderId: updatedOrder.id,
+                shopifyLineItemId: item.shopifyLineItemId,
+                productId: item.productId,
+                title: item.title,
+                quantity: item.quantity,
+                price: item.price,
+                sku: item.sku,
+                image: item.image
+              }))
+            });
+
+            // Update matching WebStoreOrder if present
+            const existingWsOrder = await prisma.webStoreOrder.findFirst({
+              where: {
+                orderNumber: universalOrderNumber,
+                paymentStatus: 'payment_pending',
+              }
+            });
+
+            if (existingWsOrder) {
+              await prisma.webStoreOrder.update({
+                where: { id: existingWsOrder.id },
+                data: {
+                  customerName: address.name,
+                  customerEmail: address.email,
+                  customerPhone: address.phone || "",
+                  shippingAddress: checkoutAddress as any,
+                  items: items.map((item: any) => ({
+                    product_id: item.productId,
+                    variant_id: item.variantId || "",
+                    title: item.title,
+                    image_url: item.image || "",
+                    quantity: item.quantity,
+                    price: Number(item.price) || 0,
+                    size: item.size || ""
+                  })) as any,
+                  subtotal: rawSubtotal,
+                  discountCode: finalCouponCode || null,
+                  discountAmount: Number(finalCouponDiscount) || 0,
+                  storeCreditAmount: Number(rawStoreCredit) || 0,
+                  totalAmount: calculatedTotal,
+                  paymentMethod: isCodOrder ? "cod" : "razorpay",
+                  razorpayOrderId: rzpOrder.id,
+                }
+              });
+            }
+            console.log(`[Razorpay Pre-Create] Updated existing pending order ${universalOrderNumber} (${localOrderId}) for session cs_${checkoutSessionId}`);
+          } else {
+            // Generate pending order number (real ZB number assigned at payment success)
+            try {
+              universalOrderNumber = await assignFailedOrderNumber(prisma, { cause: 'pending' });
+            } catch (seqErr: any) {
+              console.error('[Razorpay Checkout] Failed to generate pending order number:', seqErr.message);
+              universalOrderNumber = `ZBPP${Date.now().toString().slice(-8)}`;
+            }
+
+            const sessionTag = checkoutSessionId ? `, cs_${checkoutSessionId}` : '';
+            const localOrder = await prisma.order.create({
+              data: {
+                shopId: shop.id,
+                shopifyOrderId: null,
+                customerId: customer.id,
+                status: "payment_pending",
+                totalPrice: calculatedTotal,
+                subtotalPrice: rawSubtotal,
+                totalTax: 0,
+                currency: currencyCode,
+                displayCountry: displayCountry || "IN",
+                paymentStatus: "pending",
+                fulfillmentStatus: "unfulfilled",
+                deliveryStatus: "pending",
+                shippingAddress: JSON.stringify(checkoutAddress),
+                billingAddress: JSON.stringify(checkoutAddress),
+                razorpayOrderId: rzpOrder.id,
+                razorpayPaymentId: null,
+                paymentMethod: isCodOrder ? "cod" : "razorpay",
+                paymentCapturedAt: null,
+                orderType: "WEB_STORE",
+                tags: `WebStoreOrder, Web, ${isCodOrder ? "cod" : "razorpay"}, zb-order-${universalOrderNumber}, payment_pending, Order creation in process${sessionTag}`,
+                note: rawStoreCredit > 0
+                  ? `Order creation in process - ₹${rawStoreCredit} Store Credit applied - Remaining Payment pending`
+                  : "Order creation in process - Payment pending",
+                discountCode: finalCouponCode || null,
+                discountAmount: Number(finalCouponDiscount) || 0,
+                storeCreditAmount: Number(rawStoreCredit) || 0,
+                internalOrderNumber: universalOrderNumber,
+                shopifySyncStatus: 'failed',
+                shopifySyncError: 'Order pre-created at payment initiation; payment pending',
+                items: {
+                  create: resolvedItems.map((item: any) => ({
+                    shopifyLineItemId: item.shopifyLineItemId,
+                    productId: item.productId,
+                    title: item.title,
+                    quantity: item.quantity,
+                    price: item.price,
+                    sku: item.sku,
+                    image: item.image
+                  }))
+                }
+              }
+            });
+
+            localOrderId = localOrder.id;
+
+            // Create Pending WebStoreOrder for Web Store Dashboard
+            try {
+              await prisma.webStoreOrder.create({
+                data: {
+                  orderNumber: universalOrderNumber,
+                  customerName: address.name,
+                  customerEmail: address.email,
+                  customerPhone: address.phone || "",
+                  shippingAddress: checkoutAddress as any,
+                  items: items.map((item: any) => ({
+                    product_id: item.productId,
+                    variant_id: item.variantId || "",
+                    title: item.title,
+                    image_url: item.image || "",
+                    quantity: item.quantity,
+                    price: Number(item.price) || 0,
+                    size: item.size || ""
+                  })) as any,
+                  subtotal: rawSubtotal,
+                  shippingCharge: 0,
+                  discountCode: finalCouponCode || null,
+                  discountAmount: Number(finalCouponDiscount) || 0,
+                  storeCreditAmount: Number(rawStoreCredit) || 0,
+                  totalAmount: calculatedTotal,
+                  paymentStatus: "payment_pending",
+                  paymentMethod: isCodOrder ? "cod" : "razorpay",
+                  razorpayOrderId: rzpOrder.id,
+                  razorpayPaymentId: null,
+                  fulfillmentStatus: "unfulfilled",
+                  notes: rawStoreCredit > 0
+                    ? `Order creation in process - ₹${rawStoreCredit} Store Credit applied - Remaining Payment pending`
+                    : "Order creation in process - Payment pending",
+                  source: "web"
+                }
+              });
+            } catch (wsErr: any) {
+              console.error("[Razorpay Pre-Create] WebStoreOrder creation notice:", wsErr.message);
+            }
+
+            console.log(`[Razorpay Pre-Create] Successfully pre-created pending order ${universalOrderNumber} (${localOrder.id}) with ₹${rawStoreCredit} store credit for Razorpay order ${rzpOrder.id}`);
+          }
         }
       } catch (dbErr: any) {
         console.warn("[Razorpay Pre-Create] Warning pre-creating order:", dbErr.message);

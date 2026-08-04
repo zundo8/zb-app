@@ -8,6 +8,7 @@ import {
 } from '@/lib/shopify-admin';
 import prisma from '@/lib/db';
 import { registerWebhooks } from '@/lib/shopify-webhooks';
+import { extractSizeFromVariant } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -331,6 +332,7 @@ export async function POST() {
               billingAddress: o.billing_address ? JSON.stringify(o.billing_address) : null,
               note: o.note || null,
               tags: o.tags || null,
+              shopifyOrderName: o.name || null,
               createdAt: new Date(o.created_at),
               razorpayOrderId: webStoreOrder?.razorpayOrderId || existingLocalOrder?.razorpayOrderId || null,
               razorpayPaymentId: webStoreOrder?.razorpayPaymentId || existingLocalOrder?.razorpayPaymentId || null,
@@ -340,6 +342,7 @@ export async function POST() {
               discountCode: discountCode,
             },
             update: {
+              shopifyOrderName: o.name || null,
               status: finalStatus, // Always update status from sync if it's in Shopify
               totalPrice: finalTotalPrice,
               subtotalPrice: finalSubtotalPrice,
@@ -392,6 +395,10 @@ export async function POST() {
             // Resolve image for this item
             const itemImage = shopifyProductId ? productImageMap.get(shopifyProductId) : null;
 
+            const vTitle = item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : null;
+            const vId = item.variant_id ? String(item.variant_id) : null;
+            const itemSize = extractSizeFromVariant(item.variant_title, item.sku, item.title);
+
             await prisma.orderItem.upsert({
               where: { shopifyLineItemId: String(item.id) },
               create: {
@@ -403,12 +410,18 @@ export async function POST() {
                 price: parseFloat(item.price || '0'),
                 sku: item.sku || null,
                 image: itemImage || null,
+                variantId: vId,
+                variantTitle: vTitle,
+                size: itemSize,
               },
               update: {
                 quantity: item.quantity,
                 price: parseFloat(item.price || '0'),
                 sku: item.sku || null,
                 image: itemImage || null,
+                variantId: vId,
+                variantTitle: vTitle,
+                size: itemSize,
               },
             });
           }));

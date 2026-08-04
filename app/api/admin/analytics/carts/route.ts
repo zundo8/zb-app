@@ -13,14 +13,15 @@ async function handler(req: Request) {
 
   const now = new Date();
   const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-  const endDate = to ? new Date(to) : now;
+  const rawEnd = to ? new Date(to) : now;
+  const endDate = rawEnd > now ? now : rawEnd;
   const dateFilter = { gte: startDate, lte: endDate };
 
   // Cart status breakdown
   const [totalCarts, activeCarts, abandonedCarts, convertedCarts, mergedCarts] = await Promise.all([
     prisma.cart.count({ where: { createdAt: dateFilter } }),
     prisma.cart.count({ where: { status: 'active', createdAt: dateFilter } }),
-    prisma.cart.count({ where: { status: 'abandoned', createdAt: dateFilter } }),
+    prisma.cart.count({ where: { status: 'abandoned', abandonedAt: dateFilter } }),
     prisma.cart.count({ where: { status: 'converted', createdAt: dateFilter } }),
     prisma.cart.count({ where: { status: 'merged', createdAt: dateFilter } }),
   ]);
@@ -28,7 +29,7 @@ async function handler(req: Request) {
   // Cart value aggregations
   const [activeCartValue, abandonedCartValue, convertedCartValue] = await Promise.all([
     prisma.cart.aggregate({ where: { status: 'active', createdAt: dateFilter }, _sum: { subtotal: true }, _avg: { subtotal: true } }),
-    prisma.cart.aggregate({ where: { status: 'abandoned', createdAt: dateFilter }, _sum: { subtotal: true }, _avg: { subtotal: true } }),
+    prisma.cart.aggregate({ where: { status: 'abandoned', abandonedAt: dateFilter }, _sum: { subtotal: true }, _avg: { subtotal: true } }),
     prisma.cart.aggregate({ where: { status: 'converted', createdAt: dateFilter }, _sum: { subtotal: true }, _avg: { subtotal: true } }),
   ]);
 

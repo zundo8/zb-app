@@ -1,4 +1,5 @@
 import prisma from '@/lib/db';
+import { assignUniversalOrderNumber } from '@/lib/orderNumber';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import Razorpay from 'razorpay';
 import { sendOrderConfirmationEmail } from '@/lib/services/orderEmailService';
@@ -148,26 +149,13 @@ export async function recoverOrphanedRazorpayOrder(options: RecoveryOptions): Pr
       });
     }
 
-    // 4. Generate Universal Internal Order Number
-    const date = new Date();
-    const yy = String(date.getFullYear()).slice(-2);
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const yymm = `${yy}${mm}`;
-
+    // 4. Generate Universal Internal Order Number (successful recovery)
     let universalOrderNumber = '';
     try {
-      const seqRes: any[] = await prisma.$queryRawUnsafe(`
-        INSERT INTO order_sequences (year_month, current_value)
-        VALUES ($1, 1)
-        ON CONFLICT (year_month)
-        DO UPDATE SET current_value = order_sequences.current_value + 1
-        RETURNING current_value;
-      `, yymm);
-      const seqVal = seqRes[0].current_value;
-      universalOrderNumber = `ZB-${yymm}-${String(seqVal).padStart(5, '0')}`;
+      universalOrderNumber = await assignUniversalOrderNumber(prisma);
     } catch (seqErr: any) {
-      console.error('[RecoveryService] Failed to generate universal internal order number:', seqErr.message);
-      universalOrderNumber = `ZB-${yymm}-${Math.floor(10000 + Math.random() * 90000)}`;
+      console.error('[RecoveryService] Failed to generate universal order number:', seqErr.message);
+      universalOrderNumber = `ZB${Date.now().toString().slice(-8)}`;
     }
 
     // 5. Line items configuration

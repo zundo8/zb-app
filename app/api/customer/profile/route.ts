@@ -142,7 +142,7 @@ export async function GET() {
           }
         });
       }
-      return webStoreOrder?.orderNumber || (orderObj.shopifyOrderId && !orderObj.shopifyOrderId.startsWith('app_pending_') ? orderObj.shopifyOrderId : `#ZB${orderObj.id.slice(-5).toUpperCase()}`);
+      return orderObj.internalOrderNumber || webStoreOrder?.orderNumber || (orderObj.shopifyOrderId && !orderObj.shopifyOrderId.startsWith('app_pending_') ? orderObj.shopifyOrderId : `#ZB${orderObj.id.slice(-5).toUpperCase()}`);
     }
 
     // Enrich all customer orders

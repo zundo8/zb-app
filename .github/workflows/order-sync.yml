@@ -1,0 +1,17 @@
+name: Order Sync Scheduler
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-order-sync:
+    name: Ping Order Sync Cron
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping Sync Webhook
+        run: |
+          curl --fail-with-body -sS -m 30 -X GET "https://app.zicabella.com/api/cron/sync-pending-orders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
