@@ -25,18 +25,59 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { status } = body;
+    const { status, rating, title, body: reviewBody, verifiedPurchase } = body;
 
-    if (!status || !['VISIBLE', 'HIDDEN'].includes(status)) {
+    const dataToUpdate: any = {};
+
+    if (status) {
+      if (!['VISIBLE', 'HIDDEN'].includes(status)) {
+        return NextResponse.json(
+          { error: 'status must be VISIBLE or HIDDEN' },
+          { status: 400 }
+        );
+      }
+      dataToUpdate.status = status;
+    }
+
+    if (rating !== undefined) {
+      const ratingNum = Number(rating);
+      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+        return NextResponse.json(
+          { error: 'Rating must be an integer between 1 and 5' },
+          { status: 400 }
+        );
+      }
+      dataToUpdate.rating = Math.round(ratingNum);
+    }
+
+    if (title !== undefined) {
+      dataToUpdate.title = title ? title.trim() : null;
+    }
+
+    if (reviewBody !== undefined) {
+      if (typeof reviewBody !== 'string' || reviewBody.trim().length < 3) {
+        return NextResponse.json(
+          { error: 'Review body must be at least 3 characters long' },
+          { status: 400 }
+        );
+      }
+      dataToUpdate.body = reviewBody.trim();
+    }
+
+    if (verifiedPurchase !== undefined) {
+      dataToUpdate.verifiedPurchase = Boolean(verifiedPurchase);
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
       return NextResponse.json(
-        { error: 'status must be VISIBLE or HIDDEN' },
+        { error: 'No valid update fields provided' },
         { status: 400 }
       );
     }
 
     const review = await prisma.productReview.update({
       where: { id: params.id },
-      data: { status },
+      data: dataToUpdate,
     });
 
     return NextResponse.json({ success: true, review });

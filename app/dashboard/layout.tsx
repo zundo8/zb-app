@@ -28,6 +28,7 @@ import {
   MessageSquare,
   Smartphone,
   Building2,
+  Star,
   Layers2,
   ArrowDownUp,
   ClipboardList,
@@ -212,6 +213,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Mobile Orders", href: "/dashboard/mobile-orders", icon: Smartphone, module: 'MOBILE_ORDERS' },
     { name: "Customers", href: "/dashboard/customers", icon: Users, module: 'CUSTOMERS' },
     { name: "Products", href: "/dashboard/products", icon: Layers2, module: 'PRODUCTS' },
+    { name: "Product Reviews", href: "/dashboard/reviews", icon: Star, module: 'PRODUCTS' },
     { name: "Guide", href: "/dashboard/guide", icon: FileText },
   ];
 
