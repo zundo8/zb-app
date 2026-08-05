@@ -2,6 +2,22 @@ import { PrismaClient } from '@prisma/client'
 import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 
+export function getPhoneLast10(phone?: string | null): string | null {
+  if (!phone || typeof phone !== 'string') return null;
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : null;
+}
+
+function attachPhoneLast10(data: any) {
+  if (!data || typeof data !== 'object') return;
+  if (data.phone !== undefined) {
+    data.phoneLast10 = getPhoneLast10(data.phone);
+  }
+  if (data.customerPhone !== undefined) {
+    data.phoneLast10 = getPhoneLast10(data.customerPhone);
+  }
+}
+
 // Mock Prisma client for when database is unavailable
 const createMockPrismaClient = (reason: string) => {
   console.warn(`[DB] Using mock Prisma client. Reason: ${reason}`);
@@ -125,6 +141,43 @@ const prismaClientSingleton = () => {
 
     const extendedClient = client.$extends({
       query: {
+        $allModels: {
+          async create({ model, args, query }) {
+            if (['Customer', 'WebStoreCustomer', 'WebStoreOrder', 'Address', 'Cart'].includes(model)) {
+              attachPhoneLast10(args.data);
+            }
+            return query(args);
+          },
+          async update({ model, args, query }) {
+            if (['Customer', 'WebStoreCustomer', 'WebStoreOrder', 'Address', 'Cart'].includes(model)) {
+              attachPhoneLast10(args.data);
+            }
+            return query(args);
+          },
+          async upsert({ model, args, query }) {
+            if (['Customer', 'WebStoreCustomer', 'WebStoreOrder', 'Address', 'Cart'].includes(model)) {
+              if (args.create) attachPhoneLast10(args.create);
+              if (args.update) attachPhoneLast10(args.update);
+            }
+            return query(args);
+          },
+          async createMany({ model, args, query }) {
+            if (['Customer', 'WebStoreCustomer', 'WebStoreOrder', 'Address', 'Cart'].includes(model)) {
+              if (Array.isArray(args.data)) {
+                args.data.forEach(attachPhoneLast10);
+              } else {
+                attachPhoneLast10(args.data);
+              }
+            }
+            return query(args);
+          },
+          async updateMany({ model, args, query }) {
+            if (['Customer', 'WebStoreCustomer', 'WebStoreOrder', 'Address', 'Cart'].includes(model)) {
+              attachPhoneLast10(args.data);
+            }
+            return query(args);
+          }
+        },
         customer: {
           async create({ args, query }) {
             const customer = await query(args);
@@ -162,9 +215,9 @@ const prismaClientSingleton = () => {
                   const cleanPhone = appLogin.phone ? appLogin.phone.replace(/\D/g, "") : "";
                   const last10 = cleanPhone.slice(-10);
                   let customerId = null;
-                  if (last10) {
+                  if (last10.length === 10) {
                     const customer = await client.customer.findFirst({
-                      where: { phone: { contains: last10 } }
+                      where: { phoneLast10: last10 }
                     });
                     customerId = customer?.id || null;
                   }

@@ -139,6 +139,7 @@ model Customer {
   email                 String?
   name                  String?
   phone                 String?
+  phoneLast10           String?
   defaultAddress        String?
   ordersCount           Int                @default(0)
   totalSpent            Float              @default(0)
@@ -170,6 +171,7 @@ model Customer {
   supportTickets        SupportTicket[]
 
   @@index([phone])
+  @@index([phoneLast10])
 }
 
 model Cart {
@@ -179,6 +181,7 @@ model Cart {
   source           String     @default("webstore")
   status           String     @default("active")
   phone            String?    @map("phone_number")
+  phoneLast10      String?    @map("phone_last_10")
   email            String?
   subtotal         Float      @default(0)
   currency         String     @default("INR")
@@ -203,6 +206,7 @@ model Cart {
   @@index([lastActivityAt])
   @@index([source])
   @@index([createdAt])
+  @@index([phoneLast10])
   @@index([abandonedAt])
   @@map("cart_sessions")
 }
@@ -1278,6 +1282,7 @@ model Address {
   customerId String
   name       String?
   phone      String?
+  phoneLast10 String?
   email      String?
   address1   String
   address2   String?
@@ -1294,6 +1299,7 @@ model Address {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
+  @@index([phoneLast10])
 }
 
 model SupportTicket {
@@ -1546,6 +1552,7 @@ model WebStoreOrder {
   customerName        String   @map("customer_name")
   customerEmail       String   @map("customer_email")
   customerPhone       String   @map("customer_phone")
+  phoneLast10         String?  @map("phone_last_10")
   shippingAddress     Json     @map("shipping_address")
   items               Json     @map("items")
   subtotal            Decimal  @db.Decimal(10, 2)
@@ -1573,6 +1580,7 @@ model WebStoreOrder {
   @@index([paymentStatus, createdAt])
   @@index([fulfillmentStatus, createdAt])
   @@index([razorpayOrderId])
+  @@index([phoneLast10])
   @@map("web_store_orders")
 }
 
@@ -1581,6 +1589,7 @@ model WebStoreCustomer {
   email               String             @unique
   name                String
   phone               String
+  phoneLast10         String?            @map("phone_last_10")
   passwordHash        String             @map("password_hash")
   addresses           Json               @default("[]")
   defaultAddressIndex Int                @default(0) @map("default_address_index")
@@ -1588,6 +1597,7 @@ model WebStoreCustomer {
   updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at")
   wishlists           WebStoreWishlist[]
 
+  @@index([phoneLast10])
   @@map("web_store_customers")
 }
 

@@ -279,10 +279,16 @@ export default function WhatsAppChatPage() {
     }
   };
 
-  // Poll conversations every 10 seconds (paused when tab is in background)
+  const conversationsFetchInFlight = useRef(false);
+  const messagesFetchInFlight = useRef(false);
+
+  // Poll conversations every 30 seconds (paused when tab is in background, with in-flight guard)
   useEffect(() => {
     async function fetchConversations() {
       if (document.visibilityState !== 'visible') return;
+      if (conversationsFetchInFlight.current) return;
+
+      conversationsFetchInFlight.current = true;
       try {
         const res = await fetch("/api/whatsapp/chat/conversations");
         const data = await res.json();
@@ -292,16 +298,17 @@ export default function WhatsAppChatPage() {
       } catch (err) {
         console.error("Error loading chat conversations:", err);
       } finally {
+        conversationsFetchInFlight.current = false;
         setLoadingConversations(false);
       }
     }
     fetchConversations();
 
-    const interval = setInterval(fetchConversations, 10000);
+    const interval = setInterval(fetchConversations, 30000);
     return () => clearInterval(interval);
   }, [refreshTrigger]);
 
-  // Fetch messages when active conversation changes or poll every 4 seconds with since param
+  // Fetch messages when active conversation changes or poll every 4 seconds with since param (paused when hidden, with in-flight guard)
   useEffect(() => {
     if (!activePhone) return;
 
@@ -327,6 +334,9 @@ export default function WhatsAppChatPage() {
 
     async function pollDeltaMessages() {
       if (document.visibilityState !== 'visible') return;
+      if (messagesFetchInFlight.current) return;
+
+      messagesFetchInFlight.current = true;
       try {
         const sinceParam = lastMsgRef.current ? `&since=${encodeURIComponent(lastMsgRef.current)}` : '';
         const res = await fetch(`/api/whatsapp/chat/messages?phone=${encodeURIComponent(activePhone!)}${sinceParam}`);
@@ -342,6 +352,8 @@ export default function WhatsAppChatPage() {
         }
       } catch (err) {
         console.error("Error polling delta messages:", err);
+      } finally {
+        messagesFetchInFlight.current = false;
       }
     }
 

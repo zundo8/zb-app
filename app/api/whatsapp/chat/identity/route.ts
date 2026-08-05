@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import prisma, { getPhoneLast10 } from '@/lib/db';
 import { formatPhone } from '@/lib/whatsapp/client';
 
 export const dynamic = 'force-dynamic';
@@ -24,20 +24,6 @@ function isValidName(name?: string | null): boolean {
   return !genericNames.includes(lower);
 }
 
-function parseAddress(addrStr?: string | null) {
-  if (!addrStr) return null;
-  try {
-    const parsed = JSON.parse(addrStr);
-    if (typeof parsed === 'object' && parsed) {
-      const name = parsed.name || (parsed.first_name ? `${parsed.first_name} ${parsed.last_name || ''}`.trim() : null);
-      const phone = parsed.phone || null;
-      const email = parsed.email || null;
-      return { name, phone, email };
-    }
-  } catch (e) {}
-  return null;
-}
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -48,9 +34,9 @@ export async function GET(req: NextRequest) {
     }
 
     const formatted = formatPhone(phone) || phone;
-    const last10 = phone.replace(/\D/g, '').slice(-10);
+    const last10 = getPhoneLast10(phone);
 
-    if (last10.length !== 10) {
+    if (!last10 || last10.length !== 10) {
       return NextResponse.json({
         customerName: null,
         customerId: null,
@@ -61,12 +47,11 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Run parallel targeted queries for single phone number
+    // Run parallel targeted equality queries for single phone number using phoneLast10 index
     const [
       customers,
       webStoreCustomers,
       webStoreOrders,
-      orders,
       carts,
       addresses
     ] = await Promise.all([
@@ -75,7 +60,7 @@ export async function GET(req: NextRequest) {
         where: {
           OR: [
             { phone: formatted },
-            { phone: { contains: last10 } }
+            { phoneLast10: last10 }
           ]
         },
         select: {
@@ -90,54 +75,21 @@ export async function GET(req: NextRequest) {
         }
       }).catch(() => []),
 
-      // 2. WebStoreCustomer table
+      // 2. WebStoreCustomer table (indexed)
       prisma.webStoreCustomer.findMany({
-        where: { phone: { contains: last10 } },
+        where: { phoneLast10: last10 },
         select: { id: true, name: true, phone: true, email: true }
       }).catch(() => []),
 
-      // 3. WebStoreOrder table
+      // 3. WebStoreOrder table (indexed)
       prisma.webStoreOrder.findMany({
-        where: { customerPhone: { contains: last10 } },
+        where: { phoneLast10: last10 },
         select: { customerName: true, customerEmail: true, customerPhone: true, totalAmount: true }
       }).catch(() => []),
 
-      // 4. Order table
-      prisma.order.findMany({
-        where: {
-          OR: [
-            { customer: { phone: { contains: last10 } } },
-            { shippingAddress: { contains: last10 } },
-            { billingAddress: { contains: last10 } }
-          ]
-        },
-        select: {
-          customerId: true,
-          totalPrice: true,
-          shippingAddress: true,
-          billingAddress: true,
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              email: true,
-              whatsappOptedOut: true,
-              ordersCount: true,
-              totalSpent: true
-            }
-          }
-        }
-      }).catch(() => []),
-
-      // 5. Cart table
+      // 4. Cart table (indexed)
       prisma.cart.findMany({
-        where: {
-          OR: [
-            { phone: { contains: last10 } },
-            { customer: { phone: { contains: last10 } } }
-          ]
-        },
+        where: { phoneLast10: last10 },
         select: {
           phone: true,
           email: true,
@@ -145,9 +97,9 @@ export async function GET(req: NextRequest) {
         }
       }).catch(() => []),
 
-      // 6. Address table
+      // 5. Address table (indexed)
       prisma.address.findMany({
-        where: { phone: { contains: last10 } },
+        where: { phoneLast10: last10 },
         select: { name: true, phone: true, email: true }
       }).catch(() => [])
     ]);
@@ -160,7 +112,7 @@ export async function GET(req: NextRequest) {
     let computedTotalSpent = 0;
 
     const matchedCustomer = customers.find((c: any) =>
-      (c.phone && c.phone.replace(/\D/g, '').endsWith(last10))
+      c.phoneLast10 === last10 || (c.phone && c.phone.replace(/\D/g, '').endsWith(last10))
     );
 
     if (matchedCustomer) {
@@ -172,19 +124,6 @@ export async function GET(req: NextRequest) {
       if (matchedCustomer.totalSpent) computedTotalSpent += matchedCustomer.totalSpent;
     }
 
-    for (const o of orders) {
-      computedOrdersCount++;
-      computedTotalSpent += Number(o.totalPrice || 0);
-
-      if (!matchedName && isValidName(o.customer?.name)) matchedName = o.customer.name.trim();
-      if (!matchedEmail && o.customer?.email) matchedEmail = o.customer.email;
-      if (!matchedCustomerId && o.customer?.id) matchedCustomerId = o.customer.id;
-
-      const parsedShip = parseAddress(o.shippingAddress);
-      if (!matchedName && isValidName(parsedShip?.name)) matchedName = parsedShip!.name!.trim();
-      if (!matchedEmail && parsedShip?.email) matchedEmail = parsedShip.email;
-    }
-
     for (const wo of webStoreOrders) {
       computedOrdersCount++;
       computedTotalSpent += Number(wo.totalAmount || 0);
@@ -193,7 +132,7 @@ export async function GET(req: NextRequest) {
     }
 
     const matchedWebCustomer = webStoreCustomers.find((wc: any) =>
-      wc.phone && wc.phone.replace(/\D/g, '').endsWith(last10)
+      wc.phoneLast10 === last10 || (wc.phone && wc.phone.replace(/\D/g, '').endsWith(last10))
     );
     if (matchedWebCustomer) {
       if (!matchedName && isValidName(matchedWebCustomer.name)) matchedName = matchedWebCustomer.name.trim();
@@ -201,7 +140,7 @@ export async function GET(req: NextRequest) {
     }
 
     const matchedCart = carts.find((ct: any) =>
-      (ct.phone && ct.phone.replace(/\D/g, '').endsWith(last10)) ||
+      ct.phoneLast10 === last10 ||
       (ct.customer?.phone && ct.customer.phone.replace(/\D/g, '').endsWith(last10))
     );
     if (matchedCart) {
@@ -210,7 +149,7 @@ export async function GET(req: NextRequest) {
     }
 
     const matchedAddress = addresses.find((a: any) =>
-      a.phone && a.phone.replace(/\D/g, '').endsWith(last10)
+      a.phoneLast10 === last10 || (a.phone && a.phone.replace(/\D/g, '').endsWith(last10))
     );
     if (matchedAddress) {
       if (!matchedName && isValidName(matchedAddress.name)) matchedName = matchedAddress.name.trim();
