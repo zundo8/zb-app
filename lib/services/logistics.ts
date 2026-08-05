@@ -837,14 +837,18 @@ export function validateWebhookSignature(
         const sigBuf = Buffer.from(cleanSignature);
         const secretBuf = Buffer.from(cleanSecret);
 
+        // Safe diagnostic fragments — never log full secrets
+        const secretTail = cleanSecret.slice(-4);
+        const tokenHead = cleanSignature.slice(0, 12);
+
         if (sigBuf.length !== secretBuf.length) {
-          console.warn(`[Logistics] Webhook signature validation failed (mode=token). Header length (${sigBuf.length}) != Secret length (${secretBuf.length})`);
+          console.warn(`[Logistics] Webhook validation failed: mode=token, provider=delhivery, reason=length_mismatch (received=${sigBuf.length}, expected=${secretBuf.length}), token_head=${tokenHead}..., secret_tail=****${secretTail}`);
           return false;
         }
 
         const matches = crypto.timingSafeEqual(sigBuf, secretBuf);
         if (!matches) {
-          console.warn(`[Logistics] Webhook signature validation failed (mode=token). Token mismatch.`);
+          console.warn(`[Logistics] Webhook validation failed: mode=token, provider=delhivery, reason=stored secret does not match received token, token_head=${tokenHead}..., secret_tail=****${secretTail}`);
         }
         return matches;
       }
@@ -858,7 +862,9 @@ export function validateWebhookSignature(
 
     if (cleanSignature.length !== expectedSignature.length) {
       if (provider === 'delhivery') {
-        console.warn(`[Logistics] Webhook signature validation failed (mode=hmac). Signature length mismatch.`);
+        const secretTail = cleanSecret.slice(-4);
+        const tokenHead = cleanSignature.slice(0, 12);
+        console.warn(`[Logistics] Webhook validation failed: mode=hmac, provider=delhivery, reason=signature_length_mismatch (received=${cleanSignature.length}, expected=${expectedSignature.length}), token_head=${tokenHead}..., secret_tail=****${secretTail}`);
       }
       return false;
     }
@@ -868,7 +874,9 @@ export function validateWebhookSignature(
       Buffer.from(expectedSignature)
     );
     if (!matches && provider === 'delhivery') {
-      console.warn(`[Logistics] Webhook signature validation failed (mode=hmac). Signature mismatch.`);
+      const secretTail = cleanSecret.slice(-4);
+      const tokenHead = cleanSignature.slice(0, 12);
+      console.warn(`[Logistics] Webhook validation failed: mode=hmac, provider=delhivery, reason=hmac_digest_mismatch, token_head=${tokenHead}..., secret_tail=****${secretTail}`);
     }
     return matches;
   } catch (err) {
