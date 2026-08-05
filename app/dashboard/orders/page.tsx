@@ -20,7 +20,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
 import { formatDisplayOrderNumber } from "@/lib/formatOrderNumber";
-import VariantBadge from "@/components/admin/VariantBadge";
 import InlineSizeSelector from "@/components/admin/InlineSizeSelector";
 
 interface OrderItem {
@@ -50,7 +49,8 @@ interface Order {
     phone: string | null;
   };
   items: OrderItem[];
-  shipments: any[];
+  shipments: unknown[];
+  orderType?: string;
   internalOrderNumber?: string | null;
   displayOrderNumber?: string | null;
   shopifyOrderName?: string | null;
@@ -117,7 +117,7 @@ export default function OrdersPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const LIMIT = 50;
+  const LIMIT = 20;
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -152,8 +152,8 @@ export default function OrdersPage() {
         setOrders(data.orders);
         setTotal(data.total || 0);
       }
-    } catch (err: any) {
-      if (err.name === "AbortError") return;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
       console.error("[Orders] Fetch error:", err);
     } finally {
       setLoading(false);
@@ -174,8 +174,9 @@ export default function OrdersPage() {
       }
       setToast("Size updated successfully");
       fetchOrders(true);
-    } catch (e: any) {
-      setToast(e.message || "Failed to update order item size");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to update order item size";
+      setToast(msg);
       throw e;
     }
   };
@@ -189,10 +190,12 @@ export default function OrdersPage() {
     return () => clearTimeout(timer);
   }, [fetchOrders]);
 
-  // Background SWR auto-refresh every 15 seconds for live order sync
+  // Background SWR auto-refresh every 15 seconds for live order sync (only when tab is visible)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchOrders(true);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchOrders(true);
+      }
     }, 15_000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
@@ -227,7 +230,7 @@ export default function OrdersPage() {
       } else {
         setToast("Sync partial failure. Check logs.");
       }
-    } catch (err) {
+    } catch {
       clearTimeout(timeout);
       setToast("Sync connection error");
     } finally {
@@ -288,7 +291,7 @@ export default function OrdersPage() {
               ].map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => setTab(t.id as any)}
+                  onClick={() => setTab(t.id as 'all' | 'unfulfilled' | 'unpaid' | 'open')}
                   className={`px-6 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${tab === t.id ? 'bg-foreground text-background shadow-lg' : 'text-foreground/40 hover:text-foreground'}`}
                 >
                   {t.label}
@@ -411,7 +414,7 @@ export default function OrdersPage() {
                 </button>
              </div>
           ) : orders.map((order, i) => {
-            const isMobile = /^(ZB71|ZB8)/i.test(order.shopifyOrderId) || (order as any).orderType === 'MOBILE_APP';
+            const isMobile = /^(ZB71|ZB8)/i.test(order.shopifyOrderId) || order.orderType === 'MOBILE_APP';
             
             return (
               <motion.div
@@ -492,9 +495,10 @@ export default function OrdersPage() {
                     {order.items && order.items.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {order.items.slice(0, 2).map((item, idx) => {
-                          const vInfo = extractItemVariantAndSize(item.title, item.sku, (item as any).variantTitle, (item as any).size);
-                          const resolvedSize = (item as any).size || vInfo.size;
-                          const resolvedVariantTitle = (item as any).variantTitle || vInfo.variant;
+                          const itemObj = item as OrderItem & { variantTitle?: string; size?: string };
+                          const vInfo = extractItemVariantAndSize(item.title, item.sku, itemObj.variantTitle, itemObj.size);
+                          const resolvedSize = itemObj.size || vInfo.size;
+                          const resolvedVariantTitle = itemObj.variantTitle || vInfo.variant;
                           return (
                             <span key={idx} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-foreground/5 text-[9px] text-foreground/70 border border-foreground/5 font-mono" onClick={(e) => e.stopPropagation()}>
                               <span className="font-semibold text-foreground truncate max-w-[100px]">{item.title}</span>

@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       }
 
       // Safety net: strip coupons with "PREPAID" in the code name from COD orders
-      if (finalCouponCode && isCodOrder && finalCouponCode.includes('PREPAID')) {
+      if (finalCouponCode && isCodOrder && (finalCouponCode.includes('PREPAID') || /^PREPAID/i.test(finalCouponCode))) {
         console.warn(`[Checkout Complete] Safety-net stripped prepaid-named coupon ${finalCouponCode} from COD order`);
         finalCouponCode = null;
         finalCouponDiscount = 0;
@@ -828,39 +828,106 @@ export async function POST(req: Request) {
         shippingAddress: `${address.street || ''}, ${address.city || ''}, ${address.state || ''} - ${address.zip || ''}, ${address.country || 'India'}`,
       };
 
-      if (paymentMethod.toLowerCase() === 'cod') {
-        await sendOrderCodConfirmationEmail(orderPayload);
-      } else {
-        await sendOrderConfirmationEmail(orderPayload);
-      }
+      // Send order confirmation email in background (non-blocking for fast redirect)
+      const sendEmailTask = async () => {
+        try {
+          if (paymentMethod.toLowerCase() === 'cod') {
+            await sendOrderCodConfirmationEmail(orderPayload);
+          } else {
+            await sendOrderConfirmationEmail(orderPayload);
+          }
 
-      await prisma.emailLog.create({
-        data: {
-          recipientEmail: address.email,
-          recipientName: address.name,
-          subject: `Order Confirmed - ${orderPayload.orderId}`,
-          templateName: 'ORDER_CONFIRMATION',
-          triggerEvent: 'checkout/complete',
-          referenceId: localOrder.id,
-          status: 'sent',
-          sentBy: 'system',
+          await prisma.emailLog.create({
+            data: {
+              recipientEmail: address.email,
+              recipientName: address.name,
+              subject: `Order Confirmed - ${orderPayload.orderId}`,
+              templateName: 'ORDER_CONFIRMATION',
+              triggerEvent: 'checkout/complete',
+              referenceId: localOrder.id,
+              status: 'sent',
+              sentBy: 'system',
+            }
+          });
+        } catch (emailErr: any) {
+          console.error("[Email Trigger Error] Failed to send order confirmation email:", emailErr.message);
+          await prisma.emailLog.create({
+            data: {
+              recipientEmail: address.email,
+              recipientName: address.name,
+              subject: `Order Confirmed - ${webStoreOrder?.orderNumber || localOrder.shopifyOrderId || localOrder.id}`,
+              templateName: 'ORDER_CONFIRMATION',
+              triggerEvent: 'checkout/complete',
+              referenceId: localOrder.id,
+              status: 'failed',
+              errorMessage: emailErr.message,
+            }
+          }).catch(() => null);
         }
-      });
+      };
+
+      sendEmailTask();
     } catch (emailErr: any) {
-      console.error("[Email Trigger Error] Failed to send order confirmation email:", emailErr.message);
-      await prisma.emailLog.create({
-        data: {
-          recipientEmail: address.email,
-          recipientName: address.name,
-          subject: `Order Confirmed - ${webStoreOrder?.orderNumber || localOrder.shopifyOrderId || localOrder.id}`,
-          templateName: 'ORDER_CONFIRMATION',
-          triggerEvent: 'checkout/complete',
-          referenceId: localOrder.id,
-          status: 'failed',
-          errorMessage: emailErr.message,
-          sentBy: 'system',
+      console.error("[Email Trigger Setup Error]:", emailErr.message);
+    }
+
+    // Send order confirmation WhatsApp to the user in background (non-blocking)
+    try {
+      const customerPhone = address.phone || localCustomer?.phone;
+      const orderIdStr = String(universalOrderNumber);
+      const isCod = paymentMethod.toLowerCase() === 'cod';
+      const customerName = address.name || "Customer";
+      const firstLineItem = items[0];
+      const productImageUrl = firstLineItem?.image || '';
+      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://zicabella.com';
+      const orderStatusUrl = `${appBaseUrl}/orders/${orderIdStr}`;
+      const totalAmount = Number(total);
+      const itemCount = items.length || 1;
+
+      const sendWhatsAppTask = async () => {
+        try {
+          const { getWhatsAppSetting } = await import('@/lib/whatsapp/logger');
+          if (isCod) {
+            const enabled = (await getWhatsAppSetting('cod_confirmation_enabled', 'true')) === 'true';
+            if (enabled && customerPhone) {
+              const templateName = await getWhatsAppSetting('template_cod_confirmation', 'zica_cod_confirmation_v1');
+              const alreadySent = await prisma.whatsAppMessage.findFirst({
+                where: { orderId: orderIdStr, templateName }
+              });
+              if (!alreadySent) {
+                const { sendCODConfirmation } = await import('@/lib/whatsapp/templates');
+                await sendCODConfirmation({ phone: customerPhone, customerName, orderId: orderIdStr });
+              }
+            }
+          } else {
+            const enabled = (await getWhatsAppSetting('order_confirmed', 'true')) === 'true';
+            if (enabled && customerPhone) {
+              const templateName = await getWhatsAppSetting('template_order_confirmed', 'zica_order_confirmed_v1');
+              const alreadySent = await prisma.whatsAppMessage.findFirst({
+                where: { orderId: orderIdStr, templateName }
+              });
+              if (!alreadySent) {
+                const { sendOrderConfirmation } = await import('@/lib/whatsapp/templates');
+                await sendOrderConfirmation({
+                  phone: customerPhone,
+                  customerName,
+                  orderId: orderIdStr,
+                  productImageUrl,
+                  orderStatusUrl,
+                  totalAmount,
+                  itemCount
+                });
+              }
+            }
+          }
+        } catch (waErr: any) {
+          console.error('[WhatsApp Trigger Error] Failed to send webstore order confirmation:', waErr.message);
         }
-      });
+      };
+
+      sendWhatsAppTask().catch(err => console.error('[WhatsApp Async Error]', err));
+    } catch (waSetupErr: any) {
+      console.error('[WhatsApp Trigger Setup Error]:', waSetupErr.message);
     }
 
     // Update customer name, phone, and address for next time

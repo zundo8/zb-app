@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { sendMail } from '@/lib/mailer';
+import { sendMail, buildSupportEmailHtml } from '@/lib/mailer';
 import { resolvePrincipal } from '@/lib/ai/principal';
 import { processSupportTicketAIReply } from '@/lib/ai/supportAgent';
 
@@ -18,6 +18,9 @@ export async function POST(req: NextRequest) {
 
     const ticket = await prisma.supportTicket.findUnique({
       where: { id: ticketId },
+      include: {
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+      },
     });
 
     if (!ticket) {
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
       }
       senderType = 'USER';
       senderId = principal.customerId;
-      senderName = body.senderName || 'Customer';
+      senderName = body.senderName || ticket.customer?.name || 'Customer';
     }
 
     const message = await prisma.supportMessage.create({
@@ -61,46 +64,40 @@ export async function POST(req: NextRequest) {
       data: { updatedAt: new Date() },
     });
 
-    // If sender is AGENT, notify the user (if email available)
+    // If sender is AGENT, notify the user via email
     if (senderType === 'AGENT') {
-      if (ticket.guestEmail || ticket.customerId) {
-        let recipientEmail = ticket.guestEmail;
-        
-        if (!recipientEmail && ticket.customerId) {
-          const customer = await prisma.customer.findUnique({
-            where: { id: ticket.customerId },
-          });
-          recipientEmail = customer?.email || null;
-        }
+      let recipientEmail = ticket.customer?.email || ticket.guestEmail || null;
 
-        if (recipientEmail) {
-          try {
-            await sendMail({
-              to: recipientEmail,
-              subject: `Re: ${ticket.subject} [Support Ticket #${ticket.id.slice(-6)}]`,
-              html: `
-                <p>Hello,</p>
-                <p>You have a new message from Zica Bella Support regarding your ticket "${ticket.subject}":</p>
-                <div style="background: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                  <p><strong>Support Agent:</strong></p>
-                  <p>${content}</p>
-                </div>
-                <p>You can reply to this email or visit our support page to continue the conversation.</p>
-                <p>Thank you,</p>
-                <p>Zica Bella Team</p>
-              `,
-            });
-          } catch (mailError) {
-            console.error('[Support API] Failed to send user notification:', mailError);
-          }
-        }
+      if (!recipientEmail && ticket.customerId) {
+        const customer = await prisma.customer.findUnique({
+          where: { id: ticket.customerId },
+          select: { email: true, name: true },
+        });
+        recipientEmail = customer?.email || null;
+      }
+
+      if (recipientEmail) {
+        const customerName = ticket.customer?.name || ticket.guestName || 'Valued Customer';
+        sendMail({
+          to: recipientEmail,
+          subject: `Re: ${ticket.subject} [Support Ticket #${ticket.id.slice(-6)}]`,
+          html: buildSupportEmailHtml({
+            ticketId: ticket.id,
+            subject: ticket.subject,
+            senderName,
+            content,
+            customerName,
+          }),
+        }).catch((mailError) => {
+          console.error('[Support API] Failed to send user notification email:', mailError);
+        });
       }
     }
 
     // Trigger email & AI Auto-reply if sender is USER
     let aiReplyResult = null;
     if (senderType === 'USER') {
-      // Async email notification (fire-and-forget, non-blocking)
+      // Async email notification to admin support inbox
       const supportEmail = process.env.ZOHO_MAIL_USER || 'support@zicabella.com';
       sendMail({
         to: supportEmail,
@@ -120,7 +117,7 @@ export async function POST(req: NextRequest) {
         console.error('[Support API] Failed to send admin notification email:', mailError);
       });
 
-      // Await Zica AI reply inline so response is immediately saved
+      // Await Zica AI reply inline so response is immediately saved and emailed
       try {
         aiReplyResult = await processSupportTicketAIReply(ticketId, content);
       } catch (aiErr) {
@@ -129,7 +126,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ message, aiReply: aiReplyResult });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error('[Support API] POST Message Error:', error);
     return NextResponse.json({ error: 'Failed to post message' }, { status: 500 });
   }
 }

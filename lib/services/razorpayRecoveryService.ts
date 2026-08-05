@@ -300,6 +300,38 @@ export async function recoverOrphanedRazorpayOrder(options: RecoveryOptions): Pr
       }
     }
 
+    // Send Order Confirmation WhatsApp
+    try {
+      const phoneToUse = localCustomer?.phone || customerPhone;
+      if (phoneToUse) {
+        const orderIdStr = String(universalOrderNumber);
+        const { getWhatsAppSetting } = await import('@/lib/whatsapp/logger');
+        const enabled = (await getWhatsAppSetting('order_confirmed', 'true')) === 'true';
+        if (enabled) {
+          const templateName = await getWhatsAppSetting('template_order_confirmed', 'zica_order_confirmed_v1');
+          const alreadySent = await prisma.whatsAppMessage.findFirst({
+            where: { orderId: orderIdStr, templateName }
+          });
+          if (!alreadySent) {
+            const { sendOrderConfirmation } = await import('@/lib/whatsapp/templates');
+            const firstItem = lineItemsToCreate[0];
+            const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://zicabella.com';
+            sendOrderConfirmation({
+              phone: phoneToUse,
+              customerName,
+              orderId: orderIdStr,
+              productImageUrl: firstItem?.image || '',
+              orderStatusUrl: `${appBaseUrl}/orders/${orderIdStr}`,
+              totalAmount: paymentAmount,
+              itemCount: lineItemsToCreate.length || 1
+            }).catch(err => console.error('[Razorpay Recovery WhatsApp Async Error]', err.message));
+          }
+        }
+      }
+    } catch (waErr: any) {
+      console.error('[Razorpay Recovery WhatsApp Setup Error]', waErr.message);
+    }
+
     // 10. Update WebhookEvent if ID provided
     if (webhookEventId) {
       await prisma.webhookEvent.update({

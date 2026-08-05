@@ -181,11 +181,32 @@ export async function sendCapiEvent(payload: CapiEventPayload): Promise<{ succes
     }
   }
 
-  // Clean empty fields from userData
+  // Clean empty fields from userData — ensure no key with empty/falsy content
   const cleanedUserData: Record<string, any> = {};
   for (const [key, val] of Object.entries(userData)) {
-    if (val !== undefined && val !== null && val !== '' && (!Array.isArray(val) || val.length > 0)) {
-      cleanedUserData[key] = val;
+    if (val === undefined || val === null || val === '') continue;
+    // Drop arrays that are empty or contain only empty strings
+    if (Array.isArray(val)) {
+      const filtered = val.filter((v: any) => v !== undefined && v !== null && v !== '');
+      if (filtered.length > 0) {
+        cleanedUserData[key] = filtered;
+      }
+      continue;
+    }
+    cleanedUserData[key] = val;
+  }
+
+  // Dev-only assertion: if the upstream userData had no em/ph, verify the key
+  // is fully absent from cleanedUserData (not present as an empty array/string).
+  if (process.env.NODE_ENV !== 'production' || process.env.META_TEST_EVENT_CODE) {
+    for (const piiKey of ['em', 'ph'] as const) {
+      if (!payload.userData?.[piiKey] && piiKey in cleanedUserData) {
+        console.warn(
+          `[Meta CAPI ASSERTION] ⚠️ "${piiKey}" key is present in cleanedUserData despite upstream having no value. ` +
+          `This should never happen. Value:`, cleanedUserData[piiKey]
+        );
+        delete cleanedUserData[piiKey];
+      }
     }
   }
 

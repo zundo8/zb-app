@@ -81,8 +81,10 @@ export async function POST(req: Request) {
     // Check payment method applicability (COD upfront payment is STILL a COD order)
     const pmUpper = (paymentMethod || "").toUpperCase().trim();
     const isCOD = pmUpper === "COD" || pmUpper.includes("COD");
+    const codeUpper = code.toUpperCase().trim();
+    const isPrepaidCode = coupon.applicability === "PREPAID_ONLY" || codeUpper.includes("PREPAID") || /^PREPAID/i.test(codeUpper);
 
-    if (coupon.applicability === "PREPAID_ONLY" && isCOD) {
+    if (isPrepaidCode && isCOD) {
       return NextResponse.json({
         valid: false,
         discount: 0,
@@ -164,8 +166,9 @@ export async function POST(req: Request) {
       cashbackAmount: cashbackAmount,
       message: displayMessage,
     });
-  } catch (error: any) {
-    console.error("[Coupon Validate API] Error:", error.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[Coupon Validate API] Error:", msg);
     return NextResponse.json({
       valid: false,
       discount: 0,

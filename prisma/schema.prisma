@@ -167,6 +167,7 @@ model Customer {
   storeCreditTxns       StoreCredit[]
   wishlist              Wishlist[]
   carts                 Cart[]
+  supportTickets        SupportTicket[]
 
   @@index([phone])
 }
@@ -1307,6 +1308,10 @@ model SupportTicket {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   messages    SupportMessage[]
+  customer    Customer?        @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([status, updatedAt])
 }
 
 model WhatsAppChatSetting {
@@ -1564,6 +1569,10 @@ model WebStoreOrder {
   storeCreditAmount   Decimal? @default(0) @map("store_credit_amount") @db.Decimal(10, 2)
   paymentFailureReason String? @map("payment_failure_reason")
 
+  @@index([createdAt])
+  @@index([paymentStatus, createdAt])
+  @@index([fulfillmentStatus, createdAt])
+  @@index([razorpayOrderId])
   @@map("web_store_orders")
 }
 

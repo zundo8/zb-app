@@ -431,6 +431,7 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
             const alreadySent = await prisma.whatsAppMessage.findFirst({
               where: { orderId: String(orderIdStr), templateName }
             });
+            if (!alreadySent) {
               const firstLineItem = (orderData.line_items || [])[0];
               const productImageUrl = firstLineItem?.image?.src || firstLineItem?.image || '';
               const orderStatusUrl = orderData.order_status_url || '';
@@ -438,6 +439,7 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
               const itemCount = (orderData.line_items || []).length || 1;
               const { sendOrderConfirmation } = await import('@/lib/whatsapp/templates');
               await sendOrderConfirmation({ phone, customerName: orderData.customer?.first_name || orderData.billing_address?.first_name || 'there', orderId: String(orderIdStr), productImageUrl, orderStatusUrl, totalAmount, itemCount });
+            }
           }
         }
       } else if (topic === 'orders/fulfilled') {

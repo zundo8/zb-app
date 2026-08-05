@@ -488,7 +488,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         return NextResponse.json({ success: false, error: 'Cannot cancel order that is already shipped or delivered' }, { status: 400 });
       }
 
-      body.paymentStatus = oldOrder.paymentStatus === 'paid' ? 'paid' : 'cancelled';
+      body.paymentStatus = ['paid', 'cod_upfront_paid', 'refunded', 'approved', 'success'].includes(oldOrder.paymentStatus) ? oldOrder.paymentStatus : 'cancelled';
       body.fulfillmentStatus = 'cancelled';
       body.deliveryStatus = 'cancelled';
       body.cancelledAt = new Date();
@@ -545,6 +545,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         if (!webStoreOrder && updated.shopifyOrderId) {
           webStoreOrder = await prisma.webStoreOrder.findFirst({
             where: { notes: { contains: `Shopify: ${updated.shopifyOrderId}` } }
+          });
+        }
+        if (!webStoreOrder && (updated.internalOrderNumber || updated.shopifyOrderName)) {
+          webStoreOrder = await prisma.webStoreOrder.findFirst({
+            where: { orderNumber: updated.internalOrderNumber || updated.shopifyOrderName }
           });
         }
 

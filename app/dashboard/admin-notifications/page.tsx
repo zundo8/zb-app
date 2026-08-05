@@ -2,13 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
   BellOff,
   CheckCheck,
-  Filter,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
@@ -33,6 +31,7 @@ import {
   MessageCircle,
   Sparkles,
   BarChart3,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,7 +41,7 @@ interface Notification {
   action: string;
   module: string | null;
   targetId: string | null;
-  metadata: any;
+  metadata: Record<string, unknown> | string | null;
   ipAddress: string | null;
   userAgent: string | null;
   timestamp: string;
@@ -55,7 +54,7 @@ interface Notification {
 
 type FilterType = "all" | "unread" | "orders" | "products" | "users" | "system";
 
-const FILTER_OPTIONS: { key: FilterType; label: string; icon: any }[] = [
+const FILTER_OPTIONS: { key: FilterType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "all", label: "All Activity", icon: Activity },
   { key: "unread", label: "Unread", icon: Bell },
   { key: "orders", label: "Orders", icon: ShoppingBag },
@@ -158,36 +157,40 @@ function getNotificationLink(module: string | null, action: string, targetId: st
   return null;
 }
 
-function extractSummary(metadata: any): string {
+function extractSummary(metadata: unknown): string {
   if (!metadata) return "";
+  let metaObj: Record<string, unknown> | null = null;
   if (typeof metadata === "string") {
     try {
-      metadata = JSON.parse(metadata);
+      metaObj = JSON.parse(metadata) as Record<string, unknown>;
     } catch {
       return metadata;
     }
+  } else if (typeof metadata === "object") {
+    metaObj = metadata as Record<string, unknown>;
   }
-  // Try to extract meaningful text from metadata
+  if (!metaObj) return "";
+
   const parts: string[] = [];
-  if (metadata.summary) parts.push(metadata.summary);
-  if (metadata.description) parts.push(metadata.description);
+  if (typeof metaObj.summary === "string") parts.push(metaObj.summary);
+  if (typeof metaObj.description === "string") parts.push(metaObj.description);
   if (parts.length > 0) return parts.join(" · ");
 
-  if (metadata.message) return metadata.message;
-  if (metadata.details) return typeof metadata.details === "string" ? metadata.details : JSON.stringify(metadata.details);
-  if (metadata.name) return `Name: ${metadata.name}`;
-  if (metadata.title) return `Title: ${metadata.title}`;
-  if (metadata.email) return `Email: ${metadata.email}`;
-  // Fallback: stringify first few keys
-  const keys = Object.keys(metadata).slice(0, 3);
+  if (typeof metaObj.message === "string") return metaObj.message;
+  if (metaObj.details) return typeof metaObj.details === "string" ? metaObj.details : JSON.stringify(metaObj.details);
+  if (typeof metaObj.name === "string") return `Name: ${metaObj.name}`;
+  if (typeof metaObj.title === "string") return `Title: ${metaObj.title}`;
+  if (typeof metaObj.email === "string") return `Email: ${metaObj.email}`;
+
+  const keys = Object.keys(metaObj).slice(0, 3);
   if (keys.length === 0) return "";
-  return keys.map((k) => `${k}: ${typeof metadata[k] === "object" ? "..." : metadata[k]}`).join(" · ");
+  return keys.map((k) => `${k}: ${typeof metaObj[k] === "object" ? "..." : String(metaObj[k])}`).join(" · ");
 }
 
 export default function AdminNotificationsPage() {
-  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -198,6 +201,7 @@ export default function AdminNotificationsPage() {
 
   const fetchNotifications = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const res = await fetch(
         `/api/admin/notifications?page=${page}&limit=${limit}&filter=${filter}`
@@ -209,10 +213,14 @@ export default function AdminNotificationsPage() {
         setUnreadCount(data.unreadCount || 0);
         setLastReadAt(data.lastReadAt || "");
       } else {
-        toast.error(data.error || "Failed to load notifications");
+        const errMsg = data.error || "Failed to load notifications";
+        setError(errMsg);
+        toast.error(errMsg);
       }
     } catch {
-      toast.error("Network error loading notifications");
+      const errMsg = "Network error loading notifications";
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsLoading(false);
     }
@@ -220,6 +228,14 @@ export default function AdminNotificationsPage() {
 
   useEffect(() => {
     fetchNotifications();
+  }, [fetchNotifications]);
+
+  useEffect(() => {
+    const handleSync = () => {
+      fetchNotifications();
+    };
+    window.addEventListener("realtime-sync", handleSync);
+    return () => window.removeEventListener("realtime-sync", handleSync);
   }, [fetchNotifications]);
 
   const handleMarkAllRead = async () => {
@@ -370,6 +386,23 @@ export default function AdminNotificationsPage() {
               Loading notifications...
             </span>
           </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center gap-4">
+            <div className="p-4 bg-red-500/10 text-red-500 rounded-2xl border border-red-500/20">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-foreground">{error}</p>
+              <p className="text-xs text-foreground/40">An issue occurred while loading activity events.</p>
+            </div>
+            <button
+              onClick={() => fetchNotifications()}
+              className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background text-xs font-semibold rounded-xl hover:opacity-90 transition-opacity mt-2"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Retry
+            </button>
+          </div>
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 gap-6">
             <div className="p-6 bg-foreground/5 rounded-3xl border border-foreground/10">
@@ -381,7 +414,7 @@ export default function AdminNotificationsPage() {
             </div>
             <div className="text-center space-y-2">
               <p className="text-[14px] font-bold text-foreground/40">
-                {filter === "unread" ? "All caught up!" : "No notifications found"}
+                {filter === "unread" ? "All caught up!" : "No notifications yet"}
               </p>
               <p className="text-[12px] text-foreground/25 max-w-sm">
                 {filter === "unread"
@@ -478,7 +511,7 @@ export default function AdminNotificationsPage() {
         )}
 
         {/* Pagination */}
-        {!isLoading && total > limit && (
+        {!isLoading && !error && total > limit && (
           <div className="px-6 sm:px-8 py-5 bg-foreground/[0.02] border-t border-foreground/5 flex flex-col sm:flex-row items-center justify-between gap-4">
             <span className="text-[12px] text-foreground/40 font-medium">
               Showing {(page - 1) * limit + 1} to{" "}

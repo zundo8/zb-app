@@ -37,7 +37,7 @@ export const transporter = nodemailer.createTransport({
 
 // Verify the transporter on initialization in development mode only
 if (process.env.NODE_ENV === 'development') {
-  transporter.verify((error, success) => {
+  transporter.verify((error) => {
     if (error) {
       console.error('SMTP Transporter verification failed:', error);
     } else {
@@ -132,4 +132,58 @@ export async function sendMail(options: {
       'X-Priority': '3', // Normal priority
     }
   });
+}
+
+export interface BuildSupportEmailOptions {
+  ticketId: string;
+  subject: string;
+  senderName: string;
+  content: string;
+  customerName?: string;
+}
+
+export function buildSupportEmailHtml({
+  ticketId,
+  subject,
+  senderName,
+  content,
+  customerName,
+}: BuildSupportEmailOptions): string {
+  const shortId = ticketId.slice(-6).toUpperCase();
+  const greetingName = customerName ? customerName : 'Valued Customer';
+  
+  const paragraphs = content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<p style="margin: 0 0 10px 0; line-height: 1.6; color: #1a1a1a;">${line}</p>`)
+    .join('');
+
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #eaeaea; border-radius: 16px; background-color: #ffffff;">
+      <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #000000;">ZICA BELLA</h2>
+        <p style="margin: 4px 0 0 0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #666666;">Customer Support</p>
+      </div>
+
+      <div style="padding: 24px 0;">
+        <p style="margin: 0 0 16px 0; font-size: 14px; font-weight: 600; color: #1a1a1a;">Hello ${greetingName},</p>
+        <p style="margin: 0 0 16px 0; font-size: 13px; color: #555555; line-height: 1.5;">You have a new message regarding your ticket "<strong>${subject}</strong>" (Ticket #${shortId}):</p>
+        
+        <div style="background-color: #f8f8fb; border-left: 4px solid #000000; padding: 18px 20px; margin: 20px 0; border-radius: 8px;">
+          <p style="margin: 0 0 10px 0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #888888;">${senderName}:</p>
+          <div style="font-size: 13px; color: #1a1a1a;">
+            ${paragraphs}
+          </div>
+        </div>
+
+        <p style="margin: 20px 0 0 0; font-size: 12px; color: #777777;">You can reply to this email or visit our website to view your ticket.</p>
+      </div>
+
+      <div style="padding-top: 20px; border-top: 1px solid #f0f0f0; text-align: center;">
+        <p style="margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #444444;">Zica Bella Support Team</p>
+        <p style="margin: 4px 0 0 0; font-size: 10px; color: #999999;">Luxury Indian Streetwear | www.zicabella.com</p>
+      </div>
+    </div>
+  `;
 }

@@ -124,6 +124,9 @@ export function MetaPixelRouteTracker() {
       delete builtIdentity.fb_login_id;
     }
 
+    // Include piiOwner so the server can verify PII cookie identity binding
+    builtIdentity.piiOwner = getClientCookie('zb_pii_owner') || undefined;
+
     fetch('/api/meta/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

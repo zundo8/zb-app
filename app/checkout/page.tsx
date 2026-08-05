@@ -44,7 +44,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useCountry } from "@/lib/country-context";
-import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { formatPriceString } from "@/lib/global-pricing-client";
 import {
   COUNTRIES,
@@ -370,35 +370,23 @@ export default function CheckoutPage() {
   const [zipLoading, setZipLoading] = useState(false);
   const [locating, setLocating] = useState(false);
 
-  // Load Google Maps API
+  // Load Google Maps API via the singleton loader (setOptions called once globally)
   useEffect(() => {
     if (googleMapsLoaded || googleMapsError) return;
 
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      console.warn("Google Maps API key not found in env variables.");
-      setGoogleMapsError(true);
-      return;
-    }
-
-    try {
-      setOptions({
-        key: apiKey,
-        v: "weekly"
-      });
-
-      importLibrary("places")
-        .then(() => {
+    loadGoogleMaps(['places', 'geocoding'])
+      .then((ok) => {
+        if (ok) {
           setGoogleMapsLoaded(true);
-        })
-        .catch((err) => {
-          console.error("Failed to load Google Maps script:", err);
+        } else {
+          console.warn("Google Maps failed to load (missing key or auth error). Falling back to Nominatim + IP geo.");
           setGoogleMapsError(true);
-        });
-    } catch (err) {
-      console.error("Error configuring Google Maps loader:", err);
-      setGoogleMapsError(true);
-    }
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load Google Maps script:", err);
+        setGoogleMapsError(true);
+      });
   }, [googleMapsLoaded, googleMapsError]);
 
   // Initialize Place Autocomplete
@@ -409,8 +397,10 @@ export default function CheckoutPage() {
 
     const initAutocomplete = async () => {
       try {
-        const { Autocomplete } = await importLibrary("places") as any;
+        // Use the singleton loader — it's already loaded, this just awaits the same promise
+        await loadGoogleMaps(['places', 'geocoding']);
         if (!active) return;
+        const Autocomplete = (window as any).google?.maps?.places?.Autocomplete;
         if (!Autocomplete) {
           throw new Error("Autocomplete constructor not found in places library.");
         }
@@ -489,9 +479,122 @@ export default function CheckoutPage() {
     };
   }, [googleMapsLoaded, showAddressForm]);
 
+  /**
+   * Reverse-geocode via Nominatim (OpenStreetMap). Used as fallback when
+   * Google Maps fails to load or reverse-geocode.
+   */
+  const reverseGeocodeNominatim = async (latitude: number, longitude: number) => {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          "Accept-Language": "en",
+          "User-Agent": "ZicaBellaStorefront/1.0"
+        },
+      }
+    );
+    if (!response.ok) throw new Error("Failed to resolve address details");
+    const data = await response.json();
+    if (data && data.address) {
+      const addr = data.address;
+      const roadName = addr.road || addr.suburb || addr.neighbourhood || addr.village || "";
+      const postcode = addr.postcode || "";
+      const cityName = addr.city || addr.town || addr.village || addr.county || "";
+      const stateName = addr.state || "";
+      const houseNumber = addr.house_number || addr.building || "";
+
+      let matchedState = "";
+      if (stateName) {
+        const lowerState = stateName.toLowerCase().trim();
+        const found = INDIAN_STATES.find(s =>
+          s.toLowerCase() === lowerState ||
+          lowerState.includes(s.toLowerCase()) ||
+          s.toLowerCase().includes(lowerState)
+        );
+        if (found) matchedState = found;
+      }
+
+      setAddress(prev => ({
+        ...prev,
+        houseNo: houseNumber || prev.houseNo,
+        street: roadName || prev.street,
+        zip: postcode ? postcode.replace(/\s/g, "").slice(0, 6) : prev.zip,
+        city: cityName || prev.city,
+        state: matchedState || prev.state || stateName,
+        lat: latitude,
+        lng: longitude,
+      }));
+
+      setAddressErrors(prev => {
+        const next = { ...prev };
+        delete next.street;
+        delete next.city;
+        delete next.state;
+        delete next.zip;
+        return next;
+      });
+    }
+  };
+
+  /**
+   * Fetch approximate location from /api/geo (IP-based). Used when GPS is
+   * denied/unavailable or both Maps and Nominatim fail.
+   */
+  const fetchIpGeoFallback = async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/geo');
+      const data = await res.json();
+      if (!data.ok) return false;
+
+      // Match region name to the INDIAN_STATES list
+      let matchedState = data.region || "";
+      if (matchedState) {
+        const lowerState = matchedState.toLowerCase().trim();
+        const found = INDIAN_STATES.find(s =>
+          s.toLowerCase() === lowerState ||
+          lowerState.includes(s.toLowerCase()) ||
+          s.toLowerCase().includes(lowerState)
+        );
+        if (found) matchedState = found;
+      }
+
+      setAddress(prev => ({
+        ...prev,
+        city: data.city || prev.city,
+        state: matchedState || prev.state,
+        zip: data.zip || prev.zip,
+        country: data.country || prev.country,
+        countryCode: data.countryCode || prev.countryCode,
+        lat: data.lat ?? prev.lat,
+        lng: data.lng ?? prev.lng,
+      }));
+
+      setAddressErrors(prev => {
+        const next = { ...prev };
+        delete next.city;
+        delete next.state;
+        delete next.zip;
+        return next;
+      });
+
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleDetectLocation = async () => {
     if (!navigator.geolocation) {
-      setError("Geolocation is not supported by your browser");
+      // Geolocation unsupported — try IP fallback
+      setLocating(true);
+      setError("");
+      const ipOk = await fetchIpGeoFallback();
+      setLocating(false);
+      if (ipOk) {
+        setError("Using approximate location from your network. You can edit the address below.");
+      } else {
+        setError("Geolocation is not supported by your browser. Please fill the address manually.");
+      }
       return;
     }
 
@@ -502,15 +605,24 @@ export default function CheckoutPage() {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          if (googleMapsLoaded) {
+          // Try Google Maps reverse-geocoding first (via the singleton loader)
+          const mapsOk = await loadGoogleMaps(['places', 'geocoding']);
+          if (mapsOk) {
             const googleObj = (window as any).google;
-            if (!googleObj || !googleObj.maps) {
-              throw new Error("Google Maps API not loaded");
-            }
-            const geocoder = new googleObj.maps.Geocoder();
-            geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
-              if (status === "OK" && results && results[0]) {
-                const result = results[0];
+            if (googleObj?.maps?.Geocoder) {
+              const geocoder = new googleObj.maps.Geocoder();
+              const geoResult = await new Promise<{ success: boolean; result?: any }>((resolve) => {
+                geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
+                  if (status === "OK" && results && results[0]) {
+                    resolve({ success: true, result: results[0] });
+                  } else {
+                    resolve({ success: false });
+                  }
+                });
+              });
+
+              if (geoResult.success && geoResult.result) {
+                const result = geoResult.result;
                 const parsed = parseAddressComponents(result.address_components || []);
 
                 if (autocompleteInputRef.current) {
@@ -547,73 +659,39 @@ export default function CheckoutPage() {
                   return next;
                 });
                 setLocating(false);
-              } else {
-                console.error("Geocoder failed with status:", status);
-                // Fallback to manual
-                setError("Unable to resolve address. Please fill manually.");
-                setLocating(false);
+                return;
               }
-            });
-          } else {
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-              {
-                headers: {
-                  "Accept-Language": "en",
-                  "User-Agent": "ZicaBellaStorefront/1.0"
-                },
-              }
-            );
-            if (!response.ok) throw new Error("Failed to resolve address details");
-            const data = await response.json();
-            if (data && data.address) {
-              const addr = data.address;
-
-              const roadName = addr.road || addr.suburb || addr.neighbourhood || addr.village || "";
-              const postcode = addr.postcode || "";
-              const cityName = addr.city || addr.town || addr.village || addr.county || "";
-              const stateName = addr.state || "";
-              const houseNumber = addr.house_number || addr.building || "";
-
-              let matchedState = "";
-              if (stateName) {
-                const lowerState = stateName.toLowerCase().trim();
-                const found = INDIAN_STATES.find(s =>
-                  s.toLowerCase() === lowerState ||
-                  lowerState.includes(s.toLowerCase()) ||
-                  s.toLowerCase().includes(lowerState)
-                );
-                if (found) matchedState = found;
-              }
-
-              setAddress(prev => ({
-                ...prev,
-                houseNo: houseNumber || prev.houseNo,
-                street: roadName || prev.street,
-                zip: postcode ? postcode.replace(/\s/g, "").slice(0, 6) : prev.zip,
-                city: cityName || prev.city,
-                state: matchedState || prev.state || stateName,
-                lat: latitude,
-                lng: longitude,
-              }));
             }
-            setLocating(false);
           }
+
+          // Google Maps failed or unavailable — fall back to Nominatim
+          await reverseGeocodeNominatim(latitude, longitude);
+          setLocating(false);
         } catch (err: any) {
           console.error("Error reverse geocoding:", err);
+          // Both Maps and Nominatim failed — try IP fallback with GPS coords
+          setAddress(prev => ({ ...prev, lat: latitude, lng: longitude }));
           setError("Unable to retrieve address details. Please fill manually.");
           setLocating(false);
         }
       },
-      (err) => {
+      async (err) => {
         console.error("Geolocation error:", err);
+        // GPS denied/timeout/error — try IP-based location as fallback
+        const ipOk = await fetchIpGeoFallback();
         setLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          setError("Location access denied. Please allow location access in your browser's address settings (click the lock icon in the address bar), then try again.");
-        } else if (err.code === err.TIMEOUT) {
-          setError("Location request timed out. Please check your signal and try again.");
+        if (ipOk) {
+          // Soft message — IP location was found, user can edit
+          setError("Using approximate location from your network. You can edit the address below.");
         } else {
-          setError("Unable to detect location. Please fill manually.");
+          // Both GPS and IP failed — show appropriate error
+          if (err.code === err.PERMISSION_DENIED) {
+            setError("Location access denied and network location unavailable. Please fill the address manually.");
+          } else if (err.code === err.TIMEOUT) {
+            setError("Location request timed out. Please check your signal and try again.");
+          } else {
+            setError("Unable to detect location. Please fill the address manually.");
+          }
         }
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }

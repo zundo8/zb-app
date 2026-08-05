@@ -14,6 +14,7 @@ export interface IpGeoResult {
   country: string;     // Full name e.g. "India"
   region: string | null;
   city: string | null;
+  zip: string | null;  // Postal/ZIP code from IP geolocation
   lat: number | null;
   lng: number | null;
   isDevFallback?: boolean;
@@ -71,6 +72,7 @@ export function extractEdgeGeo(request: Request): IpGeoResult | null {
         country: countryCode.toUpperCase() === 'IN' ? 'India' : (countryCode.toUpperCase() === 'US' ? 'United States' : countryCode.toUpperCase()),
         region: vercelRegion ? decodeURIComponent(vercelRegion) : null,
         city: vercelCity ? decodeURIComponent(vercelCity) : null,
+        zip: headers.get('x-vercel-ip-postal-code') || null,
         lat: !isNaN(parsedLat as number) ? parsedLat : null,
         lng: !isNaN(parsedLng as number) ? parsedLng : null,
       };
@@ -118,6 +120,7 @@ const DEV_FALLBACK_GEO: IpGeoResult = {
   country: 'India',
   region: 'Maharashtra',
   city: 'Mumbai',
+  zip: '400001',
   lat: 19.0760,
   lng: 72.8777,
   isDevFallback: true,
@@ -134,6 +137,7 @@ async function fetchFromIpWhoIs(ip: string, signal: AbortSignal): Promise<IpGeoR
         country: json.country || json.country_code,
         region: json.region || null,
         city: json.city || null,
+        zip: json.postal || null,
         lat: typeof json.latitude === 'number' ? json.latitude : null,
         lng: typeof json.longitude === 'number' ? json.longitude : null,
       };
@@ -143,7 +147,7 @@ async function fetchFromIpWhoIs(ip: string, signal: AbortSignal): Promise<IpGeoR
 }
 
 async function fetchFromIpApi(ip: string, signal: AbortSignal): Promise<IpGeoResult | null> {
-  const url = `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,regionName,city,lat,lon`;
+  const url = `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,regionName,city,zip,lat,lon`;
   const res = await fetch(url, { signal });
   if (res.ok) {
     const json = await res.json();
@@ -153,6 +157,7 @@ async function fetchFromIpApi(ip: string, signal: AbortSignal): Promise<IpGeoRes
         country: json.country || json.countryCode,
         region: json.regionName || null,
         city: json.city || null,
+        zip: json.zip || null,
         lat: typeof json.lat === 'number' ? json.lat : null,
         lng: typeof json.lon === 'number' ? json.lon : null,
       };
@@ -175,6 +180,7 @@ async function fetchFromIpApiCo(ip: string, apiKey: string, signal: AbortSignal)
         country: json.country_name || json.country || code,
         region: json.region || json.region_name || null,
         city: json.city || null,
+        zip: json.postal || json.zip || null,
         lat: typeof json.latitude === 'number' ? json.latitude : typeof json.lat === 'number' ? json.lat : null,
         lng: typeof json.longitude === 'number' ? json.longitude : typeof json.lng === 'number' ? json.lng : null,
       };

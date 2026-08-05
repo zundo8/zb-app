@@ -29,7 +29,10 @@ export async function GET() {
       error = 'No valid database URL configured';
     } else {
       try {
-        shopCount = await prisma.shop.count();
+        shopCount = (await Promise.race([
+          prisma.shop.count(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Health check query timed out')), 5000))
+        ])) as number;
         connectionAlive = true;
       } catch (e: any) {
         error = e.message;

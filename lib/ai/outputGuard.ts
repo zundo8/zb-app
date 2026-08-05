@@ -32,6 +32,12 @@ const BLOCKED_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bsupplier\s*(name|id)\b/gi, label: 'supplier_info' },
   { pattern: /\bwarehouse\s*(id|location|code)\b/gi, label: 'warehouse_info' },
 
+  // Dashboard & Admin URLs / Internal Tools
+  { pattern: /\/dashboard\b/gi, label: 'dashboard_url' },
+  { pattern: /\/api\/admin\//gi, label: 'admin_api_url' },
+  { pattern: /\bdeveloper@zicabella\.com\b/gi, label: 'internal_dev_email' },
+  { pattern: /\b(system\s*prompt|internal\s*tool(ing)?|admin\s*dashboard)\b/gi, label: 'internal_tooling_or_prompt' },
+
   // Internal IDs that shouldn't leak
   { pattern: /\bcuid_[a-z0-9]{20,}\b/gi, label: 'internal_cuid' },
   { pattern: /\binventoryItemId\b/gi, label: 'inventory_item_id' },

@@ -51,6 +51,8 @@ async function sendToCapiRoute(payload: Record<string, any>): Promise<any> {
     const mergedUserData = cleanCustomData({
       ...identityData,
       ...callerUserData,
+      // Forward PII owner cookie so the server can verify identity binding
+      piiOwner: getClientCookie('zb_pii_owner') || undefined,
     });
 
     // Make sure an explicitly-passed userData.em on a Subscribe call survives the guest-PII-strip.

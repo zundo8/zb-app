@@ -62,6 +62,16 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
         where: { notes: { contains: `Local: ${order.id}` } }
       });
     }
+    if (!webStoreOrder && order.shopifyOrderId) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: { notes: { contains: `Shopify: ${order.shopifyOrderId}` } }
+      });
+    }
+    if (!webStoreOrder && (order.internalOrderNumber || order.shopifyOrderName)) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: { orderNumber: order.internalOrderNumber || order.shopifyOrderName }
+      });
+    }
 
     // Determine payment method robustly using order properties, tags, notes, and webStoreOrder
     const isCod = 

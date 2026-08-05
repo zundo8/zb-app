@@ -563,12 +563,15 @@ export default function AbandonedCartsPage() {
 
                     {/* Age / Time telemetry */}
                     <div className="min-w-[130px]">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block">Activity</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30 block">
+                        {cart.computedStatus === "converted" ? "Converted" : "Activity"}
+                      </span>
                       <span className="text-[13px] font-bold text-foreground/70 block">
-                        {getCartAge(cart.lastActivityAt)}
+                        {getCartAge(cart.computedStatus === "converted" ? cart.updatedAt : cart.lastActivityAt)}
                       </span>
                       <span className="text-[9.5px] text-foreground/30 block">
-                        Last Active: {new Date(cart.lastActivityAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {cart.computedStatus === "converted" ? "Converted: " : "Last Active: "}
+                        {new Date(cart.computedStatus === "converted" ? cart.updatedAt : cart.lastActivityAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
 
@@ -586,7 +589,7 @@ export default function AbandonedCartsPage() {
 
                       {cart.computedStatus === "converted" ? (
                         <Link
-                          href={`/dashboard/orders?search=${cart.convertedOrder?.internalOrderNumber || cart.convertedOrderId || ''}`}
+                          href={`/web-store/orders?query=${cart.convertedOrder?.internalOrderNumber || cart.convertedOrderId || ''}`}
                           className="flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 transition-all hover:scale-105 active:scale-95 font-bold uppercase tracking-widest text-[9px]"
                         >
                           <ShoppingBag className="w-3.5 h-3.5" />
@@ -923,7 +926,7 @@ export default function AbandonedCartsPage() {
                       )}
                     </div>
                     <Link
-                      href={`/dashboard/orders?search=${selectedCart.convertedOrder?.internalOrderNumber || selectedCart.convertedOrderId || ''}`}
+                      href={`/web-store/orders?query=${selectedCart.convertedOrder?.internalOrderNumber || selectedCart.convertedOrderId || ''}`}
                       className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all flex items-center gap-2"
                     >
                       <ExternalLink className="w-3.5 h-3.5" /> View Order Details

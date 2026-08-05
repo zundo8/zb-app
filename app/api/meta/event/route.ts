@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
     const guestZip = req.cookies.get('zb_guest_zp')?.value;
     const fbLoginId = req.cookies.get('zb_fb_login_id')?.value;
     const guestDob = req.cookies.get('zb_guest_dob')?.value;
+    const piiOwnerCookie = req.cookies.get('zb_pii_owner')?.value;
 
     // ── IP Geolocation Fallback ──
     // If all client-side address cookies are absent (user denied/ignored location prompt),
@@ -196,10 +197,22 @@ export async function POST(req: NextRequest) {
         country: userData?.country || guestCountry || ipGeo?.countryCode?.toLowerCase(),
         st: userData?.st || guestState || ipGeo?.region,
         ct: userData?.ct || guestCity || ipGeo?.city,
-        zp: userData?.zp || guestZip,
+        zp: userData?.zp || guestZip || ipGeo?.zip || undefined,
         fb_login_id: userData?.fb_login_id || fbLoginId,
         db: userData?.db || guestDob,
       });
+
+      // FIX 1c: Drop em/ph if they came from a cookie owned by a different identity
+      const resolvedExtId = (mergedUserData.external_id as string) || externalId;
+      const piiOwner = userData?.piiOwner || piiOwnerCookie;
+      if (piiOwner && resolvedExtId && piiOwner !== resolvedExtId) {
+        // The PII was written by a different guest — don't send it
+        if (mergedUserData.em === guestEmail) delete mergedUserData.em;
+        if (mergedUserData.ph === guestPhone) delete mergedUserData.ph;
+      }
+
+      // Remove piiOwner — it's not a Meta field
+      delete (mergedUserData as any).piiOwner;
 
       // Duplicate detection safeguard
       checkDuplicatePii('em', mergedUserData.em as string, mergedUserData.external_id as string);
@@ -289,10 +302,23 @@ export async function POST(req: NextRequest) {
       country: userData?.country || guestCountry || ipGeo?.countryCode?.toLowerCase(),
       st: userData?.st || guestState || ipGeo?.region,
       ct: userData?.ct || guestCity || ipGeo?.city,
-      zp: userData?.zp || guestZip,
+      zp: userData?.zp || guestZip || ipGeo?.zip || undefined,
       fb_login_id: userData?.fb_login_id || fbLoginId,
       db: userData?.db || guestDob || sessionUserData.db,
     });
+
+    // FIX 1c: Drop em/ph if they came from a cookie owned by a different identity
+    const resolvedExtId = (mergedUserData.external_id as string) || externalId;
+    const piiOwner = userData?.piiOwner || piiOwnerCookie;
+    if (piiOwner && resolvedExtId && piiOwner !== resolvedExtId) {
+      // The PII was written by a different guest — don't send stale cookie PII
+      // Only strip if the value came from cookies (not from session)
+      if (mergedUserData.em === guestEmail && !sessionUserData.em) delete mergedUserData.em;
+      if (mergedUserData.ph === guestPhone && !sessionUserData.ph) delete mergedUserData.ph;
+    }
+
+    // Remove piiOwner — it's not a Meta field
+    delete (mergedUserData as any).piiOwner;
 
     // Duplicate detection safeguard
     checkDuplicatePii('em', mergedUserData.em as string, mergedUserData.external_id as string);

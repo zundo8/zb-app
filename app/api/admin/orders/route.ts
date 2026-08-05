@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 import { enrichItemsWithSize } from '@/lib/enrichSize';
 
@@ -9,14 +10,14 @@ export async function GET(req: Request) {
   try {
     await requirePermission('ORDERS', 'view');
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
     const status = searchParams.get('status');
     const paymentStatus = searchParams.get('paymentStatus');
     const fulfillmentStatus = searchParams.get('fulfillmentStatus');
     const search = searchParams.get('search');
 
-    const conditions: any[] = [];
+    const conditions: Record<string, unknown>[] = [];
     
     // ─── STRICT ORDER SEPARATION ───
     conditions.push({
@@ -25,14 +26,12 @@ export async function GET(req: Request) {
           { status: 'payment_pending' },
           { status: 'payment_failed' },
           { status: 'FAILED' },
-          { status: 'cancelled' },
           { paymentStatus: 'payment_pending' },
           { paymentStatus: 'failed' },
-          { paymentStatus: 'cancelled' },
           {
             AND: [
               { paymentStatus: 'pending' },
-              { NOT: { status: { in: ['approved', 'open', 'fulfilled', 'delivered', 'shipped'] } } }
+              { NOT: { status: { in: ['approved', 'open', 'fulfilled', 'delivered', 'shipped', 'cancelled'] } } }
             ]
           },
           {
@@ -119,11 +118,11 @@ export async function GET(req: Request) {
     ]);
 
     // ─── BATCHED WEB STORE ORDER LOOKUP (ELIMINATES N+1 DB QUERIES) ───
-    const razorpayIds = orders.map((o: any) => o.razorpayOrderId).filter(Boolean);
-    const localIdNotes = orders.map((o: any) => `Local: ${o.id}`);
-    const shopifyIdNotes = orders.map((o: any) => o.shopifyOrderId ? `Shopify: ${o.shopifyOrderId}` : null).filter(Boolean) as string[];
+    const razorpayIds = orders.map((o: Record<string, unknown>) => o.razorpayOrderId as string).filter(Boolean);
+    const localIdNotes = orders.map((o: Record<string, unknown>) => `Local: ${o.id as string}`);
+    const shopifyIdNotes = orders.map((o: Record<string, unknown>) => o.shopifyOrderId ? `Shopify: ${o.shopifyOrderId as string}` : null).filter(Boolean) as string[];
 
-    const orClauses: any[] = [];
+    const orClauses: Record<string, unknown>[] = [];
     if (razorpayIds.length > 0) {
       orClauses.push({ razorpayOrderId: { in: razorpayIds } });
     }
@@ -135,25 +134,25 @@ export async function GET(req: Request) {
     });
 
     const webStoreOrders = orClauses.length > 0
-      ? await prisma.webStoreOrder.findMany({ where: { OR: orClauses } })
+      ? await prisma.webStoreOrder.findMany({ where: { OR: orClauses as Prisma.WebStoreOrderWhereInput[] } })
       : [];
 
-    const byRazorpayId = new Map<string, any>();
-    const byNotes = new Map<string, any>();
+    const byRazorpayId = new Map<string, Record<string, unknown>>();
+    const byNotes = new Map<string, Record<string, unknown>>();
 
-    webStoreOrders.forEach((wso: any) => {
-      if (wso.razorpayOrderId) byRazorpayId.set(wso.razorpayOrderId, wso);
-      if (wso.notes) byNotes.set(wso.notes, wso);
+    webStoreOrders.forEach((wso: Record<string, unknown>) => {
+      if (wso.razorpayOrderId) byRazorpayId.set(wso.razorpayOrderId as string, wso);
+      if (wso.notes) byNotes.set(wso.notes as string, wso);
     });
 
-    const enrichedOrders = orders.map((order: any) => {
-      let webStoreOrder = null;
+    const enrichedOrders = orders.map((order: Record<string, unknown>) => {
+      let webStoreOrder: Record<string, unknown> | null = null;
       if (order.razorpayOrderId) {
-        webStoreOrder = byRazorpayId.get(order.razorpayOrderId);
+        webStoreOrder = byRazorpayId.get(order.razorpayOrderId as string) || null;
       }
       if (!webStoreOrder) {
         for (const [notes, wso] of byNotes.entries()) {
-          if (notes.includes(`Local: ${order.id}`)) {
+          if (notes.includes(`Local: ${order.id as string}`)) {
             webStoreOrder = wso;
             break;
           }
@@ -161,7 +160,7 @@ export async function GET(req: Request) {
       }
       if (!webStoreOrder && order.shopifyOrderId) {
         for (const [notes, wso] of byNotes.entries()) {
-          if (notes.includes(`Shopify: ${order.shopifyOrderId}`)) {
+          if (notes.includes(`Shopify: ${order.shopifyOrderId as string}`)) {
             webStoreOrder = wso;
             break;
           }
@@ -169,21 +168,21 @@ export async function GET(req: Request) {
       }
 
       let codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
-      const rawMethod = (webStoreOrder?.paymentMethod || order.paymentMethod || '').toLowerCase();
-      const tagsLower = (order.tags || '').toLowerCase();
-      const noteLower = (order.note || '').toLowerCase();
+      const rawMethod = ((webStoreOrder?.paymentMethod as string) || (order.paymentMethod as string) || '').toLowerCase();
+      const tagsLower = ((order.tags as string) || '').toLowerCase();
+      const noteLower = ((order.note as string) || '').toLowerCase();
       const isCodOrder = rawMethod === 'cod' || tagsLower.includes('cod') || noteLower.includes('cod order') || noteLower.includes('upfront fee paid');
-      const paymentMethod = isCodOrder ? 'COD' : (webStoreOrder?.paymentMethod || order.paymentMethod || 'razorpay');
-      let paymentStatus = webStoreOrder?.paymentStatus || order.paymentStatus;
+      const paymentMethod = isCodOrder ? 'COD' : ((webStoreOrder?.paymentMethod as string) || (order.paymentMethod as string) || 'razorpay');
+      let paymentStatus = (webStoreOrder?.paymentStatus as string) || (order.paymentStatus as string);
       if (isCodOrder && paymentStatus === 'paid') {
         paymentStatus = 'cod_upfront_paid';
       }
 
       let discountAmount = webStoreOrder?.discountAmount 
         ? Number(webStoreOrder.discountAmount) 
-        : (order.discountAmount || 0);
+        : ((order.discountAmount as number) || 0);
 
-      const discountCode = webStoreOrder?.discountCode || order.discountCode;
+      const discountCode = (webStoreOrder?.discountCode as string) || (order.discountCode as string);
       if (isCodOrder && discountCode && discountCode.toUpperCase().includes('PREPAID')) {
         discountAmount = 0;
       }
@@ -192,16 +191,18 @@ export async function GET(req: Request) {
         codUpfrontPaid = 99;
       }
 
-      let totalPrice = order.totalPrice;
+      const totalPrice = order.totalPrice;
       
       let paidAmount = 0;
       if (isCodOrder) {
         paidAmount = codUpfrontPaid;
       } else if (paymentStatus === 'paid' || paymentStatus === 'success') {
-        paidAmount = totalPrice;
+        paidAmount = totalPrice as number;
       }
 
-      const displayOrderNumber = order.internalOrderNumber || order.shopifyOrderName || (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_') ? `#${order.shopifyOrderId.replace('#', '')}` : null) || `#${order.id.slice(-6).toUpperCase()}`;
+      const orderIdStr = order.id as string;
+      const shopifyIdStr = order.shopifyOrderId as string;
+      const displayOrderNumber = (order.internalOrderNumber as string) || (order.shopifyOrderName as string) || (shopifyIdStr && !shopifyIdStr.startsWith('app_') ? `#${shopifyIdStr.replace('#', '')}` : null) || `#${orderIdStr.slice(-6).toUpperCase()}`;
 
       return {
         ...order,
@@ -216,9 +217,9 @@ export async function GET(req: Request) {
     });
 
     const fullyEnrichedOrders = await Promise.all(
-      enrichedOrders.map(async (order: any) => ({
+      enrichedOrders.map(async (order: Record<string, unknown>) => ({
         ...order,
-        items: await enrichItemsWithSize(order.items || [], order)
+        items: await enrichItemsWithSize((order.items as Record<string, unknown>[]) || [], order)
       }))
     );
 
@@ -228,7 +229,7 @@ export async function GET(req: Request) {
       total,
       hasMore: total > offset + limit
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleAuthError(error);
   }
 }

@@ -21,11 +21,9 @@
 // Types
 // ---------------------------------------------------------------------------
 
-type FailedCause = 'payment_failed' | 'pending' | 'cancelled' | 'unknown';
-
 /** Anything that exposes $queryRawUnsafe — works with both prisma and tx */
 interface TxLike {
-  $queryRawUnsafe: (...args: any[]) => Promise<any>;
+  $queryRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,9 +62,9 @@ export function resolvePrefixFromCause(cause: string | null | undefined): string
  * @returns e.g. "ZB81000"
  */
 export async function assignUniversalOrderNumber(tx: TxLike): Promise<string> {
-  const rows: any[] = await tx.$queryRawUnsafe(
+  const rows = (await tx.$queryRawUnsafe(
     `SELECT nextval('zb_universal_order_seq') AS seq_val`
-  );
+  )) as Array<{ seq_val: bigint | number }>;
   const seqVal = Number(rows[0].seq_val);
   return `ZB${seqVal}`;
 }
@@ -82,9 +80,9 @@ export async function assignFailedOrderNumber(
   opts: { cause: string }
 ): Promise<string> {
   const prefix = resolvePrefixFromCause(opts.cause);
-  const rows: any[] = await tx.$queryRawUnsafe(
+  const rows = (await tx.$queryRawUnsafe(
     `SELECT nextval('zb_failed_order_seq') AS seq_val`
-  );
+  )) as Array<{ seq_val: bigint | number }>;
   const seqVal = Number(rows[0].seq_val);
   return `ZB${prefix}${seqVal}`;
 }
@@ -113,4 +111,17 @@ export function isUniversalZBNumber(orderNumber: string | null | undefined): boo
   if (!orderNumber) return false;
   // Must start with ZB, followed by digits only (no PF/PP/CX/XX prefix, no dashes)
   return /^ZB\d+$/.test(orderNumber);
+}
+
+/**
+ * Normalizes order number display across legacy formats (e.g. ZB-2608-34421 -> ZB-2608-34421 or clean display).
+ * Returns a consistent display string without leading hash symbols.
+ */
+export function normalizeOrderNumberDisplay(orderNumber: string | null | undefined): string {
+  if (!orderNumber) return "N/A";
+  let cleaned = String(orderNumber).trim();
+  if (cleaned.startsWith("#")) {
+    cleaned = cleaned.slice(1).trim();
+  }
+  return cleaned;
 }

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Search,
-  Filter,
   CheckCircle,
   Truck,
   Clock,
@@ -46,6 +45,7 @@ export default function WebStoreOrdersList() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingPayments, setSyncingPayments] = useState(false);
+  const [view, setView] = useState<"all" | "processed">("all");
   const [search, setSearch] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("all");
   const [fulfillmentStatus, setFulfillmentStatus] = useState("all");
@@ -53,13 +53,21 @@ export default function WebStoreOrdersList() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const LIMIT = 20;
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.append("limit", LIMIT.toString());
+      params.append("offset", ((page - 1) * LIMIT).toString());
+      params.append("view", view);
       if (search) params.append("query", search);
       if (paymentStatus !== "all") params.append("payment_status", paymentStatus);
       if (fulfillmentStatus !== "all") params.append("fulfillment_status", fulfillmentStatus);
@@ -71,12 +79,15 @@ export default function WebStoreOrdersList() {
       if (!res.ok) throw new Error("Failed to load orders");
       const data = await res.json();
       setOrders(data.orders || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching orders");
+      setTotal(data.total || 0);
+      setHasMore(Boolean(data.hasMore));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error fetching orders";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [LIMIT, page, view, search, paymentStatus, fulfillmentStatus, paymentMethod, startDate, endDate]);
 
   const handleSyncPayments = async () => {
     setSyncingPayments(true);
@@ -93,17 +104,30 @@ export default function WebStoreOrdersList() {
         toast.info("All order payment statuses are up to date.");
       }
       fetchOrders();
-    } catch (err: any) {
-      toast.error(err.message || "Error syncing payments");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error syncing payments";
+      toast.error(msg);
     } finally {
       setSyncingPayments(false);
     }
   };
 
   useEffect(() => {
-    const timeout = setTimeout(fetchOrders, 300);
+    setPage(1);
+  }, [view, search, paymentStatus, fulfillmentStatus, paymentMethod, startDate, endDate]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => fetchOrders(false), 300);
     return () => clearTimeout(timeout);
-  }, [search, paymentStatus, fulfillmentStatus, paymentMethod, startDate, endDate]);
+  }, [fetchOrders]);
+
+  useEffect(() => {
+    const handleSync = () => {
+      fetchOrders(true);
+    };
+    window.addEventListener("realtime-sync", handleSync);
+    return () => window.removeEventListener("realtime-sync", handleSync);
+  }, [fetchOrders]);
 
   const getCollectedAmount = (order: Order) => {
     const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
@@ -118,19 +142,18 @@ export default function WebStoreOrdersList() {
     if (status === "paid") {
       return Number(order.totalAmount || 0);
     }
+    if (status === "cod_upfront_paid" || status === "partially_paid") {
+      return Number(order.codUpfrontPaid || 0);
+    }
     return 0;
   };
 
   /* ═══ Summary Stats ═══ */
   const stats = useMemo(() => {
-    const totalOrders = orders.length;
-    const fulfilledOrders = orders.filter((o) => {
-      const status = (o.fulfillmentStatus || "").toLowerCase().trim();
-      return status === "fulfilled" || status === "shipped" || status === "delivered";
-    });
+    const totalOrders = total;
     const totalRevenue = orders.reduce((sum, o) => {
       const status = (o.paymentStatus || "").toLowerCase().trim();
-      if (status === "paid" || status === "cod_upfront_paid") {
+      if (status === "paid" || status === "cod_upfront_paid" || status === "partially_paid") {
         return sum + Number(o.totalAmount || 0);
       }
       return sum;
@@ -141,7 +164,7 @@ export default function WebStoreOrdersList() {
       return sum + getCollectedAmount(o);
     }, 0);
     return { totalOrders, totalRevenue, codOrders: codOrders.length, prepaidOrders: prepaidOrders.length, totalCollected };
-  }, [orders]);
+  }, [orders, total]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -179,8 +202,9 @@ export default function WebStoreOrdersList() {
       toast.success(`Successfully updated ${result.updatedCount} orders`);
       setSelectedIds([]);
       fetchOrders();
-    } catch (err: any) {
-      toast.error(err.message || "Error performing bulk action");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error performing bulk action";
+      toast.error(msg);
     } finally {
       setBulkActionLoading(false);
     }
@@ -211,9 +235,11 @@ export default function WebStoreOrdersList() {
       case "shipped":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20"><Truck className="w-3 h-3" /> Shipped</span>;
       case "processing":
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Clock className="w-3 h-3" /> Processing</span>;
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"><Clock className="w-3 h-3" /> Processing</span>;
+      case "cancelled":
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"><X className="w-3 h-3" /> Cancelled</span>;
       default:
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"><AlertCircle className="w-3 h-3" /> Unfulfilled</span>;
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20"><AlertCircle className="w-3 h-3" /> Unfulfilled</span>;
     }
   };
 
@@ -227,10 +253,10 @@ export default function WebStoreOrdersList() {
 
   const getPaymentBadge = (status: string, method?: string, codUpfront?: number, failureReason?: string | null) => {
     const isCOD = (method || "").toLowerCase().trim() === "cod";
-    if (status === "cod_upfront_paid" || (isCOD && Number(codUpfront || 0) > 0)) {
+    if (status === "cod_upfront_paid" || status === "partially_paid" || (isCOD && Number(codUpfront || 0) > 0)) {
       return (
         <div className="flex flex-col gap-0.5">
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <Banknote className="w-3 h-3" /> COD
           </span>
           <span className="text-[9px] font-bold text-emerald-400 pl-1">₹{codUpfront || 99} paid ✓</span>
@@ -269,8 +295,6 @@ export default function WebStoreOrdersList() {
     }
   };
 
-
-
   const clearFilters = () => {
     setSearch("");
     setPaymentStatus("all");
@@ -285,8 +309,8 @@ export default function WebStoreOrdersList() {
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight font-inter flex items-center gap-2">
-            Web Store Orders <Sparkles className="w-5 h-5 text-amber-500" />
+          <h1 className="text-2xl font-bold tracking-tight font-inter flex items-center gap-2 text-foreground">
+            Web Store Orders <Sparkles className="w-5 h-5 text-indigo-400" />
           </h1>
           <p className="text-[12px] text-foreground/50 mt-1">
             Review, ship, and update customer orders made on the zicabella.com storefront.
@@ -296,10 +320,36 @@ export default function WebStoreOrdersList() {
         <button
           onClick={handleSyncPayments}
           disabled={syncingPayments}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all disabled:opacity-50 shrink-0 self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs font-bold text-indigo-400 hover:bg-indigo-500/20 transition-all disabled:opacity-50 shrink-0 self-start sm:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${syncingPayments ? "animate-spin" : ""}`} />
           {syncingPayments ? "Syncing..." : "Sync Razorpay Payments"}
+        </button>
+      </div>
+
+      {/* ═══ Tab Switcher ═══ */}
+      <div className="flex items-center gap-2 border-b border-foreground/10 pb-3">
+        <button
+          onClick={() => setView("all")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            view === "all"
+              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+              : "bg-foreground/5 text-foreground/60 hover:bg-foreground/10 hover:text-foreground"
+          }`}
+        >
+          <Package className="w-3.5 h-3.5" />
+          All Orders
+        </button>
+        <button
+          onClick={() => setView("processed")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            view === "processed"
+              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+              : "bg-foreground/5 text-foreground/60 hover:bg-foreground/10 hover:text-foreground"
+          }`}
+        >
+          <CheckCircle className="w-3.5 h-3.5" />
+          Processed
         </button>
       </div>
 
@@ -309,7 +359,7 @@ export default function WebStoreOrdersList() {
           { label: "Total Orders", value: stats.totalOrders, icon: Package, color: "text-foreground" },
           { label: "Total Revenue", value: formatCurrency(stats.totalRevenue), icon: TrendingUp, color: "text-emerald-400" },
           { label: "Collected", value: formatCurrency(stats.totalCollected), icon: DollarSign, color: "text-sky-400" },
-          { label: "COD Orders", value: stats.codOrders, icon: Banknote, color: "text-amber-400" },
+          { label: "COD Orders", value: stats.codOrders, icon: Banknote, color: "text-indigo-400" },
           { label: "Prepaid", value: stats.prepaidOrders, icon: CreditCard, color: "text-purple-400" },
         ].map((stat) => (
           <div key={stat.label} className="glass rounded-2xl border border-foreground/5 p-4 flex flex-col gap-1">
@@ -333,7 +383,7 @@ export default function WebStoreOrdersList() {
               placeholder="Search order #, customer, email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl pl-11 pr-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium"
+              className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl pl-11 pr-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all font-medium"
             />
           </div>
 
@@ -341,7 +391,7 @@ export default function WebStoreOrdersList() {
           <select
             value={paymentStatus}
             onChange={(e) => setPaymentStatus(e.target.value)}
-            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
+            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all font-medium appearance-none"
           >
             <option value="all" className="bg-[#0e0e0e]">All Payment Statuses</option>
             <option value="pending" className="bg-[#0e0e0e]">Pending</option>
@@ -349,13 +399,14 @@ export default function WebStoreOrdersList() {
             <option value="cod_upfront_paid" className="bg-[#0e0e0e]">COD Upfront Paid</option>
             <option value="failed" className="bg-[#0e0e0e]">Failed</option>
             <option value="refunded" className="bg-[#0e0e0e]">Refunded</option>
+            <option value="cancelled" className="bg-[#0e0e0e]">Cancelled</option>
           </select>
 
           {/* Fulfillment filter */}
           <select
             value={fulfillmentStatus}
             onChange={(e) => setFulfillmentStatus(e.target.value)}
-            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
+            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all font-medium appearance-none"
           >
             <option value="all" className="bg-[#0e0e0e]">All Fulfillment</option>
             <option value="unfulfilled" className="bg-[#0e0e0e]">Unfulfilled</option>
@@ -363,13 +414,14 @@ export default function WebStoreOrdersList() {
             <option value="shipped" className="bg-[#0e0e0e]">Shipped</option>
             <option value="delivered" className="bg-[#0e0e0e]">Delivered</option>
             <option value="returned" className="bg-[#0e0e0e]">Returned</option>
+            <option value="cancelled" className="bg-[#0e0e0e]">Cancelled</option>
           </select>
 
           {/* Payment Method filter */}
           <select
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value)}
-            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all font-medium appearance-none"
+            className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-2xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all font-medium appearance-none"
           >
             <option value="all" className="bg-[#0e0e0e]">All Methods</option>
             <option value="razorpay" className="bg-[#0e0e0e]">Razorpay (Prepaid)</option>
@@ -387,14 +439,14 @@ export default function WebStoreOrdersList() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-foreground/[0.03] border border-foreground/5 rounded-xl px-3 py-1.5 text-[11px] text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
+              className="bg-foreground/[0.03] border border-foreground/5 rounded-xl px-3 py-1.5 text-[11px] text-foreground focus:outline-none focus:border-indigo-500/30 transition-all"
             />
             <span className="text-xs text-foreground/30 font-medium">to</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-foreground/[0.03] border border-foreground/5 rounded-xl px-3 py-1.5 text-[11px] text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
+              className="bg-foreground/[0.03] border border-foreground/5 rounded-xl px-3 py-1.5 text-[11px] text-foreground focus:outline-none focus:border-indigo-500/30 transition-all"
             />
           </div>
 
@@ -433,7 +485,7 @@ export default function WebStoreOrdersList() {
                       type="checkbox"
                       checked={selectedIds.length === orders.length && orders.length > 0}
                       onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="rounded border-foreground/15 bg-transparent text-amber-500 focus:ring-0 focus:ring-offset-0 w-4 h-4"
+                      className="rounded border-foreground/15 bg-transparent text-indigo-500 focus:ring-0 focus:ring-offset-0 w-4 h-4"
                     />
                   </th>
                   <th className="py-4 px-3">Order</th>
@@ -454,19 +506,26 @@ export default function WebStoreOrdersList() {
                   return (
                     <tr
                       key={order.id}
-                      className={`group hover:bg-foreground/[0.01] transition-colors ${isChecked ? "bg-amber-500/[0.02]" : ""}`}
+                      className={`group hover:bg-foreground/[0.01] transition-colors ${isChecked ? "bg-indigo-500/[0.02]" : ""}`}
                     >
                       <td className="py-4 px-5">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={(e) => handleSelectRow(order.id, e.target.checked)}
-                          className="rounded border-foreground/15 bg-transparent text-amber-500 focus:ring-0 focus:ring-offset-0 w-4 h-4"
+                          className="rounded border-foreground/15 bg-transparent text-indigo-500 focus:ring-0 focus:ring-offset-0 w-4 h-4"
                         />
                       </td>
-                      <td className="py-4 px-3 font-mono text-[12px] font-bold text-foreground group-hover:text-amber-500 transition-colors">
-                        <Link href={`/web-store/orders/${order.id}`}>
-                          {order.orderNumber}
+                      <td className="py-4 px-3">
+                        <Link href={`/web-store/orders/${order.id}`} className="group flex flex-col gap-0.5">
+                          <span className="font-mono text-[12px] font-bold text-foreground group-hover:text-indigo-400 transition-colors">
+                            {order.orderNumber}
+                          </span>
+                          {view === "processed" && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-max">
+                              ID: {order.orderNumber}
+                            </span>
+                          )}
                         </Link>
                       </td>
                       <td className="py-4 px-3 text-[11px] text-foreground/60">{formatDate(order.createdAt)}</td>
@@ -484,7 +543,7 @@ export default function WebStoreOrdersList() {
                           return (
                             <span className={`text-[10px] font-bold uppercase tracking-wider font-mono px-2 py-0.5 rounded border ${
                               isRowCOD
-                                ? "text-amber-400 bg-amber-500/5 border-amber-500/15"
+                                ? "text-indigo-400 bg-indigo-500/5 border-indigo-500/15"
                                 : "text-foreground/60 bg-foreground/5 border-foreground/5"
                             }`}>
                               {isRowCOD ? "COD" : "PREPAID"}
@@ -506,7 +565,7 @@ export default function WebStoreOrdersList() {
                                 collected === 0
                                   ? "text-foreground/40"
                                   : isRowCOD && !isPaid
-                                  ? "text-amber-400"
+                                  ? "text-indigo-400"
                                   : "text-emerald-400"
                               }`}>
                                 {formatCurrency(collected)}
@@ -535,6 +594,36 @@ export default function WebStoreOrdersList() {
         )}
       </div>
 
+      {/* Pagination Controls */}
+      {total > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 text-xs text-foreground/60">
+          <p className="text-[11px] font-medium text-foreground/50">
+            Showing <span className="font-bold text-foreground">{(page - 1) * LIMIT + 1}</span> to{" "}
+            <span className="font-bold text-foreground">{Math.min(page * LIMIT, total)}</span> of{" "}
+            <span className="font-bold text-foreground">{total}</span> orders
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1 || loading}
+              className="px-4 py-2 bg-foreground/5 hover:bg-foreground/10 disabled:opacity-30 border border-foreground/10 rounded-xl text-xs font-bold transition-all text-foreground"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-2 rounded-xl bg-foreground/5 border border-foreground/5 text-xs font-bold text-foreground">
+              {page}
+            </span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!hasMore && page * LIMIT >= total}
+              className="px-4 py-2 bg-foreground/5 hover:bg-foreground/10 disabled:opacity-30 border border-foreground/10 rounded-xl text-xs font-bold transition-all text-foreground"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Floating Bulk Action Bar */}
       <AnimatePresence>
         {selectedIds.length > 0 && (
@@ -544,9 +633,9 @@ export default function WebStoreOrdersList() {
             exit={{ opacity: 0, y: 100 }}
             className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 max-w-2xl w-full px-4"
           >
-            <div className="glass rounded-[2rem] border border-amber-500/20 shadow-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 backdrop-blur-2xl">
+            <div className="glass rounded-[2rem] border border-indigo-500/20 shadow-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 backdrop-blur-2xl">
               <div className="flex items-center gap-3">
-                <div className="h-6 w-6 rounded-full bg-amber-500 text-black flex items-center justify-center text-[10px] font-bold">
+                <div className="h-6 w-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">
                   {selectedIds.length}
                 </div>
                 <span className="text-[11px] font-semibold text-foreground/80 font-inter">Orders Selected</span>
@@ -568,7 +657,7 @@ export default function WebStoreOrdersList() {
                       e.target.value = "";
                     }
                   }}
-                  className="bg-foreground/5 border border-foreground/5 rounded-xl px-3 py-1.5 text-[10px] font-bold text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                  className="bg-foreground/5 border border-foreground/5 rounded-xl px-3 py-1.5 text-[10px] font-bold text-foreground focus:outline-none focus:border-indigo-500/30 transition-all appearance-none cursor-pointer"
                 >
                   <option value="">Mark Payment...</option>
                   <option value="paid">Paid</option>
@@ -587,7 +676,7 @@ export default function WebStoreOrdersList() {
                       e.target.value = "";
                     }
                   }}
-                  className="bg-foreground/5 border border-foreground/5 rounded-xl px-3 py-1.5 text-[10px] font-bold text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                  className="bg-foreground/5 border border-foreground/5 rounded-xl px-3 py-1.5 text-[10px] font-bold text-foreground focus:outline-none focus:border-indigo-500/30 transition-all appearance-none cursor-pointer"
                 >
                   <option value="">Mark Fulfillment...</option>
                   <option value="unfulfilled">Unfulfilled</option>

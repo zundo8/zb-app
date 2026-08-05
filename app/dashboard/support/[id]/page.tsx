@@ -1,19 +1,69 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Send, Clock, CheckCircle2, AlertCircle, Loader2, ArrowLeft, MoreHorizontal, User, ShieldCheck, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Send, AlertCircle, Loader2, ArrowLeft, User, ShieldCheck, Sparkles } from 'lucide-react';
+
+interface SupportMessage {
+  id: string;
+  ticketId: string;
+  senderType: string;
+  senderId?: string | null;
+  senderName?: string | null;
+  content: string;
+  createdAt: string;
+}
+
+interface SupportTicketDetail {
+  id: string;
+  customerId?: string | null;
+  guestName?: string | null;
+  guestEmail?: string | null;
+  displayName?: string | null;
+  displayEmail?: string | null;
+  displayPhone?: string | null;
+  subject: string;
+  status: string;
+  priority: string;
+  aiAutoReply: boolean;
+  createdAt: string;
+  updatedAt: string;
+  messages: SupportMessage[];
+}
 
 export default function TicketDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [ticket, setTicket] = useState<any>(null);
+  const [ticket, setTicket] = useState<SupportTicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [newMessage, setNewMessage] = useState('');
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const prevCountRef = useRef<number>(0);
+  const justSentRef = useRef<boolean>(false);
+
+  const isNearBottom = () => {
+    if (!scrollContainerRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    return scrollHeight - scrollTop - clientHeight < 150;
+  };
+
+  const scrollToBottom = (behavior: 'auto' | 'smooth' = 'auto') => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior });
+    }
+  };
+
+  const shortId = ticket ? ticket.id.slice(-8).toUpperCase() : '';
+
+  useEffect(() => {
+    if (ticket) {
+      document.title = `Ticket #${shortId} — ${ticket.subject}`;
+    }
+  }, [ticket, shortId]);
 
   const toggleAiAutoReply = async () => {
     if (!ticket) return;
@@ -24,11 +74,11 @@ export default function TicketDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ticketId: ticket.id,
-          aiAutoReply: nextVal
-        })
+          aiAutoReply: nextVal,
+        }),
       });
       if (res.ok) {
-        setTicket({ ...ticket, aiAutoReply: nextVal });
+        setTicket((prev) => (prev ? { ...prev, aiAutoReply: nextVal } : null));
       }
     } catch (err) {
       console.error('Failed to toggle AI Auto-Reply:', err);
@@ -40,8 +90,9 @@ export default function TicketDetailPage() {
       alert("Error: This ticket doesn't have an associated Customer ID.");
       return;
     }
+    const displayName = ticket.displayName || ticket.guestName || 'Registered Customer';
     const confirmed = confirm(
-      `WARNING: Are you absolutely sure you want to approve this account deletion request?\n\nThis will permanently delete the customer "${ticket.guestName || 'Anonymous'}" and ALL of their associated data (orders, address, messages, payments). This cannot be undone.`
+      `WARNING: Are you absolutely sure you want to approve this account deletion request?\n\nThis will permanently delete the customer "${displayName}" and ALL of their associated data (orders, address, messages, payments). This cannot be undone.`
     );
     if (!confirmed) return;
 
@@ -63,63 +114,126 @@ export default function TicketDetailPage() {
         const data = await res.json();
         alert('Failed to delete customer: ' + (data.error || 'Unknown error'));
       }
-    } catch (err: any) {
-      alert('Error: ' + err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      alert('Error: ' + msg);
     } finally {
       setDeleting(false);
     }
   };
 
-  const fetchTicket = async () => {
+  const fetchTicket = useCallback(async (isInitial = false) => {
     try {
       const res = await fetch(`/api/support/tickets?ticketId=${params.id}`);
       const data = await res.json();
       if (data.tickets && data.tickets[0]) {
-        setTicket(data.tickets[0]);
+        const fetchedTicket: SupportTicketDetail = data.tickets[0];
+
+        setTicket((prevTicket) => {
+          if (!prevTicket) {
+            prevCountRef.current = fetchedTicket.messages?.length || 0;
+            setTimeout(() => scrollToBottom('auto'), 50);
+            return fetchedTicket;
+          }
+
+          const newMsgs = fetchedTicket.messages || [];
+
+          if (newMsgs.length > prevCountRef.current) {
+            const wasSent = justSentRef.current;
+            const nearBottom = isNearBottom();
+
+            justSentRef.current = false;
+            prevCountRef.current = newMsgs.length;
+
+            if (wasSent || nearBottom || isInitial) {
+              setTimeout(() => scrollToBottom(wasSent ? 'smooth' : 'auto'), 50);
+            }
+
+            return fetchedTicket;
+          }
+
+          // If message count is identical, preserve messages reference to avoid re-rendering chat world
+          if (
+            prevTicket.status !== fetchedTicket.status ||
+            prevTicket.priority !== fetchedTicket.priority ||
+            prevTicket.aiAutoReply !== fetchedTicket.aiAutoReply ||
+            prevTicket.displayName !== fetchedTicket.displayName
+          ) {
+            return {
+              ...fetchedTicket,
+              messages: prevTicket.messages,
+            };
+          }
+
+          return prevTicket;
+        });
       }
-    } catch (error) {
+    } catch {
       console.error('Failed to fetch ticket');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchTicket();
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        fetchTicket();
-      }
-    }, 5000);
-    return () => clearInterval(interval);
   }, [params.id]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [ticket?.messages]);
+    fetchTicket(true);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchTicket(false);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchTicket]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !ticket) return;
 
+    const content = newMessage.trim();
+    setNewMessage('');
     setSending(true);
+
+    // Optimistic append
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: SupportMessage = {
+      id: tempId,
+      ticketId: ticket.id,
+      content,
+      senderType: 'AGENT',
+      senderId: 'admin',
+      senderName: 'Zica Support',
+      createdAt: new Date().toISOString(),
+    };
+
+    setTicket((prev) => {
+      if (!prev) return prev;
+      const updatedMsgs = [...(prev.messages || []), optimisticMessage];
+      prevCountRef.current = updatedMsgs.length;
+      return {
+        ...prev,
+        messages: updatedMsgs,
+      };
+    });
+
+    justSentRef.current = true;
+    setTimeout(() => scrollToBottom('smooth'), 50);
+
     try {
       const res = await fetch('/api/support/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ticketId: ticket.id,
-          content: newMessage,
+          content,
           senderType: 'AGENT',
-          senderName: 'Zica Support'
-        })
+          senderName: 'Zica Support',
+        }),
       });
 
       if (res.ok) {
-        setNewMessage('');
-        fetchTicket();
+        await fetchTicket(false);
       }
-    } catch (error) {
+    } catch {
       console.error('Failed to send message');
     } finally {
       setSending(false);
@@ -127,25 +241,26 @@ export default function TicketDetailPage() {
   };
 
   const updateStatus = async (status: string) => {
+    if (!ticket) return;
     try {
       const res = await fetch('/api/support/tickets', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ticketId: ticket.id,
-          status
-        })
+          status,
+        }),
       });
 
       if (res.ok) {
-        setTicket({ ...ticket, status });
+        setTicket((prev) => (prev ? { ...prev, status } : null));
       } else {
         const err = await res.json();
         alert('Failed to update status: ' + (err.error || 'Unknown error'));
       }
-    } catch (error: any) {
-      console.error('Failed to update status:', error);
-      alert('Error updating status: ' + error.message);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      alert('Error updating status: ' + msg);
     }
   };
 
@@ -168,6 +283,10 @@ export default function TicketDetailPage() {
     );
   }
 
+  const displayName = ticket.displayName || ticket.guestName || (ticket.customerId ? 'Registered Customer' : 'Guest');
+  const displayEmail = ticket.displayEmail || (ticket.guestEmail && ticket.guestEmail !== 'Logged-in User' ? ticket.guestEmail : null);
+  const displayPhone = ticket.displayPhone || null;
+
   return (
     <div className="pb-20 space-y-8">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -184,7 +303,7 @@ export default function TicketDetailPage() {
             </h1>
             <div className="flex items-center gap-3">
               <span className="text-[9px] font-bold px-3 py-0.5 rounded-full border border-foreground/[0.1] bg-foreground/[0.03] text-foreground/60 uppercase tracking-widest">
-                ID: {ticket.id.slice(-8).toUpperCase()}
+                Ticket #{shortId}
               </span>
               <span className={`text-[9px] font-bold px-3 py-0.5 rounded-full border uppercase tracking-widest ${
                 ticket.status === 'OPEN' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
@@ -232,8 +351,11 @@ export default function TicketDetailPage() {
                   <User className="w-5 h-5 text-foreground/40" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[12px] font-bold text-foreground uppercase truncate">{ticket.guestName || 'Anonymous'}</p>
-                  <p className="text-[9px] text-foreground/40 font-medium truncate lowercase">{ticket.guestEmail || 'Logged-in'}</p>
+                  <p className="text-[12px] font-bold text-foreground uppercase truncate">{displayName}</p>
+                  <p className="text-[9px] text-foreground/40 font-medium truncate lowercase">{displayEmail || 'No Email'}</p>
+                  {displayPhone && (
+                    <p className="text-[9px] text-foreground/40 font-medium truncate">{displayPhone}</p>
+                  )}
                 </div>
               </div>
               
@@ -292,8 +414,8 @@ export default function TicketDetailPage() {
               )}
             </div>
 
-            <div className="flex-1 p-8 overflow-y-auto custom-scrollbar space-y-8">
-              {ticket.messages.map((msg: any) => {
+            <div ref={scrollContainerRef} className="flex-1 p-8 overflow-y-auto custom-scrollbar space-y-8">
+              {(ticket.messages || []).map((msg) => {
                 const isAgent = msg.senderType === 'AGENT';
                 const isAi = msg.senderType === 'ZICA_AI';
 
@@ -313,7 +435,7 @@ export default function TicketDetailPage() {
                             <span className="text-[7px] font-extrabold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 uppercase tracking-wider">AUTOREPLY</span>
                           </>
                         ) : (
-                          <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{msg.senderName || 'Customer'}</span>
+                          <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{displayName}</span>
                         )}
                       </div>
                       <div className={`p-4 rounded-3xl ${
@@ -346,7 +468,7 @@ export default function TicketDetailPage() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      handleSendMessage(e as any);
+                      handleSendMessage(e);
                     }
                   }}
                 />

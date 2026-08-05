@@ -5,23 +5,24 @@ import { isOrderValidConverted } from "@/lib/cartValidation";
 export const dynamic = "force-dynamic";
 
 const validConvertedOrderClause = {
-  convertedOrder: {
-    is: {
-      NOT: [
-        { status: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "draft", "voided"] } },
-        { paymentStatus: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "voided"] } }
-      ],
-      OR: [
-        { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "PAID", "SUCCESS", "success", "captured"] } },
-        {
-          AND: [
-            { paymentMethod: { in: ["COD", "cod", "Cash on Delivery", "cash_on_delivery"] } },
-            { status: { in: ["approved", "open", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "CONFIRMED", "confirmed", "placed"] } }
+  OR: [
+    {
+      convertedOrder: {
+        is: {
+          NOT: [
+            { status: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "draft", "voided"] } },
+            { paymentStatus: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "voided"] } }
+          ],
+          OR: [
+            { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "PAID", "SUCCESS", "success", "captured", "authorized", "approved"] } },
+            { status: { in: ["approved", "open", "active", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "CONFIRMED", "confirmed", "placed", "synced", "closed"] } }
           ]
         }
-      ]
-    }
-  }
+      }
+    },
+    { status: "converted" },
+    { convertedOrderId: { not: null } }
+  ]
 };
 
 export async function GET(req: Request) {
@@ -97,7 +98,7 @@ export async function GET(req: Request) {
     // Get total count for pagination
     const total = await prisma.cart.count({ where });
 
-    // Fetch the carts with relations
+    // Fetch the carts with relations (sorted by updatedAt desc so latest converted/updated carts appear first)
     const carts = await prisma.cart.findMany({
       where,
       include: {
@@ -124,7 +125,7 @@ export async function GET(req: Request) {
         }
       },
       orderBy: {
-        lastActivityAt: "desc"
+        updatedAt: "desc"
       },
       skip,
       take: limit
@@ -183,9 +184,10 @@ export async function GET(req: Request) {
     const mappedCarts = carts.map((cart: any) => {
       const order = cart.convertedOrder;
       const isValidConverted = isOrderValidConverted(order);
+      const isExplicitlyConverted = cart.status === "converted" || Boolean(cart.convertedOrderId);
 
       let computedStatus = cart.status;
-      if (isValidConverted) {
+      if (isValidConverted || isExplicitlyConverted) {
         computedStatus = "converted";
       } else if (cart.status === "expired") {
         computedStatus = "expired";
@@ -197,8 +199,8 @@ export async function GET(req: Request) {
 
       return {
         ...cart,
-        convertedOrder: isValidConverted ? order : null,
-        convertedOrderId: isValidConverted ? cart.convertedOrderId : null,
+        convertedOrder: order || null,
+        convertedOrderId: cart.convertedOrderId || (order ? order.id : null),
         computedStatus
       };
     });

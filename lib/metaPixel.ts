@@ -113,11 +113,30 @@ export function clearGuestPiiCookies() {
   const piiCookieNames = [
     'zb_guest_email', 'zb_guest_phone', 'zb_guest_fn', 'zb_guest_ln',
     'zb_guest_country', 'zb_guest_st', 'zb_guest_ct', 'zb_guest_zp',
-    'zb_guest_dob', 'zb_fb_login_id',
+    'zb_guest_dob', 'zb_fb_login_id', 'zb_pii_owner',
   ];
   for (const name of piiCookieNames) {
     deleteClientCookie(name);
   }
+}
+
+/**
+ * Reset guest identity after a guest checkout completes.
+ * Clears all PII cookies, deletes the PII owner binding, and rotates
+ * the external_id to a fresh UUID so the next guest on this device
+ * gets a completely distinct identity.
+ */
+export function resetGuestIdentity() {
+  clearGuestPiiCookies();
+  // Rotate external_id so the next guest gets a fresh identity
+  const newExtId = 'zb.' + (typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      }));
+  setClientCookie('zb_external_id', newExtId, 365);
 }
 
 export async function sha256(message: string): Promise<string> {
@@ -150,20 +169,28 @@ export function getClientCookie(name: string): string | null {
  * carries maximum user identity data for optimal Event Match Quality.
  */
 export function getMetaIdentityCookies(): Record<string, string | undefined> {
+  const extId = getClientCookie('zb_external_id') || undefined;
+  const piiOwner = getClientCookie('zb_pii_owner') || undefined;
+
+  // If the PII cookies were written by a different identity (external_id),
+  // omit all PII fields to prevent stale data from one guest leaking into
+  // another guest's Meta events on the same device.
+  const piiMatch = !!(piiOwner && extId && piiOwner === extId);
+
   return {
     fbc: getClientCookie('_fbc') || undefined,
     fbp: getClientCookie('_fbp') || undefined,
-    external_id: getClientCookie('zb_external_id') || undefined,
-    em: getClientCookie('zb_guest_email') || undefined,
-    ph: getClientCookie('zb_guest_phone') || undefined,
-    fn: getClientCookie('zb_guest_fn') || undefined,
-    ln: getClientCookie('zb_guest_ln') || undefined,
-    country: getClientCookie('zb_guest_country') || undefined,
-    st: getClientCookie('zb_guest_st') || undefined,
-    ct: getClientCookie('zb_guest_ct') || undefined,
-    zp: getClientCookie('zb_guest_zp') || undefined,
+    external_id: extId,
+    em: piiMatch ? (getClientCookie('zb_guest_email') || undefined) : undefined,
+    ph: piiMatch ? (getClientCookie('zb_guest_phone') || undefined) : undefined,
+    fn: piiMatch ? (getClientCookie('zb_guest_fn') || undefined) : undefined,
+    ln: piiMatch ? (getClientCookie('zb_guest_ln') || undefined) : undefined,
+    country: piiMatch ? (getClientCookie('zb_guest_country') || undefined) : undefined,
+    st: piiMatch ? (getClientCookie('zb_guest_st') || undefined) : undefined,
+    ct: piiMatch ? (getClientCookie('zb_guest_ct') || undefined) : undefined,
+    zp: piiMatch ? (getClientCookie('zb_guest_zp') || undefined) : undefined,
     fb_login_id: getClientCookie('zb_fb_login_id') || undefined,
-    db: getClientCookie('zb_guest_dob') || undefined,
+    db: piiMatch ? (getClientCookie('zb_guest_dob') || undefined) : undefined,
     client_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
   };
 }
@@ -224,6 +251,11 @@ export async function saveUserDataToCookies(data: {
 }) {
   if (typeof window === 'undefined') return;
 
+  // Only write PII cookies if we have a valid external_id to bind them to.
+  // This prevents orphaned PII that can't be identity-matched later.
+  const currentExtId = getClientCookie('zb_external_id');
+  if (!currentExtId) return;
+
   if (data.email && !isDemoValue('email', data.email)) {
     const hashedEmail = await sha256(data.email.trim().toLowerCase());
     setClientCookie('zb_guest_email', hashedEmail, 365);
@@ -274,6 +306,10 @@ export async function saveUserDataToCookies(data: {
       setClientCookie('zb_guest_dob', hashedDob, 365);
     }
   }
+
+  // Bind PII cookies to the current identity so getMetaIdentityCookies()
+  // can verify ownership before reusing them for a different visitor.
+  setClientCookie('zb_pii_owner', currentExtId, 365);
 }
 
 export async function saveUserDataToCookiesAndReinit(data: {

@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import prisma from "@/lib/db";
-import { syncPendingWebStoreOrders } from "@/lib/services/razorpaySyncService";
+import { Prisma } from "@prisma/client";
 import { assignFailedOrderNumber } from "@/lib/orderNumber";
+
+import { promoteMasterOrderToWebStoreOrder } from "@/lib/services/orderPromotionService";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +17,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Auto sync pending Razorpay orders in background before listing
-    try {
-      await syncPendingWebStoreOrders();
-    } catch (syncErr: any) {
-      console.warn("[Web Store Orders GET] Auto-sync warning:", syncErr?.message);
-    }
-
     const { searchParams } = new URL(request.url);
+    const view = searchParams.get("view") || "all";
     const query = searchParams.get("query") || "";
     const fulfillmentStatus = searchParams.get("fulfillment_status") || "";
     const paymentStatus = searchParams.get("payment_status") || "";
@@ -30,8 +26,13 @@ export async function GET(request: Request) {
     const startDateStr = searchParams.get("start_date");
     const endDateStr = searchParams.get("end_date");
     
+    const rawLimit = parseInt(searchParams.get("limit") || "20", 10);
+    const limit = Math.min(isNaN(rawLimit) || rawLimit <= 0 ? 20 : rawLimit, 20);
+    const rawOffset = parseInt(searchParams.get("offset") || "0", 10);
+    const offset = isNaN(rawOffset) || rawOffset < 0 ? 0 : rawOffset;
+
     // Construct database filters
-    const where: any = {};
+    const where: Record<string, unknown> = {};
 
     // Search query filter
     if (query) {
@@ -49,23 +50,28 @@ export async function GET(request: Request) {
     }
     if (paymentStatus && paymentStatus !== "all") {
       if (paymentStatus === "paid") {
-        where.paymentStatus = { in: ["paid", "cod_upfront_paid", "PAID", "COD_UPFRONT_PAID"] };
-      } else if (paymentStatus === "cod_upfront_paid") {
+        where.paymentStatus = { in: ["paid", "cod_upfront_paid", "partially_paid", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] };
+      } else if (paymentStatus === "cod_upfront_paid" || paymentStatus === "partially_paid") {
         where.OR = [
-          { paymentStatus: { in: ["cod_upfront_paid", "COD_UPFRONT_PAID"] } },
+          { paymentStatus: { in: ["cod_upfront_paid", "partially_paid", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } },
           { codUpfrontPaid: { gt: 0 } }
         ];
       } else if (paymentStatus === "pending") {
         where.paymentStatus = { in: ["pending", "payment_pending", "PENDING", "PAYMENT_PENDING"] };
       } else if (paymentStatus === "failed") {
         where.paymentStatus = { in: ["failed", "payment_failed", "FAILED", "PAYMENT_FAILED"] };
+      } else if (paymentStatus === "cancelled") {
+        where.paymentStatus = { in: ["cancelled", "CANCELLED", "canceled", "CANCELED"] };
+      } else if (paymentStatus === "refunded") {
+        where.paymentStatus = { in: ["refunded", "REFUNDED"] };
       } else {
         where.paymentStatus = paymentStatus;
       }
-    } else {
-      where.paymentStatus = {
-        notIn: ["payment_pending", "payment_failed", "pending", "failed", "cancelled", "FAILED"],
-      };
+    } else if (view === "processed") {
+      where.OR = [
+        { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } },
+        { codUpfrontPaid: { gt: 0 } }
+      ];
     }
     if (paymentMethod && paymentMethod !== "all") {
       where.paymentMethod = {
@@ -75,161 +81,159 @@ export async function GET(request: Request) {
 
     // Date range filter
     if (startDateStr || endDateStr) {
-      where.createdAt = {};
+      const createdAtFilter: { gte?: Date; lte?: Date } = {};
       if (startDateStr) {
-        where.createdAt.gte = new Date(startDateStr);
+        createdAtFilter.gte = new Date(startDateStr);
       }
       if (endDateStr) {
         // Set end date to end of the day (23:59:59)
         const endDate = new Date(endDateStr);
         endDate.setHours(23, 59, 59, 999);
-        where.createdAt.lte = endDate;
+        createdAtFilter.lte = endDate;
       }
+      where.createdAt = createdAtFilter;
     }
 
-    const orders = await prisma.webStoreOrder.findMany({
-      where,
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const [orders, total] = await Promise.all([
+      prisma.webStoreOrder.findMany({
+        where: where as Prisma.WebStoreOrderWhereInput,
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.webStoreOrder.count({ where: where as Prisma.WebStoreOrderWhereInput }),
+    ]);
 
-    // Also query master Order table for confirmed WEB_STORE orders to ensure none are missing
-    const masterWebOrders = await prisma.order.findMany({
-      where: {
-        OR: [
-          { orderType: "WEB_STORE" },
-          { tags: { contains: "WebStoreOrder" } },
-          { tags: { contains: "zb-order-" } },
-        ],
-        paymentStatus: { in: ["paid", "cod_upfront_paid", "approved"] }
-      },
-      include: { customer: true, items: true },
-      orderBy: { createdAt: "desc" },
-      take: 50
-    });
+    // Page-scoped cross-lookup in master Order table to reconcile missing or outdated entries for current page
+    const pageOrderNumbers = orders.map((o: Record<string, unknown>) => o.orderNumber as string).filter(Boolean);
+    const pageRzpIds = orders.map((o: Record<string, unknown>) => o.razorpayOrderId as string).filter(Boolean);
+    const pageIds = orders.map((o: Record<string, unknown>) => o.id as string).filter(Boolean);
 
-    // Merge master orders into webStoreOrders map to reconcile missing or outdated entries
+    const masterOrClauses: Record<string, unknown>[] = [];
+    if (pageRzpIds.length > 0) {
+      masterOrClauses.push({ razorpayOrderId: { in: pageRzpIds } });
+    }
+    if (pageOrderNumbers.length > 0) {
+      masterOrClauses.push({ internalOrderNumber: { in: pageOrderNumbers } });
+      masterOrClauses.push({ shopifyOrderName: { in: pageOrderNumbers } });
+    }
+    // Indexed cross-lookup clauses only (razorpayOrderId, internalOrderNumber, shopifyOrderName)
+
+    const masterWebOrders = masterOrClauses.length > 0
+      ? await prisma.order.findMany({
+          where: {
+            OR: masterOrClauses as Prisma.OrderWhereInput[],
+            paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "approved", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] }
+          },
+          include: { customer: true, items: true },
+        })
+      : [];
+
+    // Merge master orders into webStoreOrders map matching on orderNumber, razorpayOrderId, AND razorpayPaymentId
     const existingOrderKeys = new Set<string>();
     for (const o of orders) {
-      if (o.orderNumber) existingOrderKeys.add(o.orderNumber.toUpperCase());
-      if (o.razorpayOrderId) existingOrderKeys.add(o.razorpayOrderId);
-    }
-
-    const reconciledOrders: any[] = [...orders];
-
-    for (const mOrder of masterWebOrders) {
-      const numKey = (mOrder.internalOrderNumber || mOrder.shopifyOrderName || "").toUpperCase();
-      const rzpKey = mOrder.razorpayOrderId || "";
-
-      const alreadyIncluded = (numKey && existingOrderKeys.has(numKey)) || (rzpKey && existingOrderKeys.has(rzpKey));
-
-      if (!alreadyIncluded && (mOrder.internalOrderNumber || mOrder.shopifyOrderName)) {
-        let shippingAddr: any = {};
-        try {
-          shippingAddr = mOrder.shippingAddress ? JSON.parse(mOrder.shippingAddress) : {};
-        } catch {}
-
-        const rawMethod = (mOrder.paymentMethod || '').toLowerCase();
-        const tagsLower = (mOrder.tags || '').toLowerCase();
-        const noteLower = (mOrder.note || '').toLowerCase();
-        const isCod = rawMethod === 'cod' || tagsLower.includes('cod') || noteLower.includes('cod order') || noteLower.includes('upfront fee paid');
-
-        const formattedOrder = {
-          id: mOrder.id,
-          orderNumber: mOrder.internalOrderNumber || mOrder.shopifyOrderName || `#${mOrder.id.slice(-6).toUpperCase()}`,
-          customerName: mOrder.customer?.name || "Customer",
-          customerEmail: mOrder.customer?.email || "",
-          customerPhone: mOrder.customer?.phone || "",
-          shippingAddress: shippingAddr,
-          items: mOrder.items.map((i: any) => ({
-            product_id: i.productId || "",
-            variant_id: i.variantId || "",
-            title: i.title,
-            image_url: i.image || "",
-            quantity: i.quantity,
-            price: i.price,
-            size: i.size || ""
-          })),
-          subtotal: mOrder.subtotalPrice || mOrder.totalPrice,
-          shippingCharge: 0,
-          discountCode: mOrder.discountCode || null,
-          discountAmount: mOrder.discountAmount || 0,
-          totalAmount: mOrder.totalPrice,
-          paymentStatus: isCod ? "cod_upfront_paid" : "paid",
-          paymentMethod: isCod ? "cod" : (mOrder.paymentMethod || "razorpay"),
-          razorpayOrderId: mOrder.razorpayOrderId,
-          razorpayPaymentId: mOrder.razorpayPaymentId,
-          codUpfrontPaid: isCod ? 99 : 0,
-          codUpfrontPaymentId: isCod ? (mOrder.razorpayPaymentId || null) : null,
-          fulfillmentStatus: mOrder.fulfillmentStatus || "unfulfilled",
-          notes: mOrder.note || null,
-          source: "web",
-          createdAt: mOrder.createdAt,
-          updatedAt: mOrder.updatedAt,
-          paymentFailureReason: null,
-        };
-
-        reconciledOrders.push(formattedOrder);
-
-        // Async sync to WebStoreOrder table in background for future fast lookups
-        try {
-          prisma.webStoreOrder.upsert({
-            where: { orderNumber: formattedOrder.orderNumber },
-            update: {
-              paymentStatus: formattedOrder.paymentStatus,
-              paymentMethod: formattedOrder.paymentMethod,
-              razorpayOrderId: formattedOrder.razorpayOrderId,
-              razorpayPaymentId: formattedOrder.razorpayPaymentId,
-              codUpfrontPaid: formattedOrder.codUpfrontPaid,
-              codUpfrontPaymentId: formattedOrder.codUpfrontPaymentId,
-              paymentFailureReason: null,
-            },
-            create: formattedOrder as any,
-          }).catch(() => null);
-        } catch {}
+      if (o.id) existingOrderKeys.add((o.id as string).toUpperCase());
+      if (o.orderNumber) existingOrderKeys.add((o.orderNumber as string).toUpperCase());
+      if (o.razorpayOrderId) existingOrderKeys.add((o.razorpayOrderId as string).toUpperCase());
+      if (o.razorpayPaymentId) existingOrderKeys.add((o.razorpayPaymentId as string).toUpperCase());
+      if (o.notes) {
+        const localMatch = (o.notes as string).match(/Local:\s*([^\s\n]+)/i);
+        if (localMatch) existingOrderKeys.add(localMatch[1].toUpperCase());
+        const shopifyMatch = (o.notes as string).match(/Shopify:\s*([^\s\n]+)/i);
+        if (shopifyMatch) existingOrderKeys.add(shopifyMatch[1].toUpperCase());
       }
     }
 
-    // Enrich with failure reason from Order model if missing on webStoreOrder
-    const enrichedOrders = await Promise.all(
-      reconciledOrders.map(async (o: any) => {
-        let failureReason = o.paymentFailureReason || null;
-        if (!failureReason && o.razorpayOrderId) {
-          const matchingOrder = await prisma.order.findFirst({
-            where: { razorpayOrderId: o.razorpayOrderId },
-            select: { paymentFailureReason: true },
-          });
-          if (matchingOrder?.paymentFailureReason) {
-            failureReason = matchingOrder.paymentFailureReason;
-          }
-        }
-        return {
-          ...o,
-          paymentFailureReason: failureReason || (o.paymentStatus === "payment_pending" || o.paymentStatus === "pending" ? "awaiting_confirmation" : null),
-        };
-      })
-    );
+    const reconciledOrders: Record<string, unknown>[] = [...orders];
 
-    // Deduplicate order attempts (collapse multiple failed attempts and hide abandoned draft pre-creates)
+    for (const mOrder of masterWebOrders) {
+      const idKey = mOrder.id ? mOrder.id.toUpperCase() : "";
+      const intNumKey = mOrder.internalOrderNumber ? mOrder.internalOrderNumber.toUpperCase() : "";
+      const shopNumKey = mOrder.shopifyOrderName ? mOrder.shopifyOrderName.toUpperCase() : "";
+      const shopIdKey = mOrder.shopifyOrderId ? mOrder.shopifyOrderId.toUpperCase() : "";
+      const rzpOrderKey = mOrder.razorpayOrderId ? mOrder.razorpayOrderId.toUpperCase() : "";
+      const rzpPayKey = mOrder.razorpayPaymentId ? mOrder.razorpayPaymentId.toUpperCase() : "";
+
+      const alreadyIncluded = 
+        (idKey && existingOrderKeys.has(idKey)) ||
+        (intNumKey && existingOrderKeys.has(intNumKey)) ||
+        (shopNumKey && existingOrderKeys.has(shopNumKey)) ||
+        (shopIdKey && existingOrderKeys.has(shopIdKey)) ||
+        (rzpOrderKey && existingOrderKeys.has(rzpOrderKey)) ||
+        (rzpPayKey && existingOrderKeys.has(rzpPayKey));
+
+      const isSuccessful = ["paid", "cod_upfront_paid", "partially_paid", "approved", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"].includes((mOrder.paymentStatus || "").toString());
+
+      if (!alreadyIncluded && (mOrder.internalOrderNumber || mOrder.shopifyOrderName) && isSuccessful) {
+        // Promote master Order into WebStoreOrder so it receives a real UUID id
+        const promoted = await promoteMasterOrderToWebStoreOrder(mOrder);
+        if (promoted) {
+          existingOrderKeys.add(promoted.id.toUpperCase());
+          existingOrderKeys.add(promoted.orderNumber.toUpperCase());
+          if (promoted.razorpayOrderId) existingOrderKeys.add(promoted.razorpayOrderId.toUpperCase());
+          if (promoted.razorpayPaymentId) existingOrderKeys.add(promoted.razorpayPaymentId.toUpperCase());
+          reconciledOrders.push(promoted as unknown as Record<string, unknown>);
+        }
+      }
+    }
+
+    // Batched lookup for payment failure reason from Order model to eliminate N+1 queries
+    const rzpIdsToFetch = reconciledOrders.map((o: Record<string, unknown>) => o.razorpayOrderId as string).filter(Boolean);
+    const failureReasonMap = new Map<string, string>();
+
+    if (rzpIdsToFetch.length > 0) {
+      const matchingOrders = await prisma.order.findMany({
+        where: { razorpayOrderId: { in: rzpIdsToFetch } },
+        select: { razorpayOrderId: true, paymentFailureReason: true },
+      });
+      matchingOrders.forEach((m: { razorpayOrderId: string | null; paymentFailureReason: string | null }) => {
+        if (m.razorpayOrderId && m.paymentFailureReason) {
+          failureReasonMap.set(m.razorpayOrderId, m.paymentFailureReason);
+        }
+      });
+    }
+
+    const enrichedOrders = reconciledOrders.map((o: Record<string, unknown>) => {
+      let failureReason = (o.paymentFailureReason as string) || null;
+      const rzpId = o.razorpayOrderId as string | undefined;
+      const pStatus = o.paymentStatus as string | undefined;
+      if (!failureReason && rzpId) {
+        failureReason = failureReasonMap.get(rzpId) || null;
+      }
+      return {
+        ...o,
+        paymentFailureReason: failureReason || (pStatus === "payment_pending" || pStatus === "pending" ? "awaiting_confirmation" : null),
+      };
+    });
+
+    // Deduplicate order attempts
     const deduplicatedOrders = deduplicateWebStoreOrders(enrichedOrders);
 
-    return NextResponse.json({ orders: deduplicatedOrders });
-  } catch (error: any) {
+    return NextResponse.json({
+      orders: deduplicatedOrders,
+      total,
+      hasMore: offset + limit < total,
+    });
+  } catch (error: unknown) {
     console.error("[Web Store Orders GET] Error:", error);
-    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-function deduplicateWebStoreOrders(orders: any[]) {
+function deduplicateWebStoreOrders(orders: Record<string, unknown>[]) {
   if (!orders || orders.length === 0) return [];
 
   // Step 1: Group and deduplicate by exact orderNumber or razorpayOrderId
-  const uniqueByNumber = new Map<string, any>();
+  const uniqueByNumber = new Map<string, Record<string, unknown>>();
 
   for (const order of orders) {
-    const numKey = (order.orderNumber || "").trim().toUpperCase();
-    const rzpKey = (order.razorpayOrderId || "").trim();
+    const orderNumStr = (order.orderNumber as string) || "";
+    const rzpOrderStr = (order.razorpayOrderId as string) || "";
+    const numKey = orderNumStr.trim().toUpperCase();
+    const rzpKey = rzpOrderStr.trim();
 
     let existingKey = "";
     if (numKey && numKey !== "N/A") {
@@ -243,8 +247,8 @@ function deduplicateWebStoreOrders(orders: any[]) {
       if (!existing) {
         uniqueByNumber.set(existingKey, order);
       } else {
-        const existingStatus = (existing.paymentStatus || "").toLowerCase();
-        const currentStatus = (order.paymentStatus || "").toLowerCase();
+        const existingStatus = ((existing.paymentStatus as string) || "").toLowerCase();
+        const currentStatus = ((order.paymentStatus as string) || "").toLowerCase();
 
         const statusRank = (s: string) => {
           if (s === "paid" || s === "cod_upfront_paid") return 3;
@@ -255,8 +259,10 @@ function deduplicateWebStoreOrders(orders: any[]) {
         if (statusRank(currentStatus) > statusRank(existingStatus)) {
           uniqueByNumber.set(existingKey, order);
         } else if (statusRank(currentStatus) === statusRank(existingStatus)) {
-          const existingTime = new Date(existing.updatedAt || existing.createdAt).getTime();
-          const currentTime = new Date(order.updatedAt || order.createdAt).getTime();
+          const existingDate = (existing.updatedAt || existing.createdAt) as string | Date;
+          const currentDate = (order.updatedAt || order.createdAt) as string | Date;
+          const existingTime = new Date(existingDate).getTime();
+          const currentTime = new Date(currentDate).getTime();
           if (currentTime > existingTime) {
             uniqueByNumber.set(existingKey, order);
           }
@@ -270,16 +276,22 @@ function deduplicateWebStoreOrders(orders: any[]) {
   const dedupedList = Array.from(uniqueByNumber.values());
 
   // Step 2: Separate confirmed vs unconfirmed
-  const confirmedOrders: any[] = [];
-  const unconfirmedOrders: any[] = [];
+  const confirmedOrders: Record<string, unknown>[] = [];
+  const unconfirmedOrders: Record<string, unknown>[] = [];
 
   for (const order of dedupedList) {
-    const pStatus = (order.paymentStatus || "").toLowerCase().trim();
-    const pMethod = (order.paymentMethod || "").toLowerCase().trim();
-    const isPaid = pStatus === "paid" || pStatus === "cod_upfront_paid" || pStatus === "refunded";
+    const pStatus = ((order.paymentStatus as string) || "").toLowerCase().trim();
+    const pMethod = ((order.paymentMethod as string) || "").toLowerCase().trim();
+    const orderNum = (order.orderNumber as string) || "";
+    const isRealOrder = 
+      pStatus === "paid" || 
+      pStatus === "cod_upfront_paid" || 
+      pStatus === "refunded" || 
+      pStatus === "cancelled" ||
+      (orderNum && orderNum !== "N/A" && !orderNum.startsWith("ZBPP") && !orderNum.startsWith("ZBPF"));
     const isCOD = pMethod === "cod";
 
-    if (isPaid || isCOD) {
+    if (isRealOrder || isCOD) {
       confirmedOrders.push(order);
     } else {
       unconfirmedOrders.push(order);
@@ -287,15 +299,15 @@ function deduplicateWebStoreOrders(orders: any[]) {
   }
 
   // Step 3: Collapse unconfirmed orders for customers with a confirmed order in the same session window
-  const getCustomerKey = (o: any) => {
-    const email = (o.customerEmail || "").toLowerCase().trim();
-    const phone = (o.customerPhone || "").replace(/\D/g, "").slice(-10);
-    return email || phone || o.id;
+  const getCustomerKey = (o: Record<string, unknown>) => {
+    const email = ((o.customerEmail as string) || "").toLowerCase().trim();
+    const phone = ((o.customerPhone as string) || "").replace(/\D/g, "").slice(-10);
+    return email || phone || (o.id as string);
   };
 
-  const finalOrders: any[] = [...confirmedOrders];
+  const finalOrders: Record<string, unknown>[] = [...confirmedOrders];
 
-  const unconfirmedByCustomer: { [key: string]: any[] } = {};
+  const unconfirmedByCustomer: { [key: string]: Record<string, unknown>[] } = {};
   for (const uOrder of unconfirmedOrders) {
     const key = getCustomerKey(uOrder);
     if (!unconfirmedByCustomer[key]) {
@@ -311,17 +323,17 @@ function deduplicateWebStoreOrders(orders: any[]) {
     );
 
     customerUnconfirmed.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) => new Date(b.createdAt as string | Date).getTime() - new Date(a.createdAt as string | Date).getTime()
     );
 
-    const filteredUnconfirmedForCustomer: any[] = [];
+    const filteredUnconfirmedForCustomer: Record<string, unknown>[] = [];
 
     for (const uOrder of customerUnconfirmed) {
-      const uTime = new Date(uOrder.createdAt).getTime();
+      const uTime = new Date(uOrder.createdAt as string | Date).getTime();
 
       // Check if a confirmed order exists for this customer around the same attempt time window (-30m to +2h)
       const hasMatchingConfirmed = customerConfirmed.some((cOrder) => {
-        const cTime = new Date(cOrder.createdAt).getTime();
+        const cTime = new Date(cOrder.createdAt as string | Date).getTime();
         const diffMs = cTime - uTime;
         return diffMs >= -30 * 60 * 1000 && diffMs <= 2 * 60 * 60 * 1000;
       });
@@ -332,7 +344,7 @@ function deduplicateWebStoreOrders(orders: any[]) {
 
       // Check if we already kept a more recent unconfirmed attempt for this session (within 2 hours)
       const alreadyKeptSession = filteredUnconfirmedForCustomer.some((kOrder) => {
-        const kTime = new Date(kOrder.createdAt).getTime();
+        const kTime = new Date(kOrder.createdAt as string | Date).getTime();
         return Math.abs(kTime - uTime) <= 2 * 60 * 60 * 1000;
       });
 
@@ -345,7 +357,7 @@ function deduplicateWebStoreOrders(orders: any[]) {
   }
 
   finalOrders.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.createdAt as string | Date).getTime() - new Date(a.createdAt as string | Date).getTime()
   );
 
   return finalOrders;
@@ -416,8 +428,9 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true, order: finalOrder });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[Web Store Orders POST] Error:", error);
-    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -102,9 +102,9 @@ const prismaClientSingleton = () => {
       ssl: { 
         rejectUnauthorized: false 
       },
-      max: 1,
-      idleTimeoutMillis: 5000,
-      connectionTimeoutMillis: 10000,
+      max: process.env.PG_POOL_MAX ? parseInt(process.env.PG_POOL_MAX) : 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 20000,
     });
 
     pool.on('error', (err) => {

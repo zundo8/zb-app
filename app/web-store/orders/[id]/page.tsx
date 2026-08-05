@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import {
@@ -42,7 +42,6 @@ interface LineItem {
 }
 
 interface Address {
-  // Support both formats from checkout
   name?: string;
   phone?: string;
   email?: string;
@@ -102,7 +101,7 @@ export default function WebStoreOrderDetail() {
   const [trackingUrl, setTrackingUrl] = useState("");
   const [notes, setNotes] = useState("");
 
-  const fetchOrderDetail = async () => {
+  const fetchOrderDetail = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/web-store/orders/${orderId}`);
@@ -116,17 +115,24 @@ export default function WebStoreOrderDetail() {
       setTrackingNumber(data.order.trackingNumber || "");
       setTrackingUrl(data.order.trackingUrl || "");
       setNotes(data.order.notes || "");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to load order detail");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load order detail";
+      toast.error(msg);
       router.push("/web-store/orders");
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId, router]);
 
   useEffect(() => {
     fetchOrderDetail();
-  }, [orderId]);
+  }, [fetchOrderDetail]);
+
+  useEffect(() => {
+    if (order?.orderNumber) {
+      document.title = `Order ${order.orderNumber} | Zica Bella Admin`;
+    }
+  }, [order?.orderNumber]);
 
   const handleUpdateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,8 +156,9 @@ export default function WebStoreOrderDetail() {
       const result = await res.json();
       setOrder(result.order);
       toast.success("Order updated successfully");
-    } catch (err: any) {
-      toast.error(err.message || "Error updating order");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error updating order";
+      toast.error(msg);
     } finally {
       setUpdating(false);
     }
@@ -182,9 +189,11 @@ export default function WebStoreOrderDetail() {
       case "shipped":
         return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20"><Truck className="w-3.5 h-3.5" /> Shipped</span>;
       case "processing":
-        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Clock className="w-3.5 h-3.5" /> Processing</span>;
+        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"><Clock className="w-3.5 h-3.5" /> Processing</span>;
+      case "cancelled":
+        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"><X className="w-3.5 h-3.5" /> Cancelled</span>;
       default:
-        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"><AlertCircle className="w-3.5 h-3.5" /> Unfulfilled</span>;
+        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20"><AlertCircle className="w-3.5 h-3.5" /> Unfulfilled</span>;
     }
   };
 
@@ -202,7 +211,8 @@ export default function WebStoreOrderDetail() {
       case "paid":
         return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle className="w-3.5 h-3.5" /> Paid</span>;
       case "cod_upfront_paid":
-        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Banknote className="w-3.5 h-3.5" /> COD Upfront Paid</span>;
+      case "partially_paid":
+        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><Banknote className="w-3.5 h-3.5" /> COD Upfront Paid</span>;
       case "failed":
         return (
           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
@@ -228,7 +238,6 @@ export default function WebStoreOrderDetail() {
 
   /* ─── Address display helper (handles both old and new formats) ─── */
   const renderAddress = (addr: Address) => {
-    // New checkout format: houseNo, street, landmark
     if (addr.houseNo || addr.street) {
       return (
         <div className="space-y-1 text-[12px] pt-2 text-foreground/75 font-medium">
@@ -242,7 +251,6 @@ export default function WebStoreOrderDetail() {
         </div>
       );
     }
-    // Old format: line1, line2, or flat street format
     return (
       <div className="space-y-1 text-[12px] pt-2 text-foreground/75 font-medium">
         {addr.line1 && <p>{addr.line1}</p>}
@@ -286,8 +294,8 @@ export default function WebStoreOrderDetail() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight font-inter flex items-center gap-2">
-              Order {order.orderNumber} <Sparkles className="w-5 h-5 text-amber-500" />
+            <h1 className="text-2xl font-bold tracking-tight font-inter flex items-center gap-2 text-foreground">
+              Order {order.orderNumber} <Sparkles className="w-5 h-5 text-indigo-400" />
             </h1>
             <p className="text-[12px] text-foreground/50 mt-1 flex items-center gap-2">
               <Calendar className="w-3.5 h-3.5" /> Placed on {formatDate(order.createdAt)}
@@ -304,9 +312,10 @@ export default function WebStoreOrderDetail() {
       {/* ═══ Payment Collected Banner ═══ */}
       {(() => {
         const isPaid = order.paymentStatus === "paid";
-        const isFailed = order.paymentStatus === "failed";
-        const isCancelled = order.paymentStatus === "cancelled";
-        const isPending = order.paymentStatus === "pending" || order.paymentStatus === "payment_pending";
+        const isPartiallyPaid = order.paymentStatus === "cod_upfront_paid" || order.paymentStatus === "partially_paid" || (isCOD && (codUpfront > 0 || Boolean(order.codUpfrontPaymentId)));
+        const isFailed = (order.paymentStatus === "failed") && !isPartiallyPaid;
+        const isCancelled = (order.paymentStatus === "cancelled") && !isPartiallyPaid;
+        const isPending = (order.paymentStatus === "pending" || order.paymentStatus === "payment_pending") && !isPartiallyPaid;
 
         if (isFailed || isCancelled) {
           return (
@@ -378,14 +387,14 @@ export default function WebStoreOrderDetail() {
 
         return (
           <div className={`glass rounded-[2rem] border p-6 ${
-            isCOD ? "border-amber-500/20 bg-amber-500/[0.02]" : "border-emerald-500/20 bg-emerald-500/[0.02]"
+            isCOD ? "border-indigo-500/20 bg-indigo-500/[0.02]" : "border-emerald-500/20 bg-emerald-500/[0.02]"
           }`}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                  isCOD ? "bg-amber-500/10" : "bg-emerald-500/10"
+                  isCOD ? "bg-indigo-500/10" : "bg-emerald-500/10"
                 }`}>
-                  <DollarSign className={`w-6 h-6 ${isCOD ? "text-amber-400" : "text-emerald-400"}`} />
+                  <DollarSign className={`w-6 h-6 ${isCOD ? "text-indigo-400" : "text-emerald-400"}`} />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -406,7 +415,7 @@ export default function WebStoreOrderDetail() {
                   <>
                     <div className="text-center">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">Upfront Paid</p>
-                      <p className="text-xl font-black text-amber-400">{formatCurrency(codUpfront)}</p>
+                      <p className="text-xl font-black text-indigo-400">{formatCurrency(codUpfront)}</p>
                     </div>
                     <div className="w-[1px] h-10 bg-foreground/10" />
                     <div className="text-center">
@@ -433,7 +442,7 @@ export default function WebStoreOrderDetail() {
               <div className="mt-3 pt-3 border-t border-foreground/5">
                 <p className="text-[10px] text-foreground/40 font-medium">
                   <span className="font-bold uppercase tracking-wider">Upfront Payment ID:</span>{" "}
-                  <span className="font-mono text-amber-400">{order.codUpfrontPaymentId}</span>
+                  <span className="font-mono text-indigo-400">{order.codUpfrontPaymentId}</span>
                 </p>
               </div>
             )}
@@ -450,7 +459,7 @@ export default function WebStoreOrderDetail() {
           {/* Order items list */}
           <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-6">
             <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-              <Package className="w-4 h-4 text-amber-500" /> Line Items ({order.items.length})
+              <Package className="w-4 h-4 text-indigo-400" /> Line Items ({order.items.length})
             </h3>
             
             <div className="divide-y divide-foreground/5">
@@ -458,6 +467,7 @@ export default function WebStoreOrderDetail() {
                 <div key={idx} className="flex gap-4 py-4 first:pt-0 last:pb-0">
                   <div className="w-16 h-20 rounded-xl bg-foreground/5 border border-foreground/10 relative overflow-hidden shrink-0 flex items-center justify-center">
                     {item.image_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
                       <img
                         src={item.image_url}
                         alt={item.title}
@@ -509,7 +519,7 @@ export default function WebStoreOrderDetail() {
           {/* Pricing summary */}
           <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-4">
             <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-amber-500" /> Billing Summary
+              <CreditCard className="w-4 h-4 text-indigo-400" /> Billing Summary
             </h3>
             
             <div className="space-y-2 text-[12px] pt-2">
@@ -528,7 +538,7 @@ export default function WebStoreOrderDetail() {
                 </div>
               )}
               {isCOD && codUpfront > 0 && (
-                <div className="flex justify-between text-amber-400 font-semibold">
+                <div className="flex justify-between text-indigo-400 font-semibold">
                   <span>COD Upfront Fee (Collected)</span>
                   <span>{formatCurrency(codUpfront)}</span>
                 </div>
@@ -553,7 +563,7 @@ export default function WebStoreOrderDetail() {
             {/* Customer Details */}
             <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-4">
               <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-                <User className="w-4 h-4 text-amber-500" /> Customer
+                <User className="w-4 h-4 text-indigo-400" /> Customer
               </h3>
               <div className="space-y-3 text-[12px] pt-2">
                 <div className="flex items-center gap-2.5">
@@ -562,13 +572,13 @@ export default function WebStoreOrderDetail() {
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Mail className="w-4 h-4 text-foreground/30 shrink-0" />
-                  <a href={`mailto:${order.customerEmail}`} className="text-foreground/70 hover:text-amber-500 transition-colors truncate">
+                  <a href={`mailto:${order.customerEmail}`} className="text-foreground/70 hover:text-indigo-400 transition-colors truncate">
                     {order.customerEmail}
                   </a>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Phone className="w-4 h-4 text-foreground/30 shrink-0" />
-                  <a href={`tel:${order.customerPhone}`} className="text-foreground/70 hover:text-amber-500 transition-colors">
+                  <a href={`tel:${order.customerPhone}`} className="text-foreground/70 hover:text-indigo-400 transition-colors">
                     {order.customerPhone || "Not provided"}
                   </a>
                 </div>
@@ -578,7 +588,7 @@ export default function WebStoreOrderDetail() {
             {/* Shipping Address */}
             <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-4">
               <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-amber-500" /> Shipping Address
+                <MapPin className="w-4 h-4 text-indigo-400" /> Shipping Address
               </h3>
               {renderAddress(order.shippingAddress)}
             </div>
@@ -591,7 +601,7 @@ export default function WebStoreOrderDetail() {
           {/* Form container */}
           <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-6">
             <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
-              <Settings className="w-4 h-4 text-amber-500" /> Order Operations
+              <Settings className="w-4 h-4 text-indigo-400" /> Order Operations
             </h3>
 
             <form onSubmit={handleUpdateOrder} className="space-y-4 text-xs font-medium">
@@ -602,13 +612,15 @@ export default function WebStoreOrderDetail() {
                 <select
                   value={paymentStatus}
                   onChange={(e) => setPaymentStatus(e.target.value)}
-                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all appearance-none cursor-pointer"
                 >
                   <option value="pending" className="bg-[#0e0e0e]">Pending</option>
                   <option value="paid" className="bg-[#0e0e0e]">Paid</option>
                   <option value="cod_upfront_paid" className="bg-[#0e0e0e]">COD Upfront Paid</option>
+                  <option value="partially_paid" className="bg-[#0e0e0e]">Partially Paid</option>
                   <option value="failed" className="bg-[#0e0e0e]">Failed</option>
                   <option value="refunded" className="bg-[#0e0e0e]">Refunded</option>
+                  <option value="cancelled" className="bg-[#0e0e0e]">Cancelled</option>
                 </select>
               </div>
 
@@ -618,13 +630,14 @@ export default function WebStoreOrderDetail() {
                 <select
                   value={fulfillmentStatus}
                   onChange={(e) => setFulfillmentStatus(e.target.value)}
-                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all appearance-none cursor-pointer"
+                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all appearance-none cursor-pointer"
                 >
                   <option value="unfulfilled" className="bg-[#0e0e0e]">Unfulfilled</option>
                   <option value="processing" className="bg-[#0e0e0e]">Processing</option>
                   <option value="shipped" className="bg-[#0e0e0e]">Shipped</option>
                   <option value="delivered" className="bg-[#0e0e0e]">Delivered</option>
                   <option value="returned" className="bg-[#0e0e0e]">Returned</option>
+                  <option value="cancelled" className="bg-[#0e0e0e]">Cancelled</option>
                 </select>
               </div>
 
@@ -636,7 +649,7 @@ export default function WebStoreOrderDetail() {
                   placeholder="e.g. AWB10293847"
                   value={trackingNumber}
                   onChange={(e) => setTrackingNumber(e.target.value)}
-                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
+                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all"
                 />
               </div>
 
@@ -645,7 +658,7 @@ export default function WebStoreOrderDetail() {
                 <label className="text-foreground/45 text-[10px] font-bold uppercase tracking-wider block">
                   Tracking URL 
                   {order.trackingUrl && (
-                    <a href={order.trackingUrl} target="_blank" rel="noopener noreferrer" className="ml-1 inline-flex items-center gap-0.5 text-amber-500 hover:text-amber-400">
+                    <a href={order.trackingUrl} target="_blank" rel="noopener noreferrer" className="ml-1 inline-flex items-center gap-0.5 text-indigo-400 hover:text-indigo-300">
                       (Open <ExternalLink className="w-2.5 h-2.5" />)
                     </a>
                   )}
@@ -655,7 +668,7 @@ export default function WebStoreOrderDetail() {
                   placeholder="e.g. https://delhivery.com/track..."
                   value={trackingUrl}
                   onChange={(e) => setTrackingUrl(e.target.value)}
-                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all"
+                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all"
                 />
               </div>
 
@@ -667,14 +680,14 @@ export default function WebStoreOrderDetail() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
-                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-amber-500/30 transition-all resize-none"
+                  className="w-full bg-foreground/[0.03] border border-foreground/5 rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500/30 transition-all resize-none"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={updating}
-                className="w-full py-3 px-4 rounded-xl font-bold bg-amber-500 text-black hover:opacity-95 transition-opacity flex items-center justify-center gap-2 mt-4"
+                className="w-full py-3 px-4 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 mt-4"
               >
                 <Save className="w-4 h-4" /> {updating ? "Saving..." : "Save Changes"}
               </button>
@@ -685,7 +698,7 @@ export default function WebStoreOrderDetail() {
           <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-4 text-xs">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-foreground font-inter flex items-center gap-2">
-                <FileText className="w-4 h-4 text-amber-500" /> Integration Data
+                <FileText className="w-4 h-4 text-indigo-400" /> Integration Data
               </h3>
               <button
                 type="button"
@@ -700,14 +713,15 @@ export default function WebStoreOrderDetail() {
                     if (!res.ok) throw new Error("Sync failed");
                     toast.success("Razorpay payment status synced!");
                     fetchOrderDetail();
-                  } catch (e: any) {
-                    toast.error(e.message || "Failed to sync payment status");
+                  } catch (e: unknown) {
+                    const msg = e instanceof Error ? e.message : "Failed to sync payment status";
+                    toast.error(msg);
                   } finally {
                     setUpdating(false);
                   }
                 }}
                 disabled={updating}
-                className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 transition-all disabled:opacity-50"
+                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 transition-all disabled:opacity-50"
               >
                 <RefreshCw className={`w-3 h-3 ${updating ? "animate-spin" : ""}`} /> Sync Razorpay
               </button>
@@ -720,11 +734,11 @@ export default function WebStoreOrderDetail() {
               </div>
               <div>
                 <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Source</span>
-                <span className="text-amber-500 font-bold uppercase">{order.source} storefront</span>
+                <span className="text-indigo-400 font-bold uppercase">{order.source} storefront</span>
               </div>
               <div>
                 <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Payment Method</span>
-                <span className={`font-bold uppercase ${isCOD ? "text-amber-400" : "text-emerald-400"}`}>
+                <span className={`font-bold uppercase ${isCOD ? "text-indigo-400" : "text-emerald-400"}`}>
                   {isCOD ? "Cash on Delivery" : "Razorpay (Prepaid)"}
                 </span>
               </div>
@@ -749,7 +763,7 @@ export default function WebStoreOrderDetail() {
               {order.codUpfrontPaymentId && (
                 <div>
                   <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">COD Upfront Payment ID</span>
-                  <span className="text-amber-400">{order.codUpfrontPaymentId}</span>
+                  <span className="text-indigo-400">{order.codUpfrontPaymentId}</span>
                 </div>
               )}
             </div>

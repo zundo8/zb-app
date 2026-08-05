@@ -112,11 +112,43 @@ export async function GET(
       });
     }
 
+    const rawMethod = (webStoreOrder?.paymentMethod || order.paymentMethod || '').toLowerCase();
+    const tagsLower = (order.tags || '').toLowerCase();
+    const noteLower = (order.note || '').toLowerCase();
+    const isCodOrder = rawMethod === 'cod' || tagsLower.includes('cod') || noteLower.includes('cod order') || noteLower.includes('upfront fee paid');
+    const finalPaymentMethod = isCodOrder ? 'COD' : (webStoreOrder?.paymentMethod || order.paymentMethod || 'razorpay').toUpperCase();
+
+    let codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
+    if (isCodOrder && codUpfrontPaid === 0) {
+      const pStat = (webStoreOrder?.paymentStatus || order.paymentStatus || '').toLowerCase();
+      if (pStat === 'cod_upfront_paid' || pStat === 'paid' || isCodOrder) {
+        codUpfrontPaid = 99;
+      }
+    }
+
+    const discountCode = webStoreOrder?.discountCode || order.discountCode || null;
+    let discountAmount = webStoreOrder?.discountAmount ? Number(webStoreOrder.discountAmount) : (order.discountAmount || 0);
+    if (isCodOrder && discountCode && discountCode.toUpperCase().includes('PREPAID')) {
+      discountAmount = 0;
+    }
+
+    const storeCreditAmount = webStoreOrder?.storeCreditAmount ? Number(webStoreOrder.storeCreditAmount) : ((order as any).storeCreditAmount || 0);
+    const subtotalPrice = order.subtotalPrice || webStoreOrder?.subtotal || (order.items || []).reduce((sum: number, item: any) => sum + (Number(item.price) * (item.quantity || 1)), 0);
+    const codBalanceDue = isCodOrder ? Math.max(0, Number(order.totalPrice) - codUpfrontPaid) : 0;
+
     const orderNumber = order.internalOrderNumber || webStoreOrder?.orderNumber || (order.shopifyOrderId && !order.shopifyOrderId.startsWith('app_pending_') ? order.shopifyOrderId : `#ZB${order.id.slice(-5).toUpperCase()}`);
 
     const finalOrder = {
       ...enrichedOrder,
       orderNumber,
+      paymentMethod: finalPaymentMethod,
+      isCod: isCodOrder,
+      codUpfrontPaid,
+      codBalanceDue,
+      discountCode,
+      discountAmount,
+      storeCreditAmount,
+      subtotalPrice,
       statusTimeline: statusTimeline(order),
     };
 

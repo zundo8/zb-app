@@ -598,9 +598,23 @@ export default function OrderDetailsPage() {
                  <span>Shipping</span>
                  <span className="text-emerald-500 uppercase text-[9px] font-black tracking-widest">Free</span>
               </div>
-              <div className="pt-4 mt-2 border-t border-foreground/5 flex justify-between items-center">
-                 <span className="text-[12px] font-black uppercase tracking-widest text-foreground/50">Total</span>
-                 <span className="text-lg font-black tracking-tight text-foreground">{formatPriceString(Number(order.totalPrice), order.currency || "INR", "en-US")}</span>
+              <div className="pt-4 mt-2 border-t border-foreground/5 space-y-2">
+                 <div className="flex justify-between items-center">
+                    <span className="text-[12px] font-black uppercase tracking-widest text-foreground/50">Total Order Amount</span>
+                    <span className="text-lg font-black tracking-tight text-foreground">{formatPriceString(Number(order.totalPrice), order.currency || "INR", "en-US")}</span>
+                 </div>
+                 {order.isCod && (
+                    <div className="pt-2 border-t border-dashed border-foreground/10 space-y-1.5 text-[11px]">
+                       <div className="flex justify-between items-center text-emerald-500 font-semibold">
+                          <span>Amount Paid Online (Upfront)</span>
+                          <span>✓ {formatPriceString(Number(order.codUpfrontPaid || 99), order.currency || "INR", "en-US")}</span>
+                       </div>
+                       <div className="flex justify-between items-center text-amber-500 font-bold">
+                          <span>Balance Due at Delivery</span>
+                          <span>{formatPriceString(Number(order.codBalanceDue || Math.max(0, order.totalPrice - 99)), order.currency || "INR", "en-US")}</span>
+                       </div>
+                    </div>
+                 )}
               </div>
            </div>
         </div>

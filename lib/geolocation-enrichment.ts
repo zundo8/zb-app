@@ -18,7 +18,7 @@
 
 import { saveUserDataToCookies, initPixel } from './metaPixel';
 import { parseGeoAddressComponents } from './parseGeoAddressComponents';
-import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
+import { loadGoogleMaps } from './googleMapsLoader';
 
 const SESSION_KEY = 'zb_geo_done';
 
@@ -33,7 +33,7 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
 
     // Guard: NEVER run or prompt on admin dashboard, admin routes, or API endpoints
     const path = window.location.pathname;
-    if (path.startsWith('/dashboard') || path.startsWith('/admin') || path.startsWith('/api') || path.startsWith('/web-store')) {
+    if (path.startsWith('/dashboard') || path.startsWith('/admin') || path.startsWith('/api') || path.startsWith('/web-store') || path.startsWith('/checkout')) {
       return;
     }
 
@@ -56,8 +56,33 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
     }
 
     // If explicitly denied, respect the user's choice — don't call getCurrentPosition
+    // BUT still try IP-based location so downstream events get approximate address data
     if (permissionState === 'denied') {
-      sessionStorage.setItem(SESSION_KEY, 'denied');
+      try {
+        const geoRes = await fetch('/api/geo');
+        const geoData = await geoRes.json();
+        if (geoData.ok) {
+          sessionStorage.setItem('zb_geo_data', JSON.stringify({
+            city: geoData.city || null,
+            state: geoData.region || null,
+            zip: geoData.zip || null,
+            country: geoData.country || null,
+            countryCode: geoData.countryCode || null,
+            latitude: geoData.lat,
+            longitude: geoData.lng,
+          }));
+          await saveUserDataToCookies({
+            city: geoData.city || undefined,
+            state: geoData.region || undefined,
+            zip: geoData.zip || undefined,
+            country: geoData.country || undefined,
+          });
+          initPixel();
+        }
+      } catch {
+        // IP-geo also failed — that's fine, fail silently
+      }
+      sessionStorage.setItem(SESSION_KEY, 'denied_ip_fallback');
       return;
     }
 
@@ -85,41 +110,47 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
     });
 
     if (!position) {
+      // GPS failed — try IP fallback
+      try {
+        const geoRes = await fetch('/api/geo');
+        const geoData = await geoRes.json();
+        if (geoData.ok) {
+          sessionStorage.setItem('zb_geo_data', JSON.stringify({
+            city: geoData.city || null,
+            state: geoData.region || null,
+            zip: geoData.zip || null,
+            country: geoData.country || null,
+            countryCode: geoData.countryCode || null,
+            latitude: geoData.lat,
+            longitude: geoData.lng,
+          }));
+          await saveUserDataToCookies({
+            city: geoData.city || undefined,
+            state: geoData.region || undefined,
+            zip: geoData.zip || undefined,
+            country: geoData.country || undefined,
+          });
+          initPixel();
+          sessionStorage.setItem(SESSION_KEY, 'gps_failed_ip_fallback');
+          return;
+        }
+      } catch {
+        // IP-geo also failed
+      }
       sessionStorage.setItem(SESSION_KEY, 'failed');
       return;
     }
 
     const { latitude, longitude } = position.coords;
 
-    // Reverse geocode using Google Maps Geocoding API
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      sessionStorage.setItem(SESSION_KEY, 'no_api_key');
+    // Reverse geocode using Google Maps Geocoding API via the singleton loader
+    const mapsOk = await loadGoogleMaps(['geocoding']);
+    if (!mapsOk) {
+      sessionStorage.setItem(SESSION_KEY, 'geocoding_load_failed');
       return;
     }
 
-    // Load the geocoding library via the same loader the checkout page uses
-    try {
-      setOptions({ key: apiKey, v: 'weekly' });
-    } catch {
-      // setOptions may throw if already configured — that's fine, reuse existing config
-    }
-
-    let geocodingLib: any;
-    try {
-      geocodingLib = await importLibrary('geocoding');
-    } catch {
-      // Fallback: try accessing google.maps.Geocoder directly if library is already loaded
-      const googleObj = (window as any).google;
-      if (googleObj?.maps?.Geocoder) {
-        geocodingLib = { Geocoder: googleObj.maps.Geocoder };
-      } else {
-        sessionStorage.setItem(SESSION_KEY, 'geocoding_load_failed');
-        return;
-      }
-    }
-
-    const Geocoder = geocodingLib?.Geocoder || (window as any).google?.maps?.Geocoder;
+    const Geocoder = (window as any).google?.maps?.Geocoder;
     if (!Geocoder) {
       sessionStorage.setItem(SESSION_KEY, 'no_geocoder');
       return;

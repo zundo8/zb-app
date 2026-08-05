@@ -8,6 +8,7 @@ import LayoutWrapper from "@/components/LayoutWrapper";
 import StorefrontFooter from "@/components/StorefrontFooter";
 import { Toaster } from "sonner";
 import MetaPixelRouteTracker from "@/components/MetaPixelRouteTracker";
+import FacebookSDKInit from "@/components/FacebookSDKInit";
 import SnapPixelRouteTracker from "@/components/SnapPixelRouteTracker";
 import { NavigationProgress } from "@/components/ui/NavigationProgress";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
@@ -270,6 +271,7 @@ export default function RootLayout({
         <NavigationProgress />
         <Providers>
           <MetaPixelRouteTracker />
+          <FacebookSDKInit />
           <SnapPixelRouteTracker />
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}

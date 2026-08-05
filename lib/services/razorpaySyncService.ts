@@ -31,7 +31,7 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
     });
 
     // Build filter for pending orders
-    const where: any = {
+    const where: Record<string, unknown> = {
       razorpayOrderId: { not: null },
     };
 
@@ -57,24 +57,24 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
         });
 
         const confirmedMainOrder = matchingMainOrders.find(
-          (m: any) => m.paymentStatus === "paid" || m.paymentStatus === "cod_upfront_paid"
+          (m: Record<string, unknown>) => m.paymentStatus === "paid" || m.paymentStatus === "cod_upfront_paid"
         );
 
         if (confirmedMainOrder) {
           // Main order is already confirmed paid! Sync WebStoreOrder to match it and do not check Razorpay for failures.
-          const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod" || (confirmedMainOrder.paymentMethod || "").toLowerCase().trim() === "cod";
-          const targetStatus = confirmedMainOrder.paymentStatus;
+          const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod" || ((confirmedMainOrder.paymentMethod as string) || "").toLowerCase().trim() === "cod";
+          const targetStatus = confirmedMainOrder.paymentStatus as string;
           
           if (order.paymentStatus !== targetStatus) {
             await prisma.webStoreOrder.update({
               where: { id: order.id },
               data: {
                 paymentStatus: targetStatus,
-                razorpayPaymentId: confirmedMainOrder.razorpayPaymentId || order.razorpayPaymentId,
+                razorpayPaymentId: (confirmedMainOrder.razorpayPaymentId as string) || order.razorpayPaymentId,
                 paymentFailureReason: null,
                 ...(isCOD ? {
                   codUpfrontPaid: Number(order.codUpfrontPaid) || 99,
-                  codUpfrontPaymentId: confirmedMainOrder.razorpayPaymentId || order.razorpayPaymentId || null,
+                  codUpfrontPaymentId: (confirmedMainOrder.razorpayPaymentId as string) || order.razorpayPaymentId || null,
                   notes: `COD Order (₹${Number(order.codUpfrontPaid) || 99} upfront fee paid via Razorpay) | Order: ${order.orderNumber}`
                 } : {})
               },
@@ -91,33 +91,57 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
         }
 
         // Main order is not yet marked paid, fetch Razorpay status
-        const rzpOrder: any = await razorpay.orders.fetch(order.razorpayOrderId);
-        let paymentsList: any = null;
+        const rzpOrder = (await razorpay.orders.fetch(order.razorpayOrderId)) as unknown as Record<string, unknown>;
+        let paymentsList: Record<string, unknown> | null = null;
         try {
-          paymentsList = await razorpay.orders.fetchPayments(order.razorpayOrderId);
+          paymentsList = await razorpay.orders.fetchPayments(order.razorpayOrderId) as unknown as Record<string, unknown>;
         } catch {
           // ignore fetchPayments failure
         }
 
-        const items: any[] = paymentsList?.items || [];
-        const capturedPayment = items.find((p: any) => p.status === "captured");
-        const failedPayments = items.filter((p: any) => p.status === "failed");
+        const items: Record<string, unknown>[] = (paymentsList?.items as Record<string, unknown>[]) || [];
+        const capturedPayment = items.find((p: Record<string, unknown>) => p.status === "captured");
+        const failedPayments = items.filter((p: Record<string, unknown>) => p.status === "failed");
         const latestFailedPayment = failedPayments.length > 0 ? failedPayments[failedPayments.length - 1] : null;
+
+        const isCOD =
+          (order.paymentMethod || "").toLowerCase().trim() === "cod" ||
+          (order.notes || "").toLowerCase().includes("cod order") ||
+          (order.notes || "").toLowerCase().includes("upfront fee paid");
+
+        // Check if upfront fee was already captured or is captured in Razorpay
+        let upfrontPayment: Record<string, unknown> | null = null;
+        if (order.codUpfrontPaymentId) {
+          try {
+            upfrontPayment = await razorpay.payments.fetch(order.codUpfrontPaymentId) as unknown as Record<string, unknown>;
+          } catch {}
+        }
+
+        const upfrontCaptured =
+          capturedPayment ||
+          upfrontPayment?.status === "captured" ||
+          Number(order.codUpfrontPaid) > 0 ||
+          Boolean(order.codUpfrontPaymentId) ||
+          (order.notes || "").toLowerCase().includes("upfront fee paid");
 
         let newStatus: string | null = null;
         let newPaymentId: string | null = null;
         let failureReason: string | null = null;
 
-        if (rzpOrder.status === "paid" || capturedPayment) {
-          const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
-          newStatus = isCOD ? "cod_upfront_paid" : "paid";
-          newPaymentId = capturedPayment?.id || order.razorpayPaymentId || null;
+        // 1. Explicit COD Guard: if COD and upfront fee was captured, status is cod_upfront_paid
+        if (isCOD && upfrontCaptured) {
+          newStatus = "cod_upfront_paid";
+          newPaymentId = (capturedPayment?.id as string) || (upfrontPayment?.id as string) || order.codUpfrontPaymentId || order.razorpayPaymentId || null;
           failureReason = null;
-        } else if (latestFailedPayment) {
+        } else if (rzpOrder.status === "paid" || capturedPayment) {
+          newStatus = isCOD ? "cod_upfront_paid" : "paid";
+          newPaymentId = (capturedPayment?.id as string) || order.razorpayPaymentId || null;
+          failureReason = null;
+        } else if (latestFailedPayment && !upfrontCaptured) {
           const rawReason =
-            latestFailedPayment.error_description ||
-            latestFailedPayment.error_reason ||
-            latestFailedPayment.error_code ||
+            (latestFailedPayment.error_description as string) ||
+            (latestFailedPayment.error_reason as string) ||
+            (latestFailedPayment.error_code as string) ||
             "Payment failed";
           
           const rawCode = String(latestFailedPayment.error_code || "").toUpperCase();
@@ -133,10 +157,10 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
             newStatus = "failed";
             failureReason = rawReason;
           }
-        } else if (rzpOrder.status === "attempted") {
+        } else if (rzpOrder.status === "attempted" && !upfrontCaptured) {
           newStatus = "failed";
           failureReason = "Payment attempt failed or was cancelled by customer";
-        } else {
+        } else if (!upfrontCaptured) {
           // Order status is "created", check age
           const ageMs = Date.now() - new Date(order.createdAt).getTime();
           // Mark as failed if order is > 15 minutes old and uncaptured
@@ -146,12 +170,25 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
           }
         }
 
+        // Downgrade protection guard: Do not overwrite previously collected status with failed/cancelled/pending unless refunded
+        const isPreviouslyCollected =
+          order.paymentStatus === "cod_upfront_paid" ||
+          order.paymentStatus === "partially_paid" ||
+          order.paymentStatus === "paid";
+
+        if (isPreviouslyCollected && (newStatus === "failed" || newStatus === "cancelled" || newStatus === "pending" || newStatus === "payment_pending")) {
+          // Keep existing collected status
+          newStatus = order.paymentStatus;
+          failureReason = null;
+        }
+
+        const finalPaymentStatus = (isCOD && (newStatus === "paid" || newStatus === "cod_upfront_paid" || newStatus === "partially_paid")) ? "cod_upfront_paid" : newStatus;
+
         if (
-          newStatus &&
-          (newStatus !== order.paymentStatus || failureReason !== order.paymentFailureReason)
+          finalPaymentStatus &&
+          (finalPaymentStatus !== order.paymentStatus || failureReason !== order.paymentFailureReason)
         ) {
-          const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
-          const finalPaymentStatus = isCOD && newStatus === "paid" ? "cod_upfront_paid" : newStatus;
+          console.log(`[RazorpaySync] Order ${order.orderNumber} status transition: ${order.paymentStatus} -> ${finalPaymentStatus}. Reason: ${failureReason || 'N/A'}, codUpfrontPaid: ${Number(order.codUpfrontPaid) || 99}, rzpOrderId: ${order.razorpayOrderId}, codUpfrontPaymentId: ${order.codUpfrontPaymentId || newPaymentId}`);
 
           // 1. Update WebStoreOrder
           await prisma.webStoreOrder.update({
@@ -160,40 +197,38 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
               paymentStatus: finalPaymentStatus,
               razorpayPaymentId: newPaymentId || order.razorpayPaymentId,
               paymentFailureReason: failureReason,
-              ...(isCOD && (finalPaymentStatus === "cod_upfront_paid" || finalPaymentStatus === "paid") ? {
+              ...(isCOD && (finalPaymentStatus === "cod_upfront_paid" || finalPaymentStatus === "partially_paid" || finalPaymentStatus === "paid") ? {
                 codUpfrontPaid: Number(order.codUpfrontPaid) || 99,
-                codUpfrontPaymentId: newPaymentId || order.razorpayPaymentId || null,
-                notes: `COD Order (₹${Number(order.codUpfrontPaid) || 99} upfront fee paid via Razorpay) | Order: ${order.orderNumber}`
+                codUpfrontPaymentId: newPaymentId || order.codUpfrontPaymentId || order.razorpayPaymentId || null,
+                notes: order.notes || `COD Order (₹${Number(order.codUpfrontPaid) || 99} upfront fee paid via Razorpay) | Order: ${order.orderNumber}`
               } : {})
             },
           });
 
-          // 2. Update matching Order in main Order table (only if not already paid)
-          for (const mOrder of matchingMainOrders) {
-            if (mOrder.paymentStatus === "paid" || mOrder.paymentStatus === "cod_upfront_paid") {
-              continue;
+          // 2. Update matching Order in main Order table ONLY for successful orders
+          const isSuccessfulPayment = finalPaymentStatus === "paid" || finalPaymentStatus === "cod_upfront_paid" || finalPaymentStatus === "partially_paid";
+
+          if (isSuccessfulPayment) {
+            for (const mOrder of matchingMainOrders) {
+              const cleanedTags = (mOrder.tags || '')
+                .split(',')
+                .map((t: string) => t.trim())
+                .filter((t: string) => Boolean(t) && t !== 'payment_pending' && t !== 'Order creation in process')
+                .concat(isCOD ? ['cod_upfront_paid'] : ['paid'])
+                .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+                .join(', ');
+
+              await prisma.order.update({
+                where: { id: mOrder.id },
+                data: {
+                  paymentStatus: finalPaymentStatus,
+                  status: "open",
+                  razorpayPaymentId: newPaymentId || undefined,
+                  paymentFailureReason: null,
+                  tags: cleanedTags,
+                },
+              });
             }
-
-            const cleanedTags = (mOrder.tags || '')
-              .split(',')
-              .map((t: string) => t.trim())
-              .filter((t: string) => Boolean(t) && t !== 'payment_pending' && t !== 'Order creation in process')
-              .concat(isCOD ? ['cod_upfront_paid'] : ['paid'])
-              .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
-              .join(', ');
-
-            await prisma.order.update({
-              where: { id: mOrder.id },
-              data: {
-                paymentStatus: finalPaymentStatus,
-                status: finalPaymentStatus === "paid" || finalPaymentStatus === "cod_upfront_paid" ? "open" : (newStatus === "cancelled" ? "cancelled" : "payment_failed"),
-                razorpayPaymentId: newPaymentId || undefined,
-                paymentFailureReason: failureReason,
-                cancelledAt: newStatus === "cancelled" || newStatus === "failed" ? new Date() : undefined,
-                cancelledBy: newStatus === "cancelled" ? "customer" : undefined,
-                tags: cleanedTags,
-              },
-            });
           }
 
           syncedOrders.push({
@@ -204,12 +239,14 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
             failureReason,
           });
         }
-      } catch (orderErr: any) {
-        console.error(`[RazorpaySync] Error syncing order ${order.orderNumber}:`, orderErr?.message);
+      } catch (orderErr: unknown) {
+        const msg = orderErr instanceof Error ? orderErr.message : String(orderErr);
+        console.error(`[RazorpaySync] Error syncing order ${order.orderNumber}:`, msg);
       }
     }
-  } catch (err: any) {
-    console.error("[RazorpaySync] Service error:", err?.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[RazorpaySync] Service error:", msg);
   }
 
   return {

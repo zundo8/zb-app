@@ -12,6 +12,62 @@ import { syncPendingWebStoreOrders } from "@/lib/services/razorpaySyncService";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+import { promoteMasterOrderToWebStoreOrder } from "@/lib/services/orderPromotionService";
+
+async function resolveWebStoreOrder(id: string) {
+  if (!id) return null;
+
+  // 1. webStoreOrder.findUnique({ where: { id } }) (when id is a UUID)
+  if (UUID_REGEX.test(id)) {
+    try {
+      const order = await prisma.webStoreOrder.findUnique({ where: { id } });
+      if (order) return order;
+    } catch {}
+  }
+
+  // 2. webStoreOrder.findUnique({ where: { orderNumber: id } })
+  try {
+    const order = await prisma.webStoreOrder.findUnique({ where: { orderNumber: id } });
+    if (order) return order;
+  } catch {}
+
+  // 3. webStoreOrder.findFirst({ where: { razorpayOrderId: id } })
+  try {
+    const order = await prisma.webStoreOrder.findFirst({ where: { razorpayOrderId: id } });
+    if (order) return order;
+  } catch {}
+
+  // 4. Fallback to master Order: order.findUnique({ where: { id } }) (cuid) OR order.findFirst(...)
+  try {
+    let mOrder = await prisma.order.findUnique({
+      where: { id },
+      include: { customer: true, items: true },
+    }).catch(() => null);
+
+    if (!mOrder) {
+      mOrder = await prisma.order.findFirst({
+        where: {
+          OR: [
+            { internalOrderNumber: id },
+            { shopifyOrderName: id },
+            { razorpayOrderId: id },
+            { note: { contains: `Local: ${id}` } }
+          ]
+        },
+        include: { customer: true, items: true },
+      });
+    }
+
+    if (mOrder) {
+      return await promoteMasterOrderToWebStoreOrder(mOrder as unknown as Record<string, unknown>);
+    }
+  } catch (err) {
+    console.error("[resolveWebStoreOrder] Master Order fallback error:", err);
+  }
+
+  return null;
+}
+
 // GET: Fetch details of a single web store order
 export async function GET(
   _request: Request,
@@ -23,27 +79,22 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!UUID_REGEX.test(params.id)) {
-      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
-    }
-
     // Attempt live Razorpay status sync for this single order if pending
     try {
       await syncPendingWebStoreOrders([params.id]);
-    } catch (syncErr: any) {
-      console.warn("[Web Store Single Order GET] Sync warning:", syncErr?.message);
+    } catch (syncErr: unknown) {
+      const msg = syncErr instanceof Error ? syncErr.message : String(syncErr);
+      console.warn("[Web Store Single Order GET] Sync warning:", msg);
     }
 
-    const order = await prisma.webStoreOrder.findUnique({
-      where: { id: params.id },
-    });
+    const order = await resolveWebStoreOrder(params.id);
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
     // Enrich with failure reason from Order model if missing
-    let failureReason = (order as any).paymentFailureReason || null;
+    let failureReason = (order as unknown as Record<string, unknown>).paymentFailureReason as string | null || null;
     if (!failureReason && order.razorpayOrderId) {
       const matchingOrder = await prisma.order.findFirst({
         where: { razorpayOrderId: order.razorpayOrderId },
@@ -60,9 +111,10 @@ export async function GET(
     };
 
     return NextResponse.json({ order: enrichedOrder });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[Web Store Single Order GET] Error:", error);
-    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -77,10 +129,6 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!UUID_REGEX.test(params.id)) {
-      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
-    }
-
     const body = await request.json();
     const {
       fulfillmentStatus,
@@ -90,20 +138,17 @@ export async function PATCH(
       notes
     } = body;
 
-    // Check if order exists
-    const order = await prisma.webStoreOrder.findUnique({
-      where: { id: params.id },
-    });
+    // Check if order exists (resolving cuid/orderNumber/razorpayOrderId/uuid)
+    const order = await resolveWebStoreOrder(params.id);
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
     const oldFulfillment = order.fulfillmentStatus;
-    const oldPayment = order.paymentStatus;
 
     // Build update object dynamically based on provided fields
-    const data: any = {};
+    const data: Record<string, unknown> = {};
     if (fulfillmentStatus !== undefined) data.fulfillmentStatus = fulfillmentStatus;
     if (trackingNumber !== undefined) data.trackingNumber = trackingNumber;
     if (trackingUrl !== undefined) data.trackingUrl = trackingUrl;
@@ -111,7 +156,7 @@ export async function PATCH(
     if (notes !== undefined) data.notes = notes;
 
     const updatedOrder = await prisma.webStoreOrder.update({
-      where: { id: params.id },
+      where: { id: order.id },
       data,
     });
 
@@ -121,14 +166,14 @@ export async function PATCH(
         orderId: updatedOrder.orderNumber,
         customerEmail: updatedOrder.customerEmail,
         customerName: updatedOrder.customerName || "Customer",
-        items: (updatedOrder.items as any[]).map((item: any) => ({
-          name: item.title || item.name || "Product Item",
-          size: item.size || 'N/A',
+        items: ((updatedOrder.items as unknown as Record<string, unknown>[]) || []).map((item) => ({
+          name: (item.title as string) || (item.name as string) || "Product Item",
+          size: (item.size as string) || 'N/A',
           quantity: Number(item.quantity || 1),
           price: Number(item.price || 0),
-          image: item.image_url || item.image || '',
-          product_id: item.product_id || null,
-          variant_title: item.variant_id || null,
+          image: (item.image_url as string) || (item.image as string) || '',
+          product_id: (item.product_id as string) || null,
+          variant_title: (item.variant_id as string) || null,
         })),
         total: Number(updatedOrder.totalAmount),
         currency: 'INR',
@@ -217,13 +262,15 @@ export async function PATCH(
           });
         }
       }
-    } catch (e: any) {
-      console.error("[Web Store Order Status Update Email Error]:", e.message);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[Web Store Order Status Update Email Error]:", msg);
     }
 
     return NextResponse.json({ success: true, order: updatedOrder });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[Web Store Single Order PATCH] Error:", error);
-    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

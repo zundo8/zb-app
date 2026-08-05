@@ -18,15 +18,15 @@ export function isOrderValidConverted(order: any): boolean {
   }
 
   // Paid payment statuses that guarantee conversion
-  const validPaidStatuses = ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "success", "captured"];
+  const validPaidStatuses = ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "success", "captured", "authorized", "approved"];
   if (validPaidStatuses.includes(paymentStatus)) {
     return true;
   }
 
-  // COD orders: must be COD payment method (or status) AND have an active/completed order status
+  // Active / Confirmed order statuses
+  const validOrderStatuses = ["approved", "open", "active", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "confirmed", "placed", "synced", "closed"];
   const isCod = paymentMethod.includes("cod") || paymentMethod.includes("cash") || paymentStatus === "cod" || paymentStatus === "cod_upfront_paid";
-  const validCodOrderStatuses = ["approved", "open", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "confirmed", "placed"];
-  if (isCod && validCodOrderStatuses.includes(status)) {
+  if (validOrderStatuses.includes(status) || (isCod && validOrderStatuses.includes(status))) {
     return true;
   }
 
