@@ -94,9 +94,106 @@ export async function GET(request: Request) {
       },
     });
 
+    // Also query master Order table for confirmed WEB_STORE orders to ensure none are missing
+    const masterWebOrders = await prisma.order.findMany({
+      where: {
+        OR: [
+          { orderType: "WEB_STORE" },
+          { tags: { contains: "WebStoreOrder" } },
+          { tags: { contains: "zb-order-" } },
+        ],
+        paymentStatus: { in: ["paid", "cod_upfront_paid", "approved"] }
+      },
+      include: { customer: true, items: true },
+      orderBy: { createdAt: "desc" },
+      take: 50
+    });
+
+    // Merge master orders into webStoreOrders map to reconcile missing or outdated entries
+    const existingOrderKeys = new Set<string>();
+    for (const o of orders) {
+      if (o.orderNumber) existingOrderKeys.add(o.orderNumber.toUpperCase());
+      if (o.razorpayOrderId) existingOrderKeys.add(o.razorpayOrderId);
+    }
+
+    const reconciledOrders: any[] = [...orders];
+
+    for (const mOrder of masterWebOrders) {
+      const numKey = (mOrder.internalOrderNumber || mOrder.shopifyOrderName || "").toUpperCase();
+      const rzpKey = mOrder.razorpayOrderId || "";
+
+      const alreadyIncluded = (numKey && existingOrderKeys.has(numKey)) || (rzpKey && existingOrderKeys.has(rzpKey));
+
+      if (!alreadyIncluded && (mOrder.internalOrderNumber || mOrder.shopifyOrderName)) {
+        let shippingAddr: any = {};
+        try {
+          shippingAddr = mOrder.shippingAddress ? JSON.parse(mOrder.shippingAddress) : {};
+        } catch {}
+
+        const rawMethod = (mOrder.paymentMethod || '').toLowerCase();
+        const tagsLower = (mOrder.tags || '').toLowerCase();
+        const noteLower = (mOrder.note || '').toLowerCase();
+        const isCod = rawMethod === 'cod' || tagsLower.includes('cod') || noteLower.includes('cod order') || noteLower.includes('upfront fee paid');
+
+        const formattedOrder = {
+          id: mOrder.id,
+          orderNumber: mOrder.internalOrderNumber || mOrder.shopifyOrderName || `#${mOrder.id.slice(-6).toUpperCase()}`,
+          customerName: mOrder.customer?.name || "Customer",
+          customerEmail: mOrder.customer?.email || "",
+          customerPhone: mOrder.customer?.phone || "",
+          shippingAddress: shippingAddr,
+          items: mOrder.items.map((i: any) => ({
+            product_id: i.productId || "",
+            variant_id: i.variantId || "",
+            title: i.title,
+            image_url: i.image || "",
+            quantity: i.quantity,
+            price: i.price,
+            size: i.size || ""
+          })),
+          subtotal: mOrder.subtotalPrice || mOrder.totalPrice,
+          shippingCharge: 0,
+          discountCode: mOrder.discountCode || null,
+          discountAmount: mOrder.discountAmount || 0,
+          totalAmount: mOrder.totalPrice,
+          paymentStatus: isCod ? "cod_upfront_paid" : "paid",
+          paymentMethod: isCod ? "cod" : (mOrder.paymentMethod || "razorpay"),
+          razorpayOrderId: mOrder.razorpayOrderId,
+          razorpayPaymentId: mOrder.razorpayPaymentId,
+          codUpfrontPaid: isCod ? 99 : 0,
+          codUpfrontPaymentId: isCod ? (mOrder.razorpayPaymentId || null) : null,
+          fulfillmentStatus: mOrder.fulfillmentStatus || "unfulfilled",
+          notes: mOrder.note || null,
+          source: "web",
+          createdAt: mOrder.createdAt,
+          updatedAt: mOrder.updatedAt,
+          paymentFailureReason: null,
+        };
+
+        reconciledOrders.push(formattedOrder);
+
+        // Async sync to WebStoreOrder table in background for future fast lookups
+        try {
+          prisma.webStoreOrder.upsert({
+            where: { orderNumber: formattedOrder.orderNumber },
+            update: {
+              paymentStatus: formattedOrder.paymentStatus,
+              paymentMethod: formattedOrder.paymentMethod,
+              razorpayOrderId: formattedOrder.razorpayOrderId,
+              razorpayPaymentId: formattedOrder.razorpayPaymentId,
+              codUpfrontPaid: formattedOrder.codUpfrontPaid,
+              codUpfrontPaymentId: formattedOrder.codUpfrontPaymentId,
+              paymentFailureReason: null,
+            },
+            create: formattedOrder as any,
+          }).catch(() => null);
+        } catch {}
+      }
+    }
+
     // Enrich with failure reason from Order model if missing on webStoreOrder
     const enrichedOrders = await Promise.all(
-      orders.map(async (o: any) => {
+      reconciledOrders.map(async (o: any) => {
         let failureReason = o.paymentFailureReason || null;
         if (!failureReason && o.razorpayOrderId) {
           const matchingOrder = await prisma.order.findFirst({

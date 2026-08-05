@@ -747,12 +747,14 @@ export async function POST(req: Request) {
         webStoreOrder = await prisma.webStoreOrder.update({
           where: { id: existingWebStoreOrder.id },
           data: {
+            orderNumber: universalOrderNumber,
             paymentStatus: isFullStoreCredit ? "paid" : isCodOrder ? "cod_upfront_paid" : "paid",
             paymentMethod: finalPaymentMethod,
             razorpayPaymentId: razorpay?.razorpay_payment_id || null,
             storeCreditAmount: parsedStoreCredit,
             codUpfrontPaid: isCodOrder ? (Number(codFee) || 99) : 0,
             codUpfrontPaymentId: isCodOrder ? (razorpay?.razorpay_payment_id || null) : null,
+            paymentFailureReason: null,
             notes: isFullStoreCredit
               ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
               : `${isCodOrder ? `COD Order (₹${Number(codFee) || 99} upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`
