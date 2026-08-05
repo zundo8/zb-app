@@ -35,15 +35,31 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         ? JSON.parse(order.shippingAddress) 
         : order.shippingAddress;
 
+      const rawMethod = (order.paymentMethod || '').toLowerCase();
+      const tagsLower = (order.tags || '').toLowerCase();
+      const noteLower = (order.note || '').toLowerCase();
+      const isCodOrder = rawMethod === 'cod' || tagsLower.includes('cod') || noteLower.includes('cod order') || noteLower.includes('upfront fee paid');
+
+      let codUpfront = 0;
+      if (isCodOrder) {
+        const wsOrder = order.razorpayOrderId
+          ? await prisma.webStoreOrder.findFirst({ where: { razorpayOrderId: order.razorpayOrderId } })
+          : null;
+        codUpfront = wsOrder?.codUpfrontPaid ? Number(wsOrder.codUpfrontPaid) : 99;
+      }
+
+      const codBalanceDue = isCodOrder ? Math.max(0, order.totalPrice - codUpfront) : 0;
+      const paymentMode = (isCodOrder && codBalanceDue > 0) ? 'COD' : 'Prepaid';
+
       const shipmentPayload = {
         name: shippingAddr.name || order.customer.name || 'Customer',
         add: `${shippingAddr.address1} ${shippingAddr.address2 || ''} ${shippingAddr.city} ${shippingAddr.province}`,
         pin: shippingAddr.zip || shippingAddr.pincode,
         phone: shippingAddr.phone || order.customer.phone || '',
         order: order.shopifyOrderId.replace('#', ''),
-        payment_mode: (order.paymentMethod === 'COD' ? 'COD' : 'Prepaid') as 'COD' | 'Prepaid',
-        total_amount: String(order.totalPrice),
-        cod_amount: order.paymentMethod === 'COD' ? String(order.totalPrice) : '0.00',
+        payment_mode: paymentMode as 'COD' | 'Prepaid',
+        total_amount: String(Math.round(order.totalPrice)),
+        cod_amount: paymentMode === 'COD' ? String(Math.round(codBalanceDue)) : '0.00',
         products_desc: order.items.map((i: any) => i.title).join(', '),
         weight: body.weight || '500', // Default weight if not provided
         shipment_length: body.shipment_length || '30',

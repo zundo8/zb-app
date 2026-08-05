@@ -202,26 +202,45 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     const enrichedItems = await enrichItemsWithSize(order.items, order);
 
+    // Resolve effective payment method (checking order, webStoreOrder, tags, and note)
+    const rawMethod = (webStoreOrder?.paymentMethod || order.paymentMethod || '').toLowerCase();
+    const tagsLower = (order.tags || '').toLowerCase();
+    const noteLower = (order.note || '').toLowerCase();
+    const isCodOrder = rawMethod === 'cod' || tagsLower.includes('cod') || noteLower.includes('cod order') || noteLower.includes('upfront fee paid');
+    const finalPaymentMethod = isCodOrder ? 'cod' : (webStoreOrder?.paymentMethod || order.paymentMethod || 'razorpay');
+
+    let resolvedDiscountCode = webStoreOrder?.discountCode || order.discountCode || null;
+    let resolvedDiscountAmount = webStoreOrder?.discountAmount ? Number(webStoreOrder.discountAmount) : (order.discountAmount || 0);
+
+    // Strip prepaid discounts if order is COD
+    if (isCodOrder && resolvedDiscountCode && resolvedDiscountCode.toUpperCase().includes('PREPAID')) {
+      console.warn(`[Admin Order Detail API] Stripping prepaid discount ${resolvedDiscountCode} from COD order ${order.id}`);
+      resolvedDiscountCode = null;
+      resolvedDiscountAmount = 0;
+    }
+
+    let resolvedCodUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
+    if (isCodOrder && resolvedCodUpfrontPaid === 0) {
+      const pStat = (webStoreOrder?.paymentStatus || order.paymentStatus || '').toLowerCase();
+      if (pStat === 'cod_upfront_paid' || pStat === 'paid') {
+        resolvedCodUpfrontPaid = 99;
+      }
+    }
+
     // Enrich the order payload with correct webstore fields if available
     const enrichedOrder = {
       ...order,
       items: enrichedItems,
-      codUpfrontPaid: webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0,
-      codUpfrontPaymentId: webStoreOrder?.codUpfrontPaymentId || null,
-      discountCode: webStoreOrder?.discountCode || order.discountCode,
-      discountAmount: webStoreOrder?.discountAmount ? Number(webStoreOrder.discountAmount) : (order.discountAmount || 0),
+      codUpfrontPaid: resolvedCodUpfrontPaid,
+      codUpfrontPaymentId: webStoreOrder?.codUpfrontPaymentId || order.razorpayPaymentId || null,
+      discountCode: resolvedDiscountCode,
+      discountAmount: resolvedDiscountAmount,
       shippingCharge: webStoreOrder?.shippingCharge ? Number(webStoreOrder.shippingCharge) : 0,
       razorpayOrderId: webStoreOrder?.razorpayOrderId || order.razorpayOrderId || null,
       razorpayPaymentId: webStoreOrder?.razorpayPaymentId || order.razorpayPaymentId || null,
-      paymentMethod: webStoreOrder?.paymentMethod || order.paymentMethod,
-      paymentStatus: webStoreOrder?.paymentStatus || order.paymentStatus,
+      paymentMethod: finalPaymentMethod,
+      paymentStatus: webStoreOrder?.paymentStatus || (isCodOrder && order.paymentStatus === 'paid' ? 'cod_upfront_paid' : order.paymentStatus),
     };
-
-    const finalDiscountAmount = enrichedOrder.discountAmount || 0;
-    const finalSubtotalPrice = enrichedOrder.subtotalPrice || enrichedOrder.totalPrice;
-    if (finalDiscountAmount > 0 && Math.abs(enrichedOrder.totalPrice - finalSubtotalPrice) < 0.01) {
-      enrichedOrder.totalPrice = finalSubtotalPrice - finalDiscountAmount;
-    }
 
     return NextResponse.json({ success: true, order: enrichedOrder });
   } catch (error: any) {

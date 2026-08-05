@@ -346,7 +346,22 @@ export async function shipOrder(
           }
         });
 
-        const paymentMode = dbOrder?.paymentMethod === 'COD' ? 'COD' : 'Prepaid';
+        const rawMethod = (dbOrder?.paymentMethod || '').toLowerCase();
+        const tagsLower = (dbOrder?.tags || '').toLowerCase();
+        const noteLower = (dbOrder?.note || '').toLowerCase();
+        const isCodOrder = rawMethod === 'cod' || tagsLower.includes('cod') || noteLower.includes('cod order') || noteLower.includes('upfront fee paid');
+
+        let codUpfront = 0;
+        if (isCodOrder) {
+          const wsOrder = dbOrder?.razorpayOrderId
+            ? await prisma.webStoreOrder.findFirst({ where: { razorpayOrderId: dbOrder.razorpayOrderId } })
+            : null;
+          codUpfront = wsOrder?.codUpfrontPaid ? Number(wsOrder.codUpfrontPaid) : 99;
+        }
+
+        const calculatedTotalPrice = Number(dbOrder?.totalPrice || items.reduce((s: number, i: any) => s + (Number(i.price) * Number(i.quantity)), 0));
+        const codBalanceDue = isCodOrder ? Math.max(0, calculatedTotalPrice - codUpfront) : 0;
+        const paymentMode = (isCodOrder && codBalanceDue > 0) ? 'COD' : 'Prepaid';
 
         const payload = {
           shipments: [
@@ -366,9 +381,9 @@ export async function shipOrder(
               return_name: 'Zica Bella Returns',
               return_add: process.env.WAREHOUSE_ADDRESS || 'C-43 sector-88 Noida 201301',
               products_desc: items.map(i => i.title).join(', '),
-              cod_amount: paymentMode === 'COD' ? String(dbOrder?.totalPrice || items.reduce((s, i) => s + i.price * i.quantity, 0)) : '',
+              cod_amount: paymentMode === 'COD' ? String(Math.round(codBalanceDue)) : '',
               order_date: new Date().toISOString(),
-              total_amount: String(dbOrder?.totalPrice || items.reduce((s, i) => s + i.price * i.quantity, 0)),
+              total_amount: String(Math.round(calculatedTotalPrice)),
               seller_add: process.env.WAREHOUSE_ADDRESS || 'C-43 sector-88 Noida 201301',
               seller_name: 'Zica Bella',
               seller_inv: orderId.replace('#', ''),

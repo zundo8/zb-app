@@ -65,7 +65,20 @@ export async function POST(req: Request) {
           } else {
             finalCouponDiscount = Math.min(rateVal, sub);
           }
+          // CUSTOM_RATES with zero COD rate means no discount for COD
+          if (isCodOrder && rateVal <= 0) {
+            console.warn(`[Checkout Complete] CUSTOM_RATES coupon ${finalCouponCode} has zero COD discount — stripping`);
+            finalCouponCode = null;
+            finalCouponDiscount = 0;
+          }
         }
+      }
+
+      // Safety net: strip coupons with "PREPAID" in the code name from COD orders
+      if (finalCouponCode && isCodOrder && finalCouponCode.includes('PREPAID')) {
+        console.warn(`[Checkout Complete] Safety-net stripped prepaid-named coupon ${finalCouponCode} from COD order`);
+        finalCouponCode = null;
+        finalCouponDiscount = 0;
       }
     }
 
@@ -317,18 +330,22 @@ export async function POST(req: Request) {
         phone: address.phone
       },
       phone: address.phone,
-      financial_status: paymentMethod === "COD" ? "pending" : "paid",
+      financial_status: isFullStoreCredit ? "paid" : isCodOrder ? "partially_paid" : "paid",
       note: isFullStoreCredit
         ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
-        : paymentMethod === "COD"
+        : isCodOrder
         ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`
         : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
       tags: `WebStoreOrder, WebStore, ${resolvedMethodTag}, zb-order-${universalOrderNumber}`,
       note_attributes: [
         { name: 'internal_order_number', value: universalOrderNumber },
-        { name: 'payment_method', value: isFullStoreCredit ? 'STORE_CREDIT' : paymentMethod === "COD" ? 'COD' : 'PREPAID' },
+        { name: 'payment_method', value: isFullStoreCredit ? 'STORE_CREDIT' : isCodOrder ? 'COD' : 'PREPAID' },
         { name: 'razorpay_payment_id', value: razorpay?.razorpay_payment_id || '' },
-        { name: 'store_credit_amount', value: String(parsedStoreCredit) }
+        { name: 'store_credit_amount', value: String(parsedStoreCredit) },
+        ...(isCodOrder ? [
+          { name: 'cod_upfront_fee', value: String(codFee || 99) },
+          { name: 'cod_balance_due', value: parseFloat(String(Math.max(0, Number(total) - (Number(codFee) || 99)))).toFixed(2) }
+        ] : [])
       ],
       total_tax: 0,
       currency: "INR",
@@ -343,7 +360,17 @@ export async function POST(req: Request) {
       } : {})
     };
 
-    if (paymentMethod !== "COD") {
+    if (isCodOrder) {
+      const upfrontFee = Number(codFee || 99);
+      shopifyOrderData.transactions = [{
+        kind: "sale",
+        status: "success",
+        amount: parseFloat(String(upfrontFee)).toFixed(2),
+        currency: "INR",
+        gateway: "razorpay",
+        authorization: razorpay?.razorpay_payment_id || `cod_upfront_${Date.now()}`
+      }];
+    } else {
       shopifyOrderData.transactions = [{
         kind: "sale",
         status: "success",
@@ -352,11 +379,6 @@ export async function POST(req: Request) {
         gateway: isFullStoreCredit ? "store_credit" : "razorpay",
         authorization: razorpay?.razorpay_payment_id || `store_credit_${Date.now()}`
       }];
-    } else {
-      shopifyOrderData.note_attributes.push(
-        { name: 'cod_upfront_fee', value: String(codFee || 99) },
-        { name: 'cod_upfront_payment_id', value: razorpay?.razorpay_payment_id || '' }
-      );
     }
 
     if (!isNaN(customerId) && customerId > 0) {
@@ -468,6 +490,10 @@ export async function POST(req: Request) {
         const previousNumbers = [existingPreCreatedOrder.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
         // universalOrderNumber was already assigned above as a fresh ZB number
         console.log(`[Checkout Complete] Promoting order ${oldNumber} → ${universalOrderNumber}`);
+
+        // Recalculate correct total: subtotal - discount - storeCredit
+        const correctedTotal = Math.max(0, Number(subtotal || 0) - Number(finalCouponDiscount || 0) - parsedStoreCredit);
+
         localOrder = await prisma.order.update({
           where: { id: existingPreCreatedOrder.id },
           data: {
@@ -478,6 +504,11 @@ export async function POST(req: Request) {
             paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
             paymentMethod: finalPaymentMethod,
             storeCreditAmount: parsedStoreCredit,
+            totalPrice: correctedTotal,
+            subtotalPrice: Number(subtotal || 0),
+            discountCode: finalCouponCode || null,
+            discountAmount: Number(finalCouponDiscount) || 0,
+            paymentFailureReason: null,
             tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
             note: isFullStoreCredit
               ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
@@ -494,6 +525,10 @@ export async function POST(req: Request) {
       } else {
         // Already has a real ZB number or legacy number — keep it
         universalOrderNumber = existingPreCreatedOrder.internalOrderNumber || universalOrderNumber;
+
+        // Recalculate correct total: subtotal - discount - storeCredit
+        const correctedTotal = Math.max(0, Number(subtotal || 0) - Number(finalCouponDiscount || 0) - parsedStoreCredit);
+
         localOrder = await prisma.order.update({
           where: { id: existingPreCreatedOrder.id },
           data: {
@@ -504,6 +539,11 @@ export async function POST(req: Request) {
             paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
             paymentMethod: finalPaymentMethod,
             storeCreditAmount: parsedStoreCredit,
+            totalPrice: correctedTotal,
+            subtotalPrice: Number(subtotal || 0),
+            discountCode: finalCouponCode || null,
+            discountAmount: Number(finalCouponDiscount) || 0,
+            paymentFailureReason: null,
             tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
             note: isFullStoreCredit
               ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`

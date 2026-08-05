@@ -51,6 +51,46 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
       if (!order.razorpayOrderId) continue;
 
       try {
+        // First check if main Order table already has confirmed/paid status for this razorpayOrderId
+        const matchingMainOrders = await prisma.order.findMany({
+          where: { razorpayOrderId: order.razorpayOrderId }
+        });
+
+        const confirmedMainOrder = matchingMainOrders.find(
+          (m: any) => m.paymentStatus === "paid" || m.paymentStatus === "cod_upfront_paid"
+        );
+
+        if (confirmedMainOrder) {
+          // Main order is already confirmed paid! Sync WebStoreOrder to match it and do not check Razorpay for failures.
+          const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod" || (confirmedMainOrder.paymentMethod || "").toLowerCase().trim() === "cod";
+          const targetStatus = confirmedMainOrder.paymentStatus;
+          
+          if (order.paymentStatus !== targetStatus) {
+            await prisma.webStoreOrder.update({
+              where: { id: order.id },
+              data: {
+                paymentStatus: targetStatus,
+                razorpayPaymentId: confirmedMainOrder.razorpayPaymentId || order.razorpayPaymentId,
+                paymentFailureReason: null,
+                ...(isCOD ? {
+                  codUpfrontPaid: Number(order.codUpfrontPaid) || 99,
+                  codUpfrontPaymentId: confirmedMainOrder.razorpayPaymentId || order.razorpayPaymentId || null,
+                  notes: `COD Order (₹${Number(order.codUpfrontPaid) || 99} upfront fee paid via Razorpay) | Order: ${order.orderNumber}`
+                } : {})
+              },
+            });
+            syncedOrders.push({
+              id: order.id,
+              orderNumber: order.orderNumber,
+              oldStatus: order.paymentStatus,
+              newStatus: targetStatus,
+              failureReason: null,
+            });
+          }
+          continue;
+        }
+
+        // Main order is not yet marked paid, fetch Razorpay status
         const rzpOrder: any = await razorpay.orders.fetch(order.razorpayOrderId);
         let paymentsList: any = null;
         try {
@@ -128,12 +168,12 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
             },
           });
 
-          // 2. Update matching Order in main Order table
-          const matchingMainOrders = await prisma.order.findMany({
-            where: { razorpayOrderId: order.razorpayOrderId }
-          });
-
+          // 2. Update matching Order in main Order table (only if not already paid)
           for (const mOrder of matchingMainOrders) {
+            if (mOrder.paymentStatus === "paid" || mOrder.paymentStatus === "cod_upfront_paid") {
+              continue;
+            }
+
             const cleanedTags = (mOrder.tags || '')
               .split(',')
               .map((t: string) => t.trim())

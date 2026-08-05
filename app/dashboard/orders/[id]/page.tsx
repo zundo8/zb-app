@@ -400,10 +400,15 @@ export default function OrderDetailPage() {
   }
   const latestShipment = order.shipments?.[0];
 
-  const discountAmount = order ? ((order as any).discountAmount || 0) : 0;
+  const rawDiscountCode = order ? (order.discountCode || "") : "";
+  const isCodMethod = order ? (detectPaymentMethod(order) === 'COD') : false;
+  const isPrepaidDiscountOnCod = isCodMethod && rawDiscountCode.toUpperCase().includes('PREPAID');
+
+  const discountAmount = order ? (isPrepaidDiscountOnCod ? 0 : ((order as any).discountAmount || 0)) : 0;
   const subtotalPrice = order ? (order.subtotalPrice || order.totalPrice) : 0;
   const isUndiscounted = order ? (discountAmount > 0 && Math.abs(order.totalPrice - subtotalPrice) < 0.01) : false;
   const finalGrandTotal = order ? (isUndiscounted ? order.totalPrice - discountAmount : order.totalPrice) : 0;
+  const codUpfrontAmount = order ? (Number((order as any).codUpfrontPaid) || (isCodMethod && (order.paymentStatus === 'cod_upfront_paid' || order.paymentStatus === 'paid') ? 99 : 0)) : 0;
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-12 pb-32 pt-4 relative">
@@ -714,17 +719,17 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
-              {(order as any).discountAmount > 0 && (
+              {discountAmount > 0 && !isPrepaidDiscountOnCod && (
                 <div className="flex justify-between text-xs text-emerald-400 font-semibold">
                   <span>Discount {order.discountCode ? `(${order.discountCode})` : ""}</span>
-                  <span>-₹{(order as any).discountAmount.toLocaleString("en-IN")}</span>
+                  <span>-₹{discountAmount.toLocaleString("en-IN")}</span>
                 </div>
               )}
 
-              {detectPaymentMethod(order) === 'COD' && (order as any).codUpfrontPaid > 0 && (
+              {detectPaymentMethod(order) === 'COD' && codUpfrontAmount > 0 && (
                 <div className="flex justify-between text-xs text-amber-400 font-semibold">
                   <span>COD Upfront Fee (Paid via Razorpay)</span>
-                  <span>₹{(order as any).codUpfrontPaid.toLocaleString("en-IN")}</span>
+                  <span>₹{codUpfrontAmount.toLocaleString("en-IN")}</span>
                 </div>
               )}
 
@@ -735,13 +740,13 @@ export default function OrderDetailPage() {
                   <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">Grand Total</p>
                   <p className="text-4xl font-black text-foreground tracking-tighter italic mb-1">₹{finalGrandTotal.toLocaleString("en-IN")}</p>
                   <p className="text-[11px] text-emerald-400 font-bold uppercase tracking-widest leading-none">
-                    Paid: ₹{(detectPaymentMethod(order) === 'COD' ? ((order as any).codUpfrontPaid || 0) : (order.paymentStatus === 'paid' ? finalGrandTotal : 0)).toLocaleString("en-IN")}
+                    Paid: ₹{(detectPaymentMethod(order) === 'COD' ? codUpfrontAmount : (order.paymentStatus === 'paid' ? finalGrandTotal : 0)).toLocaleString("en-IN")}
                   </p>
                 </div>
                 {detectPaymentMethod(order) === 'COD' && (
                   <div className="text-right space-y-1">
                     <p className="text-[10px] font-bold text-amber-400/80 uppercase tracking-widest">Balance Due at Delivery</p>
-                    <p className="text-xl font-bold text-amber-400">₹{Math.max(0, finalGrandTotal - ((order as any).codUpfrontPaid || 0)).toLocaleString("en-IN")}</p>
+                    <p className="text-xl font-bold text-amber-400">₹{Math.max(0, finalGrandTotal - codUpfrontAmount).toLocaleString("en-IN")}</p>
                   </div>
                 )}
               </div>

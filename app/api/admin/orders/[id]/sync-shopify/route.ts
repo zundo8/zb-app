@@ -489,6 +489,15 @@ export async function POST(
       }
     }
 
+    const webStoreOrder = order.razorpayOrderId
+      ? await prisma.webStoreOrder.findFirst({ where: { razorpayOrderId: order.razorpayOrderId } })
+      : null;
+
+    const rawMethod = (order.paymentMethod || '').toLowerCase();
+    const isCodOrder = rawMethod === 'cod' || (order.tags || '').toLowerCase().includes('cod');
+    const codUpfrontFee = isCodOrder ? (webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 99) : 0;
+    const codBalanceDue = isCodOrder ? Math.max(0, order.totalPrice - codUpfrontFee) : 0;
+
     // Build Shopify order payload
     const shopifyOrderPayload: any = {
       line_items: order.items.map((item: any) => {
@@ -522,22 +531,35 @@ export async function POST(
       email: order.customer?.email || '',
       send_receipt: false,
       send_fulfillment_receipt: false,
-      financial_status: order.paymentMethod === 'COD' ? 'pending' : (order.paymentStatus === 'paid' ? 'paid' : 'pending'),
-      note: order.paymentMethod === 'COD'
-        ? `COD Order Synced from Admin Dashboard | Upfront Fee paid via Razorpay (Payment ID: ${order.razorpayPaymentId || 'N/A'})`
+      financial_status: isCodOrder ? 'partially_paid' : (order.paymentStatus === 'paid' ? 'paid' : 'pending'),
+      note: isCodOrder
+        ? `COD Order Synced from Admin Dashboard | Upfront Fee ₹${codUpfrontFee} paid via Razorpay (Payment ID: ${order.razorpayPaymentId || 'N/A'})`
         : `Synced from Admin Dashboard | Payment: ${order.paymentMethod || 'Unknown'} | Razorpay Payment ID: ${order.razorpayPaymentId || 'N/A'} | InternalOrderId: ${order.id}`,
-      tags: `WebStoreOrder, WebStore, ${order.paymentMethod === 'COD' ? 'COD' : 'Prepaid, Razorpay'}, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
+      tags: `WebStoreOrder, WebStore, ${isCodOrder ? 'COD' : 'Prepaid, Razorpay'}, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
       note_attributes: [
         { name: 'internal_order_number', value: order.internalOrderNumber || '' },
-        { name: 'payment_method', value: order.paymentMethod === 'COD' ? 'COD' : 'PREPAID' },
-        { name: 'razorpay_payment_id', value: order.razorpayPaymentId || '' }
+        { name: 'payment_method', value: isCodOrder ? 'COD' : 'PREPAID' },
+        { name: 'razorpay_payment_id', value: order.razorpayPaymentId || '' },
+        ...(isCodOrder ? [
+          { name: 'cod_upfront_fee', value: String(codUpfrontFee) },
+          { name: 'cod_balance_due', value: codBalanceDue.toFixed(2) }
+        ] : [])
       ],
       total_tax: 0,
       currency: order.currency || 'INR',
     };
 
     // Add transactions so Shopify records the actual paid amount
-    if (order.paymentMethod !== 'COD' && order.paymentStatus === 'paid') {
+    if (isCodOrder) {
+      shopifyOrderPayload.transactions = [{
+        kind: "sale",
+        status: "success",
+        amount: codUpfrontFee.toFixed(2),
+        currency: order.currency || "INR",
+        gateway: "razorpay",
+        authorization: order.razorpayPaymentId || null
+      }];
+    } else if (order.paymentStatus === 'paid') {
       shopifyOrderPayload.transactions = [{
         kind: "sale",
         status: "success",

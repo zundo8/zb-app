@@ -91,7 +91,20 @@ export async function POST(req: Request) {
           } else {
             finalCouponDiscount = Math.min(rateVal, sub);
           }
+          // CUSTOM_RATES with zero COD rate means no discount for COD
+          if (isCodOrder && rateVal <= 0) {
+            console.warn(`[Razorpay Checkout] CUSTOM_RATES coupon ${finalCouponCode} has zero COD discount — stripping`);
+            finalCouponCode = null;
+            finalCouponDiscount = 0;
+          }
         }
+      }
+
+      // Safety net: strip coupons with "PREPAID" in the code name from COD orders
+      if (finalCouponCode && isCodOrder && finalCouponCode.includes('PREPAID')) {
+        console.warn(`[Razorpay Checkout] Safety-net stripped prepaid-named coupon ${finalCouponCode} from COD order`);
+        finalCouponCode = null;
+        finalCouponDiscount = 0;
       }
     }
 

@@ -99,6 +99,14 @@ export async function POST(req: NextRequest) {
           });
 
           if (order) {
+            // Detect if this is a COD order (case-insensitive check on method, tags, and note)
+            const isCodOrder = (
+              (order.paymentMethod || '').toLowerCase() === 'cod' ||
+              (order.tags || '').toLowerCase().includes('cod') ||
+              (order.note || '').toLowerCase().includes('cod order') ||
+              (order.note || '').toLowerCase().includes('upfront fee paid')
+            );
+
             // Update address if captured by Razorpay
             let addressToUse = null;
             if (payment.shipping_address) {
@@ -121,13 +129,18 @@ export async function POST(req: NextRequest) {
               } catch {}
             }
 
+            // For COD orders: set cod_upfront_paid and preserve payment method
+            // For prepaid orders: set paid and update payment method from Razorpay
             const updateData: any = {
-              paymentStatus: "paid",
+              paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
+              status: isCodOrder ? "open" : (order.status === "payment_pending" ? "approved" : order.status),
               razorpayPaymentId,
               paymentCapturedAt: new Date(),
+              paymentFailureReason: null,
             };
 
-            if (order.paymentMethod !== "COD") {
+            // Never override paymentMethod for COD orders — keep it as "cod"
+            if (!isCodOrder) {
               updateData.paymentMethod = payment?.method || "razorpay";
             }
 
@@ -141,7 +154,32 @@ export async function POST(req: NextRequest) {
               data: updateData,
             });
 
-            console.log(`[Razorpay Webhook] payment.captured → Order ${order.id} marked paid`);
+            console.log(`[Razorpay Webhook] payment.captured → Order ${order.id} marked ${isCodOrder ? 'cod_upfront_paid' : 'paid'}`);
+
+            // Sync corresponding WebStoreOrder to keep both models in sync
+            try {
+              const wsOrder = await prisma.webStoreOrder.findFirst({
+                where: { razorpayOrderId },
+              });
+              if (wsOrder) {
+                const capturedAmount = payment?.amount ? Number(payment.amount) / 100 : 0;
+                await prisma.webStoreOrder.update({
+                  where: { id: wsOrder.id },
+                  data: {
+                    paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
+                    razorpayPaymentId,
+                    paymentFailureReason: null,
+                    ...(isCodOrder ? {
+                      codUpfrontPaid: capturedAmount || Number(wsOrder.codUpfrontPaid) || 99,
+                      codUpfrontPaymentId: razorpayPaymentId,
+                    } : {}),
+                  },
+                });
+                console.log(`[Razorpay Webhook] WebStoreOrder ${wsOrder.id} synced to ${isCodOrder ? 'cod_upfront_paid' : 'paid'}`);
+              }
+            } catch (wsErr: any) {
+              console.error('[Razorpay Webhook] WebStoreOrder sync error:', wsErr.message);
+            }
 
             // Mark corresponding Cart as converted
             const matchCart = (order.tags || "").match(/cart-([A-Za-z0-9_-]+)/);
@@ -339,13 +377,57 @@ export async function POST(req: NextRequest) {
       } else if (eventType === "payment.failed") {
         const payment = payload.payload?.payment?.entity;
         const razorpayOrderId = payment?.order_id;
+        const failureReason = payment?.error_description || payment?.error_reason || payment?.error_code || "Payment failed";
+        const rawCode = String(payment?.error_code || "").toUpperCase();
+        const rawDesc = String(payment?.error_description || "").toLowerCase();
+        const isCancelledByUser = rawCode === "BAD_REQUEST_ERROR" && (rawDesc.includes("cancel") || rawDesc.includes("dismissed") || rawDesc.includes("closed"));
 
         if (razorpayOrderId) {
-          await prisma.order.updateMany({
+          // Check if any matching order is COD — don't overwrite paymentMethod
+          const matchingOrders = await prisma.order.findMany({
             where: { razorpayOrderId },
-            data: { paymentStatus: "failed" },
+            select: { id: true, paymentMethod: true, paymentStatus: true },
           });
-          console.log(`[Razorpay Webhook] payment.failed → Order with razorpay_order_id ${razorpayOrderId}`);
+
+          for (const mOrder of matchingOrders) {
+            // Don't overwrite already-confirmed payments
+            const currentStatus = (mOrder.paymentStatus || '').toLowerCase();
+            if (currentStatus === 'paid' || currentStatus === 'cod_upfront_paid') {
+              console.log(`[Razorpay Webhook] Skipping payment.failed for already-paid order ${mOrder.id}`);
+              continue;
+            }
+
+            await prisma.order.update({
+              where: { id: mOrder.id },
+              data: {
+                paymentStatus: isCancelledByUser ? "cancelled" : "failed",
+                paymentFailureReason: isCancelledByUser ? "payment_cancelled_by_user" : failureReason,
+                status: isCancelledByUser ? "cancelled" : "payment_failed",
+              },
+            });
+          }
+
+          // Sync to WebStoreOrder
+          try {
+            const wsOrders = await prisma.webStoreOrder.findMany({
+              where: { razorpayOrderId },
+            });
+            for (const ws of wsOrders) {
+              const currentWsStatus = (ws.paymentStatus || '').toLowerCase();
+              if (currentWsStatus === 'paid' || currentWsStatus === 'cod_upfront_paid') continue;
+              await prisma.webStoreOrder.update({
+                where: { id: ws.id },
+                data: {
+                  paymentStatus: isCancelledByUser ? "cancelled" : "failed",
+                  paymentFailureReason: isCancelledByUser ? "payment_cancelled_by_user" : failureReason,
+                },
+              });
+            }
+          } catch (wsErr: any) {
+            console.error('[Razorpay Webhook] WebStoreOrder failed-sync error:', wsErr.message);
+          }
+
+          console.log(`[Razorpay Webhook] payment.failed → Order with razorpay_order_id ${razorpayOrderId} (${isCancelledByUser ? 'cancelled_by_user' : 'failed'})`);
         }
       } else if (eventType === "refund.created") {
         const refund = payload.payload?.refund?.entity;

@@ -168,21 +168,34 @@ export async function GET(req: Request) {
         }
       }
 
-      const codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
-      const paymentMethod = webStoreOrder?.paymentMethod || order.paymentMethod;
-      const paymentStatus = webStoreOrder?.paymentStatus || order.paymentStatus;
-      const discountAmount = webStoreOrder?.discountAmount 
+      let codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
+      const rawMethod = (webStoreOrder?.paymentMethod || order.paymentMethod || '').toLowerCase();
+      const tagsLower = (order.tags || '').toLowerCase();
+      const noteLower = (order.note || '').toLowerCase();
+      const isCodOrder = rawMethod === 'cod' || tagsLower.includes('cod') || noteLower.includes('cod order') || noteLower.includes('upfront fee paid');
+      const paymentMethod = isCodOrder ? 'COD' : (webStoreOrder?.paymentMethod || order.paymentMethod || 'razorpay');
+      let paymentStatus = webStoreOrder?.paymentStatus || order.paymentStatus;
+      if (isCodOrder && paymentStatus === 'paid') {
+        paymentStatus = 'cod_upfront_paid';
+      }
+
+      let discountAmount = webStoreOrder?.discountAmount 
         ? Number(webStoreOrder.discountAmount) 
         : (order.discountAmount || 0);
 
-      let totalPrice = order.totalPrice;
-      const subtotalPrice = order.subtotalPrice || totalPrice;
-      if (discountAmount > 0 && Math.abs(totalPrice - subtotalPrice) < 0.01) {
-        totalPrice = subtotalPrice - discountAmount;
+      const discountCode = webStoreOrder?.discountCode || order.discountCode;
+      if (isCodOrder && discountCode && discountCode.toUpperCase().includes('PREPAID')) {
+        discountAmount = 0;
       }
+
+      if (isCodOrder && codUpfrontPaid === 0 && (paymentStatus === 'cod_upfront_paid' || paymentStatus === 'paid')) {
+        codUpfrontPaid = 99;
+      }
+
+      let totalPrice = order.totalPrice;
       
       let paidAmount = 0;
-      if (paymentMethod === 'COD' || paymentMethod === 'cod') {
+      if (isCodOrder) {
         paidAmount = codUpfrontPaid;
       } else if (paymentStatus === 'paid' || paymentStatus === 'success') {
         paidAmount = totalPrice;
@@ -197,7 +210,8 @@ export async function GET(req: Request) {
         codUpfrontPaid,
         paymentMethod,
         paymentStatus,
-        paidAmount
+        paidAmount,
+        discountAmount
       };
     });
 

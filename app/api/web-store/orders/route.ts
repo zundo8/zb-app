@@ -48,7 +48,20 @@ export async function GET(request: Request) {
       where.fulfillmentStatus = fulfillmentStatus;
     }
     if (paymentStatus && paymentStatus !== "all") {
-      where.paymentStatus = paymentStatus;
+      if (paymentStatus === "paid") {
+        where.paymentStatus = { in: ["paid", "cod_upfront_paid", "PAID", "COD_UPFRONT_PAID"] };
+      } else if (paymentStatus === "cod_upfront_paid") {
+        where.OR = [
+          { paymentStatus: { in: ["cod_upfront_paid", "COD_UPFRONT_PAID"] } },
+          { codUpfrontPaid: { gt: 0 } }
+        ];
+      } else if (paymentStatus === "pending") {
+        where.paymentStatus = { in: ["pending", "payment_pending", "PENDING", "PAYMENT_PENDING"] };
+      } else if (paymentStatus === "failed") {
+        where.paymentStatus = { in: ["failed", "payment_failed", "FAILED", "PAYMENT_FAILED"] };
+      } else {
+        where.paymentStatus = paymentStatus;
+      }
     } else {
       where.paymentStatus = {
         notIn: ["payment_pending", "payment_failed", "pending", "failed", "cancelled", "FAILED"],
