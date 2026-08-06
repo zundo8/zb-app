@@ -2090,15 +2090,25 @@ function CartRecovery() {
   const [loading, setLoading] = useState(true);
   const [isBulkSending, setIsBulkSending] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [schedulerStats, setSchedulerStats] = useState<any>(null);
   const [automationEnabled, setAutomationEnabled] = useState(true);
   const [selectedCart, setSelectedCart] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const fetchStats = async () => {
     try {
-      const res = await fetch("/api/whatsapp/abandoned-cart/stats");
-      const data = await res.json();
-      if (res.ok) setStats(data);
+      const [statsRes, schedulerRes] = await Promise.allSettled([
+        fetch("/api/whatsapp/abandoned-cart/stats"),
+        fetch("/api/whatsapp/scheduler-stats")
+      ]);
+      if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
+        const data = await statsRes.value.json();
+        setStats(data);
+      }
+      if (schedulerRes.status === 'fulfilled' && schedulerRes.value.ok) {
+        const data = await schedulerRes.value.json();
+        setSchedulerStats(data);
+      }
     } catch (e) {
       console.error("Failed to load cart recovery stats:", e);
     }
@@ -2278,6 +2288,35 @@ function CartRecovery() {
             {stats?.totalSent || 0}
           </span>
         </div>
+      </div>
+
+      {/* Scheduler Automation Health Banner */}
+      <div className="glass-card p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-emerald-500/20 bg-emerald-500/5">
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <div>
+            <span className="text-xs font-semibold text-foreground">WhatsApp Scheduler Health</span>
+            <span className="text-xs text-muted-foreground block font-mono text-[11px]">
+              {schedulerStats?.lastRun ? (
+                <>Last run: <strong className="text-foreground">{new Date(schedulerStats.lastRun.createdAt).toLocaleString('en-IN')}</strong> · Status: <strong className={schedulerStats.lastRun.success ? "text-emerald-500" : "text-amber-500"}>{schedulerStats.lastRun.success ? "Healthy" : "Failed"}</strong></>
+              ) : (
+                "Checking scheduler heartbeat..."
+              )}
+            </span>
+          </div>
+        </div>
+        {schedulerStats?.sends24h && (
+          <div className="text-[11px] font-mono text-muted-foreground flex items-center gap-3 bg-foreground/5 px-3 py-1.5 rounded-xl border border-foreground/5">
+            <span>24h Recovery Sends: <strong className="text-emerald-400">
+              {(schedulerStats.sends24h['abandoned_cart_a1'] || 0) +
+               (schedulerStats.sends24h['abandoned_cart_a2'] || 0) +
+               (schedulerStats.sends24h['abandoned_cart_a3'] || 0) +
+               (schedulerStats.sends24h['zica_cart_recovery_v1'] || 0) +
+               (schedulerStats.sends24h['zica_cart_followup_a1'] || 0) +
+               (schedulerStats.sends24h['zica_cart_final_a1'] || 0)}
+            </strong></span>
+          </div>
+        )}
       </div>
 
       {/* Action Bar */}
@@ -2537,25 +2576,34 @@ function OrderNotifications() {
   useEffect(() => {
     async function fetchAll() {
       try {
-        const [settingsRes, templatesRes, statsRes] = await Promise.all([
+        const [settingsRes, templatesRes, statsRes] = await Promise.allSettled([
           fetch("/api/whatsapp/settings"),
           fetch("/api/whatsapp/templates"),
           fetch("/api/whatsapp/scheduler-stats")
         ]);
-        const settingsData = await settingsRes.json();
-        if (settingsRes.ok) {
+
+        if (settingsRes.status === 'fulfilled' && settingsRes.value.ok) {
+          const settingsData = await settingsRes.value.json();
           setSettings(settingsData.settings || {});
+        } else {
+          console.warn("Failed to load settings");
         }
-        const templatesData = await templatesRes.json();
-        if (templatesRes.ok) {
+
+        if (templatesRes.status === 'fulfilled' && templatesRes.value.ok) {
+          const templatesData = await templatesRes.value.json();
           const approved = (templatesData.templates || []).filter(
             (t: any) => t.status === "APPROVED"
           );
           setApprovedTemplates(approved);
+        } else {
+          console.warn("Failed to load templates");
         }
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
+
+        if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
+          const statsData = await statsRes.value.json();
           setStats(statsData);
+        } else {
+          console.warn("Failed to load scheduler stats");
         }
       } catch (err) {
         console.error("Failed to load automation metrics:", err);

@@ -19,10 +19,18 @@ const TOGGLE_KEYS = [
   'out_for_delivery',
   'order_delivered',
   'return_confirmed',
+  'return_pickup_scheduled_enabled',
+  'exchange_confirmed_enabled',
+  'exchange_pickup_scheduled_enabled',
+  'exchange_shipped_enabled',
   'cart_recovery_enabled',
   'cart_recovery_step2_enabled',
   'cart_recovery_step3_enabled',
   'cod_confirmation_enabled',
+  'new_collection_enabled',
+  'sale_alert_enabled',
+  'restock_alert_enabled',
+  'welcome_enabled',
   'account_created_enabled'
 ];
 
@@ -40,6 +48,14 @@ const TEMPLATE_MAPPING_KEYS = [
   'template_order_status',
   'template_out_for_delivery',
   'template_return_confirmed',
+  'template_return_pickup',
+  'template_exchange_confirmed',
+  'template_exchange_pickup',
+  'template_exchange_shipped',
+  'template_new_collection',
+  'template_sale_alert',
+  'template_restock_alert',
+  'template_welcome',
   'template_account_created'
 ];
 
