@@ -257,13 +257,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     let isMobileOrder = false;
     let oldOrder = await prisma.order.findUnique({
       where: { id },
-      select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true }
+      select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true, internalOrderNumber: true, previousOrderNumbers: true, tags: true }
     });
 
     if (!oldOrder) {
       const oldMobileOrder = await prisma.mobileOrder.findUnique({
         where: { id },
-        select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true }
+        select: { status: true, deliveryStatus: true, customerId: true, paymentStatus: true, orderNumber: true, tags: true }
       });
       if (oldMobileOrder) {
         oldOrder = oldMobileOrder as any;
@@ -510,6 +510,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             body.tags = `${body.tags}, zb-order-${cancelledNumber}`;
           }
           console.log(`[Admin Order PATCH] Renumbered cancelled order: ${oldNumber} → ${cancelledNumber}`);
+          // Sync WebStoreOrder to keep orderNumber in lockstep with the ZBCC number
+          if (oldNumber) {
+            await prisma.webStoreOrder.updateMany({
+              where: { orderNumber: oldNumber },
+              data: { orderNumber: cancelledNumber },
+            });
+          }
         } catch (renumberErr) {
           console.error('[Admin Order PATCH] Failed to assign ZBCC number:', renumberErr);
         }

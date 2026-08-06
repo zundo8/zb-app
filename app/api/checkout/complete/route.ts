@@ -315,6 +315,15 @@ export async function POST(req: Request) {
             previousOrderNumbers: previousNumbers || null,
           }
         });
+        // Keep WebStoreOrder & MobileOrder in lockstep with the promoted number
+        await prisma.webStoreOrder.updateMany({
+          where: { orderNumber: oldNumber },
+          data: { orderNumber: universalOrderNumber },
+        });
+        await prisma.mobileOrder.updateMany({
+          where: { orderNumber: oldNumber },
+          data: { orderNumber: universalOrderNumber },
+        });
         preCreatedWasPromoted = true;
         console.log(`[Checkout Complete] Pre-promoted order ${oldNumber} → ${universalOrderNumber} (before Shopify creation)`);
       } else {
@@ -530,8 +539,23 @@ export async function POST(req: Request) {
         where: { id: existingPreCreatedOrder.id }
       });
       if (freshOrder && freshOrder.internalOrderNumber && !isFailedPrefixNumber(freshOrder.internalOrderNumber)) {
-        // Another process may have promoted this order — always use what's in DB
-        universalOrderNumber = freshOrder.internalOrderNumber;
+        // Another process may have promoted this order — adopt its number
+        const adoptedNumber = freshOrder.internalOrderNumber;
+        if (adoptedNumber !== universalOrderNumber) {
+          // Sync WebStoreOrder/MobileOrder from the old prefix to the adopted number
+          const oldPrefixNumber = existingPreCreatedOrder.internalOrderNumber;
+          if (oldPrefixNumber && isFailedPrefixNumber(oldPrefixNumber)) {
+            await prisma.webStoreOrder.updateMany({
+              where: { orderNumber: oldPrefixNumber },
+              data: { orderNumber: adoptedNumber },
+            });
+            await prisma.mobileOrder.updateMany({
+              where: { orderNumber: oldPrefixNumber },
+              data: { orderNumber: adoptedNumber },
+            });
+          }
+        }
+        universalOrderNumber = adoptedNumber;
       }
     }
 
