@@ -273,16 +273,70 @@ export async function POST(req: Request) {
       }
     }
 
-    // Generate universal order number for successful order
-    let universalOrderNumber = '';
-    try {
-      universalOrderNumber = await assignUniversalOrderNumber(prisma);
-    } catch (seqErr: any) {
-      console.error('[Checkout] Failed to generate universal order number:', seqErr.message);
-      universalOrderNumber = `ZB${Date.now().toString().slice(-8)}`;
+    // ─── BUG 1 FIX: Determine final order number BEFORE Shopify creation ───
+    // Look up any pre-created order FIRST so we can reuse its number if it
+    // already has a real ZB number, avoiding the Shopify/DB divergence bug.
+    const rzpOrderId = razorpay?.razorpay_order_id;
+    let existingPreCreatedOrder: any = null;
+    if (rzpOrderId || body.localOrderId) {
+      existingPreCreatedOrder = await prisma.order.findFirst({
+        where: {
+          OR: [
+            ...(rzpOrderId ? [{ razorpayOrderId: rzpOrderId }] : []),
+            ...(body.localOrderId ? [{ id: body.localOrderId }] : [])
+          ]
+        }
+      });
     }
 
-    // 3. Create Order in Shopify
+    // Determine the final universalOrderNumber based on pre-created order state
+    let universalOrderNumber = '';
+    let preCreatedWasPromoted = false;
+    if (existingPreCreatedOrder) {
+      const oldNumber = existingPreCreatedOrder.internalOrderNumber;
+      if (oldNumber && !isFailedPrefixNumber(oldNumber)) {
+        // Pre-created order already has a real ZB number → reuse it, do NOT mint
+        universalOrderNumber = oldNumber;
+        console.log(`[Checkout Complete] Reusing existing real order number: ${universalOrderNumber}`);
+      } else if (isFailedPrefixNumber(oldNumber)) {
+        // Pre-created order has a failed-prefix number → mint a new real number and promote NOW
+        try {
+          universalOrderNumber = await assignUniversalOrderNumber(prisma);
+        } catch (seqErr: any) {
+          console.error('[Checkout] Failed to generate universal order number:', seqErr.message);
+          universalOrderNumber = `ZB${Date.now().toString().slice(-8)}`;
+        }
+        // Promote the pre-created order's number before Shopify creation
+        const previousNumbers = [existingPreCreatedOrder.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+        await prisma.order.update({
+          where: { id: existingPreCreatedOrder.id },
+          data: {
+            internalOrderNumber: universalOrderNumber,
+            previousOrderNumbers: previousNumbers || null,
+          }
+        });
+        preCreatedWasPromoted = true;
+        console.log(`[Checkout Complete] Pre-promoted order ${oldNumber} → ${universalOrderNumber} (before Shopify creation)`);
+      } else {
+        // Pre-created order exists but has no number at all → mint a new one
+        try {
+          universalOrderNumber = await assignUniversalOrderNumber(prisma);
+        } catch (seqErr: any) {
+          console.error('[Checkout] Failed to generate universal order number:', seqErr.message);
+          universalOrderNumber = `ZB${Date.now().toString().slice(-8)}`;
+        }
+      }
+    } else {
+      // No pre-created order → mint a fresh number
+      try {
+        universalOrderNumber = await assignUniversalOrderNumber(prisma);
+      } catch (seqErr: any) {
+        console.error('[Checkout] Failed to generate universal order number:', seqErr.message);
+        universalOrderNumber = `ZB${Date.now().toString().slice(-8)}`;
+      }
+    }
+
+    // 3. Create Order in Shopify (using the FINAL settled universalOrderNumber)
     const shopifyLineItems = items.map((item: any) => {
       let variantId: number | undefined;
       if (item.variantId) {
@@ -466,96 +520,58 @@ export async function POST(req: Request) {
     }
 
     // 4. Update existing pre-created Order OR Create Order in local DB
-    const rzpOrderId = razorpay?.razorpay_order_id;
-    let existingPreCreatedOrder = null;
-    if (rzpOrderId || body.localOrderId) {
-      existingPreCreatedOrder = await prisma.order.findFirst({
-        where: {
-          OR: [
-            ...(rzpOrderId ? [{ razorpayOrderId: rzpOrderId }] : []),
-            ...(body.localOrderId ? [{ id: body.localOrderId }] : [])
-          ]
-        }
+    // NOTE: existingPreCreatedOrder was already looked up and promotion was
+    // already done before Shopify creation (BUG 1 fix). Re-fetch to get latest
+    // state in case another process (webhook) modified it concurrently.
+    if (existingPreCreatedOrder) {
+      // Race-condition guard: re-read the order to detect if another process
+      // (e.g. Razorpay webhook) already assigned a different real number
+      const freshOrder = await prisma.order.findUnique({
+        where: { id: existingPreCreatedOrder.id }
       });
+      if (freshOrder && freshOrder.internalOrderNumber && !isFailedPrefixNumber(freshOrder.internalOrderNumber)) {
+        // Another process may have promoted this order — always use what's in DB
+        universalOrderNumber = freshOrder.internalOrderNumber;
+      }
     }
 
     let localOrder: any = null;
     const finalPaymentMethod = isFullStoreCredit ? "store_credit" : isCodOrder ? "cod" : "razorpay";
 
     if (existingPreCreatedOrder) {
-      // Promote: if the pre-created order has a failed/pending prefix number, assign a real ZB number
-      const oldNumber = existingPreCreatedOrder.internalOrderNumber;
-      if (isFailedPrefixNumber(oldNumber)) {
-        // Keep the old prefix number for traceability
-        const previousNumbers = [existingPreCreatedOrder.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
-        // universalOrderNumber was already assigned above as a fresh ZB number
-        console.log(`[Checkout Complete] Promoting order ${oldNumber} → ${universalOrderNumber}`);
+      // Recalculate correct total: subtotal - discount - storeCredit
+      const correctedTotal = Math.max(0, Number(subtotal || 0) - Number(finalCouponDiscount || 0) - parsedStoreCredit);
 
-        // Recalculate correct total: subtotal - discount - storeCredit
-        const correctedTotal = Math.max(0, Number(subtotal || 0) - Number(finalCouponDiscount || 0) - parsedStoreCredit);
+      // Build the update data — number promotion was already done above
+      const updateData: any = {
+        shopifyOrderId: shopifyOrderId,
+        status: isCodOrder ? "open" : "approved",
+        paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
+        razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+        paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
+        paymentMethod: finalPaymentMethod,
+        storeCreditAmount: parsedStoreCredit,
+        totalPrice: correctedTotal,
+        subtotalPrice: Number(subtotal || 0),
+        discountCode: finalCouponCode || null,
+        discountAmount: Number(finalCouponDiscount) || 0,
+        paymentFailureReason: null,
+        tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
+        note: isFullStoreCredit
+          ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
+          : isCodOrder
+          ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
+          : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
+        shopifyOrderName: sOrder ? sOrder.name : null,
+        shopifySyncStatus: sOrder ? 'synced' : 'failed',
+        shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
+        internalOrderNumber: universalOrderNumber,
+      };
 
-        localOrder = await prisma.order.update({
-          where: { id: existingPreCreatedOrder.id },
-          data: {
-            shopifyOrderId: shopifyOrderId,
-            status: isCodOrder ? "open" : "approved",
-            paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
-            razorpayPaymentId: razorpay?.razorpay_payment_id || null,
-            paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
-            paymentMethod: finalPaymentMethod,
-            storeCreditAmount: parsedStoreCredit,
-            totalPrice: correctedTotal,
-            subtotalPrice: Number(subtotal || 0),
-            discountCode: finalCouponCode || null,
-            discountAmount: Number(finalCouponDiscount) || 0,
-            paymentFailureReason: null,
-            tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
-            note: isFullStoreCredit
-              ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
-              : isCodOrder
-              ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
-              : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
-            shopifyOrderName: sOrder ? sOrder.name : null,
-            shopifySyncStatus: sOrder ? 'synced' : 'failed',
-            shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
-            internalOrderNumber: universalOrderNumber,
-            previousOrderNumbers: previousNumbers || null,
-          }
-        });
-      } else {
-        // Already has a real ZB number or legacy number — keep it
-        universalOrderNumber = existingPreCreatedOrder.internalOrderNumber || universalOrderNumber;
-
-        // Recalculate correct total: subtotal - discount - storeCredit
-        const correctedTotal = Math.max(0, Number(subtotal || 0) - Number(finalCouponDiscount || 0) - parsedStoreCredit);
-
-        localOrder = await prisma.order.update({
-          where: { id: existingPreCreatedOrder.id },
-          data: {
-            shopifyOrderId: shopifyOrderId,
-            status: isCodOrder ? "open" : "approved",
-            paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
-            razorpayPaymentId: razorpay?.razorpay_payment_id || null,
-            paymentCapturedAt: (razorpay || isFullStoreCredit) ? new Date() : null,
-            paymentMethod: finalPaymentMethod,
-            storeCreditAmount: parsedStoreCredit,
-            totalPrice: correctedTotal,
-            subtotalPrice: Number(subtotal || 0),
-            discountCode: finalCouponCode || null,
-            discountAmount: Number(finalCouponDiscount) || 0,
-            paymentFailureReason: null,
-            tags: `WebStoreOrder, Web, ${finalPaymentMethod}, zb-order-${universalOrderNumber}`,
-            note: isFullStoreCredit
-              ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
-              : isCodOrder
-              ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
-              : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
-            shopifyOrderName: sOrder ? sOrder.name : null,
-            shopifySyncStatus: sOrder ? 'synced' : 'failed',
-            shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
-          }
-        });
-      }
+      localOrder = await prisma.order.update({
+        where: { id: existingPreCreatedOrder.id },
+        data: updateData,
+      });
       console.log(`[Checkout Complete] Updated pre-created order ${localOrder.id} (${universalOrderNumber}) status to paid/approved`);
     } else {
       localOrder = await prisma.order.create({

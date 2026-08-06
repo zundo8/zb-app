@@ -2,6 +2,7 @@ import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
 import Razorpay from 'razorpay';
 import prisma from '@/lib/db';
 import { toMinorUnits } from '@/lib/global-pricing';
+import { assignRefundId } from '@/lib/orderNumber';
 
 /**
  * Automatically processes a refund via Razorpay for cancelled orders.
@@ -132,6 +133,14 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
     if (isMock) {
       console.warn(`[AutoRefund] Processing MOCK refund for mock payment ${paymentId}`);
       
+      // Generate ZBRF refund ID
+      let generatedRefundId: string | null = null;
+      try {
+        generatedRefundId = await assignRefundId(prisma);
+      } catch (rfErr) {
+        console.error('[AutoRefund] Failed to generate refundId:', rfErr);
+      }
+
       // Create local payment refund record
       await prisma.$transaction([
         prisma.payment.create({
@@ -150,7 +159,8 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
             paymentStatus: 'refunded',
             refundStatus: 'completed',
             refundError: null,
-            note: order.note ? `${order.note}\n[Refund] Mock refund of ₹${refundAmount} processed.` : `[Refund] Mock refund of ₹${refundAmount} processed.`
+            ...(generatedRefundId ? { refundId: generatedRefundId } : {}),
+            note: order.note ? `${order.note}\n[Refund] Mock refund of ₹${refundAmount} processed.${generatedRefundId ? ` (${generatedRefundId})` : ''}` : `[Refund] Mock refund of ₹${refundAmount} processed.${generatedRefundId ? ` (${generatedRefundId})` : ''}`
           }
         }),
         prisma.syncLog.create({
@@ -159,7 +169,7 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
             orderId: order.id,
             action: 'RAZORPAY_REFUND',
             status: 'SUCCESS',
-            payload: JSON.stringify({ mockPaymentId: paymentId, amount: refundAmount, isMock: true })
+            payload: JSON.stringify({ mockPaymentId: paymentId, amount: refundAmount, isMock: true, refundId: generatedRefundId })
           }
         })
       ]);
@@ -174,7 +184,7 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
         });
       }
 
-      return { success: true, message: 'Mock refund processed successfully' };
+      return { success: true, message: 'Mock refund processed successfully', refundId: generatedRefundId };
     }
 
     // 7. Execute Razorpay Refund
@@ -195,6 +205,14 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
 
     console.log(`[AutoRefund] Razorpay refund successful! Refund ID: ${refund.id}`);
 
+    // Generate ZBRF refund ID
+    let generatedRefundId: string | null = null;
+    try {
+      generatedRefundId = await assignRefundId(prisma);
+    } catch (rfErr) {
+      console.error('[AutoRefund] Failed to generate refundId:', rfErr);
+    }
+
     // 8. Update Database & log success
     await prisma.$transaction([
       prisma.payment.create({
@@ -213,7 +231,8 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
           paymentStatus: 'refunded',
           refundStatus: 'completed',
           refundError: null,
-          note: order.note ? `${order.note}\n[Refund] Auto-refund of ₹${refundAmount} processed via Razorpay (Refund ID: ${refund.id}).` : `[Refund] Auto-refund of ₹${refundAmount} processed via Razorpay (Refund ID: ${refund.id}).`
+          ...(generatedRefundId ? { refundId: generatedRefundId } : {}),
+          note: order.note ? `${order.note}\n[Refund] Auto-refund of ₹${refundAmount} processed via Razorpay (Refund ID: ${refund.id}).${generatedRefundId ? ` (${generatedRefundId})` : ''}` : `[Refund] Auto-refund of ₹${refundAmount} processed via Razorpay (Refund ID: ${refund.id}).${generatedRefundId ? ` (${generatedRefundId})` : ''}`
         }
       }),
       prisma.syncLog.create({
@@ -222,7 +241,7 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
           orderId: order.id,
           action: 'RAZORPAY_REFUND',
           status: 'SUCCESS',
-          payload: JSON.stringify(refund)
+          payload: JSON.stringify({ ...refund, zbRefundId: generatedRefundId })
         }
       })
     ]);

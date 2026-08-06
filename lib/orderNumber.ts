@@ -13,7 +13,7 @@
  * Prefix mapping:
  *   PF = payment failed
  *   PP = payment pending
- *   CX = cancelled
+ *   CC = cancelled
  *   XX = other / unknown
  */
 
@@ -35,8 +35,8 @@ const PREFIX_MAP: Record<string, string> = {
   failed: 'PF',
   pending: 'PP',
   payment_pending: 'PP',
-  cancelled: 'CX',
-  canceled: 'CX',
+  cancelled: 'CC',
+  canceled: 'CC',
   unknown: 'XX',
 };
 
@@ -88,14 +88,34 @@ export async function assignFailedOrderNumber(
 }
 
 // ---------------------------------------------------------------------------
+// Refund ID allocation
+// ---------------------------------------------------------------------------
+
+/**
+ * Allocate the next refund ID from the refund sequence.
+ *
+ * MUST be called inside the same Prisma transaction that writes the refund
+ * status update so concurrency is handled by Postgres.
+ *
+ * @returns e.g. "ZBRF81000"
+ */
+export async function assignRefundId(tx: TxLike): Promise<string> {
+  const rows = (await tx.$queryRawUnsafe(
+    `SELECT nextval('zb_refund_seq') AS seq_val`
+  )) as Array<{ seq_val: bigint | number }>;
+  const seqVal = Number(rows[0].seq_val);
+  return `ZBRF${seqVal}`;
+}
+
+// ---------------------------------------------------------------------------
 // Utility: detect whether an existing order number is a "failed" prefix
 // ---------------------------------------------------------------------------
 
-const FAILED_PREFIX_RE = /^ZB(PF|PP|CX|XX)\d+$/;
+const FAILED_PREFIX_RE = /^ZB(PF|PP|CX|CC|XX)\d+$/;
 
 /**
- * Returns true if the order number is a failed/pending prefix number
- * (ZBPF…, ZBPP…, ZBCX…, ZBXX…) and therefore eligible for promotion
+ * Returns true if the order number is a failed/pending/cancelled prefix number
+ * (ZBPF…, ZBPP…, ZBCX…, ZBCC…, ZBXX…) and therefore eligible for promotion
  * to a real ZB number.
  */
 export function isFailedPrefixNumber(orderNumber: string | null | undefined): boolean {
@@ -109,7 +129,7 @@ export function isFailedPrefixNumber(orderNumber: string | null | undefined): bo
  */
 export function isUniversalZBNumber(orderNumber: string | null | undefined): boolean {
   if (!orderNumber) return false;
-  // Must start with ZB, followed by digits only (no PF/PP/CX/XX prefix, no dashes)
+  // Must start with ZB, followed by digits only (no PF/PP/CC/CX/XX prefix, no dashes)
   return /^ZB\d+$/.test(orderNumber);
 }
 

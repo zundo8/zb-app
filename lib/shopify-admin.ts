@@ -296,6 +296,17 @@ export async function cancelOrder(orderId: string, reason = 'customer'): Promise
   }
 }
 
+/**
+ * Update an order's tags and/or note_attributes in Shopify.
+ * Used to sync cancelled order renumbering (ZBCC) to Shopify.
+ */
+export async function updateOrderTags(orderId: string, tags: string, noteAttributes?: any[]): Promise<any> {
+  const body: any = { order: { id: parseInt(orderId, 10), tags } };
+  if (noteAttributes) body.order.note_attributes = noteAttributes;
+  const data = await shopifyPatch<{ order: ShopifyOrder }>(`orders/${orderId}.json`, body);
+  return data.order;
+}
+
 // ─── Customers ───────────────────────────────────────────────────────
 
 export interface ShopifyCustomer {

@@ -155,6 +155,7 @@ export async function GET(req: Request) {
       pushNotifications,
       scanRecords,
       appLogins,
+      cronLogs,
     ] = await Promise.all([
       // 1. Audit Logs (Admin user actions) - relevant for system, users, unread, all
       filter === "all" || filter === "system" || filter === "users" || filter === "unread"
@@ -267,7 +268,68 @@ export async function GET(req: Request) {
             return [] as AppLoginItem[];
           })
         : Promise.resolve([] as AppLoginItem[]),
+
+      // 10. Cron Health Pings (Dead-Man's-Switch) - relevant for system, unread, all
+      filter === "all" || filter === "system" || filter === "unread"
+        ? prisma.syncLog.findMany({
+            where: {
+              action: { in: ["CRON_PING_ORDER_SYNC", "CRON_PING_WHATSAPP_SCHEDULER"] }
+            },
+            take: 10,
+            orderBy: { createdAt: "desc" }
+          }).catch((err: unknown) => {
+            console.error("[Notifications API] Error fetching cron syncLogs:", err);
+            return [];
+          })
+        : Promise.resolve([]),
     ]);
+
+    // Check for stale cron pings (> 30 minutes)
+    const cronWarnings: any[] = [];
+    if (cronLogs && Array.isArray(cronLogs)) {
+      const now = Date.now();
+      const thirtyMinMs = 30 * 60 * 1000;
+
+      const lastOrderSync = cronLogs.find((l: any) => l.action === "CRON_PING_ORDER_SYNC");
+      if (!lastOrderSync || now - new Date(lastOrderSync.createdAt).getTime() > thirtyMinMs) {
+        const ageMin = lastOrderSync ? Math.floor((now - new Date(lastOrderSync.createdAt).getTime()) / 60000) : null;
+        cronWarnings.push({
+          id: "cron-alert-order-sync",
+          userId: null,
+          action: "CRON_HEALTH_WARNING",
+          module: "SYSTEM",
+          targetId: "order-sync",
+          metadata: {
+            summary: "⚠️ Order Sync Scheduler Warning",
+            description: ageMin ? `No ping received for ${ageMin} minutes (threshold: 30 min). Check GitHub Actions.` : "No order sync ping recorded yet. Check GitHub Actions.",
+          },
+          ipAddress: null,
+          userAgent: null,
+          timestamp: new Date().toISOString(),
+          user: { name: "System Watchdog", email: "system@zicabella.com", role: "SUPER_ADMIN" },
+        });
+      }
+
+      const lastWhatsApp = cronLogs.find((l: any) => l.action === "CRON_PING_WHATSAPP_SCHEDULER");
+      if (!lastWhatsApp || now - new Date(lastWhatsApp.createdAt).getTime() > thirtyMinMs) {
+        const ageMin = lastWhatsApp ? Math.floor((now - new Date(lastWhatsApp.createdAt).getTime()) / 60000) : null;
+        cronWarnings.push({
+          id: "cron-alert-whatsapp-scheduler",
+          userId: null,
+          action: "CRON_HEALTH_WARNING",
+          module: "SYSTEM",
+          targetId: "whatsapp-scheduler",
+          metadata: {
+            summary: "⚠️ WhatsApp Scheduler Warning",
+            description: ageMin ? `No ping received for ${ageMin} minutes (threshold: 30 min). Check GitHub Actions.` : "No WhatsApp scheduler ping recorded yet. Check GitHub Actions.",
+          },
+          ipAddress: null,
+          userAgent: null,
+          timestamp: new Date().toISOString(),
+          user: { name: "System Watchdog", email: "system@zicabella.com", role: "SUPER_ADMIN" },
+        });
+      }
+    }
 
     // Map each table to a unified notification schema with complete null-safety
     const mappedNotifications = [
@@ -424,6 +486,8 @@ export async function GET(req: Request) {
         timestamp: safeIsoString(item.createdAt),
         user: { name: item.phone || "User", email: "", role: "CUSTOMER" },
       })),
+
+      ...cronWarnings,
     ];
 
     // Sort all combined notifications by timestamp descending

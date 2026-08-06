@@ -9,9 +9,10 @@ jobs:
   ping-scheduler:
     name: Ping WhatsApp Scheduler
     runs-on: ubuntu-latest
+    timeout-minutes: 3
 
     steps:
       - name: Ping Webhook
         run: |
-          curl --fail-with-body -sS -m 30 -X GET "https://app.zicabella.com/api/cron/whatsapp-scheduler" \
+          curl --retry 3 --retry-delay 10 --retry-all-errors --fail-with-body -sS -m 30 -X GET "https://app.zicabella.com/api/cron/whatsapp-scheduler" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

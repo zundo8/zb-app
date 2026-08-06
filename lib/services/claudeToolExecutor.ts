@@ -806,16 +806,20 @@ async function getOrderByNumber(orderNumber: string, principal?: Principal): Pro
     { shopifyOrderName: searchTerm },
     { shopifyOrderName: { contains: searchTerm, mode: 'insensitive' } },
     { shopifyOrderId: searchTerm },
+    { refundId: searchTerm },
+    { refundId: { contains: searchTerm, mode: 'insensitive' } },
   ];
 
-  // If search term is purely numeric (e.g. "81000"), try prepending "ZB", "ZBPF", "ZBPP", "ZBCX", "ZBXX", "#ZB"
+  // If search term is purely numeric (e.g. "81000"), try prepending "ZB", "ZBPF", "ZBPP", "ZBCX", "ZBCC", "ZBRF", "ZBXX", "#ZB"
   if (/^\d+$/.test(searchTerm)) {
     whereConditions.push(
       { internalOrderNumber: `ZB${searchTerm}` },
       { internalOrderNumber: `ZBPF${searchTerm}` },
       { internalOrderNumber: `ZBPP${searchTerm}` },
       { internalOrderNumber: `ZBCX${searchTerm}` },
+      { internalOrderNumber: `ZBCC${searchTerm}` },
       { internalOrderNumber: `ZBXX${searchTerm}` },
+      { refundId: `ZBRF${searchTerm}` },
       { shopifyOrderName: `#ZB${searchTerm}` }
     );
   }

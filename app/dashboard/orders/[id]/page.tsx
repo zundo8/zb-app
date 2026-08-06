@@ -97,6 +97,7 @@ interface OrderDetail {
   shopifySyncStatus?: string | null;
   shopifySyncError?: string | null;
   refundStatus?: string | null;
+  refundId?: string | null;
   refundError?: string | null;
   refundAttempts?: number;
   cartSession?: { source: string } | null;
@@ -968,6 +969,13 @@ export default function OrderDetailPage() {
                       <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/30 bg-foreground/5 px-2.5 py-1 rounded-lg border border-foreground/10">N/A</span>
                     )}
                   </div>
+
+                  {order.refundId && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-widest">Refund ID</span>
+                      <span className="text-[11px] font-mono font-semibold text-foreground/80 bg-foreground/5 px-2.5 py-1 rounded-lg border border-foreground/10">{order.refundId}</span>
+                    </div>
+                  )}
 
                   {order.refundError && (
                     <p className="text-[10px] text-rose-500/70 font-mono leading-tight bg-rose-500/5 p-3 rounded-xl border border-rose-500/10 break-all">

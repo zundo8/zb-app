@@ -908,6 +908,16 @@ export async function GET(req: NextRequest) {
           success: success && results.errors.length === 0
         }
       });
+
+      // Log ping to SyncLog for dead-man's-switch health tracking
+      await db.syncLog.create({
+        data: {
+          orderId: 'system',
+          action: 'CRON_PING_WHATSAPP_SCHEDULER',
+          status: success && results.errors.length === 0 ? 'SUCCESS' : 'WARNING',
+          payload: JSON.stringify(results)
+        }
+      });
     } catch (logErr: any) {
       console.error('[WhatsApp Scheduler] Failed to write run log to database:', logErr.message);
     }

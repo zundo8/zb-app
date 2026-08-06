@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncPendingWebStoreOrders } from "@/lib/services/razorpaySyncService";
+import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await syncPendingWebStoreOrders();
+
+    // Log ping to SyncLog for dead-man's-switch health tracking
+    try {
+      await prisma.syncLog.create({
+        data: {
+          orderId: "system",
+          action: "CRON_PING_ORDER_SYNC",
+          status: "SUCCESS",
+          payload: JSON.stringify({ syncedCount: result.updatedCount }),
+        }
+      });
+    } catch (logErr) {
+      console.error("[Sync Pending Orders Cron] Failed to log cron ping:", logErr);
+    }
+
     return NextResponse.json({
       success: true,
       syncedCount: result.updatedCount,

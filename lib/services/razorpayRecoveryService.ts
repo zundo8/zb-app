@@ -150,6 +150,10 @@ export async function recoverOrphanedRazorpayOrder(options: RecoveryOptions): Pr
     }
 
     // 4. Generate Universal Internal Order Number (successful recovery)
+    // SAFE from BUG 1 double-mint: this path only executes when no existing
+    // Order was found for this razorpayOrderId (checked at step 1 above, line 45).
+    // The recovery service creates a brand-new order, so no pre-created order
+    // can race to assign a different number.
     let universalOrderNumber = '';
     try {
       universalOrderNumber = await assignUniversalOrderNumber(prisma);

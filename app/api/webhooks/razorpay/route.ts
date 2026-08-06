@@ -115,26 +115,41 @@ export async function POST(req: Request) {
             try {
               const oldNumber = order.internalOrderNumber;
               const newNumber = await assignUniversalOrderNumber(prisma);
-              const previousNumbers = [order.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
-              await prisma.order.update({
+
+              // Race-condition guard: re-read the order to detect if another
+              // process (e.g. /checkout/complete) already promoted this order
+              // between our initial read and the mint. If so, discard our
+              // minted number (accept the sequence gap) and skip promotion.
+              const freshOrder = await prisma.order.findUnique({
                 where: { id: order.id },
-                data: {
-                  internalOrderNumber: newNumber,
-                  previousOrderNumbers: previousNumbers || null,
-                  tags: (cleanedTags || '').replace(`zb-order-${oldNumber}`, `zb-order-${newNumber}`),
-                },
+                select: { internalOrderNumber: true }
               });
-              // Update matching WebStoreOrder
-              await prisma.webStoreOrder.updateMany({
-                where: { orderNumber: oldNumber! },
-                data: { orderNumber: newNumber },
-              });
-              // Update matching MobileOrder
-              await prisma.mobileOrder.updateMany({
-                where: { orderNumber: oldNumber! },
-                data: { orderNumber: newNumber },
-              });
-              paymentLog('info', 'webhook', { message: `Promoted order ${oldNumber} → ${newNumber}` });
+              if (freshOrder && freshOrder.internalOrderNumber && !isFailedPrefixNumber(freshOrder.internalOrderNumber)) {
+                paymentLog('info', 'webhook', {
+                  message: `Skipping promotion — another process already promoted ${oldNumber} → ${freshOrder.internalOrderNumber}. Discarding minted ${newNumber}.`
+                });
+              } else {
+                const previousNumbers = [order.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+                await prisma.order.update({
+                  where: { id: order.id },
+                  data: {
+                    internalOrderNumber: newNumber,
+                    previousOrderNumbers: previousNumbers || null,
+                    tags: (cleanedTags || '').replace(`zb-order-${oldNumber}`, `zb-order-${newNumber}`),
+                  },
+                });
+                // Update matching WebStoreOrder
+                await prisma.webStoreOrder.updateMany({
+                  where: { orderNumber: oldNumber! },
+                  data: { orderNumber: newNumber },
+                });
+                // Update matching MobileOrder
+                await prisma.mobileOrder.updateMany({
+                  where: { orderNumber: oldNumber! },
+                  data: { orderNumber: newNumber },
+                });
+                paymentLog('info', 'webhook', { message: `Promoted order ${oldNumber} → ${newNumber}` });
+              }
             } catch (promoteErr: any) {
               console.error(`[Razorpay Webhook] Failed to promote order number:`, promoteErr.message);
             }

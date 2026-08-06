@@ -363,6 +363,38 @@ export async function POST(
 
         // Trigger refund logic if status became cancelled
         if (finalStatus === 'cancelled' && order.status !== 'cancelled') {
+          // ─── BUG 2 FIX: Renumber cancelled orders to ZBCC ───
+          try {
+            const { assignFailedOrderNumber } = await import('@/lib/orderNumber');
+            const cancelledNumber = await assignFailedOrderNumber(prisma, { cause: 'cancelled' });
+            const oldNumber = order.internalOrderNumber;
+            const previousNumbers = [order.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+            await prisma.order.update({
+              where: { id: order.id },
+              data: {
+                internalOrderNumber: cancelledNumber,
+                previousOrderNumbers: previousNumbers || null,
+                tags: (updatedOrder.tags || '').replace(/zb-order-\S+/, `zb-order-${cancelledNumber}`),
+              }
+            });
+            console.log(`[Sync Detail POST] Renumbered cancelled order: ${oldNumber} → ${cancelledNumber}`);
+
+            // Sync ZBCC number back to Shopify tags
+            if (order.shopifyOrderId) {
+              try {
+                const { updateOrderTags } = await import('@/lib/shopify-admin');
+                const newTags = (updatedOrder.tags || '').replace(/zb-order-\S+/, `zb-order-${cancelledNumber}`);
+                await updateOrderTags(order.shopifyOrderId, newTags, [
+                  { name: 'internal_order_number', value: cancelledNumber },
+                ]);
+              } catch (tagErr) {
+                console.error('[Sync Detail POST] Failed to sync ZBCC tags to Shopify:', tagErr);
+              }
+            }
+          } catch (renumberErr) {
+            console.error('[Sync Detail POST] Failed to assign ZBCC number:', renumberErr);
+          }
+
           try {
             const { processOrderRefund } = await import('@/lib/services/refundService');
             await processOrderRefund(order.id);

@@ -493,6 +493,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       body.deliveryStatus = 'cancelled';
       body.cancelledAt = new Date();
       body.cancelledBy = 'admin';
+
+      // ─── BUG 2 FIX: Renumber cancelled orders to ZBCC ───
+      if (!isMobileOrder) {
+        try {
+          const { assignFailedOrderNumber } = await import('@/lib/orderNumber');
+          const cancelledNumber = await assignFailedOrderNumber(prisma, { cause: 'cancelled' });
+          const oldNumber = oldOrder.internalOrderNumber;
+          const previousNumbers = [oldOrder.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+          body.internalOrderNumber = cancelledNumber;
+          body.previousOrderNumbers = previousNumbers || null;
+          // Update tags to reflect new ZBCC number
+          const oldTags = oldOrder.tags || '';
+          body.tags = oldTags.replace(/zb-order-\S+/, `zb-order-${cancelledNumber}`);
+          if (body.tags === oldTags && !body.tags.includes(`zb-order-${cancelledNumber}`)) {
+            body.tags = `${body.tags}, zb-order-${cancelledNumber}`;
+          }
+          console.log(`[Admin Order PATCH] Renumbered cancelled order: ${oldNumber} → ${cancelledNumber}`);
+        } catch (renumberErr) {
+          console.error('[Admin Order PATCH] Failed to assign ZBCC number:', renumberErr);
+        }
+      }
       
       if (!isMobileOrder) {
         const order = await prisma.order.findUnique({ where: { id } });
@@ -502,6 +523,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             await cancelOrder(order.shopifyOrderId);
           } catch (shopifyErr) {
             console.error('[Admin Order PATCH] Failed to cancel order in Shopify:', shopifyErr);
+          }
+          // Sync the new ZBCC number to Shopify tags after cancellation
+          if (body.internalOrderNumber) {
+            try {
+              const { updateOrderTags } = await import('@/lib/shopify-admin');
+              await updateOrderTags(order.shopifyOrderId, body.tags || '', [
+                { name: 'internal_order_number', value: body.internalOrderNumber },
+              ]);
+              console.log(`[Admin Order PATCH] Synced ZBCC number to Shopify: ${body.internalOrderNumber}`);
+            } catch (tagErr) {
+              console.error('[Admin Order PATCH] Failed to sync ZBCC tags to Shopify:', tagErr);
+            }
           }
         }
       } else {
