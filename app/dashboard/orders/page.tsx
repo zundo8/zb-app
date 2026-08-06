@@ -159,7 +159,7 @@ export default function OrdersPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab, page, orders.length]);
+  }, [statusFilter, paymentFilter, fulfillmentFilter, search, tab, page]);
 
   const handleUpdateOrderItemSize = async (orderItemId: string, newSize: string) => {
     try {
