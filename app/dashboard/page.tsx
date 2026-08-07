@@ -279,26 +279,28 @@ export default function DashboardOverview() {
       const activity: ServiceSummary["recentActivity"] = [];
 
       for (const r of returns.slice(0, 5)) {
+        const orderNum = r.order?.internalOrderNumber || r.order?.shopifyOrderName || (r.order?.id ? `#${r.order.id.slice(-6).toUpperCase()}` : "Order");
         activity.push({
           id: r.id,
           type: "return",
-          status: r.status,
-          productTitle: r.product?.title || "Unknown",
-          customerName: r.customer?.name || "Unknown",
-          date: r.requestedAt || r.updatedAt,
-          orderId: r.order?.shopifyOrderId || "",
+          status: r.status || "requested",
+          productTitle: r.product?.title || r.orderItem?.title || "Return Item",
+          customerName: r.customer?.name || r.order?.customer?.name || "Customer",
+          date: r.requestedAt || r.createdAt || r.updatedAt || new Date().toISOString(),
+          orderId: orderNum,
         });
       }
 
       for (const e of exchanges.slice(0, 5)) {
+        const orderNum = e.order?.internalOrderNumber || e.order?.shopifyOrderName || (e.order?.id ? `#${e.order.id.slice(-6).toUpperCase()}` : "Order");
         activity.push({
           id: e.id,
           type: "exchange",
-          status: e.status,
-          productTitle: `${e.originalProduct?.title || "?"} → ${e.newProduct?.title || "?"}`,
-          customerName: e.order?.customer?.name || "Unknown",
-          date: e.createdAt || e.updatedAt,
-          orderId: e.order?.shopifyOrderId || "",
+          status: e.status || "requested",
+          productTitle: `${e.originalProduct?.title || "Item"} → ${e.newProduct?.title || "Exchange Item"}`,
+          customerName: e.order?.customer?.name || e.customer?.name || "Customer",
+          date: e.createdAt || e.updatedAt || new Date().toISOString(),
+          orderId: orderNum,
         });
       }
 

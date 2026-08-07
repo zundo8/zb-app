@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   CheckCircle,
@@ -41,17 +42,29 @@ interface Order {
   paymentFailureReason?: string | null;
 }
 
-export default function WebStoreOrdersList() {
+function WebStoreOrdersContent() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams?.get("query") || searchParams?.get("search") || "";
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingPayments, setSyncingPayments] = useState(false);
-  const [view, setView] = useState<"all" | "processed">("all");
-  const [search, setSearch] = useState("");
+  const [view, setView] = useState<"processed" | "all">("processed");
+  const [search, setSearch] = useState(initialQuery);
   const [paymentStatus, setPaymentStatus] = useState("all");
   const [fulfillmentStatus, setFulfillmentStatus] = useState("all");
   const [paymentMethod, setPaymentMethod] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  useEffect(() => {
+    const viewParam = searchParams?.get("view");
+    if (viewParam === "all") {
+      setView("all");
+    } else {
+      setView("processed");
+    }
+  }, [searchParams]);
 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -336,6 +349,17 @@ export default function WebStoreOrdersList() {
       {/* ═══ Tab Switcher ═══ */}
       <div className="flex items-center gap-2 border-b border-foreground/10 pb-3">
         <button
+          onClick={() => setView("processed")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            view === "processed"
+              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+              : "bg-foreground/5 text-foreground/60 hover:bg-foreground/10 hover:text-foreground"
+          }`}
+        >
+          <CheckCircle className="w-3.5 h-3.5" />
+          Processed Orders
+        </button>
+        <button
           onClick={() => setView("all")}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
             view === "all"
@@ -345,17 +369,6 @@ export default function WebStoreOrdersList() {
         >
           <Package className="w-3.5 h-3.5" />
           All Orders
-        </button>
-        <button
-          onClick={() => setView("processed")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-            view === "processed"
-              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
-              : "bg-foreground/5 text-foreground/60 hover:bg-foreground/10 hover:text-foreground"
-          }`}
-        >
-          <CheckCircle className="w-3.5 h-3.5" />
-          Processed
         </button>
       </div>
 
@@ -697,5 +710,19 @@ export default function WebStoreOrdersList() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function WebStoreOrdersList() {
+  return (
+    <Suspense fallback={
+      <div className="p-12 space-y-4 animate-pulse">
+        <div className="h-10 bg-foreground/5 rounded-xl w-full" />
+        <div className="h-10 bg-foreground/5 rounded-xl w-full" />
+        <div className="h-10 bg-foreground/5 rounded-xl w-full" />
+      </div>
+    }>
+      <WebStoreOrdersContent />
+    </Suspense>
   );
 }

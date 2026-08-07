@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const view = searchParams.get("view") || "all";
+    const view = searchParams.get("view") || "processed";
     const query = searchParams.get("query") || "";
     const fulfillmentStatus = searchParams.get("fulfillment_status") || "";
     const paymentStatus = searchParams.get("payment_status") || "";

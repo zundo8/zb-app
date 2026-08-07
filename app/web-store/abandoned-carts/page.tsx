@@ -114,14 +114,19 @@ export default function AbandonedCartsPage() {
         limit: "15"
       });
       const res = await fetch(`/api/admin/abandoned-carts?${params.toString()}`);
-      const data = await res.json();
-      if (res.ok) {
-        setCarts(data.carts || []);
-        setTotalCarts(data.pagination?.total || 0);
-        setTotalPages(data.pagination?.totalPages || 1);
-        if (data.stats) {
-          setStats(data.stats);
+      if (res.status === 401) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/dashboard/login?callbackUrl=" + encodeURIComponent(window.location.pathname);
         }
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to fetch abandoned carts");
+      const data = await res.json();
+      setCarts(data.carts || []);
+      setTotalCarts(data.pagination?.total || 0);
+      setTotalPages(data.pagination?.totalPages || 1);
+      if (data.stats) {
+        setStats(data.stats);
       }
     } catch (error) {
       console.error("Failed to fetch abandoned carts:", error);
@@ -291,7 +296,7 @@ export default function AbandonedCartsPage() {
         </span>
       );
     }
-    if (isLive) {
+    if (computedStatus === "active" || isLive) {
       return (
         <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 flex items-center gap-1.5 italic">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -476,7 +481,7 @@ export default function AbandonedCartsPage() {
         ) : carts.length > 0 ? (
           <div className="grid grid-cols-1 gap-6">
             {carts.map((cart) => {
-              const displayName = cart.customer?.name || "Guest Customer";
+              const displayName = cart.customer?.name || (cart.email ? cart.email.split('@')[0] : null) || (cart.phone ? `Guest (${cart.phone})` : "Guest Customer");
               const displayContact = cart.phone || cart.customer?.phone || cart.email || cart.customer?.email || "No contact info";
               const isLive = new Date().getTime() - new Date(cart.lastActivityAt).getTime() < 5 * 60 * 1000;
 

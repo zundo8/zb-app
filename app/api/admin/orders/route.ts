@@ -16,29 +16,30 @@ export async function GET(req: Request) {
     const paymentStatus = searchParams.get('paymentStatus');
     const fulfillmentStatus = searchParams.get('fulfillmentStatus');
     const search = searchParams.get('search');
-
     const conditions: Record<string, unknown>[] = [];
-    
-    // ─── STRICT ORDER SEPARATION ───
-    conditions.push({
-      NOT: {
-        OR: [
-          { internalOrderNumber: { startsWith: 'ZBPF' } },
-          {
-            AND: [
-              { internalOrderNumber: { startsWith: 'ZBPP' } },
-              { paymentStatus: { in: ['pending', 'payment_pending', 'failed', 'payment_failed'] } }
-            ]
-          },
-          {
-            AND: [
-              { orderType: 'MOBILE_APP' },
-              { status: 'awaiting_approval' }
-            ]
-          }
-        ]
-      }
-    });
+    const isExplicitQuery = (paymentStatus && paymentStatus !== 'any') || (status && status !== 'any') || Boolean(search);
+
+    if (!isExplicitQuery) {
+      conditions.push({
+        NOT: {
+          OR: [
+            { internalOrderNumber: { startsWith: 'ZBPF' } },
+            {
+              AND: [
+                { internalOrderNumber: { startsWith: 'ZBPP' } },
+                { paymentStatus: { in: ['pending', 'payment_pending', 'failed', 'payment_failed'] } }
+              ]
+            },
+            {
+              AND: [
+                { orderType: 'MOBILE_APP' },
+                { status: 'awaiting_approval' }
+              ]
+            }
+          ]
+        }
+      });
+    }
 
     if (status && status !== 'any') {
       conditions.push({ status });
@@ -48,9 +49,16 @@ export async function GET(req: Request) {
       if (paymentStatus === 'failed') {
         conditions.push({ 
           OR: [
-            { paymentStatus: 'failed' },
-            { paymentStatus: 'voided' },
-            { status: 'payment_failed' }
+            { paymentStatus: { in: ['failed', 'payment_failed', 'FAILED', 'PAYMENT_FAILED', 'voided'] } },
+            { status: 'payment_failed' },
+            { internalOrderNumber: { startsWith: 'ZBPF' } }
+          ]
+        });
+      } else if (paymentStatus === 'pending') {
+        conditions.push({ 
+          OR: [
+            { paymentStatus: { in: ['pending', 'payment_pending', 'PENDING', 'PAYMENT_PENDING'] } },
+            { internalOrderNumber: { startsWith: 'ZBPP' } }
           ]
         });
       } else {

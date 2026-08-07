@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         // No zip from IP geo — leave as-is
       }
     }
-    // 1. Resolve customer identity (Mobile Auth vs NextAuth Session)
+    // 1. Resolve customer identity (Mobile Auth vs NextAuth Session vs Guest Email/Phone Match)
     const auth = getAppAuthFromRequest(req);
     const appCustomer = auth ? await resolveAuthCustomer(auth) : null;
     let customerId = appCustomer?.id;
@@ -71,6 +71,19 @@ export async function POST(req: Request) {
         });
         customerId = dbCustomer?.id;
       }
+    }
+
+    // Fallback: match customer by guest phone or email if provided
+    if (!customerId && (phone || email)) {
+      const dbCustomer = await prisma.customer.findFirst({
+        where: {
+          OR: [
+            ...(email ? [{ email: { equals: String(email).trim(), mode: "insensitive" as const } }] : []),
+            ...(phone ? [{ phone: String(phone).trim() }] : [])
+          ]
+        }
+      });
+      if (dbCustomer) customerId = dbCustomer.id;
     }
 
     // Resolve customer profile default phone and email if logged in
@@ -97,33 +110,64 @@ export async function POST(req: Request) {
 
       // If customer has no active cart, but we have a guestId, try to associate the guest cart
       if (!cart && guestId) {
-        cart = await prisma.cart.findFirst({
-          where: { sessionToken: guestId, status: "active" }
+        const existingSession = await prisma.cart.findUnique({
+          where: { sessionToken: guestId }
         });
-        if (cart) {
-          cart = await prisma.cart.update({
-            where: { id: cart.id },
-            data: { customerId: customerId }
-          });
+        if (existingSession) {
+          if (existingSession.status === "active" || existingSession.status === "abandoned" || existingSession.status === "expired") {
+            cart = await prisma.cart.update({
+              where: { id: existingSession.id },
+              data: { customerId: customerId, status: "active", abandonedAt: null }
+            });
+          } else {
+            // Converted or merged cart: release sessionToken so new cart can be created
+            await prisma.cart.update({
+              where: { id: existingSession.id },
+              data: { sessionToken: null }
+            });
+          }
         }
       } else if (cart && guestId) {
         // Customer has an active cart, and we also have a guestId.
-        // Let's check if there is a separate guest cart we should deactivate/merge.
-        const guestCart = await prisma.cart.findFirst({
-          where: { sessionToken: guestId, status: "active", id: { not: cart.id } }
+        const guestCart = await prisma.cart.findUnique({
+          where: { sessionToken: guestId }
         });
-        if (guestCart) {
-          await prisma.cart.update({
-            where: { id: guestCart.id },
-            data: { status: "merged", customerId: customerId }
-          });
+        if (guestCart && guestCart.id !== cart.id) {
+          if (guestCart.status === "active") {
+            await prisma.cart.update({
+              where: { id: guestCart.id },
+              data: { status: "merged", customerId: customerId, sessionToken: null }
+            });
+          } else if (guestCart.status === "converted" || guestCart.status === "merged") {
+            await prisma.cart.update({
+              where: { id: guestCart.id },
+              data: { sessionToken: null }
+            });
+          }
         }
       }
     } else if (guestId) {
-      // Find guest active cart
-      cart = await prisma.cart.findFirst({
-        where: { sessionToken: guestId, status: "active" }
+      // Find guest cart by sessionToken
+      const existingSession = await prisma.cart.findUnique({
+        where: { sessionToken: guestId }
       });
+      if (existingSession) {
+        if (existingSession.status === "active" || existingSession.status === "abandoned" || existingSession.status === "expired") {
+          cart = existingSession;
+          if (existingSession.status !== "active") {
+            await prisma.cart.update({
+              where: { id: existingSession.id },
+              data: { status: "active", abandonedAt: null }
+            });
+          }
+        } else {
+          // Previously converted or merged cart: release sessionToken from old cart
+          await prisma.cart.update({
+            where: { id: existingSession.id },
+            data: { sessionToken: null }
+          });
+        }
+      }
     }
 
     const calculatedSubtotal = Array.isArray(items) 
@@ -133,25 +177,55 @@ export async function POST(req: Request) {
     const cartSource = source || (auth ? "app" : "webstore");
 
     if (!cart) {
-      // Create new cart session
-      cart = await prisma.cart.create({
-        data: {
-          customerId: customerId || null,
-          sessionToken: guestId || null,
-          source: cartSource,
-          status: "active",
-          phone: phone || customerPhone || null,
-          email: email || customerEmail || null,
-          subtotal: calculatedSubtotal,
-          lastActivityAt: new Date(),
-          city: finalCity,
-          state: finalState,
-          zip: finalZip,
-          country: finalCountry,
-          latitude: finalLat,
-          longitude: finalLng,
+      // Create new cart session safely
+      try {
+        cart = await prisma.cart.create({
+          data: {
+            customerId: customerId || null,
+            sessionToken: guestId || null,
+            source: cartSource,
+            status: "active",
+            phone: phone || customerPhone || null,
+            email: email || customerEmail || null,
+            subtotal: calculatedSubtotal,
+            lastActivityAt: new Date(),
+            city: finalCity,
+            state: finalState,
+            zip: finalZip,
+            country: finalCountry,
+            latitude: finalLat,
+            longitude: finalLng,
+          }
+        });
+      } catch (createErr: any) {
+        // If unique constraint collision happens on sessionToken, release token and retry creation
+        if (createErr.code === 'P2002' && guestId) {
+          await prisma.cart.updateMany({
+            where: { sessionToken: guestId },
+            data: { sessionToken: null }
+          });
+          cart = await prisma.cart.create({
+            data: {
+              customerId: customerId || null,
+              sessionToken: guestId,
+              source: cartSource,
+              status: "active",
+              phone: phone || customerPhone || null,
+              email: email || customerEmail || null,
+              subtotal: calculatedSubtotal,
+              lastActivityAt: new Date(),
+              city: finalCity,
+              state: finalState,
+              zip: finalZip,
+              country: finalCountry,
+              latitude: finalLat,
+              longitude: finalLng,
+            }
+          });
+        } else {
+          throw createErr;
         }
-      });
+      }
     } else {
       // Update existing cart details
       const updateData: Record<string, any> = {
@@ -160,7 +234,9 @@ export async function POST(req: Request) {
         subtotal: calculatedSubtotal,
         phone: phone || customerPhone || cart.phone || undefined,
         email: email || customerEmail || cart.email || undefined,
-        source: cartSource, // Ensure source is kept up-to-date
+        source: cartSource,
+        status: cart.status === "converted" ? "converted" : "active",
+        abandonedAt: cart.status === "converted" ? cart.abandonedAt : null,
       };
 
       // Ensure location fields are updated if new values are available or if cart previously missed them
