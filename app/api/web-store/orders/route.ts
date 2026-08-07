@@ -136,15 +136,17 @@ export async function GET(request: Request) {
     }
     // Indexed cross-lookup clauses only (razorpayOrderId, internalOrderNumber, shopifyOrderName)
 
-    const masterWebOrders = masterOrClauses.length > 0
-      ? await prisma.order.findMany({
-          where: {
-            OR: masterOrClauses as Prisma.OrderWhereInput[],
-            paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "approved", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] }
-          },
-          include: { customer: true, items: true },
-        })
-      : [];
+    const masterWebOrders = await prisma.order.findMany({
+      where: {
+        OR: [
+          ...(masterOrClauses.length > 0 ? (masterOrClauses as Prisma.OrderWhereInput[]) : []),
+          { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "approved", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } }
+        ]
+      },
+      take: 40,
+      orderBy: { createdAt: "desc" },
+      include: { customer: true, items: true },
+    });
 
     // Merge master orders into webStoreOrders map matching on orderNumber, razorpayOrderId, AND razorpayPaymentId
     const existingOrderKeys = new Set<string>();
@@ -227,13 +229,13 @@ export async function GET(request: Request) {
       };
     });
 
-    // Deduplicate order attempts
-    const deduplicatedOrders = deduplicateWebStoreOrders(enrichedOrders);
+    const updatedTotal = await prisma.webStoreOrder.count({ where: where as Prisma.WebStoreOrderWhereInput });
+    const finalTotal = Math.max(updatedTotal, deduplicatedOrders.length);
 
     return NextResponse.json({
       orders: deduplicatedOrders,
-      total,
-      hasMore: offset + limit < total,
+      total: finalTotal,
+      hasMore: offset + limit < finalTotal,
     });
   } catch (error: unknown) {
     console.error("[Web Store Orders GET] Error:", error);
