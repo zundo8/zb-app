@@ -41,30 +41,44 @@ export async function promoteMasterOrderToWebStoreOrder(mOrder: Record<string, u
     size: (i.size as string) || ""
   })) : [];
 
-  return await prisma.webStoreOrder.create({
-    data: {
-      orderNumber: orderNum,
-      customerName: (customer?.name as string) || "Customer",
-      customerEmail: (customer?.email as string) || "",
-      customerPhone: (customer?.phone as string) || "",
-      shippingAddress: shippingAddr,
-      items: items,
-      subtotal: Number(mOrder.subtotalPrice || mOrder.totalPrice || 0),
-      shippingCharge: 0,
-      discountCode: (mOrder.discountCode as string) || null,
-      discountAmount: Number(mOrder.discountAmount || 0),
-      totalAmount: Number(mOrder.totalPrice || 0),
-      paymentStatus: (mOrder.paymentStatus as string) === "partially_paid" ? "partially_paid" : isCod ? "cod_upfront_paid" : (mOrder.financialStatus === "paid" || mOrder.paymentStatus === "paid" ? "paid" : "paid"),
-      paymentMethod: isCod ? "cod" : ((mOrder.paymentMethod as string) || "razorpay"),
-      razorpayOrderId: rzpOrderId,
-      razorpayPaymentId: rzpPayId,
-      codUpfrontPaid: isCod ? 99 : 0,
-      codUpfrontPaymentId: isCod ? rzpPayId : null,
-      fulfillmentStatus: (mOrder.fulfillmentStatus as string) || "unfulfilled",
-      notes: (mOrder.note as string) || `Reconciled from master Order: ${orderId}`,
-      source: "web",
-      createdAt: (mOrder.createdAt as Date) || new Date(),
-      paymentFailureReason: (mOrder.paymentFailureReason as string) || null,
-    }
-  });
+  try {
+    return await prisma.webStoreOrder.create({
+      data: {
+        orderNumber: orderNum,
+        customerName: (customer?.name as string) || "Customer",
+        customerEmail: (customer?.email as string) || "",
+        customerPhone: (customer?.phone as string) || "",
+        shippingAddress: shippingAddr,
+        items: items,
+        subtotal: Number(mOrder.subtotalPrice || mOrder.totalPrice || 0),
+        shippingCharge: 0,
+        discountCode: (mOrder.discountCode as string) || null,
+        discountAmount: Number(mOrder.discountAmount || 0),
+        totalAmount: Number(mOrder.totalPrice || 0),
+        paymentStatus: (mOrder.paymentStatus as string) === "partially_paid" ? "partially_paid" : isCod ? "cod_upfront_paid" : (mOrder.financialStatus === "paid" || mOrder.paymentStatus === "paid" ? "paid" : "paid"),
+        paymentMethod: isCod ? "cod" : ((mOrder.paymentMethod as string) || "razorpay"),
+        razorpayOrderId: rzpOrderId,
+        razorpayPaymentId: rzpPayId,
+        codUpfrontPaid: isCod ? 99 : 0,
+        codUpfrontPaymentId: isCod ? rzpPayId : null,
+        fulfillmentStatus: (mOrder.fulfillmentStatus as string) || "unfulfilled",
+        notes: (mOrder.note as string) || `Reconciled from master Order: ${orderId}`,
+        source: "web",
+        createdAt: (mOrder.createdAt as Date) || new Date(),
+        paymentFailureReason: (mOrder.paymentFailureReason as string) || null,
+      }
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[orderPromotionService] Error creating WebStoreOrder for ${orderNum}:`, msg);
+    return await prisma.webStoreOrder.findFirst({
+      where: {
+        OR: [
+          { orderNumber: orderNum },
+          ...(rzpOrderId ? [{ razorpayOrderId: rzpOrderId }] : []),
+          ...(rzpPayId ? [{ razorpayPaymentId: rzpPayId }] : []),
+        ]
+      }
+    });
+  }
 }

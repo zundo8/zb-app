@@ -91,14 +91,21 @@ export async function GET(request: Request) {
     if (startDateStr || endDateStr) {
       const createdAtFilter: { gte?: Date; lte?: Date } = {};
       if (startDateStr) {
-        createdAtFilter.gte = new Date(startDateStr);
+        const start = new Date(startDateStr);
+        if (!isNaN(start.getTime())) {
+          createdAtFilter.gte = start;
+        }
       }
       if (endDateStr) {
         const endDate = new Date(endDateStr);
-        endDate.setHours(23, 59, 59, 999);
-        createdAtFilter.lte = endDate;
+        if (!isNaN(endDate.getTime())) {
+          endDate.setHours(23, 59, 59, 999);
+          createdAtFilter.lte = endDate;
+        }
       }
-      andConditions.push({ createdAt: createdAtFilter });
+      if (createdAtFilter.gte || createdAtFilter.lte) {
+        andConditions.push({ createdAt: createdAtFilter });
+      }
     }
 
     const where: Prisma.WebStoreOrderWhereInput = andConditions.length > 0 ? { AND: andConditions } : {};
@@ -175,14 +182,18 @@ export async function GET(request: Request) {
       const isSuccessful = ["paid", "cod_upfront_paid", "partially_paid", "approved", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"].includes((mOrder.paymentStatus || "").toString());
 
       if (!alreadyIncluded && (mOrder.internalOrderNumber || mOrder.shopifyOrderName) && isSuccessful) {
-        // Promote master Order into WebStoreOrder so it receives a real UUID id
-        const promoted = await promoteMasterOrderToWebStoreOrder(mOrder);
-        if (promoted) {
-          existingOrderKeys.add(promoted.id.toUpperCase());
-          existingOrderKeys.add(promoted.orderNumber.toUpperCase());
-          if (promoted.razorpayOrderId) existingOrderKeys.add(promoted.razorpayOrderId.toUpperCase());
-          if (promoted.razorpayPaymentId) existingOrderKeys.add(promoted.razorpayPaymentId.toUpperCase());
-          reconciledOrders.push(promoted as unknown as Record<string, unknown>);
+        try {
+          const promoted = await promoteMasterOrderToWebStoreOrder(mOrder);
+          if (promoted) {
+            existingOrderKeys.add(promoted.id.toUpperCase());
+            existingOrderKeys.add(promoted.orderNumber.toUpperCase());
+            if (promoted.razorpayOrderId) existingOrderKeys.add(promoted.razorpayOrderId.toUpperCase());
+            if (promoted.razorpayPaymentId) existingOrderKeys.add(promoted.razorpayPaymentId.toUpperCase());
+            reconciledOrders.push(promoted as unknown as Record<string, unknown>);
+          }
+        } catch (pErr: unknown) {
+          const msg = pErr instanceof Error ? pErr.message : String(pErr);
+          console.warn(`[Web Store Orders GET] Skipping promotion error for master order ${mOrder.id}:`, msg);
         }
       }
     }
