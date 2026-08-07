@@ -147,9 +147,16 @@ export default function OrdersPage() {
       const res = await fetch(url, { signal: controller.signal });
       if (controller.signal.aborted) return;
       
+      if (res.status === 401 || res.status === 403) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/dashboard/login?callbackUrl=" + encodeURIComponent(window.location.pathname);
+        }
+        return;
+      }
+
       const data = await res.json();
-      if (data.success) {
-        setOrders(data.orders);
+      if (data.success || Array.isArray(data.orders)) {
+        setOrders(data.orders || []);
         setTotal(data.total || 0);
       }
     } catch (err: unknown) {

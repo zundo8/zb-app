@@ -76,6 +76,12 @@ export default function WebStoreOrdersList() {
       if (endDate) params.append("end_date", endDate);
 
       const res = await fetch(`/api/web-store/orders?${params.toString()}`);
+      if (res.status === 401) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/dashboard/login?callbackUrl=" + encodeURIComponent(window.location.pathname);
+        }
+        return;
+      }
       if (!res.ok) throw new Error("Failed to load orders");
       const data = await res.json();
       setOrders(data.orders || []);

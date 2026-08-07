@@ -23,28 +23,17 @@ export async function GET(req: Request) {
     conditions.push({
       NOT: {
         OR: [
-          { status: 'payment_pending' },
-          { status: 'payment_failed' },
-          { status: 'FAILED' },
-          { paymentStatus: 'payment_pending' },
-          { paymentStatus: 'failed' },
+          { internalOrderNumber: { startsWith: 'ZBPF' } },
           {
             AND: [
-              { paymentStatus: 'pending' },
-              { NOT: { status: { in: ['approved', 'open', 'fulfilled', 'delivered', 'shipped', 'cancelled'] } } }
+              { internalOrderNumber: { startsWith: 'ZBPP' } },
+              { paymentStatus: { in: ['pending', 'payment_pending', 'failed', 'payment_failed'] } }
             ]
           },
           {
             AND: [
               { orderType: 'MOBILE_APP' },
-              { 
-                OR: [
-                  { shopifyOrderId: { startsWith: 'ZB' } },
-                  { shopifyOrderId: { startsWith: '#ZB' } },
-                  { shopifyOrderId: { contains: '#' } },
-                  { status: 'awaiting_approval' }
-                ]
-              }
+              { status: 'awaiting_approval' }
             ]
           }
         ]

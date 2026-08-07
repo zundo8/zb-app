@@ -32,51 +32,59 @@ export async function GET(request: Request) {
     const offset = isNaN(rawOffset) || rawOffset < 0 ? 0 : rawOffset;
 
     // Construct database filters
-    const where: Record<string, unknown> = {};
+    const andConditions: Prisma.WebStoreOrderWhereInput[] = [];
 
     // Search query filter
     if (query) {
-      where.OR = [
-        { orderNumber: { contains: query, mode: "insensitive" } },
-        { customerName: { contains: query, mode: "insensitive" } },
-        { customerEmail: { contains: query, mode: "insensitive" } },
-        { customerPhone: { contains: query, mode: "insensitive" } },
-      ];
+      andConditions.push({
+        OR: [
+          { orderNumber: { contains: query, mode: "insensitive" } },
+          { customerName: { contains: query, mode: "insensitive" } },
+          { customerEmail: { contains: query, mode: "insensitive" } },
+          { customerPhone: { contains: query, mode: "insensitive" } },
+        ]
+      });
     }
 
     // Status filters
     if (fulfillmentStatus && fulfillmentStatus !== "all") {
-      where.fulfillmentStatus = fulfillmentStatus;
+      andConditions.push({ fulfillmentStatus });
     }
     if (paymentStatus && paymentStatus !== "all") {
       if (paymentStatus === "paid") {
-        where.paymentStatus = { in: ["paid", "cod_upfront_paid", "partially_paid", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] };
+        andConditions.push({ paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } });
       } else if (paymentStatus === "cod_upfront_paid" || paymentStatus === "partially_paid") {
-        where.OR = [
-          { paymentStatus: { in: ["cod_upfront_paid", "partially_paid", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } },
-          { codUpfrontPaid: { gt: 0 } }
-        ];
+        andConditions.push({
+          OR: [
+            { paymentStatus: { in: ["cod_upfront_paid", "partially_paid", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } },
+            { codUpfrontPaid: { gt: 0 } }
+          ]
+        });
       } else if (paymentStatus === "pending") {
-        where.paymentStatus = { in: ["pending", "payment_pending", "PENDING", "PAYMENT_PENDING"] };
+        andConditions.push({ paymentStatus: { in: ["pending", "payment_pending", "PENDING", "PAYMENT_PENDING"] } });
       } else if (paymentStatus === "failed") {
-        where.paymentStatus = { in: ["failed", "payment_failed", "FAILED", "PAYMENT_FAILED"] };
+        andConditions.push({ paymentStatus: { in: ["failed", "payment_failed", "FAILED", "PAYMENT_FAILED"] } });
       } else if (paymentStatus === "cancelled") {
-        where.paymentStatus = { in: ["cancelled", "CANCELLED", "canceled", "CANCELED"] };
+        andConditions.push({ paymentStatus: { in: ["cancelled", "CANCELLED", "canceled", "CANCELED"] } });
       } else if (paymentStatus === "refunded") {
-        where.paymentStatus = { in: ["refunded", "REFUNDED"] };
+        andConditions.push({ paymentStatus: { in: ["refunded", "REFUNDED"] } });
       } else {
-        where.paymentStatus = paymentStatus;
+        andConditions.push({ paymentStatus });
       }
     } else if (view === "processed") {
-      where.OR = [
-        { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } },
-        { codUpfrontPaid: { gt: 0 } }
-      ];
+      andConditions.push({
+        OR: [
+          { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } },
+          { codUpfrontPaid: { gt: 0 } }
+        ]
+      });
     }
     if (paymentMethod && paymentMethod !== "all") {
-      where.paymentMethod = {
-        in: [paymentMethod.toLowerCase(), paymentMethod.toUpperCase()],
-      };
+      andConditions.push({
+        paymentMethod: {
+          in: [paymentMethod.toLowerCase(), paymentMethod.toUpperCase()],
+        }
+      });
     }
 
     // Date range filter
@@ -86,13 +94,14 @@ export async function GET(request: Request) {
         createdAtFilter.gte = new Date(startDateStr);
       }
       if (endDateStr) {
-        // Set end date to end of the day (23:59:59)
         const endDate = new Date(endDateStr);
         endDate.setHours(23, 59, 59, 999);
         createdAtFilter.lte = endDate;
       }
-      where.createdAt = createdAtFilter;
+      andConditions.push({ createdAt: createdAtFilter });
     }
+
+    const where: Prisma.WebStoreOrderWhereInput = andConditions.length > 0 ? { AND: andConditions } : {};
 
     const [orders, total] = await Promise.all([
       prisma.webStoreOrder.findMany({
@@ -109,7 +118,6 @@ export async function GET(request: Request) {
     // Page-scoped cross-lookup in master Order table to reconcile missing or outdated entries for current page
     const pageOrderNumbers = orders.map((o: Record<string, unknown>) => o.orderNumber as string).filter(Boolean);
     const pageRzpIds = orders.map((o: Record<string, unknown>) => o.razorpayOrderId as string).filter(Boolean);
-    const pageIds = orders.map((o: Record<string, unknown>) => o.id as string).filter(Boolean);
 
     const masterOrClauses: Record<string, unknown>[] = [];
     if (pageRzpIds.length > 0) {
