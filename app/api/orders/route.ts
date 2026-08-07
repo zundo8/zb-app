@@ -37,22 +37,22 @@ export async function GET(req: Request) {
     const customerIds = Array.from(new Set([
       ...(userIdParam ? [userIdParam] : []),
       ...(sessionUserId ? [sessionUserId] : []),
-      ...matchingCustomers.map(c => c.id)
+      ...matchingCustomers.map((c: any) => c.id)
     ])).filter(Boolean);
 
     const customerEmails = Array.from(new Set([
       ...(sessionEmail ? [sessionEmail] : []),
-      ...matchingCustomers.map(c => c.email).filter(Boolean) as string[]
+      ...matchingCustomers.map((c: any) => c.email).filter(Boolean) as string[]
     ]));
 
     const customerPhones = Array.from(new Set([
       ...(sessionPhone ? [sessionPhone] : []),
-      ...matchingCustomers.map(c => c.phone).filter(Boolean) as string[]
+      ...matchingCustomers.map((c: any) => c.phone).filter(Boolean) as string[]
     ]));
 
     const customerPhoneLast10s = Array.from(new Set([
       ...(phoneLast10 ? [phoneLast10] : []),
-      ...matchingCustomers.map(c => c.phoneLast10).filter(Boolean) as string[]
+      ...matchingCustomers.map((c: any) => c.phoneLast10).filter(Boolean) as string[]
     ]));
 
     // Query master orders table with broad identity matching
