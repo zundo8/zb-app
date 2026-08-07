@@ -229,6 +229,8 @@ export async function GET(request: Request) {
       };
     });
 
+    // Deduplicate order attempts
+    const deduplicatedOrders = deduplicateWebStoreOrders(enrichedOrders);
     const updatedTotal = await prisma.webStoreOrder.count({ where: where as Prisma.WebStoreOrderWhereInput });
     const finalTotal = Math.max(updatedTotal, deduplicatedOrders.length);
 
