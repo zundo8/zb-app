@@ -7,7 +7,7 @@ import GlassHeader from '../components/GlassHeader';
 import ProductCard from '../components/ProductCard';
 import QuickAddModal from '../components/QuickAddModal';
 import { Typography } from '../components/Typography';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useThemeStore } from '../store/themeStore';
@@ -74,7 +74,7 @@ export default function WishlistScreen() {
         ListEmptyComponent={
             <View style={styles.emptyState}>
             <View style={styles.emptyIconWrapper}>
-              <BlurView intensity={isDark ? 40 : 80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+              <GlassBackdrop intensity={isDark ? 40 : 80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
               <Ionicons name="bookmark-outline" size={32} color={colors.textExtraLight} />
             </View>
             <Typography heading size={12} weight="600" color={colors.text} style={styles.emptyTitle}>YOUR WISHLIST IS EMPTY</Typography>

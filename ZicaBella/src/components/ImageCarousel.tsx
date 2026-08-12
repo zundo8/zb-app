@@ -2,7 +2,7 @@ import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { View, FlatList, Dimensions, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from './GlassView';
 import { Media } from '../api/types';
 import { useColors } from '../constants/colors';
 
@@ -220,6 +220,7 @@ export default function ImageCarousel({
         nestedScrollEnabled
         directionalLockEnabled
         showsHorizontalScrollIndicator={false}
+        overScrollMode="never"
         keyExtractor={(_, index) => `media-${index}`}
         onMomentumScrollEnd={onMomentumScrollEnd}
         decelerationRate="fast"
@@ -284,6 +285,7 @@ export default function ImageCarousel({
             horizontal
             scrollEnabled={scrollEnabled}
             showsHorizontalScrollIndicator={false}
+            overScrollMode="never"
             keyExtractor={(_, index) => `thumb-${index}`}
             contentContainerStyle={styles.thumbListContent}
             renderItem={({ item, index }) => (
@@ -297,7 +299,7 @@ export default function ImageCarousel({
                 activeOpacity={0.8}
                 disabled={!scrollEnabled}
               >
-                <BlurView intensity={20} tint={colors.background === '#000000' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                <GlassBackdrop intensity={20} tint={colors.background === '#000000' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
                 <Image 
                   source={{ uri: item.image?.url || (item as any).url || (item as any).src }} 
                   style={styles.thumbnailImage}

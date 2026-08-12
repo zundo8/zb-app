@@ -61,11 +61,7 @@ export const Typography: React.FC<TypographyProps> = ({
 
   // Explicit numeric fallback font — must be a named font, NOT undefined,
   // because React Native inherits fontFamily from parent <Text> nodes.
-  const NUMERIC_FONT = Platform.select({
-    ios: 'Helvetica Neue',
-    android: 'sans-serif',
-    default: 'System',
-  });
+  const NUMERIC_FONT = 'sans-serif';
 
   const renderContent = () => {
     if (!rocaston || typeof children !== 'string') return children;

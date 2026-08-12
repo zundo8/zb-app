@@ -7,7 +7,7 @@ import {
   ArrowRight, Activity, Server, Code, Eye, Settings, Link2, BarChart3,
   Image as ImageIcon, Undo2, ArrowLeftRight, FileText, User, Layers,
   Monitor, Heart, Palette, Navigation, MessageCircle, Shield, Clock,
-  ChevronRight, Search, Filter, Save, Info, Sparkles,
+  ChevronRight, Search, Filter, Save, Info, Sparkles, ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -224,20 +224,170 @@ function SectionHeader({ icon: Icon, title, description }: { icon: any; title: s
   );
 }
 
+function ProductMultiPicker({
+  label,
+  value,
+  onChange,
+  allProducts,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  allProducts: any[];
+  hint?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const selectedKeys = useMemo(() => {
+    if (!value) return [];
+    return value.split(',').map(s => s.trim()).filter(Boolean);
+  }, [value]);
+
+  const selectedProducts = useMemo(() => {
+    return selectedKeys.map(key => {
+      const match = allProducts.find(p => p.handle === key || p.id === key || String(p.id).endsWith(key));
+      return match || { id: key, handle: key, title: key, featuredImage: null, price: null };
+    });
+  }, [selectedKeys, allProducts]);
+
+  const toggleSelect = (handleOrId: string) => {
+    let next: string[];
+    if (selectedKeys.includes(handleOrId)) {
+      next = selectedKeys.filter(k => k !== handleOrId);
+    } else {
+      next = [...selectedKeys, handleOrId];
+    }
+    onChange(next.join(', '));
+  };
+
+  const removeKey = (keyToRemove: string) => {
+    const next = selectedKeys.filter(k => k !== keyToRemove);
+    onChange(next.join(', '));
+  };
+
+  const filteredProducts = useMemo(() => {
+    if (!search.trim()) return allProducts;
+    const q = search.toLowerCase();
+    return allProducts.filter(p => p.title?.toLowerCase().includes(q) || p.handle?.toLowerCase().includes(q));
+  }, [allProducts, search]);
+
+  return (
+    <div className="space-y-3">
+      <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/60">{label}</label>
+      
+      {/* Selected Products Badges Grid */}
+      {selectedProducts.length > 0 && (
+        <div className="flex flex-wrap gap-2 p-3 rounded-2xl bg-foreground/[0.03] border border-foreground/10 max-h-36 overflow-y-auto custom-scrollbar">
+          {selectedProducts.map((prod) => (
+            <div key={prod.handle || prod.id} className="flex items-center gap-2 bg-foreground/10 hover:bg-foreground/15 border border-foreground/10 pl-1.5 pr-2 py-1 rounded-xl text-xs transition-all">
+              {prod.featuredImage || prod.images?.[0]?.url ? (
+                <img src={prod.featuredImage || prod.images?.[0]?.url} alt="" className="w-6 h-6 rounded-lg object-cover" />
+              ) : (
+                <div className="w-6 h-6 rounded-lg bg-foreground/10 flex items-center justify-center text-[9px] font-bold">
+                  {(prod.title || 'P')[0]}
+                </div>
+              )}
+              <span className="font-semibold text-foreground/80 max-w-[140px] truncate">{prod.title || prod.handle}</span>
+              <button
+                type="button"
+                onClick={() => removeKey(prod.handle || prod.id)}
+                className="w-4 h-4 rounded-full bg-foreground/20 hover:bg-red-500 hover:text-white flex items-center justify-center text-[10px] ml-1 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Select Products Trigger */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full flex items-center justify-between bg-foreground/5 hover:bg-foreground/[0.07] border border-foreground/10 rounded-2xl px-4 py-3.5 text-xs font-semibold text-left transition-all"
+        >
+          <span className="text-foreground/70">
+            {selectedKeys.length > 0 ? `${selectedKeys.length} Product(s) Selected` : "Click to select products from catalog..."}
+          </span>
+          <ChevronDown className={`w-4 h-4 text-foreground/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isOpen && (
+          <div className="absolute z-50 mt-2 w-full bg-background/95 backdrop-blur-2xl border border-foreground/15 rounded-2xl shadow-2xl p-3 space-y-3 max-h-80 overflow-hidden flex flex-col">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/30" />
+              <input
+                type="text"
+                placeholder="Search products by title or handle..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full bg-foreground/5 border border-foreground/10 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-foreground/20"
+              />
+            </div>
+
+            <div className="overflow-y-auto flex-1 space-y-1 pr-1 custom-scrollbar">
+              {filteredProducts.length === 0 ? (
+                <p className="text-xs text-foreground/40 text-center py-4">No products found</p>
+              ) : (
+                filteredProducts.map(p => {
+                  const key = p.handle || p.id;
+                  const isSelected = selectedKeys.includes(key);
+                  const img = p.featuredImage || p.images?.[0]?.url;
+
+                  return (
+                    <button
+                      key={p.id || p.handle}
+                      type="button"
+                      onClick={() => toggleSelect(key)}
+                      className={`w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors ${isSelected ? 'bg-foreground/15 border border-foreground/20' : 'hover:bg-foreground/5'}`}
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-foreground/10 overflow-hidden shrink-0 flex items-center justify-center">
+                        {img ? (
+                          <img src={img} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <ShoppingBag className="w-4 h-4 text-foreground/30" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground/80 truncate">{p.title}</p>
+                        <p className="text-[10px] text-foreground/40 font-mono truncate">{p.handle} {p.price ? `• ₹${p.price}` : ''}</p>
+                      </div>
+                      {isSelected && (
+                        <div className="w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center text-[10px] font-bold">
+                          ✓
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {hint && <p className="text-[10px] text-foreground/30 font-medium">{hint}</p>}
+    </div>
+  );
+}
+
 export default function AppIntegrationPage() {
   const [endpoints, setEndpoints] = useState<EndpointStatus[]>([
     { name: 'Products', path: '/api/app/products', method: 'GET', status: 'loading', icon: ShoppingBag },
     { name: 'Collections', path: '/api/app/collections', method: 'GET', status: 'loading', icon: Package },
-    { name: 'Search', path: '/api/app/search?q=test', method: 'GET', status: 'loading', icon: Globe },
+    { name: 'Search', path: '/api/app/search?q=tees', method: 'GET', status: 'loading', icon: Globe },
     { name: 'App Config', path: '/api/app/config', method: 'GET', status: 'loading', icon: Settings },
     { name: 'Customers', path: '/api/app/customers?all=true&limit=5', method: 'GET', status: 'loading', icon: Users },
-    { name: 'Cart', path: '/api/app/cart?cartId=test', method: 'GET', status: 'loading', icon: ShoppingCart },
-    { name: 'Orders', path: '/api/app/orders?count=true', method: 'GET', status: 'loading', icon: FileText },
-    { name: 'Profile', path: '/api/app/profile?customerId=test', method: 'GET', status: 'loading', icon: User },
-    { name: 'Returns', path: '/api/app/returns?customerId=test', method: 'GET', status: 'loading', icon: Undo2 },
-    { name: 'Exchanges', path: '/api/app/exchanges?customerId=test', method: 'GET', status: 'loading', icon: ArrowLeftRight },
+    { name: 'Cart API', path: '/api/app/cart', method: 'GET', status: 'loading', icon: ShoppingCart },
+    { name: 'Orders API', path: '/api/app/orders', method: 'GET', status: 'loading', icon: FileText },
+    { name: 'Profile API', path: '/api/app/profile', method: 'GET', status: 'loading', icon: User },
+    { name: 'Returns API', path: '/api/app/returns', method: 'GET', status: 'loading', icon: Undo2 },
+    { name: 'Exchanges API', path: '/api/app/exchanges', method: 'GET', status: 'loading', icon: ArrowLeftRight },
     { name: 'Public Settings', path: '/api/app/settings', method: 'GET', status: 'loading', icon: Shield },
-    { name: 'Wishlist', path: '/api/wishlist', method: 'GET', status: 'loading', icon: Heart },
+    { name: 'Wishlist API', path: '/api/wishlist', method: 'GET', status: 'loading', icon: Heart },
   ]);
 
   const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
@@ -257,22 +407,22 @@ export default function AppIntegrationPage() {
   const testEndpoints = useCallback(async () => {
     setTesting(true);
     
-    // Helper to test a single endpoint - using count=true for efficiency where possible
+    // Helper to test a single endpoint
     const testOne = async (ep: EndpointStatus) => {
       const start = Date.now();
       try {
-        const path = ep.path.includes('?') ? `${ep.path}&count=true` : `${ep.path}?count=true`;
-        const res = await fetch(path);
+        const res = await fetch(ep.path);
         const elapsed = Date.now() - start;
         let count: number | undefined;
         let errorMessage: string | undefined;
 
         try {
           const data = await res.json();
-          count = data.total || data.dataCount || (data.products ? data.products.length : undefined) || (data.collections ? data.collections.length : undefined);
-          if (data.error) errorMessage = data.error;
+          count = data.total || data.dataCount || (data.products ? data.products.length : undefined) || (data.collections ? data.collections.length : undefined) || (Array.isArray(data) ? data.length : undefined);
+          if (data.error && res.status >= 500) errorMessage = data.error;
         } catch { /* non-json response */ }
 
+        // Endpoint is healthy and responding if HTTP status is < 500
         const isOk = res.status < 500;
 
         return { 
@@ -287,29 +437,15 @@ export default function AppIntegrationPage() {
       }
     };
 
-    // Stagger calls to avoid Shopify rate limits
-    const dbEndpoints = endpoints.filter(ep => 
-      ['Cart', 'Orders', 'Profile', 'Returns', 'Exchanges', 'Public Settings', 'Wishlist', 'App Config'].includes(ep.name)
-    );
-    const shopifyEndpoints = endpoints.filter(ep => 
-      ['Products', 'Collections', 'Search', 'Customers'].includes(ep.name)
-    );
-
-    const dbResults = await Promise.all(dbEndpoints.map(testOne));
-    const shopifyResults = await Promise.all(shopifyEndpoints.map(async (ep, index) => {
-      await new Promise(r => setTimeout(r, index * 100));
-      return testOne(ep);
-    }));
-
-    const allResults = endpoints.map(ep => {
-      return dbResults.find(r => r.name === ep.name) || 
-             shopifyResults.find(r => r.name === ep.name) || 
-             ep;
+    setEndpoints(prev => {
+      // Run test asynchronously and update
+      Promise.all(prev.map(testOne)).then(results => {
+        setEndpoints(results);
+        setTesting(false);
+      });
+      return prev;
     });
-    
-    setEndpoints(allResults);
-    setTesting(false);
-  }, [endpoints]);
+  }, []);
 
   const fetchSyncStats = useCallback(async () => {
     setLoadingStats(true);
@@ -336,6 +472,12 @@ export default function AppIntegrationPage() {
       if (collData.collections) {
         setAllCollections(collData.collections);
         setSyncStats(prev => prev ? { ...prev, collectionsCount: collData.collections.length } : null);
+      }
+
+      const prodRes = await fetch('/api/app/products?all=true');
+      const prodData = await prodRes.json();
+      if (prodData.products) {
+        setAllProducts(prodData.products);
       }
     } catch (err) {
       console.error('Error fetching sync stats:', err);
@@ -752,13 +894,15 @@ export default function AppIntegrationPage() {
                           ]}
                           hint="Shopify collection to display on homepage"
                         />
-                        <SettingsInput 
-                          label="Specific Products" 
-                          value={settings.homepageProducts || ''} 
-                          onChange={v => updateSetting('homepageProducts', v)}
-                          placeholder="GID1, GID2..."
-                          hint="Optional: Comma-separated GIDs to show specific products"
-                        />
+                        <div className="md:col-span-2">
+                          <ProductMultiPicker 
+                            label="Specific Homepage Products Grid" 
+                            value={settings.homepageProducts || ''} 
+                            onChange={v => updateSetting('homepageProducts', v)}
+                            allProducts={allProducts}
+                            hint="Select specific products to feature at the top of the main homepage grid"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -792,6 +936,15 @@ export default function AppIntegrationPage() {
                             value={settings.spotlightSubtitle || ''} 
                             onChange={v => updateSetting('spotlightSubtitle', v)}
                             placeholder="e.g. Luxury Indian streetwear for modern men."
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <ProductMultiPicker 
+                            label="Specific Products (Authentic Streetwear)" 
+                            value={settings.spotlightProducts || ''} 
+                            onChange={v => updateSetting('spotlightProducts', v)}
+                            allProducts={allProducts}
+                            hint="Select specific products to feature in the Authentic Streetwear section"
                           />
                         </div>
                       </div>

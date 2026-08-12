@@ -123,8 +123,8 @@ export default withAuth(
       return NextResponse.next();
     }
 
-    // Allow public API routes for the React Native app
-    if (pathname.startsWith('/api/app/')) return NextResponse.next();
+    // Allow public API routes for the React Native app and Zica AI
+    if (pathname.startsWith('/api/app/') || pathname.startsWith('/api/zica-ai')) return NextResponse.next();
 
     // CSRF protection for mutation routes (POST, PUT, DELETE) on admin APIs
     if (["POST", "PUT", "DELETE"].includes(req.method)) {

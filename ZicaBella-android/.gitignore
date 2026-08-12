@@ -21,6 +21,8 @@ android/app/build/
 android/build/
 *.keystore
 !debug.keystore
+keystore.properties
+
 
 # Metro
 .metro-health-check*

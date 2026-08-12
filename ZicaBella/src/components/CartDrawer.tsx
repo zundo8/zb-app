@@ -126,11 +126,15 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
         {/* Backdrop */}
         <Animated.View style={[styles.backdrop, animatedBackdropStyle]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
-            <BlurView 
-              intensity={isDark ? 30 : 40} 
-              tint={isDark ? 'dark' : 'light'} 
-              style={StyleSheet.absoluteFill} 
-            />
+            {Platform.OS === 'android' ? (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.70)' }]} />
+            ) : (
+              <BlurView 
+                intensity={isDark ? 30 : 40} 
+                tint={isDark ? 'dark' : 'light'} 
+                style={StyleSheet.absoluteFill} 
+              />
+            )}
           </Pressable>
         </Animated.View>
 
@@ -144,7 +148,11 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
             borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
           }
         ]}>
-          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          {Platform.OS === 'android' ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(10, 10, 10, 0.98)' : 'rgba(255, 255, 255, 0.98)' }]} />
+          ) : (
+            <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           
           <View style={styles.sheetInner}>
             {/* Grab Bar */}
@@ -259,7 +267,11 @@ export default function CartDrawer({ visible, onClose, onCheckout }: Props) {
                   styles.tutorialOverlay, 
                   { opacity: tutorialOpacity },
                 ]}>
-                  <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+                  {Platform.OS === 'android' ? (
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.85)' : 'rgba(240, 240, 240, 0.90)' }]} />
+                  ) : (
+                    <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+                  )}
                   <View style={styles.tutorialContent}>
                     <View style={[styles.tutorialIconCircle, { backgroundColor: colors.foreground }]}>
                         <Ionicons name="phone-portrait" size={32} color={colors.background} />
@@ -300,11 +312,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderBottomWidth: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -20 },
-    shadowOpacity: 0.3,
-    shadowRadius: 30,
-    elevation: 30,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -20 },
+        shadowOpacity: 0.3,
+        shadowRadius: 30,
+      },
+      android: {
+        elevation: 30,
+      },
+    }),
   },
   sheetInner: {
     flex: 1,
@@ -377,13 +395,20 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.2,
+        shadowRadius: 15,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
   },
   emptyState: {
     flex: 0.8,
@@ -446,10 +471,17 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 22,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   checkoutBtnContent: {
     flex: 1,

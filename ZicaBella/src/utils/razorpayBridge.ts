@@ -70,19 +70,19 @@ export function inferUPIPackageName(value: string): string {
   const slug = normalized.replace(/[^a-z0-9]/g, '');
 
   if (slug.includes('google') || slug.includes('gpay') || slug.includes('tez')) {
-    return Platform.OS === 'android' ? 'com.google.android.apps.nbu.paisa.user' : 'google_pay';
+    return 'com.google.android.apps.nbu.paisa.user';
   }
   if (slug.includes('phonepe')) {
-    return Platform.OS === 'android' ? 'com.phonepe.app' : 'phonepe';
+    return 'com.phonepe.app';
   }
   if (slug.includes('paytm')) {
-    return Platform.OS === 'android' ? 'net.one97.paytm' : 'paytm';
+    return 'net.one97.paytm';
   }
   if (slug.includes('mobikwik')) {
-    return Platform.OS === 'android' ? 'com.mobikwik_new' : 'mobikwik';
+    return 'com.mobikwik_new';
   }
   if (slug.includes('bhim')) {
-    return Platform.OS === 'android' ? 'in.org.npci.upiapp' : 'bhim';
+    return 'in.org.npci.upiapp';
   }
 
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -184,7 +184,7 @@ function getRazorpay(): any {
   if (!isNativeModuleAvailable()) {
     _loadError =
       'Razorpay Custom UI native module not found. ' +
-      'Please rebuild the native binary: npx expo run:ios';
+      'Please rebuild the native binary: npx expo run:android';
     console.warn('[RazorpayBridge]', _loadError);
     return null;
   }
@@ -208,7 +208,7 @@ export function isRazorpayAvailable(): boolean {
 
 export function getRazorpayLoadError(): string | null {
   if (!isNativeModuleAvailable()) {
-    return 'Razorpay Custom UI native module not found. Rebuild required: npx expo run:ios';
+    return 'Razorpay Custom UI native module not found. Rebuild required: npx expo run:android';
   }
   return _loadError;
 }

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -42,6 +42,7 @@ import CartDrawer from '../components/CartDrawer';
 import WishlistDrawer from '../components/WishlistDrawer';
 import MenuDrawer from '../components/MenuDrawer';
 import { useNavigation } from '@react-navigation/native';
+import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -152,12 +153,16 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
       styles.tabBarContainer, 
       animatedStyle,
     ]}>
-      <BlurView 
-        intensity={isDark ? 50 : 80} 
-        tint={isDark ? 'dark' : 'light'}
-        style={StyleSheet.absoluteFill} 
-      />
-      <View style={[styles.tabContent, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
+      {Platform.OS === 'android' ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(10, 10, 10, 0.96)' : 'rgba(245, 245, 245, 0.96)' }]} />
+      ) : (
+        <BlurView 
+          intensity={isDark ? 50 : 80} 
+          tint={isDark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill} 
+        />
+      )}
+      <View style={[styles.tabContent, { borderColor: isDark ? (Platform.OS === 'android' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)') : (Platform.OS === 'android' ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.06)') }]}>
         {state.routes
           .filter((route: any) => route.name !== 'OrdersTab') // Orders accessible via Profile, Shop is now primary
           .map((route: any, index: number) => {
@@ -210,6 +215,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 }
 
 export const TabNavigator = () => {
+  useAndroidBackHandler();
   return (
     <Tab.Navigator
       id="MainTabNavigator"
@@ -277,17 +283,23 @@ export const TabNavigator = () => {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: 'absolute',
-    bottom: 34,
+    bottom: Platform.OS === 'android' ? 20 : 34,
     left: 20,
     right: 20,
-    height: 64,
+    height: Platform.OS === 'android' ? 60 : 64,
     borderRadius: 32,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.2,
-    shadowRadius: 30,
-    elevation: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.2,
+        shadowRadius: 30,
+      },
+      android: {
+        elevation: 16,
+      },
+    }),
   },
   tabContent: {
     flex: 1,

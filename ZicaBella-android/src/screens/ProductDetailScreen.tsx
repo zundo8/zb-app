@@ -25,6 +25,7 @@ import ProductCard from '../components/ProductCard';
 import { useRecentStore } from '../store/recentStore';
 import StorefrontFooter from '../components/StorefrontFooter';
 import { SizeChartModal } from '../components/SizeChartModal';
+import { config } from '../constants/config';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
 
@@ -195,6 +196,55 @@ export default function ProductDetailScreen() {
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [isStickySizeExpanded, setIsStickySizeExpanded] = useState(false);
+  const [moodBoardImages, setMoodBoardImages] = useState<string[]>([]);
+
+  // Fetch mood board images (same API as webstore PDP, with gallery fallback)
+  useEffect(() => {
+    if (!product) return;
+    const rawId = (product.id || '').toString();
+    const numericId = rawId.replace(/^gid:\/\/shopify\/Product\//i, '');
+    const BASE_URL = config.appUrl.replace(/\/$/, '');
+
+    let isMounted = true;
+
+    const tryFetch = async () => {
+      // 1. Try DB lookup by numericId, rawId, and handle
+      const idsToTry = [numericId, rawId, product.handle].filter(Boolean);
+
+      for (const idToTry of idsToTry) {
+        try {
+          const res = await fetch(`${BASE_URL}/api/mood-board?productId=${encodeURIComponent(idToTry!)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (isMounted && Array.isArray(data.images) && data.images.length > 0) {
+              setMoodBoardImages(data.images.filter(Boolean));
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 2. Fallback: if no custom mood board in DB, use product gallery images
+      if (isMounted) {
+        let galleryImages: string[] = [];
+        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+          galleryImages = product.images.filter(Boolean);
+        } else if (product.featuredImage) {
+          galleryImages = [product.featuredImage];
+        }
+
+        if (galleryImages.length > 0) {
+          setMoodBoardImages(galleryImages.slice(0, 5));
+        }
+      }
+    };
+
+    tryFetch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [product?.id, product?.handle, product?.images, product?.featuredImage]);
 
   useEffect(() => {
     const id = scrollY.addListener(({ value }) => {
@@ -693,6 +743,32 @@ export default function ProductDetailScreen() {
              </View>
            )}
 
+            {/* MOOD BOARD */}
+            {moodBoardImages.length > 0 && (
+              <View style={styles.moodBoardSection}>
+                <Typography size={7} color={colors.textExtraLight} weight="700" style={styles.sectionTag}>MOOD BOARD</Typography>
+                <View style={styles.moodBoardGrid}>
+                  {moodBoardImages.slice(0, 10).map((img, idx) => {
+                    const resolvedUri = resolveImageUrl(img);
+                    if (!resolvedUri) return null;
+                    return (
+                      <View
+                        key={`mb-${idx}`}
+                        style={[styles.moodBoardItem, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}
+                      >
+                        <Image
+                          source={{ uri: resolvedUri }}
+                          style={StyleSheet.absoluteFill}
+                          contentFit="cover"
+                          transition={300}
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
             {/* CURATED PAIRS */}
             {recommended.length > 0 && (
              <View style={styles.curatedSection}>
@@ -1169,5 +1245,22 @@ const styles = StyleSheet.create({
   viewerImage: {
     width: SCREEN_W,
     height: SCREEN_H * 0.8,
+  },
+  moodBoardSection: {
+    paddingHorizontal: 10,
+    marginTop: 32,
+    marginBottom: 8,
+  },
+  moodBoardGrid: {
+    gap: 10,
+    marginTop: 12,
+  },
+  moodBoardItem: {
+    width: '100%',
+    aspectRatio: 16 / 10,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: 'rgba(150,150,150,0.08)',
   },
 });

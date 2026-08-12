@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
 import GlassHeader from '../components/GlassHeader';
@@ -46,7 +46,7 @@ export default function StoryScreen() {
 
           {/* Founders Glass Panel */}
           <View style={styles.founderGlassWrapper}>
-            <BlurView intensity={isDark ? 50 : 80} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { borderRadius: 24 }]} />
+            <GlassBackdrop intensity={isDark ? 50 : 80} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { borderRadius: 24 }]} />
             <View style={[styles.founderGlass, { borderColor: colors.glassBorder }]}>
               <View style={[styles.smallLine, { backgroundColor: colors.borderLight }]} />
               <Text style={[styles.archiveText, { color: colors.textExtraLight }]}>ORIGINAL ARCHIVE</Text>

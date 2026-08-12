@@ -1,6 +1,6 @@
 import React from 'react';
-import { Modal, View, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { Modal, View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform } from 'react-native';
+import { GlassBackdrop } from './GlassView';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Typography } from './Typography';
@@ -28,7 +28,7 @@ export function SizeChartModal({ visible, onClose, imageUrl }: SizeChartModalPro
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+        <GlassBackdrop intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
         
         <View style={[styles.content, { backgroundColor: colors.background, borderColor: colors.borderLight }]}>
@@ -86,11 +86,17 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.2,
-    shadowRadius: 40,
-    elevation: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.2,
+        shadowRadius: 40,
+      },
+      android: {
+        elevation: 20,
+      },
+    }),
   },
   header: {
     flexDirection: 'row',

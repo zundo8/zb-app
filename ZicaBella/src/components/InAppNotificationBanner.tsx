@@ -5,7 +5,7 @@
  * Uses Expo Notifications instead of Firebase messaging.
  */
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -13,7 +13,7 @@ import Animated, {
   withSpring,
   runOnJS
 } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from './GlassView';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -101,7 +101,7 @@ export const InAppNotificationBanner = () => {
         accessibilityLabel={`Notification: ${notification.title}. ${notification.body}`}
         accessibilityRole="button"
       >
-        <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        <GlassBackdrop intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         
         <View style={styles.content}>
           <View style={[styles.iconContainer, { backgroundColor: colors.foreground + '10' }]}>
@@ -136,11 +136,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
   },
   content: {
     flexDirection: 'row',

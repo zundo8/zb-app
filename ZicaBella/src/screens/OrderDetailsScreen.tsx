@@ -6,7 +6,7 @@ import {
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/GlassView';
 import GlassHeader from '../components/GlassHeader';
 import { useColors } from '../constants/colors';
 import { useThemeStore } from '../store/themeStore';
@@ -584,7 +584,7 @@ export default function OrderDetailsScreen() {
           {isReturnWindowOpen && !hasActiveReturn && !hasActiveExchange ? (
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity onPress={handleReturn} activeOpacity={0.7} style={{ flex: 1, borderRadius: 24, overflow: 'hidden' }}>
-                <BlurView 
+                <GlassView 
                   intensity={isDark ? 30 : 60} 
                   tint={isDark ? 'dark' : 'light'} 
                   style={[styles.mainBtn, { 
@@ -594,10 +594,10 @@ export default function OrderDetailsScreen() {
                   }]}
                 >
                   <Typography size={13} weight="700" color={colors.text}>Return</Typography>
-                </BlurView>
+                </GlassView>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleExchange} activeOpacity={0.7} style={{ flex: 1, borderRadius: 24, overflow: 'hidden' }}>
-                <BlurView 
+                <GlassView 
                   intensity={isDark ? 30 : 60} 
                   tint={isDark ? 'dark' : 'light'} 
                   style={[styles.mainBtn, { 
@@ -605,14 +605,14 @@ export default function OrderDetailsScreen() {
                   }]}
                 >
                   <Typography size={13} weight="700" color={colors.background}>Exchange</Typography>
-                </BlurView>
+                </GlassView>
               </TouchableOpacity>
             </View>
           ) : null}
           {/* Cancel button for pending return/exchange requests */}
           {hasPendingRequest ? (
             <TouchableOpacity onPress={handleCancelReturnExchange} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden', marginTop: 12 }}>
-              <BlurView 
+              <GlassView 
                 intensity={isDark ? 30 : 60} 
                 tint={isDark ? 'dark' : 'light'} 
                 style={[styles.mainBtn, { 
@@ -622,7 +622,7 @@ export default function OrderDetailsScreen() {
                 }]}
               >
                 <Typography size={13} weight="700" color="#FF3B30">Cancel Return/Exchange</Typography>
-              </BlurView>
+              </GlassView>
             </TouchableOpacity>
           ) : null}
           
@@ -633,7 +633,7 @@ export default function OrderDetailsScreen() {
                 ((order.status || '').toLowerCase() === 'payment_pending' || (order.status || '').toLowerCase() === 'pending')
               ) && !isDelivered && !['payment_failed', 'failed'].includes((order.status || '').toLowerCase()) ? (
                 <TouchableOpacity onPress={handleCancelOrder} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
-                  <BlurView 
+                  <GlassView 
                     intensity={isDark ? 30 : 60} 
                     tint={isDark ? 'dark' : 'light'} 
                     style={[styles.mainBtn, { 
@@ -643,14 +643,14 @@ export default function OrderDetailsScreen() {
                     }]}
                   >
                     <Typography size={13} weight="700" color="#FF3B30">Cancel Order</Typography>
-                  </BlurView>
+                  </GlassView>
                 </TouchableOpacity>
               ) : null}
             </>
           )}
 
           <TouchableOpacity onPress={contactSupport} activeOpacity={0.7} style={{ borderRadius: 24, overflow: 'hidden' }}>
-            <BlurView 
+            <GlassView 
               intensity={isDark ? 30 : 60} 
               tint={isDark ? 'dark' : 'light'} 
               style={[styles.mainBtn, { 
@@ -660,7 +660,7 @@ export default function OrderDetailsScreen() {
               }]}
             >
               <Typography size={13} weight="700" color={colors.text}>Contact Support</Typography>
-            </BlurView>
+            </GlassView>
           </TouchableOpacity>
         </View>
       </View>

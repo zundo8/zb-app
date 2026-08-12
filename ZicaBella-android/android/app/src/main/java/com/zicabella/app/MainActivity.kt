@@ -1,4 +1,4 @@
-package com.zicabella.android
+package com.zicabella.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

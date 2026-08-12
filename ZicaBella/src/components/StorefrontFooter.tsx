@@ -46,7 +46,7 @@ export default function StorefrontFooter() {
   return (
     <View style={[styles.container, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
       <View style={styles.logoWrapper}>
-        <FooterLogo glbUrl={footerLogoGlb} />
+        <FooterLogo glbUrl={footerLogoGlb} size={64} />
       </View>
 
       {/* BRANDING: Exact web parity */}

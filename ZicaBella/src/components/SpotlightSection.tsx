@@ -2,13 +2,14 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
-import { useCollectionByHandle } from '../hooks/useProducts';
+import { useCollectionByHandle, useProducts } from '../hooks/useProducts';
 import { useColors } from '../constants/colors';
 import { useAdminSettings } from '../hooks/useAdminFeatures';
 import { Typography } from './Typography';
 import { useThemeStore } from '../store/themeStore';
 import HeroVideo from './HeroVideo';
 import OptimizedImage from './OptimizedImage';
+import { FlatProduct } from '../api/types';
 
 const { width } = Dimensions.get('window');
 const GRID_PADDING = 12;
@@ -20,13 +21,15 @@ interface Props {
   subtitle?: string;
   collectionHandle?: string;
   media?: string;
+  productIds?: string | string[];
 }
 
 const SpotlightSection = React.memo(({ 
   title,
   subtitle,
   collectionHandle,
-  media
+  media,
+  productIds
 }: Props) => {
   const navigation = useNavigation<any>();
   const colors = useColors();
@@ -37,12 +40,52 @@ const SpotlightSection = React.memo(({
   // Use exact admin values — no hardcoded fallback defaults
   const resolvedTitle = title ?? settings?.spotlight?.title ?? null;
   const resolvedSubtitle = subtitle ?? settings?.spotlight?.subtitle ?? null;
-  const resolvedCollectionHandle = collectionHandle ?? settings?.spotlight?.collection ?? "tshirts";
-  const resolvedMedia = media || settings?.media?.featured;
+  const resolvedCollectionHandle = collectionHandle ?? settings?.spotlight?.collection ?? null;
+  const resolvedMedia = media ?? settings?.media?.featured ?? null;
 
-  const { products, loading } = useCollectionByHandle(resolvedCollectionHandle);
+  const rawProductsSetting = productIds ?? settings?.spotlight?.products ?? (settings as any)?.spotlightProducts ?? null;
 
-  if (loading && (!products || products.length === 0)) {
+  const specifiedIds = React.useMemo(() => {
+    if (!rawProductsSetting) return [];
+    if (Array.isArray(rawProductsSetting)) {
+      return rawProductsSetting.map(id => String(id).trim()).filter(Boolean);
+    }
+    if (typeof rawProductsSetting === 'string') {
+      return rawProductsSetting.split(',').map(id => id.trim()).filter(Boolean);
+    }
+    return [];
+  }, [rawProductsSetting]);
+
+  const { products: collectionProducts, loading: collectionLoading } = useCollectionByHandle(resolvedCollectionHandle ?? "");
+  const { products: catalogProducts, loading: catalogLoading } = useProducts(50);
+
+  const displayProducts = React.useMemo(() => {
+    const availablePool = (catalogProducts && catalogProducts.length > 0)
+      ? catalogProducts
+      : (collectionProducts || []);
+
+    if (specifiedIds.length > 0 && availablePool.length > 0) {
+      const matched = specifiedIds
+        .map(idOrHandle => {
+          const numericId = idOrHandle.replace(/^gid:\/\/shopify\/Product\//i, '');
+          return availablePool.find(p => {
+            const pNumeric = p.id.replace(/^gid:\/\/shopify\/Product\//i, '');
+            return p.id === idOrHandle || pNumeric === numericId || p.handle.toLowerCase() === idOrHandle.toLowerCase();
+          });
+        })
+        .filter((p): p is FlatProduct => Boolean(p));
+
+      if (matched.length > 0) {
+        return matched.slice(0, 6);
+      }
+    }
+
+    return (collectionProducts || []).slice(0, 6);
+  }, [specifiedIds, catalogProducts, collectionProducts]);
+
+  const loading = collectionLoading || (specifiedIds.length > 0 && catalogLoading);
+
+  if (loading && displayProducts.length === 0) {
     return (
       <View style={styles.container}>
         <View style={styles.skeletonHeader} />
@@ -56,11 +99,9 @@ const SpotlightSection = React.memo(({
   }
 
   // Guard: if content is empty or not ready, return null to avoid blank gap
-  if (!products || products.length === 0) {
+  if (displayProducts.length === 0) {
     return null;
   }
-
-  const displayProducts = products.slice(0, 6);
 
   return (
     <View style={styles.container}>
@@ -131,9 +172,6 @@ const SpotlightSection = React.memo(({
             <View style={styles.itemInfo}>
               <Typography size={6.5} weight="800" color={colors.textLight} numberOfLines={1} style={styles.itemTitle}>
                 {(product?.title || "ZICA BELLA").toUpperCase()}
-              </Typography>
-              <Typography size={6} weight="400" color={colors.textExtraLight}>
-                {product ? `\u20B9${product.price}` : ""}
               </Typography>
             </View>
           </TouchableOpacity>

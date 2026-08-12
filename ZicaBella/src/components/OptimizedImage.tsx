@@ -5,6 +5,7 @@ import { Image, ImageProps } from 'expo-image';
 interface OptimizedImageProps extends Omit<ImageProps, 'source'> {
   source: any;
   shopifyWidth?: number;
+  priority?: 'low' | 'normal' | 'high';
 }
 
 export default function OptimizedImage({ 
@@ -12,19 +13,17 @@ export default function OptimizedImage({
   style, 
   shopifyWidth,
   contentFit = 'cover',
-  transition = 200,
+  transition = 100,
+  priority = 'normal',
   ...props 
 }: OptimizedImageProps) {
 
-  // Handle Shopify CDN URLs to request specific sizes
   let finalSource = source;
   if (typeof source === 'string' && source.includes('cdn.shopify.com') && shopifyWidth) {
-    // Use simple string manipulation instead of new URL() which is not fully supported in RN
     const separator = source.includes('?') ? '&' : '?';
-    finalSource = `${source}${separator}width=${shopifyWidth}`;
+    finalSource = `${source}${separator}width=${shopifyWidth}&format=webp`;
   }
 
-  // Wrap string sources as uri objects for expo-image
   const imageSource = typeof finalSource === 'string' ? { uri: finalSource } : finalSource;
 
   return (
@@ -34,7 +33,9 @@ export default function OptimizedImage({
         style={StyleSheet.absoluteFill}
         contentFit={contentFit}
         transition={transition}
+        priority={priority}
         cachePolicy="memory-disk"
+        recyclingKey={typeof finalSource === 'string' ? finalSource : undefined}
         {...props}
       />
     </View>

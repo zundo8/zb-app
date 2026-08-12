@@ -73,17 +73,15 @@ export class NotificationService {
         return false;
       }
 
-      // ── 2. Android channel (iOS does not need channels) ─────────────
-      if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
-          name: 'Zica Bella',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#000000',
-          showBadge: true,
-          sound: 'default',
-        });
-      }
+      // ── 2. Android channel ──────────────────────────────────────────
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Zica Bella',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#000000',
+        showBadge: true,
+        sound: 'default',
+      });
 
       // ── 3. Get push tokens and register with backend ─────────────────
       try {
@@ -101,17 +99,7 @@ export class NotificationService {
           }
         }
 
-        // Fetch APNs token on iOS physical devices
-        if (Platform.OS === 'ios') {
-          try {
-            const nativeToken = await Notifications.getDevicePushTokenAsync();
-            deviceToken = typeof nativeToken?.data === 'string'
-              ? nativeToken.data
-              : JSON.stringify(nativeToken?.data);
-          } catch (_nativeErr) {
-            // Non-fatal
-          }
-        }
+
 
         const primaryToken = expoToken || deviceToken;
         if (primaryToken) {
@@ -202,7 +190,7 @@ export class NotificationService {
 
     try {
       // Use userId if available, otherwise fallback to device-only registration
-      const deviceId = userId ? `dev_${Platform.OS}_${userId}` : `guest_${Platform.OS}_${Constants.sessionId || Date.now()}`;
+      const deviceId = userId ? `dev_android_${userId}` : `guest_android_${Constants.sessionId || Date.now()}`;
       const tokenType = finalExpoToken ? 'expo' : 'apns';
 
       // Register with the existing detailed endpoint

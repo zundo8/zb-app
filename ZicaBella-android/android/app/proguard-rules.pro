@@ -14,7 +14,7 @@
 -dontwarn com.facebook.**
 
 # ── Zica Bella app classes ──
--keep class com.zicabella.android.** { *; }
+-keep class com.zicabella.app.** { *; }
 
 # ── OkHttp (used by React Native networking) ──
 -dontwarn okhttp3.**

@@ -38,7 +38,7 @@ import { ChatHistoryModal } from './ChatHistoryModal';
 import { apiGet } from '../api/shopify';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
-import { callOpenAIStream } from '../api/openai';
+import { callZicaAIStream } from '../services/zicaAI';
 import { ScrollView } from 'react-native-gesture-handler';
 
 // ─── Types & Parsing ──────────────────────────────
@@ -1582,7 +1582,7 @@ const ChatScreen = memo(() => {
         },
       ];
 
-      // Invoke OpenAI streaming call via secure backend proxy
+      // Invoke Zica AI via the unified /api/zica-ai endpoint (same as webstore widget)
       tokenBuffer.current = '';
       if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
       flushIntervalRef.current = setInterval(() => {
@@ -1600,10 +1600,8 @@ const ChatScreen = memo(() => {
         }
       }, 100);
 
-      const abort = callOpenAIStream({
+      const abort = callZicaAIStream({
         messages: messagesToSend,
-        sessionId: currentSessionIdRef.current,
-        userId: user?.id,
         onToken: (token) => {
           if (isTypingRef.current) {
             setIsTyping(false);
@@ -1627,17 +1625,13 @@ const ChatScreen = memo(() => {
           );
           scrollToEndThrottled(false);
         },
-        onComplete: (fullText, resolvedSessionId) => {
+        onComplete: (fullText) => {
           // Stop batching and flush any remaining tokens
           if (flushIntervalRef.current) { clearInterval(flushIntervalRef.current); flushIntervalRef.current = null; }
           tokenBuffer.current = '';
           setIsTyping(false);
           isTypingRef.current = false;
           abortControllerRef.current = null;
-
-          if (resolvedSessionId) {
-            currentSessionIdRef.current = resolvedSessionId;
-          }
 
           requestAnimationFrame(() => {
             setMessages(prev =>
@@ -1666,6 +1660,8 @@ const ChatScreen = memo(() => {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                'Origin': APP_URL,
+                'Referer': `${APP_URL}/`,
                 ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {})
               },
               body: JSON.stringify({

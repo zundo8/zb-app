@@ -7,7 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/GlassView';
 
 import { useColors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
@@ -189,7 +189,7 @@ export default function SupportScreen() {
 
       {/* Create Ticket Modal */}
       <Modal visible={isModalOpen} animationType="slide" transparent>
-        <BlurView intensity={20} tint={theme} style={StyleSheet.absoluteFill}>
+        <GlassView intensity={20} tint={theme} style={[StyleSheet.absoluteFill, { borderWidth: 0, borderRadius: 0 }]}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
             <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: insets.top + 20 }]}>
               <View style={styles.modalHeader}>
@@ -255,7 +255,7 @@ export default function SupportScreen() {
               </ScrollView>
             </View>
           </KeyboardAvoidingView>
-        </BlurView>
+        </GlassView>
       </Modal>
     </View>
   );

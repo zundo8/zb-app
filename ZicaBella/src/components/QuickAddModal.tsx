@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, Modal, TouchableOpacity, 
-  Dimensions, Pressable, Alert
+  Dimensions, Pressable, Alert, Platform
 } from 'react-native';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
@@ -185,10 +185,18 @@ const QuickAddModal = React.memo(({ visible, product, initialSize, onClose }: Pr
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <BlurView intensity={isDark ? 40 : 20} tint={isDark ? 'dark' : 'default'} style={StyleSheet.absoluteFill} />
+        {Platform.OS === 'android' ? (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.75)' }]} />
+        ) : (
+          <BlurView intensity={isDark ? 40 : 20} tint={isDark ? 'dark' : 'default'} style={StyleSheet.absoluteFill} />
+        )}
         
         <Pressable style={[styles.sheet, { borderColor: colors.borderLight }]} onPress={(e) => e.stopPropagation()}>
-          <BlurView intensity={isDark ? 30 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          {Platform.OS === 'android' ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(18, 18, 18, 0.95)' : 'rgba(245, 245, 245, 0.97)' }]} />
+          ) : (
+            <BlurView intensity={isDark ? 30 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           
           {/* Drag Handle */}
           <View style={styles.dragHandleContainer}>

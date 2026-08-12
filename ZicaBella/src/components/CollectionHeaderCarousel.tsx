@@ -3,7 +3,7 @@ import {
   View, StyleSheet, TouchableOpacity, 
   Dimensions, Platform
 } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { GlassView } from './GlassView';
 import Carousel from 'react-native-reanimated-carousel';
 import { useNavigation } from '@react-navigation/native';
 import { useColors } from '../constants/colors';
@@ -62,7 +62,7 @@ export default function CollectionHeaderCarousel({ currentHandle, collections }:
               : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)')
           }
         ]}>
-          <BlurView 
+          <GlassView 
             intensity={isActive ? (isDark ? 50 : 70) : (isDark ? 15 : 25)} 
             tint={isDark ? 'dark' : 'light'} 
             style={[
@@ -86,7 +86,7 @@ export default function CollectionHeaderCarousel({ currentHandle, collections }:
             >
               {item.title.toUpperCase()}
             </Typography>
-          </BlurView>
+          </GlassView>
         </View>
       </TouchableOpacity>
     );
@@ -140,17 +140,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 2,
-      }
-    })
+    elevation: 2,
   },
   blur: {
     flex: 1,

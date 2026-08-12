@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useState, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Dimensions,
   RefreshControl, TouchableOpacity, ActivityIndicator,
@@ -59,7 +59,44 @@ const HomeScreen = React.memo(() => {
   const { products, loading, error, isError, refetch } = useProducts(24);
   const { collections, refetch: refetchCollections } = useCollections(20, 'page');
   const { products: accessories } = useCollectionByHandle(ringHandle);
-  
+
+  const homepageCollectionHandle = settings?.homepage?.collection ?? (settings as any)?.homepageCollection ?? null;
+  const { products: homepageCollectionProducts } = useCollectionByHandle(homepageCollectionHandle ?? "");
+  const rawHomepageProducts = settings?.homepage?.products ?? (settings as any)?.homepageProducts ?? null;
+
+  const specifiedHomepageIds = useMemo(() => {
+    if (!rawHomepageProducts) return [];
+    if (Array.isArray(rawHomepageProducts)) return rawHomepageProducts.map(id => String(id).trim()).filter(Boolean);
+    if (typeof rawHomepageProducts === 'string') return rawHomepageProducts.split(',').map(id => id.trim()).filter(Boolean);
+    return [];
+  }, [rawHomepageProducts]);
+
+  const displayHomepageProducts = useMemo(() => {
+    const pool = (homepageCollectionProducts && homepageCollectionProducts.length > 0)
+      ? homepageCollectionProducts
+      : (products || []);
+
+    if (specifiedHomepageIds.length > 0 && pool.length > 0) {
+      const matched = specifiedHomepageIds
+        .map((idOrHandle: string) => {
+          const numericId = idOrHandle.replace(/^gid:\/\/shopify\/Product\//i, '');
+          return pool.find((p: FlatProduct) => {
+            const pNumeric = p.id.replace(/^gid:\/\/shopify\/Product\//i, '');
+            return p.id === idOrHandle || pNumeric === numericId || p.handle.toLowerCase() === idOrHandle.toLowerCase();
+          });
+        })
+        .filter((p: FlatProduct | undefined): p is FlatProduct => Boolean(p));
+
+      if (matched.length > 0) {
+        const matchedSet = new Set(matched.map((m: FlatProduct) => m.id));
+        const remaining = pool.filter((p: FlatProduct) => !matchedSet.has(p.id));
+        return [...matched, ...remaining];
+      }
+    }
+
+    return pool;
+  }, [specifiedHomepageIds, homepageCollectionProducts, products]);
+
   const [refreshing, setRefreshing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FlatProduct | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -183,7 +220,7 @@ const HomeScreen = React.memo(() => {
           </View>
         )}
 
-        {/* ═══ HERO VIDEO / IMAGE ═══ */}
+        {/* ──═ HERO VIDEO / IMAGE ═══ */}
         {(heroVideoSrc || heroImageSrc) ? (
           <View style={{ position: 'relative' }}>
             <HeroVideo 
@@ -220,7 +257,7 @@ const HomeScreen = React.memo(() => {
               )}
               
               {/* ═══ PRODUCT GRID 1 ═══ */}
-              {renderProductGrid(products.slice(0, 4))}
+              {renderProductGrid(displayHomepageProducts.slice(0, 4))}
             </>
           )}
 
@@ -258,7 +295,7 @@ const HomeScreen = React.memo(() => {
                  <RingCarouselSection 
                   title={ringTitle} 
                   handle={ringHandle}
-                  products={(accessories || []).length > 0 ? (accessories || []).slice(0, 15) : (products || []).slice(12, 20)} 
+                  products={(accessories || []).length > 0 ? (accessories || []).slice(0, 15) : (displayHomepageProducts || []).slice(12, 20)} 
                 />
               )}
 
@@ -266,7 +303,7 @@ const HomeScreen = React.memo(() => {
               <FlipbookSection scrollY={scrollY} />
 
               {/* ═══ PRODUCT GRID 2 ═══ */}
-              {renderProductGrid(products.slice(4, 8))}
+              {renderProductGrid(displayHomepageProducts.slice(4, 8))}
 
               {/* ═══ FEATURED MEDIA / BLUEPRINT ═══ */}
               {(settings?.blueprint?.show !== false && (settings?.media?.featured || settings?.blueprint?.image)) ? (
@@ -281,18 +318,18 @@ const HomeScreen = React.memo(() => {
                     placeholder={require('../../assets/load-image-4.jpg')}
                   />
                   )}
-                   <View style={styles.blueprintOverlay}>
-                     {settings?.blueprint?.title ? (
-                     <Typography size={22} weight="600" color="#fff" style={styles.blueprintOverlayTitle}>
-                       {settings.blueprint.title.toUpperCase()}
-                     </Typography>
-                     ) : null}
-                     {settings?.blueprint?.subtitle ? (
-                     <Typography size={9} weight="400" color="rgba(255,255,255,0.7)" style={styles.blueprintOverlaySubtitle}>
-                       {settings.blueprint.subtitle.toUpperCase()}
-                     </Typography>
-                     ) : null}
-                   </View>
+                    <View style={styles.blueprintOverlay}>
+                      {settings?.blueprint?.subtitle ? (
+                      <Typography size={8} weight="700" color="rgba(255,255,255,0.6)" style={styles.blueprintOverlaySubtitle}>
+                        {settings.blueprint.subtitle.toUpperCase()}
+                      </Typography>
+                      ) : null}
+                      {settings?.blueprint?.title ? (
+                      <Typography size={22} weight="800" color="#fff" style={styles.blueprintOverlayTitle}>
+                        {settings.blueprint.title.toUpperCase()}
+                      </Typography>
+                      ) : null}
+                    </View>
                 </View>
               ) : null}
 
@@ -302,10 +339,11 @@ const HomeScreen = React.memo(() => {
                 title={settings?.spotlight?.title ?? undefined} 
                 subtitle={settings?.spotlight?.subtitle ?? undefined}
                 media={settings?.spotlight?.media}
+                productIds={settings?.spotlight?.products ?? (settings as any)?.spotlightProducts ?? undefined}
               />
 
               {/* ═══ PRODUCT GRID 3 ═══ */}
-              {products.length > 12 && renderProductGrid(products.slice(12, 16))}
+              {displayHomepageProducts.length > 12 && renderProductGrid(displayHomepageProducts.slice(12, 16))}
 
               {/* ═══ COMMUNITY SECTION ═══ */}
               <CommunitySection community={settings?.community} />
@@ -460,25 +498,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 32,
-    paddingBottom: 48,
+    padding: 24,
+    paddingBottom: 36,
     justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  blueprintOverlayTitle: {
-    letterSpacing: 2,
-    marginBottom: 6,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.4)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
   },
   blueprintOverlaySubtitle: {
     letterSpacing: 3,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    marginBottom: 4,
+    textAlign: 'left',
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
+  },
+  blueprintOverlayTitle: {
+    letterSpacing: 1.5,
+    lineHeight: 26,
+    textAlign: 'left',
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   footerVideoSection: {
     marginTop: 48,

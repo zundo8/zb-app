@@ -7,7 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/GlassView';
 
 import { useColors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
@@ -28,7 +28,8 @@ export default function SupportDetailScreen() {
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
   
-  const { ticketId, subject } = route.params;
+  const [ticketId, setTicketId] = useState(route.params.ticketId);
+  const [subject, setSubject] = useState(route.params.subject);
 
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<any[]>([]);
@@ -139,7 +140,7 @@ export default function SupportDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Custom Header */}
-      <BlurView intensity={20} tint={theme} style={[styles.header, { paddingTop: insets.top, borderColor: colors.borderExtraLight }]}>
+      <GlassView intensity={20} tint={theme} style={[styles.header, { paddingTop: insets.top, borderColor: colors.borderExtraLight }]}>
         <View style={styles.headerContent}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -152,7 +153,7 @@ export default function SupportDetailScreen() {
           </View>
           <View style={{ width: 40 }} />
         </View>
-      </BlurView>
+      </GlassView>
 
       {loading ? (
         <View style={styles.center}>
@@ -172,7 +173,7 @@ export default function SupportDetailScreen() {
       )}
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
-        <BlurView intensity={40} tint={theme} style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, 16), borderColor: colors.borderExtraLight }]}>
+        <GlassView intensity={40} tint={theme} style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, 16), borderColor: colors.borderExtraLight }]}>
           <View style={[styles.inputWrapper, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
             <TextInput
               style={[styles.input, { color: colors.text }]}
@@ -195,7 +196,7 @@ export default function SupportDetailScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </BlurView>
+        </GlassView>
       </KeyboardAvoidingView>
     </View>
   );

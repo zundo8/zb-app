@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Dimensions, Platform, StatusBar } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import { useUIStore } from '../store/uiStore';
 import { useCartStore } from '../store/cartStore';
 import { Typography } from './Typography';
 import { haptics } from '../utils/haptics';
+import { GlassBackdrop } from './GlassView';
+import CurrencySelectorModal from './CurrencySelectorModal';
 
 const { width } = Dimensions.get('window');
 
@@ -41,14 +43,23 @@ export default function GlassHeader({
   const setMenuOpen = useUIStore((state) => state.setMenuOpen);
   const setCartOpen = useUIStore((state) => state.setCartOpen);
   const cartCount = useCartStore((s) => s.itemCount());
+  const [currencyModalOpen, setCurrencyModalOpen] = React.useState(false);
 
   const isDark = theme === 'dark';
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0) + 6;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }, style]}>
+    <View style={[styles.container, { paddingTop: topPadding }, style]}>
       {/* Box 1: Left Action Capsule (Logo/Back) */}
       <TouchableOpacity
-        style={[styles.islandBase, styles.leftIsland, { borderColor: colors.borderLight }]}
+        style={[
+          styles.islandBase, 
+          styles.leftIsland, 
+          { 
+            backgroundColor: isDark ? 'rgba(18, 18, 20, 0.75)' : 'rgba(255, 255, 255, 0.82)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+          }
+        ]}
         onPress={() => {
           if (showBack) {
             haptics.buttonTap();
@@ -59,19 +70,7 @@ export default function GlassHeader({
               if (parent && parent.canGoBack()) {
                 parent.goBack();
               } else {
-                const state = navigation.getState();
-                const routeNames = state?.routeNames || [];
-                if (routeNames.includes('ShopScreen')) {
-                  navigation.navigate('ShopScreen');
-                } else if (routeNames.includes('SearchScreen')) {
-                  navigation.navigate('SearchScreen');
-                } else if (routeNames.includes('HomeScreen')) {
-                  navigation.navigate('HomeScreen');
-                } else if (routeNames.includes('ProfileScreen')) {
-                  navigation.navigate('ProfileScreen');
-                } else {
-                  navigation.navigate('Main');
-                }
+                navigation.navigate('Main');
               }
             }
           } else {
@@ -79,18 +78,18 @@ export default function GlassHeader({
             setMenuOpen(true);
           }
         }}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
         accessibilityLabel={showBack ? "Go back" : "Open menu"}
         accessibilityRole="button"
       >
-        <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        <GlassBackdrop intensity={isDark ? 45 : 85} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <View style={styles.iconCircle}>
           {showBack ? (
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Ionicons name="chevron-back" size={20} color={colors.text} style={styles.centeredIcon} />
           ) : (
             <Image 
               source={require('../../assets/zb-logo-220px.png')} 
-              style={{ width: 22, height: 22, opacity: 0.8 }} 
+              style={styles.logoImage} 
               contentFit="contain"
             />
           )}
@@ -100,7 +99,14 @@ export default function GlassHeader({
       {/* Box 2: Center Identity Capsule (Minimalist Typography) */}
       {!hideCenter && (
         <TouchableOpacity 
-          style={[styles.islandBase, styles.centerIsland, { borderColor: colors.borderLight }]}
+          style={[
+            styles.islandBase, 
+            styles.centerIsland, 
+            { 
+              backgroundColor: isDark ? 'rgba(18, 18, 20, 0.75)' : 'rgba(255, 255, 255, 0.82)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+            }
+          ]}
           onPress={() => {
             if (onPressCenter) {
               onPressCenter();
@@ -112,7 +118,7 @@ export default function GlassHeader({
           accessibilityLabel="Go to home"
           accessibilityRole="button"
         >
-          <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <GlassBackdrop intensity={isDark ? 45 : 85} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <Typography rocaston size={10} color={colors.text} style={styles.titleText}>
             {title.toUpperCase()}
           </Typography>
@@ -120,9 +126,34 @@ export default function GlassHeader({
       )}
 
       {/* Box 3: Right Actions Capsule (Consolidated Island) */}
-      <View style={[styles.islandBase, styles.rightIsland, { borderColor: colors.borderLight }]}>
-        <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <View 
+        style={[
+          styles.islandBase, 
+          styles.rightIsland, 
+          { 
+            backgroundColor: isDark ? 'rgba(18, 18, 20, 0.75)' : 'rgba(255, 255, 255, 0.82)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+          }
+        ]}
+      >
+        <GlassBackdrop intensity={isDark ? 45 : 85} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <View style={styles.rightActions}>
+          <TouchableOpacity 
+            style={styles.actionBtn}
+            onPress={() => {
+              haptics.buttonTap();
+              setCurrencyModalOpen(true);
+            }}
+            accessibilityLabel="Select global currency"
+            accessibilityRole="button"
+          >
+            <Ionicons 
+              name="globe-outline" 
+              size={15} 
+              color={colors.text} 
+              style={{ opacity: 0.75 }} 
+            />
+          </TouchableOpacity>
           <TouchableOpacity 
             style={styles.actionBtn} 
             onPress={toggleTheme}
@@ -133,7 +164,7 @@ export default function GlassHeader({
               name={isDark ? "sunny-outline" : "moon-outline"} 
               size={15} 
               color={colors.text} 
-              style={{ opacity: 0.7 }} 
+              style={{ opacity: 0.75 }} 
             />
           </TouchableOpacity>
           <TouchableOpacity
@@ -146,7 +177,7 @@ export default function GlassHeader({
               name={isWishlisted ? "bookmark" : "bookmark-outline"} 
               size={15} 
               color={colors.text} 
-              style={!isWishlisted ? { opacity: 0.7 } : undefined} 
+              style={!isWishlisted ? { opacity: 0.75 } : undefined} 
             />
           </TouchableOpacity>
           <TouchableOpacity
@@ -159,7 +190,7 @@ export default function GlassHeader({
               name="bag-outline" 
               size={15} 
               color={colors.text} 
-              style={{ opacity: 0.7 }} 
+              style={{ opacity: 0.75 }} 
             />
             {cartCount > 0 && (
               <View style={[styles.cartBadge, { backgroundColor: colors.primary }]} />
@@ -167,6 +198,7 @@ export default function GlassHeader({
           </TouchableOpacity>
         </View>
       </View>
+      <CurrencySelectorModal visible={currencyModalOpen} onClose={() => setCurrencyModalOpen(false)} />
     </View>
   );
 }
@@ -184,62 +216,74 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   islandBase: {
-    height: 40,
-    borderRadius: 20,
+    height: 42,
+    borderRadius: 21,
     overflow: 'hidden',
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
+    borderWidth: 0.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+      },
+      android: {
+        // No Android elevation on container to avoid polygon shadow box artifacts
+      },
+    }),
   },
   leftIsland: {
-    width: 40,
+    width: 44,
   },
   centerIsland: {
     flex: 1,
     marginHorizontal: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingHorizontal: 16,
   },
   rightIsland: {
     paddingHorizontal: 4,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 42,
     justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
+  },
+  logoImage: {
+    width: 22,
+    height: 22,
+    opacity: 0.85,
+    alignSelf: 'center',
+  },
+  centeredIcon: {
+    alignSelf: 'center',
   },
   titleText: {
     letterSpacing: 2.5,
-    paddingTop: 2,
     textAlign: 'center',
+    alignSelf: 'center',
   },
   rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 40,
+    height: 42,
+    justifyContent: 'center',
   },
   actionBtn: {
     width: 36,
-    height: 38,
+    height: 42,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cartBadge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    top: 11,
+    right: 9,
     width: 6,
     height: 6,
     borderRadius: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
 });
-

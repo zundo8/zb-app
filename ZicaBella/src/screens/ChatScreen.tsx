@@ -16,7 +16,7 @@ import Animated, {
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import Markdown from 'react-native-markdown-display';
-import { BlurView } from 'expo-blur';
+import { GlassView, GlassBackdrop } from '../components/GlassView';
 
 import { 
   useAudioRecorder, 
@@ -38,7 +38,7 @@ import { ChatHistoryModal } from './ChatHistoryModal';
 import { apiGet } from '../api/shopify';
 import QuickAddModal from '../components/QuickAddModal';
 import { FlatProduct } from '../api/types';
-import { callOpenAIStream } from '../api/openai';
+import { callZicaAIStream } from '../services/zicaAI';
 import { ScrollView } from 'react-native-gesture-handler';
 
 // ─── Types & Parsing ──────────────────────────────
@@ -530,7 +530,7 @@ const OrderTrackerCard = memo(({ order, navigation }: { order: any; navigation: 
         borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
       }
     ]}>
-      <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+      <GlassBackdrop intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
       
       <View style={styles.orderCardHeader}>
         <View>
@@ -1110,7 +1110,7 @@ const InputBar = memo(({
   };
 
   const hasContent = localInput.trim() || pendingImage;
-  const bottomOffset = keyboardVisible ? (Platform.OS === 'ios' ? keyboardHeight : 0) : 0;
+  const bottomOffset = 0;
   const pillBorder = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)';
 
   const iconColor = isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)';
@@ -1138,7 +1138,7 @@ const InputBar = memo(({
             marginBottom: 8,
           }
         ]}>
-          <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} />
+          <GlassBackdrop intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           <Image source={{ uri: pendingImage.uri }} style={styles.pendingImageThumb} contentFit="cover" transition={200} />
           <Typography size={10} weight="500" color={isDark ? "rgba(255, 255, 255, 0.5)" : "rgba(0, 0, 0, 0.6)"} style={{ flex: 1, marginLeft: 10 }}>
             Image ready to send
@@ -1149,7 +1149,7 @@ const InputBar = memo(({
         </View>
       )}
 
-      <BlurView
+      <GlassView
         intensity={isDark ? 20 : 50} 
         tint={isDark ? 'dark' : 'light'} 
         style={[
@@ -1172,7 +1172,11 @@ const InputBar = memo(({
           onChangeText={setLocalInput}
           placeholder="Ask anything"
           placeholderTextColor={placeholderColor}
-          style={[styles.input, { color: textColor, fontSize: 15, backgroundColor: 'transparent' }]}
+          style={[
+            styles.input, 
+            { color: textColor, fontSize: 15, backgroundColor: 'transparent' },
+            Platform.OS === 'android' && { textAlignVertical: 'center', includeFontPadding: false }
+          ]}
           multiline
           maxLength={20000}
           editable={true}
@@ -1210,7 +1214,7 @@ const InputBar = memo(({
         >
           <Ionicons name="arrow-up" size={18} color={hasContent ? sendIconColor : (isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)')} />
         </TouchableOpacity>
-      </BlurView>
+      </GlassView>
     </View>
   );
 });
@@ -1578,7 +1582,7 @@ const ChatScreen = memo(() => {
         },
       ];
 
-      // Invoke OpenAI streaming call via secure backend proxy
+      // Invoke Zica AI via the unified /api/zica-ai endpoint (same as webstore widget)
       tokenBuffer.current = '';
       if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
       flushIntervalRef.current = setInterval(() => {
@@ -1596,10 +1600,8 @@ const ChatScreen = memo(() => {
         }
       }, 100);
 
-      const abort = callOpenAIStream({
+      const abort = callZicaAIStream({
         messages: messagesToSend,
-        sessionId: currentSessionIdRef.current,
-        userId: user?.id,
         onToken: (token) => {
           if (isTypingRef.current) {
             setIsTyping(false);
@@ -1623,17 +1625,13 @@ const ChatScreen = memo(() => {
           );
           scrollToEndThrottled(false);
         },
-        onComplete: (fullText, resolvedSessionId) => {
+        onComplete: (fullText) => {
           // Stop batching and flush any remaining tokens
           if (flushIntervalRef.current) { clearInterval(flushIntervalRef.current); flushIntervalRef.current = null; }
           tokenBuffer.current = '';
           setIsTyping(false);
           isTypingRef.current = false;
           abortControllerRef.current = null;
-
-          if (resolvedSessionId) {
-            currentSessionIdRef.current = resolvedSessionId;
-          }
 
           requestAnimationFrame(() => {
             setMessages(prev =>
@@ -1662,6 +1660,8 @@ const ChatScreen = memo(() => {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                'Origin': APP_URL,
+                'Referer': `${APP_URL}/`,
                 ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {})
               },
               body: JSON.stringify({
@@ -2054,7 +2054,7 @@ const ChatScreen = memo(() => {
               activeOpacity={0.7}
               onPress={() => handleSend(item.label)}
             >
-              <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+              <GlassBackdrop intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
               <Ionicons name={item.icon as any} size={15} color={colors.text} style={{ marginRight: 8, opacity: 0.8 }} />
               <Typography size={12} weight="600" color={colors.text}>
                 {item.label}
@@ -2075,7 +2075,8 @@ const ChatScreen = memo(() => {
       
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'android' ? 90 : 0}
       >
         <View style={{ flex: 1 }}>
           {messages.length === 0 ? (
@@ -2159,7 +2160,7 @@ const ChatScreen = memo(() => {
 
       {fetchingProduct && (
         <View style={styles.loadingOverlay}>
-          <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <GlassBackdrop intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <ActivityIndicator size="large" color={colors.text} />
         </View>
       )}
@@ -2229,11 +2230,17 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   waveformCircle: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   micButton: {
     padding: 8,
@@ -2284,17 +2291,24 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   inputBarWrapper: { 
     paddingHorizontal: 16, 
     paddingTop: 10,
     backgroundColor: 'transparent',
-    zIndex: 10,
+    zIndex: Platform.OS === 'android' ? 999 : 10,
+    elevation: Platform.OS === 'android' ? 20 : 0,
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -2330,11 +2344,17 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   pendingImageThumb: {
     width: 44,
@@ -2425,10 +2445,16 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     backgroundColor: '#007AFF',
     opacity: 0.15,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 28,
-    elevation: 8,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 28,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   orbCore: {
     width: 60,
@@ -2437,12 +2463,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
     overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   promptList: {
     width: '100%',

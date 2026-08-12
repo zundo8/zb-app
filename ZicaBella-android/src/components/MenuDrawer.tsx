@@ -12,6 +12,8 @@ import { useThemeStore } from '../store/themeStore';
 import { haptics } from '../utils/haptics';
 import { Image } from 'expo-image';
 import { useCollections } from '../hooks/useProducts';
+import { useCurrencyStore } from '../store/currencyStore';
+import CurrencySelectorModal from './CurrencySelectorModal';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(width * 0.88, 340);
@@ -28,6 +30,8 @@ export default function MenuDrawer({ visible, onClose }: Props) {
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
   const { collections, loading } = useCollections(10, 'page');
+  const currentCurrency = useCurrencyStore(s => s.currentCurrency);
+  const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
 
   const slideAnim = React.useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const opacityAnim = React.useRef(new Animated.Value(0)).current;
@@ -123,15 +127,22 @@ export default function MenuDrawer({ visible, onClose }: Props) {
           <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         )}
         
-        {/* HEADER: MINIMAL SYSTEM TAG */}
+        {/* HEADER: MINIMAL SYSTEM TAG & LOGO */}
         <View style={styles.header}>
-          <View>
-            <Typography size={7} weight="800" color={colors.text} style={{ letterSpacing: 6, opacity: 0.2 }}>
-              ZICA BELLA
-            </Typography>
-            <Typography size={5} weight="400" color={colors.textExtraLight} style={{ letterSpacing: 2, opacity: 0.15, marginTop: 2 }}>
-              SYSTEM ARCHIVE v.26
-            </Typography>
+          <View style={styles.logoTitleRow}>
+            <Image 
+              source={require('../../assets/zb-logo-220px.png')} 
+              style={styles.drawerLogo} 
+              contentFit="contain"
+            />
+            <View style={{ justifyContent: 'center' }}>
+              <Typography size={7} weight="800" color={colors.text} style={{ letterSpacing: 5, opacity: 0.35 }}>
+                ZICA BELLA
+              </Typography>
+              <Typography size={5} weight="400" color={colors.textExtraLight} style={{ letterSpacing: 2, opacity: 0.25, marginTop: 1 }}>
+                SYSTEM ARCHIVE v.26
+              </Typography>
+            </View>
           </View>
           <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
              <Ionicons name="close" size={16} color={colors.text} />
@@ -172,13 +183,17 @@ export default function MenuDrawer({ visible, onClose }: Props) {
             {[
               { label: 'COMMUNITY', tab: 'HomeTab', screen: 'Community', icon: 'people-outline' },
               { label: 'EDITORIALS', tab: 'HomeTab', screen: 'Editorials', icon: 'newspaper-outline' },
-              { label: 'ZICA AI', tab: 'ChatTab', screen: undefined, icon: 'sparkles-outline' }
+              { label: 'ZICA AI', tab: 'ChatTab', screen: undefined, icon: 'sparkles-outline' },
+              { label: `CURRENCY: ${currentCurrency.flag} ${currentCurrency.code} (${currentCurrency.symbol})`, isCurrency: true, icon: 'globe-outline' }
             ].map(item => (
               <TouchableOpacity 
                 key={item.label} 
                 style={styles.utilLink}
                 onPress={() => {
-                  if (item.screen) {
+                  if (item.isCurrency) {
+                    haptics.buttonTap();
+                    setCurrencyModalVisible(true);
+                  } else if (item.screen) {
                     handleNavigate('Main', { screen: item.tab, params: { screen: item.screen } });
                   } else {
                     handleNavigate('Main', { screen: item.tab });
@@ -190,6 +205,7 @@ export default function MenuDrawer({ visible, onClose }: Props) {
               </TouchableOpacity>
             ))}
           </View>
+          <CurrencySelectorModal visible={currencyModalVisible} onClose={() => setCurrencyModalVisible(false)} />
 
           {/* SHOP SHORTCUTS: HORIZONTAL CHIPS */}
           <View style={styles.chipsContainer}>
@@ -263,6 +279,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 28,
     marginBottom: 32,
+  },
+  logoTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  drawerLogo: {
+    width: 26,
+    height: 26,
+    opacity: 0.85,
+    alignSelf: 'center',
   },
   closeBtn: {
     width: 36,

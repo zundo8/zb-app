@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { useColors } from '../constants/colors';
 import { useCollections, useProducts } from '../hooks/useProducts';
 import { Typography } from '../components/Typography';
@@ -67,7 +67,7 @@ export default function ShopScreen() {
         contentFit="cover"
         transition={300}
       />
-      <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+      <GlassBackdrop intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
       <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.2)' }]} />
       
       <View style={styles.tileOverlay}>

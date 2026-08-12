@@ -22,7 +22,7 @@ export async function registerForPushNotifications(): Promise<{
   deviceToken?: string;
 } | undefined> {
   if (!Device.isDevice || Platform.OS === 'web') {
-    console.warn('[Notifications] Push notifications require a physical iOS device.');
+    console.warn('[Notifications] Push notifications require a physical device.');
     return undefined;
   }
 
@@ -62,17 +62,7 @@ export async function registerForPushNotifications(): Promise<{
       }
     }
 
-    // 3. Get Native Device Token (The direct address for APNs)
-    if (Platform.OS === 'ios') {
-      try {
-        const nativeData = await Notifications.getDevicePushTokenAsync();
-        deviceToken = typeof nativeData.data === 'string' 
-          ? nativeData.data 
-          : JSON.stringify(nativeData.data);
-      } catch (err) {
-        console.warn('[Notifications] Native token fetch failed:', err);
-      }
-    }
+
 
     console.log('[Notifications] Registration successful:', { expoToken, deviceToken });
     return { expoToken, deviceToken };
@@ -117,7 +107,7 @@ export async function postPushTokenToBackend(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...payload,
-        deviceId: `ios_${userId}`,
+        deviceId: `android_${userId}`,
         fcmToken: primaryToken, // Backward-compatible legacy field name.
       }),
     });

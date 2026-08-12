@@ -3,6 +3,7 @@ import { View, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
 import Animated, { 
+  SharedValue,
   useSharedValue, 
   useAnimatedStyle, 
   useAnimatedScrollHandler, 
@@ -11,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { FlatCollection } from '../api/types';
 import { Typography } from './Typography';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.72;
@@ -24,6 +26,38 @@ interface Props {
 
 const REPEAT_COUNT = 30;
 const AnimatedFlatList = Animated.FlatList as any;
+
+/**
+ * Standalone CellRendererComponent — extracted outside the parent to avoid
+ * the hooks-inside-useCallback violation that crashes Android.
+ * React hooks (useAnimatedStyle) must only be called at the top level of a
+ * component function, never inside callbacks or conditionals.
+ */
+function CarouselCellRenderer({ children, index, style, scrollX, ...props }: any) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const input = [
+      (index - 1) * ITEM_WIDTH,
+      index * ITEM_WIDTH,
+      (index + 1) * ITEM_WIDTH,
+    ];
+    const zIndex = interpolate(
+      scrollX.value,
+      input,
+      [1, 10000, 1],
+      Extrapolation.CLAMP
+    );
+    return {
+      zIndex: Math.floor(zIndex),
+      elevation: Math.floor(zIndex / 100), 
+    } as any;
+  });
+
+  return (
+    <Animated.View {...props} style={[style, animatedStyle]}>
+      {children}
+    </Animated.View>
+  );
+}
 
 export default function CollectionCarousel({ collections }: Props) {
   const navigation = useNavigation<any>();
@@ -51,30 +85,9 @@ export default function CollectionCarousel({ collections }: Props) {
     );
   }, [navigation, scrollX]);
 
-  const CellRendererComponent = useCallback(({ children, index, style, ...props }: any) => {
-    const animatedStyle = useAnimatedStyle(() => {
-      const input = [
-        (index - 1) * ITEM_WIDTH,
-        index * ITEM_WIDTH,
-        (index + 1) * ITEM_WIDTH,
-      ];
-      const zIndex = interpolate(
-        scrollX.value,
-        input,
-        [1, 10000, 1],
-        Extrapolation.CLAMP
-      );
-      return {
-        zIndex: Math.floor(zIndex),
-        elevation: Math.floor(zIndex / 100), 
-      } as any;
-    });
-
-    return (
-      <Animated.View {...props} style={[style, animatedStyle]}>
-        {children}
-      </Animated.View>
-    );
+  // Stable wrapper that injects scrollX into the standalone cell renderer
+  const CellRenderer = useCallback((props: any) => {
+    return <CarouselCellRenderer {...props} scrollX={scrollX} />;
   }, [scrollX]);
 
   if (!collections || collections.length === 0) return null;
@@ -85,7 +98,7 @@ export default function CollectionCarousel({ collections }: Props) {
         id="CollectionFlatList"
         data={loopData}
         renderItem={renderItem}
-        CellRendererComponent={CellRendererComponent}
+        CellRendererComponent={CellRenderer}
         horizontal
         showsHorizontalScrollIndicator={false}
         onScroll={onScroll}
@@ -107,13 +120,11 @@ export default function CollectionCarousel({ collections }: Props) {
         maxToRenderPerBatch={2}
         updateCellsBatchingPeriod={50}
         windowSize={3}
-        keyExtractor={(item: any) => item.id?.toString() ?? item.handle ?? item.title}
+        keyExtractor={(_item: any, index: number) => `carousel-${index}`}
       />
     </View>
   );
 }
-
-import { resolveImageUrl } from '../utils/imageUtils';
 
 function AnimatedCard({ item, index, scrollX, onPress }: any) {
   const animatedStyle = useAnimatedStyle(() => {

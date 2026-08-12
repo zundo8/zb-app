@@ -14,7 +14,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from './GlassView';
 import { Ionicons } from '@expo/vector-icons';
 import { Media } from '../api/types';
 
@@ -93,7 +93,7 @@ export default function ImageGalleryModal({ visible, media, initialIndex, onClos
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.container}>
         <StatusBar hidden />
-        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+        <GlassBackdrop intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
         
         <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
           <Ionicons name="close" size={28} color="#FFF" />

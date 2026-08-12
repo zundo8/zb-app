@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { 
   View, StyleSheet, ScrollView, 
   ActivityIndicator, Dimensions, Animated, Platform,
-  TouchableOpacity
+  ImageBackground
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import RenderHTML from 'react-native-render-html';
-import { BlurView } from 'expo-blur';
+import { GlassBackdrop } from '../components/GlassView';
 import { Image } from 'expo-image';
 import Constants from 'expo-constants';
 
@@ -20,25 +20,9 @@ import { haptics } from '../utils/haptics';
 
 const { width } = Dimensions.get('window');
 
-const prepareHtml = (htmlContent: string | null, colors: any, isDark: boolean) => {
-  if (!htmlContent) return '';
-  let processed = htmlContent;
-  processed = processed.replace(/color:\s*(#ffffff|#fff|white|rgb\(255,\s*255,\s*255\))/gi, `color: ${colors.text}`);
-  processed = processed.replace(/border-left:\s*2px\s*solid\s*(#ffffff|#fff|white)/gi, `border-left: 2px solid ${colors.text}`);
-  if (!isDark) {
-    processed = processed.replace(/rgba\(255,\s*255,\s*255,\s*0\.03\)/gi, 'rgba(0, 0, 0, 0.02)');
-    processed = processed.replace(/rgba\(255,\s*255,\s*255,\s*0\.08\)/gi, 'rgba(0, 0, 0, 0.06)');
-  } else {
-    processed = processed.replace(/rgba\(255,\s*255,\s*255,\s*0\.03\)/gi, 'rgba(255, 255, 255, 0.03)');
-    processed = processed.replace(/rgba\(255,\s*255,\s*255,\s*0\.08\)/gi, 'rgba(255, 255, 255, 0.08)');
-  }
-  return processed;
-};
-
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const navigation = useNavigation<any>();
   const theme = useThemeStore(s => s.theme);
   const isDark = theme === 'dark';
   const version = Constants.expoConfig?.version || '1.0.5';
@@ -46,15 +30,7 @@ export default function AboutScreen() {
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState<string | null>(null);
 
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const heroFade = React.useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    Animated.timing(heroFade, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
     fetchAboutContent();
   }, []);
 
@@ -74,35 +50,8 @@ export default function AboutScreen() {
     }
   };
 
-  useEffect(() => {
-    if (!loading) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [loading]);
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* BACK BUTTON */}
-      <TouchableOpacity 
-        onPress={() => {
-          haptics.buttonTap();
-          navigation.goBack();
-        }}
-        style={[
-          styles.backButton, 
-          { 
-            top: insets.top + 10,
-            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' 
-          }
-        ]}
-      >
-        <Ionicons name="arrow-back" size={20} color={colors.text} />
-      </TouchableOpacity>
-
       <ScrollView 
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 60 }]}
         showsVerticalScrollIndicator={false}
@@ -114,32 +63,30 @@ export default function AboutScreen() {
             style={StyleSheet.absoluteFill}
             contentFit="cover"
           />
-          <BlurView intensity={isDark ? 30 : 50} tint={theme} style={StyleSheet.absoluteFill} />
-          <Animated.View style={[styles.heroOverlay, { paddingTop: 60, opacity: heroFade }]}>
-            <Typography rocaston size={44} color={colors.text} style={styles.heroTitle}>
-              ZICA BELLA
+          <GlassBackdrop intensity={isDark ? 30 : 50} tint={theme} style={StyleSheet.absoluteFill} />
+          <View style={[styles.heroOverlay, { paddingTop: 60 }]}>
+            <Typography heading size={42} weight="800" color={colors.text} style={styles.heroTitle}>
+              ZICA{"\n"}BELLA
             </Typography>
             <View style={[styles.badge, { backgroundColor: colors.foreground }]}>
               <Typography size={7} weight="800" color={colors.background} style={{ letterSpacing: 2 }}>ARCHIVAL VISION</Typography>
             </View>
-          </Animated.View>
+          </View>
         </View>
 
-        <Animated.View style={[styles.contentPadding, { opacity: fadeAnim }]}>
+        <View style={styles.contentPadding}>
           {loading ? (
             <ActivityIndicator color={colors.text} style={{ marginTop: 40 }} />
           ) : content ? (
             <RenderHTML
-              contentWidth={width - 48}
-              source={{ html: prepareHtml(content, colors, isDark) }}
+              contentWidth={width - 40}
+              source={{ html: content }}
               tagsStyles={{
-                body: { color: colors.text, fontSize: 14, lineHeight: 22, fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' },
-                h1: { fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 16, marginTop: 24, letterSpacing: 0.5 },
-                h2: { fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 28, marginBottom: 12, letterSpacing: 0.3 },
-                p: { marginBottom: 16, color: colors.textSecondary, lineHeight: 22 },
+                body: { color: colors.text, fontSize: 16, lineHeight: 26 },
+                h1: { fontSize: 28, fontWeight: '700', color: colors.text, marginBottom: 20 },
+                h2: { fontSize: 22, fontWeight: '700', color: colors.text, marginTop: 30, marginBottom: 15 },
+                p: { marginBottom: 20, color: colors.textSecondary },
                 strong: { fontWeight: '700', color: colors.text },
-                ul: { marginBottom: 16, paddingLeft: 20 },
-                li: { color: colors.textSecondary, marginBottom: 8, lineHeight: 20 },
               }}
             />
           ) : (
@@ -165,7 +112,7 @@ export default function AboutScreen() {
               © 2025 ZICA BELLA PRIVATE LIMITED. ALL RIGHTS RESERVED.
             </Typography>
           </View>
-        </Animated.View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -188,6 +135,7 @@ const styles = StyleSheet.create({
   heroTitle: {
     textAlign: 'center',
     letterSpacing: -2,
+    lineHeight: 40,
   },
   badge: {
     marginTop: 20,
@@ -210,15 +158,5 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: 'center',
     paddingBottom: 40,
-  },
-  backButton: {
-    position: 'absolute',
-    left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 50,
   }
 });
