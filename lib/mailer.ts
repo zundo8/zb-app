@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { stripMarkdown } from '@/lib/ai/formatSanitizer';
 
 const getSMTPConfig = () => {
   let user = process.env.ZOHO_SMTP_USER || '';
@@ -152,7 +153,9 @@ export function buildSupportEmailHtml({
   const shortId = ticketId.slice(-6).toUpperCase();
   const greetingName = customerName ? customerName : 'Valued Customer';
   
-  const paragraphs = content
+  const cleanContent = stripMarkdown(content);
+
+  const paragraphs = cleanContent
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)

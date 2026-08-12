@@ -204,6 +204,8 @@ export default function ExchangesPage() {
             originalLineItemId: originalItem.id,
             newProductId: replacementItem.productId,
             newVariantId: replacementItem.variantId,
+            newVariantTitle: replacementItem.variantTitle || null,
+            newSize: replacementItem.size || replacementItem.variantTitle || null,
             reason: "Admin manual exchange"
           }]
         })
@@ -408,7 +410,18 @@ export default function ExchangesPage() {
                       <div className="text-[11px] font-semibold text-foreground">
                         {req.priceDifference !== 0 ? `₹${Math.abs(req.priceDifference).toLocaleString("en-IN")}` : "₹0"}
                       </div>
-                      <div className="text-[9px] text-foreground/40 mt-0.5 capitalize">{(req.paymentStatus || "").replace("_", " ")}</div>
+                      <div className={`text-[9px] mt-0.5 capitalize ${
+                        req.priceDifference === 0 ? 'text-emerald-500 font-semibold' :
+                        req.paymentStatus === 'paid' ? 'text-emerald-500' :
+                        req.paymentStatus === 'cod_pending' ? 'text-amber-500' : 'text-foreground/40'
+                      }`}>
+                        {req.priceDifference === 0
+                          ? "Paid"
+                          : req.priceDifference < 0
+                            ? "Store Credit"
+                            : (req.paymentStatus || "").replace(/_/g, " ")
+                        }
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={req.status} />
@@ -533,7 +546,7 @@ export default function ExchangesPage() {
                               {p.variants?.map((v: any) => (
                                 <button 
                                   key={v.id} 
-                                  onClick={() => setReplacementItem({ productId: p.id, variantId: v.id, title: `${p.title} - ${v.title}`, price: v.price })}
+                                  onClick={() => setReplacementItem({ productId: p.id, variantId: v.id, title: `${p.title} - ${v.title}`, price: v.price, variantTitle: v.title, size: v.title })}
                                   className={`px-2 py-1 rounded text-[8px] font-bold border transition-all ${replacementItem?.variantId === v.id ? "bg-foreground text-background" : "border-foreground/10 text-foreground/60"}`}
                                 >
                                   {v.title}

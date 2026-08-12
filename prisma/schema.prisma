@@ -1340,6 +1340,22 @@ model SupportMessage {
   ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
+model SupportKnowledgeBase {
+  id        String   @id @default(cuid())
+  category  String
+  title     String
+  content   String
+  keywords  String?
+  isActive  Boolean  @default(true)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category, isActive])
+  @@index([isActive])
+}
+
+
 model User {
   id                   String                    @id @default(cuid())
   email                String                    @unique

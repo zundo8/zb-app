@@ -62,6 +62,13 @@ interface Cart {
     totalPrice: number;
     createdAt: string;
   } | null;
+  previousConversion?: {
+    cartId: string;
+    orderId: string;
+    internalOrderNumber: string | null;
+    totalPrice: number;
+    convertedAt: string;
+  } | null;
 }
 
 function GlassCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -513,10 +520,21 @@ export default function AbandonedCartsPage() {
                         <p className="text-[10px] text-foreground/40 font-mono">
                           {displayContact}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-[8px] font-black uppercase tracking-widest text-foreground/30 px-2 py-0.5 rounded-full bg-foreground/[0.04] border border-foreground/5">
                             {cart.source === "app" ? "Mobile App" : "Web Store"}
                           </span>
+                          {cart.previousConversion && (
+                            <span 
+                              className="text-[8px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1"
+                              title={`Previous Order: ${cart.previousConversion.internalOrderNumber || 'Converted'} (₹${(cart.previousConversion.totalPrice || 0).toLocaleString()})`}
+                            >
+                              <span>✓ Repeat Customer</span>
+                              {cart.previousConversion.internalOrderNumber && (
+                                <span className="opacity-80">({cart.previousConversion.internalOrderNumber})</span>
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

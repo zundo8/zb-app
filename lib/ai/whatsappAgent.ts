@@ -19,6 +19,8 @@ import { callClaude, MAX_TOOL_LOOPS } from "./claudeClient";
 import { filterToolsForPrincipal } from "./toolAllowList";
 import { getPromptForPrincipal } from "./prompts";
 import { applyOutputGuard } from "./outputGuard";
+import { stripMarkdown } from "./formatSanitizer";
+import { getRelevantKnowledgeContext } from "./knowledgeBase";
 import { executeClaudeTool } from "@/lib/services/claudeToolExecutor";
 import { ZICA_TOOLS } from "@/lib/services/claudeService";
 import type { Principal } from "./principal";
@@ -120,6 +122,9 @@ export async function processWhatsAppAIReply(
 
     const allowedTools = filterToolsForPrincipal(ZICA_TOOLS as any, principal);
 
+    // Fetch dynamic Knowledge Base context
+    const kbContext = await getRelevantKnowledgeContext(userMessageText);
+
     // Build enriched system prompt with customer context
     let customerContext = '';
     if (principal.kind === 'customer' && customer) {
@@ -129,7 +134,8 @@ export async function processWhatsAppAIReply(
     const systemPrompt = getPromptForPrincipal(principal.kind)
       + `\n\nChannel: WhatsApp. Keep responses concise (under 250 characters when possible). Format key details cleanly.`
       + customerContext
-      + `\n\nIMPORTANT: When a customer provides an order number (like ZB-XXXX-XXXXX or #1234), use the get_order_by_number tool to look it up immediately.`;
+      + `\n\n${kbContext}`
+      + `\n\nIMPORTANT: When a customer provides an order number (like ZB-XXXX-XXXXX or #1234), use the get_order_by_number tool to look it up immediately. DO NOT output Markdown syntax (no asterisks **, no hashes #). Write in clean plain text.`;
 
     // Multi-round tool-use loop (up to 3 rounds for chained lookups)
     const maxToolRounds = Math.min(3, MAX_TOOL_LOOPS);
@@ -185,11 +191,12 @@ export async function processWhatsAppAIReply(
         .join("\n");
     }
 
-    // Apply Output Guard
+    // Apply Output Guard and strip Markdown syntax
     const safeText = applyOutputGuard(finalAnswer, "whatsapp");
+    const cleanText = stripMarkdown(safeText);
 
     // Send reply via WhatsApp Production Service
-    const sent = await WhatsAppService.sendTextMessage(phoneNumber, safeText);
+    const sent = await WhatsAppService.sendTextMessage(phoneNumber, cleanText);
 
     if (sent) {
       // Record outbound AI message in database
@@ -198,13 +205,13 @@ export async function processWhatsAppAIReply(
           direction: "outbound",
           phoneNumber,
           userId: customer?.id || null,
-          body: safeText,
+          body: cleanText,
           status: "sent",
         },
       });
     }
 
-    return { replied: true, message: safeText };
+    return { replied: true, message: cleanText };
   } catch (error: any) {
     console.error("[WhatsAppAgent] Auto-reply error:", error);
     return { replied: false, reason: "Internal error processing WhatsApp AI reply" };

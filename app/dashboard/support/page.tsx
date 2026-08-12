@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { MessageSquare, Clock, Search, Loader2, ArrowUpRight, Sparkles, ChevronLeft, ChevronRight, Filter, RefreshCw } from 'lucide-react';
+import { MessageSquare, Clock, Search, Loader2, ArrowUpRight, Sparkles, ChevronLeft, ChevronRight, Filter, RefreshCw, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
+import KnowledgeBaseManager from '@/components/support/KnowledgeBaseManager';
 
 interface SupportTicketDisplay {
   id: string;
@@ -46,6 +47,7 @@ const PRIORITY_FILTERS = [
 ] as const;
 
 export default function SupportDashboard() {
+  const [activeTab, setActiveTab] = useState<'tickets' | 'kb'>('tickets');
   const [tickets, setTickets] = useState<SupportTicketDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -265,7 +267,38 @@ export default function SupportDashboard() {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Module Tabs */}
+      <div className="flex items-center gap-2 border-b border-foreground/[0.08] pb-3">
+        <button
+          onClick={() => setActiveTab('tickets')}
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+            activeTab === 'tickets'
+              ? 'bg-foreground text-background shadow-lg'
+              : 'bg-foreground/[0.03] text-foreground/40 hover:text-foreground hover:bg-foreground/[0.06]'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          Support Tickets
+        </button>
+
+        <button
+          onClick={() => setActiveTab('kb')}
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+            activeTab === 'kb'
+              ? 'bg-amber-500 text-neutral-950 shadow-lg shadow-amber-500/20'
+              : 'bg-foreground/[0.03] text-foreground/40 hover:text-amber-400 hover:bg-foreground/[0.06]'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          Knowledge Base
+        </button>
+      </div>
+
+      {activeTab === 'kb' ? (
+        <KnowledgeBaseManager />
+      ) : (
+        <>
+          {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
           { label: 'Total', count: statCounts.total, color: 'text-foreground', bg: '' },
@@ -523,6 +556,9 @@ export default function SupportDashboard() {
           </div>
         </div>
       )}
+        </>
+      )}
     </motion.div>
   );
+}
 }

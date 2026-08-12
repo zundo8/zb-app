@@ -670,7 +670,18 @@ export default function ExchangeDetailPage() {
               )}
               <div className="flex justify-between items-center">
                 <span className="text-[10px] text-foreground/50">Payment Status</span>
-                <span className="text-[10px] font-semibold text-foreground capitalize">{(data.paymentStatus || "not_required").replace("_", " ")}</span>
+                <span className={`text-[10px] font-semibold capitalize ${
+                  (data.priceDifference || 0) === 0 ? 'text-emerald-500' :
+                  (data.paymentStatus === 'paid' ? 'text-emerald-500' :
+                   data.paymentStatus === 'cod_pending' ? 'text-amber-500' : 'text-foreground')
+                }`}>
+                  {(data.priceDifference || 0) === 0
+                    ? "Paid (No Balance Due)"
+                    : data.priceDifference < 0
+                      ? "Store Credit Adjustment"
+                      : (data.paymentStatus || "not_required").replace(/_/g, " ")
+                  }
+                </span>
               </div>
               {data.paymentId && (
                 <div className="flex justify-between items-center pt-2 border-t border-foreground/[0.05]">

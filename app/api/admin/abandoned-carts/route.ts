@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { isOrderValidConverted } from "@/lib/cartValidation";
+import { buildCustomerIdentityOrClauses, areItemsIdentical } from "@/lib/cartCustomerMatch";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,91 @@ const validConvertedOrderClause = {
     { convertedOrderId: { not: null } }
   ]
 };
+
+async function enrichCartsWithConversionData(carts: any[]) {
+  if (!carts || carts.length === 0) {
+    return { previousConversionMap: new Map<string, any>(), isRaceDuplicateMap: new Map<string, boolean>() };
+  }
+
+  const allOrClauses: any[] = [];
+  for (const c of carts) {
+    const clauses = buildCustomerIdentityOrClauses({
+      customerId: c.customerId || c.customer?.id,
+      email: c.email || c.customer?.email,
+      phone: c.phone || c.customer?.phone,
+      sessionToken: c.sessionToken,
+    });
+    allOrClauses.push(...clauses);
+  }
+
+  let convertedCarts: any[] = [];
+  if (allOrClauses.length > 0) {
+    convertedCarts = await prisma.cart.findMany({
+      where: {
+        ...validConvertedOrderClause,
+        OR: allOrClauses,
+      },
+      include: {
+        items: true,
+        convertedOrder: {
+          select: {
+            id: true,
+            internalOrderNumber: true,
+            totalPrice: true,
+            createdAt: true,
+            status: true,
+            paymentStatus: true,
+            paymentMethod: true,
+          }
+        }
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+  }
+
+  const isRaceDuplicateMap = new Map<string, boolean>();
+  const previousConversionMap = new Map<string, any>();
+
+  for (const cart of carts) {
+    const matchingConverted = convertedCarts.filter(conv => {
+      if (conv.id === cart.id) return false;
+      if (cart.customerId && conv.customerId === cart.customerId) return true;
+      if (cart.email && conv.email && cart.email.trim().toLowerCase() === conv.email.trim().toLowerCase()) return true;
+      if (cart.phone && conv.phone && cart.phone.trim() === conv.phone.trim()) return true;
+      if (cart.sessionToken && conv.sessionToken && cart.sessionToken === conv.sessionToken) return true;
+      return false;
+    });
+
+    if (matchingConverted.length > 0) {
+      const latestConv = matchingConverted[0];
+      const order = latestConv.convertedOrder;
+      previousConversionMap.set(cart.id, {
+        cartId: latestConv.id,
+        orderId: order?.id || latestConv.convertedOrderId,
+        internalOrderNumber: order?.internalOrderNumber || null,
+        totalPrice: order?.totalPrice || latestConv.subtotal || 0,
+        convertedAt: order?.createdAt || latestConv.updatedAt,
+      });
+
+      if (!cart.convertedOrderId && cart.status !== "converted") {
+        const isDuplicate = matchingConverted.some(conv => {
+          const convTime = new Date(conv.convertedOrder?.createdAt || conv.updatedAt).getTime();
+          const cartTime = new Date(cart.createdAt).getTime();
+          const diffMinutes = Math.abs(cartTime - convTime) / (1000 * 60);
+          return diffMinutes <= 30 && areItemsIdentical(cart.items || [], conv.items || []);
+        });
+        isRaceDuplicateMap.set(cart.id, isDuplicate);
+      } else {
+        isRaceDuplicateMap.set(cart.id, false);
+      }
+    } else {
+      previousConversionMap.set(cart.id, null);
+      isRaceDuplicateMap.set(cart.id, false);
+    }
+  }
+
+  return { previousConversionMap, isRaceDuplicateMap };
+}
 
 export async function GET(req: Request) {
   try {
@@ -95,9 +181,6 @@ export async function GET(req: Request) {
 
     const where = { AND: andClauses };
 
-    // Get total count for pagination
-    const total = await prisma.cart.count({ where });
-
     // Fetch the carts with relations (sorted by updatedAt desc so latest converted/updated carts appear first)
     const carts = await prisma.cart.findMany({
       where,
@@ -131,24 +214,30 @@ export async function GET(req: Request) {
       take: limit
     });
 
+    const { previousConversionMap, isRaceDuplicateMap } = await enrichCartsWithConversionData(carts);
+
     // Compute Summary Stats for Admin Dashboard KPI Header
-    const [liveCount, abandonedCount, convertedCount, expiredCount] = await Promise.all([
+    const rawAbandonedCarts = await prisma.cart.findMany({
+      where: {
+        items: { some: {} },
+        convertedOrderId: null,
+        OR: [
+          { status: "abandoned" },
+          { status: "active", lastActivityAt: { lte: abandonmentThreshold } }
+        ]
+      },
+      include: { items: true, customer: true }
+    });
+    const { isRaceDuplicateMap: abandonedDuplicatesMap } = await enrichCartsWithConversionData(rawAbandonedCarts);
+    const validAbandonedCount = rawAbandonedCarts.filter(c => !abandonedDuplicatesMap.get(c.id)).length;
+
+    const [liveCount, convertedCount, expiredCount] = await Promise.all([
       prisma.cart.count({
         where: {
           items: { some: {} },
           status: "active",
           lastActivityAt: { gt: abandonmentThreshold },
           convertedOrderId: null
-        }
-      }),
-      prisma.cart.count({
-        where: {
-          items: { some: {} },
-          convertedOrderId: null,
-          OR: [
-            { status: "abandoned" },
-            { status: "active", lastActivityAt: { lte: abandonmentThreshold } }
-          ]
         }
       }),
       prisma.cart.count({
@@ -166,6 +255,8 @@ export async function GET(req: Request) {
       })
     ]);
 
+    const abandonedCount = validAbandonedCount;
+
     const convertedAggregate = await prisma.cart.aggregate({
       where: {
         items: { some: {} },
@@ -180,29 +271,61 @@ export async function GET(req: Request) {
       ? Math.round((convertedCount / (abandonedCount + convertedCount)) * 100)
       : 0;
 
-    // Process carts to map final computed status
-    const mappedCarts = carts.map((cart: any) => {
-      const order = cart.convertedOrder;
-      const isValidConverted = isOrderValidConverted(order);
-      const isExplicitlyConverted = cart.status === "converted" || Boolean(cart.convertedOrderId);
+    // Process carts to map final computed status and attach conversion context
+    const mappedCarts = carts
+      .filter((cart: any) => {
+        const isDuplicate = isRaceDuplicateMap.get(cart.id);
+        if (isDuplicate && (statusFilter === "abandoned" || statusFilter === "all")) {
+          return false;
+        }
+        return true;
+      })
+      .map((cart: any) => {
+        const order = cart.convertedOrder;
+        const isValidConverted = isOrderValidConverted(order);
+        const isExplicitlyConverted = cart.status === "converted" || Boolean(cart.convertedOrderId);
 
-      let computedStatus = cart.status;
-      if (isValidConverted || isExplicitlyConverted) {
-        computedStatus = "converted";
-      } else if (cart.status === "expired") {
-        computedStatus = "expired";
-      } else if (cart.lastActivityAt <= abandonmentThreshold || cart.status === "abandoned") {
-        computedStatus = "abandoned";
-      } else {
-        computedStatus = "active";
+        let computedStatus = cart.status;
+        if (isValidConverted || isExplicitlyConverted) {
+          computedStatus = "converted";
+        } else if (cart.status === "expired") {
+          computedStatus = "expired";
+        } else if (cart.lastActivityAt <= abandonmentThreshold || cart.status === "abandoned") {
+          computedStatus = "abandoned";
+        } else {
+          computedStatus = "active";
+        }
+
+        return {
+          ...cart,
+          convertedOrder: order || null,
+          convertedOrderId: cart.convertedOrderId || (order ? order.id : null),
+          computedStatus,
+          previousConversion: previousConversionMap.get(cart.id) || null
+        };
+      });
+
+    // Total count for pagination adjusted for duplicates if statusFilter === "abandoned"
+    const rawTotal = await prisma.cart.count({ where });
+    const total = statusFilter === "abandoned" ? abandonedCount : rawTotal;
+
+    return NextResponse.json({
+      carts: mappedCarts,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1
+      },
+      stats: {
+        totalTracked,
+        liveCount,
+        abandonedCount,
+        convertedCount,
+        expiredCount,
+        convertedRevenue,
+        recoveryRate
       }
-
-      return {
-        ...cart,
-        convertedOrder: order || null,
-        convertedOrderId: cart.convertedOrderId || (order ? order.id : null),
-        computedStatus
-      };
     });
 
     return NextResponse.json({

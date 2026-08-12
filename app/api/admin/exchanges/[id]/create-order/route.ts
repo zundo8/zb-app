@@ -1,8 +1,146 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { createOrder } from "@/lib/shopify-admin";
+import { createOrder, shopifyFetch } from "@/lib/shopify-admin";
 import { issueStoreCredits } from "@/lib/storeCreditsHelper";
 import { createDelhiveryShipment, fetchWaybill } from "@/lib/delhivery";
+
+/**
+ * Resolves the Shopify variant_id for a given exchange item.
+ * CRITICAL: This function MUST return a variant_id to use existing catalog products.
+ * Without variant_id, Shopify creates a "custom line item" (new product) which is wrong.
+ *
+ * Resolution strategy (in order):
+ *  1. product_skus table: product_id + size → shopify_variant_id
+ *  2. product_skus table: product_id only (no size filter) → first shopify_variant_id
+ *  3. product_skus table: match by SKU → shopify_variant_id
+ *  4. Shopify Admin API: fetch product variants, match by size/title
+ *  5. Shopify Admin API: use first available variant (guaranteed existing product)
+ */
+async function resolveShopifyVariantId(
+  newProduct: any,
+  newSize: string | null | undefined,
+  newVariantTitle: string | null | undefined
+): Promise<{ variantId: number | null; resolvedSize: string | null; resolvedSku: string | null; variantPrice: string | null }> {
+  const shopifyProductId = newProduct?.shopifyProductId;
+  const normalizedSize = (newSize || '').trim().toUpperCase();
+
+  // ── Tier 1: product_skus table with product_id + size → exact variant match ──
+  if (normalizedSize && newProduct?.id) {
+    try {
+      const skuRecs: any[] = await prisma.$queryRawUnsafe(
+        `SELECT shopify_variant_id, sku, size FROM product_skus WHERE product_id = $1 AND UPPER(size) = $2 AND shopify_variant_id IS NOT NULL LIMIT 1`,
+        newProduct.id,
+        normalizedSize
+      );
+      if (skuRecs?.[0]?.shopify_variant_id) {
+        console.log(`[Variant Resolve] ✅ Tier 1: Found variant ${skuRecs[0].shopify_variant_id} for product ${newProduct.id} size ${normalizedSize} via product_skus`);
+        return {
+          variantId: parseInt(skuRecs[0].shopify_variant_id, 10),
+          resolvedSize: skuRecs[0].size || normalizedSize,
+          resolvedSku: skuRecs[0].sku || newProduct.sku,
+          variantPrice: null,
+        };
+      }
+    } catch (_) {}
+  }
+
+  // ── Tier 2: product_skus table with product_id only (no size filter) ──
+  if (newProduct?.id) {
+    try {
+      const skuRecs: any[] = await prisma.$queryRawUnsafe(
+        `SELECT shopify_variant_id, sku, size FROM product_skus WHERE product_id = $1 AND shopify_variant_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+        newProduct.id
+      );
+      if (skuRecs?.[0]?.shopify_variant_id) {
+        console.log(`[Variant Resolve] ✅ Tier 2: Found variant ${skuRecs[0].shopify_variant_id} for product ${newProduct.id} (no size filter) via product_skus`);
+        return {
+          variantId: parseInt(skuRecs[0].shopify_variant_id, 10),
+          resolvedSize: skuRecs[0].size || normalizedSize || null,
+          resolvedSku: skuRecs[0].sku || newProduct.sku,
+          variantPrice: null,
+        };
+      }
+    } catch (_) {}
+  }
+
+  // ── Tier 3: product_skus table by SKU ──
+  if (newProduct?.sku) {
+    try {
+      const skuRecs: any[] = await prisma.$queryRawUnsafe(
+        `SELECT shopify_variant_id, sku, size FROM product_skus WHERE UPPER(sku) = $1 AND shopify_variant_id IS NOT NULL LIMIT 1`,
+        newProduct.sku.trim().toUpperCase()
+      );
+      if (skuRecs?.[0]?.shopify_variant_id) {
+        console.log(`[Variant Resolve] ✅ Tier 3: Found variant ${skuRecs[0].shopify_variant_id} by SKU ${newProduct.sku} via product_skus`);
+        return {
+          variantId: parseInt(skuRecs[0].shopify_variant_id, 10),
+          resolvedSize: skuRecs[0].size || normalizedSize || null,
+          resolvedSku: skuRecs[0].sku || newProduct.sku,
+          variantPrice: null,
+        };
+      }
+    } catch (_) {}
+  }
+
+  // ── Tier 4: Shopify Admin API — fetch product variants, match by size ──
+  if (shopifyProductId) {
+    try {
+      const productData = await shopifyFetch<{ product: any }>(`products/${shopifyProductId}.json`);
+      const variants = productData?.product?.variants || [];
+
+      if (variants.length > 0) {
+        let matched = null;
+
+        // Try exact match on size against variant title, option1, option2
+        if (normalizedSize) {
+          matched = variants.find((v: any) =>
+            (v.title || '').trim().toUpperCase() === normalizedSize ||
+            (v.option1 || '').trim().toUpperCase() === normalizedSize ||
+            (v.option2 || '').trim().toUpperCase() === normalizedSize
+          );
+        }
+
+        // Try matching by newVariantTitle (e.g., "Size: M" → "M")
+        if (!matched && newVariantTitle) {
+          const normalizedVariant = newVariantTitle.replace(/^Size:\s*/i, '').trim().toUpperCase();
+          matched = variants.find((v: any) =>
+            (v.title || '').trim().toUpperCase() === normalizedVariant ||
+            (v.option1 || '').trim().toUpperCase() === normalizedVariant
+          );
+        }
+
+        if (matched) {
+          console.log(`[Variant Resolve] ✅ Tier 4: Found variant ${matched.id} for Shopify product ${shopifyProductId} size ${normalizedSize} via Shopify API`);
+          return {
+            variantId: matched.id,
+            resolvedSize: matched.option1 || matched.title || normalizedSize,
+            resolvedSku: matched.sku || newProduct.sku,
+            variantPrice: matched.price || null,
+          };
+        }
+
+        // ── Tier 5: Use first variant from Shopify — ensures we NEVER create a custom item ──
+        // This is safe: the product already exists in the catalog, we just couldn't match the exact size.
+        // Better to use the first available variant of the correct product than to create a brand new custom item.
+        const firstVariant = variants[0];
+        console.log(`[Variant Resolve] ⚠️ Tier 5: Using first variant ${firstVariant.id} of Shopify product ${shopifyProductId} (exact size "${normalizedSize}" not matched, using "${firstVariant.option1 || firstVariant.title}")`);
+        return {
+          variantId: firstVariant.id,
+          resolvedSize: firstVariant.option1 || firstVariant.title || normalizedSize,
+          resolvedSku: firstVariant.sku || newProduct.sku,
+          variantPrice: firstVariant.price || null,
+        };
+      }
+    } catch (err: any) {
+      console.error(`[Variant Resolve] Shopify product fetch failed for ${shopifyProductId}:`, err.message);
+    }
+  }
+
+  // If we reach here, we have NO variant_id at all — this should be very rare
+  // (product doesn't exist in product_skus AND Shopify API failed/returned empty)
+  console.error(`[Variant Resolve] ❌ CRITICAL: Could not resolve ANY variant_id for product ${newProduct?.id} (Shopify: ${shopifyProductId}) size: ${normalizedSize}. Order will be created without variant_id as last resort.`);
+  return { variantId: null, resolvedSize: normalizedSize || null, resolvedSku: newProduct?.sku || null, variantPrice: null };
+}
 
 /**
  * POST /api/admin/exchanges/[id]/create-order
@@ -49,14 +187,29 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const priceDiff = exchangeRequest.priceDifference || 0;
     const isCod = exchangeRequest.settlementPreference === "COD_ON_DELIVERY" && priceDiff > 0;
-    const orderTotalAmount = priceDiff > 0 ? priceDiff : 0;
     const isNegativeDiff = priceDiff < 0;
     const negativeDiffAmount = Math.abs(priceDiff);
 
+    // Determine the financial status for Shopify:
+    // - priceDiff <= 0: No payment needed → "paid" (prevents "Payment Processing" in Shopify)
+    // - priceDiff > 0 with prepaid: Customer already paid → "paid"
+    // - priceDiff > 0 with COD: Payment on delivery → "pending"
+    let shopifyFinancialStatus = "paid";
     let paymentStatus = "free";
+
     if (priceDiff > 0) {
-      paymentStatus = isCod ? "cod_pending" : "paid";
+      if (isCod) {
+        shopifyFinancialStatus = "pending";
+        paymentStatus = "cod_pending";
+      } else {
+        shopifyFinancialStatus = "paid";
+        paymentStatus = "paid";
+      }
     }
+
+    // The order total: for same-price/cheaper exchanges, Shopify total should be 0
+    // For more expensive exchanges, it should be the price difference
+    const orderTotalAmount = priceDiff > 0 ? priceDiff : 0;
 
     // Build the Shopify order payload
     const customer = exchangeRequest.order.customer;
@@ -67,24 +220,71 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         : null;
     } catch (_) {}
 
-    const lineItems = exchangeRequest.exchanges.map((ex: any) => {
+    // Resolve variant IDs and build line items with correct variants and prices
+    const lineItems: any[] = [];
+    const resolvedVariants: { variantId: number | null; resolvedSize: string | null; resolvedSku: string | null }[] = [];
+
+    for (const ex of exchangeRequest.exchanges as any[]) {
       const newProduct = ex.newProduct;
-      return {
-        title: newProduct?.title || "Exchange Replacement",
+      const exchangeSize = ex.newSize || ex.newVariantTitle?.replace(/^Size:\s*/i, '').trim() || null;
+
+      // Resolve the correct Shopify variant_id for this exchange item
+      const variantResult = await resolveShopifyVariantId(newProduct, exchangeSize, ex.newVariantTitle);
+      resolvedVariants.push(variantResult);
+
+      // Use the actual product price for the line item
+      const actualProductPrice = variantResult.variantPrice
+        ? parseFloat(variantResult.variantPrice)
+        : (newProduct?.price || 0);
+
+      const lineItem: any = {
         quantity: 1,
-        price: orderTotalAmount > 0 ? (orderTotalAmount / exchangeRequest.exchanges.length).toFixed(2) : "0.00",
-        sku: newProduct?.sku || "",
         requires_shipping: true,
       };
-    });
+
+      if (variantResult.variantId) {
+        // Use variant_id — Shopify will auto-resolve title, sku, price from the variant
+        lineItem.variant_id = variantResult.variantId;
+        // Override price: for zero-cost exchanges, set price to 0
+        lineItem.price = priceDiff <= 0 ? "0.00" : actualProductPrice.toFixed(2);
+      } else {
+        // Fallback: include product_id if available so Shopify attaches line item to existing catalog product
+        if (newProduct?.shopifyProductId) {
+          lineItem.product_id = parseInt(newProduct.shopifyProductId, 10);
+        }
+        lineItem.title = newProduct?.title || "Exchange Replacement";
+        lineItem.sku = variantResult.resolvedSku || newProduct?.sku || "";
+        lineItem.price = priceDiff <= 0 ? "0.00" : actualProductPrice.toFixed(2);
+        console.warn(`[Exchange Create Order] No variant_id resolved for product "${newProduct?.title}", falling back to product_id/title/sku`);
+      }
+
+      lineItems.push(lineItem);
+    }
+
+    // Calculate the total discount if this is a same-price or cheaper exchange
+    // When priceDiff <= 0, we discount the full product price so the order total is 0
+    let totalDiscount = "0.00";
+    if (priceDiff <= 0) {
+      // All items priced at 0, no discount needed
+      totalDiscount = "0.00";
+    } else if (priceDiff > 0) {
+      // Customer pays the difference — items are at actual price,
+      // apply discount to reduce total to just the price difference
+      const totalItemPrices = lineItems.reduce((sum: number, li: any) => sum + parseFloat(li.price || '0'), 0);
+      const discountAmount = totalItemPrices - priceDiff;
+      if (discountAmount > 0) {
+        totalDiscount = discountAmount.toFixed(2);
+      }
+    }
 
     const shopifyOrderPayload: any = {
       line_items: lineItems,
-      financial_status: paymentStatus === "paid" ? "paid" : "pending",
+      financial_status: shopifyFinancialStatus,
       fulfillment_status: null,
-      note: `Exchange replacement for original order #${exchangeRequest.order.shopifyOrderId || exchangeRequest.orderId}. Settlement: ${exchangeRequest.settlementPreference}`,
+      inventory_behaviour: "decrement_ignoring_policy",
+      note: `Exchange replacement for original order #${exchangeRequest.order.shopifyOrderId || exchangeRequest.orderId}. Settlement: ${exchangeRequest.settlementPreference}. Size: ${resolvedVariants.map(v => v.resolvedSize || 'N/A').join(', ')}`,
       tags: `exchange,exchange-order,original-order-${exchangeRequest.order.shopifyOrderId || exchangeRequest.orderId}${isCod ? ',COD' : ''}`,
-      total_discounts: "0.00",
+      total_discounts: totalDiscount,
       send_receipt: true,
       send_fulfillment_receipt: true,
     };
@@ -99,13 +299,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       shopifyOrderPayload.shipping_address = shippingAddress;
     }
 
+    console.log(`[Exchange Create Order] Shopify payload:`, JSON.stringify({
+      line_items: shopifyOrderPayload.line_items,
+      financial_status: shopifyOrderPayload.financial_status,
+      total_discounts: shopifyOrderPayload.total_discounts,
+    }));
+
     let shopifyOrder: any = null;
     let shopifyOrderId: string | null = null;
 
     try {
       shopifyOrder = await createOrder(shopifyOrderPayload);
       shopifyOrderId = shopifyOrder?.id?.toString() || shopifyOrder?.name || null;
-      console.log(`✅ Shopify exchange order created: ${shopifyOrderId}`);
+      console.log(`✅ Shopify exchange order created: ${shopifyOrderId} (Name: ${shopifyOrder?.name})`);
     } catch (shopifyError: any) {
       console.error("⚠️ Shopify order creation failed:", shopifyError.message);
       return NextResponse.json({
@@ -119,15 +325,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // Execute local order creation, exchange status update, and store credit issuance transactionally
     const result = await prisma.$transaction(async (tx: any) => {
-      const newItems = (shopifyOrder.line_items || []).map((li: any) => {
-        const matchingEx = exchangeRequest.exchanges.find((ex: any) => ex.newProduct?.sku === li.sku);
+      const newItems = (shopifyOrder.line_items || []).map((li: any, idx: number) => {
+        const matchingEx = exchangeRequest.exchanges[idx] || exchangeRequest.exchanges.find((ex: any) => ex.newProduct?.sku === li.sku);
         return {
           shopifyLineItemId: li.id?.toString() || `EXC-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
           productId: matchingEx?.newProductId || null,
           title: li.title || "Exchange Replacement",
           quantity: li.quantity || 1,
           price: parseFloat(li.price || '0'),
-          sku: li.sku || ""
+          sku: li.sku || "",
+          variantTitle: li.variant_title || resolvedVariants[idx]?.resolvedSize || null,
+          size: resolvedVariants[idx]?.resolvedSize || null,
         };
       });
 
@@ -219,7 +427,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const add = addrObj.add || addrObj.address1 || addrObj.street || addrObj.fullAddress || (typeof shippingRaw === 'string' ? shippingRaw : 'Address Not Specified');
       const pin = addrObj.pin || addrObj.zip || addrObj.pincode || addrObj.postalCode || '110001';
       const phone = addrObj.phone || customer?.phone || '9999999999';
-      const prodDesc = exchangeRequest.exchanges.map((ex: any) => ex.newProduct?.sku || 'Replacement Item').join(', ');
+      const prodDesc = exchangeRequest.exchanges.map((ex: any) => {
+        const size = (ex as any).newSize || '';
+        return `${ex.newProduct?.sku || 'Replacement Item'}${size ? ` (${size})` : ''}`;
+      }).join(', ');
 
       const delhRes = await createDelhiveryShipment({
         name,
@@ -300,9 +511,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({
       success: true,
       shopifyOrderId,
+      shopifyOrderName: shopifyOrder?.name || null,
       localOrderId: result.localOrderId,
       forwardAwb,
       storeCreditIssued: result.storeCreditIssued,
+      resolvedVariants: resolvedVariants.map(v => ({ variantId: v.variantId, size: v.resolvedSize })),
       exchangeRequest: result.updatedRequest
     });
   } catch (error: any) {

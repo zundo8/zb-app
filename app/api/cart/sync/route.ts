@@ -4,6 +4,7 @@ import { getClientIP, lookupIpGeo } from "@/lib/ip-geo";
 import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
+import { buildCustomerIdentityOrClauses, areItemsIdentical } from "@/lib/cartCustomerMatch";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +178,35 @@ export async function POST(req: Request) {
     const cartSource = source || (auth ? "app" : "webstore");
 
     if (!cart) {
+      // Prevent post-checkout race condition duplicates: skip creation if converted recently (15 mins) with identical items
+      const identityClauses = buildCustomerIdentityOrClauses({
+        customerId: customerId || null,
+        email: email || customerEmail || null,
+        phone: phone || customerPhone || null,
+        sessionToken: guestId || null,
+      });
+
+      if (identityClauses.length > 0) {
+        const recentWindow = new Date(Date.now() - 15 * 60 * 1000);
+        const recentConvertedCart = await prisma.cart.findFirst({
+          where: {
+            OR: [
+              { status: "converted" },
+              { convertedOrderId: { not: null } }
+            ],
+            updatedAt: { gte: recentWindow },
+            AND: [{ OR: identityClauses }]
+          },
+          include: { items: true },
+          orderBy: { updatedAt: "desc" }
+        });
+
+        if (recentConvertedCart && areItemsIdentical(items || [], recentConvertedCart.items || [])) {
+          console.log(`[Cart Sync] Suppressing duplicate cart creation for recently converted cart ${recentConvertedCart.id}`);
+          return NextResponse.json({ success: true, count: Array.isArray(items) ? items.length : 0, skippedDuplicateSync: true }, { headers: corsHeaders });
+        }
+      }
+
       // Create new cart session safely
       try {
         cart = await prisma.cart.create({

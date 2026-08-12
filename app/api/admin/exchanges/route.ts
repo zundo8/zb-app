@@ -222,14 +222,18 @@ export async function POST(req: Request) {
       const origV = extractItemVariantAndSize(originalItem.title, originalItem.sku, originalItem.variantTitle, originalItem.size);
       const newV = extractItemVariantAndSize(item.newVariantTitle || item.newTitle, item.newSku, item.newVariantTitle);
 
+      // Accept newSize and newVariantTitle from the request payload (e.g., from the admin dashboard)
+      const resolvedNewSize = item.newSize || newV.size || null;
+      const resolvedNewVariant = item.newVariantTitle || newV.variant || (resolvedNewSize ? `Size: ${resolvedNewSize}` : null);
+
       return {
         originalProductId: originalItem.productId,
         newProductId: newProductId,
         reason: item.reason || "Admin manual exchange",
         originalVariantTitle: originalItem.variantTitle || origV.variant,
         originalSize: originalItem.size || origV.size,
-        newVariantTitle: item.newVariantTitle || newV.variant || null,
-        newSize: item.newSize || newV.size || null,
+        newVariantTitle: resolvedNewVariant,
+        newSize: resolvedNewSize,
       };
     }));
 
