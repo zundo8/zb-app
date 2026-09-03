@@ -112,9 +112,9 @@ const prismaClientSingleton = () => {
   try {
     // Connection Pool Configuration:
     // Configured for Supabase pooler (port 6543 / Supavisor transaction pooler).
-    // Uses max: 3 connections per serverless invocation to prevent exhausting pooler slots.
-    // statement_timeout = 8s prevents analytics queries from holding connections indefinitely.
-    const poolMax = process.env.PG_POOL_MAX ? parseInt(process.env.PG_POOL_MAX) : 3;
+    // Uses max: 10 connections to allow parallel analytics queries without client queue starvation.
+    // statement_timeout = 12s gives aggregations enough headroom while protecting against deadlocks.
+    const poolMax = process.env.PG_POOL_MAX ? parseInt(process.env.PG_POOL_MAX) : 10;
     const pool = new Pool({
       connectionString: pgUrl,
       ssl: { 
@@ -125,10 +125,9 @@ const prismaClientSingleton = () => {
       connectionTimeoutMillis: 20000,
     });
 
-    // Set statement_timeout on every new connection so no query can hold a pooled
-    // connection indefinitely. 8s cap — analytics is not allowed to run longer.
+    // Set statement_timeout on every new connection (12s cap)
     pool.on('connect', (client) => {
-      client.query('SET statement_timeout = 8000').catch(() => {});
+      client.query('SET statement_timeout = 12000').catch(() => {});
     });
 
     pool.on('error', (err) => {

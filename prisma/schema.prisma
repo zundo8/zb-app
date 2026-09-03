@@ -206,6 +206,7 @@ model Cart {
   @@index([lastActivityAt])
   @@index([source])
   @@index([createdAt])
+  @@index([updatedAt])
   @@index([phoneLast10])
   @@index([abandonedAt])
   @@map("cart_sessions")
@@ -1954,6 +1955,7 @@ model AnalyticsEvent {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([eventName, createdAt])
+  @@index([eventName, createdAt, productId])
   @@index([sessionId])
   @@index([sessionId, eventName])
   @@index([customerId])

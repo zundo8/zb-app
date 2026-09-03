@@ -8,12 +8,17 @@ export const dynamic = 'force-dynamic';
 // Valid platform values for allow-list validation (FIX 7)
 const VALID_PLATFORMS = ['web', 'app'] as const;
 
+// 15-second in-memory response cache to avoid repeated heavy aggregations
+const productsCache = new Map<string, { timestamp: number; data: any }>();
+const CACHE_TTL_MS = 15_000;
+
 async function handler(req: Request) {
   try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const rawPlatform = searchParams.get('platform');
+  const bypassCache = searchParams.get('bypassCache') === 'true';
 
   // Validate platform against allow-list (FIX 7)
   const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
@@ -25,33 +30,39 @@ async function handler(req: Request) {
   const endDate = rawEnd > now ? now : rawEnd;
   const dateFilter = { gte: startDate, lte: endDate };
 
-  // Most viewed products
-  const mostViewed = await prisma.analyticsEvent.groupBy({
-    by: ['productId'],
-    where: { eventName: 'view_item', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
-    _count: { id: true },
-    orderBy: { _count: { productId: 'desc' } },
-    take: 20,
-  });
+  const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}_${platform || 'all'}`;
+  if (!bypassCache) {
+    const cached = productsCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
+      return NextResponse.json(cached.data);
+    }
+  }
 
-  // Most added to cart
-  const mostAddedToCart = await prisma.analyticsEvent.groupBy({
-    by: ['productId'],
-    where: { eventName: 'add_to_cart', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
-    _count: { id: true },
-    orderBy: { _count: { productId: 'desc' } },
-    take: 20,
-  });
-
-  // Best selling (by purchase events)
-  const bestSelling = await prisma.analyticsEvent.groupBy({
-    by: ['productId'],
-    where: { eventName: 'purchase', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
-    _count: { id: true },
-    _sum: { value: true },
-    orderBy: { _count: { productId: 'desc' } },
-    take: 20,
-  });
+  // Execute all 3 groupBys concurrently in parallel for high performance
+  const [mostViewed, mostAddedToCart, bestSelling] = await Promise.all([
+    prisma.analyticsEvent.groupBy({
+      by: ['productId'],
+      where: { eventName: 'view_item', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
+      _count: { id: true },
+      orderBy: { _count: { productId: 'desc' } },
+      take: 20,
+    }),
+    prisma.analyticsEvent.groupBy({
+      by: ['productId'],
+      where: { eventName: 'add_to_cart', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
+      _count: { id: true },
+      orderBy: { _count: { productId: 'desc' } },
+      take: 20,
+    }),
+    prisma.analyticsEvent.groupBy({
+      by: ['productId'],
+      where: { eventName: 'purchase', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
+      _count: { id: true },
+      _sum: { value: true },
+      orderBy: { _count: { productId: 'desc' } },
+      take: 20,
+    }),
+  ]);
 
   // Collect all unique product IDs to resolve titles
   const allProductIds = new Set<string>();
@@ -107,12 +118,14 @@ async function handler(req: Request) {
     };
   }).sort((a, b) => b.views - a.views).slice(0, 20);
 
-  return NextResponse.json({
+  const responseData = {
     mostViewed: enrich(mostViewed),
     mostAddedToCart: enrich(mostAddedToCart),
     bestSelling: enrich(bestSelling, true),
     productRates,
-  });
+  };
+  productsCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
+  return NextResponse.json(responseData);
   } catch (error: any) {
     console.error('[Analytics Products] Error:', error.message);
     return NextResponse.json({

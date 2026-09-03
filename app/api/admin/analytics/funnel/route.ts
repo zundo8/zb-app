@@ -8,12 +8,17 @@ export const dynamic = 'force-dynamic';
 // Valid platform values for allow-list validation (Item 6)
 const VALID_PLATFORMS = ['web', 'app'] as const;
 
+// 15-second in-memory response cache
+const funnelCache = new Map<string, { timestamp: number; data: any }>();
+const CACHE_TTL_MS = 15_000;
+
 async function handler(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
     const rawPlatform = searchParams.get('platform');
+    const bypassCache = searchParams.get('bypassCache') === 'true';
 
     // Validate platform against allow-list (Item 6)
     const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
@@ -22,6 +27,14 @@ async function handler(req: Request) {
     const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const rawEnd = to ? new Date(to) : now;
     const endDate = rawEnd > now ? now : rawEnd;
+
+    const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}_${platform || 'all'}`;
+    if (!bypassCache) {
+      const cached = funnelCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
+        return NextResponse.json(cached.data);
+      }
+    }
 
     // Parameterized platform condition (Item 6 — kill SQL injection)
     const platformCondition = platform ? `AND platform = $3` : '';
@@ -81,7 +94,9 @@ async function handler(req: Request) {
       };
     });
 
-    return NextResponse.json({ funnel });
+    const responseData = { funnel };
+    funnelCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
+    return NextResponse.json(responseData);
   } catch (error: any) {
     console.error('[Analytics Funnel] Error:', error.message);
     return NextResponse.json({ funnel: [], error: error.message });

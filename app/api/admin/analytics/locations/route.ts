@@ -8,12 +8,17 @@ export const dynamic = 'force-dynamic';
 // Valid platform values for allow-list validation (Item 6)
 const VALID_PLATFORMS = ['web', 'app'] as const;
 
+// 15-second in-memory response cache
+const locationsCache = new Map<string, { timestamp: number; data: any }>();
+const CACHE_TTL_MS = 15_000;
+
 async function handler(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
     const rawPlatform = searchParams.get('platform');
+    const bypassCache = searchParams.get('bypassCache') === 'true';
 
     // Validate platform against allow-list (Item 6)
     const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
@@ -22,6 +27,14 @@ async function handler(req: Request) {
     const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
     const rawEnd = to ? new Date(to) : now;
     const endDate = rawEnd > now ? now : rawEnd;
+
+    const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}_${platform || 'all'}`;
+    if (!bypassCache) {
+      const cached = locationsCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
+        return NextResponse.json(cached.data);
+      }
+    }
 
     const dateFilter = { gte: startDate, lte: endDate };
     const platformFilter = platform ? { platform } : {};
@@ -143,7 +156,7 @@ async function handler(req: Request) {
       },
     });
 
-    return NextResponse.json({
+    const responseData = {
       topCountries,
       topCities,
       visitorPoints,
@@ -153,7 +166,9 @@ async function handler(req: Request) {
         uniqueCountries: topCountries.length,
         uniqueCities: topCities.length,
       },
-    });
+    };
+    locationsCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
+    return NextResponse.json(responseData);
   } catch (error: any) {
     console.error('[Analytics Locations] Error:', error.message);
     return NextResponse.json({

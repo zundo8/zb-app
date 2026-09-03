@@ -129,12 +129,19 @@ export default function AbandonedCartsPage() {
       }
       if (!res.ok) throw new Error("Failed to fetch abandoned carts");
       const data = await res.json();
-      setCarts(data.carts || []);
+      const freshCarts: Cart[] = data.carts || [];
+      setCarts(freshCarts);
       setTotalCarts(data.pagination?.total || 0);
       setTotalPages(data.pagination?.totalPages || 1);
       if (data.stats) {
         setStats(data.stats);
       }
+      // Live sync: keep drawer details up to date in real time if open
+      setSelectedCart((prev) => {
+        if (!prev) return null;
+        const matching = freshCarts.find((c) => c.id === prev.id);
+        return matching || prev;
+      });
     } catch (error) {
       console.error("Failed to fetch abandoned carts:", error);
       if (!isSilent) toast.error("Error connecting to server");
@@ -147,12 +154,12 @@ export default function AbandonedCartsPage() {
   useEffect(() => {
     fetchCarts(false);
 
-    // Lightweight real-time polling every 3 seconds (only if page is visible)
+    // Lightweight real-time live polling every 4 seconds (when page is visible)
     const intervalId = setInterval(() => {
-      if (document.visibilityState === "visible") {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
         fetchCarts(true);
       }
-    }, 3000);
+    }, 4000);
 
     return () => clearInterval(intervalId);
   }, [fetchCarts]);
@@ -286,9 +293,7 @@ export default function AbandonedCartsPage() {
     }
   };
 
-  const getStatusBadge = (computedStatus: string, lastActivity: string) => {
-    const isLive = new Date().getTime() - new Date(lastActivity).getTime() < 5 * 60 * 1000;
-    
+  const getStatusBadge = (computedStatus: string, _lastActivity?: string) => {
     if (computedStatus === "converted") {
       return (
         <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest border border-emerald-500/10 italic">
@@ -303,7 +308,7 @@ export default function AbandonedCartsPage() {
         </span>
       );
     }
-    if (computedStatus === "active" || isLive) {
+    if (computedStatus === "active") {
       return (
         <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 flex items-center gap-1.5 italic">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />

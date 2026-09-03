@@ -12,12 +12,17 @@ const EXCLUDED_STATUS_SQL = `('cancelled', 'payment_failed', 'pending', 'draft',
 // Valid platform values for allow-list validation
 const VALID_PLATFORMS = ['web', 'app'] as const;
 
+// 15-second in-memory response cache
+const chartsCache = new Map<string, { timestamp: number; data: any }>();
+const CACHE_TTL_MS = 15_000;
+
 async function handler(req: Request) {
   try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const rawPlatform = searchParams.get('platform');
+  const bypassCache = searchParams.get('bypassCache') === 'true';
 
   // Validate platform against allow-list (Item 6)
   const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
@@ -26,6 +31,14 @@ async function handler(req: Request) {
   const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
   const rawEnd = to ? new Date(to) : now;
   const endDate = rawEnd > now ? now : rawEnd;
+
+  const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}_${platform || 'all'}`;
+  if (!bypassCache) {
+    const cached = chartsCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
+      return NextResponse.json(cached.data);
+    }
+  }
 
   // Determine aggregation granularity
   const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -157,7 +170,9 @@ async function handler(req: Request) {
         : 0,
     }));
 
-  return NextResponse.json({ timeSeries, granularity: truncUnit });
+  const responseData = { timeSeries, granularity: truncUnit };
+  chartsCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
+  return NextResponse.json(responseData);
   } catch (error: any) {
     console.error('[Analytics Charts] Error:', error.message);
     return NextResponse.json({ timeSeries: [], granularity: 'day', error: error.message });

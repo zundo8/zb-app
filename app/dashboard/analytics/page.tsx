@@ -284,15 +284,35 @@ export default function AnalyticsDashboard() {
     const overviewParams = new URLSearchParams(params);
     if (!silent) overviewParams.set('bypassCache', 'true');
 
+    const handleSafeFetch = async (url: string) => {
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (res.status === 401) {
+          if (typeof window !== "undefined") {
+            window.location.href = "/dashboard/login?callbackUrl=" + encodeURIComponent(window.location.pathname);
+          }
+          return { error: "Unauthorized" };
+        }
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          return { error: errJson.error || `HTTP ${res.status}: ${res.statusText}` };
+        }
+        return await res.json();
+      } catch (e: any) {
+        if (e.name === "AbortError") throw e;
+        return { error: e.message || "Failed to load data" };
+      }
+    };
+
     try {
       const results = await Promise.allSettled([
-        fetch(`/api/admin/analytics/overview?${overviewParams}`, { signal: controller.signal }).then(r => r.json()),
-        fetch(`/api/admin/analytics/charts?${params}`, { signal: controller.signal }).then(r => r.json()),
-        fetch(`/api/admin/analytics/funnel?${params}`, { signal: controller.signal }).then(r => r.json()),
-        fetch(`/api/admin/analytics/traffic?${params}`, { signal: controller.signal }).then(r => r.json()),
-        fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }).then(r => r.json()),
-        fetch(`/api/admin/analytics/locations?${params}`, { signal: controller.signal }).then(r => r.json()),
-        fetch(`/api/admin/analytics/products?${params}`, { signal: controller.signal }).then(r => r.json()),
+        handleSafeFetch(`/api/admin/analytics/overview?${overviewParams}`),
+        handleSafeFetch(`/api/admin/analytics/charts?${params}`),
+        handleSafeFetch(`/api/admin/analytics/funnel?${params}`),
+        handleSafeFetch(`/api/admin/analytics/traffic?${params}`),
+        handleSafeFetch(`/api/admin/analytics/realtime`),
+        handleSafeFetch(`/api/admin/analytics/locations?${params}`),
+        handleSafeFetch(`/api/admin/analytics/products?${params}`),
       ]);
 
       if (controller.signal.aborted) return;
@@ -308,32 +328,68 @@ export default function AnalyticsDashboard() {
       const prData: ProductsData | null = getValue(results[6]);
 
       if (ovData) {
-        setOverview(ovData);
-        setOverviewError(ovData.error || null);
+        if (ovData.error) {
+          setOverviewError(ovData.error);
+        } else {
+          setOverview(ovData);
+          setOverviewError(null);
+        }
+      } else {
+        setOverviewError("Failed to fetch overview analytics");
       }
+
       if (chData) {
-        setCharts(chData);
-        setChartsError(chData.error || null);
+        if (chData.error) {
+          setChartsError(chData.error);
+        } else {
+          setCharts(chData);
+          setChartsError(null);
+        }
       }
+
       if (fnData) {
-        setFunnel(fnData.funnel || []);
-        setFunnelError(fnData.error || null);
+        if (fnData.error) {
+          setFunnelError(fnData.error);
+        } else {
+          setFunnel(fnData.funnel || []);
+          setFunnelError(null);
+        }
       }
+
       if (trData) {
-        setTraffic(trData.sources || []);
-        setTrafficError(trData.error || null);
+        if (trData.error) {
+          setTrafficError(trData.error);
+        } else {
+          setTraffic(trData.sources || []);
+          setTrafficError(null);
+        }
       }
+
       if (rtData) {
-        setRealtime(rtData);
-        setRealtimeError(rtData.error || null);
+        if (rtData.error) {
+          setRealtimeError(rtData.error);
+        } else {
+          setRealtime(rtData);
+          setRealtimeError(null);
+        }
       }
+
       if (locData) {
-        setLocations(locData);
-        setLocationsError(locData.error || null);
+        if (locData.error) {
+          setLocationsError(locData.error);
+        } else {
+          setLocations(locData);
+          setLocationsError(null);
+        }
       }
+
       if (prData) {
-        setProducts(prData);
-        setProductsError(prData.error || null);
+        if (prData.error) {
+          setProductsError(prData.error);
+        } else {
+          setProducts(prData);
+          setProductsError(null);
+        }
       }
 
       hasLoadedRef.current = true;
@@ -369,10 +425,24 @@ export default function AnalyticsDashboard() {
       ...(platform ? { platform } : {}),
     });
 
+    const handleSafeFetch = async (url: string) => {
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          return { error: errJson.error || `HTTP ${res.status}` };
+        }
+        return await res.json();
+      } catch (e: any) {
+        if (e.name === "AbortError") throw e;
+        return { error: e.message || "Failed to load data" };
+      }
+    };
+
     try {
       const results = await Promise.allSettled([
-        fetch(`/api/admin/analytics/overview?${params}`, { signal: controller.signal }).then(r => r.json()),
-        fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }).then(r => r.json()),
+        handleSafeFetch(`/api/admin/analytics/overview?${params}`),
+        handleSafeFetch(`/api/admin/analytics/realtime`),
       ]);
 
       if (controller.signal.aborted) return;
@@ -382,13 +452,13 @@ export default function AnalyticsDashboard() {
       const ovData: OverviewData | null = getValue(results[0]);
       const rtData: RealtimeData | null = getValue(results[1]);
 
-      if (ovData) {
+      if (ovData && !ovData.error) {
         setOverview(ovData);
-        setOverviewError(ovData.error || null);
+        setOverviewError(null);
       }
-      if (rtData) {
+      if (rtData && !rtData.error) {
         setRealtime(rtData);
-        setRealtimeError(rtData.error || null);
+        setRealtimeError(null);
       }
 
       consecutiveErrorsRef.current = 0;

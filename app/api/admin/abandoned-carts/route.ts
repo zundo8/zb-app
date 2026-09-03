@@ -128,7 +128,8 @@ export async function GET(req: Request) {
     const abandonmentThreshold = new Date(Date.now() - delayMinutes * 60 * 1000);
 
     const andClauses: any[] = [
-      { items: { some: {} } }
+      { items: { some: {} } },
+      { status: { not: "merged" } }
     ];
 
     // Filter by source
@@ -181,63 +182,63 @@ export async function GET(req: Request) {
 
     const where = { AND: andClauses };
 
-    // Fetch the carts with relations (sorted by updatedAt desc so latest converted/updated carts appear first)
-    const carts = await prisma.cart.findMany({
-      where,
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            image: true,
+    // Parallel fetch: Page of carts + KPI summary counts + total count (high performance)
+    const [
+      carts,
+      liveCount,
+      abandonedCount,
+      convertedCount,
+      expiredCount,
+      convertedAggregate,
+      rawTotal
+    ] = await Promise.all([
+      prisma.cart.findMany({
+        where,
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              image: true,
+            }
+          },
+          items: true,
+          convertedOrder: {
+            select: {
+              id: true,
+              internalOrderNumber: true,
+              totalPrice: true,
+              createdAt: true,
+              status: true,
+              paymentStatus: true,
+              paymentMethod: true,
+            }
           }
         },
-        items: true,
-        convertedOrder: {
-          select: {
-            id: true,
-            internalOrderNumber: true,
-            totalPrice: true,
-            createdAt: true,
-            status: true,
-            paymentStatus: true,
-            paymentMethod: true,
-          }
-        }
-      },
-      orderBy: {
-        updatedAt: "desc"
-      },
-      skip,
-      take: limit
-    });
-
-    const { previousConversionMap, isRaceDuplicateMap } = await enrichCartsWithConversionData(carts);
-
-    // Compute Summary Stats for Admin Dashboard KPI Header
-    const rawAbandonedCarts = await prisma.cart.findMany({
-      where: {
-        items: { some: {} },
-        convertedOrderId: null,
-        OR: [
-          { status: "abandoned" },
-          { status: "active", lastActivityAt: { lte: abandonmentThreshold } }
-        ]
-      },
-      include: { items: true, customer: true }
-    });
-    const { isRaceDuplicateMap: abandonedDuplicatesMap } = await enrichCartsWithConversionData(rawAbandonedCarts);
-    const validAbandonedCount = rawAbandonedCarts.filter((c: any) => !abandonedDuplicatesMap.get(c.id)).length;
-
-    const [liveCount, convertedCount, expiredCount] = await Promise.all([
+        orderBy: {
+          updatedAt: "desc"
+        },
+        skip,
+        take: limit
+      }),
       prisma.cart.count({
         where: {
           items: { some: {} },
           status: "active",
           lastActivityAt: { gt: abandonmentThreshold },
           convertedOrderId: null
+        }
+      }),
+      prisma.cart.count({
+        where: {
+          items: { some: {} },
+          convertedOrderId: null,
+          OR: [
+            { status: "abandoned" },
+            { status: "active", lastActivityAt: { lte: abandonmentThreshold } }
+          ]
         }
       }),
       prisma.cart.count({
@@ -252,18 +253,19 @@ export async function GET(req: Request) {
           status: "expired",
           convertedOrderId: null
         }
-      })
+      }),
+      prisma.cart.aggregate({
+        where: {
+          items: { some: {} },
+          ...validConvertedOrderClause
+        },
+        _sum: { subtotal: true }
+      }),
+      prisma.cart.count({ where })
     ]);
 
-    const abandonedCount = validAbandonedCount;
-
-    const convertedAggregate = await prisma.cart.aggregate({
-      where: {
-        items: { some: {} },
-        ...validConvertedOrderClause
-      },
-      _sum: { subtotal: true }
-    });
+    // Enrich only the active page of carts (15-20 records) with repeat customer conversion context
+    const { previousConversionMap, isRaceDuplicateMap } = await enrichCartsWithConversionData(carts);
 
     const convertedRevenue = Math.round(convertedAggregate._sum.subtotal || 0);
     const totalTracked = liveCount + abandonedCount + convertedCount + expiredCount;
@@ -305,8 +307,6 @@ export async function GET(req: Request) {
         };
       });
 
-    // Total count for pagination adjusted for duplicates if statusFilter === "abandoned"
-    const rawTotal = await prisma.cart.count({ where });
     const total = statusFilter === "abandoned" ? abandonedCount : rawTotal;
 
     return NextResponse.json({
@@ -327,73 +327,21 @@ export async function GET(req: Request) {
         recoveryRate
       }
     });
-
-    return NextResponse.json({
-      carts: mappedCarts,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit) || 1
-      },
-      stats: {
-        totalTracked,
-        liveCount,
-        abandonedCount,
-        convertedCount,
-        expiredCount,
-        convertedRevenue,
-        recoveryRate
-      }
-    });
   } catch (error: any) {
-    console.error("Fetch abandoned carts DB error, falling back to Shopify API:", error);
-    try {
-      const { shopifyFetch } = await import("@/lib/shopify-client");
-      const shopifyRes: any = await shopifyFetch("checkouts.json", { limit: "250" });
-      const checkouts = shopifyRes?.checkouts || [];
-      const mappedCarts = checkouts.map((co: any) => ({
-        id: String(co.id || co.token),
-        customerId: co.customer?.id ? String(co.customer.id) : null,
-        sessionToken: co.token || String(co.id),
-        source: "webstore",
-        status: "abandoned",
-        computedStatus: "abandoned",
-        phone: co.phone || co.shipping_address?.phone || null,
-        email: co.email || co.customer?.email || null,
-        subtotal: parseFloat(co.subtotal_price || co.total_price || "0"),
-        currency: co.currency || "INR",
-        createdAt: co.created_at,
-        updatedAt: co.updated_at,
-        lastActivityAt: co.updated_at,
-        customer: co.customer ? {
-          id: String(co.customer.id),
-          name: `${co.customer.first_name || ""} ${co.customer.last_name || ""}`.trim() || "Customer",
-          email: co.customer.email,
-          phone: co.customer.phone || co.phone,
-        } : null,
-        items: (co.line_items || []).map((li: any) => ({
-          id: String(li.key || li.variant_id),
-          title: li.title,
-          price: parseFloat(li.price || "0"),
-          quantity: li.quantity
-        }))
-      }));
-      return NextResponse.json({
-        carts: mappedCarts,
-        pagination: { total: mappedCarts.length, page: 1, limit: 20, totalPages: Math.ceil(mappedCarts.length / 20) || 1 },
-        stats: {
-          totalTracked: mappedCarts.length,
-          liveCount: 0,
-          abandonedCount: mappedCarts.length,
-          convertedCount: 0,
-          expiredCount: 0,
-          convertedRevenue: 0,
-          recoveryRate: 0
-        }
-      });
-    } catch (e2) {
-      return NextResponse.json({ error: "Failed to fetch abandoned carts" }, { status: 500 });
-    }
+    console.error("[Abandoned Carts Route] Error fetching carts:", error);
+    return NextResponse.json({
+      error: error.message || "Failed to fetch abandoned carts",
+      carts: [],
+      pagination: { total: 0, page: 1, limit: 20, totalPages: 1 },
+      stats: {
+        totalTracked: 0,
+        liveCount: 0,
+        abandonedCount: 0,
+        convertedCount: 0,
+        expiredCount: 0,
+        convertedRevenue: 0,
+        recoveryRate: 0
+      }
+    }, { status: 500 });
   }
 }

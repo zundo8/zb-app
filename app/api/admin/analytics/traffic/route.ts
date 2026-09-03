@@ -8,12 +8,17 @@ export const dynamic = 'force-dynamic';
 // Valid platform values for allow-list validation (FIX 7)
 const VALID_PLATFORMS = ['web', 'app'] as const;
 
+// 15-second in-memory response cache to prevent duplicate heavy queries
+const trafficCache = new Map<string, { timestamp: number; data: any }>();
+const CACHE_TTL_MS = 15_000;
+
 async function handler(req: Request) {
   try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const rawPlatform = searchParams.get('platform');
+  const bypassCache = searchParams.get('bypassCache') === 'true';
 
   // Validate platform against allow-list (FIX 7)
   const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
@@ -23,12 +28,20 @@ async function handler(req: Request) {
   const rawEnd = to ? new Date(to) : now;
   const endDate = rawEnd > now ? now : rawEnd;
 
+  const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}_${platform || 'all'}`;
+  if (!bypassCache) {
+    const cached = trafficCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
+      return NextResponse.json(cached.data);
+    }
+  }
+
   // Parameterized platform condition (FIX 7 — kill SQL injection)
   const platformCondition = platform ? `AND platform = $3` : '';
   const queryArgs: any[] = platform ? [startDate, endDate, platform] : [startDate, endDate];
 
   // Fetch sources and metrics using a single query
-  // FIX 4: Replaced LOWER(col) LIKE with ILIKE to avoid function wrapping
+  // Filter event_name in session_events so only conversion events are grouped
   const sources: any[] = await prisma.$queryRawUnsafe(`
     WITH session_sources AS (
       SELECT
@@ -36,6 +49,7 @@ async function handler(req: Request) {
         anonymous_id,
         COALESCE(
           CASE 
+            WHEN utm_source ILIKE '%snapchat%' THEN 'Snapchat'
             WHEN utm_source ILIKE '%whatsapp%' THEN 'WhatsApp'
             WHEN utm_source ILIKE '%google%' THEN 'Google'
             WHEN utm_source ILIKE '%facebook%' OR utm_source ILIKE '%fb%' THEN 'Facebook'
@@ -67,7 +81,9 @@ async function handler(req: Request) {
         COUNT(CASE WHEN event_name = 'purchase' THEN 1 END) AS purchase_count,
         SUM(CASE WHEN event_name = 'purchase' THEN COALESCE(value, 0) ELSE 0 END) AS purchase_revenue
       FROM analytics_events
-      WHERE created_at >= $1 AND created_at <= $2 AND session_id IS NOT NULL
+      WHERE created_at >= $1 AND created_at <= $2
+        AND event_name IN ('add_to_cart', 'begin_checkout', 'purchase')
+        AND session_id IS NOT NULL
       GROUP BY session_id
     )
     SELECT
@@ -102,7 +118,9 @@ async function handler(req: Request) {
       : 0,
   }));
 
-  return NextResponse.json({ sources: topSources });
+  const responseData = { sources: topSources };
+  trafficCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
+  return NextResponse.json(responseData);
   } catch (error: any) {
     console.error('[Analytics Traffic] Error:', error.message);
     return NextResponse.json({ sources: [], error: error.message });
