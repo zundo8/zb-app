@@ -221,6 +221,10 @@ const FUNNEL_COLORS = ["#6366f1", "#8b5cf6", "#a78bfa", "#c084fc", "#d946ef", "#
 
 // ─── Component ───────────────────────────────────────────
 
+// ─── Polling Configuration ───────────────────────────────
+const POLL_INTERVAL_MS = 60_000; // 60s background poll (raised from 15s)
+const MAX_CONSECUTIVE_ERRORS = 3;  // After this many errors, back off until explicit refresh
+
 export default function AnalyticsDashboard() {
   const [activePreset, setActivePreset] = useState(2); // Last 7 Days
   const [dateRange, setDateRange] = useState(DATE_PRESETS[2].getValue());
@@ -238,6 +242,8 @@ export default function AnalyticsDashboard() {
   const [products, setProducts] = useState<ProductsData | null>(null);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [chartsError, setChartsError] = useState<string | null>(null);
+  const [realtimeError, setRealtimeError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
@@ -247,12 +253,20 @@ export default function AnalyticsDashboard() {
   
   const abortRef = useRef<AbortController | null>(null);
   const hasLoadedRef = useRef(false);
+  const fetchInFlightRef = useRef(false);
+  const consecutiveErrorsRef = useRef(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ─── Full fetch (all 7 routes) — on filter/preset change + initial load ───
   const fetchAll = useCallback(async (silent = false) => {
+    // Guard: if a fetch is already in-flight AND this is a background tick, skip
+    if (silent && fetchInFlightRef.current) return;
+
     // Cancel in-flight requests
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    fetchInFlightRef.current = true;
 
     if (!silent && !hasLoadedRef.current) {
       setLoading(true);
@@ -297,7 +311,10 @@ export default function AnalyticsDashboard() {
         setOverview(ovData);
         setOverviewError(ovData.error || null);
       }
-      if (chData) setCharts(chData);
+      if (chData) {
+        setCharts(chData);
+        setChartsError(chData.error || null);
+      }
       if (fnData) {
         setFunnel(fnData.funnel || []);
         setFunnelError(fnData.error || null);
@@ -306,7 +323,10 @@ export default function AnalyticsDashboard() {
         setTraffic(trData.sources || []);
         setTrafficError(trData.error || null);
       }
-      if (rtData) setRealtime(rtData);
+      if (rtData) {
+        setRealtime(rtData);
+        setRealtimeError(rtData.error || null);
+      }
       if (locData) {
         setLocations(locData);
         setLocationsError(locData.error || null);
@@ -317,29 +337,116 @@ export default function AnalyticsDashboard() {
       }
 
       hasLoadedRef.current = true;
+      consecutiveErrorsRef.current = 0; // Reset error backoff on success
       setLastRefreshedAt(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     } catch (err: any) {
       if (err.name === "AbortError") return;
       console.error("[Analytics] Fetch error:", err);
+      consecutiveErrorsRef.current += 1;
     } finally {
+      fetchInFlightRef.current = false;
       setLoading(false);
       setIsBackgroundRefreshing(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, platform]);
 
+  // ─── Lightweight fetch (realtime + overview only) — for background polling ───
+  const fetchLightweight = useCallback(async () => {
+    // Guard: skip if already in-flight or tab hidden
+    if (fetchInFlightRef.current) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    // Back off after consecutive errors
+    if (consecutiveErrorsRef.current >= MAX_CONSECUTIVE_ERRORS) return;
+
+    const controller = new AbortController();
+    fetchInFlightRef.current = true;
+    setIsBackgroundRefreshing(true);
+
+    const params = new URLSearchParams({
+      from: dateRange.from.toISOString(),
+      to: dateRange.to.toISOString(),
+      ...(platform ? { platform } : {}),
+    });
+
+    try {
+      const results = await Promise.allSettled([
+        fetch(`/api/admin/analytics/overview?${params}`, { signal: controller.signal }).then(r => r.json()),
+        fetch(`/api/admin/analytics/realtime`, { signal: controller.signal }).then(r => r.json()),
+      ]);
+
+      if (controller.signal.aborted) return;
+
+      const getValue = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value : null;
+
+      const ovData: OverviewData | null = getValue(results[0]);
+      const rtData: RealtimeData | null = getValue(results[1]);
+
+      if (ovData) {
+        setOverview(ovData);
+        setOverviewError(ovData.error || null);
+      }
+      if (rtData) {
+        setRealtime(rtData);
+        setRealtimeError(rtData.error || null);
+      }
+
+      consecutiveErrorsRef.current = 0;
+      setLastRefreshedAt(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    } catch (err: any) {
+      if (err.name === "AbortError") return;
+      console.error("[Analytics] Lightweight fetch error:", err);
+      consecutiveErrorsRef.current += 1;
+    } finally {
+      fetchInFlightRef.current = false;
+      setIsBackgroundRefreshing(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, platform]);
+
+  // Full fetch on filter/preset/platform changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchAll(false); }, [dateRange, platform]);
 
-  // Background SWR auto-refresh every 15s for real live data sync
+  // ─── Background lightweight polling with visibility gating ───
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchAll(true);
-    }, 15_000);
-    return () => clearInterval(interval);
-  }, [fetchAll]);
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(() => {
+        fetchLightweight();
+      }, POLL_INTERVAL_MS);
+    };
+
+    const stopPolling = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Tab became visible — do one immediate lightweight refresh + restart polling
+        fetchLightweight();
+        startPolling();
+      } else {
+        // Tab hidden — stop polling entirely
+        stopPolling();
+      }
+    };
+
+    // Start polling initially (tab is visible)
+    startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchLightweight]);
 
   const handlePresetChange = (index: number) => {
+    consecutiveErrorsRef.current = 0; // Reset backoff on explicit action
     setActivePreset(index);
     setDateRange(DATE_PRESETS[index].getValue());
   };
@@ -499,7 +606,7 @@ export default function AnalyticsDashboard() {
           ].map((opt) => (
             <button
               key={opt.label}
-              onClick={() => setPlatform(opt.value)}
+              onClick={() => { consecutiveErrorsRef.current = 0; setPlatform(opt.value); }}
               className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1.5 ${
                 platform === opt.value
                   ? "bg-foreground text-background shadow-sm"
@@ -670,7 +777,7 @@ export default function AnalyticsDashboard() {
       ) : null}
 
       {/* ─── Charts Section ──────────────────────────────── */}
-      {charts?.error && <SectionError message={charts.error} onRetry={() => fetchAll(false)} />}
+      {chartsError && <SectionError message={chartsError} onRetry={() => fetchAll(false)} />}
 
       {loading && !charts ? (
         <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-80 animate-pulse bg-foreground/[0.02]" />
@@ -915,7 +1022,7 @@ export default function AnalyticsDashboard() {
 
         {/* Real-time Activity & 3D Globe */}
         <div className="lg:col-span-2">
-          {realtime?.error && <SectionError message={realtime.error} onRetry={() => fetchAll(false)} />}
+          {realtimeError && <SectionError message={realtimeError} onRetry={() => fetchAll(false)} />}
           {loading && !realtime ? (
             <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-96 animate-pulse bg-foreground/[0.02]" />
           ) : realtime ? (

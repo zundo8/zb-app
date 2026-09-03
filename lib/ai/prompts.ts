@@ -88,7 +88,7 @@ CRITICAL PLAIN-TEXT OUTPUT RULE (STRICT NO-MARKDOWN):
 - DO NOT use asterisks for bold or italic (**text**, *text*). Write words in plain text.
 - DO NOT use hashtags for headings (# Heading, ## Heading). Use plain line breaks.
 - DO NOT use dashes or asterisks for list bullet points (- item, * item). Use plain numbers (1., 2., 3.) or natural prose transitions.
-- DO NOT use backticks (`code`).
+- DO NOT use backticks (\`code\`).
 - Output clean, professional plain prose that reads naturally in plain-text emails, SMS, and WhatsApp dispatches.
 
 FASHION EXPERTISE:

@@ -5,11 +5,19 @@ import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 
 export const dynamic = 'force-dynamic';
 
+// Valid platform values for allow-list validation (FIX 7)
+const VALID_PLATFORMS = ['web', 'app'] as const;
+
 async function handler(req: Request) {
   try {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
+  const rawPlatform = searchParams.get('platform');
+
+  // Validate platform against allow-list (FIX 7)
+  const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
+  const platformFilter = platform ? { platform } : {};
 
   const now = new Date();
   const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
@@ -20,7 +28,7 @@ async function handler(req: Request) {
   // Most viewed products
   const mostViewed = await prisma.analyticsEvent.groupBy({
     by: ['productId'],
-    where: { eventName: 'view_item', createdAt: dateFilter, productId: { not: null } },
+    where: { eventName: 'view_item', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
     _count: { id: true },
     orderBy: { _count: { productId: 'desc' } },
     take: 20,
@@ -29,7 +37,7 @@ async function handler(req: Request) {
   // Most added to cart
   const mostAddedToCart = await prisma.analyticsEvent.groupBy({
     by: ['productId'],
-    where: { eventName: 'add_to_cart', createdAt: dateFilter, productId: { not: null } },
+    where: { eventName: 'add_to_cart', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
     _count: { id: true },
     orderBy: { _count: { productId: 'desc' } },
     take: 20,
@@ -38,7 +46,7 @@ async function handler(req: Request) {
   // Best selling (by purchase events)
   const bestSelling = await prisma.analyticsEvent.groupBy({
     by: ['productId'],
-    where: { eventName: 'purchase', createdAt: dateFilter, productId: { not: null } },
+    where: { eventName: 'purchase', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
     _count: { id: true },
     _sum: { value: true },
     orderBy: { _count: { productId: 'desc' } },

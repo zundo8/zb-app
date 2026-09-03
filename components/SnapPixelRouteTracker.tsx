@@ -10,6 +10,7 @@ import {
   getClientCookie,
   setClientCookie,
   trackSnapClientEvent,
+  initSnapPixel,
 } from '@/lib/snapPixel';
 
 function uuidv4() {
@@ -50,14 +51,19 @@ export function SnapPixelRouteTracker() {
       setClientCookie('zb_external_id', extId, 365);
     }
 
-    // 3. Generate shared eventId for PageView
+    // 3. Re-init pixel with current identity cookies for advanced matching.
+    //    No-args call defaults to buildBrowserIdentity() which maps cookies
+    //    to Snap's expected field names (user_email, firstname, geo_city, etc.)
+    initSnapPixel();
+
+    // 4. Generate shared eventId for PageView
     const eventId = 'pv_snap_' + uuidv4();
     const eventTime = Math.floor(Date.now() / 1000);
 
-    // 4. Client-side snaptr PageView
+    // 5. Client-side snaptr PageView
     trackSnapClientEvent('PAGE_VIEW', {}, eventId);
 
-    // 5. Server-side CAPI PageView
+    // 6. Server-side CAPI PageView
     const snapIdentity = getSnapIdentityCookies();
     const builtIdentity: Record<string, any> = { ...snapIdentity };
 

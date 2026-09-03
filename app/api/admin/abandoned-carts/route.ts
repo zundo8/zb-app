@@ -229,7 +229,7 @@ export async function GET(req: Request) {
       include: { items: true, customer: true }
     });
     const { isRaceDuplicateMap: abandonedDuplicatesMap } = await enrichCartsWithConversionData(rawAbandonedCarts);
-    const validAbandonedCount = rawAbandonedCarts.filter(c => !abandonedDuplicatesMap.get(c.id)).length;
+    const validAbandonedCount = rawAbandonedCarts.filter((c: any) => !abandonedDuplicatesMap.get(c.id)).length;
 
     const [liveCount, convertedCount, expiredCount] = await Promise.all([
       prisma.cart.count({

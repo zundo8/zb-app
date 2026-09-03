@@ -67,7 +67,7 @@ async function handler(req: Request) {
         AVG(lng) AS avg_lng
       FROM analytics_sessions
       WHERE started_at >= $1 AND started_at <= $2
-        AND city IS NOT NULL AND city != '' AND LOWER(city) != 'unknown'
+        AND city IS NOT NULL AND city != '' AND city NOT ILIKE 'unknown'
         ${platformCondition}
       GROUP BY city, UPPER(COALESCE(country_code, country))
       ORDER BY session_count DESC
@@ -91,9 +91,9 @@ async function handler(req: Request) {
       SELECT
         CASE
           WHEN LENGTH(country_code) = 2 THEN UPPER(country_code)
-          WHEN LOWER(country) LIKE '%india%' THEN 'IN'
-          WHEN LOWER(country) LIKE '%united states%' OR LOWER(country) LIKE '%usa%' THEN 'US'
-          WHEN LOWER(country) LIKE '%united kingdom%' OR LOWER(country) LIKE '%uk%' THEN 'GB'
+          WHEN country ILIKE '%india%' THEN 'IN'
+          WHEN country ILIKE '%united states%' OR country ILIKE '%usa%' THEN 'US'
+          WHEN country ILIKE '%united kingdom%' OR country ILIKE '%uk%' THEN 'GB'
           WHEN LENGTH(country) = 2 THEN UPPER(country)
           ELSE COALESCE(UPPER(country_code), 'IN')
         END AS country_code,

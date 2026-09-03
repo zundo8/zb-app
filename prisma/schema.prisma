@@ -1955,6 +1955,7 @@ model AnalyticsEvent {
 
   @@index([eventName, createdAt])
   @@index([sessionId])
+  @@index([sessionId, eventName])
   @@index([customerId])
   @@index([anonymousId])
   @@index([productId])
@@ -1997,6 +1998,9 @@ model AnalyticsSession {
   @@index([startedAt])
   @@index([lastActiveAt])
   @@index([platform, startedAt])
+  @@index([startedAt, utmSource])
+  @@index([startedAt, country])
+  @@index([startedAt, countryCode])
   @@map("analytics_sessions")
 }
 

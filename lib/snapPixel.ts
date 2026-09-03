@@ -100,15 +100,70 @@ export function getSnapIdentityCookies(): Record<string, string | undefined> {
   };
 }
 
+/**
+ * Helper: detect if a value is already a 64-char lowercase hex SHA-256 hash.
+ */
+function isSha256Hash(val: string): boolean {
+  return /^[a-f0-9]{64}$/.test(val.trim().toLowerCase());
+}
+
+/**
+ * Build the browser-pixel identity object from guest/logged-in cookies.
+ * Maps cookie fields to Snap Pixel advanced-matching field names.
+ * Strips empty/undefined keys so the pixel only receives populated fields.
+ */
+export function buildBrowserIdentity(): Record<string, string> {
+  const cookies = getSnapIdentityCookies();
+  const identity: Record<string, string> = {};
+
+  // Email: if already hashed, use user_hashed_email; otherwise user_email (Snap hashes client-side)
+  if (cookies.em) {
+    if (isSha256Hash(cookies.em)) {
+      identity.user_hashed_email = cookies.em.trim().toLowerCase();
+    } else {
+      identity.user_email = cookies.em;
+    }
+  }
+
+  // Phone: same hashed vs raw logic
+  if (cookies.ph) {
+    if (isSha256Hash(cookies.ph)) {
+      identity.user_hashed_phone_number = cookies.ph.trim().toLowerCase();
+    } else {
+      identity.user_phone_number = cookies.ph;
+    }
+  }
+
+  // Name fields
+  if (cookies.fn) identity.firstname = cookies.fn;
+  if (cookies.ln) identity.lastname = cookies.ln;
+
+  // Geo fields
+  if (cookies.ct) identity.geo_city = cookies.ct;
+  if (cookies.st) identity.geo_region = cookies.st;
+  if (cookies.zp) identity.geo_postal_code = cookies.zp;
+  if (cookies.country) identity.geo_country = cookies.country;
+
+  // External ID
+  if (cookies.uuid_c1) identity.external_id = cookies.uuid_c1;
+
+  return identity;
+}
+
 let isInitialized = false;
 
 /**
  * Initialize Snap Pixel with optional user data for advanced matching.
+ * When called with no arguments (or empty {}), defaults to buildBrowserIdentity()
+ * so the pixel is init'd with whatever PII cookies are currently available.
  */
-export const initSnapPixel = (userData: Record<string, any> = {}) => {
+export const initSnapPixel = (userData?: Record<string, any>) => {
   if (!SNAP_PIXEL_ID) return;
+  const resolvedData = (userData && Object.keys(userData).length > 0)
+    ? userData
+    : buildBrowserIdentity();
   withSnaptr((snaptr) => {
-    snaptr('init', SNAP_PIXEL_ID, userData);
+    snaptr('init', SNAP_PIXEL_ID, resolvedData);
     isInitialized = true;
     if (typeof window !== 'undefined') {
       (window as any).__snapPixelInitialized = true;
@@ -117,7 +172,9 @@ export const initSnapPixel = (userData: Record<string, any> = {}) => {
 };
 
 /**
- * Send client-side event via snaptr('track', eventName, params, options)
+ * Send client-side event via snaptr('track', eventName, params, options).
+ * Re-inits the pixel with fresh identity cookies before each track call
+ * so that late-arriving checkout PII (set during address entry) is captured.
  */
 export const trackSnapClientEvent = (
   eventName: string,
@@ -126,11 +183,19 @@ export const trackSnapClientEvent = (
 ) => {
   if (!SNAP_PIXEL_ID) return;
   withSnaptr((snaptr) => {
-    if (!isInitialized && typeof window !== 'undefined' && !(window as any).__snapPixelInitialized) {
+    // Re-init with current identity cookies so the pixel picks up any
+    // PII that arrived since the last init (e.g. checkout address entry)
+    const identity = buildBrowserIdentity();
+    if (Object.keys(identity).length > 0) {
+      snaptr('init', SNAP_PIXEL_ID, identity);
+      isInitialized = true;
+      (window as any).__snapPixelInitialized = true;
+    } else if (!isInitialized && typeof window !== 'undefined' && !(window as any).__snapPixelInitialized) {
       snaptr('init', SNAP_PIXEL_ID);
       isInitialized = true;
       (window as any).__snapPixelInitialized = true;
     }
+
     const payload = { ...params };
     if (eventId) {
       payload.event_id = eventId;

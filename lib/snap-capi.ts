@@ -110,6 +110,22 @@ export async function sendSnapEvent(payload: SnapCapiEventPayload): Promise<{ su
     if (payload.scCookie1) userDataObj.sc_cookie1 = payload.scCookie1;
     if (payload.uuidC1) userDataObj.uuid_c1 = payload.uuidC1;
 
+    // FIX 3: Extract OS family from User-Agent for direct os coverage
+    if (payload.userAgent) {
+      const ua = payload.userAgent;
+      if (/Android/i.test(ua)) {
+        userDataObj.os = 'android';
+      } else if (/iPhone|iPad|iPod/i.test(ua)) {
+        userDataObj.os = 'ios';
+      } else if (/Windows/i.test(ua)) {
+        userDataObj.os = 'windows';
+      } else if (/Macintosh|Mac OS/i.test(ua)) {
+        userDataObj.os = 'macos';
+      } else if (/Linux/i.test(ua)) {
+        userDataObj.os = 'linux';
+      }
+    }
+
     // Build custom_data dictionary
     const customDataObj: Record<string, any> = {};
     if (payload.customData) {
@@ -141,7 +157,8 @@ export async function sendSnapEvent(payload: SnapCapiEventPayload): Promise<{ su
       }
     }
 
-    // Build Snap CAPI event object according to Snapchat Conversions API V3 specification
+    // Build Snap CAPI event object — Snap V3 reads identity ONLY from user_data.
+    // All PII/identity keys live exclusively in userDataObj (no top-level duplicates).
     const eventObj: Record<string, any> = {
       pixel_id: pixelId,
       event_name: payload.eventName,
@@ -155,20 +172,6 @@ export async function sendSnapEvent(payload: SnapCapiEventPayload): Promise<{ su
       event_id: payload.eventId,
       user_data: userDataObj,
       ...(Object.keys(customDataObj).length > 0 ? { custom_data: customDataObj } : {}),
-      // Also maintain top-level hashed PII keys for backwards compatibility
-      hashed_email: em || undefined,
-      hashed_phone_number: ph || undefined,
-      hashed_first_name: fn || undefined,
-      hashed_last_name: ln || undefined,
-      hashed_city: ct || undefined,
-      hashed_state: st || undefined,
-      hashed_zip: zp || undefined,
-      hashed_country: country || undefined,
-      client_ip_address: payload.ipAddress || undefined,
-      user_agent: payload.userAgent || undefined,
-      sc_click_id: payload.scClickId || undefined,
-      sc_cookie1: payload.scCookie1 || undefined,
-      uuid_c1: payload.uuidC1 || undefined,
     };
 
     // Clean undefined/null keys

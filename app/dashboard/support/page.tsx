@@ -561,4 +561,3 @@ export default function SupportDashboard() {
     </motion.div>
   );
 }
-}

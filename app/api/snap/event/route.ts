@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     // look up city/state/country from the visitor's IP address.
     let ipGeo: Awaited<ReturnType<typeof lookupIpGeo>> = null;
     const hasClientGeo = !!(guestCountry || guestState || guestCity || guestZip);
-    if (!hasClientGeo && eventName !== 'PURCHASE') {
+    if (!hasClientGeo) {
       ipGeo = await lookupIpGeo(getClientIP(req));
     }
 
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       country: userData?.country || guestCountry || ipGeo?.countryCode?.toLowerCase(),
       st: userData?.st || guestState || ipGeo?.region,
       ct: userData?.ct || guestCity || ipGeo?.city,
-      zp: userData?.zp || guestZip,
+      zp: userData?.zp || guestZip || ipGeo?.zip,
     };
 
     const result = await sendSnapEvent({
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       eventId,
       eventTime,
       eventSourceUrl,
-      userAgent: userAgent || req.headers.get('user-agent') || '',
+      userAgent: (userAgent && userAgent.trim()) ? userAgent : (req.headers.get('user-agent') || ''),
       ipAddress: ip,
       scClickId: userData?.sc_click_id || scClickId,
       scCookie1: userData?.sc_cookie1 || scCookie1,

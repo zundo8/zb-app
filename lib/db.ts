@@ -112,15 +112,23 @@ const prismaClientSingleton = () => {
   try {
     // Connection Pool Configuration:
     // Configured for Supabase pooler (port 6543 / Supavisor transaction pooler).
-    // Uses max: 1 connection per serverless invocation to prevent exhausting pooler slots.
+    // Uses max: 3 connections per serverless invocation to prevent exhausting pooler slots.
+    // statement_timeout = 8s prevents analytics queries from holding connections indefinitely.
+    const poolMax = process.env.PG_POOL_MAX ? parseInt(process.env.PG_POOL_MAX) : 3;
     const pool = new Pool({
       connectionString: pgUrl,
       ssl: { 
         rejectUnauthorized: false 
       },
-      max: process.env.PG_POOL_MAX ? parseInt(process.env.PG_POOL_MAX) : 10,
-      idleTimeoutMillis: 30000,
+      max: poolMax,
+      idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 20000,
+    });
+
+    // Set statement_timeout on every new connection so no query can hold a pooled
+    // connection indefinitely. 8s cap — analytics is not allowed to run longer.
+    pool.on('connect', (client) => {
+      client.query('SET statement_timeout = 8000').catch(() => {});
     });
 
     pool.on('error', (err) => {
@@ -239,7 +247,7 @@ const prismaClientSingleton = () => {
       }
     });
 
-    console.log('[DB] Prisma Client initialized with PgAdapter (Serverless Pooler max:1 active)');
+    console.log(`[DB] Prisma Client initialized with PgAdapter (Pooler max:${poolMax}, statement_timeout:8s)`);
     return extendedClient as any;
   } catch (error: any) {
     console.error('[DB] Critical Prisma initialization error:', error.message);
