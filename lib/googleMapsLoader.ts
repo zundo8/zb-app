@@ -14,7 +14,8 @@ import { setOptions, importLibrary, type LibraryMap } from '@googlemaps/js-api-l
 
 let configured = false;
 let bootPromise: Promise<void> | null = null;
-let loadedLibraries = new Set<string>();
+const loadedLibraries = new Set<string>();
+let hasFailed = false;
 
 /**
  * Configure the Google Maps loader exactly once. Returns false if no API key
@@ -31,6 +32,39 @@ export function configureGoogleMaps(): boolean {
 }
 
 /**
+ * Remove Google Maps error overlays injected into the DOM.
+ * Google Maps JS API injects error divs (with class "gm-err-*" or
+ * data-attributesin certain containers) when there's an auth or loading error.
+ * This function removes those overlays so they don't pollute the checkout UI.
+ */
+export function dismissGoogleMapsErrors(): void {
+  if (typeof document === 'undefined') return;
+  try {
+    // Remove the "Sorry! Something went wrong" overlay containers
+    // Google Maps injects these with specific class patterns
+    const selectors = [
+      '.gm-err-container',
+      '.gm-style-pbc',          // The translucent overlay backdrop
+      '[data-gm-err-container]',
+      '.dismissButton',          // Error dismiss button
+    ];
+    for (const selector of selectors) {
+      document.querySelectorAll(selector).forEach(el => el.remove());
+    }
+    // Also remove inline error style injections that Google Maps places
+    document.querySelectorAll('div[style*="background-color: rgb(229, 227, 223)"]').forEach(el => {
+      if (el.textContent?.includes('Something went wrong') || el.textContent?.includes('sorry')) {
+        el.remove();
+      }
+    });
+    // Remove the gm-err-message elements
+    document.querySelectorAll('.gm-err-message, .gm-err-title, .gm-err-autocomplete').forEach(el => el.remove());
+  } catch {
+    // Non-critical — don't let cleanup errors break the app
+  }
+}
+
+/**
  * Idempotent loader: every caller awaits the SAME libraries load; never
  * re-calls setOptions(). Returns true if all requested libraries loaded
  * successfully, false on any failure (missing key, network error, auth error).
@@ -42,6 +76,9 @@ export function configureGoogleMaps(): boolean {
 export async function loadGoogleMaps(
   libraries: Array<'places' | 'geocoding' | 'maps' | 'marker'> = ['places', 'geocoding']
 ): Promise<boolean> {
+  // If a previous attempt failed, don't retry (avoids re-triggering the error overlay)
+  if (hasFailed) return false;
+
   if (!configureGoogleMaps()) return false;
 
   // Determine which libraries still need loading
@@ -54,6 +91,8 @@ export async function loadGoogleMaps(
       return true;
     } catch {
       bootPromise = null;
+      hasFailed = true;
+      dismissGoogleMapsErrors();
       return false;
     }
   }
@@ -87,6 +126,8 @@ export async function loadGoogleMaps(
     return true;
   } catch {
     bootPromise = null;
+    hasFailed = true;
+    dismissGoogleMapsErrors();
     return false;
   }
 }

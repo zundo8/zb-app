@@ -76,30 +76,15 @@ export async function POST(req: Request) {
       });
     }
 
-    // 1. Try Twilio Verify first
-    try {
-      const verifyResult = await SmsService.sendVerification(normalizedPhone);
-      if (verifyResult) {
-        // Log to database
-        await prisma.appLogin.create({
-          data: {
-            phone: normalizedPhone,
-            status: "OTP_SENT",
-            ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
-            userAgent: req.headers.get("user-agent") || "Web Browser"
-          }
-        }).catch(console.error);
-
-        return NextResponse.json({ 
-          success: true, 
-          message: "Verification code sent via Twilio Verify",
-          provider: "verify",
-          phone: normalizedPhone.slice(0, 4) + "****" + normalizedPhone.slice(-4)
-        });
-      }
-    } catch (verifyError: any) {
-      console.error("Twilio Verify send failed, falling back to manual SMS:", verifyError.message);
-    }
+    // Twilio Verify is intentionally BYPASSED here.
+    // When Twilio Verify sends an OTP, no code is stored in the local database.
+    // This causes verification failures because:
+    //   1. The DB-first check in options.ts/mobile-verify finds no matching code
+    //   2. If Twilio's checkVerification also fails (code consumed, API error,
+    //      exceeded 5 check attempts), the user is permanently locked out
+    // By always using manual SMS, we store the OTP in our own DB where we
+    // control the full verification lifecycle.
+    // See: https://github.com/zica-bella/issues — OTP verification failure fix
 
     // 2. Fallback to manual SMS if Verify is not available or failed
     // Generate cryptographically-influenced 6-digit OTP

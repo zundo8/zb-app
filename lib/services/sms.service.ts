@@ -122,10 +122,17 @@ export const SmsService = {
         .verificationChecks
         .create({ to: formattedPhone, code });
       
-      console.log(`[SmsService] Verify OTP check for ${formattedPhone}: ${check.status}`);
+      console.log(`[SmsService] Verify OTP check for ${formattedPhone}: status=${check.status}, valid=${check.valid}`);
       return check.status === 'approved';
     } catch (error: any) {
-      console.error('[SmsService] Twilio Verify check error:', error);
+      // Log detailed error info for debugging — Twilio error codes:
+      // 20404: Verification not found (expired or already consumed)
+      // 60200: Invalid parameter (bad phone format or missing verification)
+      // 60202: Max check attempts reached
+      // 60203: Max send attempts reached
+      const twilioCode = error.code || error.status || 'unknown';
+      const twilioMsg = error.message || 'No message';
+      console.error(`[SmsService] Twilio Verify check error [code=${twilioCode}]: ${twilioMsg} (phone=${to})`);
       return false;
     }
   }

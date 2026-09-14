@@ -161,12 +161,14 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Fallback to Twilio Verify check if not verified by local DB
+    // 2. Fallback to Twilio Verify check (secondary — for codes sent via
+    //    Twilio Verify before the fix to always use manual SMS was deployed)
     if (!isVerified) {
       try {
         const verifyCheck = await SmsService.checkVerification(phone, otp);
         if (verifyCheck === true) {
           isVerified = true;
+          console.log(`[Mobile Verify] OTP verified via Twilio Verify for phone`);
           // Cache the verified code locally so that duplicate calls
           // hit the DB fast-path instead of Twilio (single-use codes).
           await prisma.verificationCode.create({
@@ -176,9 +178,11 @@ export async function POST(req: Request) {
               expiresAt: new Date(Date.now() + 2 * 60 * 1000), // 2 min TTL
             }
           }).catch((e: any) => console.log("[Mobile Verify] Cache verified OTP:", e.message));
+        } else {
+          console.log(`[Mobile Verify] Twilio Verify check returned false/null`);
         }
       } catch (err: any) {
-        console.log("[Mobile Verify] Twilio Verify check failed/skipped:", err.message);
+        console.warn(`[Mobile Verify] Twilio Verify check failed: ${err.message}`);
       }
     }
 

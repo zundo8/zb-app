@@ -244,12 +244,14 @@ export const authOptions: AuthOptions = {
             }
           }
 
-          // 2. Fallback to Twilio Verify check if not verified by local DB
+          // 2. Fallback to Twilio Verify check (secondary — for codes sent via
+          //    Twilio Verify before the fix to always use manual SMS was deployed)
           if (!isVerified) {
             try {
               const verifyCheck = await SmsService.checkVerification(fullPhone, providedOtp);
               if (verifyCheck === true) {
                 isVerified = true;
+                console.log(`[AUTH] OTP verified via Twilio Verify for ${fullPhone}`);
                 // Cache the verified code locally so that duplicate signIn calls
                 // (mobile auto-submit + manual tap race) hit the DB fast-path
                 // instead of calling Twilio again (Twilio codes are single-use).
@@ -260,9 +262,11 @@ export const authOptions: AuthOptions = {
                     expiresAt: new Date(Date.now() + 2 * 60 * 1000), // 2 min TTL
                   }
                 }).catch((e: any) => console.log("[AUTH] Cache verified OTP:", e.message));
+              } else {
+                console.log(`[AUTH] Twilio Verify check returned false/null for ${fullPhone}`);
               }
             } catch (err: any) {
-              console.log("[AUTH] Twilio Verify check failed/skipped:", err.message);
+              console.warn(`[AUTH] Twilio Verify check failed for ${fullPhone}: ${err.message}`);
             }
           }
 

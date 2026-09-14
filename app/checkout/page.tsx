@@ -45,7 +45,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useCountry } from "@/lib/country-context";
-import { loadGoogleMaps } from "@/lib/googleMapsLoader";
+import { loadGoogleMaps, dismissGoogleMapsErrors } from "@/lib/googleMapsLoader";
 import { formatPriceString } from "@/lib/global-pricing-client";
 import {
   COUNTRIES,
@@ -383,11 +383,13 @@ export default function CheckoutPage() {
           setGoogleMapsLoaded(true);
         } else {
           console.warn("Google Maps failed to load (missing key or auth error). Falling back to Nominatim + IP geo.");
+          dismissGoogleMapsErrors();
           setGoogleMapsError(true);
         }
       })
       .catch((err) => {
         console.error("Failed to load Google Maps script:", err);
+        dismissGoogleMapsErrors();
         setGoogleMapsError(true);
       });
   }, [googleMapsLoaded, googleMapsError]);
@@ -461,6 +463,7 @@ export default function CheckoutPage() {
         });
       } catch (err) {
         console.error("Error initializing Google Autocomplete:", err);
+        dismissGoogleMapsErrors();
         setGoogleMapsError(true);
       }
     };
@@ -607,8 +610,14 @@ export default function CheckoutPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+
+        // ── Strategy: Google Maps → Nominatim → IP Geo ──
+        // Each step is independently wrapped so a failure in one
+        // doesn't prevent the next fallback from running.
+
+        // 1. Try Google Maps reverse-geocoding
+        let googleSuccess = false;
         try {
-          // Try Google Maps reverse-geocoding first (via the singleton loader)
           const mapsOk = await loadGoogleMaps(['places', 'geocoding']);
           if (mapsOk) {
             const googleObj = (window as any).google;
@@ -619,6 +628,7 @@ export default function CheckoutPage() {
                   if (status === "OK" && results && results[0]) {
                     resolve({ success: true, result: results[0] });
                   } else {
+                    console.warn(`[Checkout] Google geocode status: ${status}`);
                     resolve({ success: false });
                   }
                 });
@@ -661,21 +671,38 @@ export default function CheckoutPage() {
                   delete next.zip;
                   return next;
                 });
-                setLocating(false);
-                return;
+                googleSuccess = true;
               }
             }
           }
+        } catch (gmErr: any) {
+          console.warn("[Checkout] Google Maps reverse-geocode failed:", gmErr.message || gmErr);
+          // Clean up any error overlays Google Maps may have injected
+          dismissGoogleMapsErrors();
+        }
 
-          // Google Maps failed or unavailable — fall back to Nominatim
+        if (googleSuccess) {
+          setLocating(false);
+          return;
+        }
+
+        // 2. Fallback: Nominatim (OpenStreetMap)
+        try {
           await reverseGeocodeNominatim(latitude, longitude);
           setLocating(false);
-        } catch (err: any) {
-          console.error("Error reverse geocoding:", err);
-          // Both Maps and Nominatim failed — try IP fallback with GPS coords
-          setAddress(prev => ({ ...prev, lat: latitude, lng: longitude }));
+          return;
+        } catch (nomErr: any) {
+          console.warn("[Checkout] Nominatim reverse-geocode failed:", nomErr.message || nomErr);
+        }
+
+        // 3. Last resort: IP-based geolocation + store GPS coords
+        setAddress(prev => ({ ...prev, lat: latitude, lng: longitude }));
+        const ipOk = await fetchIpGeoFallback();
+        setLocating(false);
+        if (ipOk) {
+          setError("Using approximate location. You can edit the address below.");
+        } else {
           setError("Unable to retrieve address details. Please fill manually.");
-          setLocating(false);
         }
       },
       async (err) => {

@@ -337,6 +337,18 @@ export default function LoginPage() {
     }
   };
 
+  // Debounce timer for auto-submit to prevent race conditions
+  const autoSubmitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleAutoSubmit = (code: string) => {
+    if (autoSubmitTimer.current) clearTimeout(autoSubmitTimer.current);
+    autoSubmitTimer.current = setTimeout(() => {
+      if (!isSubmittingRef.current && !loginSucceededRef.current) {
+        handleLogin(code);
+      }
+    }, 150);
+  };
+
   const handleOtpChange = (val: string, index: number) => {
     const cleanedVal = val.replace(/\D/g, "");
     if (cleanedVal.length > 1) {
@@ -352,8 +364,8 @@ export default function LoginPage() {
       const nextIdx = Math.min(startIndex + digits.length, 5);
       otpRefs.current[nextIdx]?.focus();
 
-      if (newOtp.every(d => d !== "") && newOtp.join("").length === 6 && !isSubmittingRef.current && !loginSucceededRef.current) {
-        handleLogin(newOtp.join(""));
+      if (newOtp.every(d => d !== "") && newOtp.join("").length === 6) {
+        scheduleAutoSubmit(newOtp.join(""));
       }
       return;
     }
@@ -366,8 +378,8 @@ export default function LoginPage() {
       otpRefs.current[index + 1]?.focus();
     }
 
-    if (newOtp.every(d => d !== "") && index === 5 && cleanedVal && !isSubmittingRef.current && !loginSucceededRef.current) {
-      handleLogin(newOtp.join(""));
+    if (newOtp.every(d => d !== "") && index === 5 && cleanedVal) {
+      scheduleAutoSubmit(newOtp.join(""));
     }
   };
 
