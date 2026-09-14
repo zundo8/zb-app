@@ -135,13 +135,59 @@ export async function sendOpenAiEvent(payload: OpenAiCapiPayload): Promise<OpenA
       else if (digits.length === 11 && digits.startsWith('0')) base = digits.slice(1);
       return `91${base}`;
     });
+    const fnHash = cleanAndHashField(payload.userData?.fn, s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const lnHash = cleanAndHashField(payload.userData?.ln, s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+    // Geo fields (raw string normalization per official OpenAI Developers spec)
+    const cleanCountry = payload.userData?.country?.trim();
+    const countryCode = cleanCountry ? (
+      cleanCountry.toLowerCase() === 'india' || cleanCountry.toLowerCase() === 'ind' || cleanCountry.toLowerCase() === 'in' ? 'IN' :
+      cleanCountry.toLowerCase() === 'united states' || cleanCountry.toLowerCase() === 'usa' || cleanCountry.toLowerCase() === 'us' ? 'US' :
+      cleanCountry.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2)
+    ) : undefined;
+    const cleanCity = payload.userData?.ct?.trim();
+    const cleanState = payload.userData?.st?.trim();
+    const cleanZip = payload.userData?.zp?.trim();
+
+    // Hashed geo fields for cross-platform compatibility
+    const cityHash = cleanAndHashField(payload.userData?.ct, s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const stateHash = cleanAndHashField(payload.userData?.st, s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const zipHash = cleanAndHashField(payload.userData?.zp, s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const countryHash = cleanAndHashField(payload.userData?.country, c => {
+      const clean = c.trim().toLowerCase();
+      if (clean === 'india' || clean === 'ind' || clean === 'in') return 'in';
+      if (clean === 'united states' || clean === 'usa' || clean === 'us') return 'us';
+      return clean.replace(/[^a-z]/g, '').slice(0, 2);
+    });
 
     // Build user object
     const userObj: Record<string, any> = {};
     if (emailsHash) userObj.emails_sha256 = [emailsHash];
     if (phoneHash) userObj.phone_numbers_sha256 = [phoneHash];
-    if (payload.ipAddress) userObj.client_ip_address = payload.ipAddress;
-    if (payload.userAgent) userObj.client_user_agent = payload.userAgent;
+    if (fnHash) userObj.first_names_sha256 = [fnHash];
+    if (lnHash) userObj.last_names_sha256 = [lnHash];
+
+    // Official OpenAI CAPI geo arrays (raw strings per documentation)
+    if (countryCode) userObj.countries = [countryCode];
+    if (cleanCity) userObj.cities = [cleanCity];
+    if (cleanState) userObj.regions = [cleanState];
+    if (cleanZip) userObj.postal_codes = [cleanZip];
+
+    // Compatibility hashed geo fields
+    if (cityHash) userObj.cities_sha256 = [cityHash];
+    if (stateHash) userObj.regions_sha256 = [stateHash];
+    if (zipHash) userObj.postal_codes_sha256 = [zipHash];
+    if (countryHash) userObj.country_codes_sha256 = [countryHash];
+
+    // Client network & device metadata (supports official ip_address/user_agent & client_* aliases)
+    if (payload.ipAddress) {
+      userObj.ip_address = payload.ipAddress;
+      userObj.client_ip_address = payload.ipAddress;
+    }
+    if (payload.userAgent) {
+      userObj.user_agent = payload.userAgent;
+      userObj.client_user_agent = payload.userAgent;
+    }
     if (payload.obref) userObj.obref = payload.obref;
 
     // Build data object

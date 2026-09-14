@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getExpectedTAT } from '@/lib/delhivery';
+import { requireAdmin, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    await requireAdmin('LOGISTICS', 'view');
+
     const { searchParams } = new URL(req.url);
     const origin = searchParams.get('origin');
     const destination = searchParams.get('destination');
@@ -17,6 +20,9 @@ export async function GET(req: Request) {
     const tat = await getExpectedTAT(origin, destination, mot);
     return NextResponse.json({ success: true, tat });
   } catch (error: any) {
+    if (error instanceof Error && (error.message === '401' || error.message === '403')) {
+      return handleAuthError(error);
+    }
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

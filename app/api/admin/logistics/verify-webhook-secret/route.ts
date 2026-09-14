@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { resolveWebhookSecret, validateWebhookSignature } from '@/lib/services/logistics';
+import { requireAdmin, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,8 @@ async function getSecretStatus() {
 
 export async function GET(req: NextRequest) {
   try {
+    await requireAdmin('LOGISTICS', 'view');
+
     const { envSecretSet, dbSecretSet, secretsMatch, activeSource, mode } = await getSecretStatus();
 
     return NextResponse.json({
@@ -30,6 +33,9 @@ export async function GET(req: NextRequest) {
       mode,
     });
   } catch (error: any) {
+    if (error instanceof Error && (error.message === '401' || error.message === '403')) {
+      return handleAuthError(error);
+    }
     console.error('[Admin API] verify-webhook-secret Error:', error.message);
     return NextResponse.json({ error: 'Failed to verify webhook secrets' }, { status: 500 });
   }
@@ -37,6 +43,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireAdmin('LOGISTICS', 'edit');
+
     const { envSecretSet, dbSecretSet, secretsMatch, activeSource, mode, secret } = await getSecretStatus();
 
     let signature = '';
@@ -60,6 +68,9 @@ export async function POST(req: NextRequest) {
       wouldAccept,
     });
   } catch (error: any) {
+    if (error instanceof Error && (error.message === '401' || error.message === '403')) {
+      return handleAuthError(error);
+    }
     console.error('[Admin API] verify-webhook-secret POST Error:', error.message);
     return NextResponse.json({ error: 'Failed to test webhook secret' }, { status: 500 });
   }

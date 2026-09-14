@@ -4,7 +4,11 @@ import { NextResponse } from "next/server";
 import { Module } from "@prisma/client";
 
 export async function getSession() {
-  return await getServerSession(authOptions);
+  try {
+    return await getServerSession(authOptions);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -50,6 +54,36 @@ export async function requirePermission(module: Module, action: "view" | "edit" 
   if (action === "view" && !permission.canView) throw new Error("403");
   if (action === "edit" && !permission.canEdit) throw new Error("403");
   if (action === "delete" && !permission.canDelete) throw new Error("403");
+
+  return session;
+}
+
+/**
+ * Strict server-side admin authentication and role/permission validation.
+ * Checks NextAuth session, verifies user has ADMIN or SUPER_ADMIN role.
+ * If module and action are specified, validates granular RBAC permissions.
+ * Throws "401" if unauthenticated, "403" if not an admin or lacking permission.
+ */
+export async function requireAdmin(module?: Module, action: "view" | "edit" | "delete" = "view") {
+  const session = await requireAuth();
+  const user = session.user as any;
+  const role = user?.role;
+
+  if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+    throw new Error("403");
+  }
+
+  // Super Admin bypasses granular module checks
+  if (role === "SUPER_ADMIN") return session;
+
+  if (module) {
+    const permissions = user.permissions || [];
+    const permission = permissions.find((p: any) => p.module === module);
+    if (!permission) throw new Error("403");
+    if (action === "view" && !permission.canView) throw new Error("403");
+    if (action === "edit" && !permission.canEdit) throw new Error("403");
+    if (action === "delete" && !permission.canDelete) throw new Error("403");
+  }
 
   return session;
 }

@@ -20,20 +20,36 @@ export async function GET(
 
     const orderId = params.id;
 
-    const order = await prisma.order.findUnique({
+    const includeRelations = { 
+      items: {
+        include: {
+          product: true
+        }
+      }, 
+      shipments: true,
+      customer: true,
+      returnRequests: true,
+      exchangeRequests: true
+    };
+
+    let order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { 
-        items: {
-          include: {
-            product: true
-          }
-        }, 
-        shipments: true,
-        customer: true,
-        returnRequests: true,
-        exchangeRequests: true
-      },
+      include: includeRelations,
     });
+
+    if (!order) {
+      order = await prisma.order.findFirst({
+        where: { internalOrderNumber: orderId },
+        include: includeRelations,
+      });
+    }
+
+    if (!order) {
+      order = await prisma.order.findFirst({
+        where: { shopifyOrderId: orderId },
+        include: includeRelations,
+      });
+    }
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -88,7 +104,12 @@ export async function GET(
 
     // Find matching WebStoreOrder to get the nice #ZB40001 order number format
     let webStoreOrder = null;
-    if (order.razorpayOrderId) {
+    if (order.internalOrderNumber) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: { orderNumber: order.internalOrderNumber }
+      });
+    }
+    if (!webStoreOrder && order.razorpayOrderId) {
       webStoreOrder = await prisma.webStoreOrder.findFirst({
         where: { razorpayOrderId: order.razorpayOrderId }
       });
@@ -121,8 +142,8 @@ export async function GET(
     let codUpfrontPaid = webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 0;
     if (isCodOrder && codUpfrontPaid === 0) {
       const pStat = (webStoreOrder?.paymentStatus || order.paymentStatus || '').toLowerCase();
-      if (pStat === 'cod_upfront_paid' || pStat === 'paid' || isCodOrder) {
-        codUpfrontPaid = 99;
+      if (pStat === 'cod_upfront_paid' || pStat === 'partially_paid' || pStat === 'paid' || isCodOrder) {
+        codUpfrontPaid = Number(order.codUpfrontPaid) || 99;
       }
     }
 

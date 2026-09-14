@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { requireAdmin, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    await requireAdmin('LOGISTICS', 'view');
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search');
     const status = searchParams.get('status');
@@ -93,6 +95,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ success: true, shipments: unifiedShipments });
   } catch (error: any) {
+    if (error instanceof Error && (error.message === '401' || error.message === '403')) {
+      return handleAuthError(error);
+    }
     console.error('[Logistics API] Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

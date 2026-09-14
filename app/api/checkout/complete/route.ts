@@ -152,11 +152,16 @@ export async function POST(req: Request) {
     // If verified, derive server total and compare
     if (priceVerified) {
       const serverCodFee = isCodOrder ? Number(codFee || 99) : 0;
-      const serverTotal = Math.max(0, serverSubtotal - Number(finalCouponDiscount || 0) - parsedStoreCredit + serverCodFee);
+      const baseServerTotal = Math.max(0, serverSubtotal - Number(finalCouponDiscount || 0) - parsedStoreCredit);
+      const serverTotalWithFee = baseServerTotal + serverCodFee;
       const clientTotal = Number(total || 0);
 
-      if (Math.abs(serverTotal - clientTotal) > 1) {
-        console.error(`[Checkout] Price mismatch! Server: ₹${serverTotal}, Client: ₹${clientTotal}, ServerSubtotal: ₹${serverSubtotal}`);
+      // In webstore COD, upfront fee (₹99) is an advance deposit deducted from total.
+      // In mobile app, COD fee is added to total. Both are accepted within ₹1 tolerance.
+      const isMatch = Math.abs(baseServerTotal - clientTotal) <= 1 || (isCodOrder && Math.abs(serverTotalWithFee - clientTotal) <= 1);
+
+      if (!isMatch) {
+        console.error(`[Checkout] Price mismatch! ServerBase: ₹${baseServerTotal}, ServerWithFee: ₹${serverTotalWithFee}, Client: ₹${clientTotal}, ServerSubtotal: ₹${serverSubtotal}`);
         return NextResponse.json(
           { error: 'Cart total mismatch. Please refresh and retry.' },
           { status: 400 }
@@ -329,12 +334,13 @@ export async function POST(req: Request) {
     let shopifyCustomerId = localCustomer.shopifyId;
     if (shopifyCustomerId.startsWith('temp_') || shopifyCustomerId.startsWith('google_') || shopifyCustomerId.startsWith('apple_')) {
       try {
+        const hasValidEmail = Boolean(address.email && String(address.email).includes('@'));
         const sCustomer = await createCustomer({
           first_name: address.name.split(' ')[0],
           last_name: address.name.split(' ').slice(1).join(' ') || '.',
-          email: address.email,
+          email: hasValidEmail ? address.email : undefined,
           phone: address.phone,
-          verified_email: true,
+          verified_email: hasValidEmail,
           addresses: [{
             address1: address.street,
             city: address.city,
@@ -450,7 +456,7 @@ export async function POST(req: Request) {
     const resolvedMethodTag = isFullStoreCredit ? "Store Credit" : paymentMethod === "COD" ? "COD" : "Prepaid, Razorpay";
     const shopifyOrderData: any = {
       line_items: shopifyLineItems,
-      email: address.email,
+      ...(address.email && String(address.email).includes('@') ? { email: address.email } : {}),
       send_receipt: false,
       send_fulfillment_receipt: false,
       billing_address: {
@@ -947,69 +953,104 @@ export async function POST(req: Request) {
     // Sync WebStoreOrder for dashboard integration
     let webStoreOrder: any = null;
     try {
-      const existingWebStoreOrder = await prisma.webStoreOrder.findFirst({
+      const prevNumbers = existingPreCreatedOrder?.previousOrderNumbers
+        ? existingPreCreatedOrder.previousOrderNumbers.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      const oldInternalNumber = existingPreCreatedOrder?.internalOrderNumber;
+
+      let existingWebStoreOrder = await prisma.webStoreOrder.findFirst({
         where: {
           OR: [
             ...(razorpay?.razorpay_order_id ? [{ razorpayOrderId: razorpay.razorpay_order_id }] : []),
-            { orderNumber: universalOrderNumber }
+            { orderNumber: universalOrderNumber },
+            ...(oldInternalNumber ? [{ orderNumber: oldInternalNumber }] : []),
+            ...prevNumbers.map((num: string) => ({ orderNumber: num })),
+            ...(existingPreCreatedOrder?.id ? [{ notes: { contains: `Local: ${existingPreCreatedOrder.id}` } }] : [])
           ]
         }
       });
+
+      const wsPaymentStatus = isFullStoreCredit ? "paid" : isCodOrder ? "partially_paid" : "paid";
+      const wsCodUpfrontPaid = isCodOrder ? (Number(codFee) || 99) : 0;
+      const wsCodUpfrontPaymentId = isCodOrder ? (razorpay?.razorpay_payment_id || null) : null;
+      const wsNotes = isFullStoreCredit
+        ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
+        : `${isCodOrder ? `COD Order (₹${wsCodUpfrontPaid} upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`;
 
       if (existingWebStoreOrder) {
         webStoreOrder = await prisma.webStoreOrder.update({
           where: { id: existingWebStoreOrder.id },
           data: {
             orderNumber: universalOrderNumber,
-            paymentStatus: isFullStoreCredit ? "paid" : isCodOrder ? "cod_upfront_paid" : "paid",
+            paymentStatus: wsPaymentStatus,
             paymentMethod: finalPaymentMethod,
+            razorpayOrderId: razorpay?.razorpay_order_id || existingWebStoreOrder.razorpayOrderId,
             razorpayPaymentId: razorpay?.razorpay_payment_id || null,
             storeCreditAmount: parsedStoreCredit,
-            codUpfrontPaid: isCodOrder ? (Number(codFee) || 99) : 0,
-            codUpfrontPaymentId: isCodOrder ? (razorpay?.razorpay_payment_id || null) : null,
+            codUpfrontPaid: wsCodUpfrontPaid,
+            codUpfrontPaymentId: wsCodUpfrontPaymentId,
             paymentFailureReason: null,
-            notes: isFullStoreCredit
-              ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
-              : `${isCodOrder ? `COD Order (₹${Number(codFee) || 99} upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`
+            notes: wsNotes
           }
         });
-        console.log(`[Checkout Complete] Updated pre-created WebStoreOrder ${webStoreOrder.id} (${universalOrderNumber}) to paid/cod_upfront_paid`);
+        console.log(`[Checkout Complete] Updated pre-created WebStoreOrder ${webStoreOrder.id} (${universalOrderNumber}) to ${wsPaymentStatus}`);
       } else {
-        webStoreOrder = await prisma.webStoreOrder.create({
-          data: {
-            orderNumber: universalOrderNumber,
-            customerName: address.name,
-            customerEmail: address.email,
-            customerPhone: address.phone || "",
-            shippingAddress: address as any,
-            items: items.map((item: any) => ({
-              product_id: item.productId,
-              variant_id: item.variantId || "",
-              title: item.title,
-              image_url: item.image || "",
-              quantity: item.quantity,
-              price: Number(item.price) || 0,
-              size: item.size || ""
-            })) as any,
-            subtotal: subtotal,
-            shippingCharge: 0,
-            discountCode: finalCouponCode || null,
-            discountAmount: Number(finalCouponDiscount) || 0,
-            storeCreditAmount: parsedStoreCredit,
-            totalAmount: total,
-            paymentStatus: isFullStoreCredit ? "paid" : isCodOrder ? "cod_upfront_paid" : "paid",
-            paymentMethod: finalPaymentMethod,
-            razorpayOrderId: razorpay?.razorpay_order_id || null,
-            razorpayPaymentId: razorpay?.razorpay_payment_id || null,
-            codUpfrontPaid: isCodOrder ? (Number(codFee) || 99) : 0,
-            codUpfrontPaymentId: isCodOrder ? (razorpay?.razorpay_payment_id || null) : null,
-            fulfillmentStatus: "unfulfilled",
-            notes: isFullStoreCredit
-              ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
-              : `${isCodOrder ? `COD Order (₹${Number(codFee) || 99} upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`,
-            source: "web"
-          }
+        // Double check by orderNumber before create to prevent P2002 unique constraint conflict
+        const byOrderNum = await prisma.webStoreOrder.findUnique({
+          where: { orderNumber: universalOrderNumber }
         });
+
+        if (byOrderNum) {
+          webStoreOrder = await prisma.webStoreOrder.update({
+            where: { id: byOrderNum.id },
+            data: {
+              paymentStatus: wsPaymentStatus,
+              paymentMethod: finalPaymentMethod,
+              razorpayOrderId: razorpay?.razorpay_order_id || byOrderNum.razorpayOrderId,
+              razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+              storeCreditAmount: parsedStoreCredit,
+              codUpfrontPaid: wsCodUpfrontPaid,
+              codUpfrontPaymentId: wsCodUpfrontPaymentId,
+              paymentFailureReason: null,
+              notes: wsNotes
+            }
+          });
+          console.log(`[Checkout Complete] Re-adopted WebStoreOrder by orderNumber: ${universalOrderNumber}`);
+        } else {
+          webStoreOrder = await prisma.webStoreOrder.create({
+            data: {
+              orderNumber: universalOrderNumber,
+              customerName: address.name,
+              customerEmail: address.email || "",
+              customerPhone: address.phone || "",
+              shippingAddress: address as any,
+              items: items.map((item: any) => ({
+                product_id: item.productId,
+                variant_id: item.variantId || "",
+                title: item.title,
+                image_url: item.image || "",
+                quantity: item.quantity,
+                price: Number(item.price) || 0,
+                size: item.size || ""
+              })) as any,
+              subtotal: subtotal,
+              shippingCharge: 0,
+              discountCode: finalCouponCode || null,
+              discountAmount: Number(finalCouponDiscount) || 0,
+              storeCreditAmount: parsedStoreCredit,
+              totalAmount: total,
+              paymentStatus: wsPaymentStatus,
+              paymentMethod: finalPaymentMethod,
+              razorpayOrderId: razorpay?.razorpay_order_id || null,
+              razorpayPaymentId: razorpay?.razorpay_payment_id || null,
+              codUpfrontPaid: wsCodUpfrontPaid,
+              codUpfrontPaymentId: wsCodUpfrontPaymentId,
+              fulfillmentStatus: "unfulfilled",
+              notes: wsNotes,
+              source: "web"
+            }
+          });
+        }
       }
       console.log(`[Checkout] Successfully synced WebStoreOrder for localOrder: ${localOrder.id}, shopifyOrderId: ${shopifyOrderId}`);
     } catch (webStoreOrderErr: any) {

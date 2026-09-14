@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { getTrackingStatus } from '@/lib/services/logistics';
+import { requireAdmin, handleAuthError } from '@/lib/auth/rbac';
+import { logAudit } from '@/lib/audit';
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    await requireAdmin('LOGISTICS', 'edit');
     // 1. Find all orders that are not yet delivered
     const orders = await prisma.order.findMany({
       where: {
@@ -81,12 +84,23 @@ export async function POST() {
       }
     }
 
+    await logAudit({
+      action: 'LOGISTICS_TRACKING_SYNCED',
+      module: 'LOGISTICS',
+      metadata: { syncedCount: syncResults.length },
+      ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0].trim() || undefined,
+      userAgent: req.headers.get('user-agent') || undefined,
+    });
+
     return NextResponse.json({
       success: true,
       syncedCount: syncResults.length,
       details: syncResults,
     });
   } catch (error: any) {
+    if (error instanceof Error && (error.message === '401' || error.message === '403')) {
+      return handleAuthError(error);
+    }
     console.error('[Sync API] error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

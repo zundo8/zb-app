@@ -200,7 +200,7 @@ function deduplicateWebStoreOrders(orders: Record<string, unknown>[]) {
         const currentStatus = ((order.paymentStatus as string) || "").toLowerCase();
 
         const statusRank = (s: string) => {
-          if (s === "paid" || s === "cod_upfront_paid") return 3;
+          if (s === "paid" || s === "cod_upfront_paid" || s === "partially_paid") return 3;
           if (s === "pending" || s === "open" || s === "payment_pending") return 2;
           return 1;
         };
@@ -235,6 +235,7 @@ function deduplicateWebStoreOrders(orders: Record<string, unknown>[]) {
     const isRealOrder = 
       pStatus === "paid" || 
       pStatus === "cod_upfront_paid" || 
+      pStatus === "partially_paid" ||
       pStatus === "refunded" || 
       pStatus === "cancelled" ||
       (orderNum && orderNum !== "N/A" && !orderNum.startsWith("ZBPP") && !orderNum.startsWith("ZBPF"));

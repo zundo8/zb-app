@@ -57,7 +57,7 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
         });
 
         const confirmedMainOrder = matchingMainOrders.find(
-          (m: Record<string, unknown>) => m.paymentStatus === "paid" || m.paymentStatus === "cod_upfront_paid"
+          (m: Record<string, unknown>) => m.paymentStatus === "paid" || m.paymentStatus === "cod_upfront_paid" || m.paymentStatus === "partially_paid"
         );
 
         if (confirmedMainOrder) {
@@ -73,9 +73,9 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
                 razorpayPaymentId: (confirmedMainOrder.razorpayPaymentId as string) || order.razorpayPaymentId,
                 paymentFailureReason: null,
                 ...(isCOD ? {
-                  codUpfrontPaid: Number(order.codUpfrontPaid) || 99,
+                  codUpfrontPaid: Number(order.codUpfrontPaid) || Number((confirmedMainOrder as any).codUpfrontPaid) || 99,
                   codUpfrontPaymentId: (confirmedMainOrder.razorpayPaymentId as string) || order.razorpayPaymentId || null,
-                  notes: `COD Order (₹${Number(order.codUpfrontPaid) || 99} upfront fee paid via Razorpay) | Order: ${order.orderNumber}`
+                  notes: `COD Order (₹${Number(order.codUpfrontPaid) || Number((confirmedMainOrder as any).codUpfrontPaid) || 99} upfront fee paid via Razorpay) | Order: ${order.orderNumber}`
                 } : {})
               },
             });
@@ -87,6 +87,17 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
               failureReason: null,
             });
           }
+
+          // Fallback Shopify sync if main order not yet synced
+          if (!(confirmedMainOrder as any).shopifyOrderId || String((confirmedMainOrder as any).shopifyOrderId).startsWith('local_')) {
+            try {
+              const { syncOrderToShopify } = await import('@/lib/services/shopifyOrderSyncService');
+              await syncOrderToShopify(String(confirmedMainOrder.id));
+            } catch (syncErr: any) {
+              console.error('[RazorpaySync] Shopify fallback sync error:', syncErr.message);
+            }
+          }
+
           continue;
         }
 
@@ -128,13 +139,13 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
         let newPaymentId: string | null = null;
         let failureReason: string | null = null;
 
-        // 1. Explicit COD Guard: if COD and upfront fee was captured, status is cod_upfront_paid
+        // 1. Explicit COD Guard: if COD and upfront fee was captured, status is partially_paid
         if (isCOD && upfrontCaptured) {
-          newStatus = "cod_upfront_paid";
+          newStatus = "partially_paid";
           newPaymentId = (capturedPayment?.id as string) || (upfrontPayment?.id as string) || order.codUpfrontPaymentId || order.razorpayPaymentId || null;
           failureReason = null;
         } else if (rzpOrder.status === "paid" || capturedPayment) {
-          newStatus = isCOD ? "cod_upfront_paid" : "paid";
+          newStatus = isCOD ? "partially_paid" : "paid";
           newPaymentId = (capturedPayment?.id as string) || order.razorpayPaymentId || null;
           failureReason = null;
         } else if (latestFailedPayment && !upfrontCaptured) {
@@ -182,7 +193,7 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
           failureReason = null;
         }
 
-        const finalPaymentStatus = (isCOD && (newStatus === "paid" || newStatus === "cod_upfront_paid" || newStatus === "partially_paid")) ? "cod_upfront_paid" : newStatus;
+        const finalPaymentStatus = (isCOD && (newStatus === "paid" || newStatus === "cod_upfront_paid" || newStatus === "partially_paid")) ? "partially_paid" : newStatus;
 
         if (
           finalPaymentStatus &&
@@ -214,7 +225,7 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
                 .split(',')
                 .map((t: string) => t.trim())
                 .filter((t: string) => Boolean(t) && t !== 'payment_pending' && t !== 'Order creation in process')
-                .concat(isCOD ? ['cod_upfront_paid'] : ['paid'])
+                .concat(isCOD ? ['cod_upfront_paid', 'partially_paid'] : ['paid'])
                 .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
                 .join(', ');
 
@@ -256,6 +267,16 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
                 } catch (numErr: unknown) {
                   const numMsg = numErr instanceof Error ? numErr.message : String(numErr);
                   console.warn(`[RazorpaySync] Could not upgrade order number for ${order.orderNumber}:`, numMsg);
+                }
+              }
+
+              // 4. Fallback Shopify sync if main order not yet synced
+              if (!mOrder.shopifyOrderId || String(mOrder.shopifyOrderId).startsWith('local_') || String(mOrder.shopifyOrderId).startsWith('app_pending_')) {
+                try {
+                  const { syncOrderToShopify } = await import('@/lib/services/shopifyOrderSyncService');
+                  await syncOrderToShopify(String(mOrder.id));
+                } catch (syncErr: any) {
+                  console.error('[RazorpaySync] Shopify fallback sync error:', syncErr.message);
                 }
               }
             }

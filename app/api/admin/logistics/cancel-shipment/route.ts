@@ -1,27 +1,55 @@
 /**
  * POST /api/logistics/cancel-shipment — Cancel a shipment (admin only)
- * 
- * This route is protected by the middleware (admin session required).
  */
 
 import { NextResponse } from "next/server";
 import { cancelShipment } from "@/lib/services/logistics";
+import { requireAdmin, handleAuthError } from "@/lib/auth/rbac";
+import { logAudit } from "@/lib/audit";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
+const cancelShipmentSchema = z.object({
+  awb: z.string().min(1, "awb is required"),
+});
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { awb } = body;
+    await requireAdmin('LOGISTICS', 'edit');
 
-    if (!awb) {
-      return NextResponse.json({ error: "awb is required" }, { status: 400 });
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
+    const parsed = cancelShipmentSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request payload", details: parsed.error.format() },
+        { status: 400 }
+      );
+    }
+
+    const { awb } = parsed.data;
     const result = await cancelShipment(awb);
+
+    await logAudit({
+      action: 'SHIPMENT_CANCELLED',
+      module: 'LOGISTICS',
+      targetId: awb,
+      metadata: { awb, result },
+      ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0].trim() || undefined,
+      userAgent: req.headers.get('user-agent') || undefined,
+    });
 
     return NextResponse.json(result);
   } catch (error: any) {
+    if (error instanceof Error && (error.message === '401' || error.message === '403')) {
+      return handleAuthError(error);
+    }
     console.error("[Logistics Cancel] Error:", error.message);
     return NextResponse.json(
       { error: "Failed to cancel shipment" },

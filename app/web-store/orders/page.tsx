@@ -416,6 +416,7 @@ function WebStoreOrdersContent() {
             <option value="pending" className="bg-[#0e0e0e]">Pending</option>
             <option value="paid" className="bg-[#0e0e0e]">Paid</option>
             <option value="cod_upfront_paid" className="bg-[#0e0e0e]">COD Upfront Paid</option>
+            <option value="partially_paid" className="bg-[#0e0e0e]">Partially Paid</option>
             <option value="failed" className="bg-[#0e0e0e]">Failed</option>
             <option value="refunded" className="bg-[#0e0e0e]">Refunded</option>
             <option value="cancelled" className="bg-[#0e0e0e]">Cancelled</option>

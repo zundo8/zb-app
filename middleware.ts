@@ -1,5 +1,6 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import { isPrivateIP } from "@/lib/ip-geo";
 
 const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
   DASHBOARD_HOME: ["/dashboard"],
@@ -123,8 +124,39 @@ export default withAuth(
       return NextResponse.next();
     }
 
+    // For storefront (non-admin) requests: extract client IP and set zb_client_ip cookie
+    const isStorefront = !pathname.startsWith('/dashboard') &&
+                         !pathname.startsWith('/web-store') &&
+                         !pathname.startsWith('/api/admin') &&
+                         !pathname.startsWith('/api/webhooks');
+
+    const clientIp = req.headers.get('do-connecting-ip') ||
+                     req.headers.get('cf-connecting-ip') ||
+                     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+                     req.headers.get('x-real-ip') ||
+                     req.ip;
+
+    const shouldSetClientIp = isStorefront &&
+                              clientIp &&
+                              !isPrivateIP(clientIp) &&
+                              req.cookies.get('zb_client_ip')?.value !== clientIp;
+
+    const attachClientIpCookie = (res: NextResponse) => {
+      if (shouldSetClientIp && clientIp) {
+        res.cookies.set('zb_client_ip', clientIp, {
+          path: '/',
+          httpOnly: false,
+          maxAge: 60 * 60 * 24 * 7, // 7 days
+          sameSite: 'lax',
+        });
+      }
+      return res;
+    };
+
     // Allow public API routes for the React Native app and Zica AI
-    if (pathname.startsWith('/api/app/') || pathname.startsWith('/api/zica-ai')) return NextResponse.next();
+    if (pathname.startsWith('/api/app/') || pathname.startsWith('/api/zica-ai')) {
+      return attachClientIpCookie(NextResponse.next());
+    }
 
     // CSRF protection for mutation routes (POST, PUT, DELETE) on admin APIs
     if (["POST", "PUT", "DELETE"].includes(req.method)) {
@@ -334,7 +366,7 @@ export default withAuth(
       }
     }
 
-    return NextResponse.next();
+    return attachClientIpCookie(NextResponse.next());
   },
   {
     callbacks: {

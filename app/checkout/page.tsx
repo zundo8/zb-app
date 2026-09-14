@@ -486,32 +486,18 @@ export default function CheckoutPage() {
   }, [googleMapsLoaded, showAddressForm]);
 
   /**
-   * Reverse-geocode via Nominatim (OpenStreetMap). Used as fallback when
-   * Google Maps fails to load or reverse-geocode.
+   * Reverse-geocode via server-side endpoint (/api/geo/reverse).
+   * Safely resolves address components with Google Maps/Nominatim/BigDataCloud
+   * without browser CORS or unsafe User-Agent header issues.
    */
-  const reverseGeocodeNominatim = async (latitude: number, longitude: number) => {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-      {
-        headers: {
-          "Accept-Language": "en",
-          "User-Agent": "ZicaBellaStorefront/1.0"
-        },
-      }
-    );
-    if (!response.ok) throw new Error("Failed to resolve address details");
-    const data = await response.json();
-    if (data && data.address) {
-      const addr = data.address;
-      const roadName = addr.road || addr.suburb || addr.neighbourhood || addr.village || "";
-      const postcode = addr.postcode || "";
-      const cityName = addr.city || addr.town || addr.village || addr.county || "";
-      const stateName = addr.state || "";
-      const houseNumber = addr.house_number || addr.building || "";
-
-      let matchedState = "";
-      if (stateName) {
-        const lowerState = stateName.toLowerCase().trim();
+  const reverseGeocodeServer = async (latitude: number, longitude: number) => {
+    const res = await fetch(`/api/geo/reverse?lat=${latitude}&lng=${longitude}`);
+    if (!res.ok) throw new Error("Failed to resolve address details");
+    const data = await res.json();
+    if (data && data.ok) {
+      let matchedState = data.state || "";
+      if (matchedState) {
+        const lowerState = matchedState.toLowerCase().trim();
         const found = INDIAN_STATES.find(s =>
           s.toLowerCase() === lowerState ||
           lowerState.includes(s.toLowerCase()) ||
@@ -520,15 +506,23 @@ export default function CheckoutPage() {
         if (found) matchedState = found;
       }
 
+      if (autocompleteInputRef.current && data.formattedAddress) {
+        autocompleteInputRef.current.value = data.formattedAddress;
+      }
+
       setAddress(prev => ({
         ...prev,
-        houseNo: houseNumber || prev.houseNo,
-        street: roadName || prev.street,
-        zip: postcode ? postcode.replace(/\s/g, "").slice(0, 6) : prev.zip,
-        city: cityName || prev.city,
-        state: matchedState || prev.state || stateName,
+        houseNo: data.houseNo || prev.houseNo,
+        street: data.street || prev.street,
+        landmark: data.landmark || prev.landmark,
+        zip: data.zip ? data.zip.replace(/\s/g, "").slice(0, 6) : prev.zip,
+        city: data.city || prev.city,
+        state: matchedState || prev.state || data.state,
+        country: data.country || prev.country,
+        countryCode: data.countryCode || prev.countryCode,
         lat: latitude,
         lng: longitude,
+        placeId: data.placeId || prev.placeId,
       }));
 
       setAddressErrors(prev => {
@@ -539,12 +533,15 @@ export default function CheckoutPage() {
         delete next.zip;
         return next;
       });
+
+      return true;
     }
+    return false;
   };
 
   /**
    * Fetch approximate location from /api/geo (IP-based). Used when GPS is
-   * denied/unavailable or both Maps and Nominatim fail.
+   * denied/unavailable or both Maps and reverse geocode fail.
    */
   const fetchIpGeoFallback = async (): Promise<boolean> => {
     try {
@@ -607,125 +604,141 @@ export default function CheckoutPage() {
     setLocating(true);
     setError("");
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-
-        // ── Strategy: Google Maps → Nominatim → IP Geo ──
-        // Each step is independently wrapped so a failure in one
-        // doesn't prevent the next fallback from running.
-
-        // 1. Try Google Maps reverse-geocoding
-        let googleSuccess = false;
-        try {
-          const mapsOk = await loadGoogleMaps(['places', 'geocoding']);
-          if (mapsOk) {
-            const googleObj = (window as any).google;
-            if (googleObj?.maps?.Geocoder) {
-              const geocoder = new googleObj.maps.Geocoder();
-              const geoResult = await new Promise<{ success: boolean; result?: any }>((resolve) => {
-                geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
-                  if (status === "OK" && results && results[0]) {
-                    resolve({ success: true, result: results[0] });
-                  } else {
-                    console.warn(`[Checkout] Google geocode status: ${status}`);
-                    resolve({ success: false });
-                  }
-                });
+    const processCoordinates = async (latitude: number, longitude: number) => {
+      // 1. Try Google Maps reverse-geocoding if loaded
+      let googleSuccess = false;
+      try {
+        const mapsOk = await loadGoogleMaps(['places', 'geocoding']);
+        if (mapsOk) {
+          const googleObj = (window as any).google;
+          if (googleObj?.maps?.Geocoder) {
+            const geocoder = new googleObj.maps.Geocoder();
+            const geoResult = await new Promise<{ success: boolean; result?: any }>((resolve) => {
+              geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
+                if (status === "OK" && results && results[0]) {
+                  resolve({ success: true, result: results[0] });
+                } else {
+                  console.warn(`[Checkout] Google geocode status: ${status}`);
+                  resolve({ success: false });
+                }
               });
+            });
 
-              if (geoResult.success && geoResult.result) {
-                const result = geoResult.result;
-                const parsed = parseAddressComponents(result.address_components || []);
+            if (geoResult.success && geoResult.result) {
+              const result = geoResult.result;
+              const parsed = parseAddressComponents(result.address_components || []);
 
-                if (autocompleteInputRef.current) {
-                  autocompleteInputRef.current.value = result.formatted_address || "";
-                }
-
-                let streetVal = parsed.streetName || address.street;
-                if (!parsed.streetName && result.formatted_address) {
-                  const parts = result.formatted_address.split(",");
-                  if (parts.length > 0) {
-                    streetVal = parts[0].trim();
-                  }
-                }
-
-                setAddress(prev => ({
-                  ...prev,
-                  street: streetVal,
-                  city: parsed.city || prev.city,
-                  state: parsed.state || prev.state,
-                  zip: parsed.pincode || prev.zip,
-                  country: parsed.country || prev.country,
-                  countryCode: parsed.countryCode || prev.countryCode,
-                  lat: latitude,
-                  lng: longitude,
-                  placeId: result.place_id || prev.placeId,
-                }));
-
-                setAddressErrors(prev => {
-                  const next = { ...prev };
-                  delete next.street;
-                  delete next.city;
-                  delete next.state;
-                  delete next.zip;
-                  return next;
-                });
-                googleSuccess = true;
+              if (autocompleteInputRef.current) {
+                autocompleteInputRef.current.value = result.formatted_address || "";
               }
+
+              let streetVal = parsed.streetName || address.street;
+              if (!parsed.streetName && result.formatted_address) {
+                const parts = result.formatted_address.split(",");
+                if (parts.length > 0) {
+                  streetVal = parts[0].trim();
+                }
+              }
+
+              setAddress(prev => ({
+                ...prev,
+                street: streetVal,
+                city: parsed.city || prev.city,
+                state: parsed.state || prev.state,
+                zip: parsed.pincode || prev.zip,
+                country: parsed.country || prev.country,
+                countryCode: parsed.countryCode || prev.countryCode,
+                lat: latitude,
+                lng: longitude,
+                placeId: result.place_id || prev.placeId,
+              }));
+
+              setAddressErrors(prev => {
+                const next = { ...prev };
+                delete next.street;
+                delete next.city;
+                delete next.state;
+                delete next.zip;
+                return next;
+              });
+              googleSuccess = true;
             }
           }
-        } catch (gmErr: any) {
-          console.warn("[Checkout] Google Maps reverse-geocode failed:", gmErr.message || gmErr);
-          // Clean up any error overlays Google Maps may have injected
-          dismissGoogleMapsErrors();
         }
+      } catch (gmErr: any) {
+        console.warn("[Checkout] Google Maps reverse-geocode failed:", gmErr.message || gmErr);
+        dismissGoogleMapsErrors();
+      }
 
-        if (googleSuccess) {
+      if (googleSuccess) {
+        setLocating(false);
+        setError("");
+        return;
+      }
+
+      // 2. Server-side reverse geocoding via /api/geo/reverse
+      try {
+        const revOk = await reverseGeocodeServer(latitude, longitude);
+        if (revOk) {
           setLocating(false);
+          setError("");
           return;
         }
+      } catch (revErr: any) {
+        console.warn("[Checkout] Server reverse-geocode failed:", revErr.message || revErr);
+      }
 
-        // 2. Fallback: Nominatim (OpenStreetMap)
-        try {
-          await reverseGeocodeNominatim(latitude, longitude);
-          setLocating(false);
-          return;
-        } catch (nomErr: any) {
-          console.warn("[Checkout] Nominatim reverse-geocode failed:", nomErr.message || nomErr);
-        }
+      // 3. Last resort: IP-based geolocation + store GPS coords
+      setAddress(prev => ({ ...prev, lat: latitude, lng: longitude }));
+      const ipOk = await fetchIpGeoFallback();
+      setLocating(false);
+      if (ipOk) {
+        setError("Using approximate location from your network. You can edit the address below.");
+      } else {
+        setError("Unable to retrieve address details. Please fill manually.");
+      }
+    };
 
-        // 3. Last resort: IP-based geolocation + store GPS coords
-        setAddress(prev => ({ ...prev, lat: latitude, lng: longitude }));
-        const ipOk = await fetchIpGeoFallback();
-        setLocating(false);
-        if (ipOk) {
-          setError("Using approximate location. You can edit the address below.");
-        } else {
-          setError("Unable to retrieve address details. Please fill manually.");
+    const getPosition = (highAccuracy: boolean): Promise<GeolocationPosition> => {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: highAccuracy,
+          timeout: highAccuracy ? 10000 : 8000,
+          maximumAge: 300000,
+        });
+      });
+    };
+
+    try {
+      let pos: GeolocationPosition;
+      try {
+        pos = await getPosition(true);
+      } catch (err: any) {
+        if (err.code === err.PERMISSION_DENIED) {
+          throw err;
         }
-      },
-      async (err) => {
-        console.error("Geolocation error:", err);
-        // GPS denied/timeout/error — try IP-based location as fallback
-        const ipOk = await fetchIpGeoFallback();
-        setLocating(false);
-        if (ipOk) {
-          // Soft message — IP location was found, user can edit
-          setError("Using approximate location from your network. You can edit the address below.");
+        // If high accuracy times out indoors/on laptop, retry with network-based geolocation
+        console.warn("[Checkout] High accuracy GPS failed, falling back to network geolocation:", err.message);
+        pos = await getPosition(false);
+      }
+      await processCoordinates(pos.coords.latitude, pos.coords.longitude);
+    } catch (err: any) {
+      console.error("Geolocation error:", err);
+      // GPS denied/timeout/error — try IP-based location as fallback
+      const ipOk = await fetchIpGeoFallback();
+      setLocating(false);
+      if (ipOk) {
+        setError("Using approximate location from your network. You can edit the address below.");
+      } else {
+        if (err.code === err.PERMISSION_DENIED) {
+          setError("Location access denied. Please fill the address manually.");
+        } else if (err.code === err.TIMEOUT) {
+          setError("Location request timed out. Please enter your address below.");
         } else {
-          // Both GPS and IP failed — show appropriate error
-          if (err.code === err.PERMISSION_DENIED) {
-            setError("Location access denied and network location unavailable. Please fill the address manually.");
-          } else if (err.code === err.TIMEOUT) {
-            setError("Location request timed out. Please check your signal and try again.");
-          } else {
-            setError("Unable to detect location. Please fill the address manually.");
-          }
+          setError("Unable to detect location. Please fill the address manually.");
         }
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    );
+      }
+    }
   };
 
   useEffect(() => {
@@ -1685,25 +1698,11 @@ export default function CheckoutPage() {
         },
       };
 
-      // Configure display blocks for domestic orders (PAYNOW opens full Razorpay modal; COD opens UPI for upfront fee)
+      // Configure display preferences:
+      // Both PAYNOW and COD open the full standard Razorpay checkout modal
+      // supporting all instruments (UPI, Cards, Netbanking, Wallets)
       if (isInternational) {
         options.prefill.method = "card";
-      } else if (paymentMethod === "COD") {
-        options.prefill.method = "upi";
-        options.config = {
-          display: {
-            blocks: {
-              upi: {
-                name: "Pay Upfront Fee via UPI",
-                instruments: [
-                  { method: "upi", flows: ["intent", "collect", "qr"] }
-                ]
-              }
-            },
-            sequence: ["block.upi"],
-            preferences: { show_default_blocks: false }
-          }
-        };
       }
 
       const rzp = new (window as any).Razorpay(options);

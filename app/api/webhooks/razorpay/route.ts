@@ -86,15 +86,16 @@ export async function POST(req: Request) {
       if (order) {
         // Path A: Order exists — update status
         const isCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";
-        const targetPaymentStatus = isCOD ? "cod_upfront_paid" : "paid";
+        const targetPaymentStatus = isCOD ? "partially_paid" : "paid";
+        const isAlreadyPaid = order.paymentStatus === 'paid' || order.paymentStatus === 'partially_paid' || order.paymentStatus === 'cod_upfront_paid';
 
-        if (order.paymentStatus !== targetPaymentStatus && order.paymentStatus !== 'paid') {
+        if (!isAlreadyPaid) {
           const currentTags = order.tags || '';
           const cleanedTags = currentTags
             .split(',')
             .map((t: string) => t.trim())
             .filter((t: string) => Boolean(t) && t !== 'payment_pending' && t !== 'Order creation in process')
-            .concat(isCOD ? ['cod_upfront_paid'] : ['paid'])
+            .concat(isCOD ? ['cod_upfront_paid', 'partially_paid'] : ['paid'])
             .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
             .join(', ');
 
@@ -154,40 +155,67 @@ export async function POST(req: Request) {
               console.error(`[Razorpay Webhook] Failed to promote order number:`, promoteErr.message);
             }
           }
+        }
 
-          await prisma.webStoreOrder.updateMany({
-            where: { razorpayOrderId },
+        // Always ensure WebStoreOrder reflects the captured payment and upfront fee
+        const freshNumOrder = await prisma.order.findUnique({
+          where: { id: order.id },
+          select: { internalOrderNumber: true }
+        });
+        const currentOrderNum = freshNumOrder?.internalOrderNumber || order.internalOrderNumber;
+
+        await prisma.webStoreOrder.updateMany({
+          where: {
+            OR: [
+              { razorpayOrderId },
+              ...(currentOrderNum ? [{ orderNumber: currentOrderNum }] : []),
+              ...(order.internalOrderNumber ? [{ orderNumber: order.internalOrderNumber }] : [])
+            ]
+          },
+          data: {
+            paymentStatus: targetPaymentStatus,
+            razorpayPaymentId,
+            ...(isCOD ? {
+              codUpfrontPaid: Number(payment.amount / 100) || 99,
+              codUpfrontPaymentId: razorpayPaymentId,
+              notes: `COD Order (₹${payment.amount / 100} upfront fee paid via Razorpay) | Order: ${currentOrderNum || order.id}`
+            } : {})
+          },
+        });
+
+        // Ensure payment row exists
+        const existingPayment = await prisma.payment.findFirst({
+          where: { orderId: order.id, gateway: 'razorpay' },
+        });
+
+        if (!existingPayment) {
+          await prisma.payment.create({
             data: {
-              paymentStatus: targetPaymentStatus,
-              razorpayPaymentId,
-              ...(isCOD ? {
-                codUpfrontPaid: String(payment.amount / 100),
-                codUpfrontPaymentId: razorpayPaymentId,
-                notes: `COD Order (₹${payment.amount / 100} upfront fee paid via Razorpay) | Order: ${order.internalOrderNumber}`
-              } : {})
+              orderId: order.id,
+              customerId: order.customerId,
+              amount: payment.amount / 100,
+              type: 'CAPTURE',
+              status: 'success',
+              gateway: 'razorpay',
             },
           });
-
-          // Ensure payment row exists
-          const existingPayment = await prisma.payment.findFirst({
-            where: { orderId: order.id, gateway: 'razorpay' },
-          });
-
-          if (!existingPayment) {
-            await prisma.payment.create({
-              data: {
-                orderId: order.id,
-                customerId: order.customerId,
-                amount: payment.amount / 100,
-                type: 'CAPTURE',
-                status: 'success',
-                gateway: 'razorpay',
-              },
-            });
-          }
-
-          paymentLog('info', 'webhook', { message: `Order ${order.id} marked as ${targetPaymentStatus}`, orderId: order.id });
         }
+
+        // Fallback Shopify sync if not yet synced to Shopify
+        const freshOrderForShopify = await prisma.order.findUnique({
+          where: { id: order.id },
+          select: { shopifyOrderId: true }
+        });
+        if (!freshOrderForShopify?.shopifyOrderId || freshOrderForShopify.shopifyOrderId.startsWith('local_') || freshOrderForShopify.shopifyOrderId.startsWith('app_pending_')) {
+          try {
+            const { syncOrderToShopify } = await import('@/lib/services/shopifyOrderSyncService');
+            await syncOrderToShopify(order.id);
+          } catch (syncErr: any) {
+            console.error('[Razorpay Webhook] Shopify fallback sync error:', syncErr.message);
+          }
+        }
+
+        paymentLog('info', 'webhook', { message: `Order ${order.id} marked as ${targetPaymentStatus}`, orderId: order.id });
 
         // Link WebhookEvent to Order
         await prisma.webhookEvent.update({

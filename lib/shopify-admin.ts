@@ -308,6 +308,12 @@ export async function fetchOrder(orderId: string): Promise<ShopifyOrder> {
 
 export async function createOrder(order: any): Promise<ShopifyOrder> {
   const normalized = { ...order };
+  if (normalized.email === '' || (normalized.email && !String(normalized.email).includes('@'))) {
+    delete normalized.email;
+  }
+  if (normalized.customer && (normalized.customer.email === '' || (normalized.customer.email && !String(normalized.customer.email).includes('@')))) {
+    delete normalized.customer.email;
+  }
   if (normalized.phone) {
     const e164 = toE164(normalized.phone);
     if (e164) normalized.phone = e164;

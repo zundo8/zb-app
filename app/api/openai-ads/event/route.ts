@@ -36,12 +36,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract request-scoped metadata
-    const ip = req.cookies.get('zb_client_ip')?.value ||
-               req.headers.get('do-connecting-ip') ||
-               req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-               req.headers.get('x-real-ip') ||
-               req.ip ||
-               '127.0.0.1';
+    const ip = req.cookies.get('zb_client_ip')?.value || getClientIP(req);
 
     // Read __obref cookie for hybrid dedup
     const obref = req.cookies.get('__obref')?.value || undefined;
@@ -60,7 +55,7 @@ export async function POST(req: NextRequest) {
     let ipGeo: Awaited<ReturnType<typeof lookupIpGeo>> = null;
     const hasClientGeo = !!(guestCountry || guestState || guestCity || guestZip);
     if (!hasClientGeo) {
-      ipGeo = await lookupIpGeo(getClientIP(req));
+      ipGeo = await lookupIpGeo(getClientIP(req), req);
     }
 
     // ── Server-side value adjustment ──

@@ -35,6 +35,9 @@ const ipGeoCache = new Map<string, CacheEntry>();
 export function getClientIP(request: Request): string {
   const headers = request.headers;
 
+  const doIp = headers.get('do-connecting-ip');
+  if (doIp && doIp.trim()) return doIp.trim();
+
   const forwarded = headers.get('x-forwarded-for') || headers.get('x-vercel-forwarded-for');
   if (forwarded) {
     const firstIp = forwarded.split(',')[0].trim();

@@ -108,12 +108,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract request-scoped data (synchronous — no I/O)
-    const ip = req.cookies.get('zb_client_ip')?.value ||
-               req.headers.get('do-connecting-ip') ||
-               req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 
-               req.headers.get('x-real-ip') || 
-               req.ip || 
-               '127.0.0.1';
+    const ip = req.cookies.get('zb_client_ip')?.value || getClientIP(req);
 
     const fbp = req.cookies.get('_fbp')?.value;
     const fbc = req.cookies.get('_fbc')?.value;
@@ -139,7 +134,7 @@ export async function POST(req: NextRequest) {
     let ipGeo: IpGeoResult | null = null;
     const hasClientGeo = !!(guestCountry || guestState || guestCity || guestZip);
     if (!hasClientGeo) {
-      ipGeo = await lookupIpGeo(ip);
+      ipGeo = await lookupIpGeo(ip, req);
     }
 
     // Issue 5 fix: Apply server-side value adjustment for Purchase and InitiateCheckout.
