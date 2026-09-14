@@ -1,7 +1,7 @@
 import Razorpay from 'razorpay';
 import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
-import { getAppAuthFromRequest } from '@/lib/appAuth';
+import { requireAppAuth, handleAppAuthError, type AppAuthTokenPayload } from '@/lib/appAuth';
 import prisma from '@/lib/db';
 import { assignFailedOrderNumber } from '@/lib/orderNumber';
 
@@ -20,7 +20,7 @@ function razorpayErrMessage(err: unknown): string {
   return 'Order creation failed';
 }
 
-async function resolveMobileCustomer(shopId: string, orderData: any, userAuth: NonNullable<ReturnType<typeof getAppAuthFromRequest>>) {
+async function resolveMobileCustomer(shopId: string, orderData: any, userAuth: AppAuthTokenPayload) {
   const customerId = orderData?.customerId && orderData.customerId !== 'GUEST' ? orderData.customerId : userAuth.customerId;
   const customerEmail = orderData?.customerEmail || orderData?.shippingAddress?.email || userAuth.customerEmail;
   const customerPhone = orderData?.customerPhone || orderData?.shippingAddress?.phone || '';
@@ -57,10 +57,7 @@ async function resolveMobileCustomer(shopId: string, orderData: any, userAuth: N
 export async function POST(req: Request) {
   const corsHeaders = getCorsHeaders(req);
   try {
-    const userAuth = getAppAuthFromRequest(req);
-    if (!userAuth) {
-      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401, headers: corsHeaders });
-    }
+    const { auth: userAuth } = await requireAppAuth(req);
 
     let { key_id, key_secret, source } = await resolveRazorpayCredentials();
     key_id = key_id.trim();
@@ -236,6 +233,7 @@ export async function POST(req: Request) {
       { headers: corsHeaders }
     );
   } catch (err: unknown) {
+    if ((err as any)?.statusCode === 401) return handleAppAuthError(err);
     console.error('Razorpay create-order error:', err);
     const message = err instanceof Error ? err.message : razorpayErrMessage(err);
     return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });

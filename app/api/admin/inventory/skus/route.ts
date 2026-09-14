@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/options';
 import prisma from '@/lib/db';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    await requirePermission('INVENTORY', 'view');
 
     const { searchParams } = new URL(request.url);
     const shopifyProductId = searchParams.get('productId');
@@ -56,6 +52,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ skus }, { status: 200 });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('API Inventory SKUs Fetch Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

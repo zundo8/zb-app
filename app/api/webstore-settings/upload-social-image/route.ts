@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 import { uploadSocialSharingImage } from '@/lib/storage';
+import { sniffImageType } from '@/lib/upload-validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,12 @@ export async function POST(req: Request) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+
+    // Authoritative magic-byte validation
+    const sniffed = sniffImageType(buffer);
+    if (!sniffed) {
+      return NextResponse.json({ error: 'File content is not a valid image.' }, { status: 400 });
+    }
 
     const result = await uploadSocialSharingImage(buffer, file.type, file.name);
     return NextResponse.json({ success: true, url: result.url, fallback: result.fallback });

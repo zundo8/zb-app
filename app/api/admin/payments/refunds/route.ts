@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    await requirePermission('FINANCIAL', 'view');
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
@@ -90,6 +92,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ refunds: filteredRefunds });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error("Refunds GET Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

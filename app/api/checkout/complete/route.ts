@@ -10,6 +10,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { resolveAndSyncCustomerAddress } from "@/lib/services/customerService";
 import { debitStoreCredits } from "@/lib/storeCreditsHelper";
 import { assignUniversalOrderNumber, isFailedPrefixNumber } from "@/lib/orderNumber";
+import { sendSnapEvent } from '@/lib/snap-capi';
+import { sendOpenAiEvent, toMinorUnits } from '@/lib/openai-capi';
 
 export async function POST(req: Request) {
   const rateLimitResult = await checkRateLimit(req, "checkout-complete", { maxRequests: 30, windowMs: 60_000 });
@@ -83,12 +85,87 @@ export async function POST(req: Request) {
     }
 
     const parsedStoreCredit = Number(storeCreditAmount) || 0;
-    const isFullStoreCredit = paymentMethod === "store_credit" || paymentMethod === "STORE_CREDIT" || Number(total) === 0;
 
     const shop = await prisma.shop.findFirst();
     if (!shop) {
       return NextResponse.json({ error: "Shop not found" }, { status: 404 });
     }
+
+    // ── P0-11: Server-side price recomputation ─────────────────────────
+    // Never trust client-supplied subtotal/total. Recompute from authoritative variant prices.
+    let serverSubtotal = 0;
+    let priceVerified = false;
+    try {
+      const variantIds = items
+        .map((item: any) => {
+          if (!item.variantId) return null;
+          const rawId = String(item.variantId).split('/').pop() || '';
+          return rawId;
+        })
+        .filter(Boolean);
+
+      if (variantIds.length > 0 && variantIds.length === items.length) {
+        // Batch fetch variant prices from Shopify Admin API
+        const { shopifyFetch, adminUrl: buildAdminUrl } = await import('@/lib/shopify-admin');
+        const variantPriceMap = new Map<string, number>();
+
+        // Fetch variants in batches (Shopify supports comma-separated IDs)
+        const batchSize = 50;
+        for (let i = 0; i < variantIds.length; i += batchSize) {
+          const batch = variantIds.slice(i, i + batchSize);
+          try {
+            const data = await shopifyFetch<{ variants: Array<{ id: number; price: string }> }>(
+              `variants.json`,
+              { ids: batch.join(','), fields: 'id,price' }
+            );
+            if (data?.variants) {
+              for (const v of data.variants) {
+                variantPriceMap.set(String(v.id), parseFloat(v.price));
+              }
+            }
+          } catch (fetchErr) {
+            console.warn('[Checkout] Variant price fetch batch failed:', fetchErr);
+          }
+        }
+
+        if (variantPriceMap.size > 0) {
+          serverSubtotal = 0;
+          for (const item of items) {
+            const rawId = String(item.variantId).split('/').pop() || '';
+            const authoritative = variantPriceMap.get(rawId);
+            if (authoritative !== undefined) {
+              serverSubtotal += authoritative * (item.quantity || 1);
+            } else {
+              // Variant not found in Shopify — fall back to client price with a warning
+              console.warn(`[Checkout] Variant ${rawId} not found in Shopify; using client price ₹${item.price}`);
+              serverSubtotal += parseFloat(item.price || '0') * (item.quantity || 1);
+            }
+          }
+          serverSubtotal = Math.round(serverSubtotal * 100) / 100;
+          priceVerified = true;
+        }
+      }
+    } catch (priceErr) {
+      console.warn('[Checkout] Server-side price verification failed; proceeding with client values:', priceErr);
+    }
+
+    // If verified, derive server total and compare
+    if (priceVerified) {
+      const serverCodFee = isCodOrder ? Number(codFee || 99) : 0;
+      const serverTotal = Math.max(0, serverSubtotal - Number(finalCouponDiscount || 0) - parsedStoreCredit + serverCodFee);
+      const clientTotal = Number(total || 0);
+
+      if (Math.abs(serverTotal - clientTotal) > 1) {
+        console.error(`[Checkout] Price mismatch! Server: ₹${serverTotal}, Client: ₹${clientTotal}, ServerSubtotal: ₹${serverSubtotal}`);
+        return NextResponse.json(
+          { error: 'Cart total mismatch. Please refresh and retry.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const isFullStoreCredit = paymentMethod === "store_credit" || paymentMethod === "STORE_CREDIT" || Number(total) === 0;
+
 
     // 1. Verify Payment (Required for prepaid and COD upfront fee, unless 100% store credit)
     if (!isFullStoreCredit) {
@@ -97,8 +174,12 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: "Payment details missing" }, { status: 400 });
         }
 
-        // Accept mock payments for testing
-        const isMock = razorpay.razorpay_order_id.startsWith('order_mock_') || razorpay.razorpay_signature === 'mock_sig_valid';
+        // Accept mock payments ONLY in non-production with explicit opt-in
+        const isMock =
+          process.env.NODE_ENV !== 'production' &&
+          process.env.ALLOW_MOCK_PAYMENTS === 'true' &&
+          (razorpay.razorpay_order_id.startsWith('order_mock_') ||
+           razorpay.razorpay_signature === 'mock_sig_valid');
 
         if (!isMock) {
           let secret: string;
@@ -649,6 +730,98 @@ export async function POST(req: Request) {
       } catch (storeCreditDebitErr: any) {
         console.error(`[Checkout Complete] Error debiting store credit for customer ${localCustomer.id}:`, storeCreditDebitErr.message);
       }
+    }
+
+    // ─── FIX 3: Authoritative server-side Snap CAPI Purchase ───
+    // Fires exactly once when payment is verified, regardless of whether the
+    // browser reaches the confirmation page. Uses eventId = localOrder.id to
+    // match the browser pixel's Purchase event for Snap deduplication.
+    try {
+      const toSnapItemId = (item: any): string => {
+        const raw = item.variantId || item.sku || item.productId || '';
+        const s = String(raw);
+        const stripped = s.startsWith('variant:') ? s.slice(8) : s;
+        const m = stripped.match(/(\d+)\s*$/);
+        return m ? m[1] : stripped;
+      };
+      const snapItemIds = items.map(toSnapItemId);
+
+      sendSnapEvent({
+        eventName: 'PURCHASE',
+        eventId: localOrder.id,
+        eventSourceUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com'}/orders/${localOrder.id}/confirmation`,
+        userAgent: req.headers.get('user-agent') || '',
+        ipAddress: req.headers.get('do-connecting-ip')
+          || req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+          || req.headers.get('x-real-ip') || undefined,
+        userData: {
+          em: address.email || undefined,
+          ph: address.phone || undefined,
+          fn: address.name?.trim().split(/\s+/)[0] || undefined,
+          ln: address.name?.trim().split(/\s+/).slice(1).join(' ') || undefined,
+          ct: address.city || undefined,
+          st: address.state || undefined,
+          zp: address.zip || undefined,
+          country: address.country || undefined,
+        },
+        customData: {
+          price: Number(total || 0),
+          currency: 'INR',
+          item_ids: snapItemIds,
+          transaction_id: localOrder.id,
+          number_items: items.length || 1,
+        },
+      }).catch(() => {}); // fire-and-forget; never block order response
+    } catch (snapErr: any) {
+      console.warn('[Checkout Complete] Snap CAPI Purchase fire failed:', snapErr.message);
+    }
+
+    // ─── Authoritative server-side OpenAI Ads order_created ───
+    // Same dedup pattern: id = localOrder.id matches browser pixel event_id.
+    try {
+      const openAiContents = items.map((item: any) => {
+        const raw = item.variantId || item.sku || item.productId || '';
+        const s = String(raw);
+        const stripped = s.startsWith('variant:') ? s.slice(8) : s;
+        const m = stripped.match(/(\d+)\s*$/);
+        const itemId = m ? m[1] : stripped;
+        return {
+          id: itemId,
+          name: item.title,
+          content_type: 'product' as const,
+          quantity: item.quantity || 1,
+          amount: toMinorUnits(parseFloat(item.price || '0'), 'INR'),
+          currency: 'INR',
+        };
+      });
+
+      sendOpenAiEvent({
+        eventName: 'order_created',
+        eventId: localOrder.id,
+        eventSourceUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com'}/orders/${localOrder.id}/confirmation`,
+        userAgent: req.headers.get('user-agent') || '',
+        ipAddress: req.headers.get('do-connecting-ip')
+          || req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+          || req.headers.get('x-real-ip') || undefined,
+        userData: {
+          em: address.email || undefined,
+          ph: address.phone || undefined,
+          fn: address.name?.trim().split(/\s+/)[0] || undefined,
+          ln: address.name?.trim().split(/\s+/).slice(1).join(' ') || undefined,
+          ct: address.city || undefined,
+          st: address.state || undefined,
+          zp: address.zip || undefined,
+          country: address.country || undefined,
+        },
+        data: {
+          type: 'contents',
+          amount: toMinorUnits(Number(total || 0), 'INR'),
+          currency: 'INR',
+          contents: openAiContents,
+        },
+      }).catch(() => {}); // fire-and-forget; never block order response
+    } catch (oaiErr: any) {
+      console.warn('[Checkout Complete] OpenAI CAPI order_created fire failed:', oaiErr.message);
     }
 
     // Record purchase event in analytics

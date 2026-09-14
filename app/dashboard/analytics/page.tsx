@@ -255,7 +255,11 @@ export default function AnalyticsDashboard() {
   const hasLoadedRef = useRef(false);
   const fetchInFlightRef = useRef(false);
   const consecutiveErrorsRef = useRef(0);
+  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchAllRef = useRef<(silent?: boolean) => Promise<void>>(() => Promise.resolve());
 
   // ─── Full fetch (all 7 routes) — on filter/preset change + initial load ───
   const fetchAll = useCallback(async (silent = false) => {
@@ -267,6 +271,7 @@ export default function AnalyticsDashboard() {
     const controller = new AbortController();
     abortRef.current = controller;
     fetchInFlightRef.current = true;
+    if (!silent) lastFetchTimeRef.current = Date.now();
 
     if (!silent && !hasLoadedRef.current) {
       setLoading(true);
@@ -279,10 +284,6 @@ export default function AnalyticsDashboard() {
       to: dateRange.to.toISOString(),
       ...(platform ? { platform } : {}),
     });
-
-    // Bypass server cache on explicit preset/platform changes (Item 4)
-    const overviewParams = new URLSearchParams(params);
-    if (!silent) overviewParams.set('bypassCache', 'true');
 
     const handleSafeFetch = async (url: string) => {
       try {
@@ -305,100 +306,134 @@ export default function AnalyticsDashboard() {
     };
 
     try {
-      const results = await Promise.allSettled([
-        handleSafeFetch(`/api/admin/analytics/overview?${overviewParams}`),
-        handleSafeFetch(`/api/admin/analytics/charts?${params}`),
-        handleSafeFetch(`/api/admin/analytics/funnel?${params}`),
-        handleSafeFetch(`/api/admin/analytics/traffic?${params}`),
-        handleSafeFetch(`/api/admin/analytics/realtime`),
-        handleSafeFetch(`/api/admin/analytics/locations?${params}`),
-        handleSafeFetch(`/api/admin/analytics/products?${params}`),
+      const fetchOverview = async () => {
+        try {
+          const res: OverviewData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/overview?${params}`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setOverviewError(res.error);
+          } else if (res) {
+            setOverview(res);
+            setOverviewError(null);
+          } else {
+            setOverviewError("Failed to fetch overview analytics");
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setOverviewError(e.message || "Failed to load overview");
+        }
+      };
+
+      const fetchCharts = async () => {
+        try {
+          const res: ChartData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/charts?${params}`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setChartsError(res.error);
+          } else if (res) {
+            setCharts(res);
+            setChartsError(null);
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setChartsError(e.message || "Failed to load charts");
+        }
+      };
+
+      const fetchFunnel = async () => {
+        try {
+          const res: FunnelData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/funnel?${params}`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setFunnelError(res.error);
+          } else if (res) {
+            setFunnel(res.funnel || []);
+            setFunnelError(null);
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setFunnelError(e.message || "Failed to load funnel");
+        }
+      };
+
+      const fetchTraffic = async () => {
+        try {
+          const res: TrafficData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/traffic?${params}`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setTrafficError(res.error);
+          } else if (res) {
+            setTraffic(res.sources || []);
+            setTrafficError(null);
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setTrafficError(e.message || "Failed to load traffic");
+        }
+      };
+
+      const fetchRealtime = async () => {
+        try {
+          const res: RealtimeData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/realtime`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setRealtimeError(res.error);
+          } else if (res) {
+            setRealtime(res);
+            setRealtimeError(null);
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setRealtimeError(e.message || "Failed to load realtime");
+        }
+      };
+
+      const fetchLocations = async () => {
+        try {
+          const res: LocationsData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/locations?${params}`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setLocationsError(res.error);
+          } else if (res) {
+            setLocations(res);
+            setLocationsError(null);
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setLocationsError(e.message || "Failed to load locations");
+        }
+      };
+
+      const fetchProducts = async () => {
+        try {
+          const res: ProductsData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/products?${params}`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setProductsError(res.error);
+          } else if (res) {
+            setProducts(res);
+            setProductsError(null);
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setProductsError(e.message || "Failed to load products");
+        }
+      };
+
+      await Promise.allSettled([
+        fetchOverview(),
+        fetchCharts(),
+        fetchFunnel(),
+        fetchTraffic(),
+        fetchRealtime(),
+        fetchLocations(),
+        fetchProducts(),
       ]);
 
       if (controller.signal.aborted) return;
 
-      const getValue = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value : null;
-
-      const ovData: OverviewData | null = getValue(results[0]);
-      const chData: ChartData | null = getValue(results[1]);
-      const fnData: FunnelData | null = getValue(results[2]);
-      const trData: TrafficData | null = getValue(results[3]);
-      const rtData: RealtimeData | null = getValue(results[4]);
-      const locData: LocationsData | null = getValue(results[5]);
-      const prData: ProductsData | null = getValue(results[6]);
-
-      if (ovData) {
-        if (ovData.error) {
-          setOverviewError(ovData.error);
-        } else {
-          setOverview(ovData);
-          setOverviewError(null);
-        }
-      } else {
-        setOverviewError("Failed to fetch overview analytics");
-      }
-
-      if (chData) {
-        if (chData.error) {
-          setChartsError(chData.error);
-        } else {
-          setCharts(chData);
-          setChartsError(null);
-        }
-      }
-
-      if (fnData) {
-        if (fnData.error) {
-          setFunnelError(fnData.error);
-        } else {
-          setFunnel(fnData.funnel || []);
-          setFunnelError(null);
-        }
-      }
-
-      if (trData) {
-        if (trData.error) {
-          setTrafficError(trData.error);
-        } else {
-          setTraffic(trData.sources || []);
-          setTrafficError(null);
-        }
-      }
-
-      if (rtData) {
-        if (rtData.error) {
-          setRealtimeError(rtData.error);
-        } else {
-          setRealtime(rtData);
-          setRealtimeError(null);
-        }
-      }
-
-      if (locData) {
-        if (locData.error) {
-          setLocationsError(locData.error);
-        } else {
-          setLocations(locData);
-          setLocationsError(null);
-        }
-      }
-
-      if (prData) {
-        if (prData.error) {
-          setProductsError(prData.error);
-        } else {
-          setProducts(prData);
-          setProductsError(null);
-        }
-      }
-
       hasLoadedRef.current = true;
-      consecutiveErrorsRef.current = 0; // Reset error backoff on success
+      consecutiveErrorsRef.current = 0;
+      setConsecutiveErrors(0);
       setLastRefreshedAt(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     } catch (err: any) {
       if (err.name === "AbortError") return;
       console.error("[Analytics] Fetch error:", err);
       consecutiveErrorsRef.current += 1;
+      setConsecutiveErrors(consecutiveErrorsRef.current);
     } finally {
       fetchInFlightRef.current = false;
       setLoading(false);
@@ -406,6 +441,11 @@ export default function AnalyticsDashboard() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, platform]);
+
+  // Keep fetchAllRef in sync so debounce timer calls the latest version
+  useEffect(() => {
+    fetchAllRef.current = fetchAll;
+  }, [fetchAll]);
 
   // ─── Lightweight fetch (realtime + overview only) — for background polling ───
   const fetchLightweight = useCallback(async () => {
@@ -418,12 +458,6 @@ export default function AnalyticsDashboard() {
     const controller = new AbortController();
     fetchInFlightRef.current = true;
     setIsBackgroundRefreshing(true);
-
-    const params = new URLSearchParams({
-      from: dateRange.from.toISOString(),
-      to: dateRange.to.toISOString(),
-      ...(platform ? { platform } : {}),
-    });
 
     const handleSafeFetch = async (url: string) => {
       try {
@@ -441,7 +475,6 @@ export default function AnalyticsDashboard() {
 
     try {
       const results = await Promise.allSettled([
-        handleSafeFetch(`/api/admin/analytics/overview?${params}`),
         handleSafeFetch(`/api/admin/analytics/realtime`),
       ]);
 
@@ -449,13 +482,8 @@ export default function AnalyticsDashboard() {
 
       const getValue = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value : null;
 
-      const ovData: OverviewData | null = getValue(results[0]);
-      const rtData: RealtimeData | null = getValue(results[1]);
+      const rtData: RealtimeData | null = getValue(results[0]);
 
-      if (ovData && !ovData.error) {
-        setOverview(ovData);
-        setOverviewError(null);
-      }
       if (rtData && !rtData.error) {
         setRealtime(rtData);
         setRealtimeError(null);
@@ -474,9 +502,35 @@ export default function AnalyticsDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, platform]);
 
-  // Full fetch on filter/preset/platform changes
+  // Full fetch on filter/preset/platform changes with 800ms debounce guard
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    const now = Date.now();
+    const timeSinceLast = now - lastFetchTimeRef.current;
+
+    if (!hasLoadedRef.current || timeSinceLast >= 800) {
+      lastFetchTimeRef.current = now;
+      fetchAll(false);
+    } else {
+      // Use fetchAllRef to avoid stale closures over dateRange/platform
+      debounceTimerRef.current = setTimeout(() => {
+        lastFetchTimeRef.current = Date.now();
+        fetchAllRef.current(false);
+      }, 800 - timeSinceLast);
+    }
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchAll(false); }, [dateRange, platform]);
+  }, [dateRange, platform]);
 
   // ─── Background lightweight polling with visibility gating ───
   useEffect(() => {
@@ -700,7 +754,7 @@ export default function AnalyticsDashboard() {
         )}
       </div>
 
-      {/* ─── Overview Error Banner (Item 7) ───────────────── */}
+      {/* ─── Overview Error Banner ───────────────── */}
       {overviewError && (
         <div className="flex items-center justify-between p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
           <div className="flex items-center gap-2">
@@ -709,6 +763,19 @@ export default function AnalyticsDashboard() {
           </div>
           <button onClick={() => fetchAll(false)} className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 rounded-lg text-[10px] font-semibold transition-colors">
             Retry
+          </button>
+        </div>
+      )}
+
+      {/* ─── Stale Data Warning (consecutive background refresh failures) ─── */}
+      {consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && !overviewError && (
+        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>Data may be stale — background refresh failed {consecutiveErrors} times. Click Refresh to retry.</span>
+          </div>
+          <button onClick={() => { consecutiveErrorsRef.current = 0; setConsecutiveErrors(0); fetchAll(false); }} className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg text-[10px] font-semibold transition-colors">
+            Refresh Now
           </button>
         </div>
       )}
@@ -734,6 +801,13 @@ export default function AnalyticsDashboard() {
           <KpiCard label="Conversion Rate" value={`${overview.rates.conversion}%`} icon={Percent} />
           <KpiCard label="Add to Cart Rate" value={`${overview.rates.addToCart}%`} icon={ShoppingCart} />
           <KpiCard label="Cart Abandonment" value={`${overview.rates.cartAbandonment}%`} icon={ArrowDownRight} />
+        </div>
+      ) : overviewError ? (
+        <div className="p-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-center">
+          <p className="text-sm font-medium text-rose-400">Failed to load overview metrics: {overviewError}</p>
+          <button onClick={() => fetchAll(false)} className="mt-3 px-4 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-semibold transition-colors">
+            Retry Overview
+          </button>
         </div>
       ) : null}
 
@@ -931,9 +1005,10 @@ export default function AnalyticsDashboard() {
         </motion.div>
       ) : null}
 
-      {/* ─── TOP PRODUCTS & CONVERSION SECTION (NEW) ──────────────────── */}
       {productsError && <SectionError message={productsError} onRetry={() => fetchAll(false)} />}
-      {products && (
+      {loading && !products ? (
+        <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-64 animate-pulse bg-foreground/[0.02]" />
+      ) : products ? (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div className="flex items-center gap-2">
@@ -1034,7 +1109,7 @@ export default function AnalyticsDashboard() {
             )}
           </AnimatePresence>
         </motion.div>
-      )}
+      ) : null}
 
       {/* ─── Funnel + Real-time Row ──────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -1043,7 +1118,7 @@ export default function AnalyticsDashboard() {
           {funnelError && <SectionError message={funnelError} onRetry={() => fetchAll(false)} />}
           {loading && !funnel ? (
             <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-96 animate-pulse bg-foreground/[0.02]" />
-          ) : funnel && funnel.length > 0 ? (
+          ) : funnel && funnel.length > 0 && funnel.some(s => s.sessions > 0) ? (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 h-full">
               <h2 className="text-sm font-semibold text-foreground/70 mb-5">Conversion Funnel</h2>
               <div className="space-y-2">
@@ -1085,6 +1160,14 @@ export default function AnalyticsDashboard() {
                     </div>
                   );
                 })}
+              </div>
+            </motion.div>
+          ) : funnel && funnel.length > 0 ? (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 h-full">
+              <h2 className="text-sm font-semibold text-foreground/70 mb-5">Conversion Funnel</h2>
+              <div className="flex flex-col items-center justify-center py-12 text-foreground/20">
+                <Target className="w-8 h-8 mb-2" />
+                <span className="text-xs">No funnel data for this period</span>
               </div>
             </motion.div>
           ) : null}
@@ -1281,9 +1364,10 @@ export default function AnalyticsDashboard() {
         </div>
       )}
 
-      {/* ─── Traffic Sources ─────────────────────────────── */}
       {trafficError && <SectionError message={trafficError} onRetry={() => fetchAll(false)} />}
-      {traffic && traffic.length > 0 && (
+      {loading && !traffic ? (
+        <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-64 animate-pulse bg-foreground/[0.02]" />
+      ) : traffic && traffic.length > 0 ? (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
           <h2 className="text-sm font-semibold text-foreground/70 mb-4">Traffic Sources</h2>
           <div className="overflow-x-auto">
@@ -1327,7 +1411,7 @@ export default function AnalyticsDashboard() {
             </table>
           </div>
         </motion.div>
-      )}
+      ) : null}
 
       {/* ─── Platform Split ──────────────────────────────── */}
       {overview && (
@@ -1414,7 +1498,7 @@ export default function AnalyticsDashboard() {
       )}
 
       {/* ─── Empty state ─────────────────────────────────── */}
-      {!loading && !overview && (
+      {!loading && !overview && !overviewError && !charts && !realtime && (
         <div className="text-center py-20">
           <BarChart3 className="w-12 h-12 mx-auto text-foreground/10 mb-4" />
           <h3 className="text-lg font-semibold text-foreground/40">No analytics data yet</h3>

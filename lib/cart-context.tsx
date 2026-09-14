@@ -191,7 +191,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const clear = useCallback(() => setItems([]), []);
+  const clear = useCallback(() => {
+    setItems([]);
+    // Clear guest PII from both storage types on checkout/clear
+    clearGuestPII();
+  }, []);
 
   // Replace local cart state with items fetched from the database
   const loadFromDB = useCallback((dbItems: CartItem[]) => {
@@ -217,4 +221,19 @@ export function useCart() {
   const ctx = useContext(CartContext);
   if (!ctx) throw new Error("useCart must be used within CartProvider");
   return ctx;
+}
+
+/**
+ * Clears guest PII (phone/email) from both sessionStorage and localStorage.
+ * Call on login, logout, and checkout completion to prevent stale PII exposure.
+ */
+export function clearGuestPII() {
+  try {
+    ['zb_guest_phone', 'zb_guest_email'].forEach((k) => {
+      sessionStorage.removeItem(k);
+      localStorage.removeItem(k);
+    });
+  } catch (_e) {
+    // Storage may be unavailable (SSR, privacy mode)
+  }
 }

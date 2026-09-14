@@ -19,6 +19,16 @@ export async function POST(req: Request) {
   let customerId = null;
   const auth = getAppAuthFromRequest(req);
   if (auth) {
+    // Validate token version for revocation support
+    try {
+      const customer = await prisma.customer.findUnique({
+        where: { id: auth.customerId },
+        select: { tokenVersion: true },
+      });
+      if (customer && auth.tokenVersion !== undefined && auth.tokenVersion < customer.tokenVersion) {
+        return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401, headers: corsHeaders });
+      }
+    } catch (_) { /* proceed */ }
     customerId = auth.customerId;
   } else {
     // Fallback to NextAuth session for web store users

@@ -5,8 +5,6 @@ import prisma from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { assignFailedOrderNumber } from "@/lib/orderNumber";
 
-import { promoteMasterOrderToWebStoreOrder } from "@/lib/services/orderPromotionService";
-
 export const dynamic = "force-dynamic";
 
 // GET: Fetch web store orders with filters
@@ -122,101 +120,31 @@ export async function GET(request: Request) {
       prisma.webStoreOrder.count({ where: where as Prisma.WebStoreOrderWhereInput }),
     ]);
 
-    // Page-scoped cross-lookup in master Order table to reconcile missing or outdated entries for current page
-    const pageOrderNumbers = orders.map((o: Record<string, unknown>) => o.orderNumber as string).filter(Boolean);
+    // ── Page-scoped enrichment: look up master Order table ONLY for this page's orders ──
+    // This replaces the previous overly broad cross-lookup that caused timeouts
     const pageRzpIds = orders.map((o: Record<string, unknown>) => o.razorpayOrderId as string).filter(Boolean);
 
-    const masterOrClauses: Record<string, unknown>[] = [];
-    if (pageRzpIds.length > 0) {
-      masterOrClauses.push({ razorpayOrderId: { in: pageRzpIds } });
-    }
-    if (pageOrderNumbers.length > 0) {
-      masterOrClauses.push({ internalOrderNumber: { in: pageOrderNumbers } });
-      masterOrClauses.push({ shopifyOrderName: { in: pageOrderNumbers } });
-    }
-    // Indexed cross-lookup clauses only (razorpayOrderId, internalOrderNumber, shopifyOrderName)
-
-    const masterWebOrders = await prisma.order.findMany({
-      where: {
-        OR: [
-          ...(masterOrClauses.length > 0 ? (masterOrClauses as Prisma.OrderWhereInput[]) : []),
-          { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "approved", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"] } }
-        ]
-      },
-      take: 40,
-      orderBy: { createdAt: "desc" },
-      include: { customer: true, items: true },
-    });
-
-    // Merge master orders into webStoreOrders map matching on orderNumber, razorpayOrderId, AND razorpayPaymentId
-    const existingOrderKeys = new Set<string>();
-    for (const o of orders) {
-      if (o.id) existingOrderKeys.add((o.id as string).toUpperCase());
-      if (o.orderNumber) existingOrderKeys.add((o.orderNumber as string).toUpperCase());
-      if (o.razorpayOrderId) existingOrderKeys.add((o.razorpayOrderId as string).toUpperCase());
-      if (o.razorpayPaymentId) existingOrderKeys.add((o.razorpayPaymentId as string).toUpperCase());
-      if (o.notes) {
-        const localMatch = (o.notes as string).match(/Local:\s*([^\s\n]+)/i);
-        if (localMatch) existingOrderKeys.add(localMatch[1].toUpperCase());
-        const shopifyMatch = (o.notes as string).match(/Shopify:\s*([^\s\n]+)/i);
-        if (shopifyMatch) existingOrderKeys.add(shopifyMatch[1].toUpperCase());
-      }
-    }
-
-    const reconciledOrders: Record<string, unknown>[] = [...orders];
-
-    for (const mOrder of masterWebOrders) {
-      const idKey = mOrder.id ? mOrder.id.toUpperCase() : "";
-      const intNumKey = mOrder.internalOrderNumber ? mOrder.internalOrderNumber.toUpperCase() : "";
-      const shopNumKey = mOrder.shopifyOrderName ? mOrder.shopifyOrderName.toUpperCase() : "";
-      const shopIdKey = mOrder.shopifyOrderId ? mOrder.shopifyOrderId.toUpperCase() : "";
-      const rzpOrderKey = mOrder.razorpayOrderId ? mOrder.razorpayOrderId.toUpperCase() : "";
-      const rzpPayKey = mOrder.razorpayPaymentId ? mOrder.razorpayPaymentId.toUpperCase() : "";
-
-      const alreadyIncluded = 
-        (idKey && existingOrderKeys.has(idKey)) ||
-        (intNumKey && existingOrderKeys.has(intNumKey)) ||
-        (shopNumKey && existingOrderKeys.has(shopNumKey)) ||
-        (shopIdKey && existingOrderKeys.has(shopIdKey)) ||
-        (rzpOrderKey && existingOrderKeys.has(rzpOrderKey)) ||
-        (rzpPayKey && existingOrderKeys.has(rzpPayKey));
-
-      const isSuccessful = ["paid", "cod_upfront_paid", "partially_paid", "approved", "PAID", "COD_UPFRONT_PAID", "PARTIALLY_PAID"].includes((mOrder.paymentStatus || "").toString());
-
-      if (!alreadyIncluded && (mOrder.internalOrderNumber || mOrder.shopifyOrderName) && isSuccessful) {
-        try {
-          const promoted = await promoteMasterOrderToWebStoreOrder(mOrder);
-          if (promoted) {
-            existingOrderKeys.add(promoted.id.toUpperCase());
-            existingOrderKeys.add(promoted.orderNumber.toUpperCase());
-            if (promoted.razorpayOrderId) existingOrderKeys.add(promoted.razorpayOrderId.toUpperCase());
-            if (promoted.razorpayPaymentId) existingOrderKeys.add(promoted.razorpayPaymentId.toUpperCase());
-            reconciledOrders.push(promoted as unknown as Record<string, unknown>);
-          }
-        } catch (pErr: unknown) {
-          const msg = pErr instanceof Error ? pErr.message : String(pErr);
-          console.warn(`[Web Store Orders GET] Skipping promotion error for master order ${mOrder.id}:`, msg);
-        }
-      }
-    }
-
-    // Batched lookup for payment failure reason from Order model to eliminate N+1 queries
-    const rzpIdsToFetch = reconciledOrders.map((o: Record<string, unknown>) => o.razorpayOrderId as string).filter(Boolean);
+    // Batched lookup for payment failure reason from Order model (eliminates N+1 queries)
     const failureReasonMap = new Map<string, string>();
 
-    if (rzpIdsToFetch.length > 0) {
-      const matchingOrders = await prisma.order.findMany({
-        where: { razorpayOrderId: { in: rzpIdsToFetch } },
-        select: { razorpayOrderId: true, paymentFailureReason: true },
-      });
-      matchingOrders.forEach((m: { razorpayOrderId: string | null; paymentFailureReason: string | null }) => {
-        if (m.razorpayOrderId && m.paymentFailureReason) {
-          failureReasonMap.set(m.razorpayOrderId, m.paymentFailureReason);
-        }
-      });
+    if (pageRzpIds.length > 0) {
+      try {
+        const matchingOrders = await prisma.order.findMany({
+          where: { razorpayOrderId: { in: pageRzpIds } },
+          select: { razorpayOrderId: true, paymentFailureReason: true },
+        });
+        matchingOrders.forEach((m: { razorpayOrderId: string | null; paymentFailureReason: string | null }) => {
+          if (m.razorpayOrderId && m.paymentFailureReason) {
+            failureReasonMap.set(m.razorpayOrderId, m.paymentFailureReason);
+          }
+        });
+      } catch (lookupErr: unknown) {
+        const msg = lookupErr instanceof Error ? lookupErr.message : String(lookupErr);
+        console.warn("[Web Store Orders GET] Failure reason lookup error (non-fatal):", msg);
+      }
     }
 
-    const enrichedOrders = reconciledOrders.map((o: Record<string, unknown>) => {
+    const enrichedOrders = orders.map((o: Record<string, unknown>) => {
       let failureReason = (o.paymentFailureReason as string) || null;
       const rzpId = o.razorpayOrderId as string | undefined;
       const pStatus = o.paymentStatus as string | undefined;
@@ -231,13 +159,11 @@ export async function GET(request: Request) {
 
     // Deduplicate order attempts
     const deduplicatedOrders = deduplicateWebStoreOrders(enrichedOrders);
-    const updatedTotal = await prisma.webStoreOrder.count({ where: where as Prisma.WebStoreOrderWhereInput });
-    const finalTotal = Math.max(updatedTotal, deduplicatedOrders.length);
 
     return NextResponse.json({
       orders: deduplicatedOrders,
-      total: finalTotal,
-      hasMore: offset + limit < finalTotal,
+      total,
+      hasMore: offset + limit < total,
     });
   } catch (error: unknown) {
     console.error("[Web Store Orders GET] Error:", error);

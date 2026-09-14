@@ -423,7 +423,7 @@ export async function GET(req: NextRequest) {
       const isStep3Enabled = await getWhatsAppSetting('cart_recovery_step3_enabled', 'true') === 'true';
 
       const delay1 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step1', '5'), 10) || 5;
-      const delay2 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step2', '60'), 10) || 60;
+      const delay2 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step2', '1440'), 10) || 1440;
       const delay3 = parseInt(await getWhatsAppSetting('delay_abandoned_cart_step3', '10080'), 10) || 10080;
 
       const now = new Date();
@@ -456,6 +456,7 @@ export async function GET(req: NextRequest) {
             }
           }
         },
+        orderBy: { lastActivityAt: 'asc' },
         take: 50
       });
 
@@ -487,12 +488,11 @@ export async function GET(req: NextRequest) {
         }
       });
 
-      // Fetch all messages linked to these carts specifically
+      // Fetch all messages linked to these carts specifically (including previous failures so we don't deadlock)
       const cartIds = carts.map((c: any) => c.id);
       const cartMessages = await db.whatsAppMessage.findMany({
         where: {
           cartId: { in: cartIds },
-          status: { not: 'failed' }
         }
       });
 
@@ -570,6 +570,10 @@ export async function GET(req: NextRequest) {
         let step2Sent = sentForCart.filter((m: any) => m.recoveryStage === 2);
         let step3Sent = sentForCart.filter((m: any) => m.recoveryStage === 3);
 
+        const isStep1Done = step1Sent.some((m: any) => ['sent', 'delivered', 'read'].includes(m.status));
+        const isStep2Done = step2Sent.some((m: any) => ['sent', 'delivered', 'read'].includes(m.status));
+        const isStep3Done = step3Sent.some((m: any) => ['sent', 'delivered', 'read'].includes(m.status));
+
         // Fallback to legacy check if no direct relation records exist
         if (step1Sent.length === 0 || step2Sent.length === 0 || step3Sent.length === 0) {
           const legacySent = recoveryMessages.filter((msg: any) => 
@@ -587,32 +591,49 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // Determine the next eligible step based on progression & enablement status
-        let nextStepToProcess = 1;
-        if (step1Sent.length > 0 || !isStep1Enabled) {
-          nextStepToProcess = 2;
-        }
-        if (nextStepToProcess === 2 && (step2Sent.length > 0 || !isStep2Enabled)) {
-          nextStepToProcess = 3;
-        }
-        if (nextStepToProcess === 3 && (step3Sent.length > 0 || !isStep3Enabled)) {
-          nextStepToProcess = 4; // All steps sent or disabled
-        }
-
         const lastActivityTime = new Date(cart.lastActivityAt).getTime();
         const elapsedMinutes = (now.getTime() - lastActivityTime) / (60 * 1000);
+
+        // Determine the next eligible step based on progression & enablement status
+        // P1-13 fix: allow Step 2 and 3 to fire even if Step 1 failed once elapsed time reaches delay2
+        let nextStepToProcess = 1;
+        if (isStep1Done || !isStep1Enabled || (step1Sent.length > 0 && elapsedMinutes >= delay2)) {
+          nextStepToProcess = 2;
+        }
+        if (nextStepToProcess === 2 && (isStep2Done || !isStep2Enabled || (step2Sent.length > 0 && elapsedMinutes >= delay3))) {
+          nextStepToProcess = 3;
+        }
+        if (nextStepToProcess === 3 && (isStep3Done || !isStep3Enabled || step3Sent.length > 0)) {
+          nextStepToProcess = 4; // All steps sent, attempted, or disabled
+        }
 
         if (nextStepToProcess === 1) {
           // Step 1: Fired if elapsed time is at least delay1 (default 5m)
           if (elapsedMinutes >= delay1) {
-            // Claim job atomically via DB write
+            // Claim job atomically via DB write using upsert to avoid deadlock
             try {
-              await db.whatsAppMessage.create({
-                data: {
+              const existingClaim = step1Sent[0];
+              if (existingClaim && existingClaim.status === 'processing') {
+                const processingAge = (now.getTime() - new Date(existingClaim.sentAt || existingClaim.createdAt).getTime()) / (60 * 1000);
+                if (processingAge < 15) {
+                  console.log(`[Scheduler] Cart ${cart.id} Step 1 currently processing (${processingAge.toFixed(1)}m old), skipping.`);
+                  continue;
+                }
+              }
+
+              await db.whatsAppMessage.upsert({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 1 } },
+                create: {
                   direction: 'outbound',
                   phoneNumber: formattedPhone,
                   cartId: cart.id,
                   recoveryStage: 1,
+                  status: 'processing',
+                  templateName: step1Template,
+                  body: `Cart Recovery Step 1 claiming ${cart.id}`,
+                  sentAt: new Date(),
+                },
+                update: {
                   status: 'processing',
                   templateName: step1Template,
                   body: `Cart Recovery Step 1 claiming ${cart.id}`,
@@ -706,12 +727,28 @@ export async function GET(req: NextRequest) {
 
           if (elapsedMinutes >= delay2 && elapsedSinceLast >= 15) {
             try {
-              await db.whatsAppMessage.create({
-                data: {
+              const existingClaim = step2Sent[0];
+              if (existingClaim && existingClaim.status === 'processing') {
+                const processingAge = (now.getTime() - new Date(existingClaim.sentAt || existingClaim.createdAt).getTime()) / (60 * 1000);
+                if (processingAge < 15) {
+                  console.log(`[Scheduler] Cart ${cart.id} Step 2 currently processing (${processingAge.toFixed(1)}m old), skipping.`);
+                  continue;
+                }
+              }
+
+              await db.whatsAppMessage.upsert({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 2 } },
+                create: {
                   direction: 'outbound',
                   phoneNumber: formattedPhone,
                   cartId: cart.id,
                   recoveryStage: 2,
+                  status: 'processing',
+                  templateName: step2Template,
+                  body: `Cart Recovery Step 2 claiming ${cart.id}`,
+                  sentAt: new Date(),
+                },
+                update: {
                   status: 'processing',
                   templateName: step2Template,
                   body: `Cart Recovery Step 2 claiming ${cart.id}`,
@@ -800,12 +837,28 @@ export async function GET(req: NextRequest) {
 
           if (elapsedMinutes >= delay3 && elapsedSinceLast >= 1440) {
             try {
-              await db.whatsAppMessage.create({
-                data: {
+              const existingClaim = step3Sent[0];
+              if (existingClaim && existingClaim.status === 'processing') {
+                const processingAge = (now.getTime() - new Date(existingClaim.sentAt || existingClaim.createdAt).getTime()) / (60 * 1000);
+                if (processingAge < 15) {
+                  console.log(`[Scheduler] Cart ${cart.id} Step 3 currently processing (${processingAge.toFixed(1)}m old), skipping.`);
+                  continue;
+                }
+              }
+
+              await db.whatsAppMessage.upsert({
+                where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 3 } },
+                create: {
                   direction: 'outbound',
                   phoneNumber: formattedPhone,
                   cartId: cart.id,
                   recoveryStage: 3,
+                  status: 'processing',
+                  templateName: step3Template,
+                  body: `Cart Recovery Step 3 claiming ${cart.id}`,
+                  sentAt: new Date(),
+                },
+                update: {
                   status: 'processing',
                   templateName: step3Template,
                   body: `Cart Recovery Step 3 claiming ${cart.id}`,

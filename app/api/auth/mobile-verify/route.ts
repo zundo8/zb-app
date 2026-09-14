@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { searchCustomerByPhone } from "@/lib/shopify-admin";
-import { signAppToken } from "@/lib/appAuth";
+import { signAccessToken, signRefreshToken } from "@/lib/appAuth";
 import { SmsService } from "@/lib/services/sms.service";
+import { maskPhone } from "@/lib/pii-mask";
 
 export const dynamic = "force-dynamic";
 
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimit } from "@/lib/rate-limit";
 import { getClientIP } from "@/lib/ip-geo";
 
 async function autoOptInCustomer(phone: string, customerId: string) {
@@ -118,6 +119,23 @@ export async function POST(req: Request) {
       isVerified = true;
     }
 
+    // Per-phone failed verification lockout (max 5 failed attempts per 10 minutes)
+    if (process.env.NODE_ENV === "production" && normalizedPhone !== "9999999999") {
+      const lockKey = `otp-verify-failures:${normalizedPhone}`;
+      const failCountResult: any[] = await prisma.$queryRawUnsafe(
+        `SELECT COUNT(*)::int as count FROM "RateLimitLog" WHERE "key" = $1 AND "timestamp" >= $2`,
+        lockKey,
+        new Date(Date.now() - 10 * 60 * 1000)
+      ).catch(() => []);
+      const failedAttempts = failCountResult[0]?.count ?? 0;
+      if (failedAttempts >= 5) {
+        return NextResponse.json(
+          { error: "Too many incorrect OTP attempts. Please wait 10 minutes or request a new OTP." },
+          { status: 429 }
+        );
+      }
+    }
+
     // 1. Try local DB check first (instantaneous, timezone desync-safe)
     if (!isVerified) {
       const verification = await prisma.verificationCode.findFirst({
@@ -165,6 +183,11 @@ export async function POST(req: Request) {
     }
 
     if (!isVerified) {
+      // Record failed attempt for per-phone lockout
+      if (process.env.NODE_ENV === "production" && normalizedPhone !== "9999999999") {
+        await rateLimit(`otp-verify-failures:${normalizedPhone}`, { maxRequests: 5, windowMs: 10 * 60 * 1000 }).catch(() => {});
+      }
+
       // Log failed attempt (non-blocking)
       prisma.appLogin.create({
         data: {
@@ -250,11 +273,14 @@ export async function POST(req: Request) {
         data: { phone: fullPhone, status: "SUCCESS", userAgent: req.headers.get("user-agent") || "Mobile App", ip: getClientIP(req) }
       }).catch(console.error);
 
-      const token = signAppToken({
+      const tokenPayload = {
         customerId: customer.id,
         customerEmail: customer.email ?? null,
         customerPhone: customer.phone ?? null,
-      });
+        tokenVersion: (customer as any).tokenVersion ?? 0,
+      };
+      const token = signAccessToken(tokenPayload);
+      const refreshToken = signRefreshToken(tokenPayload);
 
       // ── BACKGROUND: Shopify sync (fire-and-forget) ──
       const bgCustomerId = customer.id;
@@ -380,11 +406,12 @@ export async function POST(req: Request) {
           isCommunityMember: !!customer.communityMember
         },
         token,
+        refreshToken,
       });
     }
 
     // ── NEW USER PATH: No local customer found ──
-    console.log(`[Mobile Verify] New user path for ${fullPhone}`);
+    console.log(`[Mobile Verify] New user path for ${maskPhone(fullPhone)}`);
 
     // Search Shopify in parallel
     let shopifyCustomer = null;
@@ -481,11 +508,14 @@ export async function POST(req: Request) {
       data: { phone: fullPhone, status: "SUCCESS", userAgent: req.headers.get("user-agent") || "Mobile App", ip: getClientIP(req) }
     }).catch(console.error);
 
-    const token = signAppToken({
+    const tokenPayload = {
       customerId: customer.id,
       customerEmail: customer.email ?? null,
       customerPhone: customer.phone ?? null,
-    });
+      tokenVersion: (customer as any).tokenVersion ?? 0,
+    };
+    const token = signAccessToken(tokenPayload);
+    const refreshToken = signRefreshToken(tokenPayload);
 
     await autoOptInCustomer(fullPhone, customer.id);
 
@@ -531,6 +561,7 @@ export async function POST(req: Request) {
         isCommunityMember: !!customer.communityMember
       },
       token,
+      refreshToken,
     });
   } catch (error: any) {
     console.error("Mobile verify error:", error);

@@ -9,6 +9,7 @@ import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useOpenAiEvents } from "@/hooks/useOpenAiEvents";
 import { getClientCookie } from "@/lib/metaPixel";
 
 
@@ -38,6 +39,7 @@ export default function LoginPage() {
   const [isNewUser, setIsNewUser] = useState(false);
   const { trackCompleteRegistration } = useMetaEvents();
   const { trackSignUp: trackSnapSignUp, trackLogin: trackSnapLogin } = useSnapEvents();
+  const { trackRegistrationCompleted: trackOaiRegistrationCompleted } = useOpenAiEvents();
 
   const [step, setStep] = useState<"PHONE" | "NAME" | "OTP">("PHONE");
   const [phone, setPhone] = useState("");
@@ -418,6 +420,7 @@ export default function LoginPage() {
         if (isNewUser) {
           trackCompleteRegistration();
           trackSnapSignUp();
+          trackOaiRegistrationCompleted();
         } else {
           trackSnapLogin();
         }

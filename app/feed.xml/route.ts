@@ -10,20 +10,22 @@
  * - Meta Commerce Manager: Same fields (RSS 2.0 w/ Google namespace is accepted)
  * - Snapchat Catalog: Same RSS 2.0 feed format
  * - TikTok Catalog: Same RSS 2.0 feed format
+ * - OpenAI Ads: Same RSS 2.0 feed format
+ *
+ * Performance: Uses a single Shopify API call (fetchAllProducts) + one cheap Prisma
+ * query for exclusions. Previous implementation used N+1 collection-to-product API
+ * calls that caused rate limiting and 500 errors.
  */
 
 import {
   fetchAllProducts,
-  fetchCollections,
-  fetchProductsByCollectionId,
   type ShopifyProduct,
-  type ShopifyCollection,
 } from '@/lib/shopify-admin';
 import prisma from '@/lib/db';
 import { getGoogleCategory } from '@/lib/google-product-categories';
 
 export const runtime = 'nodejs';
-export const revalidate = 900; // 15 minutes — documented tradeoff in implementation plan
+export const revalidate = 900; // 15 minutes
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com').replace(/\/+$/, '');
 const BRAND = 'Zica Bella';
@@ -56,7 +58,7 @@ function stripHtml(html: string): string {
 
 /** Wrap text in CDATA, escaping any nested ]]> sequences */
 function cdata(text: string): string {
-  const safe = text.replace(/\]\]>/g, ']]]]><![CDATA[>');
+  const safe = text.replace(/\]\]>/g, ']]]><![CDATA[>');
   return `<![CDATA[${safe}]]>`;
 }
 
@@ -89,81 +91,29 @@ function getVariantAttributes(
 
 // ─── Data Fetching ───────────────────────────────────────────────────
 
-interface FeedExclusions {
-  excludedProductIds: Set<string>;
-  excludedCollectionHandles: Set<string>;
-}
-
-async function getFeedExclusions(): Promise<FeedExclusions> {
+/**
+ * Fetch the set of Shopify product IDs that have been explicitly excluded
+ * from the feed via the admin dashboard's includeInFeed toggle.
+ */
+async function getExcludedProductIds(): Promise<Set<string>> {
   try {
-    const [excludedProducts, shop] = await Promise.all([
-      prisma.product.findMany({
-        where: { includeInFeed: false },
-        select: { shopifyProductId: true },
-      }),
-      prisma.shop.findFirst({
-        select: { feedExcludedCollections: true },
-      }),
-    ]);
+    const excludedProducts = await prisma.product.findMany({
+      where: { includeInFeed: false },
+      select: { shopifyProductId: true },
+    });
 
-    const excludedProductIds = new Set<string>(excludedProducts.map((p: { shopifyProductId: string }) => p.shopifyProductId));
-
-    let excludedCollectionHandles = new Set<string>();
-    if (shop?.feedExcludedCollections) {
-      try {
-        const handles: string[] = JSON.parse(shop.feedExcludedCollections);
-        excludedCollectionHandles = new Set<string>(handles.map(h => h.trim().toLowerCase()));
-      } catch {
-        // Invalid JSON — treat as no exclusions
-      }
-    }
-
-    return { excludedProductIds, excludedCollectionHandles };
+    return new Set<string>(excludedProducts.map((p: { shopifyProductId: string }) => p.shopifyProductId));
   } catch (err) {
     console.error('[Feed] Error fetching feed exclusions from database:', err);
-    return { excludedProductIds: new Set<string>(), excludedCollectionHandles: new Set<string>() };
+    return new Set<string>();
   }
-}
-
-/** Build a map of productId → collection handles (for product_type + excluded-collection filtering) */
-async function buildProductCollectionMap(
-  collections: ShopifyCollection[]
-): Promise<Map<number, string[]>> {
-  const map = new Map<number, string[]>();
-
-  // Batch fetch products per collection with concurrency limit
-  const CONCURRENCY = 4;
-  for (let i = 0; i < collections.length; i += CONCURRENCY) {
-    const batch = collections.slice(i, i + CONCURRENCY);
-    const results = await Promise.all(
-      batch.map(async (col) => {
-        try {
-          const products = await fetchProductsByCollectionId(col.id.toString());
-          return { handle: col.handle, productIds: products.map(p => p.id) };
-        } catch {
-          return { handle: col.handle, productIds: [] as number[] };
-        }
-      })
-    );
-
-    for (const { handle, productIds } of results) {
-      for (const pid of productIds) {
-        const existing = map.get(pid) || [];
-        existing.push(handle);
-        map.set(pid, existing);
-      }
-    }
-  }
-
-  return map;
 }
 
 // ─── XML Generation ──────────────────────────────────────────────────
 
 function generateItemXml(
   product: ShopifyProduct,
-  variant: ShopifyProduct['variants'][0],
-  collectionHandles: string[]
+  variant: ShopifyProduct['variants'][0]
 ): string {
   const { size, color } = getVariantAttributes(product, variant);
 
@@ -203,9 +153,9 @@ function generateItemXml(
     priceTag = formatPrice(variantPrice);
   }
 
-  // Product type / category
-  const productType = product.product_type || collectionHandles[0] || '';
-  const googleCategory = getGoogleCategory(product.product_type || collectionHandles[0]);
+  // Product type / category — use product_type directly from Shopify
+  const productType = product.product_type || '';
+  const googleCategory = getGoogleCategory(product.product_type);
 
   const lines: string[] = [
     '    <item>',
@@ -262,17 +212,14 @@ export async function GET(): Promise<Response> {
     console.log('[Feed] Starting feed generation...');
     const startTime = Date.now();
 
-    // Parallel fetch: Shopify products + collections + Prisma exclusions
-    const [allProducts, allCollections, exclusions] = await Promise.all([
+    // Parallel fetch: Shopify products + Prisma exclusions
+    // Only 1 Shopify API call (fetchAllProducts) + 1 cheap DB query
+    const [allProducts, excludedProductIds] = await Promise.all([
       fetchAllProducts(250),
-      fetchCollections(250),
-      getFeedExclusions(),
+      getExcludedProductIds(),
     ]);
 
-    console.log(`[Feed] Fetched ${allProducts.length} products, ${allCollections.length} collections`);
-
-    // Build product → collection map
-    const productCollectionMap = await buildProductCollectionMap(allCollections);
+    console.log(`[Feed] Fetched ${allProducts.length} products, ${excludedProductIds.size} excluded`);
 
     // Filter products
     const feedProducts = allProducts.filter(product => {
@@ -280,17 +227,7 @@ export async function GET(): Promise<Response> {
       if (product.status !== 'active') return false;
 
       // Must not be excluded by includeInFeed flag
-      if (exclusions.excludedProductIds.has(String(product.id))) return false;
-
-      // Must not belong exclusively to excluded collections
-      const productCollections = productCollectionMap.get(product.id) || [];
-      if (
-        exclusions.excludedCollectionHandles.size > 0 &&
-        productCollections.length > 0 &&
-        productCollections.every(h => exclusions.excludedCollectionHandles.has(h.toLowerCase()))
-      ) {
-        return false;
-      }
+      if (excludedProductIds.has(String(product.id))) return false;
 
       // Must have at least one variant with stock > 0
       const hasStock = product.variants.some(v => (v.inventory_quantity ?? 0) > 0);
@@ -304,9 +241,8 @@ export async function GET(): Promise<Response> {
     // Generate items — one per variant
     const items: string[] = [];
     for (const product of feedProducts) {
-      const collectionHandles = productCollectionMap.get(product.id) || [];
       for (const variant of product.variants) {
-        items.push(generateItemXml(product, variant, collectionHandles));
+        items.push(generateItemXml(product, variant));
       }
     }
 

@@ -1,6 +1,17 @@
 import prisma from "@/lib/db";
 
 export async function promoteMasterOrderToWebStoreOrder(mOrder: Record<string, unknown>) {
+  // Guard: Do not promote cancelled, failed, or voided orders
+  const orderStatus = ((mOrder.status as string) || '').toLowerCase();
+  const paymentSt = ((mOrder.paymentStatus as string) || '').toLowerCase();
+  const rejectedStatuses = ['cancelled', 'canceled', 'voided'];
+  const rejectedPaymentStatuses = ['cancelled', 'canceled', 'failed', 'payment_failed', 'voided'];
+
+  if (rejectedStatuses.includes(orderStatus) || rejectedPaymentStatuses.includes(paymentSt)) {
+    console.log(`[orderPromotionService] Skipping promotion for order ${mOrder.id}: status=${orderStatus}, paymentStatus=${paymentSt}`);
+    return null;
+  }
+
   let shippingAddr: Record<string, unknown> = {};
   try {
     shippingAddr = typeof mOrder.shippingAddress === 'string' ? JSON.parse(mOrder.shippingAddress as string) : ((mOrder.shippingAddress as Record<string, unknown>) || {});

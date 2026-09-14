@@ -1,4 +1,5 @@
 import prisma from './db';
+import { decryptSecret } from './crypto/secret-box';
 
 const API_VERSION = '2025-01';
 export { API_VERSION };
@@ -13,9 +14,23 @@ export async function getShopConfig() {
   try {
     if (global._cachedShopConfig) return global._cachedShopConfig;
     
-    // Always use environment variables directly for production stability and to avoid DB desyncs
+    // Primary: use environment variables directly for production stability
+    const envToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '';
+    let finalToken = envToken;
+
+    // If no env token, fall back to DB (token may be encrypted)
+    if (!finalToken) {
+      try {
+        const shop = await prisma.shop.findFirst({ select: { accessToken: true } });
+        if (shop?.accessToken) {
+          finalToken = decryptSecret(shop.accessToken);
+        }
+      } catch (dbErr) {
+        console.warn('[Shopify Client] DB token lookup failed:', dbErr);
+      }
+    }
+
     const finalDomain = process.env.SHOPIFY_STORE_DOMAIN || process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN || '8tiahf-bk.myshopify.com';
-    const finalToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '';
     
     const config = {
       domain: finalDomain,
@@ -28,7 +43,7 @@ export async function getShopConfig() {
 
     return config;
   } catch (error) {
-    console.warn('[Shopify Admin] Database access failed during config fetch:', error);
+    console.warn('[Shopify Admin] Config fetch failed:', error);
     return {
       domain: process.env.SHOPIFY_STORE_DOMAIN || '8tiahf-bk.myshopify.com',
       accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',

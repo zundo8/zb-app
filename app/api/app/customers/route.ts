@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { searchCustomerByPhone, createCustomer, fetchAllCustomers, ShopifyCustomer } from '@/lib/shopify-admin';
+import { requireAuth, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,8 @@ function flattenCustomer(c: ShopifyCustomer) {
 
 export async function GET(req: Request) {
   try {
+    await requireAuth();
+
     const url = new URL(req.url);
     const phone = url.searchParams.get('phone');
     const all = url.searchParams.get('all') === 'true';
@@ -70,6 +73,9 @@ export async function GET(req: Request) {
       { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } }
     );
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('[App API] Customers error:', error.message);
     return NextResponse.json(
       { error: error.message },
@@ -80,6 +86,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    await requireAuth();
+
     const body = await req.json();
 
     const customer = await createCustomer({
@@ -96,6 +104,9 @@ export async function POST(req: Request) {
       { headers: { 'Access-Control-Allow-Origin': '*' } }
     );
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('[App API] Create customer error:', error.message);
     return NextResponse.json(
       { success: false, error: error.message },

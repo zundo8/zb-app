@@ -26,7 +26,7 @@ function checkRateLimit(phone: string): boolean {
   return true;
 }
 
-import { checkRateLimit as checkIpRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit as checkIpRateLimit, rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   const rateLimitResult = await checkIpRateLimit(req, "auth-send-otp", { maxRequests: 20, windowMs: 600_000 });
@@ -48,9 +48,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
     }
 
-    // Rate limit check: skip in development or for demo number
+    // Rate limit check: in-memory fast-check + persistent DB sliding-window limiter
     if (process.env.NODE_ENV === "production" && digits.slice(-10) !== "9999999999") {
-      if (!checkRateLimit(digits.slice(-10))) {
+      const phoneLast10 = digits.slice(-10);
+      if (!checkRateLimit(phoneLast10)) {
+        return NextResponse.json(
+          { error: "Too many OTP requests. Please try again in a few minutes." }, 
+          { status: 429 }
+        );
+      }
+      const persistentLimit = await rateLimit(`otp-send:${phoneLast10}`, { maxRequests: 5, windowMs: 10 * 60 * 1000 });
+      if (!persistentLimit.allowed) {
         return NextResponse.json(
           { error: "Too many OTP requests. Please try again in a few minutes." }, 
           { status: 429 }

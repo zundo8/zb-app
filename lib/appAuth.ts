@@ -6,6 +6,8 @@ export type AppAuthTokenPayload = {
   customerId: string;
   customerEmail?: string | null;
   customerPhone?: string | null;
+  tokenVersion?: number;
+  type?: 'access' | 'refresh';
 };
 
 function getAppJwtSecret() {
@@ -16,10 +18,41 @@ function getAppJwtSecret() {
   return secret;
 }
 
-export function signAppToken(payload: AppAuthTokenPayload) {
-  return jwt.sign(payload, getAppJwtSecret(), { expiresIn: '30d' });
+/**
+ * Signs a short-lived access token (1 hour).
+ */
+export function signAccessToken(payload: Omit<AppAuthTokenPayload, 'type'>) {
+  return jwt.sign(
+    { ...payload, type: 'access' },
+    getAppJwtSecret(),
+    { expiresIn: '1h' }
+  );
 }
 
+/**
+ * Signs a long-lived refresh token (30 days).
+ */
+export function signRefreshToken(payload: Omit<AppAuthTokenPayload, 'type'>) {
+  return jwt.sign(
+    { ...payload, type: 'refresh' },
+    getAppJwtSecret(),
+    { expiresIn: '30d' }
+  );
+}
+
+/**
+ * Backward-compatible alias — issues an access token (1h).
+ * New callers should use signAccessToken + signRefreshToken instead.
+ * @deprecated Use signAccessToken + signRefreshToken
+ */
+export function signAppToken(payload: Omit<AppAuthTokenPayload, 'type'>) {
+  return signAccessToken(payload);
+}
+
+/**
+ * Verifies and decodes a JWT token, extracting all payload fields.
+ * Legacy tokens (without tokenVersion/type) default to version 0 and type 'access'.
+ */
 export function verifyAppToken(token: string): AppAuthTokenPayload {
   const decoded = jwt.verify(token, getAppJwtSecret());
   if (typeof decoded !== 'object' || !decoded) throw new Error('Invalid token');
@@ -29,6 +62,8 @@ export function verifyAppToken(token: string): AppAuthTokenPayload {
     customerId,
     customerEmail: typeof (decoded as any).customerEmail === 'string' ? (decoded as any).customerEmail : null,
     customerPhone: typeof (decoded as any).customerPhone === 'string' ? (decoded as any).customerPhone : null,
+    tokenVersion: typeof (decoded as any).tokenVersion === 'number' ? (decoded as any).tokenVersion : 0,
+    type: (decoded as any).type === 'refresh' ? 'refresh' : 'access',
   };
 }
 
@@ -41,6 +76,49 @@ export function getAppAuthFromRequest(req: Request) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Strict auth middleware for critical mobile app routes.
+ * Validates the JWT AND checks the tokenVersion against the DB.
+ * Throws structured errors for 401 responses.
+ */
+export async function requireAppAuth(req: Request) {
+  const auth = getAppAuthFromRequest(req);
+  if (!auth) {
+    throw Object.assign(new Error('Unauthorized'), { statusCode: 401 });
+  }
+
+  // Reject refresh tokens used as access tokens
+  if (auth.type === 'refresh') {
+    throw Object.assign(new Error('Invalid token type'), { statusCode: 401 });
+  }
+
+  // DB-backed token version check for revocation
+  const customer = await prisma.customer.findUnique({
+    where: { id: auth.customerId },
+    select: { id: true, tokenVersion: true, name: true, email: true, phone: true },
+  });
+
+  if (!customer) {
+    throw Object.assign(new Error('Customer not found'), { statusCode: 401 });
+  }
+
+  if (auth.tokenVersion !== undefined && auth.tokenVersion < customer.tokenVersion) {
+    throw Object.assign(new Error('Token revoked'), { statusCode: 401 });
+  }
+
+  return { auth, customer };
+}
+
+/**
+ * Standard error handler for requireAppAuth throws.
+ */
+export function handleAppAuthError(error: any) {
+  const { NextResponse } = require('next/server');
+  const statusCode = error?.statusCode || 401;
+  const message = error instanceof Error ? error.message : 'Unauthorized';
+  return NextResponse.json({ error: message }, { status: statusCode });
 }
 
 /**
@@ -142,5 +220,3 @@ export async function resolveAuthCustomer(auth: AppAuthTokenPayload | null) {
 
   return null;
 }
-
-

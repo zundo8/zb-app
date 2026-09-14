@@ -22,6 +22,8 @@ import {
 import Link from "next/link";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useOpenAiEvents } from "@/hooks/useOpenAiEvents";
+import { toMinorUnits } from "@/lib/openaiPixel";
 import { trackStorefrontEvent } from "@/lib/track-client";
 import { trackPurchase as zbTrackPurchase } from "@/lib/analytics-tracker";
 import { formatPriceString } from "@/lib/global-pricing-client";
@@ -36,6 +38,7 @@ export default function OrderConfirmationPage() {
   const [purchasedPixel, setPurchasedPixel] = useState(false);
   const { trackPurchase } = useMetaEvents();
   const { trackPurchase: trackSnapPurchase } = useSnapEvents();
+  const { trackOrderCreated: trackOpenAiOrderCreated } = useOpenAiEvents();
 
   useEffect(() => {
     if (order) {
@@ -47,7 +50,20 @@ export default function OrderConfirmationPage() {
         }
 
         const val = parseFloat(order.totalPrice || "0");
-        const contentIds = order.items?.map((item: any) => item.variantId || item.productId) || [];
+
+        // FIX 2: Prefer Shopify variant ID for Snap catalog/DPA matching.
+        // OrderItem.sku often holds 'variant:NUMERIC_ID' or the raw Shopify variant ID.
+        // Strip prefixes/GIDs to extract the trailing numeric ID.
+        const toSnapId = (item: any): string => {
+          const raw = item.sku || item.variantId || item.productId || '';
+          const s = String(raw);
+          // Strip 'variant:' prefix if present
+          const stripped = s.startsWith('variant:') ? s.slice(8) : s;
+          // Strip gid://shopify/ProductVariant/ prefix and extract trailing numeric ID
+          const m = stripped.match(/(\d+)\s*$/);
+          return m ? m[1] : stripped;
+        };
+        const contentIds = order.items?.map(toSnapId) || [];
 
         let userData: any = undefined;
         try {
@@ -83,7 +99,7 @@ export default function OrderConfirmationPage() {
         }
 
         const contents = order.items?.map((item: any) => ({
-          id: item.variantId || item.productId,
+          id: toSnapId(item),
           quantity: item.quantity || 1,
           item_price: parseFloat(item.price || "0"),
           title: item.title
@@ -91,6 +107,18 @@ export default function OrderConfirmationPage() {
 
         trackPurchase(order.id, val, 'INR', contentIds, userData, storedCategory, contents);
         trackSnapPurchase(order.id, val, 'INR', contentIds, userData, storedCategory, contents.length);
+
+        // OpenAI Ads — order_created with minor-unit amounts
+        const openAiContents = order.items?.map((item: any) => ({
+          id: toSnapId(item),
+          name: item.title,
+          content_type: 'product' as const,
+          quantity: item.quantity || 1,
+          amount: toMinorUnits(parseFloat(item.price || '0'), 'INR'),
+          currency: 'INR',
+        })) || [];
+        trackOpenAiOrderCreated(order.id, val, 'INR', openAiContents, userData);
+
         zbTrackPurchase(order.id, val, { num_items: contentIds.length, currency: 'INR' });
 
         // FIX 1b: After a guest purchase, reset identity so the next guest

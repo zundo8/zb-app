@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { processOrderRefund } from '@/lib/services/refundService';
-import { getServerSession } from 'next-auth';
-import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
+    const session = await requirePermission('ORDERS', 'edit');
     let { id } = params;
 
     // Check if it is a MobileOrder ID
@@ -21,23 +21,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     }
 
-    // Get session to log email and verify role
-    const session = (await getServerSession(authOptions as any)) as any;
-    if (!session || !session.user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const email = session.user.email || 'admin';
-    const role = (session.user as any).role;
-    
-    // Permission check
-    const isSuperAdmin = role === 'SUPER_ADMIN';
-    const ordersPermission = (session.user as any).permissions?.find((p: any) => p.module === 'ORDERS');
-    const canEditOrders = isSuperAdmin || !!ordersPermission?.canEdit;
-
-    if (!canEditOrders) {
-      return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
-    }
+    const email = session.user?.email || 'admin';
 
     const order = await prisma.order.findUnique({
       where: { id }
@@ -60,6 +44,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ success: false, error: result.error || 'Refund execution failed' }, { status: 500 });
     }
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('[Admin Refund Retry API] Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

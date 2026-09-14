@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    await requirePermission('FINANCIAL', 'view');
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.trim() || "";
     const limit = parseInt(searchParams.get("limit") || "100", 10);
@@ -205,6 +207,9 @@ export async function GET(req: Request) {
       total
     });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error("Transaction History GET Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

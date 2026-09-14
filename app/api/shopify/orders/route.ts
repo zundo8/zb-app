@@ -6,11 +6,14 @@ import {
   fetchAllOrders,
 } from '@/lib/shopify-admin';
 import prisma from '@/lib/db';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    await requirePermission('ORDERS', 'edit');
+
     const body = await request.json();
     
     // Construct the Shopify order payload
@@ -48,6 +51,9 @@ export async function POST(request: Request) {
     const data = await res.json();
     return NextResponse.json({ success: true, order: data.order as ShopifyOrder });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('Error in create order route:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
@@ -55,6 +61,8 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    await requirePermission('ORDERS', 'view');
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'any';
     
@@ -89,6 +97,9 @@ export async function GET(request: Request) {
     
     return NextResponse.json({ orders: enrichedOrders });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('Error fetching orders:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }

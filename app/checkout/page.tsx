@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useOpenAiEvents } from "@/hooks/useOpenAiEvents";
 import { trackStorefrontEvent } from "@/lib/track-client";
 import { trackBeginCheckout as zbTrackBeginCheckout, trackPaymentInitiated as zbTrackPaymentInitiated } from "@/lib/analytics-tracker";
 import { saveUserDataToCookiesAndReinit, getClientCookie } from "@/lib/metaPixel";
@@ -221,6 +222,7 @@ export default function CheckoutPage() {
   const [mounted, setMounted] = useState(false);
   const { trackInitiateCheckout, trackAddPaymentInfo } = useMetaEvents();
   const { trackStartCheckout: trackSnapStartCheckout, trackAddBilling: trackSnapAddBilling } = useSnapEvents();
+  const { trackCheckoutStarted: trackOaiCheckoutStarted } = useOpenAiEvents();
 
   const initialName = session?.user?.name || "";
   const isPhoneName = /^\+?[0-9\s\-]{8,15}$/.test(initialName.trim());
@@ -349,6 +351,7 @@ export default function CheckoutPage() {
 
       trackInitiateCheckout(subtotal, items.length, 'INR', joinedCategories, contentIds, userData, contents);
       trackSnapStartCheckout(subtotal, items.length, 'INR', joinedCategories, contentIds, userData);
+      trackOaiCheckoutStarted(subtotal, items.length, 'INR', joinedCategories, contentIds, userData);
       zbTrackBeginCheckout(subtotal, { num_items: items.length, currency: 'INR' });
 
       // Track Checkout Started event server-side

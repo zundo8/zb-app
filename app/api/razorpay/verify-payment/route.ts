@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     try {
       const existingOrder = await prisma.order.findFirst({
         where: { razorpayOrderId: razorpay_order_id },
-        select: { id: true, paymentMethod: true },
+        select: { id: true, paymentMethod: true, internalOrderNumber: true, shopifyOrderName: true },
       });
 
       const isCOD = (existingOrder?.paymentMethod || "").toLowerCase().trim() === "cod";
@@ -65,6 +65,39 @@ export async function POST(req: Request) {
         where: { razorpayOrderId: razorpay_order_id },
         data: { paymentStatus: isCOD ? "cod_upfront_paid" : "paid", razorpayPaymentId: razorpay_payment_id },
       });
+
+      // Upgrade WebStoreOrder number from ZBPP prefix to real order number
+      const realOrderNum = existingOrder?.internalOrderNumber || existingOrder?.shopifyOrderName;
+      if (realOrderNum) {
+        try {
+          const pendingWso = await prisma.webStoreOrder.findFirst({
+            where: {
+              razorpayOrderId: razorpay_order_id,
+              orderNumber: { startsWith: "ZBPP" },
+            },
+          });
+          if (pendingWso) {
+            const existing = await prisma.webStoreOrder.findUnique({
+              where: { orderNumber: realOrderNum },
+            });
+            if (!existing) {
+              await prisma.webStoreOrder.update({
+                where: { id: pendingWso.id },
+                data: {
+                  orderNumber: realOrderNum,
+                  notes: pendingWso.notes
+                    ? `${pendingWso.notes} | Local: ${existingOrder.id}`
+                    : `Local: ${existingOrder.id}`,
+                },
+              });
+              paymentLog('info', 'verify-payment', { orderId: razorpay_order_id, message: `Upgraded order number: ${pendingWso.orderNumber} -> ${realOrderNum}` });
+            }
+          }
+        } catch (numErr) {
+          // Non-fatal: order number upgrade failure shouldn't block payment verification
+          paymentLog('warn', 'verify-payment', { orderId: razorpay_order_id, message: 'Order number upgrade failed (non-fatal)' });
+        }
+      }
     } catch (dbErr) {
       paymentLog('error', 'verify-payment', { orderId: razorpay_order_id, error: 'DB update failed' });
     }

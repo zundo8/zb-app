@@ -1,7 +1,7 @@
 import Razorpay from 'razorpay';
 import { NextResponse } from 'next/server';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
-import { getAppAuthFromRequest } from '@/lib/appAuth';
+import { requireAppAuth, handleAppAuthError } from '@/lib/appAuth';
 
 import { getCorsHeaders, handleCorsOptions } from '@/lib/cors';
 
@@ -16,10 +16,7 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const corsHeaders = getCorsHeaders(req);
   try {
-    const userAuth = getAppAuthFromRequest(req);
-    if (!userAuth) {
-      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401, headers: corsHeaders });
-    }
+    const { auth: userAuth } = await requireAppAuth(req);
 
     let { key_id, key_secret, source } = await resolveRazorpayCredentials();
     key_id = key_id.trim();
@@ -95,6 +92,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(data, { headers: corsHeaders });
   } catch (err: any) {
+    if (err?.statusCode === 401) return handleAppAuthError(err);
     console.error('Razorpay process server error:', err);
     return NextResponse.json(
       { error: err.message || 'Internal server error', source: 'server' },

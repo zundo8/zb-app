@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +11,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    await requirePermission('CUSTOMERS', 'view');
 
     if (!UUID_REGEX.test(params.id)) {
       return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
@@ -62,6 +58,9 @@ export async function GET(
       orderHistory,
     });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error("[Web Store Single Customer GET] Error:", error);
     return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
   }

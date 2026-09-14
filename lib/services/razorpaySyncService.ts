@@ -228,6 +228,36 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
                   tags: cleanedTags,
                 },
               });
+
+              // 3. Upgrade WebStoreOrder number from ZBPP prefix to real order number
+              const realOrderNumber = (mOrder.internalOrderNumber as string) || (mOrder.shopifyOrderName as string);
+              if (realOrderNumber && order.orderNumber.startsWith("ZBPP")) {
+                try {
+                  // Check if the real order number is already taken
+                  const existing = await prisma.webStoreOrder.findUnique({
+                    where: { orderNumber: realOrderNumber },
+                  });
+                  if (!existing) {
+                    const shopifyInfo = (mOrder.shopifyOrderName as string) ? `Shopify: ${mOrder.shopifyOrderName}` : '';
+                    const localInfo = `Local: ${mOrder.id}`;
+                    const notesSuffix = [shopifyInfo, localInfo].filter(Boolean).join(' | ');
+
+                    await prisma.webStoreOrder.update({
+                      where: { id: order.id },
+                      data: {
+                        orderNumber: realOrderNumber,
+                        notes: order.notes
+                          ? `${order.notes} | ${notesSuffix}`
+                          : notesSuffix,
+                      },
+                    });
+                    console.log(`[RazorpaySync] Upgraded order number: ${order.orderNumber} -> ${realOrderNumber}`);
+                  }
+                } catch (numErr: unknown) {
+                  const numMsg = numErr instanceof Error ? numErr.message : String(numErr);
+                  console.warn(`[RazorpaySync] Could not upgrade order number for ${order.orderNumber}:`, numMsg);
+                }
+              }
             }
           }
 

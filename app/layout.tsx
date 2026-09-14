@@ -10,6 +10,7 @@ import { Toaster } from "sonner";
 import MetaPixelRouteTracker from "@/components/MetaPixelRouteTracker";
 import FacebookSDKInit from "@/components/FacebookSDKInit";
 import SnapPixelRouteTracker from "@/components/SnapPixelRouteTracker";
+import OpenAiPixelRouteTracker from "@/components/OpenAiPixelRouteTracker";
 import { NavigationProgress } from "@/components/ui/NavigationProgress";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 import { WebsiteJsonLd } from "@/components/seo/WebsiteJsonLd";
@@ -141,6 +142,7 @@ export default function RootLayout({
 }>) {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID || "2049977412558608";
   const snapPixelId = process.env.NEXT_PUBLIC_SNAP_PIXEL_ID || "7d2481be-4ccf-42b2-b9ea-958c6c7bbdcd";
+  const openaiAdsPixelId = process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID || '';
   const storefrontGtmId = process.env.NEXT_PUBLIC_STOREFRONT_GTM_ID || "GTM-WKTQJ5LF";
   const adminGtmId = process.env.NEXT_PUBLIC_ADMIN_GTM_ID || "GTM-TDGKF386";
 
@@ -255,6 +257,27 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* OpenAI (ChatGPT) Ads Pixel Base Code */}
+        {openaiAdsPixelId && (
+          <Script
+            id="openai-ads-pixel"
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+                if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/web-store')) {
+                  !function(o,a,i,q){if(o.oaiq)return;q=o.oaiq=function(){
+                  q.callMethod?q.callMethod.apply(q,arguments):q.q.push(arguments)};
+                  q.q=[];q.l=1*new Date();var s=a.createElement(i),
+                  f=a.getElementsByTagName(i)[0];s.async=1;
+                  s.src='https://bzrcdn.openai.com/sdk/oaiq.min.js';
+                  if(f&&f.parentNode){f.parentNode.insertBefore(s,f);}else{(a.head||a.body).appendChild(s);}
+                  }(window,document,'script');
+                  oaiq('init', { pixelId: '${openaiAdsPixelId}' });
+                }
+              `,
+            }}
+          />
+        )}
       </head>
       <body className={`${geistSans.variable} ${inter.variable} ${poppins.variable} antialiased`}>
         {/* Google Tag Manager (noscript) */}
@@ -273,6 +296,7 @@ export default function RootLayout({
           <MetaPixelRouteTracker />
           <FacebookSDKInit />
           <SnapPixelRouteTracker />
+          <OpenAiPixelRouteTracker />
           <LayoutWrapper footer={<StorefrontFooter />}>
             {children}
           </LayoutWrapper>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { getAppAuthFromRequest, resolveAuthCustomer } from '@/lib/appAuth';
+import { requireAppAuth, handleAppAuthError, resolveAuthCustomer } from '@/lib/appAuth';
 import { voidExpiredCredits, debitStoreCredits } from '@/lib/storeCreditsHelper';
 
 export const dynamic = 'force-dynamic';
@@ -22,10 +22,7 @@ export async function OPTIONS() {
  */
 export async function GET(req: Request) {
   try {
-    const auth = getAppAuthFromRequest(req);
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
-    }
+    const { auth } = await requireAppAuth(req);
 
     const resolvedCustomer = await resolveAuthCustomer(auth);
     if (!resolvedCustomer) {
@@ -76,6 +73,7 @@ export async function GET(req: Request) {
       { headers: corsHeaders }
     );
   } catch (error: any) {
+    if (error?.statusCode === 401) return handleAppAuthError(error);
     console.error('[App API] Store Credits GET error:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
   }
@@ -92,10 +90,7 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   try {
-    const auth = getAppAuthFromRequest(req);
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
-    }
+    const { auth } = await requireAppAuth(req);
 
     const resolvedCustomer = await resolveAuthCustomer(auth);
     if (!resolvedCustomer) {
@@ -168,6 +163,7 @@ export async function POST(req: Request) {
       { status: 400, headers: corsHeaders }
     );
   } catch (error: any) {
+    if (error?.statusCode === 401) return handleAppAuthError(error);
     console.error('[App API] Store Credits POST error:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
   }

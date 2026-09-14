@@ -2,125 +2,179 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
+import { cachedAnalytics } from '@/lib/analytics-cache';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 15;
 
 // Valid platform values for allow-list validation (FIX 7)
 const VALID_PLATFORMS = ['web', 'app'] as const;
 
-// 15-second in-memory response cache to prevent duplicate heavy queries
-const trafficCache = new Map<string, { timestamp: number; data: any }>();
-const CACHE_TTL_MS = 15_000;
-
 async function handler(req: Request) {
   try {
-  const { searchParams } = new URL(req.url);
-  const from = searchParams.get('from');
-  const to = searchParams.get('to');
-  const rawPlatform = searchParams.get('platform');
-  const bypassCache = searchParams.get('bypassCache') === 'true';
+    const { searchParams } = new URL(req.url);
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const rawPlatform = searchParams.get('platform');
 
-  // Validate platform against allow-list (FIX 7)
-  const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
+    // Validate platform against allow-list (FIX 7)
+    const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
 
-  const now = new Date();
-  const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-  const rawEnd = to ? new Date(to) : now;
-  const endDate = rawEnd > now ? now : rawEnd;
+    const now = new Date();
+    const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    const rawEnd = to ? new Date(to) : now;
+    const endDate = rawEnd > now ? now : rawEnd;
 
-  const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}_${platform || 'all'}`;
-  if (!bypassCache) {
-    const cached = trafficCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
-      return NextResponse.json(cached.data);
-    }
-  }
+    const data = await cachedAnalytics(
+      ['traffic', startDate.toISOString(), endDate.toISOString(), platform || 'all'],
+      async () => {
 
   // Parameterized platform condition (FIX 7 — kill SQL injection)
   const platformCondition = platform ? `AND platform = $3` : '';
   const queryArgs: any[] = platform ? [startDate, endDate, platform] : [startDate, endDate];
 
-  // Fetch sources and metrics using a single query
-  // Filter event_name in session_events so only conversion events are grouped
-  const sources: any[] = await prisma.$queryRawUnsafe(`
-    WITH session_sources AS (
+  // Helper to normalize traffic source name
+  const normalizeSource = (utm: string | null, ref: string) => {
+    if (utm) {
+      const lower = utm.toLowerCase();
+      if (lower.includes('snapchat')) return 'Snapchat';
+      if (lower.includes('whatsapp')) return 'WhatsApp';
+      if (lower.includes('google')) return 'Google';
+      if (lower.includes('facebook') || lower === 'fb' || lower.includes('fb-')) return 'Facebook';
+      if (lower.includes('instagram') || lower === 'ig' || lower.includes('igshopping')) return 'Instagram';
+      if (lower.includes('twitter') || lower === 'x') return 'Twitter/X';
+      if (lower.includes('chatgpt') || lower.includes('perplexity')) return 'AI Referral';
+      return utm;
+    }
+    return ref;
+  };
+
+  // Run fast decoupled aggregations in parallel without heavy 200k-row LEFT JOINs
+  const [rawSessions, rawConversions]: [any[], any[]] = await Promise.all([
+    prisma.$queryRawUnsafe(`
       SELECT
-        id AS session_id,
-        anonymous_id,
-        COALESCE(
-          CASE 
-            WHEN utm_source ILIKE '%snapchat%' THEN 'Snapchat'
-            WHEN utm_source ILIKE '%whatsapp%' THEN 'WhatsApp'
-            WHEN utm_source ILIKE '%google%' THEN 'Google'
-            WHEN utm_source ILIKE '%facebook%' OR utm_source ILIKE '%fb%' THEN 'Facebook'
-            WHEN utm_source ILIKE '%instagram%' OR utm_source ILIKE '%ig%' THEN 'Instagram'
-            WHEN utm_source ILIKE '%twitter%' OR utm_source ILIKE '%x%' THEN 'Twitter/X'
-            ELSE NULLIF(utm_source, '')
-          END,
-          CASE
-            WHEN referrer ILIKE '%google%' THEN 'Google'
-            WHEN referrer ILIKE '%facebook%' OR referrer ILIKE '%fb%' THEN 'Facebook'
-            WHEN referrer ILIKE '%instagram%' THEN 'Instagram'
-            WHEN referrer ILIKE '%whatsapp%' THEN 'WhatsApp'
-            WHEN referrer ILIKE '%twitter%' OR referrer ILIKE '%x.com%' THEN 'Twitter/X'
-            WHEN referrer IS NOT NULL AND referrer != '' THEN 'Referral'
-            ELSE 'Direct'
-          END
-        ) AS source,
-        COALESCE(utm_medium, '') AS medium,
-        COALESCE(utm_campaign, '') AS campaign
+        utm_source,
+        COALESCE(NULLIF(utm_medium, ''), 'None') AS medium,
+        CASE
+          WHEN referrer ILIKE '%google%' THEN 'Google'
+          WHEN referrer ILIKE '%facebook%' OR referrer ILIKE '%fb%' THEN 'Facebook'
+          WHEN referrer ILIKE '%instagram%' THEN 'Instagram'
+          WHEN referrer ILIKE '%whatsapp%' THEN 'WhatsApp'
+          WHEN referrer ILIKE '%twitter%' OR referrer ILIKE '%x.com%' THEN 'Twitter/X'
+          WHEN referrer IS NOT NULL AND referrer != '' THEN 'Referral'
+          ELSE 'Direct'
+        END AS ref_source,
+        COUNT(*) AS sessions,
+        COUNT(DISTINCT anonymous_id) AS visitors
       FROM analytics_sessions
       WHERE started_at >= $1 AND started_at <= $2
         ${platformCondition}
-    ),
-    session_events AS (
+      GROUP BY utm_source, 2, 3
+    `, ...queryArgs),
+    prisma.$queryRawUnsafe(`
       SELECT
-        session_id,
-        COUNT(CASE WHEN event_name = 'add_to_cart' THEN 1 END) AS add_to_cart_count,
-        COUNT(CASE WHEN event_name = 'begin_checkout' THEN 1 END) AS begin_checkout_count,
-        COUNT(CASE WHEN event_name = 'purchase' THEN 1 END) AS purchase_count,
-        SUM(CASE WHEN event_name = 'purchase' THEN COALESCE(value, 0) ELSE 0 END) AS purchase_revenue
+        utm_source,
+        COALESCE(NULLIF(utm_medium, ''), 'None') AS medium,
+        CASE
+          WHEN referrer ILIKE '%google%' THEN 'Google'
+          WHEN referrer ILIKE '%facebook%' OR referrer ILIKE '%fb%' THEN 'Facebook'
+          WHEN referrer ILIKE '%instagram%' THEN 'Instagram'
+          WHEN referrer ILIKE '%whatsapp%' THEN 'WhatsApp'
+          WHEN referrer ILIKE '%twitter%' OR referrer ILIKE '%x.com%' THEN 'Twitter/X'
+          WHEN referrer IS NOT NULL AND referrer != '' THEN 'Referral'
+          ELSE 'Direct'
+        END AS ref_source,
+        COUNT(CASE WHEN event_name = 'add_to_cart' THEN 1 END) AS add_to_cart,
+        COUNT(CASE WHEN event_name = 'begin_checkout' THEN 1 END) AS checkouts,
+        COUNT(CASE WHEN event_name = 'purchase' THEN 1 END) AS orders,
+        COALESCE(SUM(CASE WHEN event_name = 'purchase' THEN value ELSE 0 END), 0) AS revenue
       FROM analytics_events
       WHERE created_at >= $1 AND created_at <= $2
         AND event_name IN ('add_to_cart', 'begin_checkout', 'purchase')
-        AND session_id IS NOT NULL
-      GROUP BY session_id
-    )
-    SELECT
-      s.source,
-      s.medium,
-      s.campaign,
-      COUNT(DISTINCT s.session_id) AS sessions,
-      COUNT(DISTINCT s.anonymous_id) AS visitors,
-      COALESCE(SUM(e.add_to_cart_count), 0) AS add_to_cart,
-      COALESCE(SUM(e.begin_checkout_count), 0) AS checkouts,
-      COALESCE(SUM(e.purchase_count), 0) AS orders,
-      COALESCE(SUM(e.purchase_revenue), 0) AS revenue
-    FROM session_sources s
-    LEFT JOIN session_events e ON s.session_id = e.session_id
-    GROUP BY s.source, s.medium, s.campaign
-    ORDER BY sessions DESC
-    LIMIT 50
-  `, ...queryArgs);
+        ${platformCondition}
+      GROUP BY utm_source, 2, 3
+    `, ...queryArgs),
+  ]);
 
-  const topSources = sources.map((src: any) => ({
-    source: src.source,
-    medium: src.medium || '',
-    campaign: src.campaign || '',
-    sessions: Number(src.sessions),
-    visitors: Number(src.visitors),
-    addToCart: Number(src.add_to_cart),
-    checkouts: Number(src.checkouts),
-    orders: Number(src.orders),
-    revenue: Math.round(Number(src.revenue) * 100) / 100,
-    conversionRate: Number(src.sessions) > 0
-      ? Math.round((Number(src.orders) / Number(src.sessions)) * 100 * 100) / 100
-      : 0,
-  }));
+  // Aggregate sessions by friendly source name & medium
+  const sourcesMap = new Map<string, {
+    source: string;
+    medium: string;
+    campaign: string;
+    sessions: number;
+    visitors: number;
+    addToCart: number;
+    checkouts: number;
+    orders: number;
+    revenue: number;
+  }>();
 
-  const responseData = { sources: topSources };
-  trafficCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
-  return NextResponse.json(responseData);
+  for (const row of rawSessions) {
+    const src = normalizeSource(row.utm_source, row.ref_source);
+    const key = `${src}:::${row.medium}`;
+    const existing = sourcesMap.get(key) || {
+      source: src,
+      medium: row.medium,
+      campaign: '',
+      sessions: 0,
+      visitors: 0,
+      addToCart: 0,
+      checkouts: 0,
+      orders: 0,
+      revenue: 0,
+    };
+    existing.sessions += Number(row.sessions || 0);
+    existing.visitors += Number(row.visitors || 0);
+    sourcesMap.set(key, existing);
+  }
+
+  // Merge conversion events
+  for (const row of rawConversions) {
+    const src = normalizeSource(row.utm_source, row.ref_source);
+    const key = `${src}:::${row.medium}`;
+    const existing = sourcesMap.get(key) || {
+      source: src,
+      medium: row.medium,
+      campaign: '',
+      sessions: 0,
+      visitors: 0,
+      addToCart: 0,
+      checkouts: 0,
+      orders: 0,
+      revenue: 0,
+    };
+    existing.addToCart += Number(row.add_to_cart || 0);
+    existing.checkouts += Number(row.checkouts || 0);
+    existing.orders += Number(row.orders || 0);
+    existing.revenue += Number(row.revenue || 0);
+    sourcesMap.set(key, existing);
+  }
+
+  const topSources = Array.from(sourcesMap.values())
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, 50)
+    .map(src => ({
+      source: src.source,
+      medium: src.medium || '',
+      campaign: src.campaign || '',
+      sessions: src.sessions,
+      visitors: src.visitors,
+      addToCart: src.addToCart,
+      checkouts: src.checkouts,
+      orders: src.orders,
+      revenue: Math.round(src.revenue * 100) / 100,
+      conversionRate: src.sessions > 0
+        ? Math.round((src.orders / src.sessions) * 100 * 100) / 100
+        : 0,
+    }));
+
+    const responseData = { sources: topSources };
+    return responseData;
+      },
+      30
+    );
+
+    return NextResponse.json(data);
   } catch (error: any) {
     console.error('[Analytics Traffic] Error:', error.message);
     return NextResponse.json({ sources: [], error: error.message });

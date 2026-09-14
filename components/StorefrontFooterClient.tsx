@@ -26,6 +26,7 @@ import ThreeDLogo from "./ThreeDLogo";
 import LazyVideo from "./LazyVideo";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useOpenAiEvents } from "@/hooks/useOpenAiEvents";
 import { useCountry } from "@/lib/country-context";
 
 interface Policy {
@@ -61,6 +62,7 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
   const { countryCode, setCountry, activeCountries, globalStoreEnabled } = useCountry();
   const { trackSubscribe } = useMetaEvents();
   const { trackSubscribe: trackSnapSubscribe } = useSnapEvents();
+  const { trackLeadCreated: trackOaiLeadCreated } = useOpenAiEvents();
   // Mobile accordion states
   const [shopOpen, setShopOpen] = useState(false);
   const [customerCareOpen, setCustomerCareOpen] = useState(true); // Default open as shown in reference image
@@ -143,6 +145,7 @@ export default function StorefrontFooterClient({ shop, policies, socialLinks }: 
       // for Meta's value-based optimization. Currency is INR.
       trackSubscribe(email, 'Newsletter Signup');
       trackSnapSubscribe(email);
+      trackOaiLeadCreated(email);
       toast.success("Thank you for joining our newsletter!", {
         description: "You have successfully subscribed to the Zica Bella newsletter.",
       });

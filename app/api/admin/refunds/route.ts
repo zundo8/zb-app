@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/options';
 import prisma from '@/lib/db';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request) {
   try {
-    const session = (await getServerSession(authOptions as any)) as any;
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    await requirePermission('RETURNS_EXCHANGES', 'view');
 
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get('status') || 'all'; // all, pending, completed, rejected
@@ -212,6 +208,9 @@ export async function GET(req: Request) {
     });
 
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('GET /api/admin/refunds Error:', error);
     return NextResponse.json({ error: error?.message || 'Failed to fetch refunds' }, { status: 500 });
   }

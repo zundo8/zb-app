@@ -19,34 +19,42 @@ export function extractSize(orderItem: any): string {
 }
 
 /**
- * Enriches a single order/return/exchange item with resolved `size`, `variantTitle`, and `sku`
- * using snapshot values, extractItemVariantAndSize, WebStoreOrder matching, and product_skus DB fallbacks.
+ * Batched enrichment for an array of line items.
+ * Replaces N+1 sequential database queries per item with <= 3 batched queries total.
  */
-export async function enrichSingleItem(item: any, parentOrder?: any) {
-  if (!item) return item;
-  let size = extractSize(item);
-  let variantTitle = item.variantTitle || item.originalVariantTitle || item.newVariantTitle || null;
-  let sku = item.sku || item.product?.sku || item.originalProduct?.sku || item.newProduct?.sku || null;
+export async function enrichItemsWithSize(rawItems: any[], parentOrder?: any) {
+  if (!rawItems || !Array.isArray(rawItems) || rawItems.length === 0) return [];
 
-  const productId = item.productId || item.product?.id || item.originalProductId || item.newProductId;
-  const orderId = item.orderId || parentOrder?.id;
+  // 1. Initial pass: extract in-memory sizes and identify what needs DB resolution
+  const itemsMeta = rawItems.map((item) => {
+    if (!item) return { item, size: null, sku: null, variantTitle: null, productId: null, orderId: null };
+    const size = extractSize(item);
+    const variantTitle = item.variantTitle || item.originalVariantTitle || item.newVariantTitle || null;
+    const sku = item.sku || item.product?.sku || item.originalProduct?.sku || item.newProduct?.sku || null;
+    const productId = item.productId || item.product?.id || item.originalProductId || item.newProductId;
+    const orderId = item.orderId || parentOrder?.id;
+    return { item, size, sku, variantTitle, productId, orderId };
+  });
 
-  // Fast path: if size and sku are already resolved in-memory, return immediately
-  if (size && sku) {
-    const resolvedVariantTitle = variantTitle || `Size: ${size}`;
-    return {
-      ...item,
-      sku,
-      size,
-      variantTitle: resolvedVariantTitle,
-    };
+  // Fast path: if all items already have size and sku, resolve in-memory with 0 queries
+  const allResolved = itemsMeta.every((m) => !m.item || (m.size && m.sku));
+  if (allResolved) {
+    return itemsMeta.map((m) => {
+      if (!m.item) return m.item;
+      return {
+        ...m.item,
+        sku: m.sku,
+        size: m.size,
+        variantTitle: m.variantTitle || (m.size ? `Size: ${m.size}` : null),
+      };
+    });
   }
 
-  // 1. Cross-reference WebStoreOrder items JSON if size is missing
-  if (!size) {
+  // 2. Batched WebStoreOrder lookup (single query for parent order)
+  let webOrder: any = null;
+  const needsWebOrder = itemsMeta.some((m) => m.item && !m.size);
+  if (needsWebOrder) {
     try {
-      let webOrder = null;
-
       if (parentOrder?.razorpayOrderId) {
         webOrder = await prisma.webStoreOrder.findFirst({
           where: { razorpayOrderId: parentOrder.razorpayOrderId }
@@ -60,98 +68,164 @@ export async function enrichSingleItem(item: any, parentOrder?: any) {
           });
         }
       }
-      if (!webOrder && orderId) {
+      if (!webOrder && parentOrder?.id) {
         webOrder = await prisma.webStoreOrder.findFirst({
           where: {
             OR: [
-              { notes: { contains: `Local: ${orderId}` } },
-              { id: orderId }
+              { notes: { contains: `Local: ${parentOrder.id}` } },
+              { id: parentOrder.id }
             ]
           }
         });
       }
 
       if (webOrder && Array.isArray(webOrder.items)) {
-        const itemTitleUpper = (item.title || item.product?.title || '').trim().toUpperCase();
-        const matchedWebItem: any = (webOrder.items as any[]).find((wItem: any) => {
-          const wTitleUpper = (wItem.title || '').trim().toUpperCase();
-          return wTitleUpper === itemTitleUpper ||
-            (wItem.product_id && (wItem.product_id === productId || wItem.product_id === item.shopifyProductId)) ||
-            (wItem.price && Number(wItem.price) === Number(item.price));
-        });
-
-        if (matchedWebItem && matchedWebItem.size) {
-          size = matchedWebItem.size.toString().trim().toUpperCase();
-          if (!variantTitle) {
-            variantTitle = `Size: ${size}`;
+        itemsMeta.forEach((m) => {
+          if (!m.item || m.size) return;
+          const itemTitleUpper = (m.item.title || m.item.product?.title || '').trim().toUpperCase();
+          const matchedWebItem: any = (webOrder.items as any[]).find((wItem: any) => {
+            const wTitleUpper = (wItem.title || '').trim().toUpperCase();
+            return wTitleUpper === itemTitleUpper ||
+              (wItem.product_id && (wItem.product_id === m.productId || wItem.product_id === m.item.shopifyProductId)) ||
+              (wItem.price && Number(wItem.price) === Number(m.item.price));
+          });
+          if (matchedWebItem && matchedWebItem.size) {
+            m.size = matchedWebItem.size.toString().trim().toUpperCase();
+            if (!m.variantTitle) {
+              m.variantTitle = `Size: ${m.size}`;
+            }
           }
-        }
+        });
       }
     } catch (_) {}
   }
 
-  // 2. Cross-reference product_skus DB table by SKU
-  if (!size && sku) {
+  // 3. Batched product_skus lookup by SKU for items still missing size
+  const skusToLookup = Array.from(new Set(
+    itemsMeta
+      .filter((m) => m.item && !m.size && m.sku)
+      .map((m) => m.sku!.trim().toUpperCase())
+  ));
+
+  const skuToSizeMap = new Map<string, string>();
+  if (skusToLookup.length > 0) {
     try {
       const skuRecs: any[] = await prisma.$queryRawUnsafe(
-        `SELECT size FROM product_skus WHERE UPPER(sku) = $1 AND size IS NOT NULL AND size != '' LIMIT 1`,
-        sku.trim().toUpperCase()
+        `SELECT UPPER(sku) as sku_upper, size FROM product_skus WHERE UPPER(sku) = ANY($1) AND size IS NOT NULL AND size != ''`,
+        skusToLookup
       );
-      if (skuRecs && skuRecs.length > 0 && skuRecs[0].size) {
-        size = skuRecs[0].size.trim().toUpperCase();
+      if (Array.isArray(skuRecs)) {
+        skuRecs.forEach((r) => {
+          if (r.sku_upper && r.size && !skuToSizeMap.has(r.sku_upper)) {
+            skuToSizeMap.set(r.sku_upper, r.size.trim().toUpperCase());
+          }
+        });
       }
     } catch (_) {}
   }
 
-  // 3. Cross-reference product_skus DB table by Product ID
-  if (!size && productId) {
+  itemsMeta.forEach((m) => {
+    if (m.item && !m.size && m.sku) {
+      const foundSize = skuToSizeMap.get(m.sku.trim().toUpperCase());
+      if (foundSize) m.size = foundSize;
+    }
+  });
+
+  // 4. Batched product_skus lookup by Product ID for items still missing size
+  const prodIdsToLookupSize = Array.from(new Set(
+    itemsMeta
+      .filter((m) => m.item && !m.size && m.productId)
+      .map((m) => String(m.productId))
+  ));
+
+  const prodIdToSizeMap = new Map<string, string>();
+  if (prodIdsToLookupSize.length > 0) {
     try {
       const prodSkuRecs: any[] = await prisma.$queryRawUnsafe(
-        `SELECT size FROM product_skus WHERE product_id = $1 AND size IS NOT NULL AND size != '' LIMIT 1`,
-        productId
+        `SELECT product_id, size FROM product_skus WHERE product_id = ANY($1) AND size IS NOT NULL AND size != ''`,
+        prodIdsToLookupSize
       );
-      if (prodSkuRecs && prodSkuRecs.length > 0 && prodSkuRecs[0].size) {
-        size = prodSkuRecs[0].size.trim().toUpperCase();
+      if (Array.isArray(prodSkuRecs)) {
+        prodSkuRecs.forEach((r) => {
+          if (r.product_id && r.size && !prodIdToSizeMap.has(String(r.product_id))) {
+            prodIdToSizeMap.set(String(r.product_id), r.size.trim().toUpperCase());
+          }
+        });
       }
     } catch (_) {}
   }
 
-  // 4. Resolve SKU if missing
-  if (!sku && productId) {
+  itemsMeta.forEach((m) => {
+    if (m.item && !m.size && m.productId) {
+      const foundSize = prodIdToSizeMap.get(String(m.productId));
+      if (foundSize) m.size = foundSize;
+    }
+  });
+
+  // 5. Batched SKU resolution for items missing SKU but having productId
+  const prodIdsToLookupSku = Array.from(new Set(
+    itemsMeta
+      .filter((m) => m.item && !m.sku && m.productId)
+      .map((m) => String(m.productId))
+  ));
+
+  const prodIdAndSizeToSkuMap = new Map<string, string>();
+  const prodIdFallbackSkuMap = new Map<string, string>();
+  if (prodIdsToLookupSku.length > 0) {
     try {
-      const skuQuery: any[] = size
-        ? await prisma.$queryRawUnsafe(
-            `SELECT sku FROM product_skus WHERE product_id = $1 AND UPPER(size) = $2 LIMIT 1`,
-            productId,
-            size.trim().toUpperCase()
-          )
-        : await prisma.$queryRawUnsafe(
-            `SELECT sku FROM product_skus WHERE product_id = $1 LIMIT 1`,
-            productId
-          );
-      if (skuQuery && skuQuery.length > 0 && skuQuery[0].sku) {
-        sku = skuQuery[0].sku;
+      const skuRecs: any[] = await prisma.$queryRawUnsafe(
+        `SELECT product_id, UPPER(size) as size_upper, sku FROM product_skus WHERE product_id = ANY($1) AND sku IS NOT NULL AND sku != ''`,
+        prodIdsToLookupSku
+      );
+      if (Array.isArray(skuRecs)) {
+        skuRecs.forEach((r) => {
+          const pid = String(r.product_id);
+          if (r.size_upper) {
+            prodIdAndSizeToSkuMap.set(`${pid}:${r.size_upper}`, r.sku);
+          }
+          if (!prodIdFallbackSkuMap.has(pid)) {
+            prodIdFallbackSkuMap.set(pid, r.sku);
+          }
+        });
       }
     } catch (_) {}
   }
 
-  const resolvedSize = size || null;
-  const resolvedVariantTitle = variantTitle || (resolvedSize ? `Size: ${resolvedSize}` : null);
+  itemsMeta.forEach((m) => {
+    if (m.item && !m.sku && m.productId) {
+      const pid = String(m.productId);
+      if (m.size) {
+        const found = prodIdAndSizeToSkuMap.get(`${pid}:${m.size.trim().toUpperCase()}`);
+        if (found) m.sku = found;
+      }
+      if (!m.sku) {
+        const fallback = prodIdFallbackSkuMap.get(pid);
+        if (fallback) m.sku = fallback;
+      }
+    }
+  });
 
-  return {
-    ...item,
-    sku: sku || null,
-    size: resolvedSize,
-    variantTitle: resolvedVariantTitle,
-  };
+  // 6. Build final resolved item array
+  return itemsMeta.map((m) => {
+    if (!m.item) return m.item;
+    const resolvedSize = m.size || null;
+    const resolvedVariantTitle = m.variantTitle || (resolvedSize ? `Size: ${resolvedSize}` : null);
+    return {
+      ...m.item,
+      sku: m.sku || null,
+      size: resolvedSize,
+      variantTitle: resolvedVariantTitle,
+    };
+  });
 }
 
 /**
- * Enriches an array of line items with resolved size, variantTitle, and SKU.
+ * Enriches a single item by delegating to the batched enrichItemsWithSize logic.
  */
-export async function enrichItemsWithSize(rawItems: any[], parentOrder?: any) {
-  if (!rawItems || !Array.isArray(rawItems)) return [];
-  return Promise.all(rawItems.map((item) => enrichSingleItem(item, parentOrder)));
+export async function enrichSingleItem(item: any, parentOrder?: any) {
+  if (!item) return item;
+  const [enriched] = await enrichItemsWithSize([item], parentOrder);
+  return enriched || item;
 }
 
 /**
@@ -160,49 +234,33 @@ export async function enrichItemsWithSize(rawItems: any[], parentOrder?: any) {
 export async function enrichExchangeItem(ex: any) {
   if (!ex) return ex;
 
-  let origSize = ex.originalSize;
-  let origVariant = ex.originalVariantTitle;
-  let origSku = ex.originalSku || ex.originalProduct?.sku;
-
-  const enrichedOrig = await enrichSingleItem({
+  const [origEnriched] = await enrichItemsWithSize([{
     title: ex.originalProduct?.title,
-    sku: origSku,
+    sku: ex.originalSku || ex.originalProduct?.sku,
     productId: ex.originalProductId,
-    size: origSize,
-    variantTitle: origVariant,
+    size: ex.originalSize,
+    variantTitle: ex.originalVariantTitle,
     orderId: ex.orderId,
-  }, ex.order);
+  }], ex.order);
 
-  origSize = origSize || enrichedOrig.size;
-  origVariant = origVariant || enrichedOrig.variantTitle;
-  origSku = origSku || enrichedOrig.sku;
-
-  let newSize = ex.newSize;
-  let newVariant = ex.newVariantTitle;
-  let newSku = ex.newSku || ex.newProduct?.sku;
-
-  const enrichedNew = await enrichSingleItem({
+  const [newEnriched] = await enrichItemsWithSize([{
     title: ex.newProduct?.title,
-    sku: newSku,
+    sku: ex.newSku || ex.newProduct?.sku,
     productId: ex.newProductId,
-    size: newSize,
-    variantTitle: newVariant,
+    size: ex.newSize,
+    variantTitle: ex.newVariantTitle,
     orderId: ex.orderId,
-  }, ex.order);
-
-  newSize = newSize || enrichedNew.size;
-  newVariant = newVariant || enrichedNew.variantTitle;
-  newSku = newSku || enrichedNew.sku;
+  }], ex.order);
 
   return {
     ...ex,
-    originalSku: origSku || null,
-    originalSize: origSize || null,
-    originalVariant: origVariant || (origSize ? `Size: ${origSize}` : null),
-    originalVariantTitle: origVariant || null,
-    newSku: newSku || null,
-    newSize: newSize || null,
-    newVariant: newVariant || (newSize ? `Size: ${newSize}` : null),
-    newVariantTitle: newVariant || null,
+    originalSku: origEnriched?.sku || null,
+    originalSize: origEnriched?.size || null,
+    originalVariant: origEnriched?.variantTitle || (origEnriched?.size ? `Size: ${origEnriched.size}` : null),
+    originalVariantTitle: origEnriched?.variantTitle || null,
+    newSku: newEnriched?.sku || null,
+    newSize: newEnriched?.size || null,
+    newVariant: newEnriched?.variantTitle || (newEnriched?.size ? `Size: ${newEnriched.size}` : null),
+    newVariantTitle: newEnriched?.variantTitle || null,
   };
 }

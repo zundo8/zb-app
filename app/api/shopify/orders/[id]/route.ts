@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminUrl, headers, ShopifyOrder } from '@/lib/shopify-admin';
 import prisma from '@/lib/db';
 import { getTrackingStatus } from '@/lib/services/logistics';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,8 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
+    await requirePermission('ORDERS', 'view');
+
     const orderId = params.id;
     if (!orderId) {
       return NextResponse.json(
@@ -102,6 +105,9 @@ export async function GET(
       } : null),
     });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('Error in get order route:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
@@ -115,6 +121,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    await requirePermission('ORDERS', 'edit');
+
     const orderId = params.id;
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
@@ -151,6 +159,9 @@ export async function PATCH(
     return NextResponse.json({ success: true, order: data.order as ShopifyOrder });
 
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('Error in update order route:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }

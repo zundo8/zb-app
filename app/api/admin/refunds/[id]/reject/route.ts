@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/options';
 import prisma from '@/lib/db';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = (await getServerSession(authOptions as any)) as any;
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized: Admin session required.' }, { status: 401 });
-    }
+    await requirePermission('RETURNS_EXCHANGES', 'edit');
 
     const refundId = params.id;
     const body = await req.json().catch(() => ({}));
@@ -73,6 +69,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
 
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('POST /api/admin/refunds/[id]/reject Error:', error);
     return NextResponse.json({ error: error?.message || 'Failed to reject refund' }, { status: 500 });
   }

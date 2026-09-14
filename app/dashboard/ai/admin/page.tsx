@@ -8,6 +8,7 @@ import {
   Copy, Check, ClipboardList, TrendingUp, DollarSign, Building2,
   ShoppingCart, Undo2, RotateCcw, Sunrise, Settings2
 } from "lucide-react";
+import DOMPurify from 'isomorphic-dompurify';
 import { useClaude, type ToolAction } from "@/lib/hooks/useClaude";
 
 // ─── Quick Commands ──────────────────────────────
@@ -412,7 +413,7 @@ export default function AICommandCenterPage() {
                         </div>
                       )}
                       <div className={`text-[13px] leading-[1.75] font-medium ${msg.isError ? "text-rose-500" : "text-foreground/80"}`}
-                        dangerouslySetInnerHTML={{ __html: fmt(msg.content) }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(fmt(msg.content)) }}
                       />
                       <div className="flex items-center gap-3 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
                         {msg.toolsUsed ? (

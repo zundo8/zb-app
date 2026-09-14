@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { recoverOrphanedRazorpayOrder } from '@/lib/services/razorpayRecoveryService';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export async function POST(req: Request) {
   try {
+    await requirePermission('FINANCIAL', 'edit');
     const body = await req.json();
     const { razorpayOrderId, razorpayPaymentId, adminCustomItems, customerNote } = body;
 
@@ -35,6 +37,9 @@ export async function POST(req: Request) {
       internalOrderNumber: result.internalOrderNumber,
     });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('[Admin Recovery Route] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error during order recovery' },

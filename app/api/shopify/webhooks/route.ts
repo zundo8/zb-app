@@ -4,37 +4,62 @@ import prisma from '@/lib/db';
 import { extractSizeFromVariant } from '@/lib/utils';
 
 export async function POST(req: Request) {
-  const topic = req.headers.get('x-shopify-topic');
-  const shop = req.headers.get('x-shopify-shop-domain');
-  const hmac = req.headers.get('x-shopify-hmac-sha256');
-
-  if (!topic || !shop || !hmac) {
-    return NextResponse.json({ error: 'Missing webhook headers' }, { status: 400 });
-  }
-
-  const rawBody = await req.text();
-  let verified = false;
-  if (process.env.SHOPIFY_API_SECRET) {
-    const hash = crypto.createHmac('sha256', process.env.SHOPIFY_API_SECRET).update(rawBody, 'utf8').digest('base64');
-    if (hash === hmac) verified = true;
-  }
-  if (!verified && process.env.SHOPIFY_WEBHOOK_SECRET) {
-    const hash = crypto.createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET).update(rawBody, 'utf8').digest('base64');
-    if (hash === hmac) verified = true;
-  }
-
-  if (!verified) {
-    console.warn('Webhook HMAC validation failed (Warning only for dev/testing)');
-    // If NOT in development and we have configured secrets, reject the request
-    if (process.env.NODE_ENV === 'production') {
-      console.error('Webhook signature validation failed in production. Blocking request.');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
-
-  const payload = JSON.parse(rawBody);
-
   try {
+    const topic = req.headers.get('x-shopify-topic');
+    const shop = req.headers.get('x-shopify-shop-domain');
+    const hmac = req.headers.get('x-shopify-hmac-sha256');
+    const webhookId = req.headers.get('x-shopify-webhook-id');
+
+    if (!topic || !shop || !hmac) {
+      return NextResponse.json({ error: 'Missing webhook headers' }, { status: 400 });
+    }
+
+    const rawBody = await req.text();
+    let verified = false;
+    if (process.env.SHOPIFY_API_SECRET) {
+      const hash = crypto.createHmac('sha256', process.env.SHOPIFY_API_SECRET).update(rawBody, 'utf8').digest('base64');
+      if (hash === hmac) verified = true;
+    }
+    if (!verified && process.env.SHOPIFY_WEBHOOK_SECRET) {
+      const hash = crypto.createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET).update(rawBody, 'utf8').digest('base64');
+      if (hash === hmac) verified = true;
+    }
+
+    if (!verified) {
+      console.warn('Webhook HMAC validation failed (Warning only for dev/testing)');
+      // If NOT in development and we have configured secrets, reject the request
+      if (process.env.NODE_ENV === 'production') {
+        console.error('Webhook signature validation failed in production. Blocking request.');
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+
+    // Idempotency check: prevent duplicate webhook processing
+    if (webhookId) {
+      try {
+        const existing = await prisma.webhookEvent.findFirst({
+          where: {
+            source: 'shopify-admin',
+            eventType: topic,
+            payload: { contains: webhookId },
+            processed: true,
+          },
+        });
+        if (existing) {
+          return NextResponse.json({ success: true, message: 'Webhook already processed' }, { status: 200 });
+        }
+      } catch (dbErr) {
+        console.warn('[Shopify Admin Webhook] Idempotency lookup error:', dbErr);
+      }
+    }
+
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON payload' }, { status: 400 });
+    }
+
     switch (topic) {
       case 'orders/create':
       case 'orders/paid':
@@ -53,10 +78,27 @@ export async function POST(req: Request) {
         console.log(`Unhandled webhook topic: ${topic}`);
     }
 
+    // Record webhook event in database for idempotency & audit
+    if (webhookId) {
+      try {
+        await prisma.webhookEvent.create({
+          data: {
+            source: 'shopify-admin',
+            eventType: topic,
+            payload: JSON.stringify({ webhookId, shop, topic, receivedAt: new Date().toISOString() }),
+            processed: true,
+            processedAt: new Date(),
+          },
+        });
+      } catch (dbErr) {
+        console.warn('[Shopify Admin Webhook] Failed to log webhook event:', dbErr);
+      }
+    }
+
     return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
-    console.error(`Error processing webhook ${topic}:`, error);
-    return NextResponse.json({ error: 'Internal server error processing webhook' }, { status: 500 });
+  } catch (error: any) {
+    console.error(`Error processing webhook:`, error);
+    return NextResponse.json({ error: error?.message || 'Internal server error processing webhook' }, { status: 500 });
   }
 }
 

@@ -18,6 +18,14 @@ export async function PATCH(
 
     const { name, email, role, isActive, permissions } = await req.json();
 
+    // Only a SUPER_ADMIN may grant the SUPER_ADMIN role
+    if (role === 'SUPER_ADMIN' && (session.user as any).role !== 'SUPER_ADMIN') {
+      return NextResponse.json(
+        { error: 'Only a Super Admin can grant Super Admin.' },
+        { status: 403 }
+      );
+    }
+
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email.toLowerCase().trim();

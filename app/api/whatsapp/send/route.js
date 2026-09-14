@@ -9,6 +9,7 @@ import { sendTemplate, formatPhone, getConfig } from '@/lib/whatsapp/client';
 import { logMessage } from '@/lib/whatsapp/logger';
 import { isOptedIn, isExplicitlyOptedOut } from '@/lib/whatsapp/templates';
 import prisma from '@/lib/db';
+import { maskPhone } from '@/lib/pii-mask';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,12 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
-    console.log('[WhatsApp API Send Route Request Body]:', JSON.stringify(body, null, 2));
+    const sanitizedBody = {
+      ...body,
+      to: body?.to ? maskPhone(body.to) : undefined,
+      payload: body?.payload ? { ...body.payload, phone: maskPhone(body.payload.phone) } : undefined,
+    };
+    console.log('[WhatsApp API Send Route Request Body]:', JSON.stringify(sanitizedBody, null, 2));
 
     const { templateName, languageCode = 'en_US', to, components, type, payload } = body;
 

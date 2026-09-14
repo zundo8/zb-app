@@ -10,6 +10,7 @@ import { handleImageError } from "./ImagePlaceholder";
 import { toast } from "sonner";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useOpenAiEvents } from "@/hooks/useOpenAiEvents";
 import { useCountry } from "@/lib/country-context";
 import { lockScroll, unlockScroll } from "@/lib/utils/scroll-lock";
 
@@ -24,6 +25,7 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
   const { add } = useCart();
   const { trackAddToCart } = useMetaEvents();
   const { trackAddToCart: trackSnapAddToCart } = useSnapEvents();
+  const { trackItemsAdded: trackOaiItemsAdded } = useOpenAiEvents();
   const [selectedSize, setSelectedSize] = useState<string | null>(initialSize || null);
   const [added, setAdded] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -102,6 +104,7 @@ export default function QuickAddModal({ product, initialSize, onClose }: Props) 
     
     trackAddToCart(variantId, product.title, itemPrice, 'INR', product.product_type);
     trackSnapAddToCart(variantId, product.title, itemPrice, 'INR', product.product_type);
+    trackOaiItemsAdded(variantId, product.title, itemPrice, 'INR', product.product_type);
 
     setAdded(true);
     toast.success(`${product.title} added to bag`);

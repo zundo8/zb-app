@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import prisma from '@/lib/db';
 import { resolveRazorpayCredentials } from '@/lib/razorpay-credentials';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    await requirePermission('FINANCIAL', 'view');
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
@@ -200,6 +202,9 @@ export async function GET(req: Request) {
       },
     });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('[Admin Transactions API] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to fetch Razorpay transactions' },

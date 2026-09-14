@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/db";
 import { adjustInventoryLevel, fetchLocations, fetchAllProducts, fetchProductById } from '@/lib/shopify-admin';
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 
 function normalizeSku(raw: string): string {
   if (!raw) return '';
@@ -9,6 +10,7 @@ function normalizeSku(raw: string): string {
 
 export async function POST(req: Request) {
   try {
+    await requirePermission('INVENTORY', 'edit');
     const { code, mode, quantity = 1 } = await req.json();
     const qty = Math.max(1, Number(quantity) || 1);
 
@@ -522,6 +524,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Node Not Found: Identify Mismatch.' }, { status: 404 });
 
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('[Inventory Sync Error]:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -23,19 +23,26 @@ export async function GET(req: Request) {
       conditions.push({
         NOT: {
           OR: [
+            // Exclude failed order numbers
             { internalOrderNumber: { startsWith: 'ZBPF' } },
+            // Exclude pending orders that never completed payment
             {
               AND: [
                 { internalOrderNumber: { startsWith: 'ZBPP' } },
                 { paymentStatus: { in: ['pending', 'payment_pending', 'failed', 'payment_failed'] } }
               ]
             },
+            // Exclude mobile app orders awaiting approval
             {
               AND: [
                 { orderType: 'MOBILE_APP' },
                 { status: 'awaiting_approval' }
               ]
-            }
+            },
+            // Exclude cancelled Shopify orders (payment timed out, customer cancelled, etc.)
+            { status: 'cancelled' },
+            // Exclude orders with voided/cancelled payment
+            { paymentStatus: { in: ['cancelled', 'CANCELLED', 'canceled', 'CANCELED', 'voided', 'VOIDED'] } },
           ]
         }
       });
@@ -71,19 +78,47 @@ export async function GET(req: Request) {
     }
 
     if (search) {
-      conditions.push({
-        OR: [
-          { shopifyOrderId: { contains: search, mode: 'insensitive' } },
-          { shopifyOrderName: { contains: search, mode: 'insensitive' } },
-          { internalOrderNumber: { contains: search, mode: 'insensitive' } },
-          { previousOrderNumbers: { contains: search, mode: 'insensitive' } },
-          { note: { contains: search, mode: 'insensitive' } },
-          { tags: { contains: search, mode: 'insensitive' } },
-          { customer: { name: { contains: search, mode: 'insensitive' } } },
-          { customer: { email: { contains: search, mode: 'insensitive' } } },
-          { customer: { phone: { contains: search, mode: 'insensitive' } } },
-        ]
-      });
+      const trimmed = search.trim();
+      const digitsOnly = trimmed.replace(/\D/g, '');
+      const searchClauses: Record<string, unknown>[] = [];
+
+      // 1. Phone number search (if 7+ digits)
+      if (digitsOnly.length >= 7) {
+        const last10 = digitsOnly.slice(-10);
+        searchClauses.push(
+          { customer: { phone: { contains: last10 } } },
+          { customer: { phoneLast10: { contains: last10 } } }
+        );
+      }
+
+      // 2. Email search (if contains @)
+      if (trimmed.includes('@')) {
+        searchClauses.push({ customer: { email: { contains: trimmed, mode: 'insensitive' } } });
+      }
+
+      // 3. Order number / Shopify identifier search
+      if (trimmed.startsWith('#') || /^\d+$/.test(trimmed) || trimmed.toUpperCase().startsWith('ZB')) {
+        const cleanNum = trimmed.replace(/^#/, '');
+        searchClauses.push(
+          { shopifyOrderName: { contains: trimmed, mode: 'insensitive' } },
+          { shopifyOrderName: { contains: cleanNum, mode: 'insensitive' } },
+          { internalOrderNumber: { contains: trimmed, mode: 'insensitive' } },
+          { internalOrderNumber: { contains: cleanNum, mode: 'insensitive' } },
+          { shopifyOrderId: { contains: cleanNum, mode: 'insensitive' } }
+        );
+      }
+
+      // 4. General search: customer name, email, and order name
+      if (searchClauses.length === 0) {
+        searchClauses.push(
+          { shopifyOrderName: { contains: trimmed, mode: 'insensitive' } },
+          { internalOrderNumber: { contains: trimmed, mode: 'insensitive' } },
+          { customer: { name: { contains: trimmed, mode: 'insensitive' } } },
+          { customer: { email: { contains: trimmed, mode: 'insensitive' } } }
+        );
+      }
+
+      conditions.push({ OR: searchClauses });
     }
 
     const where = conditions.length > 0 ? { AND: conditions } : {};

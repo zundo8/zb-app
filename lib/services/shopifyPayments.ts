@@ -1,5 +1,6 @@
 // lib/services/shopifyPayments.ts
 import prisma from '@/lib/db';
+import { API_VERSION } from '@/lib/shopify-client';
 
 export async function createDraftOrderForExchange(exchangeId: string) {
   try {
@@ -68,7 +69,7 @@ export async function createDraftOrderForExchange(exchangeId: string) {
       }
     };
 
-    const res = await fetch(`https://${shopDomain}/api/2024-01/graphql.json`, {
+    const res = await fetch(`https://${shopDomain}/admin/api/${API_VERSION}/graphql.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

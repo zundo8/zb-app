@@ -154,6 +154,7 @@ model Customer {
   whatsappOptedOut      Boolean            @default(false)
   lastLoginAt           DateTime?
   accountCreatedMsgSentAt DateTime?
+  tokenVersion          Int                @default(0)
   addresses             Address[]
   communityMember       CommunityMember?
   communityMessages     CommunityMessage[]
@@ -172,6 +173,8 @@ model Customer {
 
   @@index([phone])
   @@index([phoneLast10])
+  @@index([email])
+  @@index([name])
 }
 
 model Cart {
@@ -327,6 +330,7 @@ model Order {
   @@index([orderType, createdAt])
   @@index([customerId, createdAt])
   @@index([refundStatus])
+  @@index([shopifyOrderName])
 }
 
 model OrderItem {
@@ -344,6 +348,10 @@ model OrderItem {
   size              String?
   order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product           Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([sku])
 }
 
 model Product {
@@ -501,6 +509,10 @@ model Shipment {
   labelUrl             String?
   rawDelhiveryResponse String?
   order                Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([orderId, type])
+  @@index([trackingNumber])
 }
 
 model WebhookEvent {

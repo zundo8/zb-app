@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import DOMPurify from 'isomorphic-dompurify';
 import { 
   MessageSquare, Search, Send, RefreshCcw, User, Phone, 
   Mail, ShieldAlert, Check, CheckCheck, Clock, AlertCircle, Image, 
@@ -735,7 +736,7 @@ export default function WhatsAppChatPage() {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     safeText = safeText.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline break-all inline-flex items-center gap-0.5">$1 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>');
 
-    return <span dangerouslySetInnerHTML={{ __html: safeText }} className="whitespace-pre-wrap leading-relaxed break-words block font-sans" />;
+    return <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(safeText) }} className="whitespace-pre-wrap leading-relaxed break-words block font-sans" />;
   };
 
   // Render a catalog product display card inside message list

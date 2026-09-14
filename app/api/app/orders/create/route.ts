@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
+import prisma from '@/lib/db';
 import { createOrder, createCustomer } from '@/lib/shopify-admin';
 import { extractNumericId } from '@/lib/utils';
 import { assignUniversalOrderNumber, assignFailedOrderNumber, isFailedPrefixNumber } from '@/lib/orderNumber';
@@ -24,6 +24,22 @@ function jsonError(message: string, status = 400) {
 export async function POST(req: Request) {
   // Try to get auth from request, but don't fail if missing (allows guest orders)
   const auth = getAppAuthFromRequest(req);
+
+  // If token is present, validate version against DB to support revocation
+  if (auth) {
+    try {
+      const customer = await prisma.customer.findUnique({
+        where: { id: auth.customerId },
+        select: { tokenVersion: true },
+      });
+      if (customer && auth.tokenVersion !== undefined && auth.tokenVersion < customer.tokenVersion) {
+        return NextResponse.json(
+          { success: false, error: 'Session expired. Please log in again.' },
+          { status: 401, headers: corsHeaders }
+        );
+      }
+    } catch (_) { /* proceed — don't block order on version check failure */ }
+  }
 
   try {
     const body = await req.json();

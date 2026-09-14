@@ -2,106 +2,115 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
+import { cachedAnalytics } from '@/lib/analytics-cache';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 15;
 
 // Valid platform values for allow-list validation (FIX 7)
 const VALID_PLATFORMS = ['web', 'app'] as const;
 
-// 15-second in-memory response cache to avoid repeated heavy aggregations
-const productsCache = new Map<string, { timestamp: number; data: any }>();
-const CACHE_TTL_MS = 15_000;
-
 async function handler(req: Request) {
   try {
-  const { searchParams } = new URL(req.url);
-  const from = searchParams.get('from');
-  const to = searchParams.get('to');
-  const rawPlatform = searchParams.get('platform');
-  const bypassCache = searchParams.get('bypassCache') === 'true';
+    const { searchParams } = new URL(req.url);
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const rawPlatform = searchParams.get('platform');
 
-  // Validate platform against allow-list (FIX 7)
-  const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
-  const platformFilter = platform ? { platform } : {};
+    // Validate platform against allow-list (FIX 7)
+    const platform = rawPlatform && (VALID_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null;
+    const platformFilter = platform ? { platform } : {};
 
-  const now = new Date();
-  const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-  const rawEnd = to ? new Date(to) : now;
-  const endDate = rawEnd > now ? now : rawEnd;
-  const dateFilter = { gte: startDate, lte: endDate };
+    const now = new Date();
+    const startDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    const rawEnd = to ? new Date(to) : now;
+    const endDate = rawEnd > now ? now : rawEnd;
+    const dateFilter = { gte: startDate, lte: endDate };
 
-  const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}_${platform || 'all'}`;
-  if (!bypassCache) {
-    const cached = productsCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
-      return NextResponse.json(cached.data);
-    }
-  }
+    const data = await cachedAnalytics(
+      ['products', startDate.toISOString(), endDate.toISOString(), platform || 'all'],
+      async () => {
 
-  // Execute all 3 groupBys concurrently in parallel for high performance
-  const [mostViewed, mostAddedToCart, bestSelling] = await Promise.all([
-    prisma.analyticsEvent.groupBy({
-      by: ['productId'],
-      where: { eventName: 'view_item', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
-      _count: { id: true },
-      orderBy: { _count: { productId: 'desc' } },
-      take: 20,
-    }),
-    prisma.analyticsEvent.groupBy({
-      by: ['productId'],
-      where: { eventName: 'add_to_cart', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
-      _count: { id: true },
-      orderBy: { _count: { productId: 'desc' } },
-      take: 20,
-    }),
-    prisma.analyticsEvent.groupBy({
-      by: ['productId'],
-      where: { eventName: 'purchase', createdAt: dateFilter, productId: { not: null }, ...platformFilter },
-      _count: { id: true },
-      _sum: { value: true },
-      orderBy: { _count: { productId: 'desc' } },
-      take: 20,
-    }),
+  // Execute all 3 groupBys with fast, indexed raw SQL queries with LIMIT 20
+  const platformCondition = platform ? `AND platform = $3` : '';
+  const queryArgs: any[] = platform ? [startDate, endDate, platform] : [startDate, endDate];
+
+  const [rawViewed, rawAdded, rawPurchased]: [any[], any[], any[]] = await Promise.all([
+    prisma.$queryRawUnsafe(`
+      SELECT product_id AS "productId", COUNT(*) AS count
+      FROM analytics_events
+      WHERE event_name = 'view_item'
+        AND created_at >= $1 AND created_at <= $2
+        AND product_id IS NOT NULL
+        ${platformCondition}
+      GROUP BY product_id
+      ORDER BY count DESC
+      LIMIT 20
+    `, ...queryArgs),
+    prisma.$queryRawUnsafe(`
+      SELECT product_id AS "productId", COUNT(*) AS count
+      FROM analytics_events
+      WHERE event_name = 'add_to_cart'
+        AND created_at >= $1 AND created_at <= $2
+        AND product_id IS NOT NULL
+        ${platformCondition}
+      GROUP BY product_id
+      ORDER BY count DESC
+      LIMIT 20
+    `, ...queryArgs),
+    prisma.$queryRawUnsafe(`
+      SELECT product_id AS "productId", COUNT(*) AS count, COALESCE(SUM(value), 0) AS revenue
+      FROM analytics_events
+      WHERE event_name = 'purchase'
+        AND created_at >= $1 AND created_at <= $2
+        AND product_id IS NOT NULL
+        ${platformCondition}
+      GROUP BY product_id
+      ORDER BY count DESC
+      LIMIT 20
+    `, ...queryArgs),
   ]);
 
   // Collect all unique product IDs to resolve titles
   const allProductIds = new Set<string>();
-  [...mostViewed, ...mostAddedToCart, ...bestSelling].forEach((r: any) => {
-    if (r.productId) allProductIds.add(r.productId);
+  [...rawViewed, ...rawAdded, ...rawPurchased].forEach((r: any) => {
+    if (r.productId) allProductIds.add(String(r.productId));
   });
 
   // Resolve product details from DB
   const productDetails = new Map<string, { title: string; image: string | null; handle: string | null }>();
   if (allProductIds.size > 0) {
+    const productIdsArr = Array.from(allProductIds);
     const products = await prisma.product.findMany({
       where: {
         OR: [
-          { shopifyProductId: { in: Array.from(allProductIds) } },
-          { id: { in: Array.from(allProductIds) } },
+          { shopifyProductId: { in: productIdsArr } },
+          { id: { in: productIdsArr } },
         ],
       },
       select: { id: true, shopifyProductId: true, title: true, featuredImage: true, handle: true },
     });
     for (const p of products) {
-      productDetails.set(p.shopifyProductId, { title: p.title, image: p.featuredImage, handle: p.handle });
-      productDetails.set(p.id, { title: p.title, image: p.featuredImage, handle: p.handle });
+      const info = { title: p.title, image: p.featuredImage, handle: p.handle };
+      if (p.shopifyProductId) productDetails.set(p.shopifyProductId, info);
+      if (p.id) productDetails.set(p.id, info);
     }
   }
 
   const enrich = (items: any[], includeRevenue = false) =>
     items.map(item => ({
-      productId: item.productId,
-      title: productDetails.get(item.productId || '')?.title || 'Unknown Product',
-      image: productDetails.get(item.productId || '')?.image || null,
-      handle: productDetails.get(item.productId || '')?.handle || null,
-      count: item._count.id,
-      ...(includeRevenue ? { revenue: Math.round((item._sum?.value || 0) * 100) / 100 } : {}),
+      productId: String(item.productId),
+      title: productDetails.get(String(item.productId))?.title || 'Product ' + String(item.productId).slice(-6),
+      image: productDetails.get(String(item.productId))?.image || null,
+      handle: productDetails.get(String(item.productId))?.handle || null,
+      count: Number(item.count || 0),
+      ...(includeRevenue ? { revenue: Math.round(Number(item.revenue || 0) * 100) / 100 } : {}),
     }));
 
   // Calculate view-to-cart and cart-to-purchase rates per product
-  const viewMap = new Map<string | null, number>(mostViewed.map((v: any) => [v.productId, v._count.id]));
-  const cartMap = new Map<string | null, number>(mostAddedToCart.map((v: any) => [v.productId, v._count.id]));
-  const purchaseMap = new Map<string | null, number>(bestSelling.map((v: any) => [v.productId, v._count.id]));
+  const viewMap = new Map<string, number>(rawViewed.map((v: any) => [String(v.productId), Number(v.count || 0)]));
+  const cartMap = new Map<string, number>(rawAdded.map((v: any) => [String(v.productId), Number(v.count || 0)]));
+  const purchaseMap = new Map<string, number>(rawPurchased.map((v: any) => [String(v.productId), Number(v.count || 0)]));
 
   const productRates = Array.from(allProductIds).map((pid: string) => {
     const views = viewMap.get(pid) || 0;
@@ -109,7 +118,7 @@ async function handler(req: Request) {
     const purchases = purchaseMap.get(pid) || 0;
     return {
       productId: pid,
-      title: productDetails.get(pid)?.title || 'Unknown',
+      title: productDetails.get(pid)?.title || 'Product ' + pid.slice(-6),
       views,
       addToCarts: carts,
       purchases,
@@ -118,14 +127,18 @@ async function handler(req: Request) {
     };
   }).sort((a, b) => b.views - a.views).slice(0, 20);
 
-  const responseData = {
-    mostViewed: enrich(mostViewed),
-    mostAddedToCart: enrich(mostAddedToCart),
-    bestSelling: enrich(bestSelling, true),
-    productRates,
-  };
-  productsCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
-  return NextResponse.json(responseData);
+    const responseData = {
+      mostViewed: enrich(rawViewed),
+      mostAddedToCart: enrich(rawAdded),
+      bestSelling: enrich(rawPurchased, true),
+      productRates,
+    };
+    return responseData;
+      },
+      30
+    );
+
+    return NextResponse.json(data);
   } catch (error: any) {
     console.error('[Analytics Products] Error:', error.message);
     return NextResponse.json({

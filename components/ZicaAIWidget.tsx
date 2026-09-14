@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useClaude, type ChatMessage } from "@/lib/hooks/useClaude";
 import { useTheme } from "next-themes";
+import DOMPurify from 'isomorphic-dompurify';
 
 // ─── Helpers ─────────────────────────────────────
 
@@ -215,7 +216,7 @@ export default function ZicaAIWidget() {
                         }}
                       >
                         <div className={`text-[12.5px] leading-[1.7] font-medium text-foreground/85 ${msg.isError ? "text-red-500" : ""}`}
-                          dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
+                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formatContent(msg.content)) }}
                         />
                         
                         <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">

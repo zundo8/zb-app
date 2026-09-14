@@ -6,6 +6,7 @@
 
 import prisma from './db';
 import { parseShopifyRichText } from './utils';
+import { toE164 } from './shopify-phone';
 
 export { parseShopifyRichText };
 
@@ -158,36 +159,60 @@ async function shopifyFetchAll<T>(endpoint: string, params?: Record<string, stri
 
 async function shopifyPost<T>(endpoint: string, body: unknown): Promise<T> {
   const url = await adminUrl(endpoint);
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: await headers(),
-    body: JSON.stringify(body),
-  });
+  const MAX = 4;
+  for (let attempt = 0; attempt < MAX; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: await headers(),
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok) {
+    if (res.ok) {
+      return res.json();
+    }
+
+    if ((res.status === 429 || res.status >= 500) && attempt < MAX - 1) {
+      const ra = parseInt(res.headers.get('Retry-After') || '0', 10);
+      const delay = ra > 0 ? ra * 1000 : Math.min(1000 * Math.pow(2, attempt), 4000);
+      console.warn(`[Shopify Admin] POST ${endpoint} returned ${res.status}. Retrying in ${delay}ms (attempt ${attempt + 1}/${MAX})...`);
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+
     const text = await res.text();
     console.error(`Shopify Admin API POST error [${res.status}]: ${text}`);
     throw new Error(`Shopify API ${res.status}: ${text}`);
   }
-
-  return res.json();
+  throw new Error('Shopify API: exhausted retries for POST');
 }
 
 async function shopifyPatch<T>(endpoint: string, body: unknown): Promise<T> {
   const url = await adminUrl(endpoint);
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers: await headers(),
-    body: JSON.stringify(body),
-  });
+  const MAX = 4;
+  for (let attempt = 0; attempt < MAX; attempt++) {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: await headers(),
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok) {
+    if (res.ok) {
+      return res.json();
+    }
+
+    if ((res.status === 429 || res.status >= 500) && attempt < MAX - 1) {
+      const ra = parseInt(res.headers.get('Retry-After') || '0', 10);
+      const delay = ra > 0 ? ra * 1000 : Math.min(1000 * Math.pow(2, attempt), 4000);
+      console.warn(`[Shopify Admin] PUT ${endpoint} returned ${res.status}. Retrying in ${delay}ms (attempt ${attempt + 1}/${MAX})...`);
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+
     const text = await res.text();
     console.error(`Shopify Admin API PUT error [${res.status}]: ${text}`);
     throw new Error(`Shopify API ${res.status}: ${text}`);
   }
-
-  return res.json();
+  throw new Error('Shopify API: exhausted retries for PUT');
 }
 
 // ─── Orders ──────────────────────────────────────────────────────────
@@ -282,7 +307,24 @@ export async function fetchOrder(orderId: string): Promise<ShopifyOrder> {
 }
 
 export async function createOrder(order: any): Promise<ShopifyOrder> {
-  const data = await shopifyPost<{ order: ShopifyOrder }>('orders.json', { order });
+  const normalized = { ...order };
+  if (normalized.phone) {
+    const e164 = toE164(normalized.phone);
+    if (e164) normalized.phone = e164;
+  }
+  if (normalized.customer && normalized.customer.phone) {
+    const e164 = toE164(normalized.customer.phone);
+    if (e164) normalized.customer.phone = e164;
+  }
+  if (normalized.shipping_address && normalized.shipping_address.phone) {
+    const e164 = toE164(normalized.shipping_address.phone);
+    if (e164) normalized.shipping_address.phone = e164;
+  }
+  if (normalized.billing_address && normalized.billing_address.phone) {
+    const e164 = toE164(normalized.billing_address.phone);
+    if (e164) normalized.billing_address.phone = e164;
+  }
+  const data = await shopifyPost<{ order: ShopifyOrder }>('orders.json', { order: normalized });
   return data.order;
 }
 
@@ -357,7 +399,21 @@ export async function fetchAllCustomers(limit = 250): Promise<ShopifyCustomer[]>
 }
 
 export async function createCustomer(customer: any): Promise<ShopifyCustomer> {
-  const data = await shopifyPost<{ customer: ShopifyCustomer }>('customers.json', { customer });
+  const normalized = { ...customer };
+  if (normalized.phone) {
+    const e164 = toE164(normalized.phone);
+    if (e164) normalized.phone = e164;
+  }
+  if (Array.isArray(normalized.addresses)) {
+    normalized.addresses = normalized.addresses.map((addr: any) => {
+      if (addr?.phone) {
+        const e164 = toE164(addr.phone);
+        return e164 ? { ...addr, phone: e164 } : addr;
+      }
+      return addr;
+    });
+  }
+  const data = await shopifyPost<{ customer: ShopifyCustomer }>('customers.json', { customer: normalized });
   return data.customer;
 }
 

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { voidAllExpiredCredits, voidExpiredCredits } from "@/lib/storeCreditsHelper";
+import { requirePermission, handleAuthError } from "@/lib/auth/rbac";
 
 export async function GET(req: Request) {
   try {
+    await requirePermission('FINANCIAL', 'view');
     const { searchParams } = new URL(req.url);
     const customerId = searchParams.get("customerId");
     const search = searchParams.get("search")?.trim();
@@ -70,6 +72,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ customers, total, overview });
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error("Store Credit GET Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -77,6 +82,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    await requirePermission('FINANCIAL', 'edit');
     const body = await req.json();
     const { customerId, amount, type, description, orderId, returnId } = body;
 
@@ -112,6 +118,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(result);
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error("Store Credit POST Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -48,9 +48,9 @@ export async function POST(req: NextRequest) {
     const guestZip = req.cookies.get('zb_guest_zp')?.value;
 
     // ── IP Geolocation Fallback ──
-    // If all client-side address cookies are absent (user denied/ignored location prompt)
-    // AND the event is not PURCHASE (that uses checkout Google Maps data),
+    // If all client-side address cookies are absent (user denied/ignored location prompt),
     // look up city/state/country from the visitor's IP address.
+    // This runs for ALL events including PURCHASE to maximise geo coverage.
     let ipGeo: Awaited<ReturnType<typeof lookupIpGeo>> = null;
     const hasClientGeo = !!(guestCountry || guestState || guestCity || guestZip);
     if (!hasClientGeo) {

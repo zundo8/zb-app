@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/options';
 import prisma from '@/lib/db';
 import { createRefund } from '@/lib/shopify-admin';
+import { requirePermission, handleAuthError } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,10 +13,8 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = (await getServerSession(authOptions as any)) as any;
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized: Admin session required.' }, { status: 401 });
-    }
+    const session = await requirePermission('RETURNS_EXCHANGES', 'edit');
+    const user = session.user as { email?: string | null; role?: string };
 
     const refundId = params.id;
     const body = await req.json().catch(() => ({}));
@@ -161,7 +158,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
               notes: {
                 refundRequestId: targetEntity.id,
                 orderId: order.id,
-                approvedBy: session.user.email || 'Admin',
+                approvedBy: user.email || 'Admin',
                 reason: 'Admin Approved Customer Return Refund'
               }
             });
@@ -239,7 +236,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const itemsToRestock = isRequestGroup ? returnRequest!.returns : [standaloneReturn!];
       for (const ret of itemsToRestock) {
         if (ret.sku) {
-          await restoreSkuToStock(ret.sku, 'RETURN_RESTOCK', `Admin Approved Refund (${session.user.email || 'Admin'})`);
+          await restoreSkuToStock(ret.sku, 'RETURN_RESTOCK', `Admin Approved Refund (${user.email || 'Admin'})`);
         }
       }
     } catch (skuErr: any) {
@@ -284,6 +281,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
 
   } catch (error: any) {
+    if (error?.message === '401' || error?.message === '403') {
+      return handleAuthError(error);
+    }
     console.error('POST /api/admin/refunds/[id]/approve Error:', error);
     return NextResponse.json({ error: error?.message || 'Failed to approve refund' }, { status: 500 });
   }

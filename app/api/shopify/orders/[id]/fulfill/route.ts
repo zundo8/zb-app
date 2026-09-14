@@ -92,20 +92,23 @@ export async function POST(
 
     // 5. Update local DB
     try {
-      await prisma.order.update({
-        where: { 
-          OR: [
-            { shopifyOrderId: orderId },
-            { id: orderId }
-          ]
-        },
-        data: { 
-          fulfillmentStatus: 'fulfilled',
-          deliveryStatus: trackingNumber ? 'confirmed' : undefined
-        },
+      const targetOrder = await prisma.order.findFirst({
+        where: { OR: [{ shopifyOrderId: orderId }, { id: orderId }] },
+        select: { id: true },
       });
-    } catch (_e) {
-      // Order may not be in local DB yet, ignore
+      if (targetOrder) {
+        await prisma.order.update({
+          where: { id: targetOrder.id },
+          data: {
+            fulfillmentStatus: 'fulfilled',
+            deliveryStatus: trackingNumber ? 'confirmed' : undefined,
+          },
+        });
+      } else {
+        console.warn(`[Fulfill] No local Order row for ${orderId}; skipped DB status write`);
+      }
+    } catch (e) {
+      console.error(`[Fulfill] Failed to persist fulfillmentStatus for ${orderId}:`, e);
     }
 
     return NextResponse.json({ 

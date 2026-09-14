@@ -150,6 +150,34 @@ export function buildBrowserIdentity(): Record<string, string> {
   return identity;
 }
 
+/**
+ * Map a raw {em, ph, fn, ln, ct, st, zp, country, external_id} object
+ * to Snap Pixel advanced-matching field names. Raw values are left raw
+ * (Snap hashes client-side); already-hashed SHA-256 values use user_hashed_*.
+ * Empty/undefined values are stripped.
+ */
+export function mapOverrideToSnapFields(src: Record<string, string | undefined>): Record<string, string> {
+  const out: Record<string, string> = {};
+  const em = src.em?.trim();
+  if (em) {
+    if (isSha256Hash(em)) out.user_hashed_email = em.toLowerCase();
+    else out.user_email = em.toLowerCase();
+  }
+  const ph = src.ph?.trim();
+  if (ph) {
+    if (isSha256Hash(ph)) out.user_hashed_phone_number = ph.toLowerCase();
+    else out.user_phone_number = ph;
+  }
+  if (src.fn?.trim()) out.firstname = src.fn.trim();
+  if (src.ln?.trim()) out.lastname = src.ln.trim();
+  if (src.ct?.trim()) out.geo_city = src.ct.trim();
+  if (src.st?.trim()) out.geo_region = src.st.trim();
+  if (src.zp?.trim()) out.geo_postal_code = src.zp.trim();
+  if (src.country?.trim()) out.geo_country = src.country.trim();
+  if (src.external_id?.trim()) out.external_id = src.external_id.trim();
+  return out;
+}
+
 let isInitialized = false;
 
 /**
@@ -175,17 +203,22 @@ export const initSnapPixel = (userData?: Record<string, any>) => {
  * Send client-side event via snaptr('track', eventName, params, options).
  * Re-inits the pixel with fresh identity cookies before each track call
  * so that late-arriving checkout PII (set during address entry) is captured.
+ * @param identityOverride — raw or pre-hashed PII (em, ph, fn, ln, ct, st, zp, country, external_id)
+ *   merged on top of cookie identity so checkout/purchase events carry full PII even without cookies.
  */
 export const trackSnapClientEvent = (
   eventName: string,
   params: Record<string, any> = {},
-  eventId?: string
+  eventId?: string,
+  identityOverride?: Record<string, string | undefined>
 ) => {
   if (!SNAP_PIXEL_ID) return;
   withSnaptr((snaptr) => {
-    // Re-init with current identity cookies so the pixel picks up any
-    // PII that arrived since the last init (e.g. checkout address entry)
-    const identity = buildBrowserIdentity();
+    // Merge cookie identity with any explicit override (override wins)
+    const cookieIdentity = buildBrowserIdentity();
+    const overrideIdentity = identityOverride ? mapOverrideToSnapFields(identityOverride) : {};
+    const identity = { ...cookieIdentity, ...overrideIdentity };
+
     if (Object.keys(identity).length > 0) {
       snaptr('init', SNAP_PIXEL_ID, identity);
       isInitialized = true;

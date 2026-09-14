@@ -95,7 +95,7 @@ export function useSnapEvents() {
       description: contentName,
     };
 
-    trackSnapClientEvent('VIEW_CONTENT', customData, base.eventId);
+    trackSnapClientEvent('VIEW_CONTENT', customData, base.eventId, userData);
     sendToSnapCapiRoute({ ...base, customData, userData });
   };
 
@@ -176,7 +176,7 @@ export function useSnapEvents() {
       item_ids: contentIds,
     };
 
-    trackSnapClientEvent('START_CHECKOUT', customData, base.eventId);
+    trackSnapClientEvent('START_CHECKOUT', customData, base.eventId, userData);
     sendToSnapCapiRoute({ ...base, customData, userData });
   };
 
@@ -193,7 +193,7 @@ export function useSnapEvents() {
       item_ids: contentIds,
     };
 
-    trackSnapClientEvent('ADD_BILLING', customData, base.eventId);
+    trackSnapClientEvent('ADD_BILLING', customData, base.eventId, userData);
     sendToSnapCapiRoute({ ...base, customData, userData });
   };
 
@@ -219,7 +219,8 @@ export function useSnapEvents() {
       transaction_id: orderId,
     };
 
-    trackSnapClientEvent('PURCHASE', customData, base.eventId);
+    // FIX 1b: forward identity to the BROWSER pixel (was previously CAPI-only)
+    trackSnapClientEvent('PURCHASE', customData, base.eventId, userData);
     sendToSnapCapiRoute({ ...base, customData, userData });
   };
 

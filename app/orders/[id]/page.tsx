@@ -274,6 +274,9 @@ export default function OrderDetailsPage() {
     if (s.includes('cancel') || ['payment_failed', 'failed'].includes(s)) {
       return false;
     }
+    if (['fulfilled', 'shipped', 'dispatched', 'delivered'].includes(f)) {
+      return false;
+    }
     
     return (f === 'unfulfilled' || f === 'pending' || f === '') && !isDelivered;
   }, [order, isDelivered]);

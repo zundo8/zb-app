@@ -2,8 +2,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
+import { cachedAnalytics } from '@/lib/analytics-cache';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 15;
 
 export interface VisitorPoint {
   countryCode: string;
@@ -16,11 +18,14 @@ export interface VisitorPoint {
 
 async function handler() {
   try {
-    const now = new Date();
-    const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000);
+    const data = await cachedAnalytics(
+      ['realtime'],
+      async () => {
+        const now = new Date();
+        const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
-    // Active sessions (last 5 minutes)
-    const activeSessions = await prisma.analyticsSession.findMany({
+        // Active sessions (last 5 minutes)
+        const activeSessions = await prisma.analyticsSession.findMany({
       where: { lastActiveAt: { gte: fiveMinAgo } },
       orderBy: { lastActiveAt: 'desc' },
       take: 100,
@@ -120,26 +125,31 @@ async function handler() {
       .slice(0, 20)
       .map(([page, count]) => ({ page, count }));
 
-    return NextResponse.json({
-      summary: {
-        totalActive,
-        webActive,
-        appActive,
-        newVisitors,
-        returningVisitors,
-        unknownCount,
+        return {
+          summary: {
+            totalActive,
+            webActive,
+            appActive,
+            newVisitors,
+            returningVisitors,
+            unknownCount,
+          },
+          breakdowns: {
+            device: deviceBreakdown,
+            browser: browserBreakdown,
+            os: osBreakdown,
+            country: countryBreakdown,
+          },
+          visitorPoints,
+          unknownCount,
+          topPages,
+          sessions: sessions.slice(0, 50),
+        };
       },
-      breakdowns: {
-        device: deviceBreakdown,
-        browser: browserBreakdown,
-        os: osBreakdown,
-        country: countryBreakdown,
-      },
-      visitorPoints,
-      unknownCount,
-      topPages,
-      sessions: sessions.slice(0, 50),
-    });
+      5
+    );
+
+    return NextResponse.json(data);
   } catch (error: any) {
     console.error('[Analytics Realtime] Error:', error.message);
     return NextResponse.json({

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ShoppingBag, Loader2, Bookmark, X, Plus, ChevronLeft, ArrowLeft, ArrowRight } from "lucide-react";
 import { useMetaEvents } from "@/hooks/useMetaEvents";
 import { useSnapEvents } from "@/hooks/useSnapEvents";
+import { useOpenAiEvents } from "@/hooks/useOpenAiEvents";
 import { ShopifyProduct } from "@/lib/shopify-admin";
 import { parseShopifyRichText, formatProductDescription, matchKey } from "@/lib/utils";
 import { useCountry } from "@/lib/country-context";
@@ -119,11 +120,13 @@ export default function ProductDetailsClient({
   const { formatPrice: fmtPrice } = useCountry();
   const { trackViewContent, trackAddToCart, trackAddToWishlist } = useMetaEvents();
   const { trackViewContent: trackSnapViewContent, trackAddToCart: trackSnapAddToCart, trackAddToWishlist: trackSnapAddToWishlist } = useSnapEvents();
+  const { trackContentsViewed: trackOaiContentsViewed, trackItemsAdded: trackOaiItemsAdded } = useOpenAiEvents();
 
   useEffect(() => {
     const variantId = product.variants?.[0]?.id?.toString() || product.id.toString();
     trackViewContent(variantId, product.title, parseFloat(product.variants?.[0]?.price || "0"), 'INR', product.product_type);
     trackSnapViewContent(variantId, product.title, parseFloat(product.variants?.[0]?.price || "0"), 'INR', product.product_type);
+    trackOaiContentsViewed(variantId, product.title, parseFloat(product.variants?.[0]?.price || "0"), 'INR', product.product_type);
     zbTrackViewItem(product.id.toString(), variantId, parseFloat(product.variants?.[0]?.price || "0"), { title: product.title });
   }, [product.id, product.title, product.product_type]);
 
@@ -295,6 +298,7 @@ export default function ProductDetailsClient({
     // Track AddToCart in Meta Pixel & Snap Pixel
     trackAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
     trackSnapAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
+    trackOaiItemsAdded(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
 
     setIsAdded(true);
     toast.success(`${product.title} added to bag`);
@@ -335,6 +339,7 @@ export default function ProductDetailsClient({
     // Track AddToCart in Meta Pixel & Snap Pixel
     trackAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
     trackSnapAddToCart(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
+    trackOaiItemsAdded(variant.id.toString(), product.title, parseFloat(variant.price || "0"), 'INR', product.product_type);
 
     router.push("/checkout");
   };
