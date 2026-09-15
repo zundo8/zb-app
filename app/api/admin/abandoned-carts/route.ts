@@ -104,7 +104,10 @@ export async function GET(req: Request) {
     const delaySetting = await prisma.whatsAppSetting.findFirst({
       where: { key: "delay_abandoned_cart_step1" }
     });
-    const delayMinutes = delaySetting ? (parseInt(delaySetting.value, 10) || 5) : 5;
+    const rawDelayMinutes = delaySetting ? (parseInt(delaySetting.value, 10) || 15) : 15;
+    // Enforce a 15-minute minimum floor so live browsing sessions
+    // are not prematurely classified as "abandoned" in the admin view.
+    const delayMinutes = Math.max(rawDelayMinutes, 15);
     const abandonmentThreshold = new Date(Date.now() - delayMinutes * 60 * 1000);
 
     const andClauses: any[] = [
@@ -265,11 +268,17 @@ export async function GET(req: Request) {
       .map((cart: any) => {
         const order = cart.convertedOrder;
         const isValidConverted = isOrderValidConverted(order);
-        const isExplicitlyConverted = cart.status === "converted" || Boolean(cart.convertedOrderId);
+        // Only treat as converted if status is explicitly 'converted' AND (no linked order OR linked order is valid)
+        // A cart with convertedOrderId pointing to a failed/cancelled order should NOT be "converted"
+        const isExplicitlyConverted = cart.status === "converted";
+        const hasFailedLinkedOrder = Boolean(cart.convertedOrderId) && !isValidConverted && order;
 
         let computedStatus = cart.status;
-        if (isValidConverted || isExplicitlyConverted) {
+        if (isValidConverted || (isExplicitlyConverted && !hasFailedLinkedOrder)) {
           computedStatus = "converted";
+        } else if (hasFailedLinkedOrder) {
+          // Cart was linked to a failed/cancelled order — treat as abandoned, not converted
+          computedStatus = "abandoned";
         } else if (cart.status === "expired") {
           computedStatus = "expired";
         } else if (cart.lastActivityAt <= abandonmentThreshold || cart.status === "abandoned") {
@@ -278,10 +287,16 @@ export async function GET(req: Request) {
           computedStatus = "active";
         }
 
+        // Recalculate subtotal from items for accuracy (prevents stale ₹ values)
+        const recalcSubtotal = (cart.items && cart.items.length > 0)
+          ? cart.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0)
+          : 0;
+
         return {
           ...cart,
           convertedOrder: order || null,
-          convertedOrderId: cart.convertedOrderId || (order ? order.id : null),
+          convertedOrderId: cart.convertedOrderId || (isValidConverted && order ? order.id : null),
+          subtotal: recalcSubtotal || cart.subtotal || 0,
           computedStatus,
           previousConversion: previousConversionMap.get(cart.id) || null
         };
@@ -312,7 +327,9 @@ export async function GET(req: Request) {
     // KPI counts (liveCount, abandonedCount, convertedCount, expiredCount) remain row-level
     // from the DB. With FIX 1 enforcing single-active-cart at write time, these counts
     // already represent people (not duplicate rows). No further de-dupe on KPIs needed.
-    const total = statusFilter === "abandoned" ? abandonedCount : rawTotal;
+    // Adjust total to reflect identity de-dupe so pagination is accurate.
+    const dedupeRemovedCount = mappedCarts.length - dedupedCarts.length;
+    const total = Math.max(0, (statusFilter === "abandoned" ? abandonedCount : rawTotal) - dedupeRemovedCount);
 
     return NextResponse.json({
       carts: dedupedCarts,

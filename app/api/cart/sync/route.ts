@@ -387,6 +387,15 @@ export async function POST(req: Request) {
           syncedCount = result.count;
         }
       }
+
+      // Reset subtotal to 0 when cart is emptied so abandoned carts admin
+      // page doesn't display stale ₹ values for empty carts.
+      if (syncedCount === 0) {
+        await tx.cart.update({
+          where: { id: cart.id },
+          data: { subtotal: 0 },
+        });
+      }
     });
 
     return NextResponse.json({ success: true, count: syncedCount }, { headers: corsHeaders });

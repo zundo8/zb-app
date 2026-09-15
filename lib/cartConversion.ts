@@ -37,8 +37,10 @@ export const validConvertedOrderClause = {
         }
       }
     },
-    { status: 'converted' },
-    { convertedOrderId: { not: null } }
+    { status: 'converted' }
+    // NOTE: Removed `{ convertedOrderId: { not: null } }` — having a linked order ID
+    // alone does NOT prove conversion. The order may be failed/cancelled/voided.
+    // Only `status: 'converted'` or a validated convertedOrder relation should count.
   ]
 };
 
